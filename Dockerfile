@@ -1,5 +1,5 @@
-FROM python:3.10-slim
-WORKDIR /app
-COPY . .
-RUN pip install --no-cache-dir -r requirements.txt
-CMD ["uvicorn", "main.py:app", "--host", "0.0.0.0", "--port", "8080"]
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
