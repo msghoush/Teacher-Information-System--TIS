@@ -108,5 +108,8 @@ def get_all_users():
 # --- 5. THE RENDER FIX ---
 # This block tells the code to use the port Render provides
 if __name__ == "__main__":
+    import uvicorn
+    import os
+    # Render provides a PORT environment variable, we must use it
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
