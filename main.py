@@ -1,12 +1,15 @@
+import os
+import uvicorn
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from enum import Enum
 from typing import List, Optional
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 # --- DATABASE SETUP ---
+# Use an absolute path for the database to ensure Render finds it
 DATABASE_URL = "sqlite:///./tis_master.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -20,16 +23,14 @@ class UserRole(str, Enum):
     teacher = "Teacher"
 
 class UserDB(Base):
-    """Master table for EVERYONE in the school"""
     __tablename__ = "users"
-    id = Column(Integer, primary_key=True) # Official School ID
+    id = Column(Integer, primary_key=True)
     name = Column(String)
     branch = Column(String)
-    role = Column(String) # Admin, Supervisor, or Teacher
+    role = Column(String)
     status = Column(String, default="Active")
 
 class BranchInfrastructureDB(Base):
-    """Table to manage sections and physical capacity"""
     __tablename__ = "branch_infrastructure"
     id = Column(Integer, primary_key=True)
     branch_name = Column(String)
@@ -39,7 +40,7 @@ class BranchInfrastructureDB(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# --- 2. SCHEMAS (Data Entry) ---
+# --- 2. SCHEMAS ---
 
 class UserCreate(BaseModel):
     id: int
@@ -57,7 +58,10 @@ app = FastAPI(title="TIS - Unified User & Infrastructure System")
 
 # --- 4. ROUTES ---
 
-# Create any type of user (Teacher, Supervisor, or Admin)
+@app.get("/")
+def home():
+    return {"status": "System Online", "message": "Welcome to TIS"}
+
 @app.post("/users/register")
 def register_user(user: UserCreate):
     db = SessionLocal()
@@ -72,7 +76,6 @@ def register_user(user: UserCreate):
     db.close()
     return {"message": f"Successfully registered {user.name} as {user.role}"}
 
-# Update Sections (The 'Expansion' Feature)
 @app.post("/infrastructure/update-sections")
 def update_sections(data: SectionUpdate):
     db = SessionLocal()
@@ -98,4 +101,12 @@ def update_sections(data: SectionUpdate):
 @app.get("/users/all")
 def get_all_users():
     db = SessionLocal()
-    return db.query(UserDB).all()
+    users = db.query(UserDB).all()
+    db.close()
+    return users
+
+# --- 5. THE RENDER FIX ---
+# This block tells the code to use the port Render provides
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
