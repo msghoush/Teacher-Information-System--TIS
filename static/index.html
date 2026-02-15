@@ -5,7 +5,7 @@
     <title>TIS Master Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 font-sans min-h-screen">
+<body class="bg-gray-50 font-sans min-h-screen flex">
     <div id="login-page" class="fixed inset-0 bg-blue-900 flex items-center justify-center z-50">
         <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
             <h1 class="text-3xl font-bold mb-6 text-center text-blue-900">TIS System Login</h1>
@@ -23,56 +23,78 @@
         </div>
     </div>
 
-    <div id="main-app" class="hidden flex">
+    <div id="main-app" class="hidden flex w-full">
         <div class="w-72 bg-slate-800 text-white min-h-screen flex flex-col">
             <div class="p-6 border-b border-slate-700">
-                <h2 id="display_user" class="text-xl font-bold">Mohamad El Ghoche</h2> <p id="display_context" class="text-sm text-slate-400">Obhur | 2025–2026</p> </div>
+                <h2 class="text-xl font-bold">Mohamad El Ghoche</h2>
+                <p id="ctx-info" class="text-sm text-slate-400">Obhur | 2025–2026</p>
+            </div>
             <nav class="flex-grow p-4 space-y-2">
-                <button onclick="nav('admin')" class="w-full text-left p-3 hover:bg-slate-700 rounded">Admin Setup</button>
-                <button onclick="nav('subjects')" class="w-full text-left p-3 hover:bg-slate-700 rounded">Subject Module</button>
-                <button onclick="nav('teachers')" class="w-full text-left p-3 hover:bg-slate-700 rounded">Teacher Registry</button>
-                <button onclick="nav('plan')" class="w-full text-left p-3 hover:bg-slate-700 rounded">School Planning</button>
-                <button onclick="nav('report')" class="w-full text-left p-3 bg-green-700 rounded mt-6">Teacher Sufficiency Report</button>
+                <button onclick="nav('admin')" class="w-full text-left p-3 hover:bg-slate-700 rounded">1. Admin Setup</button>
+                <button onclick="nav('subjects')" class="w-full text-left p-3 hover:bg-slate-700 rounded">2. Subject Module</button>
+                <button onclick="nav('teachers')" class="w-full text-left p-3 hover:bg-slate-700 rounded">3. Teacher Registry</button>
+                <button onclick="nav('plan')" class="w-full text-left p-3 hover:bg-slate-700 rounded">4. School Planning</button>
+                <button onclick="nav('report')" class="w-full text-left p-3 bg-green-700 rounded mt-6">5. Final Gap Report</button>
             </nav>
-            <div class="p-4 text-xs text-right opacity-50 border-t border-slate-700">
-                Developed by Mohamad El Ghoche </div>
+            <div class="p-4 text-xs text-right opacity-50">Developed by Mohamad El Ghoche</div>
         </div>
 
-        <main class="flex-grow p-10 overflow-y-auto">
-            <div id="plan-view" class="view hidden">
-                <h1 class="text-3xl font-bold mb-8 text-slate-800">Intelligent School Planning</h1>
-                <div class="bg-white rounded-xl shadow-lg p-6">
-                    <table class="w-full border-collapse">
-                        <thead><tr class="bg-slate-100"><th class="p-4 border">Grade Level</th><th class="p-4 border">Current Sections</th><th class="p-4 border">Proposed Sections</th></tr></thead>
-                        <tbody id="planning-table"></tbody>
-                    </table>
-                    <button class="mt-6 bg-blue-600 text-white px-8 py-3 rounded-lg font-bold">Save Infrastructure Plan</button>
+        <main class="flex-grow p-10 bg-slate-50 overflow-y-auto">
+            
+            <div id="admin-view" class="view hidden">
+                <h2 class="text-2xl font-bold mb-6">Admin: System Users</h2>
+                <div class="bg-white p-6 rounded shadow grid grid-cols-2 gap-4">
+                    <input type="text" placeholder="New User ID (9 Digits)" class="border p-2 rounded">
+                    <input type="text" placeholder="Full Name" class="border p-2 rounded">
+                    <select class="border p-2 rounded"><option>Admin</option><option>Branch User</option></select>
+                    <button class="bg-slate-800 text-white p-2 rounded">Create User</button>
                 </div>
             </div>
 
-            <div id="report-view" class="view hidden">
-                <div class="flex justify-between items-center mb-8">
-                    <h1 class="text-3xl font-bold text-green-800">📊 Teacher Sufficiency Report</h1>
-                    <div class="space-x-2">
-                        <button onclick="window.print()" class="bg-slate-800 text-white px-4 py-2 rounded">Print Button</button> <button class="bg-red-700 text-white px-4 py-2 rounded">Export to PDF</button> </div>
+            <div id="subjects-view" class="view hidden">
+                <h2 class="text-2xl font-bold mb-6">Subject Setup</h2>
+                <div class="bg-white p-6 rounded shadow grid grid-cols-3 gap-4">
+                    <input id="s_code" type="text" placeholder="Subject Code (e.g. ENG101)" class="border p-2 rounded text-sm">
+                    <input id="s_name" type="text" placeholder="Subject Name" class="border p-2 rounded text-sm">
+                    <input id="s_hours" type="number" placeholder="Weekly Hours" class="border p-2 rounded text-sm">
+                    <button class="bg-blue-600 text-white p-2 rounded col-span-3 font-bold">Add Subject to Branch</button>
                 </div>
-                <div class="bg-white p-8 rounded-xl shadow-lg border-t-8 border-green-600">
-                    <table class="w-full text-left">
-                        <thead><tr class="border-b-2"><th class="pb-4">Subject</th><th class="pb-4">Required Hours</th><th class="pb-4">Available Hours</th><th class="pb-4">Difference</th><th class="pb-4">Needs</th></tr></thead>
-                        <tbody id="report-rows"></tbody>
+            </div>
+
+            <div id="teachers-view" class="view hidden">
+                <h2 class="text-2xl font-bold mb-6">Teacher Information</h2>
+                <div class="bg-white p-6 rounded shadow space-y-4">
+                    <div class="grid grid-cols-3 gap-4">
+                        <input id="t_id" type="number" placeholder="Teacher ID (9 Digits)" class="border p-2 rounded">
+                        <input id="t_f" type="text" placeholder="First Name" class="border p-2 rounded">
+                        <input id="t_m" type="text" placeholder="Middle Name" class="border p-2 rounded">
+                        <input id="t_l" type="text" placeholder="Last Name" class="border p-2 rounded">
+                        <input id="t_max" type="number" value="24" class="border p-2 rounded">
+                    </div>
+                    <button class="w-full bg-blue-600 text-white p-3 rounded font-bold">Register Teacher Profile</button>
+                </div>
+            </div>
+
+            <div id="plan-view" class="view">
+                <h2 class="text-2xl font-bold mb-6 text-slate-800">Section Planning (KG1 - G12)</h2>
+                <div class="bg-white rounded shadow p-4">
+                    <table class="w-full border-collapse">
+                        <thead><tr class="bg-slate-100"><th class="p-2 border">Grade</th><th class="p-2 border text-sm">Current Sections</th><th class="p-2 border text-sm">Proposed Sections</th></tr></thead>
+                        <tbody id="plan-rows"></tbody>
                     </table>
                 </div>
             </div>
+
         </main>
     </div>
 
     <script>
         function handleLogin() {
-            // Requirement: ID must be numeric only [cite: 177]
-            const idInput = document.getElementById('login_id').value;
-            if(!idInput || idInput.length !== 9) { alert("User ID must be 9 digits"); return; }
+            const id = document.getElementById('login_id').value;
+            if(id.length !== 9) { alert("ID must be 9 digits"); return; }
             document.getElementById('login-page').classList.add('hidden');
             document.getElementById('main-app').classList.remove('hidden');
+            document.getElementById('ctx-info').innerText = `${document.getElementById('login_branch').value} | ${document.getElementById('login_year').value}`;
         }
 
         function nav(section) {
@@ -80,11 +102,11 @@
             document.getElementById(section + '-view').classList.remove('hidden');
         }
 
-        // Logic for auto-calculating rows KG1 to Grade 12 [cite: 91]
+        // Build Table
         const grades = ["KG1", "KG2", "KG3", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12"];
-        const pTable = document.getElementById('planning-table');
+        const tbody = document.getElementById('plan-rows');
         grades.forEach(g => {
-            pTable.innerHTML += `<tr class="hover:bg-slate-50"><td class="p-4 border font-bold">${g}</td><td class="p-4 border"><input type="number" class="w-full text-center" value="0"></td><td class="p-4 border"><input type="number" class="w-full text-center" value="0"></td></tr>`;
+            tbody.innerHTML += `<tr><td class="p-2 border font-bold">${g}</td><td class="p-2 border"><input type="number" class="w-full text-center" value="0"></td><td class="p-2 border"><input type="number" class="w-full text-center" value="0"></td></tr>`;
         });
     </script>
 </body>
