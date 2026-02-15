@@ -4,65 +4,88 @@
     <title>TIS Master System</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-100 min-h-screen">
-    <div id="login-screen" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50">
-        <div class="bg-white p-8 rounded shadow-2xl w-96">
-            <h1 class="text-2xl font-bold mb-6 text-center text-slate-800">TIS Secure Portal</h1>
-            <input id="u_id" type="text" placeholder="Username (ID)" class="w-full border p-2 mb-4 rounded">
-            <input id="u_pass" type="password" placeholder="Password" class="w-full border p-2 mb-6 rounded">
-            <button onclick="handleLogin()" class="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">LOGIN</button>
-        </div>
+<body class="bg-slate-100 min-h-screen flex">
+    <div class="w-64 bg-slate-800 text-white min-h-screen p-6">
+        <h2 class="text-xl font-bold mb-10 border-b pb-4">TIS DASHBOARD</h2>
+        <nav class="space-y-4">
+            <button onclick="nav('admin')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">1. Admin Setup</button>
+            <button onclick="nav('teachers')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">2. Teacher Registry</button>
+            <button onclick="nav('plan')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">3. Supervisor Planning</button>
+            <button onclick="nav('summary')" class="block w-full text-left p-2 bg-green-600 rounded mt-8">4. FINAL GAP REPORT</button>
+        </nav>
     </div>
 
-    <div id="app" class="hidden flex">
-        <div class="w-64 bg-slate-800 text-white min-h-screen p-6">
-            <h2 class="text-xl font-bold mb-10 border-b pb-4">TIS DASHBOARD</h2>
-            <nav class="space-y-4">
-                <button onclick="nav('setup')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">1. Admin Setup</button>
-                <button onclick="nav('teachers')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">2. Teacher Registry</button>
-                <button onclick="nav('plan')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">3. Supervisor Planning</button>
-                <button onclick="nav('summary')" class="block w-full text-left p-2 bg-green-600 rounded mt-8">4. FINAL GAP REPORT</button>
-            </nav>
-        </div>
-
-        <div class="flex-1 p-10">
-            <div id="plan-view" class="view hidden">
-                <h2 class="text-3xl font-bold mb-6 text-slate-800">Infrastructure & Planning</h2>
-                <div class="bg-white p-6 rounded shadow-sm">
-                    <table class="w-full border-collapse">
-                        <thead><tr class="bg-slate-200"><th class="p-3 border">Grade Level</th><th class="p-3 border">Current Sections</th><th class="p-3 border">Proposed Sections</th></tr></thead>
-                        <tbody id="gradeRows"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div id="summary-view" class="view hidden">
-                <h2 class="text-3xl font-bold mb-6 text-green-800">Final Summary & Teacher Needs</h2>
-                <div id="calculation-output" class="bg-white p-8 rounded border-l-8 border-green-500 shadow-md text-xl">
-                    The system will compare: (Proposed Sections × Subject Hours) ÷ 24 Max Load.
-                </div>
+    <div class="flex-1 p-10">
+        
+        <div id="admin-view" class="view">
+            <h2 class="text-3xl font-bold mb-6 text-slate-800">Admin Setup: Subjects</h2>
+            <div class="bg-white p-6 rounded shadow-md grid grid-cols-3 gap-4">
+                <input id="s_code" type="text" placeholder="Subject Code" class="border p-2 rounded">
+                <input id="s_name" type="text" placeholder="Subject Name" class="border p-2 rounded">
+                <select id="s_hours" class="border p-2 rounded">
+                    <option value="1">1 Hour/Week</option>
+                    <option value="2">2 Hours/Week</option>
+                    <option value="5">5 Hours/Week</option>
+                </select>
+                <button onclick="saveSubject()" class="bg-green-600 text-white p-2 rounded col-span-3">Save Subject to System</button>
             </div>
         </div>
+
+        <div id="teachers-view" class="view hidden">
+            <h2 class="text-3xl font-bold mb-6 text-slate-800">Teacher Registry</h2>
+            <div class="bg-white p-6 rounded shadow-md grid grid-cols-2 gap-4">
+                <input id="t_id" type="number" placeholder="Teacher ID" class="border p-2 rounded">
+                <input id="t_first" type="text" placeholder="First Name" class="border p-2 rounded">
+                <input id="t_middle" type="text" placeholder="Middle Name" class="border p-2 rounded">
+                <input id="t_last" type="text" placeholder="Last Name" class="border p-2 rounded">
+                <select id="t_branch" class="border p-2 rounded col-span-2">
+                    <option>Obhur</option><option>Hamadina</option><option>Taif</option>
+                </select>
+                <button onclick="saveTeacher()" class="bg-blue-600 text-white p-2 rounded col-span-2">Register Teacher</button>
+            </div>
+        </div>
+
+        <div id="plan-view" class="view hidden">
+            <h2 class="text-3xl font-bold mb-6 text-slate-800">Infrastructure & Planning</h2>
+            <div class="bg-white p-6 rounded shadow-md">
+                <table class="w-full border-collapse">
+                    <thead><tr class="bg-slate-200"><th class="p-3 border">Grade Level</th><th class="p-3 border">Current Sections</th><th class="p-3 border">Proposed Sections</th></tr></thead>
+                    <tbody id="gradeRows"></tbody>
+                </table>
+                <button class="w-full bg-purple-600 text-white p-3 mt-4 rounded font-bold">SAVE PLAN & CALCULATE GAPS</button>
+            </div>
+        </div>
+
     </div>
 
     <script>
-        function handleLogin() {
-            // This connects to the Backend login we just created
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('app').classList.remove('hidden');
-        }
-
         function nav(id) {
             document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
             document.getElementById(id + '-view').classList.remove('hidden');
         }
 
-        // Build the Planning Table
+        // Auto-generate the KG1-G12 rows
         const grades = ["KG1", "KG2", "KG3", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12"];
         const grid = document.getElementById('gradeRows');
         grades.forEach(g => {
             grid.innerHTML += `<tr><td class="p-3 border font-bold">${g}</td><td class="p-3 border text-center"><input type="number" class="w-20 border rounded text-center" value="0"></td><td class="p-3 border text-center"><input type="number" class="w-20 border rounded text-center" value="0"></td></tr>`;
         });
+
+        async function saveTeacher() {
+            const data = {
+                teacher_id: document.getElementById('t_id').value,
+                first_name: document.getElementById('t_first').value,
+                middle_name: document.getElementById('t_middle').value,
+                last_name: document.getElementById('t_last').value,
+                branch: document.getElementById('t_branch').value
+            };
+            const res = await fetch('/setup/add-teacher', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            alert((await res.json()).message);
+        }
     </script>
 </body>
 </html>
