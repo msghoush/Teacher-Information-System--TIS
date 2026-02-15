@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TIS Master Planning</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex h-screen">
+
+    <div class="w-64 bg-blue-900 text-white flex flex-col">
+        <div class="p-6 text-2xl font-bold border-b border-blue-800">TIS System</div>
+        <nav class="flex-1 p-4 space-y-2">
+            <button onclick="showSection('setup')" class="w-full text-left p-3 hover:bg-blue-800 rounded">Admin Setup</button>
+            <button onclick="showSection('planning')" class="w-full text-left p-3 hover:bg-blue-800 rounded">Supervisor Plan</button>
+            <button onclick="showSection('reports')" class="w-full text-left p-3 hover:bg-blue-800 rounded">Reports & Gaps</button>
+        </nav>
+    </div>
+
+    <div class="flex-1 p-10 overflow-y-auto">
+        <div id="setup" class="section">
+            <h1 class="text-3xl font-bold mb-6">Admin Setup: Add Teacher</h1>
+            <div class="bg-white p-6 rounded shadow-md max-w-lg">
+                <input id="t_id" type="number" placeholder="Teacher ID (9 Digits)" class="w-full border p-2 mb-4 rounded">
+                <input id="t_name" type="text" placeholder="Full Name" class="w-full border p-2 mb-4 rounded">
+                <select id="t_branch" class="w-full border p-2 mb-4 rounded">
+                    <option value="Obhur">Obhur</option>
+                    <option value="Rawda">Rawda</option>
+                </select>
+                <button onclick="addTeacher()" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">Save Teacher</button>
+            </div>
+        </div>
+
+        <div id="reports" class="section hidden">
+            <h1 class="text-3xl font-bold mb-6">Hiring & Gap Report</h1>
+            <button onclick="loadReport()" class="bg-green-600 text-white px-6 py-2 rounded mb-6">Generate Obhur Report</button>
+            <pre id="reportBox" class="bg-black text-green-400 p-6 rounded font-mono text-sm leading-relaxed"></pre>
+        </div>
+    </div>
+
+    <script>
+        function showSection(id) {
+            document.querySelectorAll('.section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        async function addTeacher() {
+            const data = {
+                teacher_id: document.getElementById('t_id').value,
+                name: document.getElementById('t_name').value,
+                branch: document.getElementById('t_branch').value
+            };
+            const response = await fetch('/setup/add-teacher', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+            alert((await response.json()).message);
+        }
+
+        async function loadReport() {
+            const response = await fetch('/reports/gap-analysis/Obhur');
+            const data = await response.json();
+            document.getElementById('reportBox').innerText = data.detailed_report || "No data yet.";
+        }
+    </script>
+</body>
+</html>
