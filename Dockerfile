@@ -13,5 +13,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 5. Copy all your files (including main.py and the database)
 COPY . .
 
-# 6. The start command (No .py here!)
+# 6. COPY . /app/
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
