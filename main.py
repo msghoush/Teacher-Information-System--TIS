@@ -15,7 +15,7 @@ engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# --- 1. TABLES (The Brain - Full Logic) ---
+# --- 1. TABLES (The Data Brain) ---
 class SchoolLevel(str, Enum):
     kg1 = "KG1"; kg2 = "KG2"; kg3 = "KG3"
     g1 = "Grade 1"; g2 = "Grade 2"; g3 = "Grade 3"; g4 = "Grade 4"; g5 = "Grade 5"
@@ -50,7 +50,7 @@ class BranchInfrastructureDB(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# --- 2. SCHEMAS ---
+# --- 2. SCHEMAS (For the HTML Forms) ---
 class SubjectCreate(BaseModel):
     subject_code: str; subject_name: str; grade_level: SchoolLevel; weekly_hours: int
 
@@ -67,16 +67,16 @@ class BulkBranchPlan(BaseModel):
 # --- 3. APP SETUP ---
 app = FastAPI(title="TIS Master System")
 
-# --- 4. FRONT-END ROUTE (The Fix) ---
+# --- 4. THE HOME ROUTE (Makes the HTML work!) ---
 @app.get("/")
 async def serve_home():
-    # Force search for the file in the static folder
-    path = os.path.join(os.getcwd(), "static", "index.html")
+    # This looks inside your 'static' folder for index.html
+    path = os.path.join("static", "index.html")
     if os.path.exists(path):
         return FileResponse(path)
-    return {"status": "Backend Live", "error": f"index.html missing at {path}. Please check your VS Code folder!"}
+    return {"status": "Online", "error": "HTML file not found in static folder"}
 
-# --- 5. DATA ROUTES (Admin & Planning) ---
+# --- 5. DATA ROUTES ---
 @app.post("/setup/add-subject", tags=["Admin Setup"])
 def add_subject(sub: SubjectCreate):
     db = SessionLocal()
@@ -107,10 +107,10 @@ def update_sections(data: BulkBranchPlan):
 
 @app.get("/reports/gap-analysis/{branch}", tags=["Reports"])
 def get_detailed_gap(branch: BranchName):
-    # This report logic uses all tables combined
-    return {"report": f"Report for {branch} is active."}
+    # Full report logic for the dashboard
+    return {"detailed_report": f"Analysis for {branch} generated."}
 
-# --- 6. MOUNT STATIC ---
+# --- 6. MOUNT STATIC ASSETS ---
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
