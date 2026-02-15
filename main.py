@@ -1,37 +1,31 @@
 import os
-import re
-import uvicorn
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional
 
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from pydantic import BaseModel, validator
-from sqlalchemy import (
-    create_engine, Column, Integer, String,
-    ForeignKey, Boolean, DateTime
-)
-from sqlalchemy.orm import declarative_base, sessionmaker, relationship, Session
+from pydantic import BaseModel
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.orm import sessionmaker, declarative_base, Session
+
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 
 
-# =====================================================
+# ==============================
 # CONFIGURATION
-# =====================================================
+# ==============================
 
 DATABASE_URL = "sqlite:///./tis_master.db"
-
-SECRET_KEY = "CHANGE_THIS_TO_A_SECURE_SECRET"
+SECRET_KEY = os.environ.get("SECRET_KEY", "CHANGE_THIS_IN_PRODUCTION")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    DATABASE_URL, connect_args={"check_same_thread": False}
 )
 
 SessionLocal = sessionmaker(
@@ -41,78 +35,71 @@ SessionLocal = sessionmaker(
 )
 
 Base = declarative_base()
+
+app = FastAPI()
+
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
 
 
-# =====================================================
+# ==============================
 # DATABASE MODELS
-# =====================================================
-
-class BranchDB(Base):
-    __tablename__ = "branches"
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=False)
-    location = Column(String)
-    is_active = Column(Boolean, default=True)
-
-
-class AcademicYearDB(Base):
-    __tablename__ = "academic_years"
-
-    id = Column(Integer, primary_key=True)
-    year_name = Column(String, unique=True, nullable=False)
-    start_date = Column(String)
-    end_date = Column(String)
-    is_active = Column(Boolean, default=True)
-
+# ==============================
 
 class UserDB(Base):
     __tablename__ = "users"
 
-    user_id = Column(String, primary_key=True)
-    first_name = Column(String, nullable=False)
+    user_id = Column(String, primary_key=True, index=True)
+    first_name = Column(String)
     middle_name = Column(String)
-    last_name = Column(String, nullable=False)
-    password_hash = Column(String, nullable=False)
-    role = Column(String, nullable=False)  # Admin / BranchUser
-    branch_id = Column(Integer, ForeignKey("branches.id"))
-    academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    last_name = Column(String)
+    role = Column(String)  # Admin or Branch
+    branch = Column(String)
+    password_hash = Column(String)
 
 
 class SubjectDB(Base):
     __tablename__ = "subjects"
 
-    id = Column(Integer, primary_key=True)
-    code = Column(String, nullable=False)
-    name = Column(String, nullable=False)
-    weekly_hours = Column(Integer, nullable=False)
-    grade = Column(String, nullable=False)
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String)
+    name = Column(String)
+    hours = Column(Integer)
+    grade = Column(String)
 
-    branch_id = Column(Integer, ForeignKey("branches.id"))
-    academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
-
-
-# =====================================================
-# CREATE TABLES
-# =====================================================
 
 Base.metadata.create_all(bind=engine)
 
 
-# =====================================================
-# FASTAPI APP
-# =====================================================
+# ==============================
+# SCHEMAS
+# ==============================
 
-app = FastAPI(title="Teacher Information System (TIS)")
+class UserCreate(BaseModel):
+    user_id: str
+    first_name: str
+    middle_name: str
+    last_name: str
+    role: str
+    branch: str
+    password: str
 
 
-# =====================================================
-# DEPENDENCIES
-# =====================================================
+class SubjectCreate(BaseModel):
+    code: str
+    name: str
+    hours: int
+    grade: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+# ==============================
+# UTILITY FUNCTIONS
+# ==============================
 
 def get_db():
     db = SessionLocal()
@@ -126,215 +113,126 @@ def hash_password(password: str):
     return pwd_context.hash(password)
 
 
-def verify_password(plain, hashed):
-    return pwd_context.verify(plain, hashed)
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
 
 
 def create_access_token(data: dict):
+    to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    data.update({"exp": expire})
-    return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+def get_current_user(token: str = Depends(oauth2_scheme),
+                     db: Session = Depends(get_db)):
+
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid authentication credentials"
+    )
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("user_id")
+        user_id: str = payload.get("sub")
         if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
+            raise credentials_exception
     except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise credentials_exception
 
     user = db.query(UserDB).filter(UserDB.user_id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
+    if user is None:
+        raise credentials_exception
 
     return user
 
 
-def require_admin(user: UserDB = Depends(get_current_user)):
-    if user.role != "Admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return user
+# ==============================
+# API ROUTES
+# ==============================
+
+@app.post("/api/register")
+def register_user(user: UserCreate, db: Session = Depends(get_db)):
+
+    existing = db.query(UserDB).filter(UserDB.user_id == user.user_id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="User already exists")
+
+    new_user = UserDB(
+        user_id=user.user_id,
+        first_name=user.first_name,
+        middle_name=user.middle_name,
+        last_name=user.last_name,
+        role=user.role,
+        branch=user.branch,
+        password_hash=hash_password(user.password)
+    )
+
+    db.add(new_user)
+    db.commit()
+
+    return {"message": "User registered successfully"}
 
 
-# =====================================================
-# SCHEMAS
-# =====================================================
+@app.post("/api/login", response_model=Token)
+def login(form_data: OAuth2PasswordRequestForm = Depends(),
+          db: Session = Depends(get_db)):
 
-class BranchCreate(BaseModel):
-    name: str
-    location: Optional[str]
-
-
-class AcademicYearCreate(BaseModel):
-    year_name: str
-    start_date: str
-    end_date: str
-
-
-class UserCreate(BaseModel):
-    user_id: str
-    first_name: str
-    middle_name: Optional[str]
-    last_name: str
-    password: str
-    role: str
-    branch_id: int
-    academic_year_id: int
-
-    @validator("user_id")
-    def validate_id(cls, v):
-        if not re.fullmatch(r"\d{8,9}", v):
-            raise ValueError("User ID must be 8 or 9 digits")
-        return v
-
-
-class SubjectCreate(BaseModel):
-    code: str
-    name: str
-    weekly_hours: int
-    grade: str
-
-    @validator("code")
-    def validate_code(cls, v):
-        if not re.fullmatch(r"[A-Z]{3}\d{3}", v):
-            raise ValueError("Format must be AAA999")
-        return v
-
-
-# =====================================================
-# AUTHENTICATION
-# =====================================================
-
-@app.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-
-    user = db.query(UserDB).filter(UserDB.user_id == form_data.username).first()
+    user = db.query(UserDB).filter(
+        UserDB.user_id == form_data.username
+    ).first()
 
     if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail="Incorrect credentials")
 
-    token_data = {
-        "user_id": user.user_id,
-        "branch_id": user.branch_id,
-        "academic_year_id": user.academic_year_id,
-        "role": user.role
-    }
-
-    access_token = create_access_token(token_data)
+    access_token = create_access_token(
+        data={"sub": user.user_id}
+    )
 
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-# =====================================================
-# ADMIN ROUTES
-# =====================================================
-
-@app.post("/admin/branches")
-def create_branch(data: BranchCreate, db: Session = Depends(get_db), admin=Depends(require_admin)):
-    branch = BranchDB(**data.dict())
-    db.add(branch)
-    db.commit()
-    return {"message": "Branch created"}
-
-
-@app.post("/admin/academic-years")
-def create_year(data: AcademicYearCreate, db: Session = Depends(get_db), admin=Depends(require_admin)):
-    year = AcademicYearDB(**data.dict())
-    db.add(year)
-    db.commit()
-    return {"message": "Academic Year created"}
-
-
-@app.post("/admin/users")
-def create_user(data: UserCreate, db: Session = Depends(get_db), admin=Depends(require_admin)):
-
-    if db.query(UserDB).filter(UserDB.user_id == data.user_id).first():
-        raise HTTPException(status_code=400, detail="User already exists")
-
-    user = UserDB(
-        user_id=data.user_id,
-        first_name=data.first_name,
-        middle_name=data.middle_name,
-        last_name=data.last_name,
-        password_hash=hash_password(data.password),
-        role=data.role,
-        branch_id=data.branch_id,
-        academic_year_id=data.academic_year_id
-    )
-
-    db.add(user)
-    db.commit()
-    return {"message": "User created successfully"}
-
-
-# =====================================================
-# SUBJECT ROUTES (BRANCH FILTERED)
-# =====================================================
-
-@app.post("/subjects")
-def create_subject(data: SubjectCreate,
+@app.post("/api/subjects")
+def create_subject(subject: SubjectCreate,
                    db: Session = Depends(get_db),
-                   user: UserDB = Depends(get_current_user)):
+                   current_user: UserDB = Depends(get_current_user)):
 
-    subject = SubjectDB(
-        code=data.code,
-        name=data.name,
-        weekly_hours=data.weekly_hours,
-        grade=data.grade,
-        branch_id=user.branch_id,
-        academic_year_id=user.academic_year_id
-    )
+    if current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
 
-    db.add(subject)
+    new_subject = SubjectDB(**subject.dict())
+    db.add(new_subject)
     db.commit()
-    return {"message": "Subject added"}
+
+    return {"message": "Subject added successfully"}
 
 
-@app.get("/subjects")
-def get_subjects(db: Session = Depends(get_db),
-                 user: UserDB = Depends(get_current_user)):
+@app.get("/api/users")
+def get_users(db: Session = Depends(get_db),
+              current_user: UserDB = Depends(get_current_user)):
 
-    if user.role == "Admin":
-        return db.query(SubjectDB).all()
+    if current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Not authorized")
 
-    return db.query(SubjectDB).filter(
-        SubjectDB.branch_id == user.branch_id,
-        SubjectDB.academic_year_id == user.academic_year_id
-    ).all()
+    return db.query(UserDB).all()
 
 
-# =====================================================
-# DEFAULT ADMIN AUTO-CREATION
-# =====================================================
+# ==============================
+# STATIC FILES
+# ==============================
 
-def create_default_admin():
-    db = SessionLocal()
+@app.get("/")
+async def serve_home():
+    return FileResponse(os.path.join("static", "index.html"))
 
-    if not db.query(UserDB).filter(UserDB.user_id == "99999999").first():
-        admin = UserDB(
-            user_id="99999999",
-            first_name="System",
-            middle_name="",
-            last_name="Admin",
-            password_hash=hash_password("admin123"),
-            role="Admin",
-            branch_id=None,
-            academic_year_id=None
-        )
-        db.add(admin)
-        db.commit()
-
-    db.close()
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-create_default_admin()
-
-
-# =====================================================
+# ==============================
 # RUN SERVER
-# =====================================================
+# ==============================
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
