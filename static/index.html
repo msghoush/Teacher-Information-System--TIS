@@ -1,109 +1,68 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TIS Master Dashboard</title>
+    <title>TIS Master System</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .sidebar-link { @apply block py-2.5 px-4 rounded transition duration-200 hover:bg-blue-700 hover:text-white; }
-        .card { @apply bg-white p-6 rounded-lg shadow-md mb-6; }
-    </style>
 </head>
-<body class="bg-gray-100 font-sans">
-    <div class="flex">
-        <div class="bg-blue-900 text-white w-64 min-h-screen p-4">
-            <h1 class="text-2xl font-bold mb-8">TIS System</h1>
-            <nav>
-                <button onclick="showSection('admin')" class="sidebar-link w-full text-left">Admin Setup</button>
-                <button onclick="showSection('supervisor')" class="sidebar-link w-full text-left">Supervisor Plan</button>
-                <button onclick="showSection('reports')" class="sidebar-link w-full text-left">Reports & Gaps</button>
+<body class="bg-slate-100 min-h-screen">
+    <div id="login-screen" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50">
+        <div class="bg-white p-8 rounded shadow-2xl w-96">
+            <h1 class="text-2xl font-bold mb-6 text-center text-slate-800">TIS Secure Portal</h1>
+            <input id="u_id" type="text" placeholder="Username (ID)" class="w-full border p-2 mb-4 rounded">
+            <input id="u_pass" type="password" placeholder="Password" class="w-full border p-2 mb-6 rounded">
+            <button onclick="handleLogin()" class="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-700">LOGIN</button>
+        </div>
+    </div>
+
+    <div id="app" class="hidden flex">
+        <div class="w-64 bg-slate-800 text-white min-h-screen p-6">
+            <h2 class="text-xl font-bold mb-10 border-b pb-4">TIS DASHBOARD</h2>
+            <nav class="space-y-4">
+                <button onclick="nav('setup')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">1. Admin Setup</button>
+                <button onclick="nav('teachers')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">2. Teacher Registry</button>
+                <button onclick="nav('plan')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">3. Supervisor Planning</button>
+                <button onclick="nav('summary')" class="block w-full text-left p-2 bg-green-600 rounded mt-8">4. FINAL GAP REPORT</button>
             </nav>
         </div>
 
         <div class="flex-1 p-10">
-            <div id="admin-section">
-                <h2 class="text-3xl font-bold mb-6">Admin Setup</h2>
-                
-                <div class="card">
-                    <h3 class="text-xl font-semibold mb-4">Add Teacher</h3>
-                    <div class="grid grid-cols-3 gap-4">
-                        <input id="t_id" type="number" placeholder="ID (9 Digits)" class="border p-2 rounded">
-                        <input id="t_first" type="text" placeholder="First Name" class="border p-2 rounded">
-                        <input id="t_middle" type="text" placeholder="Middle Name" class="border p-2 rounded">
-                        <input id="t_last" type="text" placeholder="Last Name" class="border p-2 rounded">
-                        <select id="t_branch" class="border p-2 rounded">
-                            <option value="Obhur">Obhur</option>
-                            <option value="Hamadina">Hamadina</option>
-                            <option value="Taif">Taif</option>
-                            <option value="Rawda">Rawda</option>
-                        </select>
-                        <button onclick="saveTeacher()" class="bg-blue-600 text-white px-4 py-2 rounded">Save Teacher</button>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h3 class="text-xl font-semibold mb-4">Add Subject</h3>
-                    <div class="grid grid-cols-3 gap-4">
-                        <input id="s_code" type="text" placeholder="Subject Code" class="border p-2 rounded">
-                        <input id="s_name" type="text" placeholder="Subject Name" class="border p-2 rounded">
-                        <select id="s_level" class="border p-2 rounded">
-                            <option value="Grade 1">Grade 1</option>
-                            <option value="Grade 2">Grade 2</option>
-                            </select>
-                        <button onclick="saveSubject()" class="bg-green-600 text-white px-4 py-2 rounded">Save Subject</button>
-                    </div>
+            <div id="plan-view" class="view hidden">
+                <h2 class="text-3xl font-bold mb-6 text-slate-800">Infrastructure & Planning</h2>
+                <div class="bg-white p-6 rounded shadow-sm">
+                    <table class="w-full border-collapse">
+                        <thead><tr class="bg-slate-200"><th class="p-3 border">Grade Level</th><th class="p-3 border">Current Sections</th><th class="p-3 border">Proposed Sections</th></tr></thead>
+                        <tbody id="gradeRows"></tbody>
+                    </table>
                 </div>
             </div>
 
-            <div id="supervisor-section" class="hidden">
-                <h2 class="text-3xl font-bold mb-6">Supervisor Planning</h2>
-                <div class="card">
-                    <h3 class="text-xl font-semibold mb-4">Section Planning</h3>
-                    <select id="plan_branch" class="border p-2 rounded mb-4">
-                        <option value="Obhur">Obhur</option>
-                    </select>
-                    <table class="w-full border-collapse border border-gray-300">
-                        <thead>
-                            <tr class="bg-gray-200">
-                                <th class="border p-2">Grade Level</th>
-                                <th class="border p-2">Current Sections</th>
-                                <th class="border p-2">Proposed Sections</th>
-                            </tr>
-                        </thead>
-                        <tbody id="plan-table-body">
-                            </tbody>
-                    </table>
-                    <button onclick="savePlan()" class="mt-4 bg-purple-600 text-white px-6 py-2 rounded">Submit Plan</button>
+            <div id="summary-view" class="view hidden">
+                <h2 class="text-3xl font-bold mb-6 text-green-800">Final Summary & Teacher Needs</h2>
+                <div id="calculation-output" class="bg-white p-8 rounded border-l-8 border-green-500 shadow-md text-xl">
+                    The system will compare: (Proposed Sections × Subject Hours) ÷ 24 Max Load.
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        function showSection(section) {
-            document.getElementById('admin-section').classList.add('hidden');
-            document.getElementById('supervisor-section').classList.add('hidden');
-            document.getElementById(section + '-section').classList.remove('hidden');
+        function handleLogin() {
+            // This connects to the Backend login we just created
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
         }
 
-        async function saveTeacher() {
-            const fullName = `${document.getElementById('t_first').value} ${document.getElementById('t_middle').value} ${document.getElementById('t_last').value}`;
-            const data = {
-                teacher_id: document.getElementById('t_id').value,
-                name: fullName,
-                branch: document.getElementById('t_branch').value
-            };
-            const response = await fetch('/setup/add-teacher', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            });
-            const result = await response.json();
-            alert(result.message);
+        function nav(id) {
+            document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+            document.getElementById(id + '-view').classList.remove('hidden');
         }
 
-        // Additional JS for Subjects and Planning would go here
+        // Build the Planning Table
+        const grades = ["KG1", "KG2", "KG3", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12"];
+        const grid = document.getElementById('gradeRows');
+        grades.forEach(g => {
+            grid.innerHTML += `<tr><td class="p-3 border font-bold">${g}</td><td class="p-3 border text-center"><input type="number" class="w-20 border rounded text-center" value="0"></td><td class="p-3 border text-center"><input type="number" class="w-20 border rounded text-center" value="0"></td></tr>`;
+        });
     </script>
 </body>
 </html>
