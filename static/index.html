@@ -1,91 +1,86 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>TIS Master System</title>
+    <meta charset="UTF-8">
+    <title>TIS Master - Teacher Information System</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-50 flex min-h-screen">
+<body class="bg-slate-50 flex min-h-screen font-sans">
     <div id="login-page" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50">
-        <div class="bg-white p-8 rounded-xl shadow-2xl w-96">
-            <h1 class="text-2xl font-bold mb-6 text-center">TIS Login</h1>
-            <input id="l_id" type="text" placeholder="User ID (9 Digits)" class="w-full border p-2 mb-4 rounded">
-            <input id="l_pass" type="password" placeholder="Password" class="w-full border p-2 mb-4 rounded">
-            <select id="l_br" class="w-full border p-2 mb-6 rounded"><option>Obhur</option><option>Taif</option></select>
-            <button onclick="handleLogin()" class="w-full bg-blue-600 text-white p-2 rounded font-bold">LOGIN</button>
+        <div class="bg-white p-10 rounded-2xl shadow-2xl w-full max-w-md">
+            <h1 class="text-3xl font-bold mb-8 text-center text-slate-800">TIS Login</h1>
+            <div class="space-y-4">
+                <input id="l_id" type="text" placeholder="User ID (9 digits)" class="w-full border p-3 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                <input id="l_pass" type="password" placeholder="Password" class="w-full border p-3 rounded-lg outline-none">
+                <select id="l_branch" class="w-full border p-3 rounded-lg"><option>Obhur</option></select>
+                <select id="l_year" class="w-full border p-3 rounded-lg"><option>2025–2026</option></select>
+                <button onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-bold transition">Login</button>
+            </div>
         </div>
     </div>
 
     <div id="main-app" class="hidden flex w-full">
-        <div class="w-64 bg-slate-800 text-white p-6">
-            <h2 id="user-display" class="font-bold border-b pb-2 mb-6">User</h2>
-            <nav class="space-y-4">
-                <button onclick="nav('admin')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">Admin Setup</button>
-                <button onclick="nav('subs')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">Subjects</button>
-            </nav>
-        </div>
-        <main class="flex-1 p-10">
-            <div id="admin-view" class="view hidden">
-                <h2 class="text-2xl font-bold mb-4">User Management</h2>
-                <div id="user-list" class="bg-white p-4 shadow rounded"></div>
+        <aside class="w-72 bg-slate-800 text-white flex flex-col">
+            <div class="p-6 border-b border-slate-700">
+                <h2 id="user-display" class="font-bold text-xl mb-1 truncate">User Name</h2>
+                <p id="context-display" class="text-xs text-slate-400">Branch | Year</p>
             </div>
-            <div id="subs-view" class="view hidden">
-                <h2 class="text-2xl font-bold mb-4">Add Subject</h2>
-                <div class="bg-white p-6 shadow rounded grid grid-cols-2 gap-4">
-                    <input id="s_code" placeholder="Code" class="border p-2">
-                    <input id="s_name" placeholder="Name" class="border p-2">
-                    <input id="s_hrs" type="number" placeholder="Hours" class="border p-2">
-                    <button onclick="saveSubject()" class="bg-green-600 text-white p-2 rounded">Save</button>
+            <nav class="flex-1 p-4 space-y-2">
+                <button onclick="showView('admin')" class="w-full text-left p-3 hover:bg-slate-700 rounded-lg transition">1. Admin Setup</button>
+                <button onclick="showView('subject')" class="w-full text-left p-3 hover:bg-slate-700 rounded-lg transition">2. Subject Module</button>
+                <button onclick="showView('planning')" class="w-full text-left p-3 hover:bg-slate-700 rounded-lg transition">3. School Planning</button>
+                <button class="w-full text-left p-3 bg-emerald-600 rounded-lg font-bold">4. FINAL GAP REPORT</button>
+            </nav>
+            <footer class="p-4 text-right text-[10px] text-slate-500">
+                Developed by Mohamad El Ghoche [cite: 23]
+            </footer>
+        </aside>
+
+        <main class="flex-1 p-12 overflow-y-auto">
+            <div id="admin-view" class="view hidden">
+                <h1 class="text-3xl font-bold mb-6">Admin: System Users</h1>
+                <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="text" placeholder="141452687" class="border p-3 rounded">
+                        <input type="text" placeholder="Full Name" class="border p-3 rounded">
+                        <select class="border p-3 rounded"><option>Branch User</option></select>
+                        <button class="bg-slate-800 text-white p-3 rounded font-bold">Create User</button>
+                    </div>
                 </div>
             </div>
-        </main>
+            </main>
     </div>
 
     <script>
         async function handleLogin() {
-            const params = new URLSearchParams();
-            params.append('username', document.getElementById('l_id').value);
-            params.append('password', document.getElementById('l_pass').value);
+            const formData = new URLSearchParams();
+            formData.append('username', document.getElementById('l_id').value);
+            formData.append('password', document.getElementById('l_pass').value);
 
             const res = await fetch('/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: params
+                body: formData
             });
 
             if (res.ok) {
                 const data = await res.json();
                 localStorage.setItem('token', data.access_token);
+                
+                // Decode token for display [cite: 20, 21]
+                const payload = JSON.parse(atob(data.access_token.split('.')[1]));
+                document.getElementById('user-display').innerText = payload.name;
+                document.getElementById('context-display').innerText = 
+                    `${document.getElementById('l_branch').value} | ${document.getElementById('l_year').value}`;
+                
                 document.getElementById('login-page').classList.add('hidden');
                 document.getElementById('main-app').classList.remove('hidden');
-                loadUsers();
-            } else { alert("Login Failed"); }
+            } else { alert("Login Failed: Check credentials."); }
         }
 
-        function nav(id) {
+        function showView(viewId) {
             document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-            document.getElementById(id + '-view').classList.remove('hidden');
-        }
-
-        async function saveSubject() {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/subjects', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({
-                    code: document.getElementById('s_code').value,
-                    name: document.getElementById('s_name').value,
-                    hours: parseInt(document.getElementById('s_hrs').value),
-                    grade: "G1"
-                })
-            });
-            if(res.ok) alert("Saved!");
-        }
-
-        async function loadUsers() {
-            const token = localStorage.getItem('token');
-            const res = await fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } });
-            const users = await res.json();
-            document.getElementById('user-list').innerHTML = users.map(u => `<div>${u.first_name} ${u.last_name} (${u.role})</div>`).join('');
+            document.getElementById(viewId + '-view').classList.remove('hidden');
         }
     </script>
 </body>
