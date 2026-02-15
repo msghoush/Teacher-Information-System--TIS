@@ -2,112 +2,106 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TIS Master Dashboard</title>
+    <title>TIS Master System</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-50 font-sans min-h-screen flex">
-    <div id="login-page" class="fixed inset-0 bg-blue-900 flex items-center justify-center z-50">
-        <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
-            <h1 class="text-3xl font-bold mb-6 text-center text-blue-900">TIS System Login</h1>
-            <div class="space-y-4">
-                <input id="login_id" type="text" placeholder="User ID (9 Digits)" class="w-full border p-3 rounded">
-                <input id="login_pass" type="password" placeholder="Password" class="w-full border p-3 rounded">
-                <select id="login_branch" class="w-full border p-3 rounded">
-                    <option>Obhur</option><option>Hamadina</option><option>Taif</option><option>Rawda</option>
-                </select>
-                <select id="login_year" class="w-full border p-3 rounded">
-                    <option>2025–2026</option><option>2026–2027</option>
-                </select>
-                <button onclick="handleLogin()" class="w-full bg-blue-600 text-white font-bold p-3 rounded hover:bg-blue-700">LOGIN</button>
-            </div>
-        </div>
+<body class="bg-slate-50 flex min-h-screen">
+    <div class="w-72 bg-slate-800 text-white p-6 shadow-xl">
+        <h2 class="text-2xl font-bold mb-8 border-b border-slate-700 pb-4">TIS Dashboard</h2>
+        <nav class="space-y-4">
+            <button onclick="nav('admin')" class="w-full text-left p-3 hover:bg-slate-700 rounded">1. Admin Setup</button>
+            <button onclick="nav('subjects')" class="w-full text-left p-3 hover:bg-slate-700 rounded">2. Subject Module</button>
+            <button onclick="nav('teachers')" class="w-full text-left p-3 hover:bg-slate-700 rounded">3. Teacher Registry</button>
+        </nav>
     </div>
 
-    <div id="main-app" class="hidden flex w-full">
-        <div class="w-72 bg-slate-800 text-white min-h-screen flex flex-col">
-            <div class="p-6 border-b border-slate-700">
-                <h2 class="text-xl font-bold">Mohamad El Ghoche</h2>
-                <p id="ctx-info" class="text-sm text-slate-400">Obhur | 2025–2026</p>
+    <main class="flex-1 p-10">
+        <div id="admin-view" class="view">
+            <h1 class="text-3xl font-bold mb-8 text-slate-800">Admin: User Management</h1>
+            <div class="bg-white p-8 rounded-xl shadow-sm border mb-10">
+                <div class="grid grid-cols-3 gap-6 mb-6">
+                    <div><label class="block text-sm font-bold mb-2">User ID (9 Digits)</label>
+                         <input id="u_id" type="text" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-bold mb-2">First Name</label>
+                         <input id="u_f" type="text" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-bold mb-2">Middle Name</label>
+                         <input id="u_m" type="text" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-bold mb-2">Last Name</label>
+                         <input id="u_l" type="text" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-bold mb-2">Role</label>
+                         <select id="u_role" class="w-full border p-2 rounded"><option>Admin</option><option>Branch User</option></select></div>
+                </div>
+                <button onclick="saveUser()" class="bg-slate-800 text-white px-8 py-2 rounded font-bold hover:bg-slate-900">CREATE USER</button>
             </div>
-            <nav class="flex-grow p-4 space-y-2">
-                <button onclick="nav('admin')" class="w-full text-left p-3 hover:bg-slate-700 rounded">1. Admin Setup</button>
-                <button onclick="nav('subjects')" class="w-full text-left p-3 hover:bg-slate-700 rounded">2. Subject Module</button>
-                <button onclick="nav('teachers')" class="w-full text-left p-3 hover:bg-slate-700 rounded">3. Teacher Registry</button>
-                <button onclick="nav('plan')" class="w-full text-left p-3 hover:bg-slate-700 rounded">4. School Planning</button>
-                <button onclick="nav('report')" class="w-full text-left p-3 bg-green-700 rounded mt-6">5. Final Gap Report</button>
-            </nav>
-            <div class="p-4 text-xs text-right opacity-50">Developed by Mohamad El Ghoche</div>
+
+            <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+                <table class="w-full text-left">
+                    <thead class="bg-slate-100"><tr><th class="p-4">ID</th><th class="p-4">Full Name</th><th class="p-4">Role</th><th class="p-4">Actions</th></tr></thead>
+                    <tbody id="user-list"></tbody>
+                </table>
+            </div>
         </div>
 
-        <main class="flex-grow p-10 bg-slate-50 overflow-y-auto">
-            
-            <div id="admin-view" class="view hidden">
-                <h2 class="text-2xl font-bold mb-6">Admin: System Users</h2>
-                <div class="bg-white p-6 rounded shadow grid grid-cols-2 gap-4">
-                    <input type="text" placeholder="New User ID (9 Digits)" class="border p-2 rounded">
-                    <input type="text" placeholder="Full Name" class="border p-2 rounded">
-                    <select class="border p-2 rounded"><option>Admin</option><option>Branch User</option></select>
-                    <button class="bg-slate-800 text-white p-2 rounded">Create User</button>
+        <div id="subjects-view" class="view hidden">
+            <h1 class="text-3xl font-bold mb-8 text-slate-800">Subject Registry</h1>
+            <div class="bg-white p-8 rounded-xl shadow-sm border mb-6">
+                <div class="grid grid-cols-2 gap-6 mb-6">
+                    <div><label class="block text-sm font-bold mb-2">Subject Code (AAA999)</label>
+                         <input id="s_code" type="text" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-bold mb-2">Subject Name</label>
+                         <input id="s_name" type="text" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-bold mb-2">Weekly Hours</label>
+                         <input id="s_hours" type="number" class="w-full border p-2 rounded"></div>
+                    <div><label class="block text-sm font-bold mb-2">Grade Level</label>
+                         <select id="s_grade" class="w-full border p-2 rounded">
+                            <option>KG1</option><option>KG2</option><option>G1</option><option>G2</option><option>G12</option>
+                         </select></div>
                 </div>
+                <button onclick="saveSubject()" class="bg-blue-600 text-white px-8 py-2 rounded font-bold hover:bg-blue-700">ADD SUBJECT</button>
             </div>
-
-            <div id="subjects-view" class="view hidden">
-                <h2 class="text-2xl font-bold mb-6">Subject Setup</h2>
-                <div class="bg-white p-6 rounded shadow grid grid-cols-3 gap-4">
-                    <input id="s_code" type="text" placeholder="Subject Code (e.g. ENG101)" class="border p-2 rounded text-sm">
-                    <input id="s_name" type="text" placeholder="Subject Name" class="border p-2 rounded text-sm">
-                    <input id="s_hours" type="number" placeholder="Weekly Hours" class="border p-2 rounded text-sm">
-                    <button class="bg-blue-600 text-white p-2 rounded col-span-3 font-bold">Add Subject to Branch</button>
-                </div>
-            </div>
-
-            <div id="teachers-view" class="view hidden">
-                <h2 class="text-2xl font-bold mb-6">Teacher Information</h2>
-                <div class="bg-white p-6 rounded shadow space-y-4">
-                    <div class="grid grid-cols-3 gap-4">
-                        <input id="t_id" type="number" placeholder="Teacher ID (9 Digits)" class="border p-2 rounded">
-                        <input id="t_f" type="text" placeholder="First Name" class="border p-2 rounded">
-                        <input id="t_m" type="text" placeholder="Middle Name" class="border p-2 rounded">
-                        <input id="t_l" type="text" placeholder="Last Name" class="border p-2 rounded">
-                        <input id="t_max" type="number" value="24" class="border p-2 rounded">
-                    </div>
-                    <button class="w-full bg-blue-600 text-white p-3 rounded font-bold">Register Teacher Profile</button>
-                </div>
-            </div>
-
-            <div id="plan-view" class="view">
-                <h2 class="text-2xl font-bold mb-6 text-slate-800">Section Planning (KG1 - G12)</h2>
-                <div class="bg-white rounded shadow p-4">
-                    <table class="w-full border-collapse">
-                        <thead><tr class="bg-slate-100"><th class="p-2 border">Grade</th><th class="p-2 border text-sm">Current Sections</th><th class="p-2 border text-sm">Proposed Sections</th></tr></thead>
-                        <tbody id="plan-rows"></tbody>
-                    </table>
-                </div>
-            </div>
-
-        </main>
-    </div>
+        </div>
+    </main>
 
     <script>
-        function handleLogin() {
-            const id = document.getElementById('login_id').value;
-            if(id.length !== 9) { alert("ID must be 9 digits"); return; }
-            document.getElementById('login-page').classList.add('hidden');
-            document.getElementById('main-app').classList.remove('hidden');
-            document.getElementById('ctx-info').innerText = `${document.getElementById('login_branch').value} | ${document.getElementById('login_year').value}`;
-        }
-
-        function nav(section) {
+        function nav(id) {
             document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-            document.getElementById(section + '-view').classList.remove('hidden');
+            document.getElementById(id + '-view').classList.remove('hidden');
         }
 
-        // Build Table
-        const grades = ["KG1", "KG2", "KG3", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12"];
-        const tbody = document.getElementById('plan-rows');
-        grades.forEach(g => {
-            tbody.innerHTML += `<tr><td class="p-2 border font-bold">${g}</td><td class="p-2 border"><input type="number" class="w-full text-center" value="0"></td><td class="p-2 border"><input type="number" class="w-full text-center" value="0"></td></tr>`;
-        });
+        async function saveUser() {
+            const data = {
+                user_id: document.getElementById('u_id').value,
+                first_name: document.getElementById('u_f').value,
+                middle_name: document.getElementById('u_m').value,
+                last_name: document.getElementById('u_l').value,
+                role: document.getElementById('u_role').value,
+                branch: "Obhur"
+            };
+            const res = await fetch('/api/users', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
+            if(res.ok) { 
+                alert("User Created!"); 
+                document.querySelectorAll('input').forEach(i => i.value = ""); // Clear fields
+                loadUsers(); 
+            }
+        }
+
+        async function loadUsers() {
+            const res = await fetch('/api/users');
+            const users = await res.json();
+            const list = document.getElementById('user-list');
+            list.innerHTML = users.map(u => `
+                <tr class="border-t">
+                    <td class="p-4">${u.user_id}</td>
+                    <td class="p-4">${u.first_name} ${u.middle_name} ${u.last_name}</td>
+                    <td class="p-4 text-blue-600 font-bold">${u.role}</td>
+                    <td class="p-4">
+                        <button class="text-blue-500 mr-2">Edit</button>
+                        ${u.role !== 'Branch User' ? '<button class="text-red-500">Delete</button>' : ''}
+                    </td>
+                </tr>`).join('');
+        }
+
+        window.onload = loadUsers;
     </script>
 </body>
 </html>
