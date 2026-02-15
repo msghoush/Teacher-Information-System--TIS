@@ -1,91 +1,91 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>TIS Master System</title>
+    <meta charset="UTF-8">
+    <title>TIS Master Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-100 min-h-screen flex">
-    <div class="w-64 bg-slate-800 text-white min-h-screen p-6">
-        <h2 class="text-xl font-bold mb-10 border-b pb-4">TIS DASHBOARD</h2>
-        <nav class="space-y-4">
-            <button onclick="nav('admin')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">1. Admin Setup</button>
-            <button onclick="nav('teachers')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">2. Teacher Registry</button>
-            <button onclick="nav('plan')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">3. Supervisor Planning</button>
-            <button onclick="nav('summary')" class="block w-full text-left p-2 bg-green-600 rounded mt-8">4. FINAL GAP REPORT</button>
-        </nav>
+<body class="bg-gray-50 font-sans min-h-screen">
+    <div id="login-page" class="fixed inset-0 bg-blue-900 flex items-center justify-center z-50">
+        <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
+            <h1 class="text-3xl font-bold mb-6 text-center text-blue-900">TIS System Login</h1>
+            <div class="space-y-4">
+                <input id="login_id" type="text" placeholder="User ID (9 Digits)" class="w-full border p-3 rounded">
+                <input id="login_pass" type="password" placeholder="Password" class="w-full border p-3 rounded">
+                <select id="login_branch" class="w-full border p-3 rounded">
+                    <option>Obhur</option><option>Hamadina</option><option>Taif</option><option>Rawda</option>
+                </select>
+                <select id="login_year" class="w-full border p-3 rounded">
+                    <option>2025–2026</option><option>2026–2027</option>
+                </select>
+                <button onclick="handleLogin()" class="w-full bg-blue-600 text-white font-bold p-3 rounded hover:bg-blue-700">LOGIN</button>
+            </div>
+        </div>
     </div>
 
-    <div class="flex-1 p-10">
-        
-        <div id="admin-view" class="view">
-            <h2 class="text-3xl font-bold mb-6 text-slate-800">Admin Setup: Subjects</h2>
-            <div class="bg-white p-6 rounded shadow-md grid grid-cols-3 gap-4">
-                <input id="s_code" type="text" placeholder="Subject Code" class="border p-2 rounded">
-                <input id="s_name" type="text" placeholder="Subject Name" class="border p-2 rounded">
-                <select id="s_hours" class="border p-2 rounded">
-                    <option value="1">1 Hour/Week</option>
-                    <option value="2">2 Hours/Week</option>
-                    <option value="5">5 Hours/Week</option>
-                </select>
-                <button onclick="saveSubject()" class="bg-green-600 text-white p-2 rounded col-span-3">Save Subject to System</button>
-            </div>
+    <div id="main-app" class="hidden flex">
+        <div class="w-72 bg-slate-800 text-white min-h-screen flex flex-col">
+            <div class="p-6 border-b border-slate-700">
+                <h2 id="display_user" class="text-xl font-bold">Mohamad El Ghoche</h2> <p id="display_context" class="text-sm text-slate-400">Obhur | 2025–2026</p> </div>
+            <nav class="flex-grow p-4 space-y-2">
+                <button onclick="nav('admin')" class="w-full text-left p-3 hover:bg-slate-700 rounded">Admin Setup</button>
+                <button onclick="nav('subjects')" class="w-full text-left p-3 hover:bg-slate-700 rounded">Subject Module</button>
+                <button onclick="nav('teachers')" class="w-full text-left p-3 hover:bg-slate-700 rounded">Teacher Registry</button>
+                <button onclick="nav('plan')" class="w-full text-left p-3 hover:bg-slate-700 rounded">School Planning</button>
+                <button onclick="nav('report')" class="w-full text-left p-3 bg-green-700 rounded mt-6">Teacher Sufficiency Report</button>
+            </nav>
+            <div class="p-4 text-xs text-right opacity-50 border-t border-slate-700">
+                Developed by Mohamad El Ghoche </div>
         </div>
 
-        <div id="teachers-view" class="view hidden">
-            <h2 class="text-3xl font-bold mb-6 text-slate-800">Teacher Registry</h2>
-            <div class="bg-white p-6 rounded shadow-md grid grid-cols-2 gap-4">
-                <input id="t_id" type="number" placeholder="Teacher ID" class="border p-2 rounded">
-                <input id="t_first" type="text" placeholder="First Name" class="border p-2 rounded">
-                <input id="t_middle" type="text" placeholder="Middle Name" class="border p-2 rounded">
-                <input id="t_last" type="text" placeholder="Last Name" class="border p-2 rounded">
-                <select id="t_branch" class="border p-2 rounded col-span-2">
-                    <option>Obhur</option><option>Hamadina</option><option>Taif</option>
-                </select>
-                <button onclick="saveTeacher()" class="bg-blue-600 text-white p-2 rounded col-span-2">Register Teacher</button>
+        <main class="flex-grow p-10 overflow-y-auto">
+            <div id="plan-view" class="view hidden">
+                <h1 class="text-3xl font-bold mb-8 text-slate-800">Intelligent School Planning</h1>
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                    <table class="w-full border-collapse">
+                        <thead><tr class="bg-slate-100"><th class="p-4 border">Grade Level</th><th class="p-4 border">Current Sections</th><th class="p-4 border">Proposed Sections</th></tr></thead>
+                        <tbody id="planning-table"></tbody>
+                    </table>
+                    <button class="mt-6 bg-blue-600 text-white px-8 py-3 rounded-lg font-bold">Save Infrastructure Plan</button>
+                </div>
             </div>
-        </div>
 
-        <div id="plan-view" class="view hidden">
-            <h2 class="text-3xl font-bold mb-6 text-slate-800">Infrastructure & Planning</h2>
-            <div class="bg-white p-6 rounded shadow-md">
-                <table class="w-full border-collapse">
-                    <thead><tr class="bg-slate-200"><th class="p-3 border">Grade Level</th><th class="p-3 border">Current Sections</th><th class="p-3 border">Proposed Sections</th></tr></thead>
-                    <tbody id="gradeRows"></tbody>
-                </table>
-                <button class="w-full bg-purple-600 text-white p-3 mt-4 rounded font-bold">SAVE PLAN & CALCULATE GAPS</button>
+            <div id="report-view" class="view hidden">
+                <div class="flex justify-between items-center mb-8">
+                    <h1 class="text-3xl font-bold text-green-800">📊 Teacher Sufficiency Report</h1>
+                    <div class="space-x-2">
+                        <button onclick="window.print()" class="bg-slate-800 text-white px-4 py-2 rounded">Print Button</button> <button class="bg-red-700 text-white px-4 py-2 rounded">Export to PDF</button> </div>
+                </div>
+                <div class="bg-white p-8 rounded-xl shadow-lg border-t-8 border-green-600">
+                    <table class="w-full text-left">
+                        <thead><tr class="border-b-2"><th class="pb-4">Subject</th><th class="pb-4">Required Hours</th><th class="pb-4">Available Hours</th><th class="pb-4">Difference</th><th class="pb-4">Needs</th></tr></thead>
+                        <tbody id="report-rows"></tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-
+        </main>
     </div>
 
     <script>
-        function nav(id) {
+        function handleLogin() {
+            // Requirement: ID must be numeric only [cite: 177]
+            const idInput = document.getElementById('login_id').value;
+            if(!idInput || idInput.length !== 9) { alert("User ID must be 9 digits"); return; }
+            document.getElementById('login-page').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+        }
+
+        function nav(section) {
             document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-            document.getElementById(id + '-view').classList.remove('hidden');
+            document.getElementById(section + '-view').classList.remove('hidden');
         }
 
-        // Auto-generate the KG1-G12 rows
+        // Logic for auto-calculating rows KG1 to Grade 12 [cite: 91]
         const grades = ["KG1", "KG2", "KG3", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12"];
-        const grid = document.getElementById('gradeRows');
+        const pTable = document.getElementById('planning-table');
         grades.forEach(g => {
-            grid.innerHTML += `<tr><td class="p-3 border font-bold">${g}</td><td class="p-3 border text-center"><input type="number" class="w-20 border rounded text-center" value="0"></td><td class="p-3 border text-center"><input type="number" class="w-20 border rounded text-center" value="0"></td></tr>`;
+            pTable.innerHTML += `<tr class="hover:bg-slate-50"><td class="p-4 border font-bold">${g}</td><td class="p-4 border"><input type="number" class="w-full text-center" value="0"></td><td class="p-4 border"><input type="number" class="w-full text-center" value="0"></td></tr>`;
         });
-
-        async function saveTeacher() {
-            const data = {
-                teacher_id: document.getElementById('t_id').value,
-                first_name: document.getElementById('t_first').value,
-                middle_name: document.getElementById('t_middle').value,
-                last_name: document.getElementById('t_last').value,
-                branch: document.getElementById('t_branch').value
-            };
-            const res = await fetch('/setup/add-teacher', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(data)
-            });
-            alert((await res.json()).message);
-        }
     </script>
 </body>
 </html>
