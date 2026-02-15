@@ -9,7 +9,6 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 # --- DATABASE SETUP ---
-# Use an absolute path for the database to ensure Render finds it
 DATABASE_URL = "sqlite:///./tis_master.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -38,6 +37,15 @@ class BranchInfrastructureDB(Base):
     current_sections = Column(Integer, default=0)
     proposed_new_sections = Column(Integer, default=0)
 
+# NEW: Subject Table
+class SubjectDB(Base):
+    __tablename__ = "subjects"
+    id = Column(Integer, primary_key=True, index=True)
+    subject_name = Column(String)
+    subject_code = Column(String, unique=True)
+    weekly_hours = Column(Integer)
+    level = Column(String)
+
 Base.metadata.create_all(bind=engine)
 
 # --- 2. SCHEMAS ---
@@ -53,6 +61,13 @@ class SectionUpdate(BaseModel):
     grade_level: str
     new_sections_count: int
 
+# NEW: Subject Schema
+class SubjectCreate(BaseModel):
+    subject_name: str
+    subject_code: str
+    weekly_hours: int
+    level: str
+
 # --- 3. THE APP ---
 app = FastAPI(title="TIS - Unified User & Infrastructure System")
 
@@ -62,6 +77,7 @@ app = FastAPI(title="TIS - Unified User & Infrastructure System")
 def home():
     return {"status": "System Online", "message": "Welcome to TIS"}
 
+# --- USER ROUTES ---
 @app.post("/users/register")
 def register_user(user: UserCreate):
     db = SessionLocal()
@@ -76,28 +92,6 @@ def register_user(user: UserCreate):
     db.close()
     return {"message": f"Successfully registered {user.name} as {user.role}"}
 
-@app.post("/infrastructure/update-sections")
-def update_sections(data: SectionUpdate):
-    db = SessionLocal()
-    infra = db.query(BranchInfrastructureDB).filter(
-        BranchInfrastructureDB.branch_name == data.branch_name,
-        BranchInfrastructureDB.grade_level == data.grade_level
-    ).first()
-
-    if not infra:
-        infra = BranchInfrastructureDB(
-            branch_name=data.branch_name, 
-            grade_level=data.grade_level, 
-            current_sections=data.new_sections_count
-        )
-        db.add(infra)
-    else:
-        infra.current_sections = data.new_sections_count
-    
-    db.commit()
-    db.close()
-    return {"message": f"Updated sections for {data.grade_level} in {data.branch_name}"}
-
 @app.get("/users/all")
 def get_all_users():
     db = SessionLocal()
@@ -105,11 +99,9 @@ def get_all_users():
     db.close()
     return users
 
-# --- 5. THE RENDER FIX ---
-# This block tells the code to use the port Render provides
-if __name__ == "__main__":
-    import uvicorn
-    import os
-    # Render provides a PORT environment variable, we must use it
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+# --- INFRASTRUCTURE ROUTES ---
+@app.post("/infrastructure/update-sections")
+def update_sections(data: SectionUpdate):
+    db = SessionLocal()
+    infra = db.query(BranchInfrastructureDB).filter(
+        BranchInfrastructureDB.branch_name == data.branch_name,
