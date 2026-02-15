@@ -1,300 +1,92 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
     <title>TIS Master System</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-
-<body class="bg-slate-100 min-h-screen">
-
-<!-- LOGIN VIEW -->
-<div id="login-view" class="flex items-center justify-center min-h-screen">
-    <div class="bg-white p-10 rounded-xl shadow-xl w-96">
-        <h2 class="text-2xl font-bold mb-6 text-center">TIS Login</h2>
-
-        <input id="login_id" placeholder="User ID"
-            class="w-full border p-3 rounded mb-4">
-
-        <input id="login_pass" type="password" placeholder="Password"
-            class="w-full border p-3 rounded mb-6">
-
-        <button onclick="login()"
-            class="w-full bg-slate-800 text-white p-3 rounded font-bold hover:bg-slate-900">
-            LOGIN
-        </button>
-    </div>
-</div>
-
-<!-- DASHBOARD -->
-<div id="dashboard" class="hidden flex min-h-screen">
-
-    <!-- SIDEBAR -->
-    <div class="w-72 bg-slate-800 text-white p-6 shadow-xl">
-        <h2 class="text-2xl font-bold mb-8 border-b border-slate-700 pb-4">
-            TIS Dashboard
-        </h2>
-
-        <div class="mb-6 text-sm">
-            Logged in as:
-            <div id="logged-user" class="font-bold text-blue-300"></div>
+<body class="bg-slate-50 flex min-h-screen">
+    <div id="login-page" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-96">
+            <h1 class="text-2xl font-bold mb-6 text-center">TIS Login</h1>
+            <input id="l_id" type="text" placeholder="User ID (9 Digits)" class="w-full border p-2 mb-4 rounded">
+            <input id="l_pass" type="password" placeholder="Password" class="w-full border p-2 mb-4 rounded">
+            <select id="l_br" class="w-full border p-2 mb-6 rounded"><option>Obhur</option><option>Taif</option></select>
+            <button onclick="handleLogin()" class="w-full bg-blue-600 text-white p-2 rounded font-bold">LOGIN</button>
         </div>
-
-        <nav class="space-y-4">
-            <button id="nav-admin"
-                onclick="nav('admin')"
-                class="w-full text-left p-3 hover:bg-slate-700 rounded">
-                Admin Setup
-            </button>
-
-            <button onclick="nav('subjects')"
-                class="w-full text-left p-3 hover:bg-slate-700 rounded">
-                Subject Module
-            </button>
-        </nav>
-
-        <button onclick="logout()"
-            class="mt-10 w-full bg-red-600 p-2 rounded hover:bg-red-700">
-            Logout
-        </button>
     </div>
 
-    <!-- MAIN CONTENT -->
-    <main class="flex-1 p-10">
-
-        <!-- ADMIN VIEW -->
-        <div id="admin-view" class="view hidden">
-            <h1 class="text-3xl font-bold mb-8 text-slate-800">
-                Admin: User Management
-            </h1>
-
-            <div class="bg-white p-8 rounded-xl shadow-sm border mb-10">
-                <div class="grid grid-cols-3 gap-6 mb-6">
-                    <input id="u_id" placeholder="User ID"
-                        class="border p-2 rounded">
-
-                    <input id="u_f" placeholder="First Name"
-                        class="border p-2 rounded">
-
-                    <input id="u_m" placeholder="Middle Name"
-                        class="border p-2 rounded">
-
-                    <input id="u_l" placeholder="Last Name"
-                        class="border p-2 rounded">
-
-                    <input id="u_pass" type="password" placeholder="Password"
-                        class="border p-2 rounded">
-
-                    <select id="u_role"
-                        class="border p-2 rounded">
-                        <option value="Admin">Admin</option>
-                        <option value="BranchUser">BranchUser</option>
-                    </select>
+    <div id="main-app" class="hidden flex w-full">
+        <div class="w-64 bg-slate-800 text-white p-6">
+            <h2 id="user-display" class="font-bold border-b pb-2 mb-6">User</h2>
+            <nav class="space-y-4">
+                <button onclick="nav('admin')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">Admin Setup</button>
+                <button onclick="nav('subs')" class="block w-full text-left p-2 hover:bg-slate-700 rounded">Subjects</button>
+            </nav>
+        </div>
+        <main class="flex-1 p-10">
+            <div id="admin-view" class="view hidden">
+                <h2 class="text-2xl font-bold mb-4">User Management</h2>
+                <div id="user-list" class="bg-white p-4 shadow rounded"></div>
+            </div>
+            <div id="subs-view" class="view hidden">
+                <h2 class="text-2xl font-bold mb-4">Add Subject</h2>
+                <div class="bg-white p-6 shadow rounded grid grid-cols-2 gap-4">
+                    <input id="s_code" placeholder="Code" class="border p-2">
+                    <input id="s_name" placeholder="Name" class="border p-2">
+                    <input id="s_hrs" type="number" placeholder="Hours" class="border p-2">
+                    <button onclick="saveSubject()" class="bg-green-600 text-white p-2 rounded">Save</button>
                 </div>
-
-                <button onclick="saveUser()"
-                    class="bg-slate-800 text-white px-8 py-2 rounded font-bold">
-                    CREATE USER
-                </button>
             </div>
+        </main>
+    </div>
 
-            <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
-                <table class="w-full text-left">
-                    <thead class="bg-slate-100">
-                        <tr>
-                            <th class="p-4">ID</th>
-                            <th class="p-4">Full Name</th>
-                            <th class="p-4">Role</th>
-                        </tr>
-                    </thead>
-                    <tbody id="user-list"></tbody>
-                </table>
-            </div>
-        </div>
+    <script>
+        async function handleLogin() {
+            const params = new URLSearchParams();
+            params.append('username', document.getElementById('l_id').value);
+            params.append('password', document.getElementById('l_pass').value);
 
-        <!-- SUBJECT VIEW -->
-        <div id="subjects-view" class="view hidden">
-            <h1 class="text-3xl font-bold mb-8 text-slate-800">
-                Subject Registry
-            </h1>
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: params
+            });
 
-            <div class="bg-white p-8 rounded-xl shadow-sm border mb-6">
-                <div class="grid grid-cols-2 gap-6 mb-6">
-                    <input id="s_code" placeholder="AAA999"
-                        class="border p-2 rounded">
+            if (res.ok) {
+                const data = await res.json();
+                localStorage.setItem('token', data.access_token);
+                document.getElementById('login-page').classList.add('hidden');
+                document.getElementById('main-app').classList.remove('hidden');
+                loadUsers();
+            } else { alert("Login Failed"); }
+        }
 
-                    <input id="s_name" placeholder="Subject Name"
-                        class="border p-2 rounded">
+        function nav(id) {
+            document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+            document.getElementById(id + '-view').classList.remove('hidden');
+        }
 
-                    <input id="s_hours" type="number"
-                        placeholder="Weekly Hours"
-                        class="border p-2 rounded">
+        async function saveSubject() {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/subjects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({
+                    code: document.getElementById('s_code').value,
+                    name: document.getElementById('s_name').value,
+                    hours: parseInt(document.getElementById('s_hrs').value),
+                    grade: "G1"
+                })
+            });
+            if(res.ok) alert("Saved!");
+        }
 
-                    <input id="s_grade" placeholder="Grade"
-                        class="border p-2 rounded">
-                </div>
-
-                <button onclick="saveSubject()"
-                    class="bg-blue-600 text-white px-8 py-2 rounded font-bold">
-                    ADD SUBJECT
-                </button>
-            </div>
-        </div>
-
-        <!-- FOOTER -->
-        <div class="text-right text-sm text-slate-500 mt-20">
-            Developed by Mohamad El Ghoche
-        </div>
-
-    </main>
-</div>
-
-
-<script>
-
-let token = null;
-let currentUser = null;
-
-// ======================
-// NAVIGATION
-// ======================
-function nav(id) {
-    document.querySelectorAll('.view')
-        .forEach(v => v.classList.add('hidden'));
-
-    document.getElementById(id + '-view')
-        .classList.remove('hidden');
-}
-
-// ======================
-// LOGIN
-// ======================
-async function login() {
-
-    const formData = new URLSearchParams();
-    formData.append("username", document.getElementById('login_id').value);
-    formData.append("password", document.getElementById('login_pass').value);
-
-    const res = await fetch('/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData
-    });
-
-    if (!res.ok) {
-        alert("Invalid credentials");
-        return;
-    }
-
-    const data = await res.json();
-    token = data.access_token;
-
-    // Decode token payload
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    currentUser = payload;
-
-    document.getElementById('logged-user').innerText =
-        payload.user_id + " (" + payload.role + ")";
-
-    document.getElementById('login-view').classList.add('hidden');
-    document.getElementById('dashboard').classList.remove('hidden');
-
-    // Hide admin nav if not admin
-    if (payload.role !== "Admin") {
-        document.getElementById('nav-admin').style.display = "none";
-    }
-
-    if (payload.role === "Admin") {
-        nav('admin');
-        loadUsers();
-    } else {
-        nav('subjects');
-    }
-}
-
-// ======================
-// LOGOUT
-// ======================
-function logout() {
-    token = null;
-    currentUser = null;
-    document.getElementById('dashboard').classList.add('hidden');
-    document.getElementById('login-view').classList.remove('hidden');
-}
-
-// ======================
-// SAVE USER (ADMIN)
-// ======================
-async function saveUser() {
-
-    const data = {
-        user_id: document.getElementById('u_id').value,
-        first_name: document.getElementById('u_f').value,
-        middle_name: document.getElementById('u_m').value,
-        last_name: document.getElementById('u_l').value,
-        password: document.getElementById('u_pass').value,
-        role: document.getElementById('u_role').value,
-        branch_id: 1,
-        academic_year_id: 1
-    };
-
-    const res = await fetch('/admin/users', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-        },
-        body: JSON.stringify(data)
-    });
-
-    if (res.ok) {
-        alert("User Created");
-        loadUsers();
-    } else {
-        alert("Error creating user");
-    }
-}
-
-// ======================
-// LOAD USERS
-// ======================
-async function loadUsers() {
-
-    const res = await fetch('/subjects', {
-        headers: { 'Authorization': 'Bearer ' + token }
-    });
-
-    if (!res.ok) return;
-}
-
-// ======================
-// SAVE SUBJECT
-// ======================
-async function saveSubject() {
-
-    const data = {
-        code: document.getElementById('s_code').value,
-        name: document.getElementById('s_name').value,
-        weekly_hours: parseInt(document.getElementById('s_hours').value),
-        grade: document.getElementById('s_grade').value
-    };
-
-    const res = await fetch('/subjects', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-        },
-        body: JSON.stringify(data)
-    });
-
-    if (res.ok) {
-        alert("Subject Added");
-    } else {
-        alert("Error adding subject");
-    }
-}
-
-</script>
+        async function loadUsers() {
+            const token = localStorage.getItem('token');
+            const res = await fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } });
+            const users = await res.json();
+            document.getElementById('user-list').innerHTML = users.map(u => `<div>${u.first_name} ${u.last_name} (${u.role})</div>`).join('');
+        }
+    </script>
 </body>
 </html>
