@@ -5,103 +5,296 @@
     <title>TIS Master System</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-50 flex min-h-screen">
+
+<body class="bg-slate-100 min-h-screen">
+
+<!-- LOGIN VIEW -->
+<div id="login-view" class="flex items-center justify-center min-h-screen">
+    <div class="bg-white p-10 rounded-xl shadow-xl w-96">
+        <h2 class="text-2xl font-bold mb-6 text-center">TIS Login</h2>
+
+        <input id="login_id" placeholder="User ID"
+            class="w-full border p-3 rounded mb-4">
+
+        <input id="login_pass" type="password" placeholder="Password"
+            class="w-full border p-3 rounded mb-6">
+
+        <button onclick="login()"
+            class="w-full bg-slate-800 text-white p-3 rounded font-bold hover:bg-slate-900">
+            LOGIN
+        </button>
+    </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" class="hidden flex min-h-screen">
+
+    <!-- SIDEBAR -->
     <div class="w-72 bg-slate-800 text-white p-6 shadow-xl">
-        <h2 class="text-2xl font-bold mb-8 border-b border-slate-700 pb-4">TIS Dashboard</h2>
+        <h2 class="text-2xl font-bold mb-8 border-b border-slate-700 pb-4">
+            TIS Dashboard
+        </h2>
+
+        <div class="mb-6 text-sm">
+            Logged in as:
+            <div id="logged-user" class="font-bold text-blue-300"></div>
+        </div>
+
         <nav class="space-y-4">
-            <button onclick="nav('admin')" class="w-full text-left p-3 hover:bg-slate-700 rounded">1. Admin Setup</button>
-            <button onclick="nav('subjects')" class="w-full text-left p-3 hover:bg-slate-700 rounded">2. Subject Module</button>
-            <button onclick="nav('teachers')" class="w-full text-left p-3 hover:bg-slate-700 rounded">3. Teacher Registry</button>
+            <button id="nav-admin"
+                onclick="nav('admin')"
+                class="w-full text-left p-3 hover:bg-slate-700 rounded">
+                Admin Setup
+            </button>
+
+            <button onclick="nav('subjects')"
+                class="w-full text-left p-3 hover:bg-slate-700 rounded">
+                Subject Module
+            </button>
         </nav>
+
+        <button onclick="logout()"
+            class="mt-10 w-full bg-red-600 p-2 rounded hover:bg-red-700">
+            Logout
+        </button>
     </div>
 
+    <!-- MAIN CONTENT -->
     <main class="flex-1 p-10">
-        <div id="admin-view" class="view">
-            <h1 class="text-3xl font-bold mb-8 text-slate-800">Admin: User Management</h1>
+
+        <!-- ADMIN VIEW -->
+        <div id="admin-view" class="view hidden">
+            <h1 class="text-3xl font-bold mb-8 text-slate-800">
+                Admin: User Management
+            </h1>
+
             <div class="bg-white p-8 rounded-xl shadow-sm border mb-10">
                 <div class="grid grid-cols-3 gap-6 mb-6">
-                    <div><label class="block text-sm font-bold mb-2">User ID (9 Digits)</label>
-                         <input id="u_id" type="text" class="w-full border p-2 rounded"></div>
-                    <div><label class="block text-sm font-bold mb-2">First Name</label>
-                         <input id="u_f" type="text" class="w-full border p-2 rounded"></div>
-                    <div><label class="block text-sm font-bold mb-2">Middle Name</label>
-                         <input id="u_m" type="text" class="w-full border p-2 rounded"></div>
-                    <div><label class="block text-sm font-bold mb-2">Last Name</label>
-                         <input id="u_l" type="text" class="w-full border p-2 rounded"></div>
-                    <div><label class="block text-sm font-bold mb-2">Role</label>
-                         <select id="u_role" class="w-full border p-2 rounded"><option>Admin</option><option>Branch User</option></select></div>
+                    <input id="u_id" placeholder="User ID"
+                        class="border p-2 rounded">
+
+                    <input id="u_f" placeholder="First Name"
+                        class="border p-2 rounded">
+
+                    <input id="u_m" placeholder="Middle Name"
+                        class="border p-2 rounded">
+
+                    <input id="u_l" placeholder="Last Name"
+                        class="border p-2 rounded">
+
+                    <input id="u_pass" type="password" placeholder="Password"
+                        class="border p-2 rounded">
+
+                    <select id="u_role"
+                        class="border p-2 rounded">
+                        <option value="Admin">Admin</option>
+                        <option value="BranchUser">BranchUser</option>
+                    </select>
                 </div>
-                <button onclick="saveUser()" class="bg-slate-800 text-white px-8 py-2 rounded font-bold hover:bg-slate-900">CREATE USER</button>
+
+                <button onclick="saveUser()"
+                    class="bg-slate-800 text-white px-8 py-2 rounded font-bold">
+                    CREATE USER
+                </button>
             </div>
 
             <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
                 <table class="w-full text-left">
-                    <thead class="bg-slate-100"><tr><th class="p-4">ID</th><th class="p-4">Full Name</th><th class="p-4">Role</th><th class="p-4">Actions</th></tr></thead>
+                    <thead class="bg-slate-100">
+                        <tr>
+                            <th class="p-4">ID</th>
+                            <th class="p-4">Full Name</th>
+                            <th class="p-4">Role</th>
+                        </tr>
+                    </thead>
                     <tbody id="user-list"></tbody>
                 </table>
             </div>
         </div>
 
+        <!-- SUBJECT VIEW -->
         <div id="subjects-view" class="view hidden">
-            <h1 class="text-3xl font-bold mb-8 text-slate-800">Subject Registry</h1>
+            <h1 class="text-3xl font-bold mb-8 text-slate-800">
+                Subject Registry
+            </h1>
+
             <div class="bg-white p-8 rounded-xl shadow-sm border mb-6">
                 <div class="grid grid-cols-2 gap-6 mb-6">
-                    <div><label class="block text-sm font-bold mb-2">Subject Code (AAA999)</label>
-                         <input id="s_code" type="text" class="w-full border p-2 rounded"></div>
-                    <div><label class="block text-sm font-bold mb-2">Subject Name</label>
-                         <input id="s_name" type="text" class="w-full border p-2 rounded"></div>
-                    <div><label class="block text-sm font-bold mb-2">Weekly Hours</label>
-                         <input id="s_hours" type="number" class="w-full border p-2 rounded"></div>
-                    <div><label class="block text-sm font-bold mb-2">Grade Level</label>
-                         <select id="s_grade" class="w-full border p-2 rounded">
-                            <option>KG1</option><option>KG2</option><option>G1</option><option>G2</option><option>G12</option>
-                         </select></div>
+                    <input id="s_code" placeholder="AAA999"
+                        class="border p-2 rounded">
+
+                    <input id="s_name" placeholder="Subject Name"
+                        class="border p-2 rounded">
+
+                    <input id="s_hours" type="number"
+                        placeholder="Weekly Hours"
+                        class="border p-2 rounded">
+
+                    <input id="s_grade" placeholder="Grade"
+                        class="border p-2 rounded">
                 </div>
-                <button onclick="saveSubject()" class="bg-blue-600 text-white px-8 py-2 rounded font-bold hover:bg-blue-700">ADD SUBJECT</button>
+
+                <button onclick="saveSubject()"
+                    class="bg-blue-600 text-white px-8 py-2 rounded font-bold">
+                    ADD SUBJECT
+                </button>
             </div>
         </div>
+
+        <!-- FOOTER -->
+        <div class="text-right text-sm text-slate-500 mt-20">
+            Developed by Mohamad El Ghoche
+        </div>
+
     </main>
+</div>
 
-    <script>
-        function nav(id) {
-            document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-            document.getElementById(id + '-view').classList.remove('hidden');
-        }
 
-        async function saveUser() {
-            const data = {
-                user_id: document.getElementById('u_id').value,
-                first_name: document.getElementById('u_f').value,
-                middle_name: document.getElementById('u_m').value,
-                last_name: document.getElementById('u_l').value,
-                role: document.getElementById('u_role').value,
-                branch: "Obhur"
-            };
-            const res = await fetch('/api/users', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data)});
-            if(res.ok) { 
-                alert("User Created!"); 
-                document.querySelectorAll('input').forEach(i => i.value = ""); // Clear fields
-                loadUsers(); 
-            }
-        }
+<script>
 
-        async function loadUsers() {
-            const res = await fetch('/api/users');
-            const users = await res.json();
-            const list = document.getElementById('user-list');
-            list.innerHTML = users.map(u => `
-                <tr class="border-t">
-                    <td class="p-4">${u.user_id}</td>
-                    <td class="p-4">${u.first_name} ${u.middle_name} ${u.last_name}</td>
-                    <td class="p-4 text-blue-600 font-bold">${u.role}</td>
-                    <td class="p-4">
-                        <button class="text-blue-500 mr-2">Edit</button>
-                        ${u.role !== 'Branch User' ? '<button class="text-red-500">Delete</button>' : ''}
-                    </td>
-                </tr>`).join('');
-        }
+let token = null;
+let currentUser = null;
 
-        window.onload = loadUsers;
-    </script>
+// ======================
+// NAVIGATION
+// ======================
+function nav(id) {
+    document.querySelectorAll('.view')
+        .forEach(v => v.classList.add('hidden'));
+
+    document.getElementById(id + '-view')
+        .classList.remove('hidden');
+}
+
+// ======================
+// LOGIN
+// ======================
+async function login() {
+
+    const formData = new URLSearchParams();
+    formData.append("username", document.getElementById('login_id').value);
+    formData.append("password", document.getElementById('login_pass').value);
+
+    const res = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData
+    });
+
+    if (!res.ok) {
+        alert("Invalid credentials");
+        return;
+    }
+
+    const data = await res.json();
+    token = data.access_token;
+
+    // Decode token payload
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    currentUser = payload;
+
+    document.getElementById('logged-user').innerText =
+        payload.user_id + " (" + payload.role + ")";
+
+    document.getElementById('login-view').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+
+    // Hide admin nav if not admin
+    if (payload.role !== "Admin") {
+        document.getElementById('nav-admin').style.display = "none";
+    }
+
+    if (payload.role === "Admin") {
+        nav('admin');
+        loadUsers();
+    } else {
+        nav('subjects');
+    }
+}
+
+// ======================
+// LOGOUT
+// ======================
+function logout() {
+    token = null;
+    currentUser = null;
+    document.getElementById('dashboard').classList.add('hidden');
+    document.getElementById('login-view').classList.remove('hidden');
+}
+
+// ======================
+// SAVE USER (ADMIN)
+// ======================
+async function saveUser() {
+
+    const data = {
+        user_id: document.getElementById('u_id').value,
+        first_name: document.getElementById('u_f').value,
+        middle_name: document.getElementById('u_m').value,
+        last_name: document.getElementById('u_l').value,
+        password: document.getElementById('u_pass').value,
+        role: document.getElementById('u_role').value,
+        branch_id: 1,
+        academic_year_id: 1
+    };
+
+    const res = await fetch('/admin/users', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify(data)
+    });
+
+    if (res.ok) {
+        alert("User Created");
+        loadUsers();
+    } else {
+        alert("Error creating user");
+    }
+}
+
+// ======================
+// LOAD USERS
+// ======================
+async function loadUsers() {
+
+    const res = await fetch('/subjects', {
+        headers: { 'Authorization': 'Bearer ' + token }
+    });
+
+    if (!res.ok) return;
+}
+
+// ======================
+// SAVE SUBJECT
+// ======================
+async function saveSubject() {
+
+    const data = {
+        code: document.getElementById('s_code').value,
+        name: document.getElementById('s_name').value,
+        weekly_hours: parseInt(document.getElementById('s_hours').value),
+        grade: document.getElementById('s_grade').value
+    };
+
+    const res = await fetch('/subjects', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify(data)
+    });
+
+    if (res.ok) {
+        alert("Subject Added");
+    } else {
+        alert("Error adding subject");
+    }
+}
+
+</script>
 </body>
 </html>
