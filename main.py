@@ -55,3 +55,52 @@ def create_teacher(teacher: schemas.TeacherCreate, db: Session = Depends(get_db)
     db.commit()
     db.refresh(db_teacher)
     return db_teacher
+from auth import get_password_hash
+from models import User, Branch, AcademicYear
+from database import SessionLocal
+
+
+@app.on_event("startup")
+def setup_initial_data():
+    db = SessionLocal()
+
+    # Create Branch if not exists
+    branch = db.query(Branch).filter(Branch.name == "Hamadania").first()
+    if not branch:
+        branch = Branch(
+            name="Hamadania",
+            location="Main Campus",
+            status=True
+        )
+        db.add(branch)
+        db.commit()
+        db.refresh(branch)
+
+    # Create Academic Year if not exists
+    academic_year = db.query(AcademicYear).filter(AcademicYear.year_name == "2025-2026").first()
+    if not academic_year:
+        academic_year = AcademicYear(
+            year_name="2025-2026",
+            is_active=True
+        )
+        db.add(academic_year)
+        db.commit()
+        db.refresh(academic_year)
+
+    # Create Admin User if not exists
+    existing_user = db.query(User).filter(User.user_id == "2623252018").first()
+    if not existing_user:
+        admin_user = User(
+            user_id="2623252018",
+            first_name="mohamad",
+            last_name="El Ghoche",
+            password=get_password_hash("UnderProcess1984"),
+            role="Admin",
+            branch_id=branch.id,
+            academic_year_id=academic_year.id,
+            is_active=True
+        )
+        db.add(admin_user)
+        db.commit()
+
+    db.close()
