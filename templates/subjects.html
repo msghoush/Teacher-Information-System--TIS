@@ -13,9 +13,18 @@
             margin-bottom: 20px;
         }
 
+        .error {
+            background: #ffdddd;
+            color: #a94442;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-left: 5px solid red;
+        }
+
         form input {
             padding: 8px;
             margin-right: 10px;
+            margin-bottom: 10px;
         }
 
         button {
@@ -63,6 +72,13 @@
 
 <h2>Subjects</h2>
 
+<!-- 🔴 Show Error Message -->
+{% if error %}
+<div class="error">
+    {{ error }}
+</div>
+{% endif %}
+
 <form method="post" action="/subjects">
     <input type="text" name="subject_code" placeholder="Code (AAA999)" required>
     <input type="text" name="subject_name" placeholder="Subject Name" required>
@@ -91,7 +107,7 @@
             <a class="edit" href="/subjects/edit/{{ subject.id }}">✏️</a>
 
             <!-- Delete icon (Admin only) -->
-            {% if user.role == "Admin" %}
+            {% if user and user.role == "Admin" %}
                 <a class="delete" href="/subjects/delete/{{ subject.id }}">🗑️</a>
             {% endif %}
         </td>
