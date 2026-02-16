@@ -1,21 +1,27 @@
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
+
 import models
-from dependencies import get_db, get_current_user
+from database import SessionLocal
+from auth import get_current_user
+from main import get_db
 
-router = APIRouter()
-
+router = APIRouter(prefix="/subjects", tags=["Subjects"])
 templates = Jinja2Templates(directory="templates")
 
 
-@router.get("/subjects")
+# ---------------------------------------
+# GET SUBJECTS PAGE
+# URL: /subjects
+# ---------------------------------------
+@router.get("/")
 def subjects_page(
     request: Request,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user=Depends(get_current_user)
 ):
 
     if not current_user:
@@ -36,7 +42,11 @@ def subjects_page(
     )
 
 
-@router.post("/subjects")
+# ---------------------------------------
+# ADD SUBJECT
+# URL: POST /subjects
+# ---------------------------------------
+@router.post("/")
 def add_subject(
     request: Request,
     subject_code: str = Form(...),
@@ -44,7 +54,7 @@ def add_subject(
     weekly_hours: int = Form(...),
     grade: int = Form(...),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user=Depends(get_current_user)
 ):
 
     if not current_user:
@@ -79,5 +89,95 @@ def add_subject(
                 "error": "Duplicate subject code is not allowed."
             }
         )
+
+    return RedirectResponse(url="/subjects", status_code=302)
+
+
+# ---------------------------------------
+# EDIT SUBJECT (GET)
+# URL: /subjects/edit/{id}
+# ---------------------------------------
+@router.get("/edit/{subject_id}")
+def edit_subject_page(
+    request: Request,
+    subject_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+
+    subject = db.query(models.Subject).filter(
+        models.Subject.id == subject_id
+    ).first()
+
+    if not subject:
+        return RedirectResponse(url="/subjects")
+
+    return templates.TemplateResponse(
+        "edit_subject.html",
+        {
+            "request": request,
+            "subject": subject,
+            "user": current_user
+        }
+    )
+
+
+# ---------------------------------------
+# UPDATE SUBJECT (POST)
+# URL: /subjects/edit/{id}
+# ---------------------------------------
+@router.post("/edit/{subject_id}")
+def update_subject(
+    subject_id: int,
+    subject_code: str = Form(...),
+    subject_name: str = Form(...),
+    weekly_hours: int = Form(...),
+    grade: int = Form(...),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+
+    subject = db.query(models.Subject).filter(
+        models.Subject.id == subject_id
+    ).first()
+
+    if not subject:
+        return RedirectResponse(url="/subjects")
+
+    subject.subject_code = subject_code
+    subject.subject_name = subject_name
+    subject.weekly_hours = weekly_hours
+    subject.grade = grade
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return RedirectResponse(url="/subjects", status_code=302)
+
+    return RedirectResponse(url="/subjects", status_code=302)
+
+
+# ---------------------------------------
+# DELETE SUBJECT (ADMIN ONLY)
+# URL: /subjects/delete/{id}
+# ---------------------------------------
+@router.get("/delete/{subject_id}")
+def delete_subject(
+    subject_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+
+    if current_user.role != "Admin":
+        return RedirectResponse(url="/subjects")
+
+    subject = db.query(models.Subject).filter(
+        models.Subject.id == subject_id
+    ).first()
+
+    if subject:
+        db.delete(subject)
+        db.commit()
 
     return RedirectResponse(url="/subjects", status_code=302)
