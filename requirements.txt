@@ -3,3 +3,4 @@ uvicorn
 sqlalchemy
 python-jose
 python-multipart
+jinja2
