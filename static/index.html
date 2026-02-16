@@ -1,125 +1,21 @@
-<script>
-let token = null;
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TIS Backend Server</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>TIS API Server</h1>
+    <p>The backend is running successfully.</p>
 
-// ======================
-// NAVIGATION
-// ======================
-function nav(id) {
-    document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-    document.getElementById(id + '-view').classList.remove('hidden');
-}
+    <h3>Available Endpoints:</h3>
+    <ul>
+        <li>POST /api/register</li>
+        <li>POST /api/login</li>
+        <li>GET /api/subjects</li>
+        <li>POST /api/subjects</li>
+    </ul>
 
-// ======================
-// LOGIN - FIXED URL to /api/login
-// ======================
-async function login() {
-    const formData = new URLSearchParams();
-    formData.append("username", document.getElementById('login_id').value);
-    formData.append("password", document.getElementById('login_pass').value);
-
-    const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData
-    });
-
-    if (!res.ok) {
-        alert("Invalid credentials. Use 123456789 / admin123");
-        return;
-    }
-
-    const data = await res.json();
-    token = data.access_token;
-
-    // Decode token payload to get user_id
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    
-    document.getElementById('logged-user').innerText = payload.sub;
-    document.getElementById('login-view').classList.add('hidden');
-    document.getElementById('dashboard').classList.remove('hidden');
-
-    // Default view after login
-    nav('subjects');
-}
-
-// ======================
-// SAVE USER - FIXED URL to /api/register
-// ======================
-async function saveUser() {
-    const data = {
-        user_id: document.getElementById('u_id').value,
-        first_name: document.getElementById('u_f').value,
-        middle_name: document.getElementById('u_m').value,
-        last_name: document.getElementById('u_l').value,
-        password: document.getElementById('u_pass').value,
-        role: document.getElementById('u_role').value,
-        branch: "Obhur" // Matches your UserCreate schema
-    };
-
-    const res = await fetch('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    });
-
-    if (res.ok) {
-        alert("User Created Successfully");
-        loadUsers();
-    } else {
-        alert("Error creating user");
-    }
-}
-
-// ======================
-// LOAD USERS - FIXED URL to /api/users
-// ======================
-async function loadUsers() {
-    const res = await fetch('/api/users', {
-        headers: { 'Authorization': 'Bearer ' + token }
-    });
-
-    if (res.ok) {
-        const users = await res.json();
-        const list = document.getElementById('user-list');
-        list.innerHTML = users.map(u => `
-            <tr>
-                <td class="p-4 border-b">${u.user_id}</td>
-                <td class="p-4 border-b">${u.first_name} ${u.last_name}</td>
-                <td class="p-4 border-b">${u.role}</td>
-            </tr>
-        `).join('');
-    }
-}
-
-// ======================
-// SAVE SUBJECT - FIXED URL to /api/subjects
-// ======================
-async function saveSubject() {
-    const data = {
-        code: document.getElementById('s_code').value,
-        name: document.getElementById('s_name').value,
-        hours: parseInt(document.getElementById('s_hours').value), // Field name 'hours'
-        grade: document.getElementById('s_grade').value
-    };
-
-    const res = await fetch('/api/subjects', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-        },
-        body: JSON.stringify(data)
-    });
-
-    if (res.ok) {
-        alert("Subject Added Successfully");
-    } else {
-        alert("Error: Only Admin can add subjects.");
-    }
-}
-
-function logout() {
-    token = null;
-    location.reload();
-}
-</script>
+    <p>Authentication: Bearer Token Required</p>
+</body>
+</html>
