@@ -1,3 +1,6 @@
+from fastapi import Request, Form
+from fastapi.responses import RedirectResponse
+from fastapi.templating import Jinja2Templates
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -10,6 +13,7 @@ import auth
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Teacher Information System")
+templates = Jinja2Templates(directory="templates")
 
 # Dependency
 def get_db():
@@ -28,13 +32,33 @@ def read_root():
 
 # 🔐 LOGIN
 @app.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = auth.authenticate_user(db, form_data.username, form_data.password)
+def login(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    user = auth.authenticate_user(db, username, password)
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        return templates.TemplateResponse("index.html", {"request": request, "error": "Invalid credentials"})
 
-    access_token = auth.create_access_token(data={"sub": user.user_id})
-    return {"access_token": access_token, "token_type": "bearer"}
+    response = RedirectResponse(url="/dashboard", status_code=302)
+    response.set_cookie(key="user_id", value=user.user_id)
+    return response
+
+@app.get("/dashboard")
+def dashboard(request: Request, db: Session = Depends(get_db)):
+    user_id = request.cookies.get("user_id")
+
+    if not user_id:
+        return RedirectResponse(url="/")
+
+    user = db.query(models.User).filter(models.User.user_id == user_id).first()
+
+    branch = db.query(models.Branch).filter(models.Branch.id == user.branch_id).first()
+    academic_year = db.query(models.AcademicYear).filter(models.AcademicYear.id == user.academic_year_id).first()
+
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "user": user,
+        "branch": branch,
+        "academic_year": academic_year
+    })
 
 
 # ➕ CREATE SUBJECT
