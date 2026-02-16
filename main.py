@@ -19,7 +19,6 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Teacher Information System")
 templates = Jinja2Templates(directory="templates")
 
-
 # -----------------------------------
 # Database Dependency
 # -----------------------------------
@@ -30,7 +29,6 @@ def get_db():
     finally:
         db.close()
 
-
 # -----------------------------------
 # Home Page
 # -----------------------------------
@@ -39,17 +37,11 @@ def read_root():
     with open("templates/index.html", "r", encoding="utf-8") as f:
         return f.read()
 
-
 # -----------------------------------
 # Login
 # -----------------------------------
 @app.post("/login")
-def login(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    db: Session = Depends(get_db)
-):
+def login(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
 
     user = auth.authenticate_user(db, username, password)
 
@@ -63,7 +55,6 @@ def login(
     response.set_cookie(key="user_id", value=user.user_id)
     return response
 
-
 # -----------------------------------
 # Dashboard
 # -----------------------------------
@@ -75,17 +66,10 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     if not user_id:
         return RedirectResponse(url="/")
 
-    user = db.query(models.User).filter(
-        models.User.user_id == user_id
-    ).first()
+    user = db.query(models.User).filter(models.User.user_id == user_id).first()
 
-    branch = db.query(models.Branch).filter(
-        models.Branch.id == user.branch_id
-    ).first()
-
-    academic_year = db.query(models.AcademicYear).filter(
-        models.AcademicYear.id == user.academic_year_id
-    ).first()
+    branch = db.query(models.Branch).filter(models.Branch.id == user.branch_id).first()
+    academic_year = db.query(models.AcademicYear).filter(models.AcademicYear.id == user.academic_year_id).first()
 
     return templates.TemplateResponse(
         "dashboard.html",
@@ -97,9 +81,8 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         }
     )
 
-
 # -----------------------------------
-# Subjects Page (GET)
+# Subjects Page
 # -----------------------------------
 @app.get("/subjects")
 def subjects_page(request: Request, db: Session = Depends(get_db)):
@@ -109,9 +92,7 @@ def subjects_page(request: Request, db: Session = Depends(get_db)):
     if not user_id:
         return RedirectResponse(url="/")
 
-    user = db.query(models.User).filter(
-        models.User.user_id == user_id
-    ).first()
+    user = db.query(models.User).filter(models.User.user_id == user_id).first()
 
     subjects = db.query(models.Subject).filter(
         models.Subject.branch_id == user.branch_id,
@@ -123,32 +104,26 @@ def subjects_page(request: Request, db: Session = Depends(get_db)):
         {
             "request": request,
             "subjects": subjects,
-            "user": user   # IMPORTANT for admin check
+            "user": user
         }
     )
 
-
 # -----------------------------------
-# Add Subject (POST)
+# Add Subject
 # -----------------------------------
 @app.post("/subjects")
-def add_subject(
-    request: Request,
-    subject_code: str = Form(...),
-    subject_name: str = Form(...),
-    weekly_hours: int = Form(...),
-    grade: int = Form(...),
-    db: Session = Depends(get_db)
-):
+def add_subject(request: Request,
+                subject_code: str = Form(...),
+                subject_name: str = Form(...),
+                weekly_hours: int = Form(...),
+                grade: int = Form(...),
+                db: Session = Depends(get_db)):
 
     user_id = request.cookies.get("user_id")
-
     if not user_id:
         return RedirectResponse(url="/")
 
-    user = db.query(models.User).filter(
-        models.User.user_id == user_id
-    ).first()
+    user = db.query(models.User).filter(models.User.user_id == user_id).first()
 
     new_subject = models.Subject(
         subject_code=subject_code,
@@ -164,36 +139,70 @@ def add_subject(
 
     return RedirectResponse(url="/subjects", status_code=302)
 
+# -----------------------------------
+# EDIT SUBJECT - PAGE
+# -----------------------------------
+@app.get("/subjects/edit/{subject_id}")
+def edit_subject_page(subject_id: int, request: Request, db: Session = Depends(get_db)):
+
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        return RedirectResponse(url="/")
+
+    subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
+
+    return templates.TemplateResponse(
+        "edit_subject.html",
+        {
+            "request": request,
+            "subject": subject
+        }
+    )
 
 # -----------------------------------
-# Delete Subject (Admin Only)
+# EDIT SUBJECT - SAVE
+# -----------------------------------
+@app.post("/subjects/edit/{subject_id}")
+def update_subject(subject_id: int,
+                   subject_code: str = Form(...),
+                   subject_name: str = Form(...),
+                   weekly_hours: int = Form(...),
+                   grade: int = Form(...),
+                   db: Session = Depends(get_db)):
+
+    subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
+
+    subject.subject_code = subject_code
+    subject.subject_name = subject_name
+    subject.weekly_hours = weekly_hours
+    subject.grade = grade
+
+    db.commit()
+
+    return RedirectResponse(url="/subjects", status_code=302)
+
+# -----------------------------------
+# DELETE SUBJECT
 # -----------------------------------
 @app.get("/subjects/delete/{subject_id}")
 def delete_subject(subject_id: int, request: Request, db: Session = Depends(get_db)):
 
     user_id = request.cookies.get("user_id")
-
     if not user_id:
         return RedirectResponse(url="/")
 
-    user = db.query(models.User).filter(
-        models.User.user_id == user_id
-    ).first()
+    user = db.query(models.User).filter(models.User.user_id == user_id).first()
 
-    # Only Admin can delete
     if user.role != "Admin":
         return RedirectResponse(url="/subjects")
 
-    subject = db.query(models.Subject).filter(
-        models.Subject.id == subject_id
-    ).first()
+    subject = db.query(models.Subject).filter(models.Subject.id == subject_id).first()
 
     if subject:
         db.delete(subject)
         db.commit()
 
     return RedirectResponse(url="/subjects", status_code=302)
-
 
 # -----------------------------------
 # Startup Initialization
@@ -203,40 +212,21 @@ def setup_initial_data():
 
     db = SessionLocal()
 
-    # Create Branch
-    branch = db.query(Branch).filter(
-        Branch.name == "Hamadania"
-    ).first()
-
+    branch = db.query(Branch).filter(Branch.name == "Hamadania").first()
     if not branch:
-        branch = Branch(
-            name="Hamadania",
-            location="Main Campus",
-            status=True
-        )
+        branch = Branch(name="Hamadania", location="Main Campus", status=True)
         db.add(branch)
         db.commit()
         db.refresh(branch)
 
-    # Create Academic Year
-    academic_year = db.query(AcademicYear).filter(
-        AcademicYear.year_name == "2025-2026"
-    ).first()
-
+    academic_year = db.query(AcademicYear).filter(AcademicYear.year_name == "2025-2026").first()
     if not academic_year:
-        academic_year = AcademicYear(
-            year_name="2025-2026",
-            is_active=True
-        )
+        academic_year = AcademicYear(year_name="2025-2026", is_active=True)
         db.add(academic_year)
         db.commit()
         db.refresh(academic_year)
 
-    # Create Admin User
-    existing_user = db.query(User).filter(
-        User.user_id == "2623252018"
-    ).first()
-
+    existing_user = db.query(User).filter(User.user_id == "2623252018").first()
     if not existing_user:
         admin_user = User(
             user_id="2623252018",
