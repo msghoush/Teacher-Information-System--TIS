@@ -122,7 +122,8 @@ def subjects_page(request: Request, db: Session = Depends(get_db)):
         "subjects.html",
         {
             "request": request,
-            "subjects": subjects
+            "subjects": subjects,
+            "user": user   # IMPORTANT for admin check
         }
     )
 
@@ -160,6 +161,36 @@ def add_subject(
 
     db.add(new_subject)
     db.commit()
+
+    return RedirectResponse(url="/subjects", status_code=302)
+
+
+# -----------------------------------
+# Delete Subject (Admin Only)
+# -----------------------------------
+@app.get("/subjects/delete/{subject_id}")
+def delete_subject(subject_id: int, request: Request, db: Session = Depends(get_db)):
+
+    user_id = request.cookies.get("user_id")
+
+    if not user_id:
+        return RedirectResponse(url="/")
+
+    user = db.query(models.User).filter(
+        models.User.user_id == user_id
+    ).first()
+
+    # Only Admin can delete
+    if user.role != "Admin":
+        return RedirectResponse(url="/subjects")
+
+    subject = db.query(models.Subject).filter(
+        models.Subject.id == subject_id
+    ).first()
+
+    if subject:
+        db.delete(subject)
+        db.commit()
 
     return RedirectResponse(url="/subjects", status_code=302)
 
