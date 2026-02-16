@@ -1,22 +1,21 @@
-from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+import hashlib
 import models
 
 SECRET_KEY = "supersecretkey"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Simple SHA256 hashing (stable for deployment)
+def get_password_hash(password: str):
+    return hashlib.sha256(password.encode()).hexdigest()
 
 
-def verify_password(plain, hashed):
-    return pwd_context.verify(plain, hashed)
-
-
-def get_password_hash(password):
-    return pwd_context.hash(password)
+def verify_password(plain_password: str, hashed_password: str):
+    return hashlib.sha256(plain_password.encode()).hexdigest() == hashed_password
 
 
 def authenticate_user(db: Session, user_id: str, password: str):
