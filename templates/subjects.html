@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Subjects</title>
+    <style>
+        body { font-family: Arial; padding: 30px; background: #f4f6f9; }
+        table { border-collapse: collapse; width: 100%; background: white; }
+        th, td { border: 1px solid #ddd; padding: 8px; }
+        th { background: #007bff; color: white; }
+        form { margin-bottom: 20px; background: white; padding: 15px; }
+        input { margin-right: 10px; padding: 5px; }
+        button { padding: 5px 10px; }
+    </style>
+</head>
+<body>
+
+<h2>Subjects</h2>
+
+<form method="post" action="/subjects">
+    <input type="text" name="subject_code" placeholder="Code (AAA999)" required>
+    <input type="text" name="subject_name" placeholder="Subject Name" required>
+    <input type="number" name="weekly_hours" placeholder="Weekly Hours" required>
+    <input type="number" name="grade" placeholder="Grade" required>
+    <button type="submit">Add Subject</button>
+</form>
+
+<table>
+    <tr>
+        <th>Code</th>
+        <th>Name</th>
+        <th>Weekly Hours</th>
+        <th>Grade</th>
+    </tr>
+
+    {% for subject in subjects %}
+    <tr>
+        <td>{{ subject.subject_code }}</td>
+        <td>{{ subject.subject_name }}</td>
+        <td>{{ subject.weekly_hours }}</td>
+        <td>{{ subject.grade }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+</body>
+</html>
