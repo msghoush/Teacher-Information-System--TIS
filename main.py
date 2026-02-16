@@ -114,12 +114,13 @@ def subjects_page(request: Request, db: Session = Depends(get_db)):
     ).all()
 
     return templates.TemplateResponse(
-        "subjects.html",
-        {
-            "request": request,
-            "subjects": subjects
-        }
-    )
+    "subjects.html",
+    {
+        "request": request,
+        "subjects": subjects,
+        "user": user
+    }
+)
 
 # -----------------------------------
 # Add Subject (POST)
