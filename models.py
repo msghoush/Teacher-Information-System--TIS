@@ -34,7 +34,7 @@ class User(Base):
 class Subject(Base):
     __tablename__ = "subjects"
     id = Column(Integer, primary_key=True)
-    subject_code = Column(String, index=True)
+    subject_code = Column(String, unique=True, index=True)
     subject_name = Column(String)
     weekly_hours = Column(Integer)
     grade = Column(Integer)
