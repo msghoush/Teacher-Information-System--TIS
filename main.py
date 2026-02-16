@@ -5,17 +5,24 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 import models
 import auth
+from auth import get_password_hash
+from models import User, Branch, AcademicYear
 
-# Create tables
+# -----------------------------------
+# Create Database Tables
+# -----------------------------------
 models.Base.metadata.create_all(bind=engine)
 
+# -----------------------------------
+# App Initialization
+# -----------------------------------
 app = FastAPI(title="Teacher Information System")
 templates = Jinja2Templates(directory="templates")
 
 
-# -----------------------------
+# -----------------------------------
 # Database Dependency
-# -----------------------------
+# -----------------------------------
 def get_db():
     db = SessionLocal()
     try:
@@ -24,25 +31,28 @@ def get_db():
         db.close()
 
 
-# -----------------------------
+# -----------------------------------
 # Home Page
-# -----------------------------
+# -----------------------------------
 @app.get("/", response_class=HTMLResponse)
 def read_root():
     with open("templates/index.html", "r", encoding="utf-8") as f:
         return f.read()
 
 
-# -----------------------------
+# -----------------------------------
 # Login
-# -----------------------------
+# -----------------------------------
 @app.post("/login")
-def login(request: Request,
-          username: str = Form(...),
-          password: str = Form(...),
-          db: Session = Depends(get_db)):
+def login(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db)
+):
 
     user = auth.authenticate_user(db, username, password)
+
     if not user:
         return templates.TemplateResponse(
             "index.html",
@@ -54,13 +64,14 @@ def login(request: Request,
     return response
 
 
-# -----------------------------
+# -----------------------------------
 # Dashboard
-# -----------------------------
+# -----------------------------------
 @app.get("/dashboard")
 def dashboard(request: Request, db: Session = Depends(get_db)):
 
     user_id = request.cookies.get("user_id")
+
     if not user_id:
         return RedirectResponse(url="/")
 
@@ -87,13 +98,14 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     )
 
 
-# -----------------------------
+# -----------------------------------
 # Subjects Page (GET)
-# -----------------------------
+# -----------------------------------
 @app.get("/subjects")
 def subjects_page(request: Request, db: Session = Depends(get_db)):
 
     user_id = request.cookies.get("user_id")
+
     if not user_id:
         return RedirectResponse(url="/")
 
@@ -115,18 +127,21 @@ def subjects_page(request: Request, db: Session = Depends(get_db)):
     )
 
 
-# -----------------------------
+# -----------------------------------
 # Add Subject (POST)
-# -----------------------------
+# -----------------------------------
 @app.post("/subjects")
-def add_subject(request: Request,
-                subject_code: str = Form(...),
-                subject_name: str = Form(...),
-                weekly_hours: int = Form(...),
-                grade: int = Form(...),
-                db: Session = Depends(get_db)):
+def add_subject(
+    request: Request,
+    subject_code: str = Form(...),
+    subject_name: str = Form(...),
+    weekly_hours: int = Form(...),
+    grade: int = Form(...),
+    db: Session = Depends(get_db)
+):
 
     user_id = request.cookies.get("user_id")
+
     if not user_id:
         return RedirectResponse(url="/")
 
@@ -147,15 +162,21 @@ def add_subject(request: Request,
     db.commit()
 
     return RedirectResponse(url="/subjects", status_code=302)
-                    from auth import get_password_hash
-from models import User, Branch, AcademicYear
 
 
+# -----------------------------------
+# Startup Initialization
+# -----------------------------------
 @app.on_event("startup")
 def setup_initial_data():
+
     db = SessionLocal()
 
-    branch = db.query(Branch).filter(Branch.name == "Hamadania").first()
+    # Create Branch
+    branch = db.query(Branch).filter(
+        Branch.name == "Hamadania"
+    ).first()
+
     if not branch:
         branch = Branch(
             name="Hamadania",
@@ -166,9 +187,11 @@ def setup_initial_data():
         db.commit()
         db.refresh(branch)
 
+    # Create Academic Year
     academic_year = db.query(AcademicYear).filter(
         AcademicYear.year_name == "2025-2026"
     ).first()
+
     if not academic_year:
         academic_year = AcademicYear(
             year_name="2025-2026",
@@ -178,6 +201,7 @@ def setup_initial_data():
         db.commit()
         db.refresh(academic_year)
 
+    # Create Admin User
     existing_user = db.query(User).filter(
         User.user_id == "2623252018"
     ).first()
