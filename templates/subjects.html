@@ -3,13 +3,60 @@
 <head>
     <title>Subjects</title>
     <style>
-        body { font-family: Arial; padding: 30px; background: #f4f6f9; }
-        table { border-collapse: collapse; width: 100%; background: white; }
-        th, td { border: 1px solid #ddd; padding: 8px; }
-        th { background: #007bff; color: white; }
-        form { margin-bottom: 20px; background: white; padding: 15px; }
-        input { margin-right: 10px; padding: 5px; }
-        button { padding: 5px 10px; }
+        body {
+            font-family: Arial;
+            background: #f4f6f9;
+            padding: 30px;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+        }
+
+        form input {
+            padding: 8px;
+            margin-right: 10px;
+        }
+
+        button {
+            padding: 8px 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+        }
+
+        th {
+            background: #1976d2;
+            color: white;
+            padding: 10px;
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .actions a {
+            margin-right: 10px;
+            text-decoration: none;
+            font-size: 16px;
+        }
+
+        .edit {
+            color: #1976d2;
+        }
+
+        .delete {
+            color: red;
+        }
     </style>
 </head>
 <body>
@@ -30,6 +77,7 @@
         <th>Name</th>
         <th>Weekly Hours</th>
         <th>Grade</th>
+        <th>Actions</th>
     </tr>
 
     {% for subject in subjects %}
@@ -38,6 +86,15 @@
         <td>{{ subject.subject_name }}</td>
         <td>{{ subject.weekly_hours }}</td>
         <td>{{ subject.grade }}</td>
+        <td class="actions">
+            <!-- Edit icon -->
+            <a class="edit" href="/subjects/edit/{{ subject.id }}">✏️</a>
+
+            <!-- Delete icon (Admin only) -->
+            {% if user.role == "Admin" %}
+                <a class="delete" href="/subjects/delete/{{ subject.id }}">🗑️</a>
+            {% endif %}
+        </td>
     </tr>
     {% endfor %}
 </table>
