@@ -3,9 +3,19 @@ from sqlalchemy.orm import Session
 from fastapi import Request, Depends
 from database import SessionLocal
 import models
-from dependencies import get_db
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+# ---------------------------------------
+# DATABASE DEPENDENCY (LOCAL)
+# ---------------------------------------
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 # ---------------------------------------
@@ -23,7 +33,7 @@ def verify_password(plain_password, hashed_password):
 
 
 # ---------------------------------------
-# AUTHENTICATE USER (LOGIN)
+# AUTHENTICATE USER
 # ---------------------------------------
 def authenticate_user(db: Session, username: str, password: str):
 
@@ -41,7 +51,7 @@ def authenticate_user(db: Session, username: str, password: str):
 
 
 # ---------------------------------------
-# GET CURRENT USER (Dependency Safe)
+# GET CURRENT USER (FASTAPI DEPENDENCY)
 # ---------------------------------------
 def get_current_user(
     request: Request,
