@@ -1,25 +1,108 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Form, Depends
+from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
-from database import engine
+from sqlalchemy.orm import Session
+
+from database import engine, SessionLocal
 import models
-from routers import subjects
+import auth
 from dependencies import get_db
+from routers import subjects
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
-from database import SessionLocal
 
+# ---------------------------------------
+# Create Tables
+# ---------------------------------------
 models.Base.metadata.create_all(bind=engine)
 
+# ---------------------------------------
+# App
+# ---------------------------------------
 app = FastAPI(title="Teacher Information System")
 
 templates = Jinja2Templates(directory="templates")
 
+# ---------------------------------------
 # Include Routers
+# ---------------------------------------
 app.include_router(subjects.router)
 
-# ---------------------------
+# ---------------------------------------
+# ROOT (Login Page)
+# ---------------------------------------
+@app.get("/", response_class=HTMLResponse)
+def read_root(request: Request):
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request}
+    )
+
+# ---------------------------------------
+# LOGIN
+# ---------------------------------------
+@app.post("/login")
+def login(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db)
+):
+
+    user = auth.authenticate_user(db, username, password)
+
+    if not user:
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "error": "Invalid credentials"
+            }
+        )
+
+    response = RedirectResponse(url="/dashboard", status_code=302)
+    response.set_cookie(key="user_id", value=user.user_id)
+    return response
+
+# ---------------------------------------
+# DASHBOARD
+# ---------------------------------------
+@app.get("/dashboard")
+def dashboard(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+
+    user_id = request.cookies.get("user_id")
+
+    if not user_id:
+        return RedirectResponse(url="/")
+
+    user = db.query(models.User).filter(
+        models.User.user_id == user_id
+    ).first()
+
+    branch = db.query(models.Branch).filter(
+        models.Branch.id == user.branch_id
+    ).first()
+
+    academic_year = db.query(models.AcademicYear).filter(
+        models.AcademicYear.id == user.academic_year_id
+    ).first()
+
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {
+            "request": request,
+            "user": user,
+            "branch": branch,
+            "academic_year": academic_year
+        }
+    )
+
+# ---------------------------------------
 # Startup Initialization
-# ---------------------------
+# ---------------------------------------
 @app.on_event("startup")
 def setup_initial_data():
 
