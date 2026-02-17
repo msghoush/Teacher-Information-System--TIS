@@ -107,7 +107,8 @@ def edit_subject_page(
 
     subject = db.query(models.Subject).filter(
         models.Subject.id == subject_id,
-        models.Subject.branch_id == current_user.branch_id
+        models.Subject.branch_id == current_user.branch_id,
+        models.Subject.academic_year_id == current_user.academic_year_id
     ).first()
 
     if not subject:
@@ -144,7 +145,8 @@ def update_subject(
 
     subject = db.query(models.Subject).filter(
         models.Subject.id == subject_id,
-        models.Subject.branch_id == current_user.branch_id
+        models.Subject.branch_id == current_user.branch_id,
+        models.Subject.academic_year_id == current_user.academic_year_id
     ).first()
 
     if not subject:
@@ -181,7 +183,8 @@ def delete_subject(
 
     subject = db.query(models.Subject).filter(
         models.Subject.id == subject_id,
-        models.Subject.branch_id == current_user.branch_id
+        models.Subject.branch_id == current_user.branch_id,
+        models.Subject.academic_year_id == current_user.academic_year_id
     ).first()
 
     if subject:
