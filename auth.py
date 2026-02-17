@@ -12,7 +12,10 @@ def get_password_hash(password: str):
 
 
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except Exception:
+        return False
 
 
 def authenticate_user(db: Session, username: str, password: str):

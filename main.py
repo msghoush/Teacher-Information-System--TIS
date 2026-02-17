@@ -92,13 +92,18 @@ def dashboard(
         models.AcademicYear.id == user.academic_year_id
     ).first()
 
+    branch_name = branch.name if branch else "Not assigned"
+    academic_year_name = (
+        academic_year.year_name if academic_year else "Not assigned"
+    )
+
     return templates.TemplateResponse(
         "dashboard.html",
         {
             "request": request,
             "user": user,
-            "branch": branch,
-            "academic_year": academic_year
+            "branch_name": branch_name,
+            "academic_year_name": academic_year_name
         }
     )
 
