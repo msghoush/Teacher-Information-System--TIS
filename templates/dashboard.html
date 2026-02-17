@@ -1,30 +1,489 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Dashboard</title>
+    <title>TIS Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: Arial; background: #f4f6f9; padding: 30px; }
-        .header { background: white; padding: 20px; margin-bottom: 20px; }
-        .menu a { margin-right: 15px; }
+        :root {
+            --bg-1: #f6f2e7;
+            --bg-2: #dce8f1;
+            --ink: #1b1f2a;
+            --muted: #5d6475;
+            --card: #ffffff;
+            --line: #d6deea;
+            --brand: #0f766e;
+            --brand-deep: #0b4f4a;
+            --accent: #d97706;
+            --danger: #b91c1c;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--ink);
+            font-family: "Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif;
+            background:
+                radial-gradient(900px 500px at 10% 0%, rgba(15, 118, 110, 0.18), transparent 65%),
+                radial-gradient(700px 420px at 100% 100%, rgba(217, 119, 6, 0.16), transparent 62%),
+                linear-gradient(150deg, var(--bg-1), var(--bg-2));
+            padding: 30px 16px;
+        }
+
+        .app {
+            max-width: 1180px;
+            margin: 0 auto;
+            animation: rise 450ms ease-out;
+        }
+
+        .topbar {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 18px 22px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .logo {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            background: linear-gradient(140deg, var(--brand) 0%, #15988f 55%, var(--accent) 100%);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            font-size: 15px;
+            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+        }
+
+        .brand h1 {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: 0.3px;
+        }
+
+        .brand p {
+            margin: 2px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .meta {
+            text-align: right;
+        }
+
+        .meta h2 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .meta p {
+            margin: 4px 0;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .logout {
+            display: inline-block;
+            margin-top: 8px;
+            font-size: 13px;
+            text-decoration: none;
+            color: #fff;
+            background: var(--danger);
+            padding: 7px 10px;
+            border-radius: 8px;
+        }
+
+        .stats {
+            margin-top: 16px;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .stat {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 16px;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+        }
+
+        .stat span {
+            color: var(--muted);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .stat strong {
+            display: block;
+            margin-top: 6px;
+            font-size: 30px;
+            line-height: 1;
+        }
+
+        .workspace {
+            margin-top: 16px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+            overflow: hidden;
+        }
+
+        .tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 14px;
+            border-bottom: 1px solid var(--line);
+            background: linear-gradient(120deg, rgba(15, 118, 110, 0.08), rgba(217, 119, 6, 0.08));
+        }
+
+        .tab {
+            border: 1px solid #9ec8c3;
+            background: rgba(255, 255, 255, 0.65);
+            color: var(--brand-deep);
+            border-radius: 999px;
+            padding: 8px 14px;
+            cursor: pointer;
+            font-weight: 700;
+            transition: transform 120ms ease, background-color 120ms ease;
+        }
+
+        .tab:hover {
+            transform: translateY(-1px);
+        }
+
+        .tab.active {
+            color: #fff;
+            border-color: var(--brand);
+            background: var(--brand);
+        }
+
+        .panel {
+            display: none;
+            padding: 18px;
+            animation: rise 260ms ease-out;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .panel-head h3 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .panel-head p {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .open-link {
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 10px;
+            text-decoration: none;
+            color: #fff;
+            background: var(--brand);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .open-link.disabled {
+            pointer-events: none;
+            background: #8b97ab;
+        }
+
+        .table-wrap {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            overflow: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 560px;
+        }
+
+        th, td {
+            padding: 11px 12px;
+            border-bottom: 1px solid #e6edf6;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        th {
+            background: #f0f5fb;
+            color: #30456b;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .empty {
+            padding: 24px;
+            border: 1px dashed #9cb0cc;
+            border-radius: 12px;
+            background: #f8fbff;
+            color: #42566f;
+            text-align: center;
+        }
+
+        .tiles {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .tile {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px;
+            background: #fbfcff;
+        }
+
+        .tile h4 {
+            margin: 0 0 8px;
+            font-size: 15px;
+        }
+
+        .tile p {
+            margin: 0;
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        @keyframes rise {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 900px) {
+            .topbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .meta {
+                text-align: left;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+            .tiles {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
+    <div class="app">
+        <section class="topbar">
+            <div class="brand">
+                <div class="logo">TIS</div>
+                <div>
+                    <h1>Teacher Information System</h1>
+                    <p>Professional School Management Workspace</p>
+                </div>
+            </div>
+            <div class="meta">
+                <h2>{{ user.first_name }} {{ user.last_name }}</h2>
+                <p>Branch: {{ branch_name }}</p>
+                <p>Academic Year: {{ academic_year_name }}</p>
+                <a class="logout" href="/logout">Logout</a>
+            </div>
+        </section>
 
-<div class="header">
-    <h2>Welcome {{ user.first_name }} {{ user.last_name }}</h2>
-    <p>Branch: {{ branch_name }}</p>
-    <p>Academic Year: {{ academic_year_name }}</p>
-</div>
+        <section class="stats">
+            <div class="stat">
+                <span>Subjects</span>
+                <strong>{{ subject_count }}</strong>
+            </div>
+            <div class="stat">
+                <span>Teachers</span>
+                <strong>{{ teacher_count }}</strong>
+            </div>
+            <div class="stat">
+                <span>Modules</span>
+                <strong>4</strong>
+            </div>
+        </section>
 
-<div class="menu">
-    <a href="/subjects">Subjects</a>
-    <a href="#">Teachers</a>
-    <a href="#">Planning</a>
-    <a href="#">Reports</a>
-</div>
+        <section class="workspace">
+            <div class="tabs">
+                <button class="tab active" type="button" data-panel="subjects">Subjects</button>
+                <button class="tab" type="button" data-panel="teachers">Teachers</button>
+                <button class="tab" type="button" data-panel="planning">Planning</button>
+                <button class="tab" type="button" data-panel="reports">Reports</button>
+            </div>
 
-<h3>Dashboard</h3>
-<p>System ready.</p>
+            <div class="panel active" id="panel-subjects">
+                <div class="panel-head">
+                    <div>
+                        <h3>Subjects Workspace</h3>
+                        <p>Manage curriculum subjects for your current branch and academic year.</p>
+                    </div>
+                    <a class="open-link" href="/subjects">Open Subjects Module</a>
+                </div>
+                {% if subjects_preview %}
+                <div class="table-wrap">
+                    <table>
+                        <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th>Weekly Hours</th>
+                            <th>Grade</th>
+                        </tr>
+                        {% for subject in subjects_preview %}
+                        <tr>
+                            <td>{{ subject.subject_code }}</td>
+                            <td>{{ subject.subject_name }}</td>
+                            <td>{{ subject.weekly_hours }}</td>
+                            <td>{{ subject.grade }}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty">No subjects yet. Open the Subjects module to add your first record.</div>
+                {% endif %}
+            </div>
 
+            <div class="panel" id="panel-teachers">
+                <div class="panel-head">
+                    <div>
+                        <h3>Teachers Workspace</h3>
+                        <p>Preview teaching staff assigned to this branch and year.</p>
+                    </div>
+                    <span class="open-link disabled">Module In Progress</span>
+                </div>
+                {% if teachers_preview %}
+                <div class="table-wrap">
+                    <table>
+                        <tr>
+                            <th>Teacher ID</th>
+                            <th>Name</th>
+                            <th>Subject Code</th>
+                            <th>Max Hours</th>
+                        </tr>
+                        {% for teacher in teachers_preview %}
+                        <tr>
+                            <td>{{ teacher.teacher_id }}</td>
+                            <td>{{ teacher.first_name }} {{ teacher.last_name }}</td>
+                            <td>{{ teacher.subject_code }}</td>
+                            <td>{{ teacher.max_hours }}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty">No teacher records yet for this scope.</div>
+                {% endif %}
+            </div>
+
+            <div class="panel" id="panel-planning">
+                <div class="panel-head">
+                    <div>
+                        <h3>Planning Workspace</h3>
+                        <p>Interactive planning will calculate teacher load and section demand.</p>
+                    </div>
+                    <span class="open-link disabled">Module In Progress</span>
+                </div>
+                <div class="tiles">
+                    <div class="tile">
+                        <h4>Required Hours Model</h4>
+                        <p>Subject weekly hours multiplied by total sections per grade.</p>
+                    </div>
+                    <div class="tile">
+                        <h4>Capacity Check</h4>
+                        <p>Compare required hours with available teacher capacity to detect deficits.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" id="panel-reports">
+                <div class="panel-head">
+                    <div>
+                        <h3>Reports Workspace</h3>
+                        <p>Generate print-ready planning and teacher sufficiency reports.</p>
+                    </div>
+                    <span class="open-link disabled">Module In Progress</span>
+                </div>
+                <div class="tiles">
+                    <div class="tile">
+                        <h4>Teacher Sufficiency Report</h4>
+                        <p>Subjects tracked: {{ subject_count }} | Teachers tracked: {{ teacher_count }}</p>
+                    </div>
+                    <div class="tile">
+                        <h4>Export Targets</h4>
+                        <p>Printable report and PDF export support will be provided in this module.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const tabs = document.querySelectorAll(".tab");
+        const panels = document.querySelectorAll(".panel");
+
+        tabs.forEach((tab) => {
+            tab.addEventListener("click", () => {
+                const target = tab.getAttribute("data-panel");
+
+                tabs.forEach((item) => item.classList.remove("active"));
+                panels.forEach((panel) => panel.classList.remove("active"));
+
+                tab.classList.add("active");
+                const panel = document.getElementById("panel-" + target);
+                if (panel) {
+                    panel.classList.add("active");
+                }
+            });
+        });
+    </script>
 </body>
 </html>
