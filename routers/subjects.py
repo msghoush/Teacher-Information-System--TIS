@@ -5,23 +5,19 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
 
 import models
-from dependencies import get_db, get_current_user   # ✅ ONLY from here
+from dependencies import get_db
+from auth import get_current_user
 
 router = APIRouter(prefix="/subjects", tags=["Subjects"])
 templates = Jinja2Templates(directory="templates")
 
 
-# --------------------------------------------------
-# GET SUBJECTS PAGE
-# URL: /subjects
-# --------------------------------------------------
 @router.get("/")
 def subjects_page(
     request: Request,
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
 ):
-
-    current_user = get_current_user(request, db)
 
     if not current_user:
         return RedirectResponse(url="/")
