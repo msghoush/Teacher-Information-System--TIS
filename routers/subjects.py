@@ -5,24 +5,24 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
 
 import models
-from database import SessionLocal
-from auth import get_current_user
 from main import get_db
+from auth import get_current_user
 
 router = APIRouter(prefix="/subjects", tags=["Subjects"])
 templates = Jinja2Templates(directory="templates")
 
 
-# ---------------------------------------
+# --------------------------------------------------
 # GET SUBJECTS PAGE
 # URL: /subjects
-# ---------------------------------------
+# --------------------------------------------------
 @router.get("/")
 def subjects_page(
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
 ):
+
+    current_user = get_current_user(request, db)
 
     if not current_user:
         return RedirectResponse(url="/")
@@ -42,10 +42,10 @@ def subjects_page(
     )
 
 
-# ---------------------------------------
+# --------------------------------------------------
 # ADD SUBJECT
 # URL: POST /subjects
-# ---------------------------------------
+# --------------------------------------------------
 @router.post("/")
 def add_subject(
     request: Request,
@@ -54,8 +54,9 @@ def add_subject(
     weekly_hours: int = Form(...),
     grade: int = Form(...),
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
 ):
+
+    current_user = get_current_user(request, db)
 
     if not current_user:
         return RedirectResponse(url="/")
@@ -93,20 +94,25 @@ def add_subject(
     return RedirectResponse(url="/subjects", status_code=302)
 
 
-# ---------------------------------------
+# --------------------------------------------------
 # EDIT SUBJECT (GET)
 # URL: /subjects/edit/{id}
-# ---------------------------------------
+# --------------------------------------------------
 @router.get("/edit/{subject_id}")
 def edit_subject_page(
     request: Request,
     subject_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
 ):
 
+    current_user = get_current_user(request, db)
+
+    if not current_user:
+        return RedirectResponse(url="/")
+
     subject = db.query(models.Subject).filter(
-        models.Subject.id == subject_id
+        models.Subject.id == subject_id,
+        models.Subject.branch_id == current_user.branch_id
     ).first()
 
     if not subject:
@@ -122,23 +128,28 @@ def edit_subject_page(
     )
 
 
-# ---------------------------------------
+# --------------------------------------------------
 # UPDATE SUBJECT (POST)
-# URL: /subjects/edit/{id}
-# ---------------------------------------
+# --------------------------------------------------
 @router.post("/edit/{subject_id}")
 def update_subject(
+    request: Request,
     subject_id: int,
     subject_code: str = Form(...),
     subject_name: str = Form(...),
     weekly_hours: int = Form(...),
     grade: int = Form(...),
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
 ):
 
+    current_user = get_current_user(request, db)
+
+    if not current_user:
+        return RedirectResponse(url="/")
+
     subject = db.query(models.Subject).filter(
-        models.Subject.id == subject_id
+        models.Subject.id == subject_id,
+        models.Subject.branch_id == current_user.branch_id
     ).first()
 
     if not subject:
@@ -158,22 +169,24 @@ def update_subject(
     return RedirectResponse(url="/subjects", status_code=302)
 
 
-# ---------------------------------------
+# --------------------------------------------------
 # DELETE SUBJECT (ADMIN ONLY)
-# URL: /subjects/delete/{id}
-# ---------------------------------------
+# --------------------------------------------------
 @router.get("/delete/{subject_id}")
 def delete_subject(
+    request: Request,
     subject_id: int,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
 ):
 
-    if current_user.role != "Admin":
+    current_user = get_current_user(request, db)
+
+    if not current_user or current_user.role != "Admin":
         return RedirectResponse(url="/subjects")
 
     subject = db.query(models.Subject).filter(
-        models.Subject.id == subject_id
+        models.Subject.id == subject_id,
+        models.Subject.branch_id == current_user.branch_id
     ).first()
 
     if subject:
