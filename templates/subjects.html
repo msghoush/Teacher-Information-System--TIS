@@ -13,6 +13,20 @@
             margin-bottom: 20px;
         }
 
+        .top-actions {
+            margin-bottom: 15px;
+        }
+
+        .nav-link {
+            display: inline-block;
+            padding: 8px 12px;
+            margin-right: 8px;
+            background: #2e7d32;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+
         .error {
             background: #ffdddd;
             color: #a94442;
@@ -56,7 +70,8 @@
         .actions a {
             margin-right: 10px;
             text-decoration: none;
-            font-size: 16px;
+            font-size: 14px;
+            font-weight: bold;
         }
 
         .edit {
@@ -71,8 +86,10 @@
 <body>
 
 <h2>Subjects</h2>
+<div class="top-actions">
+    <a class="nav-link" href="/dashboard">Home</a>
+</div>
 
-<!-- 🔴 Show Error Message -->
 {% if error %}
 <div class="error">
     {{ error }}
@@ -103,12 +120,9 @@
         <td>{{ subject.weekly_hours }}</td>
         <td>{{ subject.grade }}</td>
         <td class="actions">
-            <!-- Edit icon -->
-            <a class="edit" href="/subjects/edit/{{ subject.id }}">✏️</a>
-
-            <!-- Delete icon (Admin only) -->
+            <a class="edit" href="/subjects/edit/{{ subject.id }}">Edit</a>
             {% if user and user.role == "Admin" %}
-                <a class="delete" href="/subjects/delete/{{ subject.id }}">🗑️</a>
+                <a class="delete" href="/subjects/delete/{{ subject.id }}">Delete</a>
             {% endif %}
         </td>
     </tr>

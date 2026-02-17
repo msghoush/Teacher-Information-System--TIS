@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Subject</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f6f9;
+            padding: 30px;
+        }
+
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 520px;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        .field {
+            margin-bottom: 12px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+
+        .actions {
+            margin-top: 16px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 8px 12px;
+            text-decoration: none;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 8px;
+            color: white;
+            background: #1976d2;
+        }
+
+        .btn-secondary {
+            background: #5f6368;
+        }
+
+        .btn-home {
+            background: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Edit Subject</h2>
+
+        <form method="post" action="/subjects/edit/{{ subject.id }}">
+            <div class="field">
+                <label for="subject_code">Subject Code</label>
+                <input id="subject_code" type="text" name="subject_code" value="{{ subject.subject_code }}" required>
+            </div>
+
+            <div class="field">
+                <label for="subject_name">Subject Name</label>
+                <input id="subject_name" type="text" name="subject_name" value="{{ subject.subject_name }}" required>
+            </div>
+
+            <div class="field">
+                <label for="weekly_hours">Weekly Hours</label>
+                <input id="weekly_hours" type="number" name="weekly_hours" value="{{ subject.weekly_hours }}" required>
+            </div>
+
+            <div class="field">
+                <label for="grade">Grade</label>
+                <input id="grade" type="number" name="grade" value="{{ subject.grade }}" required>
+            </div>
+
+            <div class="actions">
+                <button class="btn" type="submit">Save Changes</button>
+                <a class="btn btn-secondary" href="/subjects">Cancel</a>
+                <a class="btn btn-home" href="/dashboard">Home</a>
+            </div>
+        </form>
+    </div>
+</body>
+</html>
