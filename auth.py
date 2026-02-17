@@ -1,8 +1,45 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from fastapi import Request, Depends
 import bcrypt
 import models
 from dependencies import get_db
+
+ROLE_DEVELOPER = "Developer"
+ROLE_ADMINISTRATOR = "Administrator"
+ROLE_USER = "User"
+ROLE_LIMITED = "Limited Access"
+
+
+def normalize_role(role: str) -> str:
+    if not role:
+        return ""
+    cleaned = str(role).strip()
+    lowered = cleaned.lower()
+    if lowered == "developer":
+        return ROLE_DEVELOPER
+    if lowered in {"admin", "administrator"}:
+        return ROLE_ADMINISTRATOR
+    if lowered == "user":
+        return ROLE_USER
+    if lowered in {"limited access", "limited"}:
+        return ROLE_LIMITED
+    return cleaned
+
+
+def can_manage_users(user) -> bool:
+    role = normalize_role(getattr(user, "role", ""))
+    return role in {ROLE_DEVELOPER, ROLE_ADMINISTRATOR}
+
+
+def can_modify_data(user) -> bool:
+    role = normalize_role(getattr(user, "role", ""))
+    return role in {ROLE_DEVELOPER, ROLE_ADMINISTRATOR, ROLE_USER}
+
+
+def can_delete_data(user) -> bool:
+    role = normalize_role(getattr(user, "role", ""))
+    return role in {ROLE_DEVELOPER, ROLE_ADMINISTRATOR, ROLE_USER}
 
 
 def _to_bytes(value):
@@ -27,8 +64,14 @@ def verify_password(plain_password, hashed_password):
 
 
 def authenticate_user(db: Session, username: str, password: str):
+    login_value = username.strip()
+    lowered_login_value = login_value.lower()
     user = db.query(models.User).filter(
-        models.User.user_id == username
+        or_(
+            models.User.username == login_value,
+            models.User.username == lowered_login_value,
+            models.User.user_id == login_value
+        )
     ).first()
 
     if not user:
@@ -96,5 +139,6 @@ def get_current_user(
 
     user.scope_branch_id = scoped_branch_id
     user.scope_academic_year_id = scoped_academic_year_id
+    user.effective_role = normalize_role(user.role)
 
     return user

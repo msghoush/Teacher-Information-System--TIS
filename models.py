@@ -22,8 +22,10 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
     user_id = Column(String(20), unique=True, index=True)
+    username = Column(String(50), unique=True, index=True)
     first_name = Column(String)
     last_name = Column(String)
+    position = Column(String(50))
     password = Column(String)
     role = Column(String)
     branch_id = Column(Integer, ForeignKey("branches.id"))

@@ -378,6 +378,9 @@
             <div class="stat">
                 <span>Current User</span>
                 <strong style="font-size: 20px;">{{ user.first_name }} {{ user.last_name }}</strong>
+                <div style="font-size: 12px; color: var(--muted); margin-top: 6px;">
+                    Role: {{ user.effective_role if user.effective_role else user.role }}
+                </div>
             </div>
         </section>
 
@@ -403,6 +406,7 @@
                     </ul>
                     {% endif %}
 
+                    {% if can_modify %}
                     <form method="post" action="/subjects">
                         <div class="form-grid">
                             <div class="field">
@@ -424,6 +428,9 @@
                         </div>
                         <button class="btn-save" type="submit">Add Subject</button>
                     </form>
+                    {% else %}
+                    <div class="empty">Your role is read-only. You can view subjects but cannot add or edit them.</div>
+                    {% endif %}
                 </article>
 
                 <article class="card tools">
@@ -432,6 +439,7 @@
 
                     <a id="downloadTemplateBtn" class="btn-template" href="/subjects/template">Download Excel Template</a>
 
+                    {% if can_modify %}
                     <form id="importForm" method="post" action="/subjects/import" enctype="multipart/form-data">
                         <div class="field" style="margin-top: 10px;">
                             <label for="subject_file">Select Excel File (.xlsx)</label>
@@ -445,6 +453,11 @@
                         <li>Fill rows using correct format (AAA999, Name, Weekly Hours, Grade).</li>
                         <li>Import and let the system validate duplicates and format before save.</li>
                     </ol>
+                    {% else %}
+                    <p style="margin-top: 10px; font-size: 13px; color: var(--warning);">
+                        Import is disabled for read-only accounts.
+                    </p>
+                    {% endif %}
                 </article>
             </div>
 
@@ -477,9 +490,14 @@
                                 <td>{{ subject.weekly_hours }}</td>
                                 <td>{{ subject.grade }}</td>
                                 <td class="row-actions">
+                                    {% if can_modify %}
                                     <a class="row-edit" href="/subjects/edit/{{ subject.id }}">Edit</a>
-                                    {% if user and user.role == "Admin" %}
+                                    {% endif %}
+                                    {% if can_delete %}
                                     <a class="row-delete" href="/subjects/delete/{{ subject.id }}">Delete</a>
+                                    {% endif %}
+                                    {% if not can_modify and not can_delete %}
+                                    <span style="font-size: 12px; color: var(--muted);">Read only</span>
                                     {% endif %}
                                 </td>
                             </tr>

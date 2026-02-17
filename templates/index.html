@@ -242,7 +242,7 @@
 
         <section class="form-area">
             <h2>Login</h2>
-            <p class="hint">Use your assigned user ID and password.</p>
+            <p class="hint">Use your assigned User ID and password.</p>
 
             {% if error %}
                 <div class="error">{{ error }}</div>
@@ -257,35 +257,7 @@
                     <label for="password">Password</label>
                     <input id="password" type="password" name="password" required>
                 </div>
-                <div class="field">
-                    <label for="branch_id">Branch</label>
-                    <select id="branch_id" name="branch_id" required>
-                        {% if branches %}
-                        {% for branch in branches %}
-                        <option value="{{ branch.id }}" {% if selected_branch_id == branch.id %}selected{% endif %}>
-                            {{ branch.name }}
-                        </option>
-                        {% endfor %}
-                        {% else %}
-                        <option value="" disabled selected>No active branches available</option>
-                        {% endif %}
-                    </select>
-                </div>
-                <div class="field">
-                    <label for="academic_year_id">Academic Year</label>
-                    <select id="academic_year_id" name="academic_year_id" required>
-                        {% if academic_years %}
-                        {% for year in academic_years %}
-                        <option value="{{ year.id }}" {% if selected_academic_year_id == year.id %}selected{% endif %}>
-                            {{ year.year_name }}{% if year.is_active %} (Current){% endif %}
-                        </option>
-                        {% endfor %}
-                        {% else %}
-                        <option value="" disabled selected>No academic years available</option>
-                        {% endif %}
-                    </select>
-                    <p class="meta-note">Only the current active academic year is accepted for login.</p>
-                </div>
+                <p class="meta-note">Current academic year: <strong>{{ active_year_name }}</strong></p>
                 <button type="submit">Login</button>
             </form>
 
