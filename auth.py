@@ -1,6 +1,9 @@
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
+from fastapi import Request, Depends
+from database import SessionLocal
 import models
+from dependencies import get_db
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -38,9 +41,12 @@ def authenticate_user(db: Session, username: str, password: str):
 
 
 # ---------------------------------------
-# GET CURRENT USER FROM COOKIE
+# GET CURRENT USER (Dependency Safe)
 # ---------------------------------------
-def get_current_user(request, db: Session):
+def get_current_user(
+    request: Request,
+    db: Session = Depends(get_db)
+):
 
     user_id = request.cookies.get("user_id")
 
