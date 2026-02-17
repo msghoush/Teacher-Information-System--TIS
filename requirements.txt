@@ -6,3 +6,4 @@ python-multipart
 bcrypt
 python-jose
 jinja2
+openpyxl
