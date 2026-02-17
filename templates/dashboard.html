@@ -117,6 +117,54 @@
             gap: 14px;
         }
 
+        .admin-year {
+            margin-top: 16px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 14px;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+        }
+
+        .admin-year form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .admin-year label {
+            font-size: 13px;
+            color: var(--muted);
+            font-weight: 700;
+        }
+
+        .admin-year select {
+            min-width: 220px;
+            padding: 8px 10px;
+            border: 1px solid #b8c6da;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #fff;
+        }
+
+        .admin-year button {
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            background: var(--brand);
+        }
+
+        .admin-year p {
+            margin: 10px 0 0;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
         .stat {
             background: var(--card);
             border: 1px solid var(--line);
@@ -351,6 +399,23 @@
                 <strong>4</strong>
             </div>
         </section>
+
+        {% if is_admin %}
+        <section class="admin-year">
+            <form method="post" action="/admin/current-year">
+                <label for="academic_year_id">Current Academic Year</label>
+                <select id="academic_year_id" name="academic_year_id" required>
+                    {% for year in all_years %}
+                    <option value="{{ year.id }}" {% if active_year_id == year.id %}selected{% endif %}>
+                        {{ year.year_name }}{% if active_year_id == year.id %} (Current){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <button type="submit">Set Current Year</button>
+            </form>
+            <p>This setting controls the academic year scope used by all logged-in users.</p>
+        </section>
+        {% endif %}
 
         <section class="workspace">
             <div class="tabs">

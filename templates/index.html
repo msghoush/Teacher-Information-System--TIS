@@ -147,19 +147,28 @@
             font-weight: 700;
         }
 
-        input {
+        input,
+        select {
             width: 100%;
             padding: 10px 12px;
             border: 1px solid #c8d3e0;
             border-radius: 8px;
             font-size: 14px;
             transition: border-color 120ms ease, box-shadow 120ms ease;
+            background: #fff;
         }
 
-        input:focus {
+        input:focus,
+        select:focus {
             border-color: #24938a;
             box-shadow: 0 0 0 3px rgba(36, 147, 138, 0.2);
             outline: none;
+        }
+
+        .meta-note {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--muted);
         }
 
         button {
@@ -247,6 +256,35 @@
                 <div class="field">
                     <label for="password">Password</label>
                     <input id="password" type="password" name="password" required>
+                </div>
+                <div class="field">
+                    <label for="branch_id">Branch</label>
+                    <select id="branch_id" name="branch_id" required>
+                        {% if branches %}
+                        {% for branch in branches %}
+                        <option value="{{ branch.id }}" {% if selected_branch_id == branch.id %}selected{% endif %}>
+                            {{ branch.name }}
+                        </option>
+                        {% endfor %}
+                        {% else %}
+                        <option value="" disabled selected>No active branches available</option>
+                        {% endif %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="academic_year_id">Academic Year</label>
+                    <select id="academic_year_id" name="academic_year_id" required>
+                        {% if academic_years %}
+                        {% for year in academic_years %}
+                        <option value="{{ year.id }}" {% if selected_academic_year_id == year.id %}selected{% endif %}>
+                            {{ year.year_name }}{% if year.is_active %} (Current){% endif %}
+                        </option>
+                        {% endfor %}
+                        {% else %}
+                        <option value="" disabled selected>No academic years available</option>
+                        {% endif %}
+                    </select>
+                    <p class="meta-note">Only the current active academic year is accepted for login.</p>
                 </div>
                 <button type="submit">Login</button>
             </form>
