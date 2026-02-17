@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Form, Depends
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+import os
 
 from database import engine, SessionLocal
 import models
@@ -123,6 +124,8 @@ def dashboard(
 def setup_initial_data():
 
     db = SessionLocal()
+    admin_user_id = os.getenv("ADMIN_USER_ID", "2623252018")
+    admin_password = os.getenv("ADMIN_PASSWORD", "UnderProcess1984")
 
     # Create Branch if not exists
     branch = db.query(Branch).filter(
@@ -155,15 +158,15 @@ def setup_initial_data():
 
     # Create Admin User if not exists
     existing_user = db.query(User).filter(
-        User.user_id == "2623252018"
+        User.user_id == admin_user_id
     ).first()
 
     if not existing_user:
         admin_user = User(
-            user_id="2623252018",
+            user_id=admin_user_id,
             first_name="mohamad",
             last_name="El Ghoche",
-            password=get_password_hash("UnderProcess1984"),
+            password=get_password_hash(admin_password),
             role="Admin",
             branch_id=branch.id,
             academic_year_id=academic_year.id,
@@ -171,5 +174,30 @@ def setup_initial_data():
         )
         db.add(admin_user)
         db.commit()
+    else:
+        updated = False
+
+        if not auth.verify_password(admin_password, existing_user.password):
+            existing_user.password = get_password_hash(admin_password)
+            updated = True
+
+        if existing_user.role != "Admin":
+            existing_user.role = "Admin"
+            updated = True
+
+        if existing_user.branch_id != branch.id:
+            existing_user.branch_id = branch.id
+            updated = True
+
+        if existing_user.academic_year_id != academic_year.id:
+            existing_user.academic_year_id = academic_year.id
+            updated = True
+
+        if not existing_user.is_active:
+            existing_user.is_active = True
+            updated = True
+
+        if updated:
+            db.commit()
 
     db.close()
