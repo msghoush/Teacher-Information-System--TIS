@@ -12,8 +12,9 @@
             --muted: #5d6b82;
             --brand: #0f766e;
             --brand-dark: #0c5751;
-            --accent: #d97706;
             --danger: #b42318;
+            --success: #027a48;
+            --warning: #9a3412;
         }
 
         * {
@@ -120,6 +121,11 @@
             gap: 12px;
         }
 
+        .stack {
+            display: grid;
+            gap: 12px;
+        }
+
         .card {
             background: var(--card);
             border: 1px solid var(--line);
@@ -148,6 +154,27 @@
             font-size: 13px;
         }
 
+        .success {
+            background: #e7f7ef;
+            color: #065f46;
+            border-left: 4px solid var(--success);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .error-list {
+            margin: 0 0 10px;
+            padding-left: 20px;
+            color: #8f1d18;
+            font-size: 13px;
+        }
+
+        .error-list li {
+            margin-bottom: 4px;
+        }
+
         .form-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -174,7 +201,8 @@
             background: #fff;
         }
 
-        .field input:focus {
+        .field input:focus,
+        .file-input:focus {
             outline: none;
             border-color: var(--brand);
             box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
@@ -184,16 +212,58 @@
             grid-column: 1 / -1;
         }
 
-        .btn-save {
+        .btn-save,
+        .btn-import,
+        .btn-template {
             margin-top: 12px;
             border: none;
-            background: linear-gradient(140deg, var(--brand), var(--brand-dark));
             color: #fff;
             font-size: 14px;
             font-weight: 700;
             border-radius: 9px;
             padding: 10px 12px;
             cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-save {
+            background: linear-gradient(140deg, var(--brand), var(--brand-dark));
+        }
+
+        .btn-template {
+            background: #2563eb;
+            margin-right: 8px;
+        }
+
+        .btn-import {
+            background: #9333ea;
+        }
+
+        .tools {
+            border-top: 1px dashed #b9c7dd;
+            margin-top: 12px;
+            padding-top: 12px;
+        }
+
+        .steps {
+            margin: 8px 0 0;
+            padding-left: 20px;
+            color: var(--warning);
+            font-size: 13px;
+        }
+
+        .steps li {
+            margin-bottom: 4px;
+        }
+
+        .file-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #c6d4e8;
+            border-radius: 8px;
+            background: #fff;
+            font-size: 13px;
         }
 
         .toolbar {
@@ -312,36 +382,71 @@
         </section>
 
         <section class="grid">
-            <article class="card">
-                <h2>Add Subject</h2>
-                <p>Create a new subject record in the current scope.</p>
+            <div class="stack">
+                <article class="card">
+                    <h2>Add Subject</h2>
+                    <p>Create a new subject record in the current scope.</p>
 
-                {% if error %}
-                <div class="error">{{ error }}</div>
-                {% endif %}
+                    {% if success %}
+                    <div class="success">{{ success }}</div>
+                    {% endif %}
 
-                <form method="post" action="/subjects">
-                    <div class="form-grid">
-                        <div class="field">
-                            <label for="subject_code">Subject Code</label>
-                            <input id="subject_code" type="text" name="subject_code" placeholder="AAA999" required>
+                    {% if error %}
+                    <div class="error">{{ error }}</div>
+                    {% endif %}
+
+                    {% if detail_errors %}
+                    <ul class="error-list">
+                        {% for item in detail_errors %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+
+                    <form method="post" action="/subjects">
+                        <div class="form-grid">
+                            <div class="field">
+                                <label for="subject_code">Subject Code</label>
+                                <input id="subject_code" type="text" name="subject_code" placeholder="AAA999" required>
+                            </div>
+                            <div class="field">
+                                <label for="grade">Grade</label>
+                                <input id="grade" type="number" name="grade" min="1" max="12" placeholder="1-12" required>
+                            </div>
+                            <div class="field field-wide">
+                                <label for="subject_name">Subject Name</label>
+                                <input id="subject_name" type="text" name="subject_name" placeholder="Subject Name" required>
+                            </div>
+                            <div class="field field-wide">
+                                <label for="weekly_hours">Weekly Hours</label>
+                                <input id="weekly_hours" type="number" name="weekly_hours" min="1" placeholder="e.g. 4" required>
+                            </div>
                         </div>
-                        <div class="field">
-                            <label for="grade">Grade</label>
-                            <input id="grade" type="number" name="grade" min="1" max="12" placeholder="1-12" required>
+                        <button class="btn-save" type="submit">Add Subject</button>
+                    </form>
+                </article>
+
+                <article class="card tools">
+                    <h2>Excel Import / Export</h2>
+                    <p>Download template, fill your data, then import automatically.</p>
+
+                    <a id="downloadTemplateBtn" class="btn-template" href="/subjects/template">Download Excel Template</a>
+
+                    <form id="importForm" method="post" action="/subjects/import" enctype="multipart/form-data">
+                        <div class="field" style="margin-top: 10px;">
+                            <label for="subject_file">Select Excel File (.xlsx)</label>
+                            <input id="subject_file" class="file-input" type="file" name="subject_file" accept=".xlsx" required>
                         </div>
-                        <div class="field field-wide">
-                            <label for="subject_name">Subject Name</label>
-                            <input id="subject_name" type="text" name="subject_name" placeholder="Subject Name" required>
-                        </div>
-                        <div class="field field-wide">
-                            <label for="weekly_hours">Weekly Hours</label>
-                            <input id="weekly_hours" type="number" name="weekly_hours" min="1" placeholder="e.g. 4" required>
-                        </div>
-                    </div>
-                    <button class="btn-save" type="submit">Add Subject</button>
-                </form>
-            </article>
+                        <button class="btn-import" type="submit">Import Excel Data</button>
+                    </form>
+
+                    <ol class="steps">
+                        <li>Download the template.</li>
+                        <li>Fill rows using correct format (AAA999, Name, Weekly Hours, Grade).</li>
+                        <li>Import and let the system validate duplicates and format before save.</li>
+                    </ol>
+                </article>
+            </div>
 
             <article class="card">
                 <div class="toolbar">
@@ -394,6 +499,24 @@
         const searchInput = document.getElementById("subjectSearch");
         const rows = Array.from(document.querySelectorAll(".subject-row"));
         const noResult = document.getElementById("noResult");
+        const subjectCodeInput = document.getElementById("subject_code");
+        const subjectNameInput = document.getElementById("subject_name");
+        const downloadTemplateBtn = document.getElementById("downloadTemplateBtn");
+        const importForm = document.getElementById("importForm");
+        const fileInput = document.getElementById("subject_file");
+
+        if (subjectCodeInput) {
+            subjectCodeInput.addEventListener("blur", () => {
+                subjectCodeInput.value = subjectCodeInput.value.trim().toUpperCase();
+            });
+        }
+
+        if (subjectNameInput) {
+            subjectNameInput.addEventListener("blur", () => {
+                const text = subjectNameInput.value.trim().toLowerCase();
+                subjectNameInput.value = text.replace(/\b\w/g, (char) => char.toUpperCase());
+            });
+        }
 
         if (searchInput && rows.length > 0) {
             searchInput.addEventListener("input", () => {
@@ -412,6 +535,39 @@
                 if (noResult) {
                     noResult.style.display = visible === 0 ? "block" : "none";
                 }
+            });
+        }
+
+        if (downloadTemplateBtn) {
+            downloadTemplateBtn.addEventListener("click", (event) => {
+                const confirmed = confirm("Step 1 of 3: Download the Excel template now?");
+                if (!confirmed) {
+                    event.preventDefault();
+                }
+            });
+        }
+
+        if (importForm) {
+            importForm.addEventListener("submit", (event) => {
+                if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                    alert("Please choose an Excel file first.");
+                    event.preventDefault();
+                    return;
+                }
+
+                const step2 = confirm("Step 2 of 3: Confirm that your file follows the template format?");
+                if (!step2) {
+                    event.preventDefault();
+                    return;
+                }
+
+                const step3 = confirm("Step 3 of 3: Import now? The system will check duplicates and format before saving.");
+                if (!step3) {
+                    event.preventDefault();
+                    return;
+                }
+
+                alert("Import started. Please wait for validation results.");
             });
         }
     </script>

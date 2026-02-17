@@ -53,6 +53,16 @@
             font-size: 13px;
         }
 
+        .error {
+            background: #ffe8e5;
+            color: #8f1d18;
+            border-left: 4px solid #b42318;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
         .grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -132,6 +142,10 @@
         <h1>Edit Subject</h1>
         <p class="sub">Update subject details in your current branch/year scope.</p>
 
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+
         <form method="post" action="/subjects/edit/{{ subject.id }}">
             <div class="grid">
                 <div class="field">
@@ -161,5 +175,22 @@
             </div>
         </form>
     </main>
+    <script>
+        const subjectCodeInput = document.getElementById("subject_code");
+        const subjectNameInput = document.getElementById("subject_name");
+
+        if (subjectCodeInput) {
+            subjectCodeInput.addEventListener("blur", () => {
+                subjectCodeInput.value = subjectCodeInput.value.trim().toUpperCase();
+            });
+        }
+
+        if (subjectNameInput) {
+            subjectNameInput.addEventListener("blur", () => {
+                const text = subjectNameInput.value.trim().toLowerCase();
+                subjectNameInput.value = text.replace(/\b\w/g, (char) => char.toUpperCase());
+            });
+        }
+    </script>
 </body>
 </html>
