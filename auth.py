@@ -1,42 +1,21 @@
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from fastapi import Request, Depends
-from database import SessionLocal
 import models
+from dependencies import get_db
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-# ---------------------------------------
-# DATABASE DEPENDENCY
-# ---------------------------------------
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-# ---------------------------------------
-# HASH PASSWORD
-# ---------------------------------------
 def get_password_hash(password: str):
     return pwd_context.hash(password)
 
 
-# ---------------------------------------
-# VERIFY PASSWORD
-# ---------------------------------------
-def verify_password(plain_password: str, hashed_password: str):
+def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
 
-# ---------------------------------------
-# AUTHENTICATE USER
-# ---------------------------------------
 def authenticate_user(db: Session, username: str, password: str):
-
     user = db.query(models.User).filter(
         models.User.user_id == username
     ).first()
@@ -50,14 +29,10 @@ def authenticate_user(db: Session, username: str, password: str):
     return user
 
 
-# ---------------------------------------
-# GET CURRENT USER (FastAPI Dependency)
-# ---------------------------------------
 def get_current_user(
     request: Request,
     db: Session = Depends(get_db)
 ):
-
     user_id = request.cookies.get("user_id")
 
     if not user_id:
