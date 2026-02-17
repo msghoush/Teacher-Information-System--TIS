@@ -48,6 +48,7 @@ def login(
     password: str = Form(...),
     db: Session = Depends(get_db)
 ):
+    username = username.strip()
     user = auth.authenticate_user(db, username, password)
 
     if not user:
@@ -55,12 +56,19 @@ def login(
             "index.html",
             {
                 "request": request,
-                "error": "Invalid credentials"
-            }
+                "error": "Invalid User ID or password.",
+                "username": username
+            },
+            status_code=401
         )
 
     response = RedirectResponse(url="/dashboard", status_code=302)
-    response.set_cookie(key="user_id", value=user.user_id)
+    response.set_cookie(
+        key="user_id",
+        value=user.user_id,
+        httponly=True,
+        samesite="lax"
+    )
     return response
 
 
