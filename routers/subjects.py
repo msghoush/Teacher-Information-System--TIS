@@ -5,12 +5,10 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
 
 import models
-from main import get_db
-from auth import get_current_user
+from dependencies import get_db, get_current_user
 
 router = APIRouter(prefix="/subjects", tags=["Subjects"])
 templates = Jinja2Templates(directory="templates")
-
 
 # --------------------------------------------------
 # GET SUBJECTS PAGE
