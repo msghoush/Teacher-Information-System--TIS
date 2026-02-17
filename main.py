@@ -74,6 +74,16 @@ def login(
 
 
 # ---------------------------------------
+# LOGOUT
+# ---------------------------------------
+@app.get("/logout")
+def logout():
+    response = RedirectResponse(url="/", status_code=302)
+    response.delete_cookie("user_id")
+    return response
+
+
+# ---------------------------------------
 # DASHBOARD
 # ---------------------------------------
 @app.get("/dashboard")
@@ -105,6 +115,22 @@ def dashboard(
     academic_year_name = (
         academic_year.year_name if academic_year else "Not assigned"
     )
+    subjects_query = db.query(models.Subject).filter(
+        models.Subject.branch_id == user.branch_id,
+        models.Subject.academic_year_id == user.academic_year_id
+    )
+    teachers_query = db.query(models.Teacher).filter(
+        models.Teacher.branch_id == user.branch_id,
+        models.Teacher.academic_year_id == user.academic_year_id
+    )
+    subject_count = subjects_query.count()
+    teacher_count = teachers_query.count()
+    subjects_preview = subjects_query.order_by(
+        models.Subject.id.desc()
+    ).limit(8).all()
+    teachers_preview = teachers_query.order_by(
+        models.Teacher.id.desc()
+    ).limit(8).all()
 
     return templates.TemplateResponse(
         "dashboard.html",
@@ -112,7 +138,11 @@ def dashboard(
             "request": request,
             "user": user,
             "branch_name": branch_name,
-            "academic_year_name": academic_year_name
+            "academic_year_name": academic_year_name,
+            "subject_count": subject_count,
+            "teacher_count": teacher_count,
+            "subjects_preview": subjects_preview,
+            "teachers_preview": teachers_preview
         }
     )
 
