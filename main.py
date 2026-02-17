@@ -17,7 +17,7 @@ from models import User, Branch, AcademicYear
 models.Base.metadata.create_all(bind=engine)
 
 # ---------------------------------------
-# App
+# App Initialization
 # ---------------------------------------
 app = FastAPI(title="Teacher Information System")
 
@@ -48,7 +48,6 @@ def login(
     password: str = Form(...),
     db: Session = Depends(get_db)
 ):
-
     user = auth.authenticate_user(db, username, password)
 
     if not user:
@@ -64,6 +63,7 @@ def login(
     response.set_cookie(key="user_id", value=user.user_id)
     return response
 
+
 # ---------------------------------------
 # DASHBOARD
 # ---------------------------------------
@@ -72,7 +72,6 @@ def dashboard(
     request: Request,
     db: Session = Depends(get_db)
 ):
-
     user_id = request.cookies.get("user_id")
 
     if not user_id:
@@ -103,6 +102,7 @@ def dashboard(
         }
     )
 
+
 # ---------------------------------------
 # Startup Initialization
 # ---------------------------------------
@@ -111,6 +111,7 @@ def setup_initial_data():
 
     db = SessionLocal()
 
+    # Create Branch if not exists
     branch = db.query(Branch).filter(
         Branch.name == "Hamadania"
     ).first()
@@ -125,6 +126,7 @@ def setup_initial_data():
         db.commit()
         db.refresh(branch)
 
+    # Create Academic Year if not exists
     academic_year = db.query(AcademicYear).filter(
         AcademicYear.year_name == "2025-2026"
     ).first()
@@ -138,6 +140,7 @@ def setup_initial_data():
         db.commit()
         db.refresh(academic_year)
 
+    # Create Admin User if not exists
     existing_user = db.query(User).filter(
         User.user_id == "2623252018"
     ).first()
