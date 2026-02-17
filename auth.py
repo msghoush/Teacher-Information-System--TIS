@@ -1,19 +1,27 @@
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from fastapi import Request, Depends
+import bcrypt
 import models
 from dependencies import get_db
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _to_bytes(value):
+    if isinstance(value, bytes):
+        return value
+    return str(value).encode("utf-8")
 
 
 def get_password_hash(password: str):
-    return pwd_context.hash(password)
+    # bcrypt limits password input to 72 bytes. Truncate to keep startup safe.
+    password_bytes = _to_bytes(password)[:72]
+    return bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain_password, hashed_password):
     try:
-        return pwd_context.verify(plain_password, hashed_password)
+        plain_bytes = _to_bytes(plain_password)[:72]
+        hashed_bytes = _to_bytes(hashed_password)
+        return bcrypt.checkpw(plain_bytes, hashed_bytes)
     except Exception:
         return False
 
