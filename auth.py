@@ -8,7 +8,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # ---------------------------------------
-# DATABASE DEPENDENCY (LOCAL)
+# DATABASE DEPENDENCY
 # ---------------------------------------
 def get_db():
     db = SessionLocal()
@@ -28,7 +28,7 @@ def get_password_hash(password: str):
 # ---------------------------------------
 # VERIFY PASSWORD
 # ---------------------------------------
-def verify_password(plain_password, hashed_password):
+def verify_password(plain_password: str, hashed_password: str):
     return pwd_context.verify(plain_password, hashed_password)
 
 
@@ -51,7 +51,7 @@ def authenticate_user(db: Session, username: str, password: str):
 
 
 # ---------------------------------------
-# GET CURRENT USER (FASTAPI DEPENDENCY)
+# GET CURRENT USER (FastAPI Dependency)
 # ---------------------------------------
 def get_current_user(
     request: Request,
@@ -63,8 +63,6 @@ def get_current_user(
     if not user_id:
         return None
 
-    user = db.query(models.User).filter(
+    return db.query(models.User).filter(
         models.User.user_id == user_id
     ).first()
-
-    return user
