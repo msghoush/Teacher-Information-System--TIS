@@ -12,6 +12,16 @@ router = APIRouter(prefix="/subjects", tags=["Subjects"])
 templates = Jinja2Templates(directory="templates")
 
 
+def _get_scope_ids(current_user):
+    branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    academic_year_id = getattr(
+        current_user,
+        "scope_academic_year_id",
+        current_user.academic_year_id
+    )
+    return branch_id, academic_year_id
+
+
 @router.get("/")
 def subjects_page(
     request: Request,
@@ -22,9 +32,10 @@ def subjects_page(
     if not current_user:
         return RedirectResponse(url="/")
 
+    branch_id, academic_year_id = _get_scope_ids(current_user)
     subjects = db.query(models.Subject).filter(
-        models.Subject.branch_id == current_user.branch_id,
-        models.Subject.academic_year_id == current_user.academic_year_id
+        models.Subject.branch_id == branch_id,
+        models.Subject.academic_year_id == academic_year_id
     ).all()
 
     return templates.TemplateResponse(
@@ -56,13 +67,14 @@ def add_subject(
     if not current_user:
         return RedirectResponse(url="/")
 
+    branch_id, academic_year_id = _get_scope_ids(current_user)
     new_subject = models.Subject(
         subject_code=subject_code,
         subject_name=subject_name,
         weekly_hours=weekly_hours,
         grade=grade,
-        branch_id=current_user.branch_id,
-        academic_year_id=current_user.academic_year_id
+        branch_id=branch_id,
+        academic_year_id=academic_year_id
     )
 
     try:
@@ -72,8 +84,8 @@ def add_subject(
         db.rollback()
 
         subjects = db.query(models.Subject).filter(
-            models.Subject.branch_id == current_user.branch_id,
-            models.Subject.academic_year_id == current_user.academic_year_id
+            models.Subject.branch_id == branch_id,
+            models.Subject.academic_year_id == academic_year_id
         ).all()
 
         return templates.TemplateResponse(
@@ -105,10 +117,11 @@ def edit_subject_page(
     if not current_user:
         return RedirectResponse(url="/")
 
+    branch_id, academic_year_id = _get_scope_ids(current_user)
     subject = db.query(models.Subject).filter(
         models.Subject.id == subject_id,
-        models.Subject.branch_id == current_user.branch_id,
-        models.Subject.academic_year_id == current_user.academic_year_id
+        models.Subject.branch_id == branch_id,
+        models.Subject.academic_year_id == academic_year_id
     ).first()
 
     if not subject:
@@ -143,10 +156,11 @@ def update_subject(
     if not current_user:
         return RedirectResponse(url="/")
 
+    branch_id, academic_year_id = _get_scope_ids(current_user)
     subject = db.query(models.Subject).filter(
         models.Subject.id == subject_id,
-        models.Subject.branch_id == current_user.branch_id,
-        models.Subject.academic_year_id == current_user.academic_year_id
+        models.Subject.branch_id == branch_id,
+        models.Subject.academic_year_id == academic_year_id
     ).first()
 
     if not subject:
@@ -181,10 +195,11 @@ def delete_subject(
     if not current_user or current_user.role != "Admin":
         return RedirectResponse(url="/subjects")
 
+    branch_id, academic_year_id = _get_scope_ids(current_user)
     subject = db.query(models.Subject).filter(
         models.Subject.id == subject_id,
-        models.Subject.branch_id == current_user.branch_id,
-        models.Subject.academic_year_id == current_user.academic_year_id
+        models.Subject.branch_id == branch_id,
+        models.Subject.academic_year_id == academic_year_id
     ).first()
 
     if subject:
