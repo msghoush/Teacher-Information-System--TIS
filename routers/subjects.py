@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 
+import auth
 import models
 from dependencies import get_db
 from auth import get_current_user
@@ -99,6 +100,8 @@ def _render_subjects_page(
     detail_errors=None
 ):
     branch_id, academic_year_id = _get_scope_ids(current_user)
+    can_modify = auth.can_modify_data(current_user)
+    can_delete = auth.can_delete_data(current_user)
     subjects = db.query(models.Subject).filter(
         models.Subject.branch_id == branch_id,
         models.Subject.academic_year_id == academic_year_id
@@ -110,6 +113,8 @@ def _render_subjects_page(
             "request": request,
             "subjects": subjects,
             "user": current_user,
+            "can_modify": can_modify,
+            "can_delete": can_delete,
             "error": error,
             "success": success,
             "detail_errors": detail_errors or []
@@ -195,6 +200,14 @@ def import_subjects(
 
     if not current_user:
         return RedirectResponse(url="/")
+
+    if not auth.can_modify_data(current_user):
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Your role has read-only access and cannot import subjects."
+        )
 
     if not subject_file or not subject_file.filename:
         return _render_subjects_page(
@@ -370,6 +383,14 @@ def add_subject(
     if not current_user:
         return RedirectResponse(url="/")
 
+    if not auth.can_modify_data(current_user):
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Your role has read-only access and cannot add subjects."
+        )
+
     subject_code = _normalize_subject_code(subject_code)
     subject_name = _normalize_subject_name(subject_name)
     validation_errors = _validate_subject_payload(
@@ -441,6 +462,14 @@ def edit_subject_page(
     if not current_user:
         return RedirectResponse(url="/")
 
+    if not auth.can_modify_data(current_user):
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Your role has read-only access and cannot edit subjects."
+        )
+
     branch_id, academic_year_id = _get_scope_ids(current_user)
     subject = db.query(models.Subject).filter(
         models.Subject.id == subject_id,
@@ -480,6 +509,14 @@ def update_subject(
 
     if not current_user:
         return RedirectResponse(url="/")
+
+    if not auth.can_modify_data(current_user):
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Your role has read-only access and cannot update subjects."
+        )
 
     branch_id, academic_year_id = _get_scope_ids(current_user)
     subject = db.query(models.Subject).filter(
@@ -542,7 +579,7 @@ def update_subject(
 
 
 # --------------------------------------------------
-# DELETE SUBJECT (ADMIN ONLY)
+# DELETE SUBJECT
 # --------------------------------------------------
 @router.get("/delete/{subject_id}")
 def delete_subject(
@@ -553,7 +590,10 @@ def delete_subject(
 
     current_user = get_current_user(request, db)
 
-    if not current_user or current_user.role != "Admin":
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    if not auth.can_delete_data(current_user):
         return RedirectResponse(url="/subjects")
 
     branch_id, academic_year_id = _get_scope_ids(current_user)

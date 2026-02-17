@@ -395,8 +395,8 @@
                 <strong>{{ teacher_count }}</strong>
             </div>
             <div class="stat">
-                <span>Modules</span>
-                <strong>4</strong>
+                <span>Users</span>
+                <strong>{{ users_count }}</strong>
             </div>
         </section>
 
@@ -421,6 +421,9 @@
             <div class="tabs">
                 <button class="tab active" type="button" data-panel="subjects">Subjects</button>
                 <button class="tab" type="button" data-panel="teachers">Teachers</button>
+                {% if is_admin %}
+                <button class="tab" type="button" data-panel="users">Users</button>
+                {% endif %}
                 <button class="tab" type="button" data-panel="planning">Planning</button>
                 <button class="tab" type="button" data-panel="reports">Reports</button>
             </div>
@@ -488,6 +491,28 @@
                 <div class="empty">No teacher records yet for this scope.</div>
                 {% endif %}
             </div>
+
+            {% if is_admin %}
+            <div class="panel" id="panel-users">
+                <div class="panel-head">
+                    <div>
+                        <h3>Users Workspace</h3>
+                        <p>Manage non-teacher users, roles, and branch assignments.</p>
+                    </div>
+                    <a class="open-link" href="/users">Open Users Module</a>
+                </div>
+                <div class="tiles">
+                    <div class="tile">
+                        <h4>Users in Branch</h4>
+                        <p>{{ users_count }} account(s) linked to this branch.</p>
+                    </div>
+                    <div class="tile">
+                        <h4>Role Governance</h4>
+                        <p>Developer and Administrator roles can create and manage user accounts.</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
 
             <div class="panel" id="panel-planning">
                 <div class="panel-head">

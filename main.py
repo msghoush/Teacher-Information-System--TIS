@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Form, Depends
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import inspect, text
 import os
 from typing import Optional
 
@@ -9,7 +10,7 @@ from database import engine, SessionLocal
 import models
 import auth
 from dependencies import get_db
-from routers import subjects
+from routers import subjects, users
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
 
@@ -29,30 +30,15 @@ templates = Jinja2Templates(directory="templates")
 def _build_login_context(
     db: Session,
     username: str = "",
-    selected_branch_id: Optional[int] = None,
-    selected_academic_year_id: Optional[int] = None,
     error: Optional[str] = None,
 ):
-    branches = db.query(models.Branch).filter(
-        models.Branch.status == True
-    ).order_by(models.Branch.name.asc()).all()
-    academic_years = db.query(models.AcademicYear).order_by(
-        models.AcademicYear.year_name.desc()
-    ).all()
     active_year = db.query(models.AcademicYear).filter(
         models.AcademicYear.is_active == True
     ).first()
 
-    if selected_academic_year_id is None and active_year:
-        selected_academic_year_id = active_year.id
-
     return {
         "username": username,
-        "branches": branches,
-        "academic_years": academic_years,
-        "selected_branch_id": selected_branch_id,
-        "selected_academic_year_id": selected_academic_year_id,
-        "active_year_id": active_year.id if active_year else None,
+        "active_year_name": active_year.year_name if active_year else "Not configured",
         "error": error,
     }
 
@@ -61,16 +47,12 @@ def _render_login_page(
     request: Request,
     db: Session,
     username: str = "",
-    selected_branch_id: Optional[int] = None,
-    selected_academic_year_id: Optional[int] = None,
     error: Optional[str] = None,
     status_code: int = 200,
 ):
     context = _build_login_context(
         db=db,
         username=username,
-        selected_branch_id=selected_branch_id,
-        selected_academic_year_id=selected_academic_year_id,
         error=error,
     )
     context["request"] = request
@@ -84,6 +66,7 @@ def _render_login_page(
 # Include Routers
 # ---------------------------------------
 app.include_router(subjects.router)
+app.include_router(users.router)
 
 # ---------------------------------------
 # ROOT (Login Page)
@@ -106,8 +89,6 @@ def login(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
-    branch_id: int = Form(...),
-    academic_year_id: int = Form(...),
     db: Session = Depends(get_db)
 ):
     username = username.strip()
@@ -118,8 +99,6 @@ def login(
             request=request,
             db=db,
             username=username,
-            selected_branch_id=branch_id,
-            selected_academic_year_id=academic_year_id,
             error="Invalid User ID or password.",
             status_code=401
         )
@@ -129,61 +108,33 @@ def login(
             request=request,
             db=db,
             username=username,
-            selected_branch_id=branch_id,
-            selected_academic_year_id=academic_year_id,
             error="Your account is inactive. Please contact Admin.",
             status_code=403
         )
 
-    selected_branch = db.query(models.Branch).filter(
-        models.Branch.id == branch_id,
+    assigned_branch = db.query(models.Branch).filter(
+        models.Branch.id == user.branch_id,
         models.Branch.status == True
     ).first()
-    if not selected_branch:
+    if not assigned_branch:
         return _render_login_page(
             request=request,
             db=db,
             username=username,
-            selected_branch_id=branch_id,
-            selected_academic_year_id=academic_year_id,
-            error="Selected branch is unavailable.",
+            error="Your assigned branch is inactive or not configured.",
             status_code=400
         )
 
-    if user.branch_id != branch_id:
-        return _render_login_page(
-            request=request,
-            db=db,
-            username=username,
-            selected_branch_id=branch_id,
-            selected_academic_year_id=academic_year_id,
-            error="This branch is not assigned to your account.",
-            status_code=403
-        )
-
-    selected_year = db.query(models.AcademicYear).filter(
-        models.AcademicYear.id == academic_year_id
+    active_year = db.query(models.AcademicYear).filter(
+        models.AcademicYear.is_active == True
     ).first()
-    if not selected_year:
+    if not active_year:
         return _render_login_page(
             request=request,
             db=db,
             username=username,
-            selected_branch_id=branch_id,
-            selected_academic_year_id=academic_year_id,
-            error="Selected academic year is invalid.",
+            error="No active academic year set by administrator.",
             status_code=400
-        )
-
-    if not selected_year.is_active:
-        return _render_login_page(
-            request=request,
-            db=db,
-            username=username,
-            selected_branch_id=branch_id,
-            selected_academic_year_id=academic_year_id,
-            error="Selected academic year is not current. Please choose the current year.",
-            status_code=403
         )
 
     response = RedirectResponse(url="/dashboard", status_code=302)
@@ -195,13 +146,13 @@ def login(
     )
     response.set_cookie(
         key="branch_id",
-        value=str(branch_id),
+        value=str(user.branch_id),
         httponly=True,
         samesite="lax"
     )
     response.set_cookie(
         key="academic_year_id",
-        value=str(academic_year_id),
+        value=str(active_year.id),
         httponly=True,
         samesite="lax"
     )
@@ -231,7 +182,7 @@ def set_current_year(
 ):
     current_user = auth.get_current_user(request, db)
 
-    if not current_user or current_user.role != "Admin":
+    if not current_user or not auth.can_manage_users(current_user):
         return RedirectResponse(url="/", status_code=302)
 
     target_year = db.query(models.AcademicYear).filter(
@@ -298,8 +249,12 @@ def dashboard(
         models.Teacher.branch_id == scoped_branch_id,
         models.Teacher.academic_year_id == scoped_academic_year_id
     )
+    users_query = db.query(models.User).filter(
+        models.User.branch_id == scoped_branch_id
+    )
     subject_count = subjects_query.count()
     teacher_count = teachers_query.count()
+    users_count = users_query.count()
     subjects_preview = subjects_query.order_by(
         models.Subject.id.desc()
     ).limit(8).all()
@@ -322,13 +277,37 @@ def dashboard(
             "academic_year_name": academic_year_name,
             "subject_count": subject_count,
             "teacher_count": teacher_count,
+            "users_count": users_count,
             "subjects_preview": subjects_preview,
             "teachers_preview": teachers_preview,
             "all_years": all_years,
             "active_year_id": active_year.id if active_year else None,
-            "is_admin": user.role == "Admin"
+            "is_admin": auth.can_manage_users(user)
         }
     )
+
+
+# ---------------------------------------
+# Startup Schema Compatibility
+# ---------------------------------------
+def _ensure_users_table_columns():
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        return
+
+    existing_columns = {
+        col["name"] for col in inspector.get_columns("users")
+    }
+
+    with engine.begin() as connection:
+        if "username" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE users ADD COLUMN username VARCHAR(50)")
+            )
+        if "position" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE users ADD COLUMN position VARCHAR(50)")
+            )
 
 
 # ---------------------------------------
@@ -337,9 +316,12 @@ def dashboard(
 @app.on_event("startup")
 def setup_initial_data():
 
+    _ensure_users_table_columns()
     db = SessionLocal()
     admin_user_id = os.getenv("ADMIN_USER_ID", "2623252018")
+    admin_username = os.getenv("ADMIN_USERNAME", "developer")
     admin_password = os.getenv("ADMIN_PASSWORD", "UnderProcess1984")
+    admin_position = os.getenv("ADMIN_POSITION", "Developer")
 
     # Create Branch if not exists
     branch = db.query(Branch).filter(
@@ -385,10 +367,12 @@ def setup_initial_data():
     if not existing_user:
         admin_user = User(
             user_id=admin_user_id,
+            username=admin_username,
             first_name="mohamad",
             last_name="El Ghoche",
+            position=admin_position,
             password=get_password_hash(admin_password),
-            role="Admin",
+            role=auth.ROLE_DEVELOPER,
             branch_id=branch.id,
             academic_year_id=academic_year.id,
             is_active=True
@@ -402,8 +386,16 @@ def setup_initial_data():
             existing_user.password = get_password_hash(admin_password)
             updated = True
 
-        if existing_user.role != "Admin":
-            existing_user.role = "Admin"
+        if not existing_user.username:
+            existing_user.username = admin_username
+            updated = True
+
+        if not existing_user.position:
+            existing_user.position = admin_position
+            updated = True
+
+        if not existing_user.role:
+            existing_user.role = auth.ROLE_DEVELOPER
             updated = True
 
         if not existing_user.branch_id:
