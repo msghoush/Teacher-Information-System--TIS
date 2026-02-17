@@ -3,6 +3,6 @@ uvicorn
 sqlalchemy
 psycopg2-binary
 python-multipart
-passlib[bcrypt]
+bcrypt
 python-jose
 jinja2
