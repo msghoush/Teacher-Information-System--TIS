@@ -82,6 +82,9 @@ def dashboard(
         models.User.user_id == user_id
     ).first()
 
+    if not user:
+        return RedirectResponse(url="/")
+
     branch = db.query(models.Branch).filter(
         models.Branch.id == user.branch_id
     ).first()
