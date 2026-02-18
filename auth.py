@@ -10,6 +10,7 @@ ROLE_ADMINISTRATOR = "Administrator"
 ROLE_EDITOR = "Editor"
 ROLE_USER = "User"
 ROLE_LIMITED = "Limited Access"
+POSITION_EDUCATION_EXCELLENCE = "Education Excellence"
 
 
 def normalize_role(role: str) -> str:
@@ -28,6 +29,30 @@ def normalize_role(role: str) -> str:
     if lowered in {"limited access", "limited"}:
         return ROLE_LIMITED
     return cleaned
+
+
+def normalize_position(position: str) -> str:
+    if not position:
+        return ""
+    cleaned = str(position).strip()
+    lowered = cleaned.lower()
+    if lowered in {"education excellence", "education excelency"}:
+        return POSITION_EDUCATION_EXCELLENCE
+    return cleaned
+
+
+def can_access_all_branches(user) -> bool:
+    role = normalize_role(getattr(user, "role", ""))
+    raw_role = str(getattr(user, "role", "")).strip().lower()
+    position = normalize_position(getattr(user, "position", ""))
+
+    if role == ROLE_DEVELOPER:
+        return True
+
+    if raw_role in {"education excellence", "education excelency"}:
+        return True
+
+    return position == POSITION_EDUCATION_EXCELLENCE
 
 
 def can_manage_users(user) -> bool:
@@ -118,7 +143,20 @@ def get_current_user(
     except ValueError:
         parsed_year_id = None
 
-    if parsed_branch_id and parsed_branch_id == user.branch_id:
+    can_all_branch_scope = can_access_all_branches(user)
+    active_branches = db.query(models.Branch).filter(
+        models.Branch.status == True
+    ).order_by(models.Branch.name.asc()).all()
+    active_branch_ids = {branch.id for branch in active_branches}
+
+    if can_all_branch_scope:
+        if parsed_branch_id and parsed_branch_id in active_branch_ids:
+            scoped_branch_id = parsed_branch_id
+        elif user.branch_id in active_branch_ids:
+            scoped_branch_id = user.branch_id
+        elif active_branches:
+            scoped_branch_id = active_branches[0].id
+    elif parsed_branch_id and parsed_branch_id == user.branch_id:
         scoped_branch_id = parsed_branch_id
 
     active_year = db.query(models.AcademicYear).filter(
@@ -143,5 +181,7 @@ def get_current_user(
     user.scope_branch_id = scoped_branch_id
     user.scope_academic_year_id = scoped_academic_year_id
     user.effective_role = normalize_role(user.role)
+    user.effective_position = normalize_position(getattr(user, "position", ""))
+    user.can_access_all_branches = can_all_branch_scope
 
     return user
