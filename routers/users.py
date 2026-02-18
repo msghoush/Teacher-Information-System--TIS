@@ -29,6 +29,7 @@ POSITION_ALIASES = {
 ROLE_CHOICES = [
     auth.ROLE_DEVELOPER,
     auth.ROLE_ADMINISTRATOR,
+    auth.ROLE_EDITOR,
     auth.ROLE_USER,
     auth.ROLE_LIMITED,
 ]
@@ -50,10 +51,9 @@ def _get_users_scope_branch_id(current_user):
 
 
 def _get_user_roles_for_creator(current_user):
-    role = auth.normalize_role(current_user.role)
-    if role == auth.ROLE_DEVELOPER:
+    if auth.can_manage_users(current_user):
         return ROLE_CHOICES
-    return [auth.ROLE_ADMINISTRATOR, auth.ROLE_USER, auth.ROLE_LIMITED]
+    return [auth.ROLE_EDITOR, auth.ROLE_USER, auth.ROLE_LIMITED]
 
 
 def _get_available_branches(db: Session, current_user):
