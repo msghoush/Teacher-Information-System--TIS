@@ -7,6 +7,7 @@ from dependencies import get_db
 
 ROLE_DEVELOPER = "Developer"
 ROLE_ADMINISTRATOR = "Administrator"
+ROLE_EDITOR = "Editor"
 ROLE_USER = "User"
 ROLE_LIMITED = "Limited Access"
 
@@ -20,6 +21,8 @@ def normalize_role(role: str) -> str:
         return ROLE_DEVELOPER
     if lowered in {"admin", "administrator"}:
         return ROLE_ADMINISTRATOR
+    if lowered == "editor":
+        return ROLE_EDITOR
     if lowered == "user":
         return ROLE_USER
     if lowered in {"limited access", "limited"}:
@@ -34,12 +37,12 @@ def can_manage_users(user) -> bool:
 
 def can_modify_data(user) -> bool:
     role = normalize_role(getattr(user, "role", ""))
-    return role in {ROLE_DEVELOPER, ROLE_ADMINISTRATOR, ROLE_USER}
+    return role in {ROLE_DEVELOPER, ROLE_ADMINISTRATOR, ROLE_EDITOR, ROLE_USER}
 
 
 def can_delete_data(user) -> bool:
     role = normalize_role(getattr(user, "role", ""))
-    return role in {ROLE_DEVELOPER, ROLE_ADMINISTRATOR, ROLE_USER}
+    return role in {ROLE_DEVELOPER, ROLE_ADMINISTRATOR, ROLE_EDITOR, ROLE_USER}
 
 
 def _to_bytes(value):

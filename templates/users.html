@@ -334,23 +334,24 @@
                 </ul>
                 {% endif %}
 
-                <form method="post" action="/users">
+                <form id="createUserForm" method="post" action="/users" autocomplete="off">
                     <div class="form-grid">
                         <div class="field">
                             <label for="user_id">User ID</label>
-                            <input id="user_id" type="text" name="user_id" placeholder="Unique User ID" required>
+                            <input id="user_id" type="text" name="user_id" placeholder="Unique User ID" autocomplete="off" autocapitalize="none" spellcheck="false" required>
                         </div>
                         <div class="field">
                             <label for="first_name">First Name</label>
-                            <input id="first_name" type="text" name="first_name" required>
+                            <input id="first_name" type="text" name="first_name" autocomplete="off" required>
                         </div>
                         <div class="field">
                             <label for="last_name">Last Name</label>
-                            <input id="last_name" type="text" name="last_name" required>
+                            <input id="last_name" type="text" name="last_name" autocomplete="off" required>
                         </div>
                         <div class="field">
                             <label for="position">Position</label>
                             <select id="position" name="position" required>
+                                <option value="" selected disabled>Select Position</option>
                                 {% for position in positions %}
                                 <option value="{{ position }}">{{ position }}</option>
                                 {% endfor %}
@@ -359,6 +360,7 @@
                         <div class="field">
                             <label for="role">Role</label>
                             <select id="role" name="role" required>
+                                <option value="" selected disabled>Select Role</option>
                                 {% for role_item in role_choices %}
                                 <option value="{{ role_item }}">{{ role_item }}</option>
                                 {% endfor %}
@@ -367,6 +369,7 @@
                         <div class="field">
                             <label for="branch_id">Branch</label>
                             <select id="branch_id" name="branch_id" required>
+                                <option value="" selected disabled>Select Branch</option>
                                 {% for branch in available_branches %}
                                 <option value="{{ branch.id }}">{{ branch.name }}</option>
                                 {% endfor %}
@@ -374,7 +377,7 @@
                         </div>
                         <div class="field">
                             <label for="password">Password</label>
-                            <input id="password" type="password" name="password" required>
+                            <input id="password" type="password" name="password" autocomplete="new-password" value="" required>
                         </div>
                     </div>
                     <button class="btn-save" type="submit">Create User</button>
@@ -438,6 +441,7 @@
         const searchInput = document.getElementById("usersSearch");
         const rows = Array.from(document.querySelectorAll(".user-row"));
         const noResult = document.getElementById("noUsersResult");
+        const createUserForm = document.getElementById("createUserForm");
 
         if (searchInput && rows.length > 0) {
             searchInput.addEventListener("input", () => {
@@ -456,6 +460,27 @@
                 if (noResult) {
                     noResult.style.display = visible === 0 ? "block" : "none";
                 }
+            });
+        }
+
+        if (createUserForm) {
+            window.addEventListener("load", () => {
+                const inputIds = ["user_id", "first_name", "last_name", "password"];
+                const selectIds = ["position", "role", "branch_id"];
+
+                inputIds.forEach((id) => {
+                    const field = document.getElementById(id);
+                    if (field) {
+                        field.value = "";
+                    }
+                });
+
+                selectIds.forEach((id) => {
+                    const field = document.getElementById(id);
+                    if (field) {
+                        field.selectedIndex = 0;
+                    }
+                });
             });
         }
     </script>
