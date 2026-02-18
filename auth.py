@@ -55,6 +55,14 @@ def can_access_all_branches(user) -> bool:
     return position == POSITION_EDUCATION_EXCELLENCE
 
 
+def is_developer(user) -> bool:
+    return normalize_role(getattr(user, "role", "")) == ROLE_DEVELOPER
+
+
+def can_access_all_years(user) -> bool:
+    return is_developer(user)
+
+
 def can_manage_users(user) -> bool:
     role = normalize_role(getattr(user, "role", ""))
     return role in {ROLE_DEVELOPER, ROLE_ADMINISTRATOR}
@@ -163,18 +171,17 @@ def get_current_user(
         models.AcademicYear.is_active == True
     ).first()
 
-    if active_year:
-        if parsed_year_id:
-            selected_active_year = db.query(models.AcademicYear).filter(
-                models.AcademicYear.id == parsed_year_id,
-                models.AcademicYear.is_active == True
-            ).first()
-            if selected_active_year:
-                scoped_academic_year_id = selected_active_year.id
-            else:
-                scoped_academic_year_id = active_year.id
-        else:
+    can_all_year_scope = can_access_all_years(user)
+    if can_all_year_scope and parsed_year_id:
+        selected_year = db.query(models.AcademicYear).filter(
+            models.AcademicYear.id == parsed_year_id
+        ).first()
+        if selected_year:
+            scoped_academic_year_id = selected_year.id
+        elif active_year:
             scoped_academic_year_id = active_year.id
+    elif active_year:
+        scoped_academic_year_id = active_year.id
     elif parsed_year_id:
         scoped_academic_year_id = parsed_year_id
 
@@ -183,5 +190,6 @@ def get_current_user(
     user.effective_role = normalize_role(user.role)
     user.effective_position = normalize_position(getattr(user, "position", ""))
     user.can_access_all_branches = can_all_branch_scope
+    user.can_access_all_years = can_all_year_scope
 
     return user

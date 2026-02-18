@@ -148,6 +148,15 @@
             background: #fff;
         }
 
+        .admin-year input {
+            min-width: 220px;
+            padding: 8px 10px;
+            border: 1px solid #b8c6da;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #fff;
+        }
+
         .admin-year button {
             border: none;
             padding: 8px 12px;
@@ -417,7 +426,24 @@
         </section>
         {% endif %}
 
-        {% if is_admin %}
+        {% if can_switch_years %}
+        <section class="admin-year">
+            <form method="post" action="/scope/academic-year">
+                <label for="scope_academic_year_id">View Academic Year</label>
+                <select id="scope_academic_year_id" name="academic_year_id" required>
+                    {% for year in all_years %}
+                    <option value="{{ year.id }}" {% if scoped_academic_year_id == year.id %}selected{% endif %}>
+                        {{ year.year_name }}{% if active_year_id == year.id %} (Current){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+                <button type="submit">Switch Year Scope</button>
+            </form>
+            <p>Developer can view data from all academic years using this scope selector.</p>
+        </section>
+        {% endif %}
+
+        {% if is_developer %}
         <section class="admin-year">
             <form method="post" action="/admin/current-year">
                 <label for="academic_year_id">Current Academic Year</label>
@@ -430,7 +456,12 @@
                 </select>
                 <button type="submit">Set Current Year</button>
             </form>
-            <p>This setting controls the academic year scope used by all logged-in users.</p>
+            <form method="post" action="/developer/open-academic-year" style="margin-top: 10px;">
+                <label for="year_name">Open New Academic Year</label>
+                <input id="year_name" type="text" name="year_name" placeholder="YYYY-YYYY (example: 2026-2027)" required>
+                <button type="submit">Open New Academic Year</button>
+            </form>
+            <p>Only Developer can open or set current year. Non-developer users always see current-year data only.</p>
         </section>
         {% endif %}
 
@@ -518,16 +549,34 @@
                     </div>
                     <a class="open-link" href="/users">Open Users Module</a>
                 </div>
-                <div class="tiles">
-                    <div class="tile">
-                        <h4>Users in Branch</h4>
-                        <p>{{ users_count }} account(s) linked to this branch.</p>
-                    </div>
-                    <div class="tile">
-                        <h4>Role Governance</h4>
-                        <p>Developer and Administrator roles can create and manage user accounts.</p>
-                    </div>
+                {% if users_preview %}
+                <div class="table-wrap">
+                    <table>
+                        <tr>
+                            <th>Name</th>
+                            <th>User ID</th>
+                            <th>Position</th>
+                            <th>Role</th>
+                            <th>Branch</th>
+                            <th>Academic Year</th>
+                            <th>Status</th>
+                        </tr>
+                        {% for row in users_preview %}
+                        <tr>
+                            <td>{{ row.first_name }} {{ row.last_name }}</td>
+                            <td>{{ row.user_id or row.username }}</td>
+                            <td>{{ row.position or "-" }}</td>
+                            <td>{{ row.role or "-" }}</td>
+                            <td>{{ branch_map.get(row.branch_id, "Not assigned") }}</td>
+                            <td>{{ year_map.get(row.academic_year_id, "-") }}</td>
+                            <td>{{ "Active" if row.is_active else "Inactive" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
                 </div>
+                {% else %}
+                <div class="empty">No user records yet for this branch/year scope.</div>
+                {% endif %}
             </div>
             {% endif %}
 
