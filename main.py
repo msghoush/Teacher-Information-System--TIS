@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
 import os
+import re
 from typing import Optional
 
 from database import engine, SessionLocal
@@ -25,6 +26,7 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Teacher Information System")
 
 templates = Jinja2Templates(directory="templates")
+ACADEMIC_YEAR_NAME_PATTERN = re.compile(r"^\d{4}-\d{4}$")
 
 
 def _build_login_context(
@@ -198,7 +200,7 @@ def set_current_year(
 ):
     current_user = auth.get_current_user(request, db)
 
-    if not current_user or not auth.can_manage_users(current_user):
+    if not current_user or not auth.is_developer(current_user):
         return RedirectResponse(url="/", status_code=302)
 
     target_year = db.query(models.AcademicYear).filter(
@@ -214,6 +216,90 @@ def set_current_year(
     )
     target_year.is_active = True
     db.commit()
+
+    response = RedirectResponse(url="/dashboard", status_code=302)
+    response.set_cookie(
+        key="academic_year_id",
+        value=str(target_year.id),
+        httponly=True,
+        samesite="lax"
+    )
+    return response
+
+
+# ---------------------------------------
+# DEVELOPER: OPEN NEW ACADEMIC YEAR
+# ---------------------------------------
+@app.post("/developer/open-academic-year")
+def open_new_academic_year(
+    request: Request,
+    year_name: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user or not auth.is_developer(current_user):
+        return RedirectResponse(url="/", status_code=302)
+
+    cleaned_year_name = year_name.strip()
+    if not ACADEMIC_YEAR_NAME_PATTERN.match(cleaned_year_name):
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    existing_year = db.query(models.AcademicYear).filter(
+        models.AcademicYear.year_name == cleaned_year_name
+    ).first()
+    if existing_year:
+        target_year = existing_year
+        db.query(models.AcademicYear).update(
+            {models.AcademicYear.is_active: False},
+            synchronize_session=False
+        )
+        target_year.is_active = True
+        db.commit()
+    else:
+        db.query(models.AcademicYear).update(
+            {models.AcademicYear.is_active: False},
+            synchronize_session=False
+        )
+        target_year = models.AcademicYear(
+            year_name=cleaned_year_name,
+            is_active=True
+        )
+        db.add(target_year)
+        db.commit()
+        db.refresh(target_year)
+
+    response = RedirectResponse(url="/dashboard", status_code=302)
+    response.set_cookie(
+        key="academic_year_id",
+        value=str(target_year.id),
+        httponly=True,
+        samesite="lax"
+    )
+    return response
+
+
+# ---------------------------------------
+# SCOPE: SET CURRENT ACADEMIC YEAR
+# ---------------------------------------
+@app.post("/scope/academic-year")
+def set_scope_academic_year(
+    request: Request,
+    academic_year_id: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    current_user = auth.get_current_user(request, db)
+
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    if not auth.can_access_all_years(current_user):
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    target_year = db.query(models.AcademicYear).filter(
+        models.AcademicYear.id == academic_year_id
+    ).first()
+    if not target_year:
+        return RedirectResponse(url="/dashboard", status_code=302)
 
     response = RedirectResponse(url="/dashboard", status_code=302)
     response.set_cookie(
@@ -300,7 +386,8 @@ def dashboard(
         models.Teacher.academic_year_id == scoped_academic_year_id
     )
     users_query = db.query(models.User).filter(
-        models.User.branch_id == scoped_branch_id
+        models.User.branch_id == scoped_branch_id,
+        models.User.academic_year_id == scoped_academic_year_id
     )
     subject_count = subjects_query.count()
     teacher_count = teachers_query.count()
@@ -311,13 +398,25 @@ def dashboard(
     teachers_preview = teachers_query.order_by(
         models.Teacher.id.desc()
     ).limit(8).all()
+    users_preview = users_query.order_by(
+        models.User.id.desc()
+    ).limit(8).all()
     all_years = db.query(models.AcademicYear).order_by(
         models.AcademicYear.year_name.desc()
     ).all()
+    year_map = {
+        year.id: year.year_name for year in all_years
+    }
+    branch_map = {
+        branch_item.id: branch_item.name
+        for branch_item in db.query(models.Branch).all()
+    }
     available_scope_branches = db.query(models.Branch).filter(
         models.Branch.status == True
     ).order_by(models.Branch.name.asc()).all()
     can_switch_branches = auth.can_access_all_branches(user)
+    can_switch_years = auth.can_access_all_years(user)
+    is_developer = auth.is_developer(user)
     active_year = db.query(models.AcademicYear).filter(
         models.AcademicYear.is_active == True
     ).first()
@@ -334,12 +433,18 @@ def dashboard(
             "users_count": users_count,
             "subjects_preview": subjects_preview,
             "teachers_preview": teachers_preview,
+            "users_preview": users_preview,
             "all_years": all_years,
+            "year_map": year_map,
+            "branch_map": branch_map,
             "can_switch_branches": can_switch_branches,
+            "can_switch_years": can_switch_years,
+            "scoped_academic_year_id": scoped_academic_year_id,
             "available_scope_branches": available_scope_branches,
             "scoped_branch_id": scoped_branch_id,
             "active_year_id": active_year.id if active_year else None,
-            "is_admin": auth.can_manage_users(user)
+            "is_admin": auth.can_manage_users(user),
+            "is_developer": is_developer,
         }
     )
 

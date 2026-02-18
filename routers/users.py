@@ -147,8 +147,15 @@ def _render_users_page(
     available_branches = _get_available_branches(db, current_user)
     role = auth.normalize_role(current_user.role)
     can_manage_users = auth.can_manage_users(current_user)
+    scope_academic_year_id = getattr(
+        current_user,
+        "scope_academic_year_id",
+        current_user.academic_year_id
+    )
 
-    users_query = db.query(models.User)
+    users_query = db.query(models.User).filter(
+        models.User.academic_year_id == scope_academic_year_id
+    )
     if role not in {auth.ROLE_DEVELOPER, auth.ROLE_ADMINISTRATOR}:
         scope_branch_id = _get_users_scope_branch_id(current_user)
         users_query = users_query.filter(models.User.branch_id == scope_branch_id)
