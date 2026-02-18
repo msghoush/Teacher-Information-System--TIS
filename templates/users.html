@@ -242,6 +242,31 @@
             border-bottom: none;
         }
 
+        .row-actions a {
+            display: inline-block;
+            text-decoration: none;
+            padding: 6px 9px;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 700;
+            margin-right: 6px;
+        }
+
+        .row-edit {
+            color: #fff;
+            background: #2563eb;
+        }
+
+        .row-delete {
+            color: #fff;
+            background: #dc2626;
+        }
+
+        .row-readonly {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
         .tag {
             display: inline-block;
             border-radius: 999px;
@@ -381,6 +406,7 @@
                                 <th>Role</th>
                                 <th>Branch</th>
                                 <th>Status</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="usersBody">
@@ -393,6 +419,14 @@
                                 <td><span class="tag">{{ row.role }}</span></td>
                                 <td>{{ branch_map.get(row.branch_id, "Not assigned") }}</td>
                                 <td>{{ "Active" if row.is_active else "Inactive" }}</td>
+                                <td class="row-actions">
+                                    {% if can_manage_users and row.id in manageable_user_ids %}
+                                    <a class="row-edit" href="/users/edit/{{ row.id }}">Edit</a>
+                                    <a class="row-delete" href="/users/delete/{{ row.id }}" onclick="return confirm('Delete this user?');">Delete</a>
+                                    {% else %}
+                                    <span class="row-readonly">No access</span>
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
