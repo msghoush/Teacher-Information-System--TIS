@@ -3,6 +3,7 @@ import re
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -17,12 +18,12 @@ templates = Jinja2Templates(directory="templates")
 POSITIONS = [
     "Academic Supervisor",
     "Principle",
-    "Education Excelency",
+    "Education Excellence",
 ]
 
 POSITION_ALIASES = {
     "Principal": "Principle",
-    "Education Excellence": "Education Excelency",
+    "Education Excelency": "Education Excellence",
 }
 
 ROLE_CHOICES = [
@@ -32,13 +33,16 @@ ROLE_CHOICES = [
     auth.ROLE_LIMITED,
 ]
 
-ID_NUMBER_PATTERN = re.compile(r"^\d{6,20}$")
-USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{3,30}$")
+USER_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{3,30}$")
 NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z\s'-]*$")
 
 
 def _normalize_name(value: str) -> str:
     return " ".join(part.capitalize() for part in value.strip().split())
+
+
+def _normalize_user_id(value: str) -> str:
+    return value.strip().lower()
 
 
 def _get_users_scope_branch_id(current_user):
@@ -54,7 +58,7 @@ def _get_user_roles_for_creator(current_user):
 
 def _get_available_branches(db: Session, current_user):
     role = auth.normalize_role(current_user.role)
-    if role == auth.ROLE_DEVELOPER:
+    if role in {auth.ROLE_DEVELOPER, auth.ROLE_ADMINISTRATOR}:
         return db.query(models.Branch).filter(
             models.Branch.status == True
         ).order_by(models.Branch.name.asc()).all()
@@ -70,14 +74,10 @@ def _get_available_branches(db: Session, current_user):
 def _can_manage_target_user(current_user, target_user) -> bool:
     manager_role = auth.normalize_role(current_user.role)
 
-    if manager_role == auth.ROLE_DEVELOPER:
+    if manager_role in {auth.ROLE_DEVELOPER, auth.ROLE_ADMINISTRATOR}:
         return True
 
-    if manager_role != auth.ROLE_ADMINISTRATOR:
-        return False
-
-    scope_branch_id = _get_users_scope_branch_id(current_user)
-    return target_user.branch_id == scope_branch_id
+    return False
 
 
 def _get_user_for_management(db: Session, current_user, user_pk: int):
@@ -109,6 +109,13 @@ def _render_edit_user_page(
     detail_errors=None,
     form_data=None,
 ):
+    form_data = dict(form_data or {})
+    if "position" not in form_data and getattr(user_row, "position", None):
+        form_data["position"] = POSITION_ALIASES.get(
+            str(user_row.position).strip(),
+            str(user_row.position).strip(),
+        )
+
     role_choices = list(_get_user_roles_for_creator(current_user))
     normalized_row_role = auth.normalize_role(getattr(user_row, "role", ""))
     if normalized_row_role and normalized_row_role not in role_choices:
@@ -124,7 +131,7 @@ def _render_edit_user_page(
             "available_branches": _get_available_branches(db, current_user),
             "error": error,
             "detail_errors": detail_errors or [],
-            "form_data": form_data or {},
+            "form_data": form_data,
         },
     )
 
@@ -142,7 +149,7 @@ def _render_users_page(
     can_manage_users = auth.can_manage_users(current_user)
 
     users_query = db.query(models.User)
-    if role != auth.ROLE_DEVELOPER:
+    if role not in {auth.ROLE_DEVELOPER, auth.ROLE_ADMINISTRATOR}:
         scope_branch_id = _get_users_scope_branch_id(current_user)
         users_query = users_query.filter(models.User.branch_id == scope_branch_id)
 
@@ -197,12 +204,11 @@ def users_page(
 @router.post("")
 def create_user(
     request: Request,
-    id_number: str = Form(...),
+    user_id: str = Form(...),
     first_name: str = Form(...),
     last_name: str = Form(...),
     position: str = Form(...),
     role: str = Form(...),
-    username: str = Form(...),
     password: str = Form(...),
     branch_id: int = Form(...),
     db: Session = Depends(get_db),
@@ -214,19 +220,15 @@ def create_user(
     if not auth.can_manage_users(current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
 
-    id_number = id_number.strip()
-    username = username.strip().lower()
+    user_id = _normalize_user_id(user_id)
     first_name = _normalize_name(first_name)
     last_name = _normalize_name(last_name)
     role = auth.normalize_role(role)
     position = POSITION_ALIASES.get(position.strip(), position.strip())
 
     errors = []
-    if not ID_NUMBER_PATTERN.match(id_number):
-        errors.append("ID Number must be numeric and 6-20 digits.")
-
-    if not USERNAME_PATTERN.match(username):
-        errors.append("Username must be 3-30 characters using letters, numbers, underscore, dot, or dash.")
+    if not USER_ID_PATTERN.match(user_id):
+        errors.append("User ID must be 3-30 characters using letters, numbers, underscore, dot, or dash.")
 
     if not NAME_PATTERN.match(first_name):
         errors.append("First name must contain letters only.")
@@ -255,17 +257,14 @@ def create_user(
     if not active_year:
         errors.append("No active academic year found. Set current year first.")
 
-    duplicate_id = db.query(models.User).filter(
-        models.User.user_id == id_number
+    duplicate_user_id = db.query(models.User).filter(
+        or_(
+            models.User.user_id == user_id,
+            models.User.username == user_id
+        )
     ).first()
-    if duplicate_id:
-        errors.append("ID Number already exists.")
-
-    duplicate_username = db.query(models.User).filter(
-        models.User.username == username
-    ).first()
-    if duplicate_username:
-        errors.append("Username already exists.")
+    if duplicate_user_id:
+        errors.append("User ID already exists.")
 
     if errors:
         return _render_users_page(
@@ -277,8 +276,8 @@ def create_user(
         )
 
     new_user = models.User(
-        user_id=id_number,
-        username=username,
+        user_id=user_id,
+        username=user_id,
         first_name=first_name,
         last_name=last_name,
         position=position,
@@ -298,7 +297,7 @@ def create_user(
             request=request,
             db=db,
             current_user=current_user,
-            error="User creation failed due to a duplicate value. Check ID Number and Username.",
+            error="User creation failed due to a duplicate value. Check User ID.",
         )
 
     return _render_users_page(
@@ -343,12 +342,11 @@ def edit_user_page(
 def update_user(
     request: Request,
     user_pk: int,
-    id_number: str = Form(...),
+    user_id: str = Form(...),
     first_name: str = Form(...),
     last_name: str = Form(...),
     position: str = Form(...),
     role: str = Form(...),
-    username: str = Form(...),
     branch_id: int = Form(...),
     is_active: str = Form("active"),
     password: str = Form(""),
@@ -370,8 +368,7 @@ def update_user(
             error="User not found or access denied.",
         )
 
-    id_number = id_number.strip()
-    username = username.strip().lower()
+    user_id = _normalize_user_id(user_id)
     first_name = _normalize_name(first_name)
     last_name = _normalize_name(last_name)
     role = auth.normalize_role(role)
@@ -380,11 +377,8 @@ def update_user(
     parsed_is_active = _parse_is_active(is_active)
 
     errors = []
-    if not ID_NUMBER_PATTERN.match(id_number):
-        errors.append("ID Number must be numeric and 6-20 digits.")
-
-    if not USERNAME_PATTERN.match(username):
-        errors.append("Username must be 3-30 characters using letters, numbers, underscore, dot, or dash.")
+    if not USER_ID_PATTERN.match(user_id):
+        errors.append("User ID must be 3-30 characters using letters, numbers, underscore, dot, or dash.")
 
     if not NAME_PATTERN.match(first_name):
         errors.append("First name must contain letters only.")
@@ -410,24 +404,19 @@ def update_user(
     if password and len(password) < 8:
         errors.append("Password must be at least 8 characters.")
 
-    duplicate_id = db.query(models.User).filter(
-        models.User.user_id == id_number,
+    duplicate_user_id = db.query(models.User).filter(
+        or_(
+            models.User.user_id == user_id,
+            models.User.username == user_id
+        ),
         models.User.id != user_row.id
     ).first()
-    if duplicate_id:
-        errors.append("ID Number already exists.")
-
-    duplicate_username = db.query(models.User).filter(
-        models.User.username == username,
-        models.User.id != user_row.id
-    ).first()
-    if duplicate_username:
-        errors.append("Username already exists.")
+    if duplicate_user_id:
+        errors.append("User ID already exists.")
 
     if errors:
         form_data = {
-            "id_number": id_number,
-            "username": username,
+            "user_id": user_id,
             "first_name": first_name,
             "last_name": last_name,
             "position": position,
@@ -452,8 +441,8 @@ def update_user(
             form_data=form_data,
         )
 
-    user_row.user_id = id_number
-    user_row.username = username
+    user_row.user_id = user_id
+    user_row.username = user_id
     user_row.first_name = first_name
     user_row.last_name = last_name
     user_row.position = position
@@ -469,8 +458,7 @@ def update_user(
     except IntegrityError:
         db.rollback()
         form_data = {
-            "id_number": id_number,
-            "username": username,
+            "user_id": user_id,
             "first_name": first_name,
             "last_name": last_name,
             "position": position,
@@ -483,7 +471,7 @@ def update_user(
             db=db,
             current_user=current_user,
             user_row=user_row,
-            error="User update failed due to a duplicate value. Check ID Number and User ID.",
+            error="User update failed due to a duplicate value. Check User ID.",
             form_data=form_data,
         )
 
