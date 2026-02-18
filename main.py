@@ -112,11 +112,16 @@ def login(
             status_code=403
         )
 
-    assigned_branch = db.query(models.Branch).filter(
-        models.Branch.id == user.branch_id,
+    can_all_branch_scope = auth.can_access_all_branches(user)
+    active_branches = db.query(models.Branch).filter(
         models.Branch.status == True
-    ).first()
-    if not assigned_branch:
+    ).order_by(models.Branch.name.asc()).all()
+    active_branch_map = {
+        branch.id: branch for branch in active_branches
+    }
+    assigned_branch = active_branch_map.get(user.branch_id)
+
+    if not assigned_branch and not can_all_branch_scope:
         return _render_login_page(
             request=request,
             db=db,
@@ -124,6 +129,17 @@ def login(
             error="Your assigned branch is inactive or not configured.",
             status_code=400
         )
+
+    if not assigned_branch and can_all_branch_scope and not active_branches:
+        return _render_login_page(
+            request=request,
+            db=db,
+            username=username,
+            error="No active branch is available in the system.",
+            status_code=400
+        )
+
+    branch_scope_id = assigned_branch.id if assigned_branch else active_branches[0].id
 
     active_year = db.query(models.AcademicYear).filter(
         models.AcademicYear.is_active == True
@@ -146,7 +162,7 @@ def login(
     )
     response.set_cookie(
         key="branch_id",
-        value=str(user.branch_id),
+        value=str(branch_scope_id),
         httponly=True,
         samesite="lax"
     )
@@ -210,6 +226,40 @@ def set_current_year(
 
 
 # ---------------------------------------
+# SCOPE: SET CURRENT BRANCH
+# ---------------------------------------
+@app.post("/scope/branch")
+def set_scope_branch(
+    request: Request,
+    branch_id: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    current_user = auth.get_current_user(request, db)
+
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    if not auth.can_access_all_branches(current_user):
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    target_branch = db.query(models.Branch).filter(
+        models.Branch.id == branch_id,
+        models.Branch.status == True
+    ).first()
+    if not target_branch:
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    response = RedirectResponse(url="/dashboard", status_code=302)
+    response.set_cookie(
+        key="branch_id",
+        value=str(target_branch.id),
+        httponly=True,
+        samesite="lax"
+    )
+    return response
+
+
+# ---------------------------------------
 # DASHBOARD
 # ---------------------------------------
 @app.get("/dashboard")
@@ -264,6 +314,10 @@ def dashboard(
     all_years = db.query(models.AcademicYear).order_by(
         models.AcademicYear.year_name.desc()
     ).all()
+    available_scope_branches = db.query(models.Branch).filter(
+        models.Branch.status == True
+    ).order_by(models.Branch.name.asc()).all()
+    can_switch_branches = auth.can_access_all_branches(user)
     active_year = db.query(models.AcademicYear).filter(
         models.AcademicYear.is_active == True
     ).first()
@@ -281,6 +335,9 @@ def dashboard(
             "subjects_preview": subjects_preview,
             "teachers_preview": teachers_preview,
             "all_years": all_years,
+            "can_switch_branches": can_switch_branches,
+            "available_scope_branches": available_scope_branches,
+            "scoped_branch_id": scoped_branch_id,
             "active_year_id": active_year.id if active_year else None,
             "is_admin": auth.can_manage_users(user)
         }

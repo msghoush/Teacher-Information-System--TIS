@@ -400,6 +400,23 @@
             </div>
         </section>
 
+        {% if can_switch_branches %}
+        <section class="admin-year">
+            <form method="post" action="/scope/branch">
+                <label for="scope_branch_id">Current Branch Scope</label>
+                <select id="scope_branch_id" name="branch_id" required>
+                    {% for branch_item in available_scope_branches %}
+                    <option value="{{ branch_item.id }}" {% if scoped_branch_id == branch_item.id %}selected{% endif %}>
+                        {{ branch_item.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+                <button type="submit">Switch Branch</button>
+            </form>
+            <p>Developer and Education Excellence users can switch branch scope to view data across branches.</p>
+        </section>
+        {% endif %}
+
         {% if is_admin %}
         <section class="admin-year">
             <form method="post" action="/admin/current-year">
