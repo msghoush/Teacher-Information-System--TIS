@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit User - TIS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --bg: #f3f6fb;
+            --card: #ffffff;
+            --line: #d8e2f0;
+            --ink: #1f2737;
+            --muted: #5d6b82;
+            --brand: #0f766e;
+            --brand-dark: #0c5751;
+            --danger: #b42318;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--ink);
+            font-family: "Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif;
+            background:
+                radial-gradient(650px 420px at 0% 0%, rgba(15, 118, 110, 0.12), transparent 65%),
+                radial-gradient(620px 420px at 100% 100%, rgba(217, 119, 6, 0.12), transparent 62%),
+                var(--bg);
+            padding: 22px 14px;
+            display: grid;
+            place-items: center;
+        }
+
+        .panel {
+            width: 100%;
+            max-width: 760px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 18px;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .sub {
+            margin: 6px 0 14px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .error {
+            background: #ffe8e5;
+            color: #8f1d18;
+            border-left: 4px solid var(--danger);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .error-list {
+            margin: 0 0 10px;
+            padding-left: 20px;
+            color: #8f1d18;
+            font-size: 13px;
+        }
+
+        .error-list li {
+            margin-bottom: 4px;
+        }
+
+        .hint {
+            margin: 0 0 10px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .field-wide {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-size: 13px;
+            color: #415068;
+            font-weight: 700;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 10px 11px;
+            border: 1px solid #c6d4e8;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #fff;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--brand);
+            box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
+        }
+
+        .actions {
+            margin-top: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .btn {
+            text-decoration: none;
+            border: none;
+            border-radius: 9px;
+            cursor: pointer;
+            padding: 10px 12px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .btn-save {
+            background: linear-gradient(140deg, var(--brand), var(--brand-dark));
+        }
+
+        .btn-secondary {
+            background: #4b5563;
+        }
+
+        .btn-home {
+            background: #2563eb;
+        }
+
+        @media (max-width: 760px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="panel">
+        <h1>Edit User</h1>
+        <p class="sub">Update user details and account status.</p>
+
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+
+        {% if detail_errors %}
+        <ul class="error-list">
+            {% for item in detail_errors %}
+            <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <p class="hint">Leave password empty to keep current password unchanged.</p>
+
+        <form method="post" action="/users/edit/{{ user_row.id }}">
+            <div class="grid">
+                <div class="field">
+                    <label for="id_number">ID Number</label>
+                    <input id="id_number" type="text" name="id_number" value="{{ form_data.get('id_number', user_row.user_id) }}" required>
+                </div>
+                <div class="field">
+                    <label for="username">User ID</label>
+                    <input id="username" type="text" name="username" value="{{ form_data.get('username', user_row.username) }}" required>
+                </div>
+                <div class="field">
+                    <label for="first_name">First Name</label>
+                    <input id="first_name" type="text" name="first_name" value="{{ form_data.get('first_name', user_row.first_name) }}" required>
+                </div>
+                <div class="field">
+                    <label for="last_name">Last Name</label>
+                    <input id="last_name" type="text" name="last_name" value="{{ form_data.get('last_name', user_row.last_name) }}" required>
+                </div>
+                <div class="field">
+                    <label for="position">Position</label>
+                    <select id="position" name="position" required>
+                        {% for option in positions %}
+                        <option value="{{ option }}" {% if form_data.get('position', user_row.position) == option %}selected{% endif %}>{{ option }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="role">Role</label>
+                    <select id="role" name="role" required>
+                        {% for role_item in role_choices %}
+                        <option value="{{ role_item }}" {% if form_data.get('role', user_row.role) == role_item %}selected{% endif %}>{{ role_item }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="branch_id">Branch</label>
+                    <select id="branch_id" name="branch_id" required>
+                        {% for branch in available_branches %}
+                        <option value="{{ branch.id }}" {% if form_data.get('branch_id', user_row.branch_id) == branch.id %}selected{% endif %}>{{ branch.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="is_active">Status</label>
+                    <select id="is_active" name="is_active" required>
+                        <option value="active" {% if form_data.get('is_active', 'active' if user_row.is_active else 'inactive') == 'active' %}selected{% endif %}>Active</option>
+                        <option value="inactive" {% if form_data.get('is_active', 'active' if user_row.is_active else 'inactive') == 'inactive' %}selected{% endif %}>Inactive</option>
+                    </select>
+                </div>
+                <div class="field field-wide">
+                    <label for="password">New Password (Optional)</label>
+                    <input id="password" type="password" name="password" placeholder="Leave blank to keep existing password">
+                </div>
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-save" type="submit">Save Changes</button>
+                <a class="btn btn-secondary" href="/users">Cancel</a>
+                <a class="btn btn-home" href="/dashboard">Dashboard</a>
+            </div>
+        </form>
+    </main>
+</body>
+</html>
