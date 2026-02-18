@@ -69,15 +69,11 @@ def _get_available_branches(db: Session, current_user):
 
 def _can_manage_target_user(current_user, target_user) -> bool:
     manager_role = auth.normalize_role(current_user.role)
-    target_role = auth.normalize_role(getattr(target_user, "role", ""))
 
     if manager_role == auth.ROLE_DEVELOPER:
         return True
 
     if manager_role != auth.ROLE_ADMINISTRATOR:
-        return False
-
-    if target_role == auth.ROLE_DEVELOPER:
         return False
 
     scope_branch_id = _get_users_scope_branch_id(current_user)
