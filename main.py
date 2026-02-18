@@ -323,20 +323,63 @@ def setup_initial_data():
     admin_password = os.getenv("ADMIN_PASSWORD", "UnderProcess1984")
     admin_position = os.getenv("ADMIN_POSITION", "Developer")
 
-    # Create Branch if not exists
-    branch = db.query(Branch).filter(
-        Branch.name == "Hamadania"
-    ).first()
+    required_branch_names = [
+        "Hamadania",
+        "Manar",
+        "Obhor",
+        "Alshaati",
+        "Fayha",
+        "Najran",
+        "Zahra",
+        "Khamis Msheit",
+        "Abha",
+        "Rawda",
+    ]
+    existing_branches = db.query(Branch).all()
+    branches_by_name = {
+        str(item.name).strip().lower(): item
+        for item in existing_branches
+        if item.name
+    }
+    default_branch = None
+    branch_changes = False
 
-    if not branch:
-        branch = Branch(
-            name="Hamadania",
-            location="Main Campus",
-            status=True
-        )
-        db.add(branch)
+    for branch_name in required_branch_names:
+        key = branch_name.lower()
+        branch_row = branches_by_name.get(key)
+        if not branch_row:
+            branch_row = Branch(
+                name=branch_name,
+                location="Main Campus",
+                status=True
+            )
+            db.add(branch_row)
+            db.flush()
+            branches_by_name[key] = branch_row
+            branch_changes = True
+        else:
+            if not branch_row.status:
+                branch_row.status = True
+                branch_changes = True
+
+        if branch_name == "Hamadania":
+            default_branch = branch_row
+
+    if branch_changes:
         db.commit()
-        db.refresh(branch)
+
+    if not default_branch:
+        default_branch = db.query(Branch).filter(
+            Branch.name == "Hamadania"
+        ).first()
+
+    legacy_position_users = db.query(User).filter(
+        User.position == "Education Excelency"
+    ).all()
+    if legacy_position_users:
+        for user_row in legacy_position_users:
+            user_row.position = "Education Excellence"
+        db.commit()
 
     # Create Academic Year if not exists
     academic_year = db.query(AcademicYear).filter(
@@ -373,7 +416,7 @@ def setup_initial_data():
             position=admin_position,
             password=get_password_hash(admin_password),
             role=auth.ROLE_DEVELOPER,
-            branch_id=branch.id,
+            branch_id=default_branch.id if default_branch else None,
             academic_year_id=academic_year.id,
             is_active=True
         )
@@ -398,8 +441,8 @@ def setup_initial_data():
             existing_user.role = auth.ROLE_DEVELOPER
             updated = True
 
-        if not existing_user.branch_id:
-            existing_user.branch_id = branch.id
+        if not existing_user.branch_id and default_branch:
+            existing_user.branch_id = default_branch.id
             updated = True
 
         if not existing_user.academic_year_id:

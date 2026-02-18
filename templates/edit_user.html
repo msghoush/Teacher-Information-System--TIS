@@ -179,12 +179,8 @@
         <form method="post" action="/users/edit/{{ user_row.id }}">
             <div class="grid">
                 <div class="field">
-                    <label for="id_number">ID Number</label>
-                    <input id="id_number" type="text" name="id_number" value="{{ form_data.get('id_number', user_row.user_id) }}" required>
-                </div>
-                <div class="field">
-                    <label for="username">User ID</label>
-                    <input id="username" type="text" name="username" value="{{ form_data.get('username', user_row.username) }}" required>
+                    <label for="user_id">User ID</label>
+                    <input id="user_id" type="text" name="user_id" value="{{ form_data.get('user_id', user_row.user_id or user_row.username) }}" required>
                 </div>
                 <div class="field">
                     <label for="first_name">First Name</label>

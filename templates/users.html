@@ -316,7 +316,7 @@
         <section class="grid">
             <article class="card">
                 <h2>Add User</h2>
-                <p>Add Academic Supervisor, Principle, or Education Excelency staff users.</p>
+                <p>Add Academic Supervisor, Principle, or Education Excellence staff users.</p>
 
                 {% if success %}
                 <div class="success">{{ success }}</div>
@@ -337,12 +337,8 @@
                 <form method="post" action="/users">
                     <div class="form-grid">
                         <div class="field">
-                            <label for="id_number">ID Number</label>
-                            <input id="id_number" type="text" name="id_number" placeholder="Numeric ID" required>
-                        </div>
-                        <div class="field">
-                            <label for="username">User ID</label>
-                            <input id="username" type="text" name="username" placeholder="username" required>
+                            <label for="user_id">User ID</label>
+                            <input id="user_id" type="text" name="user_id" placeholder="Unique User ID" required>
                         </div>
                         <div class="field">
                             <label for="first_name">First Name</label>
@@ -391,7 +387,7 @@
                         <h2>Users Table</h2>
                         <p>Interactive view of current users and assignments.</p>
                     </div>
-                    <input id="usersSearch" class="search" type="text" placeholder="Search by name, username, role, branch">
+                    <input id="usersSearch" class="search" type="text" placeholder="Search by name, user ID, role, branch">
                 </div>
 
                 {% if users %}
@@ -399,7 +395,6 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>ID Number</th>
                                 <th>Name</th>
                                 <th>User ID</th>
                                 <th>Position</th>
@@ -412,9 +407,8 @@
                         <tbody id="usersBody">
                             {% for row in users %}
                             <tr class="user-row">
-                                <td>{{ row.user_id }}</td>
                                 <td>{{ row.first_name }} {{ row.last_name }}</td>
-                                <td>{{ row.username or "-" }}</td>
+                                <td>{{ row.user_id or row.username or "-" }}</td>
                                 <td>{{ row.position or "-" }}</td>
                                 <td><span class="tag">{{ row.role }}</span></td>
                                 <td>{{ branch_map.get(row.branch_id, "Not assigned") }}</td>
