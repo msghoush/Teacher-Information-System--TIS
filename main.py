@@ -200,7 +200,7 @@ def set_current_year(
 ):
     current_user = auth.get_current_user(request, db)
 
-    if not current_user or not auth.is_developer(current_user):
+    if not current_user or not auth.can_manage_system_settings(current_user):
         return RedirectResponse(url="/", status_code=302)
 
     target_year = db.query(models.AcademicYear).filter(
@@ -237,7 +237,7 @@ def open_new_academic_year(
     db: Session = Depends(get_db)
 ):
     current_user = auth.get_current_user(request, db)
-    if not current_user or not auth.is_developer(current_user):
+    if not current_user or not auth.can_manage_system_settings(current_user):
         return RedirectResponse(url="/", status_code=302)
 
     cleaned_year_name = year_name.strip()
@@ -292,7 +292,7 @@ def set_scope_academic_year(
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
 
-    if not auth.can_access_all_years(current_user):
+    if not auth.can_manage_system_settings(current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
 
     target_year = db.query(models.AcademicYear).filter(
@@ -325,7 +325,7 @@ def set_scope_branch(
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
 
-    if not auth.can_access_all_branches(current_user):
+    if not auth.can_manage_system_settings(current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
 
     target_branch = db.query(models.Branch).filter(
@@ -414,9 +414,7 @@ def dashboard(
     available_scope_branches = db.query(models.Branch).filter(
         models.Branch.status == True
     ).order_by(models.Branch.name.asc()).all()
-    can_switch_branches = auth.can_access_all_branches(user)
-    can_switch_years = auth.can_access_all_years(user)
-    is_developer = auth.is_developer(user)
+    can_manage_system_settings = auth.can_manage_system_settings(user)
     active_year = db.query(models.AcademicYear).filter(
         models.AcademicYear.is_active == True
     ).first()
@@ -437,14 +435,12 @@ def dashboard(
             "all_years": all_years,
             "year_map": year_map,
             "branch_map": branch_map,
-            "can_switch_branches": can_switch_branches,
-            "can_switch_years": can_switch_years,
+            "can_manage_system_settings": can_manage_system_settings,
             "scoped_academic_year_id": scoped_academic_year_id,
             "available_scope_branches": available_scope_branches,
             "scoped_branch_id": scoped_branch_id,
             "active_year_id": active_year.id if active_year else None,
             "is_admin": auth.can_manage_users(user),
-            "is_developer": is_developer,
         }
     )
 

@@ -72,12 +72,7 @@ def _get_available_branches(db: Session, current_user):
 
 
 def _can_manage_target_user(current_user, target_user) -> bool:
-    manager_role = auth.normalize_role(current_user.role)
-
-    if manager_role in {auth.ROLE_DEVELOPER, auth.ROLE_ADMINISTRATOR}:
-        return True
-
-    return False
+    return auth.can_edit_user_accounts(current_user)
 
 
 def _get_user_for_management(db: Session, current_user, user_pk: int):
@@ -147,6 +142,7 @@ def _render_users_page(
     available_branches = _get_available_branches(db, current_user)
     role = auth.normalize_role(current_user.role)
     can_manage_users = auth.can_manage_users(current_user)
+    can_edit_user_accounts = auth.can_edit_user_accounts(current_user)
     scope_academic_year_id = getattr(
         current_user,
         "scope_academic_year_id",
@@ -161,10 +157,12 @@ def _render_users_page(
         users_query = users_query.filter(models.User.branch_id == scope_branch_id)
 
     users = users_query.order_by(models.User.id.desc()).all()
-    manageable_user_ids = {
-        user_row.id for user_row in users
-        if _can_manage_target_user(current_user, user_row)
-    }
+    manageable_user_ids = set()
+    if can_edit_user_accounts:
+        manageable_user_ids = {
+            user_row.id for user_row in users
+            if _can_manage_target_user(current_user, user_row)
+        }
     branch_map = {
         branch.id: branch.name
         for branch in db.query(models.Branch).all()
@@ -184,6 +182,7 @@ def _render_users_page(
             "detail_errors": detail_errors or [],
             "current_user": current_user,
             "can_manage_users": can_manage_users,
+            "can_edit_user_accounts": can_edit_user_accounts,
             "manageable_user_ids": manageable_user_ids,
         },
     )
@@ -328,6 +327,9 @@ def edit_user_page(
     if not auth.can_manage_users(current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
 
+    if not auth.can_edit_user_accounts(current_user):
+        return RedirectResponse(url="/users", status_code=302)
+
     user_row = _get_user_for_management(db, current_user, user_pk)
     if not user_row:
         return _render_users_page(
@@ -365,6 +367,9 @@ def update_user(
 
     if not auth.can_manage_users(current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
+
+    if not auth.can_edit_user_accounts(current_user):
+        return RedirectResponse(url="/users", status_code=302)
 
     user_row = _get_user_for_management(db, current_user, user_pk)
     if not user_row:
@@ -502,6 +507,9 @@ def delete_user(
 
     if not auth.can_manage_users(current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
+
+    if not auth.can_delete_user_accounts(current_user):
+        return RedirectResponse(url="/users", status_code=302)
 
     user_row = _get_user_for_management(db, current_user, user_pk)
     if not user_row:

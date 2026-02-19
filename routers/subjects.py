@@ -101,6 +101,7 @@ def _render_subjects_page(
 ):
     branch_id, academic_year_id = _get_scope_ids(current_user)
     can_modify = auth.can_modify_data(current_user)
+    can_edit = auth.can_edit_data(current_user)
     can_delete = auth.can_delete_data(current_user)
     subjects = db.query(models.Subject).filter(
         models.Subject.branch_id == branch_id,
@@ -114,6 +115,7 @@ def _render_subjects_page(
             "subjects": subjects,
             "user": current_user,
             "can_modify": can_modify,
+            "can_edit": can_edit,
             "can_delete": can_delete,
             "error": error,
             "success": success,
@@ -462,13 +464,8 @@ def edit_subject_page(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_modify_data(current_user):
-        return _render_subjects_page(
-            request=request,
-            db=db,
-            current_user=current_user,
-            error="Your role has read-only access and cannot edit subjects."
-        )
+    if not auth.can_edit_data(current_user):
+        return RedirectResponse(url="/subjects", status_code=302)
 
     branch_id, academic_year_id = _get_scope_ids(current_user)
     subject = db.query(models.Subject).filter(
@@ -510,13 +507,8 @@ def update_subject(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_modify_data(current_user):
-        return _render_subjects_page(
-            request=request,
-            db=db,
-            current_user=current_user,
-            error="Your role has read-only access and cannot update subjects."
-        )
+    if not auth.can_edit_data(current_user):
+        return RedirectResponse(url="/subjects", status_code=302)
 
     branch_id, academic_year_id = _get_scope_ids(current_user)
     subject = db.query(models.Subject).filter(

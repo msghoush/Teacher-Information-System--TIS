@@ -404,7 +404,9 @@
                                 <th>Role</th>
                                 <th>Branch</th>
                                 <th>Status</th>
+                                {% if can_edit_user_accounts %}
                                 <th>Actions</th>
+                                {% endif %}
                             </tr>
                         </thead>
                         <tbody id="usersBody">
@@ -416,14 +418,14 @@
                                 <td><span class="tag">{{ row.role }}</span></td>
                                 <td>{{ branch_map.get(row.branch_id, "Not assigned") }}</td>
                                 <td>{{ "Active" if row.is_active else "Inactive" }}</td>
+                                {% if can_edit_user_accounts %}
                                 <td class="row-actions">
-                                    {% if can_manage_users and row.id in manageable_user_ids %}
+                                    {% if row.id in manageable_user_ids %}
                                     <a class="row-edit" href="/users/edit/{{ row.id }}">Edit</a>
                                     <a class="row-delete" href="/users/delete/{{ row.id }}" onclick="return confirm('Delete this user?');">Delete</a>
-                                    {% else %}
-                                    <span class="row-readonly">No access</span>
                                     {% endif %}
                                 </td>
+                                {% endif %}
                             </tr>
                             {% endfor %}
                         </tbody>
