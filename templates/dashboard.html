@@ -472,6 +472,7 @@
                     <p>Academic Year: {{ academic_year_name }}</p>
                 </div>
                 <div class="meta-actions">
+                    <a class="logout" href="/logout">Logout</a>
                     {% if can_manage_system_settings %}
                     <details class="dev-menu">
                         <summary>Developer Menu</summary>
@@ -538,7 +539,6 @@
                         </div>
                     </details>
                     {% endif %}
-                    <a class="logout" href="/logout">Logout</a>
                 </div>
             </div>
         </section>
