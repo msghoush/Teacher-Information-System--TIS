@@ -213,6 +213,16 @@
             gap: 8px;
         }
 
+        .title-with-actions h2 {
+            margin: 0;
+        }
+
+        .title-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
         .icon {
             width: 16px;
             height: 16px;
@@ -248,6 +258,25 @@
         .icon-action:focus-visible {
             outline: 2px solid rgba(15, 118, 110, 0.35);
             outline-offset: 2px;
+        }
+
+        .icon-action:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            pointer-events: none;
+        }
+
+        .icon-action-danger {
+            color: #7f1d1d;
+            border-color: #f2c2c2;
+            background: #fff7f7;
+        }
+
+        .icon-action-danger:hover {
+            color: #fff;
+            border-color: #b42318;
+            background: #b42318;
         }
 
         .search {
@@ -290,24 +319,47 @@
             border-bottom: none;
         }
 
-        .row-actions a {
-            display: inline-block;
+        .select-col {
+            width: 42px;
+            text-align: center;
+        }
+
+        .bulk-select {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--brand);
+            cursor: pointer;
+        }
+
+        .row-actions {
+            white-space: nowrap;
+        }
+
+        .row-action {
             text-decoration: none;
-            padding: 6px 9px;
-            border-radius: 7px;
-            font-size: 12px;
-            font-weight: 700;
             margin-right: 6px;
         }
 
-        .row-edit {
-            color: #fff;
-            background: #2563eb;
+        .row-action:last-child {
+            margin-right: 0;
         }
 
-        .row-delete {
+        .row-action-edit:hover {
+            color: #1d4ed8;
+            border-color: #93c5fd;
+            background: #eff6ff;
+        }
+
+        .row-action-delete {
+            color: #8f1d1d;
+            border-color: #f4c7c7;
+            background: #fff7f7;
+        }
+
+        .row-action-delete:hover {
             color: #fff;
-            background: #dc2626;
+            border-color: #b42318;
+            background: #b42318;
         }
 
         .row-readonly {
@@ -437,21 +489,19 @@
                     <div class="toolbar-head">
                         <div class="title-with-actions">
                             <h2>Users Table</h2>
-                            <button class="icon-action" type="button" data-focus-target="usersSearch" aria-label="Focus users search" title="Focus users search">
-                                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                    <circle cx="11" cy="11" r="7"></circle>
-                                    <path d="m21 21-4.3-4.3"></path>
-                                </svg>
-                            </button>
-                            <button class="icon-action" type="button" data-clear-target="usersSearch" aria-label="Clear users search filter" title="Clear users search filter">
-                                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M3 6h18"></path>
-                                    <path d="M19 6 18 20H6L5 6"></path>
-                                    <path d="M9 10v6"></path>
-                                    <path d="M15 10v6"></path>
-                                    <path d="M10 6V4h4v2"></path>
-                                </svg>
-                            </button>
+                            {% if can_edit_user_accounts %}
+                            <span class="title-actions">
+                                <button id="bulkDeleteTrigger" class="icon-action icon-action-danger" type="submit" form="bulkDeleteForm" aria-label="Delete selected users" title="Select users from the table to delete">
+                                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M3 6h18"></path>
+                                        <path d="M19 6 18 20H6L5 6"></path>
+                                        <path d="M9 10v6"></path>
+                                        <path d="M15 10v6"></path>
+                                        <path d="M10 6V4h4v2"></path>
+                                    </svg>
+                                </button>
+                            </span>
+                            {% endif %}
                         </div>
                         <p>Interactive view of current users and assignments.</p>
                     </div>
@@ -459,10 +509,16 @@
                 </div>
 
                 {% if users %}
+                <form id="bulkDeleteForm" method="post" action="/users/delete-bulk">
                 <div class="table-wrap">
                     <table>
                         <thead>
                             <tr>
+                                {% if can_edit_user_accounts %}
+                                <th class="select-col">
+                                    <input id="bulkSelectAll" class="bulk-select" type="checkbox" aria-label="Select all manageable users">
+                                </th>
+                                {% endif %}
                                 <th>Name</th>
                                 <th>User ID</th>
                                 <th>Position</th>
@@ -477,6 +533,13 @@
                         <tbody id="usersBody">
                             {% for row in users %}
                             <tr class="user-row">
+                                {% if can_edit_user_accounts %}
+                                <td class="select-col">
+                                    {% if row.id in manageable_user_ids %}
+                                    <input class="bulk-select bulk-select-item" type="checkbox" name="selected_user_ids" value="{{ row.id }}" aria-label="Select {{ row.first_name }} {{ row.last_name }} for bulk delete">
+                                    {% endif %}
+                                </td>
+                                {% endif %}
                                 <td>{{ row.first_name }} {{ row.last_name }}</td>
                                 <td>{{ row.user_id or row.username or "-" }}</td>
                                 <td>{{ row.position or "-" }}</td>
@@ -486,8 +549,23 @@
                                 {% if can_edit_user_accounts %}
                                 <td class="row-actions">
                                     {% if row.id in manageable_user_ids %}
-                                    <a class="row-edit" href="/users/edit/{{ row.id }}">Edit</a>
-                                    <a class="row-delete" href="/users/delete/{{ row.id }}" onclick="return confirm('Delete this user?');">Delete</a>
+                                    <a class="icon-action row-action row-action-edit" href="/users/edit/{{ row.id }}" aria-label="Edit user {{ row.first_name }} {{ row.last_name }}" title="Edit user">
+                                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M12 20h9"></path>
+                                            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+                                        </svg>
+                                    </a>
+                                    <a class="icon-action row-action row-action-delete" href="/users/delete/{{ row.id }}" aria-label="Delete user {{ row.first_name }} {{ row.last_name }}" title="Delete user" onclick="return confirm('Delete this user?');">
+                                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M3 6h18"></path>
+                                            <path d="M19 6 18 20H6L5 6"></path>
+                                            <path d="M9 10v6"></path>
+                                            <path d="M15 10v6"></path>
+                                            <path d="M10 6V4h4v2"></path>
+                                        </svg>
+                                    </a>
+                                    {% else %}
+                                    <span class="row-readonly">No actions</span>
                                     {% endif %}
                                 </td>
                                 {% endif %}
@@ -496,6 +574,7 @@
                         </tbody>
                     </table>
                 </div>
+                </form>
                 <div id="noUsersResult" class="empty" style="display:none;">No users match your search.</div>
                 {% else %}
                 <div class="empty">No users found for your scope yet.</div>
@@ -509,33 +588,69 @@
         const rows = Array.from(document.querySelectorAll(".user-row"));
         const noResult = document.getElementById("noUsersResult");
         const createUserForm = document.getElementById("createUserForm");
-        const focusButtons = Array.from(document.querySelectorAll("[data-focus-target]"));
-        const clearButtons = Array.from(document.querySelectorAll("[data-clear-target]"));
+        const selectableUsers = Array.from(document.querySelectorAll(".bulk-select-item"));
+        const bulkSelectAll = document.getElementById("bulkSelectAll");
+        const bulkDeleteForm = document.getElementById("bulkDeleteForm");
+        const bulkDeleteTrigger = document.getElementById("bulkDeleteTrigger");
 
-        focusButtons.forEach((button) => {
-            button.addEventListener("click", () => {
-                const targetId = button.getAttribute("data-focus-target");
-                const target = targetId ? document.getElementById(targetId) : null;
-                if (target) {
-                    target.focus();
-                    if (typeof target.select === "function") {
-                        target.select();
-                    }
+        const updateBulkDeleteState = () => {
+            if (!bulkDeleteTrigger) {
+                return;
+            }
+
+            const selectedCount = selectableUsers.filter((item) => item.checked).length;
+            bulkDeleteTrigger.disabled = selectedCount === 0;
+            bulkDeleteTrigger.title = selectedCount > 0
+                ? `Delete ${selectedCount} selected user${selectedCount === 1 ? "" : "s"}`
+                : "Select users from the table to delete";
+
+            if (bulkSelectAll) {
+                if (selectableUsers.length === 0) {
+                    bulkSelectAll.checked = false;
+                    bulkSelectAll.indeterminate = false;
+                } else if (selectedCount === 0) {
+                    bulkSelectAll.checked = false;
+                    bulkSelectAll.indeterminate = false;
+                } else if (selectedCount === selectableUsers.length) {
+                    bulkSelectAll.checked = true;
+                    bulkSelectAll.indeterminate = false;
+                } else {
+                    bulkSelectAll.checked = false;
+                    bulkSelectAll.indeterminate = true;
                 }
+            }
+        };
+
+        if (bulkSelectAll) {
+            bulkSelectAll.addEventListener("change", () => {
+                selectableUsers.forEach((item) => {
+                    item.checked = bulkSelectAll.checked;
+                });
+                updateBulkDeleteState();
             });
+        }
+
+        selectableUsers.forEach((item) => {
+            item.addEventListener("change", updateBulkDeleteState);
         });
 
-        clearButtons.forEach((button) => {
-            button.addEventListener("click", () => {
-                const targetId = button.getAttribute("data-clear-target");
-                const target = targetId ? document.getElementById(targetId) : null;
-                if (target) {
-                    target.value = "";
-                    target.dispatchEvent(new Event("input", { bubbles: true }));
-                    target.focus();
+        if (bulkDeleteForm) {
+            bulkDeleteForm.addEventListener("submit", (event) => {
+                const selectedCount = selectableUsers.filter((item) => item.checked).length;
+                if (selectedCount === 0) {
+                    event.preventDefault();
+                    return;
+                }
+                const confirmed = window.confirm(
+                    `Delete ${selectedCount} selected user${selectedCount === 1 ? "" : "s"}?`
+                );
+                if (!confirmed) {
+                    event.preventDefault();
                 }
             });
-        });
+        }
+
+        updateBulkDeleteState();
 
         if (searchInput && rows.length > 0) {
             searchInput.addEventListener("input", () => {
@@ -546,6 +661,12 @@
                     const text = row.textContent.toLowerCase();
                     const match = text.includes(term);
                     row.style.display = match ? "" : "none";
+                    if (!match) {
+                        const checkbox = row.querySelector(".bulk-select-item");
+                        if (checkbox) {
+                            checkbox.checked = false;
+                        }
+                    }
                     if (match) {
                         visible += 1;
                     }
@@ -554,6 +675,8 @@
                 if (noResult) {
                     noResult.style.display = visible === 0 ? "block" : "none";
                 }
+
+                updateBulkDeleteState();
             });
         }
 

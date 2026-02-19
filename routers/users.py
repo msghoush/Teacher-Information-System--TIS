@@ -543,3 +543,72 @@ def delete_user(
         current_user=current_user,
         success=f"User deleted successfully: {deleted_name}",
     )
+
+
+@router.post("/delete-bulk")
+def delete_users_bulk(
+    request: Request,
+    selected_user_ids: list[int] = Form([]),
+    db: Session = Depends(get_db),
+):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    if not auth.can_manage_users(current_user):
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    if not auth.can_delete_user_accounts(current_user):
+        return RedirectResponse(url="/users", status_code=302)
+
+    unique_user_ids = sorted({int(user_id) for user_id in selected_user_ids if user_id})
+    if not unique_user_ids:
+        return _render_users_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Select at least one user to delete.",
+        )
+
+    user_rows = db.query(models.User).filter(
+        models.User.id.in_(unique_user_ids)
+    ).all()
+    user_map = {user_row.id: user_row for user_row in user_rows}
+
+    users_to_delete = []
+    for user_id in unique_user_ids:
+        target_user = user_map.get(user_id)
+        if not target_user or not _can_manage_target_user(current_user, target_user):
+            return _render_users_page(
+                request=request,
+                db=db,
+                current_user=current_user,
+                error="One or more selected users cannot be deleted due to access rules.",
+            )
+        if target_user.id == current_user.id:
+            return _render_users_page(
+                request=request,
+                db=db,
+                current_user=current_user,
+                error="You cannot delete the account you are currently logged in with.",
+            )
+        users_to_delete.append(target_user)
+
+    for target_user in users_to_delete:
+        db.delete(target_user)
+
+    db.commit()
+
+    deleted_count = len(users_to_delete)
+    success_message = (
+        "User deleted successfully."
+        if deleted_count == 1
+        else f"{deleted_count} users deleted successfully."
+    )
+
+    return _render_users_page(
+        request=request,
+        db=db,
+        current_user=current_user,
+        success=success_message,
+    )
