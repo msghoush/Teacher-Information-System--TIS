@@ -46,10 +46,6 @@ def _normalize_user_id(value: str) -> str:
     return value.strip().lower()
 
 
-def _get_users_scope_branch_id(current_user):
-    return getattr(current_user, "scope_branch_id", current_user.branch_id)
-
-
 def _get_user_roles_for_creator(current_user):
     role = auth.normalize_role(current_user.role)
     if role == auth.ROLE_DEVELOPER:
@@ -160,9 +156,10 @@ def _render_users_page(
     users_query = db.query(models.User).filter(
         models.User.academic_year_id == scope_academic_year_id
     )
-    if role not in {auth.ROLE_DEVELOPER, auth.ROLE_ADMINISTRATOR}:
-        scope_branch_id = _get_users_scope_branch_id(current_user)
-        users_query = users_query.filter(models.User.branch_id == scope_branch_id)
+    if role != auth.ROLE_DEVELOPER:
+        users_query = users_query.filter(
+            models.User.branch_id == current_user.branch_id
+        )
 
     users = users_query.order_by(models.User.id.desc()).all()
     manageable_user_ids = set()
