@@ -275,6 +275,54 @@
             margin-bottom: 10px;
         }
 
+        .toolbar-head {
+            display: grid;
+            gap: 4px;
+        }
+
+        .title-with-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .icon {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+        }
+
+        .icon-action {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #c6d4e8;
+            border-radius: 8px;
+            color: #48607f;
+            background: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+        }
+
+        .icon-action:hover {
+            color: var(--brand-dark);
+            border-color: #8fc4be;
+            background: #edf8f6;
+            transform: translateY(-1px);
+        }
+
+        .icon-action:focus-visible {
+            outline: 2px solid rgba(15, 118, 110, 0.35);
+            outline-offset: 2px;
+        }
+
         .search {
             width: 280px;
             max-width: 100%;
@@ -463,8 +511,25 @@
 
             <article class="card">
                 <div class="toolbar">
-                    <div>
-                        <h2>Subjects Table</h2>
+                    <div class="toolbar-head">
+                        <div class="title-with-actions">
+                            <h2>Subjects Table</h2>
+                            <button class="icon-action" type="button" data-focus-target="subjectSearch" aria-label="Focus subjects search" title="Focus subjects search">
+                                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                    <circle cx="11" cy="11" r="7"></circle>
+                                    <path d="m21 21-4.3-4.3"></path>
+                                </svg>
+                            </button>
+                            <button class="icon-action" type="button" data-clear-target="subjectSearch" aria-label="Clear subjects search filter" title="Clear subjects search filter">
+                                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M3 6h18"></path>
+                                    <path d="M19 6 18 20H6L5 6"></path>
+                                    <path d="M9 10v6"></path>
+                                    <path d="M15 10v6"></path>
+                                    <path d="M10 6V4h4v2"></path>
+                                </svg>
+                            </button>
+                        </div>
                         <p>Search and manage records instantly.</p>
                     </div>
                     <input id="subjectSearch" class="search" type="text" placeholder="Search by code or name">
@@ -523,6 +588,33 @@
         const downloadTemplateBtn = document.getElementById("downloadTemplateBtn");
         const importForm = document.getElementById("importForm");
         const fileInput = document.getElementById("subject_file");
+        const focusButtons = Array.from(document.querySelectorAll("[data-focus-target]"));
+        const clearButtons = Array.from(document.querySelectorAll("[data-clear-target]"));
+
+        focusButtons.forEach((button) => {
+            button.addEventListener("click", () => {
+                const targetId = button.getAttribute("data-focus-target");
+                const target = targetId ? document.getElementById(targetId) : null;
+                if (target) {
+                    target.focus();
+                    if (typeof target.select === "function") {
+                        target.select();
+                    }
+                }
+            });
+        });
+
+        clearButtons.forEach((button) => {
+            button.addEventListener("click", () => {
+                const targetId = button.getAttribute("data-clear-target");
+                const target = targetId ? document.getElementById(targetId) : null;
+                if (target) {
+                    target.value = "";
+                    target.dispatchEvent(new Event("input", { bubbles: true }));
+                    target.focus();
+                }
+            });
+        });
 
         if (subjectCodeInput) {
             subjectCodeInput.addEventListener("blur", () => {
