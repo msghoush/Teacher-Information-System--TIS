@@ -51,19 +51,27 @@ def _get_users_scope_branch_id(current_user):
 
 
 def _get_user_roles_for_creator(current_user):
-    if auth.can_manage_users(current_user):
+    role = auth.normalize_role(current_user.role)
+    if role == auth.ROLE_DEVELOPER:
         return ROLE_CHOICES
+    if role == auth.ROLE_ADMINISTRATOR:
+        return [
+            auth.ROLE_ADMINISTRATOR,
+            auth.ROLE_EDITOR,
+            auth.ROLE_USER,
+            auth.ROLE_LIMITED,
+        ]
     return [auth.ROLE_EDITOR, auth.ROLE_USER, auth.ROLE_LIMITED]
 
 
 def _get_available_branches(db: Session, current_user):
     role = auth.normalize_role(current_user.role)
-    if role in {auth.ROLE_DEVELOPER, auth.ROLE_ADMINISTRATOR}:
+    if role == auth.ROLE_DEVELOPER:
         return db.query(models.Branch).filter(
             models.Branch.status == True
         ).order_by(models.Branch.name.asc()).all()
 
-    own_branch_id = _get_users_scope_branch_id(current_user)
+    own_branch_id = current_user.branch_id
     own_branch = db.query(models.Branch).filter(
         models.Branch.id == own_branch_id,
         models.Branch.status == True
@@ -72,7 +80,7 @@ def _get_available_branches(db: Session, current_user):
 
 
 def _can_manage_target_user(current_user, target_user) -> bool:
-    return auth.can_edit_user_accounts(current_user)
+    return auth.can_manage_target_user_account(current_user, target_user)
 
 
 def _get_user_for_management(db: Session, current_user, user_pk: int):

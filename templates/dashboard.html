@@ -227,6 +227,17 @@
             gap: 14px;
         }
 
+        .notice {
+            margin-top: 12px;
+            border: 1px solid #9ec8c3;
+            background: #e7f7f4;
+            color: #0b4f4a;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
         .stat {
             background: var(--card);
             border: 1px solid var(--line);
@@ -531,6 +542,10 @@
                 </div>
             </div>
         </section>
+
+        {% if info_message %}
+        <div class="notice">{{ info_message }}</div>
+        {% endif %}
 
         <section class="stats">
             <div class="stat">
