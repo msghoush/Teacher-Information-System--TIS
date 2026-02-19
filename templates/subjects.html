@@ -479,7 +479,9 @@
                                 <th>Name</th>
                                 <th>Weekly Hours</th>
                                 <th>Grade</th>
+                                {% if can_edit or can_delete %}
                                 <th>Actions</th>
+                                {% endif %}
                             </tr>
                         </thead>
                         <tbody id="subjectsBody">
@@ -489,17 +491,16 @@
                                 <td>{{ subject.subject_name }}</td>
                                 <td>{{ subject.weekly_hours }}</td>
                                 <td>{{ subject.grade }}</td>
+                                {% if can_edit or can_delete %}
                                 <td class="row-actions">
-                                    {% if can_modify %}
+                                    {% if can_edit %}
                                     <a class="row-edit" href="/subjects/edit/{{ subject.id }}">Edit</a>
                                     {% endif %}
                                     {% if can_delete %}
                                     <a class="row-delete" href="/subjects/delete/{{ subject.id }}">Delete</a>
                                     {% endif %}
-                                    {% if not can_modify and not can_delete %}
-                                    <span style="font-size: 12px; color: var(--muted);">Read only</span>
-                                    {% endif %}
                                 </td>
+                                {% endif %}
                             </tr>
                             {% endfor %}
                         </tbody>

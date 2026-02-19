@@ -63,6 +63,10 @@ def can_access_all_years(user) -> bool:
     return is_developer(user)
 
 
+def can_manage_system_settings(user) -> bool:
+    return is_developer(user)
+
+
 def can_manage_users(user) -> bool:
     role = normalize_role(getattr(user, "role", ""))
     return role in {ROLE_DEVELOPER, ROLE_ADMINISTRATOR}
@@ -73,9 +77,20 @@ def can_modify_data(user) -> bool:
     return role in {ROLE_DEVELOPER, ROLE_ADMINISTRATOR, ROLE_EDITOR, ROLE_USER}
 
 
+def can_edit_data(user) -> bool:
+    return is_developer(user)
+
+
 def can_delete_data(user) -> bool:
-    role = normalize_role(getattr(user, "role", ""))
-    return role in {ROLE_DEVELOPER, ROLE_ADMINISTRATOR, ROLE_EDITOR, ROLE_USER}
+    return is_developer(user)
+
+
+def can_edit_user_accounts(user) -> bool:
+    return is_developer(user)
+
+
+def can_delete_user_accounts(user) -> bool:
+    return is_developer(user)
 
 
 def _to_bytes(value):

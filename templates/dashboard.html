@@ -85,6 +85,10 @@
         }
 
         .meta {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
             text-align: right;
         }
 
@@ -99,9 +103,16 @@
             color: var(--muted);
         }
 
+        .meta-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
         .logout {
             display: inline-block;
-            margin-top: 8px;
             font-size: 13px;
             text-decoration: none;
             color: #fff;
@@ -110,68 +121,110 @@
             border-radius: 8px;
         }
 
+        .dev-menu {
+            position: relative;
+        }
+
+        .dev-menu summary {
+            list-style: none;
+            cursor: pointer;
+            user-select: none;
+            border: 1px solid #9ec8c3;
+            background: rgba(255, 255, 255, 0.92);
+            color: var(--brand-deep);
+            border-radius: 9px;
+            padding: 7px 11px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .dev-menu summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .dev-menu[open] summary {
+            border-color: var(--brand);
+            background: #e6f6f4;
+        }
+
+        .dev-menu-panel {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: min(560px, calc(100vw - 40px));
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 14px;
+            box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
+            z-index: 40;
+        }
+
+        .dev-group + .dev-group {
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px dashed #c5d4e7;
+        }
+
+        .dev-group h3 {
+            margin: 0;
+            font-size: 14px;
+            letter-spacing: 0.2px;
+        }
+
+        .dev-group p {
+            margin: 6px 0 10px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .dev-form + .dev-form {
+            margin-top: 10px;
+        }
+
+        .dev-form label {
+            display: block;
+            margin: 0 0 5px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #3b4860;
+        }
+
+        .dev-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .dev-row select,
+        .dev-row input {
+            width: 100%;
+            min-width: 0;
+            padding: 8px 10px;
+            border: 1px solid #b8c6da;
+            border-radius: 8px;
+            font-size: 13px;
+            background: #fff;
+        }
+
+        .dev-row button {
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            background: var(--brand);
+            white-space: nowrap;
+        }
+
         .stats {
             margin-top: 16px;
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 14px;
-        }
-
-        .admin-year {
-            margin-top: 16px;
-            background: var(--card);
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            padding: 14px;
-            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
-        }
-
-        .admin-year form {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .admin-year label {
-            font-size: 13px;
-            color: var(--muted);
-            font-weight: 700;
-        }
-
-        .admin-year select {
-            min-width: 220px;
-            padding: 8px 10px;
-            border: 1px solid #b8c6da;
-            border-radius: 8px;
-            font-size: 14px;
-            background: #fff;
-        }
-
-        .admin-year input {
-            min-width: 220px;
-            padding: 8px 10px;
-            border: 1px solid #b8c6da;
-            border-radius: 8px;
-            font-size: 14px;
-            background: #fff;
-        }
-
-        .admin-year button {
-            border: none;
-            padding: 8px 12px;
-            border-radius: 8px;
-            color: #fff;
-            font-size: 13px;
-            font-weight: 700;
-            cursor: pointer;
-            background: var(--brand);
-        }
-
-        .admin-year p {
-            margin: 10px 0 0;
-            font-size: 12px;
-            color: var(--muted);
         }
 
         .stat {
@@ -364,6 +417,17 @@
 
             .meta {
                 text-align: left;
+                align-items: flex-start;
+            }
+
+            .meta-actions {
+                justify-content: flex-start;
+            }
+
+            .dev-menu-panel {
+                right: auto;
+                left: 0;
+                width: min(560px, calc(100vw - 52px));
             }
 
             .stats {
@@ -371,6 +435,10 @@
             }
 
             .tiles {
+                grid-template-columns: 1fr;
+            }
+
+            .dev-row {
                 grid-template-columns: 1fr;
             }
         }
@@ -387,10 +455,80 @@
                 </div>
             </div>
             <div class="meta">
-                <h2>{{ user.first_name }} {{ user.last_name }}</h2>
-                <p>Branch: {{ branch_name }}</p>
-                <p>Academic Year: {{ academic_year_name }}</p>
-                <a class="logout" href="/logout">Logout</a>
+                <div class="meta-info">
+                    <h2>{{ user.first_name }} {{ user.last_name }}</h2>
+                    <p>Branch: {{ branch_name }}</p>
+                    <p>Academic Year: {{ academic_year_name }}</p>
+                </div>
+                <div class="meta-actions">
+                    {% if can_manage_system_settings %}
+                    <details class="dev-menu">
+                        <summary>Developer Menu</summary>
+                        <div class="dev-menu-panel">
+                            <section class="dev-group">
+                                <h3>System Configuration</h3>
+                                <p>Configure cross-branch and cross-year dashboard scope.</p>
+
+                                <form class="dev-form" method="post" action="/scope/branch">
+                                    <label for="scope_branch_id">Branch Scope</label>
+                                    <div class="dev-row">
+                                        <select id="scope_branch_id" name="branch_id" required>
+                                            {% for branch_item in available_scope_branches %}
+                                            <option value="{{ branch_item.id }}" {% if scoped_branch_id == branch_item.id %}selected{% endif %}>
+                                                {{ branch_item.name }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit">Switch Branch</button>
+                                    </div>
+                                </form>
+
+                                <form class="dev-form" method="post" action="/scope/academic-year">
+                                    <label for="scope_academic_year_id">Academic Year Scope</label>
+                                    <div class="dev-row">
+                                        <select id="scope_academic_year_id" name="academic_year_id" required>
+                                            {% for year in all_years %}
+                                            <option value="{{ year.id }}" {% if scoped_academic_year_id == year.id %}selected{% endif %}>
+                                                {{ year.year_name }}{% if active_year_id == year.id %} (Current){% endif %}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit">Switch Year Scope</button>
+                                    </div>
+                                </form>
+                            </section>
+
+                            <section class="dev-group">
+                                <h3>Academic Year Management</h3>
+                                <p>Set the current year and open a new academic year.</p>
+
+                                <form class="dev-form" method="post" action="/admin/current-year">
+                                    <label for="academic_year_id">Current Academic Year</label>
+                                    <div class="dev-row">
+                                        <select id="academic_year_id" name="academic_year_id" required>
+                                            {% for year in all_years %}
+                                            <option value="{{ year.id }}" {% if active_year_id == year.id %}selected{% endif %}>
+                                                {{ year.year_name }}{% if active_year_id == year.id %} (Current){% endif %}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit">Set Current Year</button>
+                                    </div>
+                                </form>
+
+                                <form class="dev-form" method="post" action="/developer/open-academic-year">
+                                    <label for="year_name">Open New Academic Year</label>
+                                    <div class="dev-row">
+                                        <input id="year_name" type="text" name="year_name" placeholder="YYYY-YYYY (example: 2026-2027)" required>
+                                        <button type="submit">Open New Year</button>
+                                    </div>
+                                </form>
+                            </section>
+                        </div>
+                    </details>
+                    {% endif %}
+                    <a class="logout" href="/logout">Logout</a>
+                </div>
             </div>
         </section>
 
@@ -408,62 +546,6 @@
                 <strong>{{ users_count }}</strong>
             </div>
         </section>
-
-        {% if can_switch_branches %}
-        <section class="admin-year">
-            <form method="post" action="/scope/branch">
-                <label for="scope_branch_id">Current Branch Scope</label>
-                <select id="scope_branch_id" name="branch_id" required>
-                    {% for branch_item in available_scope_branches %}
-                    <option value="{{ branch_item.id }}" {% if scoped_branch_id == branch_item.id %}selected{% endif %}>
-                        {{ branch_item.name }}
-                    </option>
-                    {% endfor %}
-                </select>
-                <button type="submit">Switch Branch</button>
-            </form>
-            <p>Developer and Education Excellence users can switch branch scope to view data across branches.</p>
-        </section>
-        {% endif %}
-
-        {% if can_switch_years %}
-        <section class="admin-year">
-            <form method="post" action="/scope/academic-year">
-                <label for="scope_academic_year_id">View Academic Year</label>
-                <select id="scope_academic_year_id" name="academic_year_id" required>
-                    {% for year in all_years %}
-                    <option value="{{ year.id }}" {% if scoped_academic_year_id == year.id %}selected{% endif %}>
-                        {{ year.year_name }}{% if active_year_id == year.id %} (Current){% endif %}
-                    </option>
-                    {% endfor %}
-                </select>
-                <button type="submit">Switch Year Scope</button>
-            </form>
-            <p>Developer can view data from all academic years using this scope selector.</p>
-        </section>
-        {% endif %}
-
-        {% if is_developer %}
-        <section class="admin-year">
-            <form method="post" action="/admin/current-year">
-                <label for="academic_year_id">Current Academic Year</label>
-                <select id="academic_year_id" name="academic_year_id" required>
-                    {% for year in all_years %}
-                    <option value="{{ year.id }}" {% if active_year_id == year.id %}selected{% endif %}>
-                        {{ year.year_name }}{% if active_year_id == year.id %} (Current){% endif %}
-                    </option>
-                    {% endfor %}
-                </select>
-                <button type="submit">Set Current Year</button>
-            </form>
-            <form method="post" action="/developer/open-academic-year" style="margin-top: 10px;">
-                <label for="year_name">Open New Academic Year</label>
-                <input id="year_name" type="text" name="year_name" placeholder="YYYY-YYYY (example: 2026-2027)" required>
-                <button type="submit">Open New Academic Year</button>
-            </form>
-            <p>Only Developer can open or set current year. Non-developer users always see current-year data only.</p>
-        </section>
-        {% endif %}
 
         <section class="workspace">
             <div class="tabs">
