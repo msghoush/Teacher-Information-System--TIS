@@ -86,11 +86,33 @@ def can_delete_data(user) -> bool:
 
 
 def can_edit_user_accounts(user) -> bool:
-    return is_developer(user)
+    role = normalize_role(getattr(user, "role", ""))
+    return role in {ROLE_DEVELOPER, ROLE_ADMINISTRATOR}
 
 
 def can_delete_user_accounts(user) -> bool:
-    return is_developer(user)
+    role = normalize_role(getattr(user, "role", ""))
+    return role in {ROLE_DEVELOPER, ROLE_ADMINISTRATOR}
+
+
+def can_manage_target_user_account(current_user, target_user) -> bool:
+    manager_role = normalize_role(getattr(current_user, "role", ""))
+    if manager_role == ROLE_DEVELOPER:
+        return True
+
+    if manager_role != ROLE_ADMINISTRATOR:
+        return False
+
+    target_role = normalize_role(getattr(target_user, "role", ""))
+    if target_role == ROLE_DEVELOPER:
+        return False
+
+    manager_branch_id = getattr(current_user, "branch_id", None)
+    target_branch_id = getattr(target_user, "branch_id", None)
+    if manager_branch_id is None or target_branch_id is None:
+        return False
+
+    return manager_branch_id == target_branch_id
 
 
 def _to_bytes(value):
