@@ -78,6 +78,13 @@ def read_root(
     request: Request,
     db: Session = Depends(get_db)
 ):
+    current_user = auth.get_current_user(request, db)
+    if current_user:
+        return RedirectResponse(
+            url="/dashboard?info=already-logged-in",
+            status_code=302
+        )
+
     return _render_login_page(
         request=request,
         db=db,
@@ -415,6 +422,9 @@ def dashboard(
         models.Branch.status == True
     ).order_by(models.Branch.name.asc()).all()
     can_manage_system_settings = auth.can_manage_system_settings(user)
+    info_message = ""
+    if request.query_params.get("info") == "already-logged-in":
+        info_message = "You are already logged in."
     active_year = db.query(models.AcademicYear).filter(
         models.AcademicYear.is_active == True
     ).first()
@@ -436,6 +446,7 @@ def dashboard(
             "year_map": year_map,
             "branch_map": branch_map,
             "can_manage_system_settings": can_manage_system_settings,
+            "info_message": info_message,
             "scoped_academic_year_id": scoped_academic_year_id,
             "available_scope_branches": available_scope_branches,
             "scoped_branch_id": scoped_branch_id,
