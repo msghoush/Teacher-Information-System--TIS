@@ -1,10 +1,11 @@
 from fastapi import FastAPI, Request, Form, Depends
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, FileResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
 import os
 import re
+import time
 from typing import Optional
 
 from database import engine, SessionLocal
@@ -14,6 +15,7 @@ from dependencies import get_db
 from routers import subjects, users
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
+from audit import get_audit_log_path, get_audit_logger, write_audit_event
 
 # ---------------------------------------
 # Create Tables
@@ -27,6 +29,124 @@ app = FastAPI(title="Teacher Information System")
 
 templates = Jinja2Templates(directory="templates")
 ACADEMIC_YEAR_NAME_PATTERN = re.compile(r"^\d{4}-\d{4}$")
+get_audit_logger()
+
+
+def _resolve_client_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    if request.client:
+        return request.client.host or ""
+    return ""
+
+
+def _get_audit_actor_from_user_id(user_id: str):
+    if not user_id:
+        return None
+
+    db = SessionLocal()
+    try:
+        user = db.query(models.User).filter(
+            models.User.user_id == user_id
+        ).first()
+        if not user:
+            return None
+
+        return {
+            "actor_user_id": user.user_id,
+            "actor_username": user.username or "",
+            "actor_role": auth.normalize_role(user.role),
+            "actor_branch_id": user.branch_id,
+        }
+    finally:
+        db.close()
+
+
+def _resolve_audit_actor(request: Request):
+    actor_user_id = getattr(request.state, "audit_actor_user_id", None)
+    actor_username = getattr(request.state, "audit_actor_username", None)
+    actor_role = getattr(request.state, "audit_actor_role", None)
+    actor_branch_id = getattr(request.state, "audit_actor_branch_id", None)
+
+    if actor_user_id:
+        return {
+            "actor_user_id": actor_user_id,
+            "actor_username": actor_username or "",
+            "actor_role": actor_role or "",
+            "actor_branch_id": actor_branch_id,
+        }
+
+    cookie_user_id = request.cookies.get("user_id")
+    if cookie_user_id:
+        actor = _get_audit_actor_from_user_id(cookie_user_id)
+        if actor:
+            return actor
+        return {
+            "actor_user_id": cookie_user_id,
+            "actor_username": "",
+            "actor_role": "Unknown",
+            "actor_branch_id": None,
+        }
+
+    return {
+        "actor_user_id": "anonymous",
+        "actor_username": "",
+        "actor_role": "Anonymous",
+        "actor_branch_id": None,
+    }
+
+
+def _write_request_audit_log(
+    request: Request,
+    status_code: int,
+    duration_ms: float,
+    error_name: str = "",
+):
+    try:
+        actor = _resolve_audit_actor(request)
+        write_audit_event(
+            {
+                "event_type": "http_request",
+                "method": request.method,
+                "path": request.url.path,
+                "query": str(request.url.query),
+                "status_code": status_code,
+                "duration_ms": duration_ms,
+                "client_ip": _resolve_client_ip(request),
+                "user_agent": request.headers.get("user-agent", ""),
+                "scope_branch_id": request.cookies.get("branch_id"),
+                "scope_academic_year_id": request.cookies.get("academic_year_id"),
+                "error": error_name,
+                **actor,
+            }
+        )
+    except Exception:
+        # Audit logging must not block business operations.
+        pass
+
+
+@app.middleware("http")
+async def audit_logging_middleware(request: Request, call_next):
+    started_at = time.perf_counter()
+    status_code = 500
+    error_name = ""
+
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    except Exception as exc:
+        error_name = exc.__class__.__name__
+        raise
+    finally:
+        duration_ms = round((time.perf_counter() - started_at) * 1000, 2)
+        _write_request_audit_log(
+            request=request,
+            status_code=status_code,
+            duration_ms=duration_ms,
+            error_name=error_name,
+        )
 
 
 def _build_login_context(
@@ -101,6 +221,10 @@ def login(
     db: Session = Depends(get_db)
 ):
     username = username.strip()
+    request.state.audit_actor_user_id = username or "anonymous"
+    request.state.audit_actor_username = username
+    request.state.audit_actor_role = "Unauthenticated"
+    request.state.audit_actor_branch_id = None
     user = auth.authenticate_user(db, username, password)
 
     if not user:
@@ -163,6 +287,10 @@ def login(
         )
 
     response = RedirectResponse(url="/dashboard", status_code=302)
+    request.state.audit_actor_user_id = user.user_id
+    request.state.audit_actor_username = user.username or ""
+    request.state.audit_actor_role = auth.normalize_role(user.role)
+    request.state.audit_actor_branch_id = user.branch_id
     response.set_cookie(
         key="user_id",
         value=user.user_id,
@@ -194,6 +322,35 @@ def logout():
     response.delete_cookie("branch_id")
     response.delete_cookie("academic_year_id")
     return response
+
+
+# ---------------------------------------
+# DEVELOPER: DOWNLOAD AUDIT LOG
+# ---------------------------------------
+@app.get("/admin/audit-log")
+def download_audit_log(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    if not auth.can_manage_system_settings(current_user):
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    audit_log_path = get_audit_log_path()
+    if not audit_log_path.exists():
+        return PlainTextResponse(
+            "Audit log file has not been created yet.",
+            status_code=404
+        )
+
+    return FileResponse(
+        path=str(audit_log_path),
+        filename=audit_log_path.name,
+        media_type="text/plain"
+    )
 
 
 # ---------------------------------------

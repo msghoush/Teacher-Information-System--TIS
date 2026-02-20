@@ -260,6 +260,10 @@
             align-items: center;
         }
 
+        .dev-row-single {
+            grid-template-columns: 1fr;
+        }
+
         .dev-row select,
         .dev-row input {
             width: 100%;
@@ -271,7 +275,8 @@
             background: #fff;
         }
 
-        .dev-row button {
+        .dev-row button,
+        .dev-row .dev-link {
             border: none;
             padding: 8px 12px;
             border-radius: 8px;
@@ -281,6 +286,14 @@
             cursor: pointer;
             background: var(--brand);
             white-space: nowrap;
+        }
+
+        .dev-row .dev-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            width: fit-content;
         }
 
         .stats {
@@ -634,6 +647,21 @@
                                         <button type="submit">Open New Year</button>
                                     </div>
                                 </form>
+                            </section>
+
+                            <section class="dev-group">
+                                <h3 class="dev-group-title">
+                                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M3 12h18"></path>
+                                        <path d="M12 3v18"></path>
+                                        <path d="M7 7h10v10H7z"></path>
+                                    </svg>
+                                    Audit Logs
+                                </h3>
+                                <p>Download the full activity log for all user actions.</p>
+                                <div class="dev-row dev-row-single">
+                                    <a class="dev-link" href="/admin/audit-log">Download Audit Log</a>
+                                </div>
                             </section>
                         </div>
                     </details>
