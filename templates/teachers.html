@@ -378,7 +378,7 @@
                         </div>
                         <div class="field">
                             <label for="max_hours">Max Hours</label>
-                            <input id="max_hours" type="number" name="max_hours" min="1" max="24" value="24" required>
+                            <input id="max_hours" type="number" name="max_hours" min="1" value="24" required>
                         </div>
                         <div class="field field-wide">
                             <label class="toggle-row" for="extra_hours_allowed">
@@ -468,7 +468,9 @@
         const extraCountInput = document.getElementById("extra_hours_count");
         const teacherIdInput = document.getElementById("teacher_id");
         const maxHoursInput = document.getElementById("max_hours");
-        const maxAllowedHours = 24;
+        const teacherForm = document.querySelector("form[method='post']");
+        const standardMaxHours = 24;
+        let hasShownExtraHoursWarning = false;
 
         const syncExtraHoursVisibility = () => {
             if (!extraAllowed || !extraCountField || !extraCountInput) {
@@ -494,18 +496,51 @@
         }
 
         if (maxHoursInput) {
-            const enforceMaxHoursLimit = () => {
+            const enforceExtraHoursRule = () => {
                 const parsedValue = Number(maxHoursInput.value);
-                if (!Number.isFinite(parsedValue) || parsedValue <= maxAllowedHours) {
+                if (!Number.isFinite(parsedValue) || parsedValue <= standardMaxHours) {
+                    hasShownExtraHoursWarning = false;
                     return;
                 }
 
-                maxHoursInput.value = String(maxAllowedHours);
-                window.alert("Maximum allowed hours per teacher is 24. The value was reset to 24.");
+                if (!extraAllowed || !extraAllowed.checked) {
+                    maxHoursInput.value = String(standardMaxHours);
+                    hasShownExtraHoursWarning = false;
+                    window.alert("To enter more than 24 max hours, please check Extra Hours Allowed first.");
+                    if (extraAllowed) {
+                        extraAllowed.focus();
+                    }
+                    return;
+                }
+
+                if (!hasShownExtraHoursWarning) {
+                    window.alert("Warning: you are assigning extra hours above 24 for this teacher.");
+                    hasShownExtraHoursWarning = true;
+                }
             };
 
-            maxHoursInput.addEventListener("input", enforceMaxHoursLimit);
-            maxHoursInput.addEventListener("change", enforceMaxHoursLimit);
+            maxHoursInput.addEventListener("input", enforceExtraHoursRule);
+            maxHoursInput.addEventListener("change", enforceExtraHoursRule);
+
+            if (extraAllowed) {
+                extraAllowed.addEventListener("change", () => {
+                    hasShownExtraHoursWarning = false;
+                    enforceExtraHoursRule();
+                });
+            }
+
+            if (teacherForm) {
+                teacherForm.addEventListener("submit", (event) => {
+                    const parsedValue = Number(maxHoursInput.value);
+                    if (Number.isFinite(parsedValue) && parsedValue > standardMaxHours && (!extraAllowed || !extraAllowed.checked)) {
+                        event.preventDefault();
+                        window.alert("To enter more than 24 max hours, please check Extra Hours Allowed first.");
+                        if (extraAllowed) {
+                            extraAllowed.focus();
+                        }
+                    }
+                });
+            }
         }
 
         if (searchInput && rows.length > 0) {
