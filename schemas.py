@@ -15,7 +15,6 @@ class TeacherCreate(BaseModel):
     first_name: str
     last_name: str
     subject_codes: list[str]
-    level: str
     max_hours: int = 24
     branch_id: int
     academic_year_id: int

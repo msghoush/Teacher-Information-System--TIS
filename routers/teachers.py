@@ -16,24 +16,6 @@ templates = Jinja2Templates(directory="templates")
 
 TEACHER_ID_PATTERN = re.compile(r"^\d{1,10}$")
 NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z\s'\-]*$")
-
-LEVEL_OPTIONS = [
-    "Homeroom Teacher",
-    "K1",
-    "K2",
-    "Grade 1",
-    "Grade 2",
-    "Grade 3",
-    "Grade 4",
-    "Grade 5",
-    "Grade 6",
-    "Grade 7",
-    "Grade 8",
-    "Grade 9",
-    "Grade 10",
-    "Grade 11",
-    "Grade 12",
-]
 STANDARD_MAX_HOURS = 24
 
 
@@ -162,11 +144,19 @@ def _get_teacher_allocation_map(db: Session, teachers):
         if not teacher_data:
             continue
         subject = subjects_by_code.get(allocation.subject_code)
+        subject_name = "Unnamed Subject"
         subject_hours = 0
+        subject_grade = "-"
         if subject and subject.weekly_hours is not None:
             subject_hours = int(subject.weekly_hours)
+        if subject and subject.subject_name:
+            subject_name = subject.subject_name
+        if subject and subject.grade is not None:
+            subject_grade = str(subject.grade)
         teacher_data["subject_codes"].append(allocation.subject_code)
-        teacher_data["subject_labels"].append(f"{allocation.subject_code} ({subject_hours}h)")
+        teacher_data["subject_labels"].append(
+            f"{allocation.subject_code} - {subject_name} (Grade {subject_grade}, {subject_hours}h)"
+        )
         teacher_data["allocated_hours"] += subject_hours
 
     for teacher in teachers:
@@ -204,7 +194,6 @@ def _render_teachers_page(
             "teachers": teachers,
             "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
             "teacher_allocations": teacher_allocations,
-            "level_options": LEVEL_OPTIONS,
             "can_modify": can_modify,
             "can_edit": can_edit,
             "can_delete": can_delete,
@@ -240,7 +229,6 @@ def create_teacher(
     middle_name: str = Form(""),
     last_name: str = Form(...),
     subject_codes: list[str] = Form([]),
-    level: str = Form(...),
     max_hours: str = Form("24"),
     extra_hours_allowed: str = Form(""),
     extra_hours_count: str = Form("0"),
@@ -263,7 +251,6 @@ def create_teacher(
     middle_name = _normalize_name(middle_name)
     last_name = _normalize_name(last_name)
     normalized_subject_codes = _normalize_subject_codes(subject_codes)
-    level = _normalize_spaces(level).strip()
     parsed_max_hours = _parse_int(max_hours)
     allowed_extra = _is_extra_hours_allowed(extra_hours_allowed)
     parsed_extra_hours_count = _parse_int(extra_hours_count)
@@ -309,9 +296,6 @@ def create_teacher(
                 "Selected subject codes do not exist in the current branch/academic year: "
                 + ", ".join(missing_subject_codes)
             )
-
-    if level not in LEVEL_OPTIONS:
-        errors.append("Invalid level selected.")
 
     if parsed_max_hours is None or parsed_max_hours <= 0:
         errors.append("Max hours must be a positive whole number.")
@@ -362,7 +346,7 @@ def create_teacher(
         middle_name=middle_name if middle_name else None,
         last_name=last_name,
         subject_code=normalized_subject_codes[0] if normalized_subject_codes else None,
-        level=level,
+        level=None,
         max_hours=parsed_max_hours if parsed_max_hours is not None else STANDARD_MAX_HOURS,
         extra_hours_allowed=allowed_extra,
         extra_hours_count=parsed_extra_hours_count if parsed_extra_hours_count is not None else 0,
@@ -435,7 +419,6 @@ def edit_teacher_page(
             "teacher": teacher,
             "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
             "assigned_subject_codes": assigned_subject_codes,
-            "level_options": LEVEL_OPTIONS,
             "error": "",
         },
     )
@@ -450,7 +433,6 @@ def update_teacher(
     middle_name: str = Form(""),
     last_name: str = Form(...),
     subject_codes: list[str] = Form([]),
-    level: str = Form(...),
     max_hours: str = Form("24"),
     extra_hours_allowed: str = Form(""),
     extra_hours_count: str = Form("0"),
@@ -477,7 +459,6 @@ def update_teacher(
     middle_name = _normalize_name(middle_name)
     last_name = _normalize_name(last_name)
     normalized_subject_codes = _normalize_subject_codes(subject_codes)
-    level = _normalize_spaces(level).strip()
     parsed_max_hours = _parse_int(max_hours)
     allowed_extra = _is_extra_hours_allowed(extra_hours_allowed)
     parsed_extra_hours_count = _parse_int(extra_hours_count)
@@ -523,9 +504,6 @@ def update_teacher(
                 + ", ".join(missing_subject_codes)
             )
 
-    if level not in LEVEL_OPTIONS:
-        errors.append("Invalid level selected.")
-
     if parsed_max_hours is None or parsed_max_hours <= 0:
         errors.append("Max hours must be a positive whole number.")
     elif parsed_max_hours > STANDARD_MAX_HOURS and not allowed_extra:
@@ -570,7 +548,6 @@ def update_teacher(
                 "teacher": teacher,
                 "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
                 "assigned_subject_codes": assigned_subject_codes,
-                "level_options": LEVEL_OPTIONS,
                 "error": " ".join(errors),
             },
             status_code=400,
@@ -581,7 +558,7 @@ def update_teacher(
     teacher.middle_name = middle_name if middle_name else None
     teacher.last_name = last_name
     teacher.subject_code = normalized_subject_codes[0] if normalized_subject_codes else None
-    teacher.level = level
+    teacher.level = None
     teacher.max_hours = parsed_max_hours if parsed_max_hours is not None else STANDARD_MAX_HOURS
     teacher.extra_hours_allowed = allowed_extra
     teacher.extra_hours_count = parsed_extra_hours_count if parsed_extra_hours_count is not None else 0
@@ -608,7 +585,6 @@ def update_teacher(
                 "teacher": teacher,
                 "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
                 "assigned_subject_codes": assigned_subject_codes,
-                "level_options": LEVEL_OPTIONS,
                 "error": "Unable to update teacher due to duplicate or invalid data.",
             },
             status_code=400,

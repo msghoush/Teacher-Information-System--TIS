@@ -161,9 +161,8 @@
         .subject-main small {
             font-size: 12px;
             color: #4b5f7d;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            line-height: 1.25;
+            word-break: break-word;
         }
 
         .subject-meta {
@@ -272,7 +271,7 @@
                             <input id="subject_code_{{ loop.index }}" type="checkbox" name="subject_codes" value="{{ subject.subject_code }}" data-hours="{{ subject.weekly_hours or 0 }}" {% if assigned_subject_codes and subject.subject_code in assigned_subject_codes %}checked{% endif %}>
                             <span class="subject-main">
                                 <strong>{{ subject.subject_code }}</strong>
-                                <small>{{ subject.subject_name }}</small>
+                                <small>{{ subject.subject_name or "Unnamed Subject" }}</small>
                             </span>
                             <span class="subject-meta">Grade {{ subject.grade if subject.grade is not none else "-" }} | {{ subject.weekly_hours or 0 }}h</span>
                         </label>
@@ -296,14 +295,6 @@
                 <div class="field">
                     <label for="last_name">Last Name</label>
                     <input id="last_name" type="text" name="last_name" value="{{ teacher.last_name }}" required>
-                </div>
-                <div class="field">
-                    <label for="level">Level</label>
-                    <select id="level" name="level" required>
-                        {% for option in level_options %}
-                        <option value="{{ option }}" {% if teacher.level == option %}selected{% endif %}>{{ option }}</option>
-                        {% endfor %}
-                    </select>
                 </div>
                 <div class="field">
                     <label for="max_hours">Max Hours</label>
