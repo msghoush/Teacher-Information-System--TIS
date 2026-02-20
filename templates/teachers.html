@@ -470,7 +470,6 @@
         const maxHoursInput = document.getElementById("max_hours");
         const teacherForm = document.querySelector("form[method='post']");
         const standardMaxHours = 24;
-        let hasShownExtraHoursWarning = false;
 
         const syncExtraHoursVisibility = () => {
             if (!extraAllowed || !extraCountField || !extraCountInput) {
@@ -499,23 +498,16 @@
             const enforceExtraHoursRule = () => {
                 const parsedValue = Number(maxHoursInput.value);
                 if (!Number.isFinite(parsedValue) || parsedValue <= standardMaxHours) {
-                    hasShownExtraHoursWarning = false;
                     return;
                 }
 
                 if (!extraAllowed || !extraAllowed.checked) {
                     maxHoursInput.value = String(standardMaxHours);
-                    hasShownExtraHoursWarning = false;
                     window.alert("To enter more than 24 max hours, please check Extra Hours Allowed first.");
                     if (extraAllowed) {
                         extraAllowed.focus();
                     }
                     return;
-                }
-
-                if (!hasShownExtraHoursWarning) {
-                    window.alert("Warning: you are assigning extra hours above 24 for this teacher.");
-                    hasShownExtraHoursWarning = true;
                 }
             };
 
@@ -523,10 +515,7 @@
             maxHoursInput.addEventListener("change", enforceExtraHoursRule);
 
             if (extraAllowed) {
-                extraAllowed.addEventListener("change", () => {
-                    hasShownExtraHoursWarning = false;
-                    enforceExtraHoursRule();
-                });
+                extraAllowed.addEventListener("change", enforceExtraHoursRule);
             }
 
             if (teacherForm) {
