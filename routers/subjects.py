@@ -596,7 +596,126 @@ def delete_subject(
     ).first()
 
     if subject:
-        db.delete(subject)
-        db.commit()
+        has_teacher_reference = db.query(models.Teacher).filter(
+            models.Teacher.subject_code == subject.subject_code
+        ).first()
+        has_allocation_reference = db.query(models.TeacherSubjectAllocation).filter(
+            models.TeacherSubjectAllocation.subject_code == subject.subject_code
+        ).first()
+        if has_teacher_reference or has_allocation_reference:
+            return _render_subjects_page(
+                request=request,
+                db=db,
+                current_user=current_user,
+                error="Cannot delete this subject because it is assigned to one or more teachers.",
+            )
+
+        try:
+            db.delete(subject)
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            return _render_subjects_page(
+                request=request,
+                db=db,
+                current_user=current_user,
+                error="Unable to delete subject due to related records.",
+            )
 
     return RedirectResponse(url="/subjects", status_code=302)
+
+
+@router.post("/delete-bulk")
+def delete_subjects_bulk(
+    request: Request,
+    selected_subject_ids: list[int] = Form([]),
+    db: Session = Depends(get_db),
+):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    if not auth.can_delete_data(current_user):
+        return RedirectResponse(url="/subjects", status_code=302)
+
+    unique_subject_ids = sorted({
+        int(subject_id)
+        for subject_id in selected_subject_ids
+        if subject_id
+    })
+    if not unique_subject_ids:
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Select at least one subject to delete.",
+        )
+
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    subject_rows = db.query(models.Subject).filter(
+        models.Subject.id.in_(unique_subject_ids),
+        models.Subject.branch_id == branch_id,
+        models.Subject.academic_year_id == academic_year_id,
+    ).all()
+    subject_map = {subject.id: subject for subject in subject_rows}
+    missing_ids = [
+        subject_id for subject_id in unique_subject_ids
+        if subject_id not in subject_map
+    ]
+    if missing_ids:
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="One or more selected subjects were not found in your current scope.",
+        )
+
+    selected_subject_codes = [
+        subject.subject_code
+        for subject in subject_rows
+        if subject.subject_code
+    ]
+    if selected_subject_codes:
+        has_teacher_references = db.query(models.Teacher).filter(
+            models.Teacher.subject_code.in_(selected_subject_codes)
+        ).first()
+        has_allocation_references = db.query(models.TeacherSubjectAllocation).filter(
+            models.TeacherSubjectAllocation.subject_code.in_(selected_subject_codes)
+        ).first()
+        if has_teacher_references or has_allocation_references:
+            return _render_subjects_page(
+                request=request,
+                db=db,
+                current_user=current_user,
+                error="One or more selected subjects cannot be deleted because they are assigned to teachers.",
+            )
+
+    try:
+        db.query(models.Subject).filter(
+            models.Subject.id.in_(unique_subject_ids),
+            models.Subject.branch_id == branch_id,
+            models.Subject.academic_year_id == academic_year_id,
+        ).delete(synchronize_session=False)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Bulk delete failed due to related records.",
+        )
+
+    deleted_count = len(unique_subject_ids)
+    success_message = (
+        "Subject deleted successfully."
+        if deleted_count == 1
+        else f"{deleted_count} subjects deleted successfully."
+    )
+
+    return _render_subjects_page(
+        request=request,
+        db=db,
+        current_user=current_user,
+        success=success_message,
+    )

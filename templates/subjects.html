@@ -323,6 +323,25 @@
             outline-offset: 2px;
         }
 
+        .icon-action:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            pointer-events: none;
+        }
+
+        .icon-action-danger {
+            color: #7f1d1d;
+            border-color: #f2c2c2;
+            background: #fff7f7;
+        }
+
+        .icon-action-danger:hover {
+            color: #fff;
+            border-color: #b42318;
+            background: #b42318;
+        }
+
         .search {
             width: 280px;
             max-width: 100%;
@@ -363,24 +382,47 @@
             border-bottom: none;
         }
 
-        .row-actions a {
-            display: inline-block;
+        .select-col {
+            width: 42px;
+            text-align: center;
+        }
+
+        .bulk-select {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--brand);
+            cursor: pointer;
+        }
+
+        .row-actions {
+            white-space: nowrap;
+        }
+
+        .row-action {
             text-decoration: none;
-            padding: 6px 9px;
-            border-radius: 7px;
-            font-size: 12px;
-            font-weight: 700;
             margin-right: 6px;
         }
 
-        .row-edit {
-            color: #fff;
-            background: #2563eb;
+        .row-action:last-child {
+            margin-right: 0;
         }
 
-        .row-delete {
+        .row-action-edit:hover {
+            color: #1d4ed8;
+            border-color: #93c5fd;
+            background: #eff6ff;
+        }
+
+        .row-action-delete {
+            color: #8f1d1d;
+            border-color: #f4c7c7;
+            background: #fff7f7;
+        }
+
+        .row-action-delete:hover {
             color: #fff;
-            background: #dc2626;
+            border-color: #b42318;
+            background: #b42318;
         }
 
         .empty {
@@ -529,6 +571,17 @@
                                     <path d="M10 6V4h4v2"></path>
                                 </svg>
                             </button>
+                            {% if can_delete %}
+                            <button id="bulkDeleteTrigger" class="icon-action icon-action-danger" type="submit" form="bulkDeleteForm" aria-label="Delete selected subjects" title="Select subjects from the table to delete">
+                                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M3 6h18"></path>
+                                    <path d="M19 6 18 20H6L5 6"></path>
+                                    <path d="M9 10v6"></path>
+                                    <path d="M15 10v6"></path>
+                                    <path d="M10 6V4h4v2"></path>
+                                </svg>
+                            </button>
+                            {% endif %}
                         </div>
                         <p>Search and manage records instantly.</p>
                     </div>
@@ -536,10 +589,16 @@
                 </div>
 
                 {% if subjects %}
+                <form id="bulkDeleteForm" method="post" action="/subjects/delete-bulk">
                 <div class="table-wrap">
                     <table>
                         <thead>
                             <tr>
+                                {% if can_delete %}
+                                <th class="select-col">
+                                    <input id="bulkSelectAll" class="bulk-select" type="checkbox" aria-label="Select all subjects">
+                                </th>
+                                {% endif %}
                                 <th>Code</th>
                                 <th>Name</th>
                                 <th>Weekly Hours</th>
@@ -552,6 +611,11 @@
                         <tbody id="subjectsBody">
                             {% for subject in subjects %}
                             <tr class="subject-row">
+                                {% if can_delete %}
+                                <td class="select-col">
+                                    <input class="bulk-select bulk-select-item" type="checkbox" name="selected_subject_ids" value="{{ subject.id }}" aria-label="Select subject {{ subject.subject_code }} for bulk delete">
+                                </td>
+                                {% endif %}
                                 <td>{{ subject.subject_code }}</td>
                                 <td>{{ subject.subject_name }}</td>
                                 <td>{{ subject.weekly_hours }}</td>
@@ -559,10 +623,23 @@
                                 {% if can_edit or can_delete %}
                                 <td class="row-actions">
                                     {% if can_edit %}
-                                    <a class="row-edit" href="/subjects/edit/{{ subject.id }}">Edit</a>
+                                    <a class="icon-action row-action row-action-edit" href="/subjects/edit/{{ subject.id }}" aria-label="Edit subject {{ subject.subject_code }}" title="Edit subject">
+                                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M12 20h9"></path>
+                                            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+                                        </svg>
+                                    </a>
                                     {% endif %}
                                     {% if can_delete %}
-                                    <a class="row-delete" href="/subjects/delete/{{ subject.id }}">Delete</a>
+                                    <a class="icon-action row-action row-action-delete" href="/subjects/delete/{{ subject.id }}" aria-label="Delete subject {{ subject.subject_code }}" title="Delete subject" onclick="return confirm('Delete this subject record?');">
+                                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M3 6h18"></path>
+                                            <path d="M19 6 18 20H6L5 6"></path>
+                                            <path d="M9 10v6"></path>
+                                            <path d="M15 10v6"></path>
+                                            <path d="M10 6V4h4v2"></path>
+                                        </svg>
+                                    </a>
                                     {% endif %}
                                 </td>
                                 {% endif %}
@@ -571,6 +648,7 @@
                         </tbody>
                     </table>
                 </div>
+                </form>
                 <div id="noResult" class="empty" style="display:none;">No subjects match your search.</div>
                 {% else %}
                 <div class="empty">No subjects yet. Add your first subject from the form.</div>
@@ -583,6 +661,10 @@
         const searchInput = document.getElementById("subjectSearch");
         const rows = Array.from(document.querySelectorAll(".subject-row"));
         const noResult = document.getElementById("noResult");
+        const selectableSubjects = Array.from(document.querySelectorAll(".bulk-select-item"));
+        const bulkSelectAll = document.getElementById("bulkSelectAll");
+        const bulkDeleteForm = document.getElementById("bulkDeleteForm");
+        const bulkDeleteTrigger = document.getElementById("bulkDeleteTrigger");
         const subjectCodeInput = document.getElementById("subject_code");
         const subjectNameInput = document.getElementById("subject_name");
         const downloadTemplateBtn = document.getElementById("downloadTemplateBtn");
@@ -615,6 +697,65 @@
                 }
             });
         });
+
+        const updateBulkDeleteState = () => {
+            if (!bulkDeleteTrigger) {
+                return;
+            }
+
+            const selectedCount = selectableSubjects.filter((item) => item.checked).length;
+            bulkDeleteTrigger.disabled = selectedCount === 0;
+            bulkDeleteTrigger.title = selectedCount > 0
+                ? `Delete ${selectedCount} selected subject${selectedCount === 1 ? "" : "s"}`
+                : "Select subjects from the table to delete";
+
+            if (bulkSelectAll) {
+                if (selectableSubjects.length === 0) {
+                    bulkSelectAll.checked = false;
+                    bulkSelectAll.indeterminate = false;
+                } else if (selectedCount === 0) {
+                    bulkSelectAll.checked = false;
+                    bulkSelectAll.indeterminate = false;
+                } else if (selectedCount === selectableSubjects.length) {
+                    bulkSelectAll.checked = true;
+                    bulkSelectAll.indeterminate = false;
+                } else {
+                    bulkSelectAll.checked = false;
+                    bulkSelectAll.indeterminate = true;
+                }
+            }
+        };
+
+        if (bulkSelectAll) {
+            bulkSelectAll.addEventListener("change", () => {
+                selectableSubjects.forEach((item) => {
+                    item.checked = bulkSelectAll.checked;
+                });
+                updateBulkDeleteState();
+            });
+        }
+
+        selectableSubjects.forEach((item) => {
+            item.addEventListener("change", updateBulkDeleteState);
+        });
+
+        if (bulkDeleteForm) {
+            bulkDeleteForm.addEventListener("submit", (event) => {
+                const selectedCount = selectableSubjects.filter((item) => item.checked).length;
+                if (selectedCount === 0) {
+                    event.preventDefault();
+                    alert("Select at least one subject to delete.");
+                    return;
+                }
+
+                const confirmed = confirm(
+                    `You are about to delete ${selectedCount} selected subject${selectedCount === 1 ? "" : "s"}. This action cannot be undone.`
+                );
+                if (!confirmed) {
+                    event.preventDefault();
+                }
+            });
+        }
 
         if (subjectCodeInput) {
             subjectCodeInput.addEventListener("blur", () => {
@@ -681,6 +822,8 @@
                 alert("Import started. Please wait for validation results.");
             });
         }
+
+        updateBulkDeleteState();
     </script>
 </body>
 </html>

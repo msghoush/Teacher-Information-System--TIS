@@ -767,7 +767,7 @@
                             <th>Teacher ID</th>
                             <th>Name</th>
                             <th>Subject Code</th>
-                            <th>Level</th>
+                            <th>Extra Hours Count</th>
                             <th>Total Hours Capacity</th>
                         </tr>
                         {% for teacher in teachers_preview %}
@@ -775,7 +775,7 @@
                             <td>{{ teacher.teacher_id }}</td>
                             <td>{{ teacher.first_name }}{% if teacher.middle_name %} {{ teacher.middle_name }}{% endif %} {{ teacher.last_name }}</td>
                             <td>{{ teacher.subject_code }}</td>
-                            <td>{{ teacher.level or "-" }}</td>
+                            <td>{{ teacher.extra_hours_count if teacher.extra_hours_allowed else 0 }}</td>
                             <td>{{ (teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0) }}</td>
                         </tr>
                         {% endfor %}
