@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TIS Teachers</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --bg: #f3f6fb;
+            --card: #ffffff;
+            --line: #d8e2f0;
+            --ink: #1f2737;
+            --muted: #5d6b82;
+            --brand: #0f766e;
+            --brand-dark: #0c5751;
+            --danger: #b42318;
+            --success: #027a48;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--ink);
+            font-family: "Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif;
+            background:
+                radial-gradient(700px 420px at 0% 0%, rgba(15, 118, 110, 0.12), transparent 65%),
+                radial-gradient(640px 420px at 100% 100%, rgba(217, 119, 6, 0.14), transparent 62%),
+                var(--bg);
+            padding: 22px 14px;
+        }
+
+        .page {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .top {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 16px 18px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .title h1 {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: 0.3px;
+        }
+
+        .title p {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .btn-link {
+            display: inline-block;
+            text-decoration: none;
+            padding: 8px 12px;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .btn-home {
+            background: var(--brand);
+        }
+
+        .btn-back {
+            background: #4b5563;
+        }
+
+        .grid {
+            margin-top: 14px;
+            display: grid;
+            grid-template-columns: 1.05fr 1.35fr;
+            gap: 12px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 14px;
+        }
+
+        .card h2 {
+            margin: 0 0 4px;
+            font-size: 20px;
+        }
+
+        .card p {
+            margin: 0 0 10px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .error {
+            background: #ffe8e5;
+            color: #8f1d18;
+            border-left: 4px solid var(--danger);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .success {
+            background: #e7f7ef;
+            color: #065f46;
+            border-left: 4px solid var(--success);
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .error-list {
+            margin: 0 0 10px;
+            padding-left: 20px;
+            color: #8f1d18;
+            font-size: 13px;
+        }
+
+        .error-list li {
+            margin-bottom: 4px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .field-wide {
+            grid-column: 1 / -1;
+        }
+
+        .field label {
+            font-size: 13px;
+            color: #415068;
+            font-weight: 700;
+        }
+
+        .field input,
+        .field select {
+            width: 100%;
+            padding: 9px 10px;
+            border: 1px solid #c6d4e8;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #fff;
+        }
+
+        .field input:focus,
+        .field select:focus {
+            outline: none;
+            border-color: var(--brand);
+            box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+            font-size: 13px;
+            color: #415068;
+            font-weight: 700;
+        }
+
+        .toggle-row input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--brand);
+            cursor: pointer;
+        }
+
+        .btn-save {
+            margin-top: 12px;
+            border: none;
+            background: linear-gradient(140deg, var(--brand), var(--brand-dark));
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+            border-radius: 9px;
+            padding: 10px 12px;
+            cursor: pointer;
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .search {
+            width: 320px;
+            max-width: 100%;
+            padding: 9px 10px;
+            border: 1px solid #c6d4e8;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .table-wrap {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            overflow: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 880px;
+        }
+
+        th, td {
+            padding: 10px 11px;
+            border-bottom: 1px solid #e7edf7;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        th {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            background: #f2f7ff;
+            color: #385072;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .row-actions a {
+            display: inline-block;
+            text-decoration: none;
+            padding: 6px 9px;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 700;
+            margin-right: 6px;
+        }
+
+        .row-edit {
+            color: #fff;
+            background: #2563eb;
+        }
+
+        .row-delete {
+            color: #fff;
+            background: #dc2626;
+        }
+
+        .empty {
+            margin-top: 10px;
+            border: 1px dashed #9db0ca;
+            border-radius: 10px;
+            padding: 16px;
+            color: #42566f;
+            text-align: center;
+            font-size: 14px;
+            background: #f8fbff;
+        }
+
+        .is-hidden {
+            display: none;
+        }
+
+        @media (max-width: 980px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <section class="top">
+            <div class="title">
+                <h1>Teacher Information Module</h1>
+                <p>Manage teacher records for your current branch and academic year scope.</p>
+            </div>
+            <div class="actions">
+                <a class="btn-link btn-home" href="/dashboard">Dashboard</a>
+                <a class="btn-link btn-back" href="/">Login</a>
+            </div>
+        </section>
+
+        <section class="grid">
+            <article class="card">
+                <h2>Add Teacher</h2>
+                <p>Capture teacher details and workload settings.</p>
+
+                {% if success %}
+                <div class="success">{{ success }}</div>
+                {% endif %}
+
+                {% if error %}
+                <div class="error">{{ error }}</div>
+                {% endif %}
+
+                {% if detail_errors %}
+                <ul class="error-list">
+                    {% for item in detail_errors %}
+                    <li>{{ item }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+
+                {% if can_modify %}
+                <form method="post" action="/teachers" autocomplete="off">
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="teacher_id">Teacher ID</label>
+                            <input id="teacher_id" type="text" name="teacher_id" maxlength="9" placeholder="9-digit numeric ID" required>
+                        </div>
+                        <div class="field">
+                            <label for="subject_code">Subject Code</label>
+                            <select id="subject_code" name="subject_code" required>
+                                <option value="" selected disabled>Select Subject</option>
+                                {% for subject in subject_choices %}
+                                <option value="{{ subject.subject_code }}">{{ subject.subject_code }} - {{ subject.subject_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="first_name">First Name</label>
+                            <input id="first_name" type="text" name="first_name" required>
+                        </div>
+                        <div class="field">
+                            <label for="middle_name">Middle Name (Optional)</label>
+                            <input id="middle_name" type="text" name="middle_name">
+                        </div>
+                        <div class="field">
+                            <label for="last_name">Last Name</label>
+                            <input id="last_name" type="text" name="last_name" required>
+                        </div>
+                        <div class="field">
+                            <label for="level">Level</label>
+                            <select id="level" name="level" required>
+                                <option value="" selected disabled>Select Level</option>
+                                {% for level in level_options %}
+                                <option value="{{ level }}">{{ level }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="max_hours">Max Hours</label>
+                            <input id="max_hours" type="number" name="max_hours" min="1" value="24" required>
+                        </div>
+                        <div class="field field-wide">
+                            <label class="toggle-row" for="extra_hours_allowed">
+                                <input id="extra_hours_allowed" type="checkbox" name="extra_hours_allowed" value="on">
+                                Extra Hours Allowed
+                            </label>
+                        </div>
+                        <div class="field field-wide is-hidden" id="extraHoursCountField">
+                            <label for="extra_hours_count">Extra Hours Count</label>
+                            <input id="extra_hours_count" type="number" name="extra_hours_count" min="1" value="1">
+                        </div>
+                    </div>
+                    <button class="btn-save" type="submit">Create Teacher</button>
+                </form>
+                {% else %}
+                <div class="empty">Your role is read-only. You can view teacher records but cannot create new records.</div>
+                {% endif %}
+            </article>
+
+            <article class="card">
+                <div class="toolbar">
+                    <div>
+                        <h2>Teachers Table</h2>
+                        <p>Review teacher assignments and workload settings.</p>
+                    </div>
+                    <input id="teacherSearch" class="search" type="text" placeholder="Search by ID, name, level, subject">
+                </div>
+
+                {% if teachers %}
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Teacher ID</th>
+                                <th>Full Name</th>
+                                <th>Subject Code</th>
+                                <th>Level</th>
+                                <th>Max Hours</th>
+                                <th>Extra Hours Allowed</th>
+                                <th>Extra Hours Count</th>
+                                <th>Total Hours Capacity</th>
+                                {% if can_edit or can_delete %}
+                                <th>Actions</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody id="teachersBody">
+                            {% for teacher in teachers %}
+                            <tr class="teacher-row">
+                                <td>{{ teacher.teacher_id }}</td>
+                                <td>{{ teacher.first_name }}{% if teacher.middle_name %} {{ teacher.middle_name }}{% endif %} {{ teacher.last_name }}</td>
+                                <td>{{ teacher.subject_code }}</td>
+                                <td>{{ teacher.level or "-" }}</td>
+                                <td>{{ teacher.max_hours or 24 }}</td>
+                                <td>{{ "Yes" if teacher.extra_hours_allowed else "No" }}</td>
+                                <td>{{ teacher.extra_hours_count if teacher.extra_hours_allowed else 0 }}</td>
+                                <td>{{ (teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0) }}</td>
+                                {% if can_edit or can_delete %}
+                                <td class="row-actions">
+                                    {% if can_edit %}
+                                    <a class="row-edit" href="/teachers/edit/{{ teacher.id }}">Edit</a>
+                                    {% endif %}
+                                    {% if can_delete %}
+                                    <a class="row-delete" href="/teachers/delete/{{ teacher.id }}" onclick="return confirm('Delete this teacher record?');">Delete</a>
+                                    {% endif %}
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div id="noTeacherResult" class="empty" style="display:none;">No teachers match your search.</div>
+                {% else %}
+                <div class="empty">No teacher records found for the current scope.</div>
+                {% endif %}
+            </article>
+        </section>
+    </div>
+
+    <script>
+        const searchInput = document.getElementById("teacherSearch");
+        const rows = Array.from(document.querySelectorAll(".teacher-row"));
+        const noResult = document.getElementById("noTeacherResult");
+        const extraAllowed = document.getElementById("extra_hours_allowed");
+        const extraCountField = document.getElementById("extraHoursCountField");
+        const extraCountInput = document.getElementById("extra_hours_count");
+        const teacherIdInput = document.getElementById("teacher_id");
+
+        const syncExtraHoursVisibility = () => {
+            if (!extraAllowed || !extraCountField || !extraCountInput) {
+                return;
+            }
+            const enabled = extraAllowed.checked;
+            extraCountField.style.display = enabled ? "" : "none";
+            extraCountInput.disabled = !enabled;
+            if (!enabled) {
+                extraCountInput.value = "1";
+            }
+        };
+
+        if (extraAllowed) {
+            extraAllowed.addEventListener("change", syncExtraHoursVisibility);
+            syncExtraHoursVisibility();
+        }
+
+        if (teacherIdInput) {
+            teacherIdInput.addEventListener("input", () => {
+                teacherIdInput.value = teacherIdInput.value.replace(/\D/g, "").slice(0, 9);
+            });
+        }
+
+        if (searchInput && rows.length > 0) {
+            searchInput.addEventListener("input", () => {
+                const term = searchInput.value.trim().toLowerCase();
+                let visible = 0;
+
+                rows.forEach((row) => {
+                    const text = row.textContent.toLowerCase();
+                    const match = text.includes(term);
+                    row.style.display = match ? "" : "none";
+                    if (match) {
+                        visible += 1;
+                    }
+                });
+
+                if (noResult) {
+                    noResult.style.display = visible === 0 ? "block" : "none";
+                }
+            });
+        }
+    </script>
+</body>
+</html>

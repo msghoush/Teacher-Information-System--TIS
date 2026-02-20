@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Teacher - TIS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --bg: #f3f6fb;
+            --card: #ffffff;
+            --line: #d8e2f0;
+            --ink: #1f2737;
+            --muted: #5d6b82;
+            --brand: #0f766e;
+            --brand-dark: #0c5751;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--ink);
+            font-family: "Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif;
+            background:
+                radial-gradient(650px 420px at 0% 0%, rgba(15, 118, 110, 0.12), transparent 65%),
+                radial-gradient(620px 420px at 100% 100%, rgba(217, 119, 6, 0.12), transparent 62%),
+                var(--bg);
+            padding: 22px 14px;
+            display: grid;
+            place-items: center;
+        }
+
+        .panel {
+            width: 100%;
+            max-width: 780px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 18px;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .sub {
+            margin: 6px 0 14px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .error {
+            background: #ffe8e5;
+            color: #8f1d18;
+            border-left: 4px solid #b42318;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .field-wide {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-size: 13px;
+            color: #415068;
+            font-weight: 700;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 10px 11px;
+            border: 1px solid #c6d4e8;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #fff;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--brand);
+            box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #415068;
+            font-weight: 700;
+        }
+
+        .toggle-row input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--brand);
+            cursor: pointer;
+        }
+
+        .actions {
+            margin-top: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .btn {
+            text-decoration: none;
+            border: none;
+            border-radius: 9px;
+            cursor: pointer;
+            padding: 10px 12px;
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .btn-save {
+            background: linear-gradient(140deg, var(--brand), var(--brand-dark));
+        }
+
+        .btn-secondary {
+            background: #4b5563;
+        }
+
+        .btn-home {
+            background: #2563eb;
+        }
+
+        @media (max-width: 760px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="panel">
+        <h1>Edit Teacher</h1>
+        <p class="sub">Update teacher details and workload rules in your current branch/year scope.</p>
+
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <form method="post" action="/teachers/edit/{{ teacher.id }}" autocomplete="off">
+            <div class="grid">
+                <div class="field">
+                    <label for="teacher_id">Teacher ID</label>
+                    <input id="teacher_id" type="text" name="teacher_id" maxlength="9" value="{{ teacher.teacher_id }}" required>
+                </div>
+                <div class="field">
+                    <label for="subject_code">Subject Code</label>
+                    <select id="subject_code" name="subject_code" required>
+                        {% for subject in subject_choices %}
+                        <option value="{{ subject.subject_code }}" {% if teacher.subject_code == subject.subject_code %}selected{% endif %}>
+                            {{ subject.subject_code }} - {{ subject.subject_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="first_name">First Name</label>
+                    <input id="first_name" type="text" name="first_name" value="{{ teacher.first_name }}" required>
+                </div>
+                <div class="field">
+                    <label for="middle_name">Middle Name (Optional)</label>
+                    <input id="middle_name" type="text" name="middle_name" value="{{ teacher.middle_name or '' }}">
+                </div>
+                <div class="field">
+                    <label for="last_name">Last Name</label>
+                    <input id="last_name" type="text" name="last_name" value="{{ teacher.last_name }}" required>
+                </div>
+                <div class="field">
+                    <label for="level">Level</label>
+                    <select id="level" name="level" required>
+                        {% for option in level_options %}
+                        <option value="{{ option }}" {% if teacher.level == option %}selected{% endif %}>{{ option }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="max_hours">Max Hours</label>
+                    <input id="max_hours" type="number" name="max_hours" min="1" value="{{ teacher.max_hours or 24 }}" required>
+                </div>
+                <div class="field field-wide">
+                    <label class="toggle-row" for="extra_hours_allowed">
+                        <input id="extra_hours_allowed" type="checkbox" name="extra_hours_allowed" value="on" {% if teacher.extra_hours_allowed %}checked{% endif %}>
+                        Extra Hours Allowed
+                    </label>
+                </div>
+                <div class="field field-wide" id="extraHoursCountField">
+                    <label for="extra_hours_count">Extra Hours Count</label>
+                    <input id="extra_hours_count" type="number" name="extra_hours_count" min="1" value="{{ teacher.extra_hours_count if teacher.extra_hours_count else 1 }}">
+                </div>
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-save" type="submit">Save Changes</button>
+                <a class="btn btn-secondary" href="/teachers">Cancel</a>
+                <a class="btn btn-home" href="/dashboard">Dashboard</a>
+            </div>
+        </form>
+    </main>
+
+    <script>
+        const teacherIdInput = document.getElementById("teacher_id");
+        const extraAllowed = document.getElementById("extra_hours_allowed");
+        const extraCountField = document.getElementById("extraHoursCountField");
+        const extraCountInput = document.getElementById("extra_hours_count");
+
+        const syncExtraHoursVisibility = () => {
+            if (!extraAllowed || !extraCountField || !extraCountInput) {
+                return;
+            }
+            const enabled = extraAllowed.checked;
+            extraCountField.style.display = enabled ? "" : "none";
+            extraCountInput.disabled = !enabled;
+            if (!enabled) {
+                extraCountInput.value = "1";
+            }
+        };
+
+        if (teacherIdInput) {
+            teacherIdInput.addEventListener("input", () => {
+                teacherIdInput.value = teacherIdInput.value.replace(/\D/g, "").slice(0, 9);
+            });
+        }
+
+        if (extraAllowed) {
+            extraAllowed.addEventListener("change", syncExtraHoursVisibility);
+            syncExtraHoursVisibility();
+        }
+    </script>
+</body>
+</html>
