@@ -167,8 +167,8 @@
         <form method="post" action="/teachers/edit/{{ teacher.id }}" autocomplete="off">
             <div class="grid">
                 <div class="field">
-                    <label for="teacher_id">Teacher ID</label>
-                    <input id="teacher_id" type="text" name="teacher_id" maxlength="9" value="{{ teacher.teacher_id }}" required>
+                    <label for="teacher_id">Teacher Iqama/National ID</label>
+                    <input id="teacher_id" type="text" name="teacher_id" maxlength="10" value="{{ teacher.teacher_id }}" required>
                 </div>
                 <div class="field">
                     <label for="subject_code">Subject Code</label>
@@ -247,7 +247,7 @@
 
         if (teacherIdInput) {
             teacherIdInput.addEventListener("input", () => {
-                teacherIdInput.value = teacherIdInput.value.replace(/\D/g, "").slice(0, 9);
+                teacherIdInput.value = teacherIdInput.value.replace(/\D/g, "").slice(0, 10);
             });
         }
 

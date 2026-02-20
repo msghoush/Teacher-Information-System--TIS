@@ -179,8 +179,8 @@
         <form method="post" action="/users/edit/{{ user_row.id }}">
             <div class="grid">
                 <div class="field">
-                    <label for="user_id">User ID</label>
-                    <input id="user_id" type="text" name="user_id" value="{{ form_data.get('user_id', user_row.user_id or user_row.username) }}" required>
+                    <label for="user_id">User Iqama/National ID</label>
+                    <input id="user_id" type="text" name="user_id" maxlength="10" inputmode="numeric" value="{{ form_data.get('user_id', user_row.user_id or user_row.username) }}" required>
                 </div>
                 <div class="field">
                     <label for="first_name">First Name</label>
@@ -234,5 +234,15 @@
             </div>
         </form>
     </main>
+
+    <script>
+        const userIdInput = document.getElementById("user_id");
+
+        if (userIdInput) {
+            userIdInput.addEventListener("input", () => {
+                userIdInput.value = userIdInput.value.replace(/\D/g, "").slice(0, 10);
+            });
+        }
+    </script>
 </body>
 </html>

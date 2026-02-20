@@ -533,8 +533,8 @@
                 <form id="createUserForm" method="post" action="/users" autocomplete="off">
                     <div class="form-grid">
                         <div class="field">
-                            <label for="user_id">User ID</label>
-                            <input id="user_id" type="text" name="user_id" placeholder="Unique User ID" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+                            <label for="user_id">User Iqama/National ID</label>
+                            <input id="user_id" type="text" name="user_id" maxlength="10" inputmode="numeric" placeholder="Unique Iqama/National ID (max 10 digits)" autocomplete="off" autocapitalize="none" spellcheck="false" required>
                         </div>
                         <div class="field">
                             <label for="first_name">First Name</label>
@@ -703,6 +703,7 @@
         const searchInput = document.getElementById("usersSearch");
         const rows = Array.from(document.querySelectorAll(".user-row"));
         const noResult = document.getElementById("noUsersResult");
+        const userIdInput = document.getElementById("user_id");
         const createUserForm = document.getElementById("createUserForm");
         const selectableUsers = Array.from(document.querySelectorAll(".bulk-select-item"));
         const bulkSelectAll = document.getElementById("bulkSelectAll");
@@ -841,6 +842,12 @@
         });
 
         updateBulkDeleteState();
+
+        if (userIdInput) {
+            userIdInput.addEventListener("input", () => {
+                userIdInput.value = userIdInput.value.replace(/\D/g, "").slice(0, 10);
+            });
+        }
 
         if (searchInput && rows.length > 0) {
             searchInput.addEventListener("input", () => {

@@ -34,7 +34,7 @@ ROLE_CHOICES = [
     auth.ROLE_LIMITED,
 ]
 
-USER_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{3,30}$")
+USER_ID_PATTERN = re.compile(r"^\d{1,10}$")
 NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z\s'-]*$")
 
 
@@ -43,7 +43,7 @@ def _normalize_name(value: str) -> str:
 
 
 def _normalize_user_id(value: str) -> str:
-    return value.strip().lower()
+    return value.strip()
 
 
 def _get_user_roles_for_creator(current_user):
@@ -239,7 +239,7 @@ def create_user(
 
     errors = []
     if not USER_ID_PATTERN.match(user_id):
-        errors.append("User ID must be 3-30 characters using letters, numbers, underscore, dot, or dash.")
+        errors.append("User ID (Iqama/National ID) must be numeric and up to 10 digits.")
 
     if not NAME_PATTERN.match(first_name):
         errors.append("First name must contain letters only.")
@@ -395,7 +395,7 @@ def update_user(
 
     errors = []
     if not USER_ID_PATTERN.match(user_id):
-        errors.append("User ID must be 3-30 characters using letters, numbers, underscore, dot, or dash.")
+        errors.append("User ID (Iqama/National ID) must be numeric and up to 10 digits.")
 
     if not NAME_PATTERN.match(first_name):
         errors.append("First name must contain letters only.")

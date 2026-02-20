@@ -343,8 +343,8 @@
                 <form method="post" action="/teachers" autocomplete="off">
                     <div class="form-grid">
                         <div class="field">
-                            <label for="teacher_id">Teacher ID</label>
-                            <input id="teacher_id" type="text" name="teacher_id" maxlength="9" placeholder="9-digit numeric ID" required>
+                            <label for="teacher_id">Teacher Iqama/National ID</label>
+                            <input id="teacher_id" type="text" name="teacher_id" maxlength="10" placeholder="Iqama/National ID (max 10 digits)" required>
                         </div>
                         <div class="field">
                             <label for="subject_code">Subject Code</label>
@@ -490,7 +490,7 @@
 
         if (teacherIdInput) {
             teacherIdInput.addEventListener("input", () => {
-                teacherIdInput.value = teacherIdInput.value.replace(/\D/g, "").slice(0, 9);
+                teacherIdInput.value = teacherIdInput.value.replace(/\D/g, "").slice(0, 10);
             });
         }
 

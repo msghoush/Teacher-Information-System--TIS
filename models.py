@@ -21,7 +21,7 @@ class AcademicYear(Base):
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
-    user_id = Column(String(20), unique=True, index=True)
+    user_id = Column(String(10), unique=True, index=True)
     username = Column(String(50), unique=True, index=True)
     first_name = Column(String)
     last_name = Column(String)
@@ -47,7 +47,7 @@ class Subject(Base):
 class Teacher(Base):
     __tablename__ = "teachers"
     id = Column(Integer, primary_key=True)
-    teacher_id = Column(String(9), unique=True)
+    teacher_id = Column(String(10), unique=True)
     first_name = Column(String)
     middle_name = Column(String)
     last_name = Column(String)

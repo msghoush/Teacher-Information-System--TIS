@@ -14,7 +14,7 @@ from auth import get_current_user
 router = APIRouter(prefix="/teachers", tags=["Teachers"])
 templates = Jinja2Templates(directory="templates")
 
-TEACHER_ID_PATTERN = re.compile(r"^\d{9}$")
+TEACHER_ID_PATTERN = re.compile(r"^\d{1,10}$")
 NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z\s'\-]*$")
 
 LEVEL_OPTIONS = [
@@ -185,7 +185,7 @@ def create_teacher(
 
     errors = []
     if not TEACHER_ID_PATTERN.match(teacher_id):
-        errors.append("Teacher ID must be numeric and exactly 9 digits.")
+        errors.append("Teacher ID (Iqama/National ID) must be numeric and up to 10 digits.")
 
     if not first_name:
         errors.append("First name is required.")
@@ -350,7 +350,7 @@ def update_teacher(
 
     errors = []
     if not TEACHER_ID_PATTERN.match(teacher_id):
-        errors.append("Teacher ID must be numeric and exactly 9 digits.")
+        errors.append("Teacher ID (Iqama/National ID) must be numeric and up to 10 digits.")
 
     if not first_name:
         errors.append("First name is required.")

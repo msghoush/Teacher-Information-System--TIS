@@ -680,9 +680,20 @@ def _ensure_teachers_table_columns():
     if "teachers" not in inspector.get_table_names():
         return
 
+    teacher_columns = inspector.get_columns("teachers")
     existing_columns = {
-        col["name"] for col in inspector.get_columns("teachers")
+        col["name"] for col in teacher_columns
     }
+    teacher_id_column = next(
+        (col for col in teacher_columns if col.get("name") == "teacher_id"),
+        None
+    )
+    teacher_id_length = (
+        getattr(teacher_id_column.get("type"), "length", None)
+        if teacher_id_column
+        else None
+    )
+    db_dialect = engine.dialect.name
 
     with engine.begin() as connection:
         if "middle_name" not in existing_columns:
@@ -697,6 +708,15 @@ def _ensure_teachers_table_columns():
             connection.execute(
                 text("ALTER TABLE teachers ADD COLUMN extra_hours_count INTEGER DEFAULT 0")
             )
+        if teacher_id_column and teacher_id_length and teacher_id_length < 10:
+            if db_dialect == "postgresql":
+                connection.execute(
+                    text("ALTER TABLE teachers ALTER COLUMN teacher_id TYPE VARCHAR(10)")
+                )
+            elif db_dialect in {"mysql", "mariadb"}:
+                connection.execute(
+                    text("ALTER TABLE teachers MODIFY teacher_id VARCHAR(10)")
+                )
 
         connection.execute(
             text("UPDATE teachers SET extra_hours_allowed = FALSE WHERE extra_hours_allowed IS NULL")
