@@ -105,29 +105,71 @@
         .subject-picker {
             border: 1px solid #c6d4e8;
             border-radius: 8px;
-            background: #f8fbff;
+            background: #f3f8ff;
             max-height: 220px;
             overflow: auto;
             padding: 8px;
         }
 
-        .subject-option {
-            display: flex;
-            align-items: flex-start;
-            gap: 8px;
-            padding: 6px 2px;
+        .subject-search {
+            width: 100%;
+            padding: 9px 10px;
+            border: 1px solid #c6d4e8;
+            border-radius: 8px;
             font-size: 13px;
-            color: #324866;
-            border-bottom: 1px dashed #d7e4f6;
+            background: #fff;
+            margin-bottom: 8px;
         }
 
-        .subject-option:last-child {
-            border-bottom: none;
+        .subject-picker-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .subject-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            font-size: 13px;
+            color: #324866;
+            border: 1px solid #d7e4f6;
+            border-radius: 8px;
+            background: #fff;
         }
 
         .subject-option input[type="checkbox"] {
-            margin-top: 2px;
+            margin-top: 0;
             accent-color: var(--brand);
+        }
+
+        .subject-main {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .subject-main strong {
+            font-size: 12px;
+            color: #1f3759;
+            letter-spacing: 0.3px;
+        }
+
+        .subject-main small {
+            font-size: 12px;
+            color: #4b5f7d;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .subject-meta {
+            font-size: 11px;
+            color: #5d6b82;
+            white-space: nowrap;
         }
 
         .subject-empty {
@@ -197,6 +239,10 @@
             .grid {
                 grid-template-columns: 1fr;
             }
+
+            .subject-picker-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -217,14 +263,22 @@
                 </div>
                 <div class="field field-wide">
                     <label>Assigned Subjects</label>
+                    <input id="subjectSearchInput" class="subject-search" type="text" placeholder="Search by code, subject name, or grade">
                     <div class="subject-picker" id="subjectPicker">
                         {% if subject_choices %}
+                        <div class="subject-picker-grid" id="subjectPickerGrid">
                         {% for subject in subject_choices %}
-                        <label class="subject-option" for="subject_code_{{ loop.index }}">
+                        <label class="subject-option subject-option-item" data-search="{{ (subject.subject_code ~ ' ' ~ subject.subject_name ~ ' grade ' ~ (subject.grade if subject.grade is not none else '')) | lower }}" for="subject_code_{{ loop.index }}">
                             <input id="subject_code_{{ loop.index }}" type="checkbox" name="subject_codes" value="{{ subject.subject_code }}" data-hours="{{ subject.weekly_hours or 0 }}" {% if assigned_subject_codes and subject.subject_code in assigned_subject_codes %}checked{% endif %}>
-                            <span>{{ subject.subject_code }} - {{ subject.subject_name }} | Grade {{ subject.grade if subject.grade is not none else "-" }} | {{ subject.weekly_hours or 0 }}h</span>
+                            <span class="subject-main">
+                                <strong>{{ subject.subject_code }}</strong>
+                                <small>{{ subject.subject_name }}</small>
+                            </span>
+                            <span class="subject-meta">Grade {{ subject.grade if subject.grade is not none else "-" }} | {{ subject.weekly_hours or 0 }}h</span>
                         </label>
                         {% endfor %}
+                        </div>
+                        <div id="subjectNoResult" class="subject-empty" style="display:none;">No subjects match your search.</div>
                         {% else %}
                         <div class="subject-empty">No subjects available for this branch and academic year.</div>
                         {% endif %}
@@ -282,6 +336,9 @@
         const extraCountInput = document.getElementById("extra_hours_count");
         const maxHoursInput = document.getElementById("max_hours");
         const teacherForm = document.querySelector("form[method='post']");
+        const subjectSearchInput = document.getElementById("subjectSearchInput");
+        const subjectOptionItems = Array.from(document.querySelectorAll(".subject-option-item"));
+        const subjectNoResult = document.getElementById("subjectNoResult");
         const subjectCodeInputs = Array.from(document.querySelectorAll("input[name='subject_codes']"));
         const allocationSummary = document.getElementById("allocationSummary");
         const standardMaxHours = 24;
@@ -296,18 +353,58 @@
             }, 0);
         };
 
+        const getSafeMaxHours = () => {
+            const parsedMaxHours = Number(maxHoursInput ? maxHoursInput.value : 0);
+            return Number.isFinite(parsedMaxHours) && parsedMaxHours > 0 ? parsedMaxHours : 0;
+        };
+
+        const getSafeExtraHours = () => {
+            if (!extraAllowed || !extraAllowed.checked) {
+                return 0;
+            }
+            const parsedExtraHours = Number(extraCountInput ? extraCountInput.value : 0);
+            return Number.isFinite(parsedExtraHours) && parsedExtraHours > 0 ? parsedExtraHours : 0;
+        };
+
+        const getRequiredAllocationHours = () => {
+            return getSafeMaxHours() + getSafeExtraHours();
+        };
+
         const updateAllocationSummary = () => {
             if (!allocationSummary || !maxHoursInput) {
                 return;
             }
 
             const allocatedHours = getAllocatedSubjectHours();
-            const maxHours = Number(maxHoursInput.value);
-            const safeMaxHours = Number.isFinite(maxHours) && maxHours > 0 ? maxHours : 0;
-            const isMatch = safeMaxHours > 0 && allocatedHours === safeMaxHours;
+            const safeMaxHours = getSafeMaxHours();
+            const safeExtraHours = getSafeExtraHours();
+            const requiredHours = getRequiredAllocationHours();
+            const isMatch = requiredHours > 0 && allocatedHours === requiredHours;
 
-            allocationSummary.textContent = `Allocated subject hours: ${allocatedHours} / Max Hours: ${safeMaxHours}${isMatch ? " (Matched)" : " (Must match exactly)"}`;
+            allocationSummary.textContent = `Allocated subject hours: ${allocatedHours} / Required allocation hours: ${requiredHours} (Max ${safeMaxHours} + Extra ${safeExtraHours})${isMatch ? " (Matched)" : " (Must match exactly)"}`;
             allocationSummary.classList.toggle("mismatch", !isMatch);
+        };
+
+        const filterSubjectOptions = () => {
+            if (!subjectSearchInput || subjectOptionItems.length === 0) {
+                return;
+            }
+
+            const term = subjectSearchInput.value.trim().toLowerCase();
+            let visibleCount = 0;
+
+            subjectOptionItems.forEach((item) => {
+                const text = (item.dataset.search || item.textContent || "").toLowerCase();
+                const match = text.includes(term);
+                item.style.display = match ? "" : "none";
+                if (match) {
+                    visibleCount += 1;
+                }
+            });
+
+            if (subjectNoResult) {
+                subjectNoResult.style.display = visibleCount === 0 ? "block" : "none";
+            }
         };
 
         const syncExtraHoursVisibility = () => {
@@ -332,6 +429,16 @@
             subjectCodeInputs.forEach((input) => {
                 input.addEventListener("change", updateAllocationSummary);
             });
+        }
+
+        if (subjectSearchInput) {
+            subjectSearchInput.addEventListener("input", filterSubjectOptions);
+            filterSubjectOptions();
+        }
+
+        if (extraCountInput) {
+            extraCountInput.addEventListener("input", updateAllocationSummary);
+            extraCountInput.addEventListener("change", updateAllocationSummary);
         }
 
         if (maxHoursInput) {
@@ -388,16 +495,20 @@
                     }
 
                     const allocatedHours = getAllocatedSubjectHours();
-                    if (!Number.isFinite(parsedValue) || allocatedHours !== parsedValue) {
+                    const requiredHours = getRequiredAllocationHours();
+                    if (!Number.isFinite(parsedValue) || allocatedHours !== requiredHours) {
                         event.preventDefault();
-                        window.alert(`Allocated subject hours (${allocatedHours}) must exactly match Max Hours (${Number.isFinite(parsedValue) ? parsedValue : 0}).`);
+                        window.alert(`Allocated subject hours (${allocatedHours}) must exactly match required allocation hours (${requiredHours}) based on Max Hours + Extra Hours.`);
                     }
                 });
             }
         }
 
         if (extraAllowed) {
-            extraAllowed.addEventListener("change", syncExtraHoursVisibility);
+            extraAllowed.addEventListener("change", () => {
+                syncExtraHoursVisibility();
+                updateAllocationSummary();
+            });
             syncExtraHoursVisibility();
         }
 

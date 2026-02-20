@@ -144,6 +144,14 @@ def _get_teacher_allocation_map(db: Session, teachers):
             "subject_codes": [],
             "subject_labels": [],
             "allocated_hours": 0,
+            "required_hours": (
+                (teacher.max_hours or STANDARD_MAX_HOURS)
+                + (
+                    (teacher.extra_hours_count or 0)
+                    if teacher.extra_hours_allowed
+                    else 0
+                )
+            ),
             "matches_max_hours": False,
         }
         for teacher in teachers
@@ -164,7 +172,7 @@ def _get_teacher_allocation_map(db: Session, teachers):
     for teacher in teachers:
         teacher_data = allocation_map.get(teacher.id, {})
         teacher_data["matches_max_hours"] = (
-            teacher_data.get("allocated_hours", 0) == (teacher.max_hours or STANDARD_MAX_HOURS)
+            teacher_data.get("allocated_hours", 0) == teacher_data.get("required_hours", 0)
         )
 
     return allocation_map
@@ -310,22 +318,28 @@ def create_teacher(
     elif parsed_max_hours > STANDARD_MAX_HOURS and not allowed_extra:
         errors.append("To set max hours above 24, enable Extra Hours Allowed first.")
 
+    if allowed_extra:
+        if parsed_extra_hours_count is None or parsed_extra_hours_count <= 0:
+            errors.append("Extra hours count must be a positive whole number when extra hours are allowed.")
+    else:
+        parsed_extra_hours_count = 0
+
     if parsed_max_hours is not None and parsed_max_hours > 0 and subject_map:
         allocated_subject_hours = sum(
             (subject_map[code].weekly_hours or 0)
             for code in normalized_subject_codes
             if code in subject_map
         )
-        if allocated_subject_hours != parsed_max_hours:
+        required_allocation_hours = parsed_max_hours + (
+            parsed_extra_hours_count if allowed_extra and parsed_extra_hours_count else 0
+        )
+        if allocated_subject_hours != required_allocation_hours:
             errors.append(
-                f"Allocated subject hours ({allocated_subject_hours}) must exactly match Max Hours ({parsed_max_hours})."
+                "Allocated subject hours "
+                f"({allocated_subject_hours}) must exactly match required hours "
+                f"({required_allocation_hours}) based on Max Hours ({parsed_max_hours}) "
+                f"+ Extra Hours ({parsed_extra_hours_count if allowed_extra else 0})."
             )
-
-    if allowed_extra:
-        if parsed_extra_hours_count is None or parsed_extra_hours_count <= 0:
-            errors.append("Extra hours count must be a positive whole number when extra hours are allowed.")
-    else:
-        parsed_extra_hours_count = 0
 
     duplicate_teacher = db.query(models.Teacher).filter(
         models.Teacher.teacher_id == teacher_id
@@ -517,22 +531,28 @@ def update_teacher(
     elif parsed_max_hours > STANDARD_MAX_HOURS and not allowed_extra:
         errors.append("To set max hours above 24, enable Extra Hours Allowed first.")
 
+    if allowed_extra:
+        if parsed_extra_hours_count is None or parsed_extra_hours_count <= 0:
+            errors.append("Extra hours count must be a positive whole number when extra hours are allowed.")
+    else:
+        parsed_extra_hours_count = 0
+
     if parsed_max_hours is not None and parsed_max_hours > 0 and subject_map:
         allocated_subject_hours = sum(
             (subject_map[code].weekly_hours or 0)
             for code in normalized_subject_codes
             if code in subject_map
         )
-        if allocated_subject_hours != parsed_max_hours:
+        required_allocation_hours = parsed_max_hours + (
+            parsed_extra_hours_count if allowed_extra and parsed_extra_hours_count else 0
+        )
+        if allocated_subject_hours != required_allocation_hours:
             errors.append(
-                f"Allocated subject hours ({allocated_subject_hours}) must exactly match Max Hours ({parsed_max_hours})."
+                "Allocated subject hours "
+                f"({allocated_subject_hours}) must exactly match required hours "
+                f"({required_allocation_hours}) based on Max Hours ({parsed_max_hours}) "
+                f"+ Extra Hours ({parsed_extra_hours_count if allowed_extra else 0})."
             )
-
-    if allowed_extra:
-        if parsed_extra_hours_count is None or parsed_extra_hours_count <= 0:
-            errors.append("Extra hours count must be a positive whole number when extra hours are allowed.")
-    else:
-        parsed_extra_hours_count = 0
 
     duplicate_teacher = db.query(models.Teacher).filter(
         models.Teacher.teacher_id == teacher_id,
