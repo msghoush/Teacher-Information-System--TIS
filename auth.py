@@ -229,4 +229,9 @@ def get_current_user(
     user.can_access_all_branches = can_all_branch_scope
     user.can_access_all_years = can_all_year_scope
 
+    request.state.audit_actor_user_id = user.user_id
+    request.state.audit_actor_username = user.username or ""
+    request.state.audit_actor_role = normalize_role(user.role)
+    request.state.audit_actor_branch_id = user.branch_id
+
     return user
