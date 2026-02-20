@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Form, Depends
-from fastapi.responses import RedirectResponse, HTMLResponse, FileResponse, PlainTextResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
@@ -41,28 +41,6 @@ def _resolve_client_ip(request: Request) -> str:
     return ""
 
 
-def _get_audit_actor_from_user_id(user_id: str):
-    if not user_id:
-        return None
-
-    db = SessionLocal()
-    try:
-        user = db.query(models.User).filter(
-            models.User.user_id == user_id
-        ).first()
-        if not user:
-            return None
-
-        return {
-            "actor_user_id": user.user_id,
-            "actor_username": user.username or "",
-            "actor_role": auth.normalize_role(user.role),
-            "actor_branch_id": user.branch_id,
-        }
-    finally:
-        db.close()
-
-
 def _resolve_audit_actor(request: Request):
     actor_user_id = getattr(request.state, "audit_actor_user_id", None)
     actor_username = getattr(request.state, "audit_actor_username", None)
@@ -79,9 +57,6 @@ def _resolve_audit_actor(request: Request):
 
     cookie_user_id = request.cookies.get("user_id")
     if cookie_user_id:
-        actor = _get_audit_actor_from_user_id(cookie_user_id)
-        if actor:
-            return actor
         return {
             "actor_user_id": cookie_user_id,
             "actor_username": "",
@@ -346,11 +321,30 @@ def download_audit_log(
             status_code=404
         )
 
-    return FileResponse(
-        path=str(audit_log_path),
-        filename=audit_log_path.name,
-        media_type="text/plain"
+    try:
+        file_handle = open(audit_log_path, "rb")
+    except OSError:
+        return PlainTextResponse(
+            "Audit log file is temporarily unavailable. Please retry in a moment.",
+            status_code=503
+        )
+
+    def _iter_audit_file():
+        with file_handle:
+            while True:
+                chunk = file_handle.read(64 * 1024)
+                if not chunk:
+                    break
+                yield chunk
+
+    response = StreamingResponse(
+        _iter_audit_file(),
+        media_type="text/plain",
     )
+    response.headers["Content-Disposition"] = (
+        f"attachment; filename={audit_log_path.name}"
+    )
+    return response
 
 
 # ---------------------------------------
