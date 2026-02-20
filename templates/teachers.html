@@ -378,7 +378,7 @@
                         </div>
                         <div class="field">
                             <label for="max_hours">Max Hours</label>
-                            <input id="max_hours" type="number" name="max_hours" min="1" value="24" required>
+                            <input id="max_hours" type="number" name="max_hours" min="1" max="24" value="24" required>
                         </div>
                         <div class="field field-wide">
                             <label class="toggle-row" for="extra_hours_allowed">
@@ -467,6 +467,8 @@
         const extraCountField = document.getElementById("extraHoursCountField");
         const extraCountInput = document.getElementById("extra_hours_count");
         const teacherIdInput = document.getElementById("teacher_id");
+        const maxHoursInput = document.getElementById("max_hours");
+        const maxAllowedHours = 24;
 
         const syncExtraHoursVisibility = () => {
             if (!extraAllowed || !extraCountField || !extraCountInput) {
@@ -489,6 +491,21 @@
             teacherIdInput.addEventListener("input", () => {
                 teacherIdInput.value = teacherIdInput.value.replace(/\D/g, "").slice(0, 9);
             });
+        }
+
+        if (maxHoursInput) {
+            const enforceMaxHoursLimit = () => {
+                const parsedValue = Number(maxHoursInput.value);
+                if (!Number.isFinite(parsedValue) || parsedValue <= maxAllowedHours) {
+                    return;
+                }
+
+                maxHoursInput.value = String(maxAllowedHours);
+                window.alert("Maximum allowed hours per teacher is 24. The value was reset to 24.");
+            };
+
+            maxHoursInput.addEventListener("input", enforceMaxHoursLimit);
+            maxHoursInput.addEventListener("change", enforceMaxHoursLimit);
         }
 
         if (searchInput && rows.length > 0) {

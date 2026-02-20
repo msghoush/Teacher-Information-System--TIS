@@ -34,6 +34,7 @@ LEVEL_OPTIONS = [
     "Grade 11",
     "Grade 12",
 ]
+MAX_ALLOWED_HOURS = 24
 
 
 def _get_scope_ids(current_user):
@@ -75,6 +76,13 @@ def _parse_int(value):
         return int(text)
     except ValueError:
         return None
+
+
+def _clamp_max_hours(value):
+    parsed_value = _parse_int(value)
+    if parsed_value is None:
+        return None
+    return min(parsed_value, MAX_ALLOWED_HOURS)
 
 
 def _is_extra_hours_allowed(value) -> bool:
@@ -178,7 +186,7 @@ def create_teacher(
     last_name = _normalize_name(last_name)
     subject_code = _normalize_spaces(subject_code).strip().upper()
     level = _normalize_spaces(level).strip()
-    parsed_max_hours = _parse_int(max_hours)
+    parsed_max_hours = _clamp_max_hours(max_hours)
     allowed_extra = _is_extra_hours_allowed(extra_hours_allowed)
     parsed_extra_hours_count = _parse_int(extra_hours_count)
 
@@ -243,7 +251,7 @@ def create_teacher(
         last_name=last_name,
         subject_code=subject_code,
         level=level,
-        max_hours=parsed_max_hours if parsed_max_hours is not None else 24,
+        max_hours=parsed_max_hours if parsed_max_hours is not None else MAX_ALLOWED_HOURS,
         extra_hours_allowed=allowed_extra,
         extra_hours_count=parsed_extra_hours_count if parsed_extra_hours_count is not None else 0,
         branch_id=branch_id,
@@ -341,7 +349,7 @@ def update_teacher(
     last_name = _normalize_name(last_name)
     subject_code = _normalize_spaces(subject_code).strip().upper()
     level = _normalize_spaces(level).strip()
-    parsed_max_hours = _parse_int(max_hours)
+    parsed_max_hours = _clamp_max_hours(max_hours)
     allowed_extra = _is_extra_hours_allowed(extra_hours_allowed)
     parsed_extra_hours_count = _parse_int(extra_hours_count)
 
@@ -406,7 +414,7 @@ def update_teacher(
     teacher.last_name = last_name
     teacher.subject_code = subject_code
     teacher.level = level
-    teacher.max_hours = parsed_max_hours if parsed_max_hours is not None else 24
+    teacher.max_hours = parsed_max_hours if parsed_max_hours is not None else MAX_ALLOWED_HOURS
     teacher.extra_hours_allowed = allowed_extra
     teacher.extra_hours_count = parsed_extra_hours_count if parsed_extra_hours_count is not None else 0
 
