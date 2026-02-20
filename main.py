@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Form, Depends
+from fastapi import FastAPI, Request, Form, Depends, Query
 from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -15,7 +15,13 @@ from dependencies import get_db
 from routers import subjects, users
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
-from audit import get_audit_log_path, get_audit_logger, write_audit_event
+from audit import (
+    get_audit_log_path,
+    get_audit_logger,
+    write_audit_event,
+    iter_audit_csv_bytes,
+    get_audit_csv_filename,
+)
 
 # ---------------------------------------
 # Create Tables
@@ -305,6 +311,7 @@ def logout():
 @app.get("/admin/audit-log")
 def download_audit_log(
     request: Request,
+    format: str = Query(default="csv"),
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
@@ -320,6 +327,23 @@ def download_audit_log(
             "Audit log file has not been created yet.",
             status_code=404
         )
+
+    download_format = str(format).strip().lower()
+    if download_format not in {"csv", "raw"}:
+        return PlainTextResponse(
+            "Unsupported format. Use ?format=csv or ?format=raw.",
+            status_code=400
+        )
+
+    if download_format == "csv":
+        response = StreamingResponse(
+            iter_audit_csv_bytes(audit_log_path),
+            media_type="text/csv",
+        )
+        response.headers["Content-Disposition"] = (
+            f"attachment; filename={get_audit_csv_filename()}"
+        )
+        return response
 
     try:
         file_handle = open(audit_log_path, "rb")
