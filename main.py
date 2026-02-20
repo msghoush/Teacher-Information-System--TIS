@@ -12,7 +12,7 @@ from database import engine, SessionLocal
 import models
 import auth
 from dependencies import get_db
-from routers import subjects, users
+from routers import subjects, users, teachers
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
 from audit import (
@@ -172,6 +172,7 @@ def _render_login_page(
 # ---------------------------------------
 app.include_router(subjects.router)
 app.include_router(users.router)
+app.include_router(teachers.router)
 
 # ---------------------------------------
 # ROOT (Login Page)
@@ -674,6 +675,37 @@ def _ensure_users_table_columns():
             )
 
 
+def _ensure_teachers_table_columns():
+    inspector = inspect(engine)
+    if "teachers" not in inspector.get_table_names():
+        return
+
+    existing_columns = {
+        col["name"] for col in inspector.get_columns("teachers")
+    }
+
+    with engine.begin() as connection:
+        if "middle_name" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE teachers ADD COLUMN middle_name VARCHAR(100)")
+            )
+        if "extra_hours_allowed" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE teachers ADD COLUMN extra_hours_allowed BOOLEAN DEFAULT FALSE")
+            )
+        if "extra_hours_count" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE teachers ADD COLUMN extra_hours_count INTEGER DEFAULT 0")
+            )
+
+        connection.execute(
+            text("UPDATE teachers SET extra_hours_allowed = FALSE WHERE extra_hours_allowed IS NULL")
+        )
+        connection.execute(
+            text("UPDATE teachers SET extra_hours_count = 0 WHERE extra_hours_count IS NULL")
+        )
+
+
 # ---------------------------------------
 # Startup Initialization
 # ---------------------------------------
@@ -681,6 +713,7 @@ def _ensure_users_table_columns():
 def setup_initial_data():
 
     _ensure_users_table_columns()
+    _ensure_teachers_table_columns()
     db = SessionLocal()
     admin_user_id = os.getenv("ADMIN_USER_ID", "2623252018")
     admin_username = os.getenv("ADMIN_USERNAME", "developer")

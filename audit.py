@@ -156,6 +156,17 @@ def _classify_action(method: str, path: str) -> str:
     if method == "POST" and path == "/users/delete-bulk":
         return "Bulk Delete Users"
 
+    if method == "GET" and path in {"/teachers", "/teachers/"}:
+        return "View Teachers"
+    if method == "POST" and path in {"/teachers", "/teachers/"}:
+        return "Create Teacher"
+    if method == "GET" and path.startswith("/teachers/edit/"):
+        return "Open Teacher Edit"
+    if method == "POST" and path.startswith("/teachers/edit/"):
+        return "Update Teacher"
+    if method == "GET" and path.startswith("/teachers/delete/"):
+        return "Delete Teacher"
+
     return "System Action"
 
 
