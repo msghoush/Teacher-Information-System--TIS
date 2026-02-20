@@ -78,6 +78,62 @@
             font-weight: 700;
         }
 
+        .icon {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
+        }
+
+        .icon-action {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #c6d4e8;
+            border-radius: 8px;
+            color: #48607f;
+            background: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease, transform 120ms ease;
+        }
+
+        .icon-action:hover {
+            color: var(--brand-dark);
+            border-color: #8fc4be;
+            background: #edf8f6;
+            transform: translateY(-1px);
+        }
+
+        .icon-action:focus-visible {
+            outline: 2px solid rgba(15, 118, 110, 0.35);
+            outline-offset: 2px;
+        }
+
+        .icon-action:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            pointer-events: none;
+        }
+
+        .icon-action-danger {
+            color: #7f1d1d;
+            border-color: #f2c2c2;
+            background: #fff7f7;
+        }
+
+        .icon-action-danger:hover {
+            color: #fff;
+            border-color: #b42318;
+            background: #b42318;
+        }
+
         .btn-home {
             background: var(--brand);
         }
@@ -316,6 +372,24 @@
             margin-bottom: 10px;
         }
 
+        .toolbar-head {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .title-with-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .title-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
         .search {
             width: 320px;
             max-width: 100%;
@@ -356,24 +430,47 @@
             border-bottom: none;
         }
 
-        .row-actions a {
-            display: inline-block;
+        .select-col {
+            width: 42px;
+            text-align: center;
+        }
+
+        .bulk-select {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--brand);
+            cursor: pointer;
+        }
+
+        .row-actions {
+            white-space: nowrap;
+        }
+
+        .row-action {
             text-decoration: none;
-            padding: 6px 9px;
-            border-radius: 7px;
-            font-size: 12px;
-            font-weight: 700;
             margin-right: 6px;
         }
 
-        .row-edit {
-            color: #fff;
-            background: #2563eb;
+        .row-action:last-child {
+            margin-right: 0;
         }
 
-        .row-delete {
+        .row-action-edit:hover {
+            color: #1d4ed8;
+            border-color: #93c5fd;
+            background: #eff6ff;
+        }
+
+        .row-action-delete {
+            color: #8f1d1d;
+            border-color: #f4c7c7;
+            background: #fff7f7;
+        }
+
+        .row-action-delete:hover {
             color: #fff;
-            background: #dc2626;
+            border-color: #b42318;
+            background: #b42318;
         }
 
         .assigned-list {
@@ -461,7 +558,7 @@
                 {% endif %}
 
                 {% if can_modify %}
-                <form method="post" action="/teachers" autocomplete="off">
+                <form id="createTeacherForm" method="post" action="/teachers" autocomplete="off">
                     <div class="form-grid">
                         <div class="field">
                             <label for="teacher_id">Teacher Iqama/National ID</label>
@@ -526,18 +623,39 @@
 
             <article class="card">
                 <div class="toolbar">
-                    <div>
-                        <h2>Teachers Table</h2>
+                    <div class="toolbar-head">
+                        <div class="title-with-actions">
+                            <h2>Teachers Table</h2>
+                            {% if can_delete %}
+                            <span class="title-actions">
+                                <button id="bulkDeleteTrigger" class="icon-action icon-action-danger" type="submit" form="bulkDeleteForm" aria-label="Delete selected teachers" title="Select teachers from the table to delete">
+                                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M3 6h18"></path>
+                                        <path d="M19 6 18 20H6L5 6"></path>
+                                        <path d="M9 10v6"></path>
+                                        <path d="M15 10v6"></path>
+                                        <path d="M10 6V4h4v2"></path>
+                                    </svg>
+                                </button>
+                            </span>
+                            {% endif %}
+                        </div>
                         <p>Review teacher assignments and workload settings.</p>
                     </div>
                     <input id="teacherSearch" class="search" type="text" placeholder="Search by ID, name, or subject">
                 </div>
 
                 {% if teachers %}
+                <form id="bulkDeleteForm" method="post" action="/teachers/delete-bulk">
                 <div class="table-wrap">
                     <table>
                         <thead>
                             <tr>
+                                {% if can_delete %}
+                                <th class="select-col">
+                                    <input id="bulkSelectAll" class="bulk-select" type="checkbox" aria-label="Select all teachers">
+                                </th>
+                                {% endif %}
                                 <th>Teacher ID</th>
                                 <th>Full Name</th>
                                 <th>Assigned Subjects</th>
@@ -556,6 +674,11 @@
                             {% for teacher in teachers %}
                             <tr class="teacher-row">
                                 {% set allocation = teacher_allocations.get(teacher.id) %}
+                                {% if can_delete %}
+                                <td class="select-col">
+                                    <input class="bulk-select bulk-select-item" type="checkbox" name="selected_teacher_ids" value="{{ teacher.id }}" aria-label="Select teacher {{ teacher.first_name }} {{ teacher.last_name }} for bulk delete">
+                                </td>
+                                {% endif %}
                                 <td>{{ teacher.teacher_id }}</td>
                                 <td>{{ teacher.first_name }}{% if teacher.middle_name %} {{ teacher.middle_name }}{% endif %} {{ teacher.last_name }}</td>
                                 <td>
@@ -578,10 +701,23 @@
                                 {% if can_edit or can_delete %}
                                 <td class="row-actions">
                                     {% if can_edit %}
-                                    <a class="row-edit" href="/teachers/edit/{{ teacher.id }}">Edit</a>
+                                    <a class="icon-action row-action row-action-edit" href="/teachers/edit/{{ teacher.id }}" aria-label="Edit teacher {{ teacher.first_name }} {{ teacher.last_name }}" title="Edit teacher">
+                                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M12 20h9"></path>
+                                            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+                                        </svg>
+                                    </a>
                                     {% endif %}
                                     {% if can_delete %}
-                                    <a class="row-delete" href="/teachers/delete/{{ teacher.id }}" onclick="return confirm('Delete this teacher record?');">Delete</a>
+                                    <a class="icon-action row-action row-action-delete" href="/teachers/delete/{{ teacher.id }}" aria-label="Delete teacher {{ teacher.first_name }} {{ teacher.last_name }}" title="Delete teacher" onclick="return confirm('Delete this teacher record?');">
+                                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M3 6h18"></path>
+                                            <path d="M19 6 18 20H6L5 6"></path>
+                                            <path d="M9 10v6"></path>
+                                            <path d="M15 10v6"></path>
+                                            <path d="M10 6V4h4v2"></path>
+                                        </svg>
+                                    </a>
                                     {% endif %}
                                 </td>
                                 {% endif %}
@@ -590,6 +726,7 @@
                         </tbody>
                     </table>
                 </div>
+                </form>
                 <div id="noTeacherResult" class="empty" style="display:none;">No teachers match your search.</div>
                 {% else %}
                 <div class="empty">No teacher records found for the current scope.</div>
@@ -602,12 +739,16 @@
         const searchInput = document.getElementById("teacherSearch");
         const rows = Array.from(document.querySelectorAll(".teacher-row"));
         const noResult = document.getElementById("noTeacherResult");
+        const selectableTeachers = Array.from(document.querySelectorAll(".bulk-select-item"));
+        const bulkSelectAll = document.getElementById("bulkSelectAll");
+        const bulkDeleteForm = document.getElementById("bulkDeleteForm");
+        const bulkDeleteTrigger = document.getElementById("bulkDeleteTrigger");
         const extraAllowed = document.getElementById("extra_hours_allowed");
         const extraCountField = document.getElementById("extraHoursCountField");
         const extraCountInput = document.getElementById("extra_hours_count");
         const teacherIdInput = document.getElementById("teacher_id");
         const maxHoursInput = document.getElementById("max_hours");
-        const teacherForm = document.querySelector("form[method='post']");
+        const teacherForm = document.getElementById("createTeacherForm");
         const subjectSearchInput = document.getElementById("subjectSearchInput");
         const subjectOptionItems = Array.from(document.querySelectorAll(".subject-option-item"));
         const subjectNoResult = document.getElementById("subjectNoResult");
@@ -690,6 +831,65 @@
                 extraCountInput.value = "1";
             }
         };
+
+        const updateBulkDeleteState = () => {
+            if (!bulkDeleteTrigger) {
+                return;
+            }
+
+            const selectedCount = selectableTeachers.filter((item) => item.checked).length;
+            bulkDeleteTrigger.disabled = selectedCount === 0;
+            bulkDeleteTrigger.title = selectedCount > 0
+                ? `Delete ${selectedCount} selected teacher${selectedCount === 1 ? "" : "s"}`
+                : "Select teachers from the table to delete";
+
+            if (bulkSelectAll) {
+                if (selectableTeachers.length === 0) {
+                    bulkSelectAll.checked = false;
+                    bulkSelectAll.indeterminate = false;
+                } else if (selectedCount === 0) {
+                    bulkSelectAll.checked = false;
+                    bulkSelectAll.indeterminate = false;
+                } else if (selectedCount === selectableTeachers.length) {
+                    bulkSelectAll.checked = true;
+                    bulkSelectAll.indeterminate = false;
+                } else {
+                    bulkSelectAll.checked = false;
+                    bulkSelectAll.indeterminate = true;
+                }
+            }
+        };
+
+        if (bulkSelectAll) {
+            bulkSelectAll.addEventListener("change", () => {
+                selectableTeachers.forEach((item) => {
+                    item.checked = bulkSelectAll.checked;
+                });
+                updateBulkDeleteState();
+            });
+        }
+
+        selectableTeachers.forEach((item) => {
+            item.addEventListener("change", updateBulkDeleteState);
+        });
+
+        if (bulkDeleteForm) {
+            bulkDeleteForm.addEventListener("submit", (event) => {
+                const selectedCount = selectableTeachers.filter((item) => item.checked).length;
+                if (selectedCount === 0) {
+                    event.preventDefault();
+                    window.alert("Select at least one teacher to delete.");
+                    return;
+                }
+
+                const confirmed = window.confirm(
+                    `You are about to delete ${selectedCount} selected teacher${selectedCount === 1 ? "" : "s"}. This action cannot be undone.`
+                );
+                if (!confirmed) {
+                    event.preventDefault();
+                }
+            });
+        }
 
         if (extraAllowed) {
             extraAllowed.addEventListener("change", () => {
@@ -785,6 +985,7 @@
         }
 
         updateAllocationSummary();
+        updateBulkDeleteState();
 
         if (searchInput && rows.length > 0) {
             searchInput.addEventListener("input", () => {

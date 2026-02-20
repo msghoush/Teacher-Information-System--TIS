@@ -620,3 +620,72 @@ def delete_teacher(
         db.commit()
 
     return RedirectResponse(url="/teachers", status_code=302)
+
+
+@router.post("/delete-bulk")
+def delete_teachers_bulk(
+    request: Request,
+    selected_teacher_ids: list[int] = Form([]),
+    db: Session = Depends(get_db),
+):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    if not auth.can_delete_data(current_user):
+        return RedirectResponse(url="/teachers", status_code=302)
+
+    unique_teacher_ids = sorted({
+        int(teacher_id)
+        for teacher_id in selected_teacher_ids
+        if teacher_id
+    })
+    if not unique_teacher_ids:
+        return _render_teachers_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Select at least one teacher to delete.",
+        )
+
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    teacher_rows = db.query(models.Teacher).filter(
+        models.Teacher.id.in_(unique_teacher_ids),
+        models.Teacher.branch_id == branch_id,
+        models.Teacher.academic_year_id == academic_year_id,
+    ).all()
+    teacher_map = {teacher.id: teacher for teacher in teacher_rows}
+    missing_ids = [
+        teacher_id for teacher_id in unique_teacher_ids
+        if teacher_id not in teacher_map
+    ]
+    if missing_ids:
+        return _render_teachers_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="One or more selected teachers were not found in your current scope.",
+        )
+
+    teacher_ids_to_delete = list(teacher_map.keys())
+    db.query(models.TeacherSubjectAllocation).filter(
+        models.TeacherSubjectAllocation.teacher_id.in_(teacher_ids_to_delete)
+    ).delete(synchronize_session=False)
+    db.query(models.Teacher).filter(
+        models.Teacher.id.in_(teacher_ids_to_delete)
+    ).delete(synchronize_session=False)
+    db.commit()
+
+    deleted_count = len(teacher_ids_to_delete)
+    success_message = (
+        "Teacher deleted successfully."
+        if deleted_count == 1
+        else f"{deleted_count} teachers deleted successfully."
+    )
+
+    return _render_teachers_page(
+        request=request,
+        db=db,
+        current_user=current_user,
+        success=success_message,
+    )
