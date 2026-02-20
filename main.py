@@ -21,6 +21,8 @@ from audit import (
     write_audit_event,
     iter_audit_csv_bytes,
     get_audit_csv_filename,
+    build_audit_xlsx_bytes,
+    get_audit_xlsx_filename,
 )
 
 # ---------------------------------------
@@ -311,7 +313,7 @@ def logout():
 @app.get("/admin/audit-log")
 def download_audit_log(
     request: Request,
-    format: str = Query(default="csv"),
+    format: str = Query(default="xlsx"),
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
@@ -329,11 +331,29 @@ def download_audit_log(
         )
 
     download_format = str(format).strip().lower()
-    if download_format not in {"csv", "raw"}:
+    if download_format not in {"xlsx", "csv", "raw"}:
         return PlainTextResponse(
-            "Unsupported format. Use ?format=csv or ?format=raw.",
+            "Unsupported format. Use ?format=xlsx or ?format=csv or ?format=raw.",
             status_code=400
         )
+
+    if download_format == "xlsx":
+        try:
+            payload = build_audit_xlsx_bytes(audit_log_path)
+        except OSError:
+            return PlainTextResponse(
+                "Audit log file is temporarily unavailable. Please retry in a moment.",
+                status_code=503
+            )
+
+        response = StreamingResponse(
+            iter([payload]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response.headers["Content-Disposition"] = (
+            f"attachment; filename={get_audit_xlsx_filename()}"
+        )
+        return response
 
     if download_format == "csv":
         response = StreamingResponse(

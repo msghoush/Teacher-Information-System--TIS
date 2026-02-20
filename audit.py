@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Dict, Iterator
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
 
 AUDIT_LOG_DIR = Path(os.getenv("AUDIT_LOG_DIR", "logs"))
 AUDIT_LOG_NAME = os.getenv("AUDIT_LOG_NAME", "system_audit.log")
@@ -43,6 +45,12 @@ def get_audit_csv_filename() -> str:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     base_name = Path(AUDIT_LOG_NAME).stem
     return f"{base_name}_{timestamp}.csv"
+
+
+def get_audit_xlsx_filename() -> str:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    base_name = Path(AUDIT_LOG_NAME).stem
+    return f"{base_name}_{timestamp}.xlsx"
 
 
 def get_audit_logger() -> logging.Logger:
@@ -224,14 +232,7 @@ def _event_to_csv_row(event: Dict[str, Any]) -> Dict[str, str]:
     }
 
 
-def iter_audit_csv_bytes(log_path: Path) -> Iterator[bytes]:
-    buffer = io.StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=AUDIT_CSV_FIELDS)
-    writer.writeheader()
-    yield buffer.getvalue().encode("utf-8")
-    buffer.seek(0)
-    buffer.truncate(0)
-
+def iter_audit_rows(log_path: Path) -> Iterator[Dict[str, str]]:
     with log_path.open("r", encoding="utf-8", errors="replace") as source:
         for raw_line in source:
             line = raw_line.strip()
@@ -240,15 +241,73 @@ def iter_audit_csv_bytes(log_path: Path) -> Iterator[bytes]:
 
             try:
                 event = json.loads(line)
-                row = _event_to_csv_row(event)
+                yield _event_to_csv_row(event)
             except json.JSONDecodeError:
                 row = {
                     field: "" for field in AUDIT_CSV_FIELDS
                 }
                 row["Action"] = "Unparsed Log Entry"
                 row["Action Details"] = line[:240]
+                yield row
 
-            writer.writerow(row)
-            yield buffer.getvalue().encode("utf-8")
-            buffer.seek(0)
-            buffer.truncate(0)
+
+def iter_audit_csv_bytes(log_path: Path) -> Iterator[bytes]:
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=AUDIT_CSV_FIELDS)
+    writer.writeheader()
+    yield buffer.getvalue().encode("utf-8")
+    buffer.seek(0)
+    buffer.truncate(0)
+
+    for row in iter_audit_rows(log_path):
+        writer.writerow(row)
+        yield buffer.getvalue().encode("utf-8")
+        buffer.seek(0)
+        buffer.truncate(0)
+
+
+def build_audit_xlsx_bytes(log_path: Path) -> bytes:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Audit Log"
+
+    sheet.append(AUDIT_CSV_FIELDS)
+    header_fill = PatternFill(start_color="0F766E", end_color="0F766E", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+
+    for col_index, header in enumerate(AUDIT_CSV_FIELDS, start=1):
+        cell = sheet.cell(row=1, column=col_index, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    for row in iter_audit_rows(log_path):
+        sheet.append([row.get(field, "") for field in AUDIT_CSV_FIELDS])
+
+    sheet.freeze_panes = "A2"
+
+    preferred_widths = {
+        "A": 13,  # Date
+        "B": 11,  # Time
+        "C": 16,  # User ID
+        "D": 18,  # Username
+        "E": 14,  # Role
+        "F": 28,  # Action
+        "G": 46,  # Action Details
+        "H": 12,  # Method
+        "I": 34,  # Endpoint
+        "J": 10,  # Status
+        "K": 14,  # Outcome
+        "L": 14,  # Branch Scope
+        "M": 20,  # Academic Year Scope
+        "N": 16,  # Client IP
+        "O": 13,  # Duration
+        "P": 20,  # Error
+        "Q": 42,  # User Agent
+    }
+    for column_key, width in preferred_widths.items():
+        sheet.column_dimensions[column_key].width = width
+
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
