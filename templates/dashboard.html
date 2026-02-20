@@ -733,7 +733,7 @@
                             <td>{{ subject.subject_code }}</td>
                             <td>{{ subject.subject_name }}</td>
                             <td>{{ subject.weekly_hours }}</td>
-                            <td>{{ subject.grade }}</td>
+                            <td>{{ "KG" if subject.grade == 0 else subject.grade }}</td>
                         </tr>
                         {% endfor %}
                     </table>
@@ -838,19 +838,34 @@
             <div class="panel" id="panel-planning">
                 <div class="panel-head">
                     <div>
-                        <h3>Planning Workspace</h3>
+                        <div class="panel-title">
+                            <h3>Planning Workspace</h3>
+                            <a class="icon-action" href="/planning" aria-label="Open planning quick actions" title="Open planning quick actions">
+                                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M8 6h13"></path>
+                                    <path d="M8 12h13"></path>
+                                    <path d="M8 18h13"></path>
+                                    <path d="M3 6h.01"></path>
+                                    <path d="M3 12h.01"></path>
+                                    <path d="M3 18h.01"></path>
+                                </svg>
+                            </a>
+                        </div>
                         <p>Interactive planning will calculate teacher load and section demand.</p>
                     </div>
-                    <span class="open-link disabled">Module In Progress</span>
                 </div>
                 <div class="tiles">
                     <div class="tile">
-                        <h4>Required Hours Model</h4>
-                        <p>Subject weekly hours multiplied by total sections per grade.</p>
+                        <h4>Total Planned Sections</h4>
+                        <p>{{ planning_total_sections }} section(s) are currently captured for this branch/year scope.</p>
                     </div>
                     <div class="tile">
-                        <h4>Capacity Check</h4>
-                        <p>Compare required hours with available teacher capacity to detect deficits.</p>
+                        <h4>Current vs New Sections</h4>
+                        <p>Current: {{ planning_current_sections_count }} | New: {{ planning_new_sections_count }}</p>
+                    </div>
+                    <div class="tile">
+                        <h4>Total Allocated Hours</h4>
+                        <p>{{ planning_total_allocated_hours }} hour(s) calculated automatically from grade-subject alignment.</p>
                     </div>
                 </div>
             </div>

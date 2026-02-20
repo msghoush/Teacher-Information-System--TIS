@@ -73,3 +73,24 @@ class TeacherSubjectAllocation(Base):
     id = Column(Integer, primary_key=True)
     teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False, index=True)
     subject_code = Column(String, ForeignKey("subjects.subject_code"), nullable=False)
+
+
+class PlanningSection(Base):
+    __tablename__ = "planning_sections"
+    __table_args__ = (
+        UniqueConstraint(
+            "grade_level",
+            "section_name",
+            "branch_id",
+            "academic_year_id",
+            name="uq_planning_sections_scope_grade_section",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    grade_level = Column(String(8), nullable=False)
+    section_name = Column(String(20), nullable=False)
+    class_status = Column(String(20), nullable=False)
+    homeroom_teacher_id = Column(Integer, nullable=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)

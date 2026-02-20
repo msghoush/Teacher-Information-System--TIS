@@ -12,7 +12,7 @@ from database import engine, SessionLocal
 import models
 import auth
 from dependencies import get_db
-from routers import subjects, users, teachers
+from routers import subjects, users, teachers, planning
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
 from audit import (
@@ -173,6 +173,7 @@ def _render_login_page(
 app.include_router(subjects.router)
 app.include_router(users.router)
 app.include_router(teachers.router)
+app.include_router(planning.router)
 
 # ---------------------------------------
 # ROOT (Login Page)
@@ -592,9 +593,25 @@ def dashboard(
         models.User.branch_id == scoped_branch_id,
         models.User.academic_year_id == scoped_academic_year_id
     )
+    planning_sections_query = db.query(models.PlanningSection).filter(
+        models.PlanningSection.branch_id == scoped_branch_id,
+        models.PlanningSection.academic_year_id == scoped_academic_year_id,
+    )
     subject_count = subjects_query.count()
     teacher_count = teachers_query.count()
     users_count = users_query.count()
+    planning_sections = planning_sections_query.all()
+    planning_total_sections = len(planning_sections)
+    planning_current_sections_count = sum(
+        1
+        for section in planning_sections
+        if str(section.class_status).strip().lower() == "current"
+    )
+    planning_new_sections_count = sum(
+        1
+        for section in planning_sections
+        if str(section.class_status).strip().lower() == "new"
+    )
     subjects_preview = subjects_query.order_by(
         models.Subject.id.desc()
     ).limit(8).all()
@@ -604,6 +621,19 @@ def dashboard(
     users_preview = users_query.order_by(
         models.User.id.desc()
     ).limit(8).all()
+    subject_hours_by_grade = {}
+    for subject in subjects_query.all():
+        if subject.grade is None:
+            continue
+        grade_label = "KG" if int(subject.grade) == 0 else str(int(subject.grade))
+        subject_hours_by_grade[grade_label] = (
+            subject_hours_by_grade.get(grade_label, 0)
+            + int(subject.weekly_hours or 0)
+        )
+    planning_total_allocated_hours = sum(
+        subject_hours_by_grade.get(section.grade_level, 0)
+        for section in planning_sections
+    )
     all_years = db.query(models.AcademicYear).order_by(
         models.AcademicYear.year_name.desc()
     ).all()
@@ -635,6 +665,10 @@ def dashboard(
             "subject_count": subject_count,
             "teacher_count": teacher_count,
             "users_count": users_count,
+            "planning_total_sections": planning_total_sections,
+            "planning_current_sections_count": planning_current_sections_count,
+            "planning_new_sections_count": planning_new_sections_count,
+            "planning_total_allocated_hours": planning_total_allocated_hours,
             "subjects_preview": subjects_preview,
             "teachers_preview": teachers_preview,
             "users_preview": users_preview,

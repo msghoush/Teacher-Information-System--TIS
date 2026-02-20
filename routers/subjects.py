@@ -85,8 +85,10 @@ def _validate_subject_payload(subject_code, subject_name, weekly_hours, grade):
     if weekly_hours is None or weekly_hours <= 0:
         errors.append("Weekly hours must be a positive whole number.")
 
-    if grade is None or grade <= 0:
-        errors.append("Grade must be a positive whole number.")
+    if grade is None or grade < 0:
+        errors.append("Grade must be KG (0) or a whole number from 1 to 12.")
+    elif grade > 12:
+        errors.append("Grade must be KG (0) or a whole number from 1 to 12.")
 
     return errors
 

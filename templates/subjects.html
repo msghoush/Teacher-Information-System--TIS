@@ -505,7 +505,7 @@
                             </div>
                             <div class="field">
                                 <label for="grade">Grade</label>
-                                <input id="grade" type="number" name="grade" min="1" max="12" placeholder="1-12" required>
+                                <input id="grade" type="number" name="grade" min="0" max="12" placeholder="0 for KG, then 1-12" required>
                             </div>
                             <div class="field field-wide">
                                 <label for="subject_name">Subject Name</label>
@@ -540,7 +540,7 @@
 
                     <ol class="steps">
                         <li>Download the template.</li>
-                        <li>Fill rows using correct format (AAA999, Name, Weekly Hours, Grade).</li>
+                        <li>Fill rows using correct format (AAA999, Name, Weekly Hours, Grade where 0 = KG).</li>
                         <li>Import and let the system validate duplicates and format before save.</li>
                     </ol>
                     {% else %}
@@ -619,7 +619,7 @@
                                 <td>{{ subject.subject_code }}</td>
                                 <td>{{ subject.subject_name }}</td>
                                 <td>{{ subject.weekly_hours }}</td>
-                                <td>{{ subject.grade }}</td>
+                                <td>{{ "KG" if subject.grade == 0 else subject.grade }}</td>
                                 {% if can_edit or can_delete %}
                                 <td class="row-actions">
                                     {% if can_edit %}
