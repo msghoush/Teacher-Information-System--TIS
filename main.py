@@ -726,6 +726,34 @@ def _ensure_teachers_table_columns():
         )
 
 
+def _seed_teacher_subject_allocations():
+    inspector = inspect(engine)
+    if (
+        "teachers" not in inspector.get_table_names()
+        or "teacher_subject_allocations" not in inspector.get_table_names()
+    ):
+        return
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO teacher_subject_allocations (teacher_id, subject_code)
+                SELECT t.id, t.subject_code
+                FROM teachers t
+                WHERE t.subject_code IS NOT NULL
+                  AND t.subject_code <> ''
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM teacher_subject_allocations a
+                      WHERE a.teacher_id = t.id
+                        AND a.subject_code = t.subject_code
+                  )
+                """
+            )
+        )
+
+
 # ---------------------------------------
 # Startup Initialization
 # ---------------------------------------
@@ -734,6 +762,7 @@ def setup_initial_data():
 
     _ensure_users_table_columns()
     _ensure_teachers_table_columns()
+    _seed_teacher_subject_allocations()
     db = SessionLocal()
     admin_user_id = os.getenv("ADMIN_USER_ID", "2623252018")
     admin_username = os.getenv("ADMIN_USERNAME", "developer")

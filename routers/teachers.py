@@ -62,6 +62,18 @@ def _normalize_name(value: str) -> str:
     return " ".join(part.capitalize() for part in cleaned.split(" "))
 
 
+def _normalize_subject_codes(values):
+    cleaned_codes = []
+    seen_codes = set()
+    for raw_value in values or []:
+        code = _normalize_spaces(raw_value).strip().upper()
+        if not code or code in seen_codes:
+            continue
+        seen_codes.add(code)
+        cleaned_codes.append(code)
+    return cleaned_codes
+
+
 def _parse_int(value):
     if value is None:
         return None
@@ -83,16 +95,79 @@ def _is_extra_hours_allowed(value) -> bool:
     return cleaned in {"1", "true", "yes", "on"}
 
 
-def _get_subject_choices(db: Session):
-    subjects = db.query(models.Subject).order_by(models.Subject.subject_code.asc()).all()
+def _get_subject_choices(db: Session, branch_id: int, academic_year_id: int):
+    subjects = db.query(models.Subject).filter(
+        models.Subject.branch_id == branch_id,
+        models.Subject.academic_year_id == academic_year_id,
+    ).order_by(models.Subject.subject_code.asc()).all()
     return [
         {
             "subject_code": subject.subject_code,
             "subject_name": subject.subject_name or "",
+            "weekly_hours": subject.weekly_hours or 0,
+            "grade": subject.grade,
         }
         for subject in subjects
         if subject.subject_code
     ]
+
+
+def _get_teacher_allocation_map(db: Session, teachers):
+    teacher_ids = [teacher.id for teacher in teachers if getattr(teacher, "id", None)]
+    if not teacher_ids:
+        return {}
+
+    allocations = db.query(models.TeacherSubjectAllocation).filter(
+        models.TeacherSubjectAllocation.teacher_id.in_(teacher_ids)
+    ).order_by(
+        models.TeacherSubjectAllocation.teacher_id.asc(),
+        models.TeacherSubjectAllocation.subject_code.asc(),
+    ).all()
+
+    subject_codes = sorted({
+        allocation.subject_code
+        for allocation in allocations
+        if allocation.subject_code
+    })
+    subjects_by_code = {}
+    if subject_codes:
+        subjects_by_code = {
+            subject.subject_code: subject
+            for subject in db.query(models.Subject).filter(
+                models.Subject.subject_code.in_(subject_codes)
+            ).all()
+            if subject.subject_code
+        }
+
+    allocation_map = {
+        teacher.id: {
+            "subject_codes": [],
+            "subject_labels": [],
+            "allocated_hours": 0,
+            "matches_max_hours": False,
+        }
+        for teacher in teachers
+    }
+
+    for allocation in allocations:
+        teacher_data = allocation_map.get(allocation.teacher_id)
+        if not teacher_data:
+            continue
+        subject = subjects_by_code.get(allocation.subject_code)
+        subject_hours = 0
+        if subject and subject.weekly_hours is not None:
+            subject_hours = int(subject.weekly_hours)
+        teacher_data["subject_codes"].append(allocation.subject_code)
+        teacher_data["subject_labels"].append(f"{allocation.subject_code} ({subject_hours}h)")
+        teacher_data["allocated_hours"] += subject_hours
+
+    for teacher in teachers:
+        teacher_data = allocation_map.get(teacher.id, {})
+        teacher_data["matches_max_hours"] = (
+            teacher_data.get("allocated_hours", 0) == (teacher.max_hours or STANDARD_MAX_HOURS)
+        )
+
+    return allocation_map
 
 
 def _render_teachers_page(
@@ -112,13 +187,15 @@ def _render_teachers_page(
         models.Teacher.branch_id == branch_id,
         models.Teacher.academic_year_id == academic_year_id
     ).order_by(models.Teacher.id.desc()).all()
+    teacher_allocations = _get_teacher_allocation_map(db, teachers)
 
     return templates.TemplateResponse(
         "teachers.html",
         {
             "request": request,
             "teachers": teachers,
-            "subject_choices": _get_subject_choices(db),
+            "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
+            "teacher_allocations": teacher_allocations,
             "level_options": LEVEL_OPTIONS,
             "can_modify": can_modify,
             "can_edit": can_edit,
@@ -154,7 +231,7 @@ def create_teacher(
     first_name: str = Form(...),
     middle_name: str = Form(""),
     last_name: str = Form(...),
-    subject_code: str = Form(...),
+    subject_codes: list[str] = Form([]),
     level: str = Form(...),
     max_hours: str = Form("24"),
     extra_hours_allowed: str = Form(""),
@@ -177,11 +254,12 @@ def create_teacher(
     first_name = _normalize_name(first_name)
     middle_name = _normalize_name(middle_name)
     last_name = _normalize_name(last_name)
-    subject_code = _normalize_spaces(subject_code).strip().upper()
+    normalized_subject_codes = _normalize_subject_codes(subject_codes)
     level = _normalize_spaces(level).strip()
     parsed_max_hours = _parse_int(max_hours)
     allowed_extra = _is_extra_hours_allowed(extra_hours_allowed)
     parsed_extra_hours_count = _parse_int(extra_hours_count)
+    branch_id, academic_year_id = _get_scope_ids(current_user)
 
     errors = []
     if not TEACHER_ID_PATTERN.match(teacher_id):
@@ -200,14 +278,29 @@ def create_teacher(
     elif not NAME_PATTERN.match(last_name):
         errors.append("Last name must contain letters only.")
 
-    if not subject_code:
-        errors.append("Subject code is required.")
+    subject_map = {}
+    if not normalized_subject_codes:
+        errors.append("Select at least one subject for this teacher.")
     else:
-        subject_exists = db.query(models.Subject).filter(
-            models.Subject.subject_code == subject_code
-        ).first()
-        if not subject_exists:
-            errors.append("Selected subject code does not exist.")
+        scoped_subjects = db.query(models.Subject).filter(
+            models.Subject.subject_code.in_(normalized_subject_codes),
+            models.Subject.branch_id == branch_id,
+            models.Subject.academic_year_id == academic_year_id,
+        ).all()
+        subject_map = {
+            subject.subject_code: subject
+            for subject in scoped_subjects
+            if subject.subject_code
+        }
+        missing_subject_codes = [
+            code for code in normalized_subject_codes
+            if code not in subject_map
+        ]
+        if missing_subject_codes:
+            errors.append(
+                "Selected subject codes do not exist in the current branch/academic year: "
+                + ", ".join(missing_subject_codes)
+            )
 
     if level not in LEVEL_OPTIONS:
         errors.append("Invalid level selected.")
@@ -216,6 +309,17 @@ def create_teacher(
         errors.append("Max hours must be a positive whole number.")
     elif parsed_max_hours > STANDARD_MAX_HOURS and not allowed_extra:
         errors.append("To set max hours above 24, enable Extra Hours Allowed first.")
+
+    if parsed_max_hours is not None and parsed_max_hours > 0 and subject_map:
+        allocated_subject_hours = sum(
+            (subject_map[code].weekly_hours or 0)
+            for code in normalized_subject_codes
+            if code in subject_map
+        )
+        if allocated_subject_hours != parsed_max_hours:
+            errors.append(
+                f"Allocated subject hours ({allocated_subject_hours}) must exactly match Max Hours ({parsed_max_hours})."
+            )
 
     if allowed_extra:
         if parsed_extra_hours_count is None or parsed_extra_hours_count <= 0:
@@ -238,13 +342,12 @@ def create_teacher(
             detail_errors=errors,
         )
 
-    branch_id, academic_year_id = _get_scope_ids(current_user)
     teacher = models.Teacher(
         teacher_id=teacher_id,
         first_name=first_name,
         middle_name=middle_name if middle_name else None,
         last_name=last_name,
-        subject_code=subject_code,
+        subject_code=normalized_subject_codes[0] if normalized_subject_codes else None,
         level=level,
         max_hours=parsed_max_hours if parsed_max_hours is not None else STANDARD_MAX_HOURS,
         extra_hours_allowed=allowed_extra,
@@ -255,6 +358,14 @@ def create_teacher(
 
     try:
         db.add(teacher)
+        db.flush()
+        for subject_code in normalized_subject_codes:
+            db.add(
+                models.TeacherSubjectAllocation(
+                    teacher_id=teacher.id,
+                    subject_code=subject_code,
+                )
+            )
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -295,12 +406,21 @@ def edit_teacher_page(
     if not teacher:
         return RedirectResponse(url="/teachers", status_code=302)
 
+    assigned_subject_codes = [
+        row.subject_code
+        for row in db.query(models.TeacherSubjectAllocation).filter(
+            models.TeacherSubjectAllocation.teacher_id == teacher.id
+        ).order_by(models.TeacherSubjectAllocation.subject_code.asc()).all()
+        if row.subject_code
+    ]
+
     return templates.TemplateResponse(
         "edit_teacher.html",
         {
             "request": request,
             "teacher": teacher,
-            "subject_choices": _get_subject_choices(db),
+            "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
+            "assigned_subject_codes": assigned_subject_codes,
             "level_options": LEVEL_OPTIONS,
             "error": "",
         },
@@ -315,7 +435,7 @@ def update_teacher(
     first_name: str = Form(...),
     middle_name: str = Form(""),
     last_name: str = Form(...),
-    subject_code: str = Form(...),
+    subject_codes: list[str] = Form([]),
     level: str = Form(...),
     max_hours: str = Form("24"),
     extra_hours_allowed: str = Form(""),
@@ -342,7 +462,7 @@ def update_teacher(
     first_name = _normalize_name(first_name)
     middle_name = _normalize_name(middle_name)
     last_name = _normalize_name(last_name)
-    subject_code = _normalize_spaces(subject_code).strip().upper()
+    normalized_subject_codes = _normalize_subject_codes(subject_codes)
     level = _normalize_spaces(level).strip()
     parsed_max_hours = _parse_int(max_hours)
     allowed_extra = _is_extra_hours_allowed(extra_hours_allowed)
@@ -365,11 +485,29 @@ def update_teacher(
     elif not NAME_PATTERN.match(last_name):
         errors.append("Last name must contain letters only.")
 
-    subject_exists = db.query(models.Subject).filter(
-        models.Subject.subject_code == subject_code
-    ).first()
-    if not subject_exists:
-        errors.append("Selected subject code does not exist.")
+    subject_map = {}
+    if not normalized_subject_codes:
+        errors.append("Select at least one subject for this teacher.")
+    else:
+        scoped_subjects = db.query(models.Subject).filter(
+            models.Subject.subject_code.in_(normalized_subject_codes),
+            models.Subject.branch_id == branch_id,
+            models.Subject.academic_year_id == academic_year_id,
+        ).all()
+        subject_map = {
+            subject.subject_code: subject
+            for subject in scoped_subjects
+            if subject.subject_code
+        }
+        missing_subject_codes = [
+            code for code in normalized_subject_codes
+            if code not in subject_map
+        ]
+        if missing_subject_codes:
+            errors.append(
+                "Selected subject codes do not exist in the current branch/academic year: "
+                + ", ".join(missing_subject_codes)
+            )
 
     if level not in LEVEL_OPTIONS:
         errors.append("Invalid level selected.")
@@ -378,6 +516,17 @@ def update_teacher(
         errors.append("Max hours must be a positive whole number.")
     elif parsed_max_hours > STANDARD_MAX_HOURS and not allowed_extra:
         errors.append("To set max hours above 24, enable Extra Hours Allowed first.")
+
+    if parsed_max_hours is not None and parsed_max_hours > 0 and subject_map:
+        allocated_subject_hours = sum(
+            (subject_map[code].weekly_hours or 0)
+            for code in normalized_subject_codes
+            if code in subject_map
+        )
+        if allocated_subject_hours != parsed_max_hours:
+            errors.append(
+                f"Allocated subject hours ({allocated_subject_hours}) must exactly match Max Hours ({parsed_max_hours})."
+            )
 
     if allowed_extra:
         if parsed_extra_hours_count is None or parsed_extra_hours_count <= 0:
@@ -393,12 +542,14 @@ def update_teacher(
         errors.append("Teacher ID already exists.")
 
     if errors:
+        assigned_subject_codes = list(normalized_subject_codes)
         return templates.TemplateResponse(
             "edit_teacher.html",
             {
                 "request": request,
                 "teacher": teacher,
-                "subject_choices": _get_subject_choices(db),
+                "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
+                "assigned_subject_codes": assigned_subject_codes,
                 "level_options": LEVEL_OPTIONS,
                 "error": " ".join(errors),
             },
@@ -409,22 +560,34 @@ def update_teacher(
     teacher.first_name = first_name
     teacher.middle_name = middle_name if middle_name else None
     teacher.last_name = last_name
-    teacher.subject_code = subject_code
+    teacher.subject_code = normalized_subject_codes[0] if normalized_subject_codes else None
     teacher.level = level
     teacher.max_hours = parsed_max_hours if parsed_max_hours is not None else STANDARD_MAX_HOURS
     teacher.extra_hours_allowed = allowed_extra
     teacher.extra_hours_count = parsed_extra_hours_count if parsed_extra_hours_count is not None else 0
 
     try:
+        db.query(models.TeacherSubjectAllocation).filter(
+            models.TeacherSubjectAllocation.teacher_id == teacher.id
+        ).delete(synchronize_session=False)
+        for subject_code in normalized_subject_codes:
+            db.add(
+                models.TeacherSubjectAllocation(
+                    teacher_id=teacher.id,
+                    subject_code=subject_code,
+                )
+            )
         db.commit()
     except IntegrityError:
         db.rollback()
+        assigned_subject_codes = list(normalized_subject_codes)
         return templates.TemplateResponse(
             "edit_teacher.html",
             {
                 "request": request,
                 "teacher": teacher,
-                "subject_choices": _get_subject_choices(db),
+                "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
+                "assigned_subject_codes": assigned_subject_codes,
                 "level_options": LEVEL_OPTIONS,
                 "error": "Unable to update teacher due to duplicate or invalid data.",
             },
@@ -454,6 +617,9 @@ def delete_teacher(
         models.Teacher.academic_year_id == academic_year_id
     ).first()
     if teacher:
+        db.query(models.TeacherSubjectAllocation).filter(
+            models.TeacherSubjectAllocation.teacher_id == teacher.id
+        ).delete(synchronize_session=False)
         db.delete(teacher)
         db.commit()
 

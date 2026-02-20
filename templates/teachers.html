@@ -181,6 +181,51 @@
             box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
         }
 
+        .subject-picker {
+            border: 1px solid #c6d4e8;
+            border-radius: 8px;
+            background: #f8fbff;
+            max-height: 220px;
+            overflow: auto;
+            padding: 8px;
+        }
+
+        .subject-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 6px 2px;
+            font-size: 13px;
+            color: #324866;
+            border-bottom: 1px dashed #d7e4f6;
+        }
+
+        .subject-option:last-child {
+            border-bottom: none;
+        }
+
+        .subject-option input[type="checkbox"] {
+            margin-top: 2px;
+            accent-color: var(--brand);
+        }
+
+        .subject-empty {
+            padding: 8px 2px;
+            font-size: 13px;
+            color: #5d6b82;
+        }
+
+        .hours-summary {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #415068;
+            font-weight: 700;
+        }
+
+        .hours-summary.mismatch {
+            color: #8f1d18;
+        }
+
         .toggle-row {
             display: flex;
             align-items: center;
@@ -346,14 +391,21 @@
                             <label for="teacher_id">Teacher Iqama/National ID</label>
                             <input id="teacher_id" type="text" name="teacher_id" maxlength="10" placeholder="Iqama/National ID (max 10 digits)" required>
                         </div>
-                        <div class="field">
-                            <label for="subject_code">Subject Code</label>
-                            <select id="subject_code" name="subject_code" required>
-                                <option value="" selected disabled>Select Subject</option>
+                        <div class="field field-wide">
+                            <label>Assigned Subjects</label>
+                            <div class="subject-picker" id="subjectPicker">
+                                {% if subject_choices %}
                                 {% for subject in subject_choices %}
-                                <option value="{{ subject.subject_code }}">{{ subject.subject_code }} - {{ subject.subject_name }}</option>
+                                <label class="subject-option" for="subject_code_{{ loop.index }}">
+                                    <input id="subject_code_{{ loop.index }}" type="checkbox" name="subject_codes" value="{{ subject.subject_code }}" data-hours="{{ subject.weekly_hours or 0 }}">
+                                    <span>{{ subject.subject_code }} - {{ subject.subject_name }} | Grade {{ subject.grade if subject.grade is not none else "-" }} | {{ subject.weekly_hours or 0 }}h</span>
+                                </label>
                                 {% endfor %}
-                            </select>
+                                {% else %}
+                                <div class="subject-empty">No subjects available for this branch and academic year.</div>
+                                {% endif %}
+                            </div>
+                            <div id="allocationSummary" class="hours-summary">Allocated subject hours: 0</div>
                         </div>
                         <div class="field">
                             <label for="first_name">First Name</label>
@@ -414,9 +466,11 @@
                             <tr>
                                 <th>Teacher ID</th>
                                 <th>Full Name</th>
-                                <th>Subject Code</th>
+                                <th>Assigned Subjects</th>
                                 <th>Level</th>
                                 <th>Max Hours</th>
+                                <th>Allocated Subject Hours</th>
+                                <th>Hours Match</th>
                                 <th>Extra Hours Allowed</th>
                                 <th>Extra Hours Count</th>
                                 <th>Total Hours Capacity</th>
@@ -428,11 +482,14 @@
                         <tbody id="teachersBody">
                             {% for teacher in teachers %}
                             <tr class="teacher-row">
+                                {% set allocation = teacher_allocations.get(teacher.id) %}
                                 <td>{{ teacher.teacher_id }}</td>
                                 <td>{{ teacher.first_name }}{% if teacher.middle_name %} {{ teacher.middle_name }}{% endif %} {{ teacher.last_name }}</td>
-                                <td>{{ teacher.subject_code }}</td>
+                                <td>{{ allocation.get("subject_labels") | join(", ") if allocation and allocation.get("subject_labels") else "-" }}</td>
                                 <td>{{ teacher.level or "-" }}</td>
                                 <td>{{ teacher.max_hours or 24 }}</td>
+                                <td>{{ allocation.get("allocated_hours", 0) if allocation else 0 }}</td>
+                                <td>{{ "Matched" if allocation and allocation.get("matches_max_hours") else "Not Matched" }}</td>
                                 <td>{{ "Yes" if teacher.extra_hours_allowed else "No" }}</td>
                                 <td>{{ teacher.extra_hours_count if teacher.extra_hours_allowed else 0 }}</td>
                                 <td>{{ (teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0) }}</td>
@@ -469,7 +526,33 @@
         const teacherIdInput = document.getElementById("teacher_id");
         const maxHoursInput = document.getElementById("max_hours");
         const teacherForm = document.querySelector("form[method='post']");
+        const subjectCodeInputs = Array.from(document.querySelectorAll("input[name='subject_codes']"));
+        const allocationSummary = document.getElementById("allocationSummary");
         const standardMaxHours = 24;
+
+        const getAllocatedSubjectHours = () => {
+            return subjectCodeInputs.reduce((total, input) => {
+                if (!input.checked) {
+                    return total;
+                }
+                const parsedHours = Number(input.dataset.hours || "0");
+                return total + (Number.isFinite(parsedHours) ? parsedHours : 0);
+            }, 0);
+        };
+
+        const updateAllocationSummary = () => {
+            if (!allocationSummary || !maxHoursInput) {
+                return;
+            }
+
+            const allocatedHours = getAllocatedSubjectHours();
+            const maxHours = Number(maxHoursInput.value);
+            const safeMaxHours = Number.isFinite(maxHours) && maxHours > 0 ? maxHours : 0;
+            const isMatch = safeMaxHours > 0 && allocatedHours === safeMaxHours;
+
+            allocationSummary.textContent = `Allocated subject hours: ${allocatedHours} / Max Hours: ${safeMaxHours}${isMatch ? " (Matched)" : " (Must match exactly)"}`;
+            allocationSummary.classList.toggle("mismatch", !isMatch);
+        };
 
         const syncExtraHoursVisibility = () => {
             if (!extraAllowed || !extraCountField || !extraCountInput) {
@@ -494,15 +577,23 @@
             });
         }
 
+        if (subjectCodeInputs.length > 0) {
+            subjectCodeInputs.forEach((input) => {
+                input.addEventListener("change", updateAllocationSummary);
+            });
+        }
+
         if (maxHoursInput) {
             const enforceExtraHoursRule = () => {
                 const parsedValue = Number(maxHoursInput.value);
                 if (!Number.isFinite(parsedValue) || parsedValue <= standardMaxHours) {
+                    updateAllocationSummary();
                     return;
                 }
 
                 if (!extraAllowed || !extraAllowed.checked) {
                     maxHoursInput.value = String(standardMaxHours);
+                    updateAllocationSummary();
                     window.alert("To enter more than 24 max hours, please check Extra Hours Allowed first.");
                     if (extraAllowed) {
                         extraAllowed.focus();
@@ -513,6 +604,8 @@
 
             maxHoursInput.addEventListener("input", enforceExtraHoursRule);
             maxHoursInput.addEventListener("change", enforceExtraHoursRule);
+            maxHoursInput.addEventListener("input", updateAllocationSummary);
+            maxHoursInput.addEventListener("change", updateAllocationSummary);
 
             if (extraAllowed) {
                 extraAllowed.addEventListener("change", enforceExtraHoursRule);
@@ -527,10 +620,32 @@
                         if (extraAllowed) {
                             extraAllowed.focus();
                         }
+                        return;
+                    }
+
+                    if (subjectCodeInputs.length === 0) {
+                        event.preventDefault();
+                        window.alert("No subjects are available for assignment in the current branch/academic year.");
+                        return;
+                    }
+
+                    const selectedCount = subjectCodeInputs.filter((item) => item.checked).length;
+                    if (selectedCount === 0) {
+                        event.preventDefault();
+                        window.alert("Select at least one subject for this teacher.");
+                        return;
+                    }
+
+                    const allocatedHours = getAllocatedSubjectHours();
+                    if (!Number.isFinite(parsedValue) || allocatedHours !== parsedValue) {
+                        event.preventDefault();
+                        window.alert(`Allocated subject hours (${allocatedHours}) must exactly match Max Hours (${Number.isFinite(parsedValue) ? parsedValue : 0}).`);
                     }
                 });
             }
         }
+
+        updateAllocationSummary();
 
         if (searchInput && rows.length > 0) {
             searchInput.addEventListener("input", () => {
