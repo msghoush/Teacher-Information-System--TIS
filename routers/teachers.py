@@ -135,6 +135,7 @@ def _get_teacher_allocation_map(db: Session, teachers):
                 )
             ),
             "matches_max_hours": False,
+            "within_capacity": False,
         }
         for teacher in teachers
     }
@@ -161,9 +162,12 @@ def _get_teacher_allocation_map(db: Session, teachers):
 
     for teacher in teachers:
         teacher_data = allocation_map.get(teacher.id, {})
-        teacher_data["matches_max_hours"] = (
-            teacher_data.get("allocated_hours", 0) == teacher_data.get("required_hours", 0)
-        )
+        allocated_hours = teacher_data.get("allocated_hours", 0)
+        required_hours = teacher_data.get("required_hours", 0)
+        is_within_capacity = allocated_hours <= required_hours
+        teacher_data["within_capacity"] = is_within_capacity
+        # Keep legacy key name for template compatibility.
+        teacher_data["matches_max_hours"] = is_within_capacity
 
     return allocation_map
 
@@ -317,12 +321,18 @@ def create_teacher(
         required_allocation_hours = parsed_max_hours + (
             parsed_extra_hours_count if allowed_extra and parsed_extra_hours_count else 0
         )
-        if allocated_subject_hours != required_allocation_hours:
+        if allocated_subject_hours > required_allocation_hours:
+            guidance = (
+                "Enable Extra Hours Allowed and set Extra Hours Count to cover the additional hours."
+                if (not allowed_extra and allocated_subject_hours > STANDARD_MAX_HOURS)
+                else "Reduce assigned subjects or increase allowed extra hours."
+            )
             errors.append(
                 "Allocated subject hours "
-                f"({allocated_subject_hours}) must exactly match required hours "
+                f"({allocated_subject_hours}) exceed allowed capacity "
                 f"({required_allocation_hours}) based on Max Hours ({parsed_max_hours}) "
-                f"+ Extra Hours ({parsed_extra_hours_count if allowed_extra else 0})."
+                f"+ Extra Hours ({parsed_extra_hours_count if allowed_extra else 0}). "
+                + guidance
             )
 
     duplicate_teacher = db.query(models.Teacher).filter(
@@ -524,12 +534,18 @@ def update_teacher(
         required_allocation_hours = parsed_max_hours + (
             parsed_extra_hours_count if allowed_extra and parsed_extra_hours_count else 0
         )
-        if allocated_subject_hours != required_allocation_hours:
+        if allocated_subject_hours > required_allocation_hours:
+            guidance = (
+                "Enable Extra Hours Allowed and set Extra Hours Count to cover the additional hours."
+                if (not allowed_extra and allocated_subject_hours > STANDARD_MAX_HOURS)
+                else "Reduce assigned subjects or increase allowed extra hours."
+            )
             errors.append(
                 "Allocated subject hours "
-                f"({allocated_subject_hours}) must exactly match required hours "
+                f"({allocated_subject_hours}) exceed allowed capacity "
                 f"({required_allocation_hours}) based on Max Hours ({parsed_max_hours}) "
-                f"+ Extra Hours ({parsed_extra_hours_count if allowed_extra else 0})."
+                f"+ Extra Hours ({parsed_extra_hours_count if allowed_extra else 0}). "
+                + guidance
             )
 
     duplicate_teacher = db.query(models.Teacher).filter(

@@ -661,7 +661,7 @@
                                 <th>Assigned Subjects</th>
                                 <th>Max Hours</th>
                                 <th>Allocated Subject Hours</th>
-                                <th>Hours Match</th>
+                                <th>Hours Status</th>
                                 <th>Extra Hours Allowed</th>
                                 <th>Extra Hours Count</th>
                                 <th>Total Hours Capacity</th>
@@ -694,7 +694,13 @@
                                 </td>
                                 <td>{{ teacher.max_hours or 24 }}</td>
                                 <td>{{ allocation.get("allocated_hours", 0) if allocation else 0 }}</td>
-                                <td>{{ "Matched" if allocation and allocation.get("matches_max_hours") else "Not Matched" }}</td>
+                                <td>
+                                    {% if allocation %}
+                                    {{ "Within Capacity" if allocation.get("within_capacity") else "Over Capacity" }}
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
                                 <td>{{ "Yes" if teacher.extra_hours_allowed else "No" }}</td>
                                 <td>{{ teacher.extra_hours_count if teacher.extra_hours_allowed else 0 }}</td>
                                 <td>{{ (teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0) }}</td>
@@ -792,10 +798,11 @@
             const safeMaxHours = getSafeMaxHours();
             const safeExtraHours = getSafeExtraHours();
             const requiredHours = getRequiredAllocationHours();
-            const isMatch = requiredHours > 0 && allocatedHours === requiredHours;
+            const exceedsCapacity = requiredHours > 0 ? allocatedHours > requiredHours : allocatedHours > 0;
+            const remainingHours = Math.max(requiredHours - allocatedHours, 0);
 
-            allocationSummary.textContent = `Allocated subject hours: ${allocatedHours} / Required allocation hours: ${requiredHours} (Max ${safeMaxHours} + Extra ${safeExtraHours})${isMatch ? " (Matched)" : " (Must match exactly)"}`;
-            allocationSummary.classList.toggle("mismatch", !isMatch);
+            allocationSummary.textContent = `Allocated subject hours: ${allocatedHours} / Total allowed hours: ${requiredHours} (Max ${safeMaxHours} + Extra ${safeExtraHours})${exceedsCapacity ? ` (Over capacity by ${allocatedHours - requiredHours}h)` : ` (Within capacity, remaining ${remainingHours}h)`}`;
+            allocationSummary.classList.toggle("mismatch", exceedsCapacity);
         };
 
         const filterSubjectOptions = () => {
@@ -976,9 +983,16 @@
 
                     const allocatedHours = getAllocatedSubjectHours();
                     const requiredHours = getRequiredAllocationHours();
-                    if (!Number.isFinite(parsedValue) || allocatedHours !== requiredHours) {
+                    if (!Number.isFinite(parsedValue) || allocatedHours > requiredHours) {
                         event.preventDefault();
-                        window.alert(`Allocated subject hours (${allocatedHours}) must exactly match required allocation hours (${requiredHours}) based on Max Hours + Extra Hours.`);
+                        if ((!extraAllowed || !extraAllowed.checked) && allocatedHours > standardMaxHours) {
+                            window.alert(`Allocated subject hours (${allocatedHours}) exceed 24. Please check Extra Hours Allowed and set Extra Hours Count for the additional hours.`);
+                            if (extraAllowed) {
+                                extraAllowed.focus();
+                            }
+                            return;
+                        }
+                        window.alert(`Allocated subject hours (${allocatedHours}) exceed allowed capacity (${requiredHours}) based on Max Hours + Extra Hours. Reduce assigned subjects or increase allowed extra hours.`);
                     }
                 });
             }
