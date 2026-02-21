@@ -491,6 +491,73 @@
             line-height: 1.5;
         }
 
+        .planning-metrics {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .planning-kpi {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #d3deed;
+            border-radius: 12px;
+            padding: 14px;
+            background: linear-gradient(145deg, #fbfdff, #f1f7ff);
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+            transition: transform 140ms ease, box-shadow 140ms ease;
+        }
+
+        .planning-kpi:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+        }
+
+        .planning-kpi::after {
+            content: "";
+            position: absolute;
+            inset: auto 0 0 0;
+            height: 4px;
+            background: #b5c9e8;
+        }
+
+        .planning-kpi-current::after {
+            background: #34a37f;
+        }
+
+        .planning-kpi-new::after {
+            background: #d97706;
+        }
+
+        .planning-kpi-hours::after {
+            background: #2563eb;
+        }
+
+        .planning-kpi span {
+            display: block;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            color: #4d607e;
+            font-weight: 700;
+        }
+
+        .planning-kpi strong {
+            display: block;
+            margin-top: 6px;
+            font-size: 34px;
+            line-height: 1.1;
+            color: #142b4d;
+        }
+
+        .planning-kpi p {
+            margin-top: 6px;
+            margin-bottom: 0;
+            font-size: 13px;
+            color: #536885;
+            line-height: 1.4;
+        }
+
         @keyframes rise {
             from {
                 opacity: 0;
@@ -529,6 +596,10 @@
             }
 
             .tiles {
+                grid-template-columns: 1fr;
+            }
+
+            .planning-metrics {
                 grid-template-columns: 1fr;
             }
 
@@ -854,18 +925,21 @@
                         <p>Interactive planning will calculate teacher load and section demand.</p>
                     </div>
                 </div>
-                <div class="tiles">
-                    <div class="tile">
-                        <h4>Total Planned Sections</h4>
-                        <p>{{ planning_total_sections }} section(s) are currently captured for this branch/year scope.</p>
+                <div class="planning-metrics">
+                    <div class="planning-kpi planning-kpi-current">
+                        <span>Total Planned Sections</span>
+                        <strong class="planning-kpi-value" data-value="{{ planning_total_sections }}">{{ planning_total_sections }}</strong>
+                        <p>Captured sections for this branch/year scope.</p>
                     </div>
-                    <div class="tile">
-                        <h4>Current vs New Sections</h4>
+                    <div class="planning-kpi planning-kpi-new">
+                        <span>Current vs New Sections</span>
+                        <strong class="planning-kpi-value" data-value="{{ planning_new_sections_count }}">{{ planning_new_sections_count }}</strong>
                         <p>Current: {{ planning_current_sections_count }} | New: {{ planning_new_sections_count }}</p>
                     </div>
-                    <div class="tile">
-                        <h4>Total Allocated Hours</h4>
-                        <p>{{ planning_total_allocated_hours }} hour(s) calculated automatically from grade-subject alignment.</p>
+                    <div class="planning-kpi planning-kpi-hours">
+                        <span>Total Allocated Hours</span>
+                        <strong class="planning-kpi-value" data-value="{{ planning_total_allocated_hours }}">{{ planning_total_allocated_hours }}</strong>
+                        <p>Automatically calculated by grade-subject alignment.</p>
                     </div>
                 </div>
             </div>
@@ -895,6 +969,38 @@
     <script>
         const tabs = document.querySelectorAll(".tab");
         const panels = document.querySelectorAll(".panel");
+        const planningKpiValues = Array.from(document.querySelectorAll(".planning-kpi-value"));
+        let planningKpiAnimated = false;
+
+        const animateNumericValue = (element) => {
+            const target = Number(element.dataset.value || element.textContent || "0");
+            if (!Number.isFinite(target) || target <= 0) {
+                element.textContent = "0";
+                return;
+            }
+
+            const durationMs = 700;
+            const startAt = performance.now();
+
+            const tick = (timestamp) => {
+                const progress = Math.min((timestamp - startAt) / durationMs, 1);
+                const eased = 1 - Math.pow(1 - progress, 3);
+                element.textContent = String(Math.round(target * eased));
+                if (progress < 1) {
+                    requestAnimationFrame(tick);
+                }
+            };
+
+            requestAnimationFrame(tick);
+        };
+
+        const animatePlanningKpis = () => {
+            if (planningKpiAnimated) {
+                return;
+            }
+            planningKpiValues.forEach((element) => animateNumericValue(element));
+            planningKpiAnimated = true;
+        };
 
         tabs.forEach((tab) => {
             tab.addEventListener("click", () => {
@@ -908,8 +1014,17 @@
                 if (panel) {
                     panel.classList.add("active");
                 }
+
+                if (target === "planning") {
+                    animatePlanningKpis();
+                }
             });
         });
+
+        const activePlanningPanel = document.getElementById("panel-planning");
+        if (activePlanningPanel && activePlanningPanel.classList.contains("active")) {
+            animatePlanningKpis();
+        }
     </script>
 </body>
 </html>
