@@ -351,83 +351,6 @@
             font-size: 14px;
         }
 
-        .level-dashboard {
-            border: 1px solid #d4e1f3;
-            border-radius: 12px;
-            background: linear-gradient(145deg, #fbfdff, #f3f8ff);
-            padding: 12px;
-            margin-bottom: 10px;
-        }
-
-        .level-kpis {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 10px;
-        }
-
-        .level-kpi {
-            border: 1px solid #d6e2f4;
-            border-radius: 10px;
-            background: #fff;
-            padding: 10px;
-        }
-
-        .level-kpi span {
-            display: block;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.7px;
-            color: #4a607f;
-            font-weight: 700;
-        }
-
-        .level-kpi strong {
-            display: block;
-            margin-top: 4px;
-            font-size: 26px;
-            line-height: 1.1;
-            color: #1b3154;
-        }
-
-        .level-kpi small {
-            display: block;
-            margin-top: 4px;
-            font-size: 12px;
-            color: #536885;
-        }
-
-        .grade-chip-bar {
-            margin-top: 10px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-
-        .grade-chip {
-            border: 1px solid #b7c9e2;
-            background: #fff;
-            color: #325077;
-            border-radius: 999px;
-            padding: 7px 10px;
-            font-size: 12px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: transform 120ms ease, border-color 120ms ease, background-color 120ms ease, color 120ms ease;
-        }
-
-        .grade-chip:hover {
-            transform: translateY(-1px);
-            border-color: #8fc4be;
-            background: #edf8f6;
-            color: #0c5751;
-        }
-
-        .grade-chip.active {
-            border-color: #0f766e;
-            background: #0f766e;
-            color: #fff;
-        }
-
         .table-wrap {
             border: 1px solid var(--line);
             border-radius: 12px;
@@ -519,10 +442,6 @@
             }
 
             .form-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .level-kpis {
                 grid-template-columns: 1fr;
             }
         }
@@ -670,26 +589,6 @@
                 </div>
 
                 {% if subjects %}
-                <div class="level-dashboard">
-                    <div class="level-kpis">
-                        <div class="level-kpi">
-                            <span>Total Subjects</span>
-                            <strong id="totalSubjectsMetric">{{ subjects|length }}</strong>
-                            <small>In this branch/year scope</small>
-                        </div>
-                        <div class="level-kpi">
-                            <span>Total Weekly Hours</span>
-                            <strong id="totalHoursMetric">0</strong>
-                            <small>Across all levels</small>
-                        </div>
-                        <div class="level-kpi">
-                            <span>Selected Level</span>
-                            <strong id="selectedLevelLabel">All Levels</strong>
-                            <small id="selectedLevelSummary">Subjects: 0 | Hours: 0</small>
-                        </div>
-                    </div>
-                    <div id="gradeChipBar" class="grade-chip-bar"></div>
-                </div>
                 <form id="bulkDeleteForm" method="post" action="/subjects/delete-bulk">
                 <div class="table-wrap">
                     <table>
@@ -711,7 +610,7 @@
                         </thead>
                         <tbody id="subjectsBody">
                             {% for subject in subjects %}
-                            <tr class="subject-row" data-grade="{{ 'KG' if subject.grade == 0 else subject.grade }}" data-hours="{{ subject.weekly_hours or 0 }}">
+                            <tr class="subject-row">
                                 {% if can_delete %}
                                 <td class="select-col">
                                     <input class="bulk-select bulk-select-item" type="checkbox" name="selected_subject_ids" value="{{ subject.id }}" aria-label="Select subject {{ subject.subject_code }} for bulk delete">
@@ -768,18 +667,11 @@
         const bulkDeleteTrigger = document.getElementById("bulkDeleteTrigger");
         const subjectCodeInput = document.getElementById("subject_code");
         const subjectNameInput = document.getElementById("subject_name");
-        const totalSubjectsMetric = document.getElementById("totalSubjectsMetric");
-        const totalHoursMetric = document.getElementById("totalHoursMetric");
-        const selectedLevelLabel = document.getElementById("selectedLevelLabel");
-        const selectedLevelSummary = document.getElementById("selectedLevelSummary");
-        const gradeChipBar = document.getElementById("gradeChipBar");
         const downloadTemplateBtn = document.getElementById("downloadTemplateBtn");
         const importForm = document.getElementById("importForm");
         const fileInput = document.getElementById("subject_file");
         const focusButtons = Array.from(document.querySelectorAll("[data-focus-target]"));
         const clearButtons = Array.from(document.querySelectorAll("[data-clear-target]"));
-        const gradeOrder = ["KG", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
-        let activeGrade = "ALL";
 
         focusButtons.forEach((button) => {
             button.addEventListener("click", () => {
@@ -805,120 +697,6 @@
                 }
             });
         });
-
-        const getRowGrade = (row) => {
-            const rawGrade = String(row.dataset.grade || "").trim().toUpperCase();
-            if (rawGrade === "0" || rawGrade === "KG") {
-                return "KG";
-            }
-            return rawGrade;
-        };
-
-        const getRowHours = (row) => {
-            const parsedHours = Number(row.dataset.hours || "0");
-            return Number.isFinite(parsedHours) ? parsedHours : 0;
-        };
-
-        const getGradeLabel = (grade) => {
-            if (grade === "ALL") {
-                return "All Levels";
-            }
-            if (grade === "KG") {
-                return "KG";
-            }
-            return `Grade ${grade}`;
-        };
-
-        const buildGradeStats = () => {
-            const stats = {};
-            gradeOrder.forEach((grade) => {
-                stats[grade] = { subjects: 0, hours: 0 };
-            });
-
-            rows.forEach((row) => {
-                const grade = getRowGrade(row);
-                if (!stats[grade]) {
-                    stats[grade] = { subjects: 0, hours: 0 };
-                }
-                stats[grade].subjects += 1;
-                stats[grade].hours += getRowHours(row);
-            });
-
-            return stats;
-        };
-
-        const gradeStats = buildGradeStats();
-
-        const getAllTotals = () => {
-            return rows.reduce((total, row) => {
-                total.subjects += 1;
-                total.hours += getRowHours(row);
-                return total;
-            }, { subjects: 0, hours: 0 });
-        };
-
-        const allTotals = getAllTotals();
-
-        const renderGradeChips = () => {
-            if (!gradeChipBar) {
-                return;
-            }
-
-            gradeChipBar.innerHTML = "";
-            const chipList = ["ALL", ...gradeOrder];
-
-            chipList.forEach((grade) => {
-                const chip = document.createElement("button");
-                chip.type = "button";
-                chip.className = "grade-chip";
-                chip.dataset.grade = grade;
-                const stats = grade === "ALL"
-                    ? allTotals
-                    : (gradeStats[grade] || { subjects: 0, hours: 0 });
-                chip.textContent = `${getGradeLabel(grade)} (${stats.subjects})`;
-                if (grade === activeGrade) {
-                    chip.classList.add("active");
-                }
-                chip.addEventListener("click", () => {
-                    activeGrade = grade;
-                    renderGradeChips();
-                    updateSelectedLevelSummary();
-                    applySubjectFilters();
-                });
-                gradeChipBar.appendChild(chip);
-            });
-        };
-
-        const updateSelectedLevelSummary = () => {
-            if (!selectedLevelLabel || !selectedLevelSummary) {
-                return;
-            }
-
-            const stats = activeGrade === "ALL"
-                ? allTotals
-                : (gradeStats[activeGrade] || { subjects: 0, hours: 0 });
-            selectedLevelLabel.textContent = getGradeLabel(activeGrade);
-            selectedLevelSummary.textContent = `Subjects: ${stats.subjects} | Hours: ${stats.hours}`;
-        };
-
-        const applySubjectFilters = () => {
-            const term = searchInput ? searchInput.value.trim().toLowerCase() : "";
-            let visible = 0;
-
-            rows.forEach((row) => {
-                const gradeMatch = activeGrade === "ALL" || getRowGrade(row) === activeGrade;
-                const searchMatch = (row.textContent || "").toLowerCase().includes(term);
-                const match = gradeMatch && searchMatch;
-                row.style.display = match ? "" : "none";
-                if (match) {
-                    visible += 1;
-                }
-            });
-
-            if (noResult) {
-                noResult.style.display = visible === 0 ? "block" : "none";
-            }
-        };
 
         const updateBulkDeleteState = () => {
             if (!bulkDeleteTrigger) {
@@ -993,7 +771,23 @@
         }
 
         if (searchInput && rows.length > 0) {
-            searchInput.addEventListener("input", applySubjectFilters);
+            searchInput.addEventListener("input", () => {
+                const term = searchInput.value.trim().toLowerCase();
+                let visible = 0;
+
+                rows.forEach((row) => {
+                    const text = row.textContent.toLowerCase();
+                    const match = text.includes(term);
+                    row.style.display = match ? "" : "none";
+                    if (match) {
+                        visible += 1;
+                    }
+                });
+
+                if (noResult) {
+                    noResult.style.display = visible === 0 ? "block" : "none";
+                }
+            });
         }
 
         if (downloadTemplateBtn) {
@@ -1029,16 +823,6 @@
             });
         }
 
-        if (totalSubjectsMetric) {
-            totalSubjectsMetric.textContent = String(allTotals.subjects);
-        }
-        if (totalHoursMetric) {
-            totalHoursMetric.textContent = String(allTotals.hours);
-        }
-
-        renderGradeChips();
-        updateSelectedLevelSummary();
-        applySubjectFilters();
         updateBulkDeleteState();
     </script>
 </body>

@@ -612,9 +612,10 @@ def dashboard(
         for section in planning_sections
         if str(section.class_status).strip().lower() == "new"
     )
-    subjects_preview = subjects_query.order_by(
-        models.Subject.id.desc()
-    ).limit(8).all()
+    subjects_dashboard_rows = subjects_query.order_by(
+        models.Subject.grade.asc(),
+        models.Subject.subject_code.asc(),
+    ).all()
     teachers_preview = teachers_query.order_by(
         models.Teacher.id.desc()
     ).limit(8).all()
@@ -622,7 +623,7 @@ def dashboard(
         models.User.id.desc()
     ).limit(8).all()
     subject_hours_by_grade = {}
-    for subject in subjects_query.all():
+    for subject in subjects_dashboard_rows:
         if subject.grade is None:
             continue
         grade_label = "KG" if int(subject.grade) == 0 else str(int(subject.grade))
@@ -669,7 +670,7 @@ def dashboard(
             "planning_current_sections_count": planning_current_sections_count,
             "planning_new_sections_count": planning_new_sections_count,
             "planning_total_allocated_hours": planning_total_allocated_hours,
-            "subjects_preview": subjects_preview,
+            "subjects_dashboard_rows": subjects_dashboard_rows,
             "teachers_preview": teachers_preview,
             "users_preview": users_preview,
             "all_years": all_years,

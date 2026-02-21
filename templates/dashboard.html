@@ -466,6 +466,102 @@
             text-align: center;
         }
 
+        .subject-level-dashboard {
+            border: 1px solid #d4e1f3;
+            border-radius: 12px;
+            background: linear-gradient(145deg, #fbfdff, #f3f8ff);
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+
+        .subject-level-kpis {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .subject-level-kpi {
+            border: 1px solid #d6e2f4;
+            border-radius: 10px;
+            background: #fff;
+            padding: 10px;
+        }
+
+        .subject-level-kpi span {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            color: #4a607f;
+            font-weight: 700;
+        }
+
+        .subject-level-kpi strong {
+            display: block;
+            margin-top: 4px;
+            font-size: 26px;
+            line-height: 1.1;
+            color: #1b3154;
+        }
+
+        .subject-level-kpi small {
+            display: block;
+            margin-top: 4px;
+            font-size: 12px;
+            color: #536885;
+        }
+
+        .subject-grade-chip-bar {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .subject-grade-chip {
+            border: 1px solid #b7c9e2;
+            background: #fff;
+            color: #325077;
+            border-radius: 999px;
+            padding: 7px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 120ms ease, border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+        }
+
+        .subject-grade-chip:hover {
+            transform: translateY(-1px);
+            border-color: #8fc4be;
+            background: #edf8f6;
+            color: #0c5751;
+        }
+
+        .subject-grade-chip.active {
+            border-color: #0f766e;
+            background: #0f766e;
+            color: #fff;
+        }
+
+        .subject-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .subject-filter-input {
+            width: 320px;
+            max-width: 100%;
+            padding: 9px 10px;
+            border: 1px solid #c6d4e8;
+            border-radius: 8px;
+            font-size: 14px;
+            background: #fff;
+        }
+
         .tiles {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -601,6 +697,18 @@
 
             .planning-metrics {
                 grid-template-columns: 1fr;
+            }
+
+            .subject-level-kpis {
+                grid-template-columns: 1fr;
+            }
+
+            .subject-toolbar {
+                justify-content: stretch;
+            }
+
+            .subject-filter-input {
+                width: 100%;
             }
 
             .dev-row {
@@ -790,7 +898,30 @@
                         <p>Manage curriculum subjects for your current branch and academic year.</p>
                     </div>
                 </div>
-                {% if subjects_preview %}
+                {% if subjects_dashboard_rows %}
+                <div class="subject-level-dashboard">
+                    <div class="subject-level-kpis">
+                        <div class="subject-level-kpi">
+                            <span>Total Subjects</span>
+                            <strong id="dashboardTotalSubjects" class="subject-kpi-value" data-value="{{ subject_count }}">{{ subject_count }}</strong>
+                            <small>In this branch/year scope</small>
+                        </div>
+                        <div class="subject-level-kpi">
+                            <span>Total Weekly Hours</span>
+                            <strong id="dashboardTotalWeeklyHours" class="subject-kpi-value" data-value="0">0</strong>
+                            <small>Across all levels</small>
+                        </div>
+                        <div class="subject-level-kpi">
+                            <span>Selected Level</span>
+                            <strong id="dashboardSelectedLevelLabel">All Levels</strong>
+                            <small id="dashboardSelectedLevelSummary">Subjects: 0 | Hours: 0</small>
+                        </div>
+                    </div>
+                    <div id="dashboardSubjectGradeChipBar" class="subject-grade-chip-bar"></div>
+                </div>
+                <div class="subject-toolbar">
+                    <input id="dashboardSubjectSearch" class="subject-filter-input" type="text" placeholder="Search by code, name, grade, or hours">
+                </div>
                 <div class="table-wrap">
                     <table>
                         <tr>
@@ -799,8 +930,8 @@
                             <th>Weekly Hours</th>
                             <th>Grade</th>
                         </tr>
-                        {% for subject in subjects_preview %}
-                        <tr>
+                        {% for subject in subjects_dashboard_rows %}
+                        <tr class="dashboard-subject-row" data-grade="{{ 'KG' if subject.grade == 0 else subject.grade }}" data-hours="{{ subject.weekly_hours or 0 }}">
                             <td>{{ subject.subject_code }}</td>
                             <td>{{ subject.subject_name }}</td>
                             <td>{{ subject.weekly_hours }}</td>
@@ -809,6 +940,7 @@
                         {% endfor %}
                     </table>
                 </div>
+                <div id="dashboardNoSubjectResult" class="empty" style="display:none;">No subjects match the selected level/search filters.</div>
                 {% else %}
                 <div class="empty">No subjects yet. Open the Subjects module to add your first record.</div>
                 {% endif %}
@@ -969,7 +1101,18 @@
     <script>
         const tabs = document.querySelectorAll(".tab");
         const panels = document.querySelectorAll(".panel");
+        const dashboardSubjectRows = Array.from(document.querySelectorAll(".dashboard-subject-row"));
+        const dashboardSubjectSearch = document.getElementById("dashboardSubjectSearch");
+        const dashboardNoSubjectResult = document.getElementById("dashboardNoSubjectResult");
+        const dashboardSubjectGradeChipBar = document.getElementById("dashboardSubjectGradeChipBar");
+        const dashboardTotalWeeklyHours = document.getElementById("dashboardTotalWeeklyHours");
+        const dashboardSelectedLevelLabel = document.getElementById("dashboardSelectedLevelLabel");
+        const dashboardSelectedLevelSummary = document.getElementById("dashboardSelectedLevelSummary");
+        const subjectKpiValues = Array.from(document.querySelectorAll(".subject-kpi-value"));
         const planningKpiValues = Array.from(document.querySelectorAll(".planning-kpi-value"));
+        const subjectGradeOrder = ["KG", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+        let activeDashboardGrade = "ALL";
+        let subjectKpiAnimated = false;
         let planningKpiAnimated = false;
 
         const animateNumericValue = (element) => {
@@ -1002,6 +1145,136 @@
             planningKpiAnimated = true;
         };
 
+        const getDashboardRowGrade = (row) => {
+            const rawGrade = String(row.dataset.grade || "").trim().toUpperCase();
+            if (rawGrade === "0" || rawGrade === "KG") {
+                return "KG";
+            }
+            return rawGrade;
+        };
+
+        const getDashboardRowHours = (row) => {
+            const parsedHours = Number(row.dataset.hours || "0");
+            return Number.isFinite(parsedHours) ? parsedHours : 0;
+        };
+
+        const getDashboardGradeLabel = (grade) => {
+            if (grade === "ALL") {
+                return "All Levels";
+            }
+            if (grade === "KG") {
+                return "KG";
+            }
+            return `Grade ${grade}`;
+        };
+
+        const buildDashboardGradeStats = () => {
+            const stats = {};
+            subjectGradeOrder.forEach((grade) => {
+                stats[grade] = { subjects: 0, hours: 0 };
+            });
+
+            dashboardSubjectRows.forEach((row) => {
+                const grade = getDashboardRowGrade(row);
+                if (!stats[grade]) {
+                    stats[grade] = { subjects: 0, hours: 0 };
+                }
+                stats[grade].subjects += 1;
+                stats[grade].hours += getDashboardRowHours(row);
+            });
+
+            return stats;
+        };
+
+        const dashboardGradeStats = buildDashboardGradeStats();
+        const dashboardAllTotals = dashboardSubjectRows.reduce((total, row) => {
+            total.subjects += 1;
+            total.hours += getDashboardRowHours(row);
+            return total;
+        }, { subjects: 0, hours: 0 });
+
+        const updateDashboardSubjectSummary = () => {
+            if (!dashboardSelectedLevelLabel || !dashboardSelectedLevelSummary) {
+                return;
+            }
+            const stats = activeDashboardGrade === "ALL"
+                ? dashboardAllTotals
+                : (dashboardGradeStats[activeDashboardGrade] || { subjects: 0, hours: 0 });
+            dashboardSelectedLevelLabel.textContent = getDashboardGradeLabel(activeDashboardGrade);
+            dashboardSelectedLevelSummary.textContent = `Subjects: ${stats.subjects} | Hours: ${stats.hours}`;
+        };
+
+        const renderDashboardSubjectGradeChips = () => {
+            if (!dashboardSubjectGradeChipBar) {
+                return;
+            }
+
+            dashboardSubjectGradeChipBar.innerHTML = "";
+            const chipList = ["ALL", ...subjectGradeOrder];
+
+            chipList.forEach((grade) => {
+                const chip = document.createElement("button");
+                chip.type = "button";
+                chip.className = "subject-grade-chip";
+                chip.dataset.grade = grade;
+                const stats = grade === "ALL"
+                    ? dashboardAllTotals
+                    : (dashboardGradeStats[grade] || { subjects: 0, hours: 0 });
+                chip.textContent = `${getDashboardGradeLabel(grade)} (${stats.subjects})`;
+                if (grade === activeDashboardGrade) {
+                    chip.classList.add("active");
+                }
+                chip.addEventListener("click", () => {
+                    activeDashboardGrade = grade;
+                    renderDashboardSubjectGradeChips();
+                    updateDashboardSubjectSummary();
+                    applyDashboardSubjectFilters();
+                });
+                dashboardSubjectGradeChipBar.appendChild(chip);
+            });
+        };
+
+        const applyDashboardSubjectFilters = () => {
+            const term = dashboardSubjectSearch ? dashboardSubjectSearch.value.trim().toLowerCase() : "";
+            let visibleCount = 0;
+
+            dashboardSubjectRows.forEach((row) => {
+                const gradeMatch = activeDashboardGrade === "ALL" || getDashboardRowGrade(row) === activeDashboardGrade;
+                const searchMatch = (row.textContent || "").toLowerCase().includes(term);
+                const match = gradeMatch && searchMatch;
+                row.style.display = match ? "" : "none";
+                if (match) {
+                    visibleCount += 1;
+                }
+            });
+
+            if (dashboardNoSubjectResult) {
+                dashboardNoSubjectResult.style.display = visibleCount === 0 ? "block" : "none";
+            }
+        };
+
+        const animateSubjectKpis = () => {
+            if (subjectKpiAnimated) {
+                return;
+            }
+            subjectKpiValues.forEach((element) => animateNumericValue(element));
+            subjectKpiAnimated = true;
+        };
+
+        if (dashboardTotalWeeklyHours) {
+            dashboardTotalWeeklyHours.dataset.value = String(dashboardAllTotals.hours);
+            dashboardTotalWeeklyHours.textContent = String(dashboardAllTotals.hours);
+        }
+
+        if (dashboardSubjectRows.length > 0) {
+            renderDashboardSubjectGradeChips();
+            updateDashboardSubjectSummary();
+            applyDashboardSubjectFilters();
+            if (dashboardSubjectSearch) {
+                dashboardSubjectSearch.addEventListener("input", applyDashboardSubjectFilters);
+            }
+        }
+
         tabs.forEach((tab) => {
             tab.addEventListener("click", () => {
                 const target = tab.getAttribute("data-panel");
@@ -1018,8 +1291,17 @@
                 if (target === "planning") {
                     animatePlanningKpis();
                 }
+
+                if (target === "subjects") {
+                    animateSubjectKpis();
+                }
             });
         });
+
+        const activeSubjectsPanel = document.getElementById("panel-subjects");
+        if (activeSubjectsPanel && activeSubjectsPanel.classList.contains("active")) {
+            animateSubjectKpis();
+        }
 
         const activePlanningPanel = document.getElementById("panel-planning");
         if (activePlanningPanel && activePlanningPanel.classList.contains("active")) {
