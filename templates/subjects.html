@@ -214,6 +214,7 @@
 
         .btn-save,
         .btn-import,
+        .btn-export,
         .btn-template {
             margin-top: 12px;
             border: none;
@@ -238,6 +239,11 @@
 
         .btn-import {
             background: #9333ea;
+        }
+
+        .btn-export {
+            background: #0f766e;
+            margin-right: 8px;
         }
 
         .tools {
@@ -527,6 +533,7 @@
                     <h2>Excel Import / Export</h2>
                     <p>Download template, fill your data, then import automatically.</p>
 
+                    <a id="exportSubjectsBtn" class="btn-export" href="/subjects/export">Export Current Subjects</a>
                     <a id="downloadTemplateBtn" class="btn-template" href="/subjects/template">Download Excel Template</a>
 
                     {% if can_modify %}
@@ -667,6 +674,7 @@
         const bulkDeleteTrigger = document.getElementById("bulkDeleteTrigger");
         const subjectCodeInput = document.getElementById("subject_code");
         const subjectNameInput = document.getElementById("subject_name");
+        const exportSubjectsBtn = document.getElementById("exportSubjectsBtn");
         const downloadTemplateBtn = document.getElementById("downloadTemplateBtn");
         const importForm = document.getElementById("importForm");
         const fileInput = document.getElementById("subject_file");
@@ -793,6 +801,15 @@
         if (downloadTemplateBtn) {
             downloadTemplateBtn.addEventListener("click", (event) => {
                 const confirmed = confirm("Step 1 of 3: Download the Excel template now?");
+                if (!confirmed) {
+                    event.preventDefault();
+                }
+            });
+        }
+
+        if (exportSubjectsBtn) {
+            exportSubjectsBtn.addEventListener("click", (event) => {
+                const confirmed = confirm("Export current subjects grouped by grade to Excel?");
                 if (!confirmed) {
                     event.preventDefault();
                 }
