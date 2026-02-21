@@ -1105,6 +1105,7 @@
         const dashboardSubjectSearch = document.getElementById("dashboardSubjectSearch");
         const dashboardNoSubjectResult = document.getElementById("dashboardNoSubjectResult");
         const dashboardSubjectGradeChipBar = document.getElementById("dashboardSubjectGradeChipBar");
+        const dashboardTotalSubjects = document.getElementById("dashboardTotalSubjects");
         const dashboardTotalWeeklyHours = document.getElementById("dashboardTotalWeeklyHours");
         const dashboardSelectedLevelLabel = document.getElementById("dashboardSelectedLevelLabel");
         const dashboardSelectedLevelSummary = document.getElementById("dashboardSelectedLevelSummary");
@@ -1193,15 +1194,12 @@
             return total;
         }, { subjects: 0, hours: 0 });
 
-        const updateDashboardSubjectSummary = () => {
+        const updateDashboardSubjectSummary = (subjectsCount, totalHours) => {
             if (!dashboardSelectedLevelLabel || !dashboardSelectedLevelSummary) {
                 return;
             }
-            const stats = activeDashboardGrade === "ALL"
-                ? dashboardAllTotals
-                : (dashboardGradeStats[activeDashboardGrade] || { subjects: 0, hours: 0 });
             dashboardSelectedLevelLabel.textContent = getDashboardGradeLabel(activeDashboardGrade);
-            dashboardSelectedLevelSummary.textContent = `Subjects: ${stats.subjects} | Hours: ${stats.hours}`;
+            dashboardSelectedLevelSummary.textContent = `Subjects: ${subjectsCount} | Hours: ${totalHours}`;
         };
 
         const renderDashboardSubjectGradeChips = () => {
@@ -1227,7 +1225,6 @@
                 chip.addEventListener("click", () => {
                     activeDashboardGrade = grade;
                     renderDashboardSubjectGradeChips();
-                    updateDashboardSubjectSummary();
                     applyDashboardSubjectFilters();
                 });
                 dashboardSubjectGradeChipBar.appendChild(chip);
@@ -1237,6 +1234,7 @@
         const applyDashboardSubjectFilters = () => {
             const term = dashboardSubjectSearch ? dashboardSubjectSearch.value.trim().toLowerCase() : "";
             let visibleCount = 0;
+            let visibleHours = 0;
 
             dashboardSubjectRows.forEach((row) => {
                 const gradeMatch = activeDashboardGrade === "ALL" || getDashboardRowGrade(row) === activeDashboardGrade;
@@ -1245,12 +1243,25 @@
                 row.style.display = match ? "" : "none";
                 if (match) {
                     visibleCount += 1;
+                    visibleHours += getDashboardRowHours(row);
                 }
             });
 
             if (dashboardNoSubjectResult) {
                 dashboardNoSubjectResult.style.display = visibleCount === 0 ? "block" : "none";
             }
+
+            if (dashboardTotalSubjects) {
+                dashboardTotalSubjects.dataset.value = String(visibleCount);
+                dashboardTotalSubjects.textContent = String(visibleCount);
+            }
+
+            if (dashboardTotalWeeklyHours) {
+                dashboardTotalWeeklyHours.dataset.value = String(visibleHours);
+                dashboardTotalWeeklyHours.textContent = String(visibleHours);
+            }
+
+            updateDashboardSubjectSummary(visibleCount, visibleHours);
         };
 
         const animateSubjectKpis = () => {
@@ -1261,14 +1272,8 @@
             subjectKpiAnimated = true;
         };
 
-        if (dashboardTotalWeeklyHours) {
-            dashboardTotalWeeklyHours.dataset.value = String(dashboardAllTotals.hours);
-            dashboardTotalWeeklyHours.textContent = String(dashboardAllTotals.hours);
-        }
-
         if (dashboardSubjectRows.length > 0) {
             renderDashboardSubjectGradeChips();
-            updateDashboardSubjectSummary();
             applyDashboardSubjectFilters();
             if (dashboardSubjectSearch) {
                 dashboardSubjectSearch.addEventListener("input", applyDashboardSubjectFilters);
