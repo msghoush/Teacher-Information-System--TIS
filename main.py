@@ -44,6 +44,13 @@ CROSS_SUBJECT_SUPPORT_RULES = {
     "arabic": {"social studies ksa"},
     "arbic": {"social studies ksa"},
 }
+CROSS_SUBJECT_HIRING_ANCHOR_PRIORITY = [
+    "english",
+    "arabic",
+    "arbic",
+    "social studies english",
+    "social studies ksa",
+]
 get_audit_logger()
 
 
@@ -497,15 +504,123 @@ def _build_reporting_context(
                 teachers_per_subject.get(subject_key, 0) + 1
             )
 
+    rule_subject_graph = {}
+    for primary_subject_key, support_subject_keys in CROSS_SUBJECT_SUPPORT_RULES.items():
+        normalized_primary_subject_key = _normalize_subject_family_key(primary_subject_key)
+        if normalized_primary_subject_key not in subject_demand_map:
+            continue
+
+        rule_subject_graph.setdefault(normalized_primary_subject_key, set())
+        for support_subject_key in support_subject_keys:
+            normalized_support_subject_key = _normalize_subject_family_key(
+                support_subject_key
+            )
+            if normalized_support_subject_key not in subject_demand_map:
+                continue
+            rule_subject_graph.setdefault(normalized_support_subject_key, set())
+            rule_subject_graph[normalized_primary_subject_key].add(
+                normalized_support_subject_key
+            )
+            rule_subject_graph[normalized_support_subject_key].add(
+                normalized_primary_subject_key
+            )
+
+    subject_additional_teachers_map = {}
+    subject_additional_teachers_note_map = {}
+    pooled_subject_keys = set()
+    total_additional_teachers_needed = 0
+    visited_rule_subjects = set()
+
+    for subject_key in sorted(rule_subject_graph.keys()):
+        if subject_key in visited_rule_subjects:
+            continue
+
+        stack = [subject_key]
+        component_subject_keys = set()
+        while stack:
+            current_subject_key = stack.pop()
+            if current_subject_key in visited_rule_subjects:
+                continue
+            visited_rule_subjects.add(current_subject_key)
+            component_subject_keys.add(current_subject_key)
+            for neighbor_subject_key in rule_subject_graph.get(current_subject_key, set()):
+                if neighbor_subject_key not in visited_rule_subjects:
+                    stack.append(neighbor_subject_key)
+
+        component_with_remaining = [
+            item_key
+            for item_key in component_subject_keys
+            if remaining_hours_by_subject.get(item_key, 0) > 0
+        ]
+        if not component_with_remaining:
+            continue
+
+        component_remaining_hours = sum(
+            remaining_hours_by_subject.get(item_key, 0)
+            for item_key in component_with_remaining
+        )
+        component_teachers_needed = math.ceil(
+            component_remaining_hours / REPORT_STANDARD_MAX_HOURS
+        )
+        total_additional_teachers_needed += component_teachers_needed
+        pooled_subject_keys.update(component_with_remaining)
+
+        anchor_subject_key = next(
+            (
+                candidate_key
+                for candidate_key in CROSS_SUBJECT_HIRING_ANCHOR_PRIORITY
+                if candidate_key in component_with_remaining
+            ),
+            None,
+        )
+        if not anchor_subject_key:
+            anchor_subject_key = sorted(
+                component_with_remaining,
+                key=lambda item_key: (
+                    -remaining_hours_by_subject.get(item_key, 0),
+                    subject_demand_map[item_key]["subject_name"],
+                ),
+            )[0]
+
+        component_subject_names = sorted(
+            subject_demand_map[item_key]["subject_name"]
+            for item_key in component_with_remaining
+        )
+        for item_key in component_with_remaining:
+            if item_key == anchor_subject_key:
+                subject_additional_teachers_map[item_key] = component_teachers_needed
+                if len(component_with_remaining) > 1:
+                    subject_additional_teachers_note_map[item_key] = (
+                        "Combined hiring pool: "
+                        + ", ".join(component_subject_names)
+                    )
+            else:
+                subject_additional_teachers_map[item_key] = 0
+                subject_additional_teachers_note_map[item_key] = (
+                    "Counted in "
+                    + subject_demand_map[anchor_subject_key]["subject_name"]
+                    + " combined pool."
+                )
+
+    for subject_key, remaining_hours in remaining_hours_by_subject.items():
+        if remaining_hours <= 0 or subject_key in pooled_subject_keys:
+            continue
+
+        subject_teachers_needed = math.ceil(
+            remaining_hours / REPORT_STANDARD_MAX_HOURS
+        )
+        subject_additional_teachers_map[subject_key] = subject_teachers_needed
+        total_additional_teachers_needed += subject_teachers_needed
+
     report_subject_rows = []
     for subject_key, demand in subject_demand_map.items():
         required_hours = demand["required_hours"]
         remaining_hours = remaining_hours_by_subject.get(subject_key, 0)
         allocated_hours = max(required_hours - remaining_hours, 0)
-        additional_teachers_needed = (
-            math.ceil(remaining_hours / REPORT_STANDARD_MAX_HOURS)
-            if remaining_hours > 0
-            else 0
+        additional_teachers_needed = subject_additional_teachers_map.get(subject_key, 0)
+        additional_teachers_note = subject_additional_teachers_note_map.get(
+            subject_key,
+            "",
         )
         grades = sorted(demand["grades"], key=_grade_sort_key)
         coverage_percentage = (
@@ -527,6 +642,7 @@ def _build_reporting_context(
                 "coverage_percentage": coverage_percentage,
                 "teachers_with_subject": teachers_per_subject.get(subject_key, 0),
                 "additional_teachers_needed": additional_teachers_needed,
+                "additional_teachers_note": additional_teachers_note,
             }
         )
 
@@ -630,9 +746,6 @@ def _build_reporting_context(
         round((total_allocated_hours / total_required_hours) * 100)
         if total_required_hours > 0
         else 0
-    )
-    total_additional_teachers_needed = sum(
-        row["additional_teachers_needed"] for row in report_subject_rows
     )
     teachers_with_subject_alignment = sum(
         1 for profile in teacher_profiles if profile["subject_count"] > 0

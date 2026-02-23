@@ -1505,7 +1505,12 @@
                                     <td class="{{ 'report-status-gap' if row.remaining_hours > 0 else 'report-status-good' }}">{{ row.remaining_hours }}</td>
                                     <td>{{ row.coverage_percentage }}%</td>
                                     <td>{{ row.teachers_with_subject }}</td>
-                                    <td class="{{ 'report-status-gap' if row.additional_teachers_needed > 0 else 'report-status-good' }}">{{ row.additional_teachers_needed }}</td>
+                                    <td class="{{ 'report-status-gap' if row.additional_teachers_needed > 0 else 'report-status-good' }}">
+                                        {{ row.additional_teachers_needed }}
+                                        {% if row.additional_teachers_note %}
+                                        <div class="report-inline-note">{{ row.additional_teachers_note }}</div>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </table>
