@@ -654,6 +654,245 @@
             line-height: 1.4;
         }
 
+        .report-note {
+            margin-bottom: 12px;
+            border: 1px solid #b8d7d2;
+            background: #edf8f6;
+            color: #0b4f4a;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .report-kpis {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .report-kpi {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #d3deed;
+            border-radius: 12px;
+            padding: 14px;
+            background: linear-gradient(145deg, #fbfdff, #f1f7ff);
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+        }
+
+        .report-kpi::after {
+            content: "";
+            position: absolute;
+            inset: auto 0 0 0;
+            height: 4px;
+            background: #b5c9e8;
+        }
+
+        .report-kpi-hours::after {
+            background: #2563eb;
+        }
+
+        .report-kpi-covered::after {
+            background: #0f766e;
+        }
+
+        .report-kpi-gap::after {
+            background: #d97706;
+        }
+
+        .report-kpi-teachers::after {
+            background: #1d4ed8;
+        }
+
+        .report-kpi span {
+            display: block;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            color: #4d607e;
+            font-weight: 700;
+        }
+
+        .report-kpi strong {
+            display: block;
+            margin-top: 6px;
+            font-size: 30px;
+            line-height: 1.1;
+            color: #142b4d;
+        }
+
+        .report-kpi p {
+            margin: 6px 0 0;
+            font-size: 13px;
+            color: #536885;
+            line-height: 1.4;
+        }
+
+        .report-coverage {
+            margin-top: 12px;
+            border: 1px solid #d5e2f2;
+            border-radius: 12px;
+            background: #f9fbff;
+            padding: 12px;
+        }
+
+        .report-coverage-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .report-coverage-meta span {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            color: #4d607e;
+            font-weight: 700;
+        }
+
+        .report-coverage-rate {
+            margin: 0;
+            font-size: 30px;
+            color: #0f766e;
+            letter-spacing: 0.4px;
+        }
+
+        .report-coverage-meta small {
+            color: #536885;
+            font-size: 12px;
+        }
+
+        .report-coverage-track {
+            margin-top: 10px;
+            height: 12px;
+            border-radius: 999px;
+            background: #e1e9f5;
+            overflow: hidden;
+        }
+
+        .report-coverage-fill {
+            height: 100%;
+            width: 0;
+            background: linear-gradient(90deg, #0f766e, #34d399);
+            transition: width 600ms ease-out;
+        }
+
+        .report-layout {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+            gap: 12px;
+        }
+
+        .report-card {
+            border: 1px solid #d3deed;
+            border-radius: 12px;
+            background: #fff;
+            padding: 14px;
+        }
+
+        .report-card h4 {
+            margin: 0;
+            font-size: 16px;
+            color: #1f3559;
+        }
+
+        .report-card p {
+            margin: 6px 0 10px;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .report-table table {
+            min-width: 760px;
+        }
+
+        .report-status-good {
+            color: #0d7a47;
+            font-weight: 700;
+        }
+
+        .report-status-gap {
+            color: #b45309;
+            font-weight: 700;
+        }
+
+        .report-inline-note {
+            margin-top: 4px;
+            font-size: 12px;
+            color: #4f607a;
+            line-height: 1.35;
+        }
+
+        .report-gap-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .report-gap-row {
+            border: 1px solid #dfebf9;
+            border-radius: 10px;
+            background: #fbfdff;
+            padding: 9px 10px;
+        }
+
+        .report-gap-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #1f3559;
+        }
+
+        .report-gap-track {
+            margin-top: 7px;
+            height: 8px;
+            border-radius: 999px;
+            background: #e4ebf6;
+            overflow: hidden;
+        }
+
+        .report-gap-fill {
+            height: 100%;
+            width: 0;
+            background: linear-gradient(90deg, #d97706, #f59e0b);
+            transition: width 600ms ease-out;
+        }
+
+        .report-gap-row small {
+            display: block;
+            margin-top: 6px;
+            font-size: 12px;
+            color: #556981;
+        }
+
+        .report-subtitle {
+            margin: 12px 0 0;
+            font-size: 15px;
+            color: #1f3559;
+        }
+
+        .report-grade-table {
+            margin-top: 8px;
+        }
+
+        .report-teachers-card {
+            margin-top: 12px;
+        }
+
+        .report-footnote {
+            margin-top: 10px;
+            color: #5b6c83;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
         @keyframes rise {
             from {
                 opacity: 0;
@@ -703,6 +942,14 @@
                 grid-template-columns: 1fr;
             }
 
+            .report-kpis {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .report-layout {
+                grid-template-columns: 1fr;
+            }
+
             .subject-toolbar {
                 justify-content: stretch;
             }
@@ -712,6 +959,12 @@
             }
 
             .dev-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .report-kpis {
                 grid-template-columns: 1fr;
             }
         }
@@ -1080,20 +1333,179 @@
                 <div class="panel-head">
                     <div>
                         <h3>Reports Workspace</h3>
-                        <p>Generate print-ready planning and teacher sufficiency reports.</p>
+                        <p>Year-based teacher sufficiency forecast across subjects, teachers, and planning.</p>
                     </div>
-                    <span class="open-link disabled">Module In Progress</span>
+                    <a class="open-link" href="/planning">Open Planning</a>
                 </div>
-                <div class="tiles">
-                    <div class="tile">
-                        <h4>Teacher Sufficiency Report</h4>
-                        <p>Subjects tracked: {{ subject_count }} | Teachers tracked: {{ teacher_count }}</p>
+                <div class="report-note">
+                    This report uses a fixed <strong>24 hours/week</strong> cap per existing teacher (standard allocation rule), regardless of custom Max Hours or Extra Hours settings.
+                </div>
+                {% if report_summary.total_required_hours > 0 %}
+                <div class="report-kpis">
+                    <div class="report-kpi report-kpi-hours">
+                        <span>Total Required Hours</span>
+                        <strong class="report-kpi-value" data-value="{{ report_summary.total_required_hours }}">{{ report_summary.total_required_hours }}</strong>
+                        <p>Current classes + new planned classes.</p>
                     </div>
-                    <div class="tile">
-                        <h4>Export Targets</h4>
-                        <p>Printable report and PDF export support will be provided in this module.</p>
+                    <div class="report-kpi report-kpi-covered">
+                        <span>Expected Covered Hours</span>
+                        <strong class="report-kpi-value" data-value="{{ report_summary.total_allocated_hours }}">{{ report_summary.total_allocated_hours }}</strong>
+                        <p>Allocated to existing teachers using 24h max each.</p>
+                    </div>
+                    <div class="report-kpi report-kpi-gap">
+                        <span>Uncovered Hours</span>
+                        <strong class="report-kpi-value" data-value="{{ report_summary.total_remaining_hours }}">{{ report_summary.total_remaining_hours }}</strong>
+                        <p>Remaining subject hours not covered by current teachers.</p>
+                    </div>
+                    <div class="report-kpi report-kpi-teachers">
+                        <span>Additional Teachers Needed</span>
+                        <strong class="report-kpi-value" data-value="{{ report_summary.total_additional_teachers_needed }}">{{ report_summary.total_additional_teachers_needed }}</strong>
+                        <p>Subject-specific requirement based on remaining hours.</p>
                     </div>
                 </div>
+
+                <div class="report-coverage">
+                    <div class="report-coverage-meta">
+                        <span>Coverage Rate by Existing Teachers</span>
+                        <h4 class="report-coverage-rate"><span class="report-kpi-value" data-value="{{ report_summary.coverage_percentage }}">{{ report_summary.coverage_percentage }}</span>%</h4>
+                        <small>Current demand: {{ report_summary.total_required_current_hours }}h | New demand: {{ report_summary.total_required_new_hours }}h</small>
+                    </div>
+                    <div class="report-coverage-track">
+                        <div id="reportCoverageFill" class="report-coverage-fill" data-width="{{ report_summary.coverage_percentage }}"></div>
+                    </div>
+                </div>
+
+                <div class="report-layout">
+                    <div class="report-card">
+                        <h4>Subject Sufficiency Breakdown</h4>
+                        <p>Hours are aggregated by subject across all grades (KG to Grade 12) in the selected academic year scope.</p>
+                        <div class="table-wrap report-table">
+                            <table>
+                                <tr>
+                                    <th>Subject</th>
+                                    <th>Grades</th>
+                                    <th>Current Hours</th>
+                                    <th>New Hours</th>
+                                    <th>Total Required</th>
+                                    <th>Covered</th>
+                                    <th>Uncovered</th>
+                                    <th>Coverage %</th>
+                                    <th>Teachers in Subject</th>
+                                    <th>Extra Teachers Needed</th>
+                                </tr>
+                                {% for row in report_subject_rows %}
+                                <tr>
+                                    <td>{{ row.subject_name }}</td>
+                                    <td>{{ row.grades | join(", ") }}</td>
+                                    <td>{{ row.required_current_hours }}</td>
+                                    <td>{{ row.required_new_hours }}</td>
+                                    <td>{{ row.required_hours }}</td>
+                                    <td>{{ row.allocated_hours }}</td>
+                                    <td class="{{ 'report-status-gap' if row.remaining_hours > 0 else 'report-status-good' }}">{{ row.remaining_hours }}</td>
+                                    <td>{{ row.coverage_percentage }}%</td>
+                                    <td>{{ row.teachers_with_subject }}</td>
+                                    <td class="{{ 'report-status-gap' if row.additional_teachers_needed > 0 else 'report-status-good' }}">{{ row.additional_teachers_needed }}</td>
+                                </tr>
+                                {% endfor %}
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="report-card">
+                        <h4>Uncovered Hours by Subject</h4>
+                        <p>Top subjects with remaining weekly demand after existing teacher allocation.</p>
+                        {% if report_gap_rows %}
+                        <div class="report-gap-list">
+                            {% for row in report_gap_rows %}
+                            <div class="report-gap-row">
+                                <div class="report-gap-head">
+                                    <span>{{ row.subject_name }}</span>
+                                    <strong>{{ row.remaining_hours }}h</strong>
+                                </div>
+                                <div class="report-gap-track">
+                                    <div class="report-gap-fill" data-width="{{ row.gap_chart_pct }}"></div>
+                                </div>
+                                <small>Additional teachers required: {{ row.additional_teachers_needed }}</small>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="empty">All required hours are covered by existing teachers.</div>
+                        {% endif %}
+
+                        <h4 class="report-subtitle">Demand by Grade</h4>
+                        {% if report_grade_rows %}
+                        <div class="table-wrap report-grade-table">
+                            <table>
+                                <tr>
+                                    <th>Grade</th>
+                                    <th>Current Sections</th>
+                                    <th>New Sections</th>
+                                    <th>Total Sections</th>
+                                    <th>Current Hours</th>
+                                    <th>New Hours</th>
+                                    <th>Total Hours</th>
+                                </tr>
+                                {% for grade_row in report_grade_rows %}
+                                <tr>
+                                    <td>{{ grade_row.grade_label }}</td>
+                                    <td>{{ grade_row.sections_current }}</td>
+                                    <td>{{ grade_row.sections_new }}</td>
+                                    <td>{{ grade_row.sections_total }}</td>
+                                    <td>{{ grade_row.required_hours_current }}</td>
+                                    <td>{{ grade_row.required_hours_new }}</td>
+                                    <td>{{ grade_row.required_hours_total }}</td>
+                                </tr>
+                                {% endfor %}
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="empty">No grade demand data is available in this scope yet.</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="report-card report-teachers-card">
+                    <h4>Expected Allocation for Existing Teachers (24h max)</h4>
+                    <p>Teachers are allocated by current subject assignments first, then capped at 24 hours/week.</p>
+                    {% if report_teacher_rows %}
+                    <div class="table-wrap report-table">
+                        <table>
+                            <tr>
+                                <th>Teacher ID</th>
+                                <th>Name</th>
+                                <th>Subject Coverage</th>
+                                <th>Expected Allocated Hours</th>
+                                <th>Remaining Capacity</th>
+                            </tr>
+                            {% for row in report_teacher_rows %}
+                            <tr>
+                                <td>{{ row.teacher_id }}</td>
+                                <td>{{ row.teacher_name }}</td>
+                                <td>{{ row.subject_labels | join(", ") if row.subject_labels else "-" }}</td>
+                                <td>
+                                    <strong>{{ row.expected_allocated_hours }}h</strong>
+                                    {% if row.allocation_labels %}
+                                    <div class="report-inline-note">{{ row.allocation_labels | join(", ") }}</div>
+                                    {% endif %}
+                                </td>
+                                <td>{{ row.remaining_capacity_hours }}h</td>
+                            </tr>
+                            {% endfor %}
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="empty">No teacher records found in this branch/year scope.</div>
+                    {% endif %}
+                    <div class="report-footnote">
+                        Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Aligned to at least one report subject: {{ report_summary.teachers_with_subject_alignment }} | Utilized in forecast: {{ report_summary.teachers_utilized }} | Full load (24h): {{ report_summary.teachers_full_load }} | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
+                    </div>
+                </div>
+                {% else %}
+                <div class="empty">
+                    No report output yet for this branch/year scope. Add planned sections and subject weekly hours to generate teacher sufficiency analytics.
+                </div>
+                {% endif %}
             </div>
         </section>
     </div>
@@ -1111,10 +1523,15 @@
         const dashboardSelectedLevelSummary = document.getElementById("dashboardSelectedLevelSummary");
         const subjectKpiValues = Array.from(document.querySelectorAll(".subject-kpi-value"));
         const planningKpiValues = Array.from(document.querySelectorAll(".planning-kpi-value"));
+        const reportKpiValues = Array.from(document.querySelectorAll(".report-kpi-value"));
+        const reportGapFills = Array.from(document.querySelectorAll(".report-gap-fill"));
+        const reportCoverageFill = document.getElementById("reportCoverageFill");
         const subjectGradeOrder = ["KG", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
         let activeDashboardGrade = "ALL";
         let subjectKpiAnimated = false;
         let planningKpiAnimated = false;
+        let reportKpiAnimated = false;
+        let reportBarsAnimated = false;
 
         const animateNumericValue = (element) => {
             const target = Number(element.dataset.value || element.textContent || "0");
@@ -1144,6 +1561,35 @@
             }
             planningKpiValues.forEach((element) => animateNumericValue(element));
             planningKpiAnimated = true;
+        };
+
+        const animateReportKpis = () => {
+            if (reportKpiAnimated) {
+                return;
+            }
+            reportKpiValues.forEach((element) => animateNumericValue(element));
+            reportKpiAnimated = true;
+        };
+
+        const animateReportBars = () => {
+            if (reportBarsAnimated) {
+                return;
+            }
+
+            const applyWidth = (element) => {
+                if (!element) {
+                    return;
+                }
+                const targetWidth = Number(element.dataset.width || "0");
+                const safeWidth = Math.max(0, Math.min(100, targetWidth));
+                requestAnimationFrame(() => {
+                    element.style.width = `${safeWidth}%`;
+                });
+            };
+
+            applyWidth(reportCoverageFill);
+            reportGapFills.forEach((element) => applyWidth(element));
+            reportBarsAnimated = true;
         };
 
         const getDashboardRowGrade = (row) => {
@@ -1300,6 +1746,11 @@
                 if (target === "subjects") {
                     animateSubjectKpis();
                 }
+
+                if (target === "reports") {
+                    animateReportKpis();
+                    animateReportBars();
+                }
             });
         });
 
@@ -1311,6 +1762,12 @@
         const activePlanningPanel = document.getElementById("panel-planning");
         if (activePlanningPanel && activePlanningPanel.classList.contains("active")) {
             animatePlanningKpis();
+        }
+
+        const activeReportsPanel = document.getElementById("panel-reports");
+        if (activeReportsPanel && activeReportsPanel.classList.contains("active")) {
+            animateReportKpis();
+            animateReportBars();
         }
     </script>
 </body>

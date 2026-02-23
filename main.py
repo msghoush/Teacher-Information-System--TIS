@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse,
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
+import math
 import os
 import re
 import time
@@ -37,6 +38,7 @@ app = FastAPI(title="Teacher Information System")
 
 templates = Jinja2Templates(directory="templates")
 ACADEMIC_YEAR_NAME_PATTERN = re.compile(r"^\d{4}-\d{4}$")
+REPORT_STANDARD_MAX_HOURS = 24
 get_audit_logger()
 
 
@@ -107,6 +109,447 @@ def _write_request_audit_log(
     except Exception:
         # Audit logging must not block business operations.
         pass
+
+
+def _normalize_grade_label(value) -> str:
+    cleaned = str(value).strip().upper()
+    if cleaned in {"0", "K", "KG", "KINDERGARTEN"}:
+        return "KG"
+    try:
+        parsed = int(cleaned)
+    except (TypeError, ValueError):
+        return ""
+    if 1 <= parsed <= 12:
+        return str(parsed)
+    return ""
+
+
+def _grade_sort_key(grade_label: str) -> int:
+    if grade_label == "KG":
+        return 0
+    try:
+        return int(grade_label)
+    except (TypeError, ValueError):
+        return 99
+
+
+def _build_subject_identity(subject_name: str, fallback_code: str = ""):
+    cleaned_name = " ".join(str(subject_name or "").split())
+    if cleaned_name:
+        return cleaned_name.lower(), cleaned_name
+
+    cleaned_code = " ".join(str(fallback_code or "").split()).upper()
+    if cleaned_code:
+        return cleaned_code.lower(), cleaned_code
+
+    return "", ""
+
+
+def _build_teacher_display_name(teacher) -> str:
+    name_parts = [
+        str(teacher.first_name or "").strip(),
+        str(teacher.middle_name or "").strip(),
+        str(teacher.last_name or "").strip(),
+    ]
+    full_name = " ".join(part for part in name_parts if part).strip()
+    if full_name:
+        return full_name
+    return f"Teacher #{teacher.id}"
+
+
+def _build_reporting_context(
+    db: Session,
+    subjects,
+    planning_sections,
+    teachers,
+):
+    sections_by_grade = {}
+    current_sections_by_grade = {}
+    new_sections_by_grade = {}
+
+    for section in planning_sections:
+        grade_label = _normalize_grade_label(section.grade_level)
+        if not grade_label:
+            continue
+
+        sections_by_grade[grade_label] = sections_by_grade.get(grade_label, 0) + 1
+        status = str(section.class_status or "").strip().lower()
+        if status == "current":
+            current_sections_by_grade[grade_label] = (
+                current_sections_by_grade.get(grade_label, 0) + 1
+            )
+        elif status == "new":
+            new_sections_by_grade[grade_label] = (
+                new_sections_by_grade.get(grade_label, 0) + 1
+            )
+
+    scoped_subjects_by_code = {
+        subject.subject_code: subject
+        for subject in subjects
+        if subject.subject_code
+    }
+    subject_demand_map = {}
+    required_hours_by_grade = {}
+    required_current_hours_by_grade = {}
+    required_new_hours_by_grade = {}
+
+    for subject in subjects:
+        grade_label = _normalize_grade_label(subject.grade)
+        if not grade_label:
+            continue
+
+        weekly_hours = int(subject.weekly_hours or 0)
+        if weekly_hours <= 0:
+            continue
+
+        sections_count = sections_by_grade.get(grade_label, 0)
+        if sections_count <= 0:
+            continue
+
+        current_sections_count = current_sections_by_grade.get(grade_label, 0)
+        new_sections_count = new_sections_by_grade.get(grade_label, 0)
+
+        subject_key, subject_label = _build_subject_identity(
+            subject_name=subject.subject_name,
+            fallback_code=subject.subject_code or "",
+        )
+        if not subject_key:
+            continue
+
+        required_hours = weekly_hours * sections_count
+        required_current_hours = weekly_hours * current_sections_count
+        required_new_hours = weekly_hours * new_sections_count
+
+        required_hours_by_grade[grade_label] = (
+            required_hours_by_grade.get(grade_label, 0) + required_hours
+        )
+        required_current_hours_by_grade[grade_label] = (
+            required_current_hours_by_grade.get(grade_label, 0) + required_current_hours
+        )
+        required_new_hours_by_grade[grade_label] = (
+            required_new_hours_by_grade.get(grade_label, 0) + required_new_hours
+        )
+
+        if subject_key not in subject_demand_map:
+            subject_demand_map[subject_key] = {
+                "subject_name": subject_label,
+                "required_hours": 0,
+                "required_current_hours": 0,
+                "required_new_hours": 0,
+                "grades": set(),
+            }
+
+        entry = subject_demand_map[subject_key]
+        entry["required_hours"] += required_hours
+        entry["required_current_hours"] += required_current_hours
+        entry["required_new_hours"] += required_new_hours
+        entry["grades"].add(grade_label)
+
+    teacher_subject_map = {
+        teacher.id: set()
+        for teacher in teachers
+        if getattr(teacher, "id", None)
+    }
+    teacher_ids = sorted(teacher_subject_map.keys())
+
+    if teacher_ids:
+        teacher_allocations = db.query(models.TeacherSubjectAllocation).filter(
+            models.TeacherSubjectAllocation.teacher_id.in_(teacher_ids)
+        ).all()
+    else:
+        teacher_allocations = []
+
+    for allocation in teacher_allocations:
+        subject_key_set = teacher_subject_map.get(allocation.teacher_id)
+        if subject_key_set is None:
+            continue
+
+        subject = scoped_subjects_by_code.get(allocation.subject_code)
+        if not subject:
+            continue
+
+        subject_key, _ = _build_subject_identity(
+            subject_name=subject.subject_name,
+            fallback_code=subject.subject_code or "",
+        )
+        if not subject_key or subject_key not in subject_demand_map:
+            continue
+        subject_key_set.add(subject_key)
+
+    for teacher in teachers:
+        subject_key_set = teacher_subject_map.get(getattr(teacher, "id", None))
+        if subject_key_set is None or subject_key_set:
+            continue
+
+        fallback_code = str(teacher.subject_code or "").strip().upper()
+        if not fallback_code:
+            continue
+
+        fallback_subject = scoped_subjects_by_code.get(fallback_code)
+        if not fallback_subject:
+            continue
+
+        subject_key, _ = _build_subject_identity(
+            subject_name=fallback_subject.subject_name,
+            fallback_code=fallback_subject.subject_code or "",
+        )
+        if subject_key and subject_key in subject_demand_map:
+            subject_key_set.add(subject_key)
+
+    teacher_profiles = []
+    for teacher in teachers:
+        teacher_id = getattr(teacher, "id", None)
+        subject_keys = sorted(
+            teacher_subject_map.get(teacher_id, set()),
+            key=lambda key: subject_demand_map[key]["subject_name"],
+        )
+        teacher_profiles.append(
+            {
+                "teacher": teacher,
+                "name": _build_teacher_display_name(teacher),
+                "subject_keys": subject_keys,
+                "subject_count": len(subject_keys),
+                "allocated_hours": 0,
+                "remaining_capacity_hours": REPORT_STANDARD_MAX_HOURS,
+                "allocation_breakdown": {},
+            }
+        )
+
+    remaining_hours_by_subject = {
+        subject_key: data["required_hours"]
+        for subject_key, data in subject_demand_map.items()
+    }
+
+    allocation_sequence = sorted(
+        teacher_profiles,
+        key=lambda profile: (
+            profile["subject_count"] if profile["subject_count"] else 999,
+            profile["name"],
+            profile["teacher"].id or 0,
+        ),
+    )
+
+    for profile in allocation_sequence:
+        if not profile["subject_keys"]:
+            continue
+
+        remaining_capacity = REPORT_STANDARD_MAX_HOURS
+        allocation_breakdown = {}
+
+        while remaining_capacity > 0:
+            candidate_subject_keys = [
+                subject_key
+                for subject_key in profile["subject_keys"]
+                if remaining_hours_by_subject.get(subject_key, 0) > 0
+            ]
+            if not candidate_subject_keys:
+                break
+
+            candidate_subject_keys.sort(
+                key=lambda subject_key: (
+                    -remaining_hours_by_subject.get(subject_key, 0),
+                    subject_demand_map[subject_key]["subject_name"],
+                )
+            )
+            selected_subject_key = candidate_subject_keys[0]
+            subject_remaining_hours = remaining_hours_by_subject.get(
+                selected_subject_key, 0
+            )
+            allocated_hours = min(remaining_capacity, subject_remaining_hours)
+            if allocated_hours <= 0:
+                break
+
+            allocation_breakdown[selected_subject_key] = (
+                allocation_breakdown.get(selected_subject_key, 0) + allocated_hours
+            )
+            remaining_hours_by_subject[selected_subject_key] = (
+                subject_remaining_hours - allocated_hours
+            )
+            remaining_capacity -= allocated_hours
+
+        profile["allocation_breakdown"] = allocation_breakdown
+        profile["allocated_hours"] = REPORT_STANDARD_MAX_HOURS - remaining_capacity
+        profile["remaining_capacity_hours"] = remaining_capacity
+
+    teachers_per_subject = {}
+    for profile in teacher_profiles:
+        for subject_key in profile["subject_keys"]:
+            teachers_per_subject[subject_key] = (
+                teachers_per_subject.get(subject_key, 0) + 1
+            )
+
+    report_subject_rows = []
+    for subject_key, demand in subject_demand_map.items():
+        required_hours = demand["required_hours"]
+        remaining_hours = remaining_hours_by_subject.get(subject_key, 0)
+        allocated_hours = max(required_hours - remaining_hours, 0)
+        additional_teachers_needed = (
+            math.ceil(remaining_hours / REPORT_STANDARD_MAX_HOURS)
+            if remaining_hours > 0
+            else 0
+        )
+        grades = sorted(demand["grades"], key=_grade_sort_key)
+        coverage_percentage = (
+            round((allocated_hours / required_hours) * 100)
+            if required_hours > 0
+            else 0
+        )
+
+        report_subject_rows.append(
+            {
+                "subject_key": subject_key,
+                "subject_name": demand["subject_name"],
+                "grades": grades,
+                "required_hours": required_hours,
+                "required_current_hours": demand["required_current_hours"],
+                "required_new_hours": demand["required_new_hours"],
+                "allocated_hours": allocated_hours,
+                "remaining_hours": remaining_hours,
+                "coverage_percentage": coverage_percentage,
+                "teachers_with_subject": teachers_per_subject.get(subject_key, 0),
+                "additional_teachers_needed": additional_teachers_needed,
+            }
+        )
+
+    report_subject_rows.sort(
+        key=lambda row: (
+            -row["remaining_hours"],
+            row["subject_name"],
+        )
+    )
+
+    report_gap_rows = [
+        dict(row)
+        for row in report_subject_rows
+        if row["remaining_hours"] > 0
+    ]
+    max_remaining_hours = max(
+        (row["remaining_hours"] for row in report_gap_rows),
+        default=0,
+    )
+    for row in report_gap_rows:
+        row["gap_chart_pct"] = (
+            round((row["remaining_hours"] / max_remaining_hours) * 100, 1)
+            if max_remaining_hours > 0
+            else 0
+        )
+    report_gap_rows = report_gap_rows[:8]
+
+    report_teacher_rows = []
+    for profile in teacher_profiles:
+        subject_labels = [
+            subject_demand_map[subject_key]["subject_name"]
+            for subject_key in profile["subject_keys"]
+        ]
+        allocation_labels = [
+            f"{subject_demand_map[subject_key]['subject_name']} ({hours}h)"
+            for subject_key, hours in sorted(
+                profile["allocation_breakdown"].items(),
+                key=lambda item: (-item[1], subject_demand_map[item[0]]["subject_name"]),
+            )
+        ]
+
+        teacher = profile["teacher"]
+        report_teacher_rows.append(
+            {
+                "teacher_id": teacher.teacher_id or "-",
+                "teacher_name": profile["name"],
+                "subject_labels": subject_labels,
+                "allocation_labels": allocation_labels,
+                "expected_allocated_hours": profile["allocated_hours"],
+                "remaining_capacity_hours": profile["remaining_capacity_hours"],
+            }
+        )
+
+    report_teacher_rows.sort(
+        key=lambda row: (
+            -row["expected_allocated_hours"],
+            row["teacher_name"],
+        )
+    )
+
+    report_grade_rows = []
+    for grade_label, total_sections in sections_by_grade.items():
+        report_grade_rows.append(
+            {
+                "grade_label": grade_label,
+                "sections_total": total_sections,
+                "sections_current": current_sections_by_grade.get(grade_label, 0),
+                "sections_new": new_sections_by_grade.get(grade_label, 0),
+                "required_hours_total": required_hours_by_grade.get(grade_label, 0),
+                "required_hours_current": required_current_hours_by_grade.get(
+                    grade_label, 0
+                ),
+                "required_hours_new": required_new_hours_by_grade.get(grade_label, 0),
+            }
+        )
+    report_grade_rows.sort(
+        key=lambda row: _grade_sort_key(row["grade_label"])
+    )
+
+    total_required_hours = sum(
+        row["required_hours"] for row in report_subject_rows
+    )
+    total_remaining_hours = sum(
+        row["remaining_hours"] for row in report_subject_rows
+    )
+    total_allocated_hours = total_required_hours - total_remaining_hours
+    total_existing_teachers = len(teachers)
+    total_existing_capacity_hours = total_existing_teachers * REPORT_STANDARD_MAX_HOURS
+    coverage_percentage = (
+        round((total_allocated_hours / total_required_hours) * 100)
+        if total_required_hours > 0
+        else 0
+    )
+    total_additional_teachers_needed = sum(
+        row["additional_teachers_needed"] for row in report_subject_rows
+    )
+    teachers_with_subject_alignment = sum(
+        1 for profile in teacher_profiles if profile["subject_count"] > 0
+    )
+    teachers_utilized = sum(
+        1 for profile in teacher_profiles if profile["allocated_hours"] > 0
+    )
+    teachers_full_load = sum(
+        1
+        for profile in teacher_profiles
+        if profile["allocated_hours"] >= REPORT_STANDARD_MAX_HOURS
+    )
+    unused_existing_capacity_hours = max(
+        total_existing_capacity_hours - total_allocated_hours,
+        0,
+    )
+    total_required_current_hours = sum(
+        required_current_hours_by_grade.values()
+    )
+    total_required_new_hours = sum(
+        required_new_hours_by_grade.values()
+    )
+
+    report_summary = {
+        "total_required_hours": total_required_hours,
+        "total_required_current_hours": total_required_current_hours,
+        "total_required_new_hours": total_required_new_hours,
+        "total_allocated_hours": total_allocated_hours,
+        "total_remaining_hours": total_remaining_hours,
+        "coverage_percentage": coverage_percentage,
+        "total_additional_teachers_needed": total_additional_teachers_needed,
+        "total_existing_teachers": total_existing_teachers,
+        "total_existing_capacity_hours": total_existing_capacity_hours,
+        "unused_existing_capacity_hours": unused_existing_capacity_hours,
+        "teachers_with_subject_alignment": teachers_with_subject_alignment,
+        "teachers_utilized": teachers_utilized,
+        "teachers_full_load": teachers_full_load,
+        "teachers_idle": max(total_existing_teachers - teachers_utilized, 0),
+    }
+
+    return {
+        "summary": report_summary,
+        "subject_rows": report_subject_rows,
+        "gap_rows": report_gap_rows,
+        "teacher_rows": report_teacher_rows,
+        "grade_rows": report_grade_rows,
+    }
 
 
 @app.middleware("http")
@@ -616,6 +1059,9 @@ def dashboard(
         models.Subject.grade.asc(),
         models.Subject.subject_code.asc(),
     ).all()
+    teachers_for_reporting = teachers_query.order_by(
+        models.Teacher.id.asc()
+    ).all()
     teachers_preview = teachers_query.order_by(
         models.Teacher.id.desc()
     ).limit(8).all()
@@ -634,6 +1080,12 @@ def dashboard(
     planning_total_allocated_hours = sum(
         subject_hours_by_grade.get(section.grade_level, 0)
         for section in planning_sections
+    )
+    reporting_context = _build_reporting_context(
+        db=db,
+        subjects=subjects_dashboard_rows,
+        planning_sections=planning_sections,
+        teachers=teachers_for_reporting,
     )
     all_years = db.query(models.AcademicYear).order_by(
         models.AcademicYear.year_name.desc()
@@ -673,6 +1125,11 @@ def dashboard(
             "subjects_dashboard_rows": subjects_dashboard_rows,
             "teachers_preview": teachers_preview,
             "users_preview": users_preview,
+            "report_summary": reporting_context["summary"],
+            "report_subject_rows": reporting_context["subject_rows"],
+            "report_gap_rows": reporting_context["gap_rows"],
+            "report_teacher_rows": reporting_context["teacher_rows"],
+            "report_grade_rows": reporting_context["grade_rows"],
             "all_years": all_years,
             "year_map": year_map,
             "branch_map": branch_map,
