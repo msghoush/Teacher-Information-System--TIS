@@ -821,6 +821,16 @@
             font-weight: 700;
         }
 
+        .report-hours-full {
+            color: #0d7a47;
+            font-weight: 800;
+        }
+
+        .report-hours-under {
+            color: #b91c1c;
+            font-weight: 800;
+        }
+
         .report-inline-note {
             margin-top: 4px;
             font-size: 12px;
@@ -1494,7 +1504,7 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <strong>{{ row.expected_allocated_hours }}h</strong>
+                                    <strong class="{{ 'report-hours-full' if row.expected_allocated_hours == 24 else 'report-hours-under' }}">{{ row.expected_allocated_hours }}h</strong>
                                     <div class="report-inline-note">Primary allocated: {{ row.primary_allocated_hours }}h | Support allocated: {{ row.support_allocated_hours }}h</div>
                                     {% if row.allocation_labels %}
                                     <div class="report-inline-note">{{ row.allocation_labels | join(", ") }}</div>
