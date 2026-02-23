@@ -1467,7 +1467,7 @@
 
                 <div class="report-card report-teachers-card">
                     <h4>Expected Allocation for Existing Teachers (24h max)</h4>
-                    <p>Teachers are allocated by current subject assignments first, then capped at 24 hours/week.</p>
+                    <p>Each teacher is anchored to one primary subject (highest currently assigned hours), then support subject is used only if capacity remains, with a strict 24h cap.</p>
                     {% if report_teacher_rows %}
                     <div class="table-wrap report-table">
                         <table>
@@ -1484,7 +1484,8 @@
                                 <td>{{ row.teacher_name }}</td>
                                 <td>
                                     {% if row.subject_labels %}
-                                    Primary: {{ row.subject_labels | join(", ") }}
+                                    Primary (highest assigned hours): {{ row.subject_labels | join(", ") }}
+                                    <div class="report-inline-note">Current assigned hours in primary: {{ row.primary_subject_basis_hours }}h</div>
                                     {% else %}
                                     Primary: -
                                     {% endif %}

@@ -42,6 +42,7 @@ REPORT_STANDARD_MAX_HOURS = 24
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
+    "arbic": {"social studies ksa"},
 }
 get_audit_logger()
 
@@ -258,6 +259,11 @@ def _build_reporting_context(
         for teacher in teachers
         if getattr(teacher, "id", None)
     }
+    teacher_subject_hours_map = {
+        teacher.id: {}
+        for teacher in teachers
+        if getattr(teacher, "id", None)
+    }
     teacher_ids = sorted(teacher_subject_map.keys())
 
     if teacher_ids:
@@ -283,6 +289,11 @@ def _build_reporting_context(
         if not subject_key or subject_key not in subject_demand_map:
             continue
         subject_key_set.add(subject_key)
+        subject_hours = int(subject.weekly_hours or 0)
+        subject_hours_map = teacher_subject_hours_map.get(allocation.teacher_id, {})
+        subject_hours_map[subject_key] = (
+            subject_hours_map.get(subject_key, 0) + max(subject_hours, 0)
+        )
 
     for teacher in teachers:
         subject_key_set = teacher_subject_map.get(getattr(teacher, "id", None))
@@ -303,16 +314,39 @@ def _build_reporting_context(
         )
         if subject_key and subject_key in subject_demand_map:
             subject_key_set.add(subject_key)
+            fallback_subject_hours_map = teacher_subject_hours_map.get(
+                getattr(teacher, "id", None),
+                {},
+            )
+            fallback_subject_hours_map[subject_key] = max(
+                fallback_subject_hours_map.get(subject_key, 0),
+                int(fallback_subject.weekly_hours or 0),
+            )
 
     teacher_profiles = []
     for teacher in teachers:
         teacher_id = getattr(teacher, "id", None)
-        primary_subject_keys = sorted(
+        candidate_subject_keys = sorted(
             teacher_subject_map.get(teacher_id, set()),
             key=lambda key: subject_demand_map[key]["subject_name"],
         )
+        subject_hours_map = teacher_subject_hours_map.get(teacher_id, {})
+        primary_subject_keys = []
+        primary_subject_key = None
+        if candidate_subject_keys:
+            ranked_subject_keys = sorted(
+                candidate_subject_keys,
+                key=lambda key: (
+                    -subject_hours_map.get(key, 0),
+                    -subject_demand_map[key]["required_hours"],
+                    subject_demand_map[key]["subject_name"],
+                ),
+            )
+            primary_subject_key = ranked_subject_keys[0]
+            primary_subject_keys = [primary_subject_key]
+
         support_subject_keys = set()
-        for primary_subject_key in primary_subject_keys:
+        if primary_subject_key:
             for support_subject_key in CROSS_SUBJECT_SUPPORT_RULES.get(
                 primary_subject_key,
                 set(),
@@ -340,6 +374,11 @@ def _build_reporting_context(
                 "support_subject_keys": sorted_support_subject_keys,
                 "eligible_subject_keys": primary_subject_keys + sorted_support_subject_keys,
                 "subject_count": len(primary_subject_keys),
+                "primary_subject_basis_hours": (
+                    subject_hours_map.get(primary_subject_key, 0)
+                    if primary_subject_key
+                    else 0
+                ),
                 "allocated_hours": 0,
                 "remaining_capacity_hours": REPORT_STANDARD_MAX_HOURS,
                 "allocation_breakdown": {},
@@ -544,6 +583,10 @@ def _build_reporting_context(
                 "expected_allocated_hours": profile["allocated_hours"],
                 "primary_allocated_hours": profile.get("primary_allocated_hours", 0),
                 "support_allocated_hours": profile.get("support_allocated_hours", 0),
+                "primary_subject_basis_hours": profile.get(
+                    "primary_subject_basis_hours",
+                    0,
+                ),
                 "remaining_capacity_hours": profile["remaining_capacity_hours"],
             }
         )
