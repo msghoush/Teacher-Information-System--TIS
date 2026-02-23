@@ -1489,11 +1489,12 @@
                                     Primary: -
                                     {% endif %}
                                     {% if row.support_subject_labels %}
-                                    <div class="report-inline-note">Support if capacity remains: {{ row.support_subject_labels | join(", ") }}</div>
+                                    <div class="report-inline-note">Eligible support only after primary hours and still within 24h: {{ row.support_subject_labels | join(", ") }}</div>
                                     {% endif %}
                                 </td>
                                 <td>
                                     <strong>{{ row.expected_allocated_hours }}h</strong>
+                                    <div class="report-inline-note">Primary allocated: {{ row.primary_allocated_hours }}h | Support allocated: {{ row.support_allocated_hours }}h</div>
                                     {% if row.allocation_labels %}
                                     <div class="report-inline-note">{{ row.allocation_labels | join(", ") }}</div>
                                     {% endif %}

@@ -408,9 +408,48 @@ def _build_reporting_context(
             )
             remaining_capacity -= allocated_hours
 
+        allocated_hours_total = sum(allocation_breakdown.values())
+        if allocated_hours_total > REPORT_STANDARD_MAX_HOURS:
+            overflow_hours = allocated_hours_total - REPORT_STANDARD_MAX_HOURS
+            reduction_order = (
+                list(profile["support_subject_keys"]) + list(profile["subject_keys"])
+            )
+            for subject_key in reduction_order:
+                if overflow_hours <= 0:
+                    break
+                current_hours = allocation_breakdown.get(subject_key, 0)
+                if current_hours <= 0:
+                    continue
+                reduce_hours = min(current_hours, overflow_hours)
+                updated_hours = current_hours - reduce_hours
+                if updated_hours > 0:
+                    allocation_breakdown[subject_key] = updated_hours
+                else:
+                    allocation_breakdown.pop(subject_key, None)
+                remaining_hours_by_subject[subject_key] = (
+                    remaining_hours_by_subject.get(subject_key, 0) + reduce_hours
+                )
+                overflow_hours -= reduce_hours
+
+        primary_allocated_hours = sum(
+            allocation_breakdown.get(subject_key, 0)
+            for subject_key in profile["subject_keys"]
+        )
+        support_allocated_hours = sum(
+            allocation_breakdown.get(subject_key, 0)
+            for subject_key in profile["support_subject_keys"]
+        )
+        total_allocated_hours = min(
+            sum(allocation_breakdown.values()),
+            REPORT_STANDARD_MAX_HOURS,
+        )
         profile["allocation_breakdown"] = allocation_breakdown
-        profile["allocated_hours"] = REPORT_STANDARD_MAX_HOURS - remaining_capacity
-        profile["remaining_capacity_hours"] = remaining_capacity
+        profile["allocated_hours"] = total_allocated_hours
+        profile["primary_allocated_hours"] = primary_allocated_hours
+        profile["support_allocated_hours"] = support_allocated_hours
+        profile["remaining_capacity_hours"] = (
+            REPORT_STANDARD_MAX_HOURS - total_allocated_hours
+        )
 
     teachers_per_subject = {}
     for profile in teacher_profiles:
@@ -503,6 +542,8 @@ def _build_reporting_context(
                 "support_subject_labels": support_subject_labels,
                 "allocation_labels": allocation_labels,
                 "expected_allocated_hours": profile["allocated_hours"],
+                "primary_allocated_hours": profile.get("primary_allocated_hours", 0),
+                "support_allocated_hours": profile.get("support_allocated_hours", 0),
                 "remaining_capacity_hours": profile["remaining_capacity_hours"],
             }
         )
