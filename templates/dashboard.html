@@ -1482,7 +1482,16 @@
                             <tr>
                                 <td>{{ row.teacher_id }}</td>
                                 <td>{{ row.teacher_name }}</td>
-                                <td>{{ row.subject_labels | join(", ") if row.subject_labels else "-" }}</td>
+                                <td>
+                                    {% if row.subject_labels %}
+                                    Primary: {{ row.subject_labels | join(", ") }}
+                                    {% else %}
+                                    Primary: -
+                                    {% endif %}
+                                    {% if row.support_subject_labels %}
+                                    <div class="report-inline-note">Support if capacity remains: {{ row.support_subject_labels | join(", ") }}</div>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     <strong>{{ row.expected_allocated_hours }}h</strong>
                                     {% if row.allocation_labels %}

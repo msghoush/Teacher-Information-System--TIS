@@ -39,6 +39,10 @@ app = FastAPI(title="Teacher Information System")
 templates = Jinja2Templates(directory="templates")
 ACADEMIC_YEAR_NAME_PATTERN = re.compile(r"^\d{4}-\d{4}$")
 REPORT_STANDARD_MAX_HOURS = 24
+CROSS_SUBJECT_SUPPORT_RULES = {
+    "english": {"social studies english"},
+    "arabic": {"social studies ksa"},
+}
 get_audit_logger()
 
 
@@ -155,6 +159,10 @@ def _build_teacher_display_name(teacher) -> str:
     if full_name:
         return full_name
     return f"Teacher #{teacher.id}"
+
+
+def _normalize_subject_family_key(value: str) -> str:
+    return " ".join(str(value or "").split()).lower()
 
 
 def _build_reporting_context(
@@ -299,16 +307,39 @@ def _build_reporting_context(
     teacher_profiles = []
     for teacher in teachers:
         teacher_id = getattr(teacher, "id", None)
-        subject_keys = sorted(
+        primary_subject_keys = sorted(
             teacher_subject_map.get(teacher_id, set()),
             key=lambda key: subject_demand_map[key]["subject_name"],
         )
+        support_subject_keys = set()
+        for primary_subject_key in primary_subject_keys:
+            for support_subject_key in CROSS_SUBJECT_SUPPORT_RULES.get(
+                primary_subject_key,
+                set(),
+            ):
+                normalized_support_key = _normalize_subject_family_key(
+                    support_subject_key
+                )
+                if (
+                    normalized_support_key
+                    and normalized_support_key in subject_demand_map
+                    and normalized_support_key not in primary_subject_keys
+                ):
+                    support_subject_keys.add(normalized_support_key)
+
+        sorted_support_subject_keys = sorted(
+            support_subject_keys,
+            key=lambda key: subject_demand_map[key]["subject_name"],
+        )
+
         teacher_profiles.append(
             {
                 "teacher": teacher,
                 "name": _build_teacher_display_name(teacher),
-                "subject_keys": subject_keys,
-                "subject_count": len(subject_keys),
+                "subject_keys": primary_subject_keys,
+                "support_subject_keys": sorted_support_subject_keys,
+                "eligible_subject_keys": primary_subject_keys + sorted_support_subject_keys,
+                "subject_count": len(primary_subject_keys),
                 "allocated_hours": 0,
                 "remaining_capacity_hours": REPORT_STANDARD_MAX_HOURS,
                 "allocation_breakdown": {},
@@ -330,18 +361,28 @@ def _build_reporting_context(
     )
 
     for profile in allocation_sequence:
-        if not profile["subject_keys"]:
+        if not profile["eligible_subject_keys"]:
             continue
 
         remaining_capacity = REPORT_STANDARD_MAX_HOURS
         allocation_breakdown = {}
 
         while remaining_capacity > 0:
-            candidate_subject_keys = [
+            primary_candidate_subject_keys = [
                 subject_key
                 for subject_key in profile["subject_keys"]
                 if remaining_hours_by_subject.get(subject_key, 0) > 0
             ]
+
+            if primary_candidate_subject_keys:
+                candidate_subject_keys = primary_candidate_subject_keys
+            else:
+                candidate_subject_keys = [
+                    subject_key
+                    for subject_key in profile["support_subject_keys"]
+                    if remaining_hours_by_subject.get(subject_key, 0) > 0
+                ]
+
             if not candidate_subject_keys:
                 break
 
@@ -373,7 +414,7 @@ def _build_reporting_context(
 
     teachers_per_subject = {}
     for profile in teacher_profiles:
-        for subject_key in profile["subject_keys"]:
+        for subject_key in profile["eligible_subject_keys"]:
             teachers_per_subject[subject_key] = (
                 teachers_per_subject.get(subject_key, 0) + 1
             )
@@ -441,6 +482,10 @@ def _build_reporting_context(
             subject_demand_map[subject_key]["subject_name"]
             for subject_key in profile["subject_keys"]
         ]
+        support_subject_labels = [
+            subject_demand_map[subject_key]["subject_name"]
+            for subject_key in profile["support_subject_keys"]
+        ]
         allocation_labels = [
             f"{subject_demand_map[subject_key]['subject_name']} ({hours}h)"
             for subject_key, hours in sorted(
@@ -455,6 +500,7 @@ def _build_reporting_context(
                 "teacher_id": teacher.teacher_id or "-",
                 "teacher_name": profile["name"],
                 "subject_labels": subject_labels,
+                "support_subject_labels": support_subject_labels,
                 "allocation_labels": allocation_labels,
                 "expected_allocated_hours": profile["allocated_hours"],
                 "remaining_capacity_hours": profile["remaining_capacity_hours"],
