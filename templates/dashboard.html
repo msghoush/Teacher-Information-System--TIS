@@ -665,6 +665,75 @@
             line-height: 1.5;
         }
 
+        .report-decision-strip {
+            margin-bottom: 12px;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .report-decision-card {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #d3deed;
+            border-radius: 12px;
+            padding: 14px;
+            background: linear-gradient(145deg, #fbfdff, #f1f7ff);
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+        }
+
+        .report-decision-card::after {
+            content: "";
+            position: absolute;
+            inset: auto 0 0 0;
+            height: 5px;
+            background: #94a3b8;
+        }
+
+        .report-decision-classes::after {
+            background: #1d4ed8;
+        }
+
+        .report-decision-new-teachers::after {
+            background: #d97706;
+        }
+
+        .report-decision-total::after {
+            background: #0f766e;
+        }
+
+        .report-decision-card span {
+            display: block;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            color: #4d607e;
+            font-weight: 700;
+        }
+
+        .report-decision-card strong {
+            display: block;
+            margin-top: 6px;
+            font-size: 42px;
+            line-height: 1.05;
+            color: #142b4d;
+        }
+
+        .report-decision-new-teachers strong {
+            color: #b45309;
+        }
+
+        .report-decision-total strong {
+            color: #0f766e;
+        }
+
+        .report-decision-card p {
+            margin: 6px 0 0;
+            font-size: 13px;
+            color: #536885;
+            line-height: 1.4;
+        }
+
         .report-kpis {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -954,6 +1023,10 @@
 
             .report-kpis {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .report-decision-strip {
+                grid-template-columns: 1fr;
             }
 
             .report-layout {
@@ -1351,6 +1424,24 @@
                     This report uses a fixed <strong>24 hours/week</strong> cap per existing teacher (standard allocation rule), regardless of custom Max Hours or Extra Hours settings.
                 </div>
                 {% if report_summary.total_required_hours > 0 %}
+                <div class="report-decision-strip">
+                    <div class="report-decision-card report-decision-classes">
+                        <span>New Classes to Open</span>
+                        <strong class="report-kpi-value" data-value="{{ report_summary.total_new_sections_planned }}">{{ report_summary.total_new_sections_planned }}</strong>
+                        <p>Planned new sections in this branch and academic year.</p>
+                    </div>
+                    <div class="report-decision-card report-decision-new-teachers">
+                        <span>New Teachers Required</span>
+                        <strong class="report-kpi-value" data-value="{{ report_summary.total_new_teachers_required }}">{{ report_summary.total_new_teachers_required }}</strong>
+                        <p>Required hires based on uncovered subject hours.</p>
+                    </div>
+                    <div class="report-decision-card report-decision-total">
+                        <span>Total Teachers Needed (Branch)</span>
+                        <strong class="report-kpi-value" data-value="{{ report_summary.total_teachers_needed_branch }}">{{ report_summary.total_teachers_needed_branch }}</strong>
+                        <p>Current teachers {{ report_summary.total_existing_teachers }} + new required {{ report_summary.total_new_teachers_required }}.</p>
+                    </div>
+                </div>
+
                 <div class="report-kpis">
                     <div class="report-kpi report-kpi-hours">
                         <span>Total Required Hours</span>
@@ -1368,7 +1459,7 @@
                         <p>Remaining subject hours not covered by current teachers.</p>
                     </div>
                     <div class="report-kpi report-kpi-teachers">
-                        <span>Additional Teachers Needed</span>
+                        <span>New Teachers Required</span>
                         <strong class="report-kpi-value" data-value="{{ report_summary.total_additional_teachers_needed }}">{{ report_summary.total_additional_teachers_needed }}</strong>
                         <p>Subject-specific requirement based on remaining hours.</p>
                     </div>

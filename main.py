@@ -655,6 +655,11 @@ def _build_reporting_context(
     total_required_new_hours = sum(
         required_new_hours_by_grade.values()
     )
+    total_new_sections_planned = sum(new_sections_by_grade.values())
+    total_new_teachers_required = total_additional_teachers_needed
+    total_teachers_needed_branch = (
+        total_existing_teachers + total_new_teachers_required
+    )
 
     report_summary = {
         "total_required_hours": total_required_hours,
@@ -671,6 +676,9 @@ def _build_reporting_context(
         "teachers_utilized": teachers_utilized,
         "teachers_full_load": teachers_full_load,
         "teachers_idle": max(total_existing_teachers - teachers_utilized, 0),
+        "total_new_sections_planned": total_new_sections_planned,
+        "total_new_teachers_required": total_new_teachers_required,
+        "total_teachers_needed_branch": total_teachers_needed_branch,
     }
 
     return {
