@@ -51,6 +51,24 @@
             gap: 10px;
         }
 
+        .title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .title-logo-wrap {
+            width: 178px;
+            max-width: 42vw;
+            flex-shrink: 0;
+        }
+
+        .title-logo {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
         .title h1 {
             margin: 0;
             font-size: 24px;
@@ -450,6 +468,16 @@
             .form-grid {
                 grid-template-columns: 1fr;
             }
+
+            .title {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .title-logo-wrap {
+                width: 160px;
+                max-width: 60vw;
+            }
         }
     </style>
 </head>
@@ -457,8 +485,13 @@
     <div class="page">
         <section class="top">
             <div class="title">
-                <h1>Subjects Module</h1>
-                <p>Interactive subject management for your selected branch and academic year.</p>
+                <div class="title-logo-wrap">
+                    <img class="title-logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
+                </div>
+                <div class="title-copy">
+                    <h1>Subjects Module</h1>
+                    <p>Interactive subject management for your selected branch and academic year.</p>
+                </div>
             </div>
             <div class="actions">
                 <a class="btn-link btn-home" href="/dashboard">Dashboard</a>

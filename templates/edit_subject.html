@@ -42,6 +42,19 @@
             box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1);
         }
 
+        .panel-brand {
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .panel-logo {
+            width: 240px;
+            max-width: 75%;
+            height: auto;
+            display: block;
+        }
+
         h1 {
             margin: 0;
             font-size: 24px;
@@ -139,6 +152,9 @@
 </head>
 <body>
     <main class="panel">
+        <div class="panel-brand">
+            <img class="panel-logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
+        </div>
         <h1>Edit Subject</h1>
         <p class="sub">Update subject details in your current branch/year scope.</p>
 
