@@ -54,38 +54,15 @@
             justify-content: center;
         }
 
-        .tis-wordmark {
-            text-align: left;
-            line-height: 1;
+        .brand-logo-frame {
+            width: min(92%, 390px);
+            max-width: 390px;
         }
 
-        .tis-wordmark .top {
+        .brand-logo {
+            width: 100%;
+            height: auto;
             display: block;
-            color: #134aa4;
-            font-size: clamp(34px, 5vw, 54px);
-            font-weight: 800;
-            letter-spacing: 0.6px;
-            text-transform: uppercase;
-        }
-
-        .tis-wordmark .middle {
-            display: block;
-            margin-top: 6px;
-            color: #c79a14;
-            font-size: clamp(25px, 3.3vw, 37px);
-            font-weight: 800;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-        }
-
-        .tis-wordmark .bottom {
-            display: block;
-            margin-top: 4px;
-            color: #7b8593;
-            font-size: clamp(19px, 2.5vw, 29px);
-            font-weight: 700;
-            letter-spacing: 0.45px;
-            text-transform: uppercase;
         }
 
         .form-area {
@@ -207,10 +184,8 @@
 <body>
     <main class="shell">
         <section class="brand-area">
-            <div class="tis-wordmark" aria-label="Teacher Information System">
-                <span class="top">Teachers</span>
-                <span class="middle">Information</span>
-                <span class="bottom">System</span>
+            <div class="brand-logo-frame">
+                <img class="brand-logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
             </div>
         </section>
 
