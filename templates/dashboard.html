@@ -57,19 +57,15 @@
             gap: 14px;
         }
 
+        .logo-frame {
+            width: clamp(140px, 18vw, 220px);
+            flex-shrink: 0;
+        }
+
         .logo {
-            width: 52px;
-            height: 52px;
-            border-radius: 14px;
-            background: linear-gradient(140deg, var(--brand) 0%, #15988f 55%, var(--accent) 100%);
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            letter-spacing: 0.5px;
-            font-size: 15px;
-            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+            width: 100%;
+            height: auto;
+            display: block;
         }
 
         .brand h1 {
@@ -989,6 +985,10 @@
                 align-items: flex-start;
             }
 
+            .logo-frame {
+                width: min(62vw, 240px);
+            }
+
             .meta {
                 text-align: left;
                 align-items: flex-start;
@@ -1057,7 +1057,9 @@
     <div class="app">
         <section class="topbar">
             <div class="brand">
-                <div class="logo">TIS</div>
+                <div class="logo-frame">
+                    <img class="logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
+                </div>
                 <div>
                     <h1>Teacher Information System</h1>
                     <p>Professional School Management Workspace</p>

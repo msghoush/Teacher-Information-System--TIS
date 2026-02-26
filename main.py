@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, Form, Depends, Query
 from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
@@ -35,6 +36,7 @@ models.Base.metadata.create_all(bind=engine)
 # App Initialization
 # ---------------------------------------
 app = FastAPI(title="Teacher Information System")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 templates = Jinja2Templates(directory="templates")
 ACADEMIC_YEAR_NAME_PATTERN = re.compile(r"^\d{4}-\d{4}$")

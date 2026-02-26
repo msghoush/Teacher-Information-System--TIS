@@ -72,17 +72,20 @@
             gap: 14px;
         }
 
-        .logo {
-            width: 56px;
-            height: 56px;
+        .logo-frame {
+            width: min(54vw, 280px);
+            max-width: 280px;
+            flex-shrink: 0;
             border-radius: 14px;
-            background: linear-gradient(140deg, #18a39a, var(--accent));
-            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            letter-spacing: 0.6px;
+            background: rgba(255, 255, 255, 0.94);
+            padding: 6px 8px;
+            box-shadow: 0 8px 20px rgba(9, 30, 66, 0.2);
+        }
+
+        .logo {
+            width: 100%;
+            height: auto;
+            display: block;
         }
 
         .brand-area h1 {
@@ -228,7 +231,9 @@
         <section class="brand-area">
             <div>
                 <div class="logo-block">
-                    <div class="logo">TIS</div>
+                    <div class="logo-frame">
+                        <img class="logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
+                    </div>
                     <div>
                         <h1>Teacher Information System</h1>
                         <p>Centralized platform for subjects, teachers, planning, and reporting.</p>
