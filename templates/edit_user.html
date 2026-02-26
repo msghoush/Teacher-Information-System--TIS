@@ -46,12 +46,21 @@
         .panel-brand {
             margin-bottom: 10px;
             display: flex;
+            align-items: center;
             justify-content: center;
+            gap: 12px;
         }
 
         .panel-logo {
             width: 240px;
             max-width: 75%;
+            height: auto;
+            display: block;
+        }
+
+        .panel-school-logo {
+            width: 96px;
+            max-width: 28%;
             height: auto;
             display: block;
         }
@@ -174,6 +183,7 @@
     <main class="panel">
         <div class="panel-brand">
             <img class="panel-logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
+            <img class="panel-school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Andalus International Schools logo">
         </div>
         <h1>Edit User</h1>
         <p class="sub">Update user details and account status.</p>
