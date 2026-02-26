@@ -49,7 +49,7 @@
         }
 
         .brand-area {
-            padding: 34px;
+            padding: 28px;
             background:
                 linear-gradient(155deg, rgba(7, 58, 125, 0.97), rgba(10, 78, 163, 0.94)),
                 repeating-linear-gradient(
@@ -61,55 +61,19 @@
                 );
             color: #f7fbfd;
             display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            gap: 30px;
-        }
-
-        .logo-block {
-            display: flex;
             align-items: center;
-            gap: 14px;
+            justify-content: center;
         }
 
-        .logo-frame {
-            width: min(54vw, 280px);
-            max-width: 280px;
-            flex-shrink: 0;
-            background: transparent;
-            padding: 0;
-            box-shadow: none;
+        .school-logo-frame {
+            width: min(92%, 430px);
+            max-width: 430px;
         }
 
-        .logo {
+        .school-logo {
             width: 100%;
             height: auto;
             display: block;
-        }
-
-        .brand-area h1 {
-            margin: 0;
-            font-size: 25px;
-            color: #f2f7ff;
-        }
-
-        .brand-area p {
-            margin: 6px 0 0;
-            color: rgba(229, 241, 255, 0.9);
-            font-size: 14px;
-            line-height: 1.5;
-            max-width: 360px;
-        }
-
-        .pill {
-            display: inline-block;
-            padding: 6px 10px;
-            border-radius: 999px;
-            border: 1px solid rgba(221, 231, 245, 0.65);
-            color: #f4d36a;
-            font-size: 12px;
-            letter-spacing: 0.7px;
-            text-transform: uppercase;
         }
 
         .form-area {
@@ -232,18 +196,9 @@
     <main class="shell">
         <section class="brand-area">
             <div>
-                <div class="logo-block">
-                    <div class="logo-frame">
-                        <img class="logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
-                    </div>
-                    <div class="logo-copy">
-                        <h1>Teacher Information System</h1>
-                        <p>Centralized platform for subjects, teachers, planning, and reporting.</p>
-                    </div>
+                <div class="school-logo-frame">
+                    <img class="school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Andalus International Schools logo">
                 </div>
-            </div>
-            <div>
-                <span class="pill">Professional Workspace</span>
             </div>
         </section>
 

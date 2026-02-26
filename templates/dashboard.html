@@ -55,6 +55,13 @@
         .brand {
             display: flex;
             align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .brand-logos {
+            display: flex;
+            align-items: center;
             gap: 14px;
         }
 
@@ -69,17 +76,26 @@
             display: block;
         }
 
-        .brand h1 {
-            margin: 0;
-            font-size: 24px;
-            letter-spacing: 0.3px;
-            color: var(--brand-deep);
+        .secondary-logo-frame {
+            width: clamp(110px, 15vw, 170px);
+            flex-shrink: 0;
         }
 
-        .brand p {
-            margin: 2px 0 0;
-            color: var(--muted);
-            font-size: 13px;
+        .secondary-logo {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .tab-icon {
+            width: 14px;
+            height: 14px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex-shrink: 0;
         }
 
         .meta {
@@ -360,6 +376,9 @@
             padding: 8px 14px;
             cursor: pointer;
             font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             transition: transform 120ms ease, background-color 120ms ease;
         }
 
@@ -991,6 +1010,10 @@
                 width: min(62vw, 240px);
             }
 
+            .secondary-logo-frame {
+                width: min(46vw, 170px);
+            }
+
             .meta {
                 text-align: left;
                 align-items: flex-start;
@@ -1059,12 +1082,13 @@
     <div class="app">
         <section class="topbar">
             <div class="brand">
-                <div class="logo-frame">
-                    <img class="logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
-                </div>
-                <div>
-                    <h1>Teacher Information System</h1>
-                    <p>Professional School Management Workspace</p>
+                <div class="brand-logos">
+                    <div class="logo-frame">
+                        <img class="logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
+                    </div>
+                    <div class="secondary-logo-frame">
+                        <img class="secondary-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Andalus International Schools logo">
+                    </div>
                 </div>
             </div>
             <div class="meta">
@@ -1210,13 +1234,51 @@
 
         <section class="workspace">
             <div class="tabs">
-                <button class="tab active" type="button" data-panel="subjects">Subjects</button>
-                <button class="tab" type="button" data-panel="teachers">Teachers</button>
+                <button class="tab active" type="button" data-panel="subjects">
+                    <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                        <path d="M6.5 3H20v18H6.5A2.5 2.5 0 0 1 4 18.5v-13A2.5 2.5 0 0 1 6.5 3z"></path>
+                    </svg>
+                    <span>Subjects</span>
+                </button>
+                <button class="tab" type="button" data-panel="teachers">
+                    <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M20 8v6"></path>
+                        <path d="M23 11h-6"></path>
+                    </svg>
+                    <span>Teachers</span>
+                </button>
                 {% if is_admin %}
-                <button class="tab" type="button" data-panel="users">Users</button>
+                <button class="tab" type="button" data-panel="users">
+                    <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.9"></path>
+                        <path d="M16 3.1a4 4 0 0 1 0 7.8"></path>
+                    </svg>
+                    <span>Users</span>
+                </button>
                 {% endif %}
-                <button class="tab" type="button" data-panel="planning">Planning</button>
-                <button class="tab" type="button" data-panel="reports">Reports</button>
+                <button class="tab" type="button" data-panel="planning">
+                    <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M8 6h13"></path>
+                        <path d="M8 12h13"></path>
+                        <path d="M8 18h13"></path>
+                        <path d="M3 6h.01"></path>
+                        <path d="M3 12h.01"></path>
+                        <path d="M3 18h.01"></path>
+                    </svg>
+                    <span>Planning</span>
+                </button>
+                <button class="tab" type="button" data-panel="reports">
+                    <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M3 3v18h18"></path>
+                        <path d="M7 13l3-3 3 2 4-5"></path>
+                    </svg>
+                    <span>Reports</span>
+                </button>
             </div>
 
             <div class="panel active" id="panel-subjects">
