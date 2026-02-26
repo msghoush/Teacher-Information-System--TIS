@@ -5,15 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         :root {
-            --bg-1: #f6f2e7;
-            --bg-2: #dce8f1;
-            --ink: #1b1f2a;
-            --muted: #5d6475;
+            --bg-1: #eff4fb;
+            --bg-2: #dce8f4;
+            --ink: #11243f;
+            --muted: #536782;
             --card: #ffffff;
-            --line: #d6deea;
-            --brand: #0f766e;
-            --brand-deep: #0b4f4a;
-            --accent: #d97706;
+            --line: #cad9ea;
+            --brand: #0a4ea3;
+            --brand-deep: #073a7d;
+            --accent: #c79a14;
+            --teal: #0f7f7a;
             --danger: #b91c1c;
         }
 
@@ -27,8 +28,8 @@
             color: var(--ink);
             font-family: "Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif;
             background:
-                radial-gradient(900px 500px at 10% 0%, rgba(15, 118, 110, 0.18), transparent 65%),
-                radial-gradient(700px 420px at 100% 100%, rgba(217, 119, 6, 0.16), transparent 62%),
+                radial-gradient(900px 500px at 10% 0%, rgba(10, 78, 163, 0.2), transparent 65%),
+                radial-gradient(700px 420px at 100% 100%, rgba(199, 154, 20, 0.18), transparent 62%),
                 linear-gradient(150deg, var(--bg-1), var(--bg-2));
             padding: 30px 16px;
         }
@@ -72,6 +73,7 @@
             margin: 0;
             font-size: 24px;
             letter-spacing: 0.3px;
+            color: var(--brand-deep);
         }
 
         .brand p {
@@ -143,13 +145,13 @@
 
         .icon-action:hover {
             color: var(--brand-deep);
-            border-color: #8fc4be;
-            background: #edf8f6;
+            border-color: #8aaedf;
+            background: #edf4ff;
             transform: translateY(-1px);
         }
 
         .icon-action:focus-visible {
-            outline: 2px solid rgba(15, 118, 110, 0.35);
+            outline: 2px solid rgba(10, 78, 163, 0.35);
             outline-offset: 2px;
         }
 
@@ -181,7 +183,7 @@
             list-style: none;
             cursor: pointer;
             user-select: none;
-            border: 1px solid #9ec8c3;
+            border: 1px solid #9fbbe0;
             background: rgba(255, 255, 255, 0.92);
             color: var(--brand-deep);
             border-radius: 9px;
@@ -196,7 +198,7 @@
 
         .dev-menu[open] summary {
             border-color: var(--brand);
-            background: #e6f6f4;
+            background: #edf4ff;
         }
 
         .dev-menu-panel {
@@ -301,9 +303,9 @@
 
         .notice {
             margin-top: 12px;
-            border: 1px solid #9ec8c3;
-            background: #e7f7f4;
-            color: #0b4f4a;
+            border: 1px solid #b8cde9;
+            background: #edf4ff;
+            color: #123d72;
             border-radius: 10px;
             padding: 10px 12px;
             font-size: 13px;
@@ -347,11 +349,11 @@
             gap: 8px;
             padding: 14px;
             border-bottom: 1px solid var(--line);
-            background: linear-gradient(120deg, rgba(15, 118, 110, 0.08), rgba(217, 119, 6, 0.08));
+            background: linear-gradient(120deg, rgba(10, 78, 163, 0.09), rgba(199, 154, 20, 0.12));
         }
 
         .tab {
-            border: 1px solid #9ec8c3;
+            border: 1px solid #9fbbe0;
             background: rgba(255, 255, 255, 0.65);
             color: var(--brand-deep);
             border-radius: 999px;
@@ -528,14 +530,14 @@
 
         .subject-grade-chip:hover {
             transform: translateY(-1px);
-            border-color: #8fc4be;
-            background: #edf8f6;
-            color: #0c5751;
+            border-color: #8aaedf;
+            background: #edf4ff;
+            color: #083b7e;
         }
 
         .subject-grade-chip.active {
-            border-color: #0f766e;
-            background: #0f766e;
+            border-color: var(--brand);
+            background: var(--brand);
             color: #fff;
         }
 
@@ -614,11 +616,11 @@
         }
 
         .planning-kpi-current::after {
-            background: #34a37f;
+            background: var(--teal);
         }
 
         .planning-kpi-new::after {
-            background: #d97706;
+            background: var(--accent);
         }
 
         .planning-kpi-hours::after {
@@ -652,9 +654,9 @@
 
         .report-note {
             margin-bottom: 12px;
-            border: 1px solid #b8d7d2;
-            background: #edf8f6;
-            color: #0b4f4a;
+            border: 1px solid #bfd2ea;
+            background: #f1f6ff;
+            color: #123d72;
             border-radius: 10px;
             padding: 10px 12px;
             font-size: 13px;
@@ -691,11 +693,11 @@
         }
 
         .report-decision-new-teachers::after {
-            background: #d97706;
+            background: var(--accent);
         }
 
         .report-decision-total::after {
-            background: #0f766e;
+            background: var(--brand);
         }
 
         .report-decision-card span {
@@ -716,11 +718,11 @@
         }
 
         .report-decision-new-teachers strong {
-            color: #b45309;
+            color: #966f00;
         }
 
         .report-decision-total strong {
-            color: #0f766e;
+            color: var(--brand);
         }
 
         .report-decision-card p {
@@ -759,11 +761,11 @@
         }
 
         .report-kpi-covered::after {
-            background: #0f766e;
+            background: var(--brand);
         }
 
         .report-kpi-gap::after {
-            background: #d97706;
+            background: var(--accent);
         }
 
         .report-kpi-teachers::after {
@@ -821,7 +823,7 @@
         .report-coverage-rate {
             margin: 0;
             font-size: 30px;
-            color: #0f766e;
+            color: var(--brand);
             letter-spacing: 0.4px;
         }
 
@@ -841,7 +843,7 @@
         .report-coverage-fill {
             height: 100%;
             width: 0;
-            background: linear-gradient(90deg, #0f766e, #34d399);
+            background: linear-gradient(90deg, var(--brand), var(--teal));
             transition: width 600ms ease-out;
         }
 
@@ -936,7 +938,7 @@
         .report-gap-fill {
             height: 100%;
             width: 0;
-            background: linear-gradient(90deg, #d97706, #f59e0b);
+            background: linear-gradient(90deg, var(--accent), #e7b640);
             transition: width 600ms ease-out;
         }
 
