@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Form, Depends, Query
-from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -69,6 +69,13 @@ REPORT_EXPORT_SUBJECT_FILL_PALETTE = [
     "FCEBEB",
 ]
 get_audit_logger()
+
+FAVICON_IMAGE_PATH = os.path.join("static", "images", "tis-browser-icon-v2.png")
+FAVICON_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
 
 
 def _resolve_client_ip(request: Request) -> str:
@@ -1560,6 +1567,15 @@ def read_root(
     return _render_login_page(
         request=request,
         db=db,
+    )
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse(
+        FAVICON_IMAGE_PATH,
+        media_type="image/png",
+        headers=FAVICON_CACHE_HEADERS,
     )
 
 # ---------------------------------------
