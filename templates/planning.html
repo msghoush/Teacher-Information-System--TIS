@@ -69,18 +69,6 @@
             height: auto;
         }
 
-        .title-school-logo-wrap {
-            width: 88px;
-            max-width: 24vw;
-            flex-shrink: 0;
-        }
-
-        .title-school-logo {
-            display: block;
-            width: 100%;
-            height: auto;
-        }
-
         .title h1 {
             margin: 0;
             font-size: 24px;
@@ -96,7 +84,21 @@
         .actions {
             display: flex;
             flex-wrap: wrap;
+            align-items: center;
+            justify-content: flex-end;
             gap: 8px;
+        }
+
+        .actions-school-logo-wrap {
+            width: 88px;
+            max-width: 24vw;
+            flex-shrink: 0;
+        }
+
+        .actions-school-logo {
+            display: block;
+            width: 100%;
+            height: auto;
         }
 
         .btn-link {
@@ -512,7 +514,12 @@
                 max-width: 60vw;
             }
 
-            .title-school-logo-wrap {
+            .actions {
+                width: 100%;
+                justify-content: flex-start;
+            }
+
+            .actions-school-logo-wrap {
                 width: 72px;
                 max-width: 30vw;
             }
@@ -526,11 +533,11 @@
                 <div class="title-logo-wrap">
                     <img class="title-logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
                 </div>
-                <div class="title-school-logo-wrap">
-                    <img class="title-school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Andalus International Schools logo">
-                </div>
             </div>
             <div class="actions">
+                <div class="actions-school-logo-wrap">
+                    <img class="actions-school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Andalus International Schools logo">
+                </div>
                 <a class="btn-link btn-home" href="/dashboard">Dashboard</a>
                 <a class="btn-link btn-back" href="/">Login</a>
             </div>
