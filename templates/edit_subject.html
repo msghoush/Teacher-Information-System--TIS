@@ -47,6 +47,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-wrap: wrap;
             gap: 12px;
         }
 
@@ -58,8 +59,15 @@
         }
 
         .panel-school-logo {
-            width: 96px;
-            max-width: 28%;
+            width: 72px;
+            max-width: 24%;
+            height: auto;
+            display: block;
+        }
+
+        .panel-school-logo-main {
+            width: 168px;
+            max-width: 54%;
             height: auto;
             display: block;
         }
@@ -164,6 +172,7 @@
         <div class="panel-brand">
             <img class="panel-logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
             <img class="panel-school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Andalus International Schools logo">
+            <img class="panel-school-logo-main" src="{{ url_for('static', path='images/andalus-logo-main.png') }}" alt="Andalus International Schools main logo">
         </div>
         <h1>Edit Subject</h1>
         <p class="sub">Update subject details in your current branch/year scope.</p>

@@ -88,13 +88,32 @@
             gap: 8px;
         }
 
+        .actions-school-logos {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-right: 4px;
+        }
+
         .actions-school-logo-wrap {
-            width: 88px;
-            max-width: 24vw;
+            width: 56px;
+            max-width: 20vw;
+            flex-shrink: 0;
+        }
+
+        .actions-school-logo-alt-wrap {
+            width: 146px;
+            max-width: 36vw;
             flex-shrink: 0;
         }
 
         .actions-school-logo {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        .actions-school-logo-alt {
             display: block;
             width: 100%;
             height: auto;
@@ -541,9 +560,19 @@
                 justify-content: flex-start;
             }
 
+            .actions-school-logos {
+                gap: 8px;
+                margin-right: 0;
+            }
+
             .actions-school-logo-wrap {
-                width: 72px;
-                max-width: 30vw;
+                width: 46px;
+                max-width: 22vw;
+            }
+
+            .actions-school-logo-alt-wrap {
+                width: 118px;
+                max-width: 50vw;
             }
         }
     </style>
@@ -557,8 +586,13 @@
                 </div>
             </div>
             <div class="actions">
-                <div class="actions-school-logo-wrap">
-                    <img class="actions-school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Andalus International Schools logo">
+                <div class="actions-school-logos">
+                    <div class="actions-school-logo-wrap">
+                        <img class="actions-school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Andalus International Schools logo">
+                    </div>
+                    <div class="actions-school-logo-alt-wrap">
+                        <img class="actions-school-logo-alt" src="{{ url_for('static', path='images/andalus-logo-main.png') }}" alt="Andalus International Schools main logo">
+                    </div>
                 </div>
                 <a class="btn-link btn-home" href="/dashboard">Dashboard</a>
                 <a class="btn-link btn-back" href="/">Login</a>

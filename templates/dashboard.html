@@ -69,13 +69,26 @@
             display: block;
         }
 
-        .topbar-school-logo {
-            width: clamp(54px, 6.9vw, 85px);
-            flex-shrink: 0;
+        .topbar-school-logos {
             margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
         }
 
-        .topbar-school-logo img {
+        .topbar-school-logo {
+            width: clamp(48px, 6vw, 68px);
+            flex-shrink: 0;
+        }
+
+        .topbar-school-logo-main {
+            width: clamp(150px, 17vw, 220px);
+            flex-shrink: 0;
+        }
+
+        .topbar-school-logo img,
+        .topbar-school-logo-main img {
             width: 100%;
             height: auto;
             display: block;
@@ -1005,9 +1018,17 @@
                 width: min(62vw, 240px);
             }
 
-            .topbar-school-logo {
-                width: min(24vw, 92px);
+            .topbar-school-logos {
                 margin-left: 0;
+                gap: 8px;
+            }
+
+            .topbar-school-logo {
+                width: min(15vw, 60px);
+            }
+
+            .topbar-school-logo-main {
+                width: min(48vw, 190px);
             }
 
             .meta {
@@ -1083,8 +1104,13 @@
                     <img class="logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
                 </div>
             </div>
-            <div class="topbar-school-logo">
-                <img src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Andalus International Schools logo">
+            <div class="topbar-school-logos">
+                <div class="topbar-school-logo">
+                    <img src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Andalus International Schools logo">
+                </div>
+                <div class="topbar-school-logo-main">
+                    <img src="{{ url_for('static', path='images/andalus-logo-main.png') }}" alt="Andalus International Schools main logo">
+                </div>
             </div>
             <div class="meta">
                 <div class="meta-info">
