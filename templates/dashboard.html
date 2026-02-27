@@ -452,6 +452,14 @@
             font-weight: 700;
         }
 
+        .panel-head-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
         .open-link.disabled {
             pointer-events: none;
             background: #8b97ab;
@@ -1518,7 +1526,10 @@
                         <h3>Reports Workspace</h3>
                         <p>Year-based teacher sufficiency forecast across subjects, teachers, and planning.</p>
                     </div>
-                    <a class="open-link" href="/planning">Open Planning</a>
+                    <div class="panel-head-actions">
+                        <a class="open-link" href="/planning">Open Planning</a>
+                        <a class="open-link" href="/reports/allocation-plan.xlsx">Download Allocation Plan (Excel)</a>
+                    </div>
                 </div>
                 <div class="report-note">
                     This report uses a fixed <strong>24 hours/week</strong> cap per existing teacher (standard allocation rule), regardless of custom Max Hours or Extra Hours settings.

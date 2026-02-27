@@ -4,11 +4,16 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
+from datetime import datetime
+import io
 import math
 import os
 import re
 import time
 from typing import Optional
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 
 from database import engine, SessionLocal
 import models
@@ -52,6 +57,16 @@ CROSS_SUBJECT_HIRING_ANCHOR_PRIORITY = [
     "arbic",
     "social studies english",
     "social studies ksa",
+]
+REPORT_EXPORT_SUBJECT_FILL_PALETTE = [
+    "E8F1FF",
+    "EAF8F4",
+    "FFF4E6",
+    "FDECF3",
+    "EEEAFE",
+    "E9F8FF",
+    "F2F7E8",
+    "FCEBEB",
 ]
 get_audit_logger()
 
@@ -796,13 +811,668 @@ def _build_reporting_context(
         "total_teachers_needed_branch": total_teachers_needed_branch,
     }
 
+    teacher_profiles_export = []
+    for profile in teacher_profiles:
+        teacher = profile["teacher"]
+        teacher_profiles_export.append(
+            {
+                "teacher_pk": teacher.id,
+                "teacher_id": teacher.teacher_id or "-",
+                "teacher_name": profile["name"],
+                "subject_keys": list(profile["subject_keys"]),
+                "support_subject_keys": list(profile["support_subject_keys"]),
+                "allocation_breakdown": dict(profile["allocation_breakdown"]),
+                "allocated_hours": int(profile["allocated_hours"]),
+                "remaining_capacity_hours": int(profile["remaining_capacity_hours"]),
+                "primary_allocated_hours": int(profile.get("primary_allocated_hours", 0)),
+                "support_allocated_hours": int(profile.get("support_allocated_hours", 0)),
+                "primary_subject_basis_hours": int(
+                    profile.get("primary_subject_basis_hours", 0)
+                ),
+            }
+        )
+
     return {
         "summary": report_summary,
         "subject_rows": report_subject_rows,
         "gap_rows": report_gap_rows,
         "teacher_rows": report_teacher_rows,
         "grade_rows": report_grade_rows,
+        "teacher_profiles": teacher_profiles_export,
     }
+
+
+def _build_report_class_rows(planning_sections):
+    class_rows = []
+    seen_class_keys = set()
+
+    for section in planning_sections:
+        grade_label = _normalize_grade_label(section.grade_level)
+        if not grade_label:
+            continue
+
+        section_name = str(section.section_name or "").strip().upper()
+        if not section_name:
+            continue
+
+        class_key = f"{grade_label}-{section_name}"
+        if class_key in seen_class_keys:
+            continue
+        seen_class_keys.add(class_key)
+
+        raw_status = str(section.class_status or "").strip().lower()
+        class_status = "New" if raw_status == "new" else "Current"
+        display_grade = "KG" if grade_label == "KG" else f"G{grade_label}"
+
+        class_rows.append(
+            {
+                "class_key": class_key,
+                "class_label": f"{display_grade}-{section_name}",
+                "grade_label": grade_label,
+                "section_name": section_name,
+                "class_status": class_status,
+            }
+        )
+
+    class_rows.sort(
+        key=lambda row: (
+            _grade_sort_key(row["grade_label"]),
+            row["section_name"],
+            0 if row["class_status"] == "Current" else 1,
+        )
+    )
+    return class_rows
+
+
+def _build_report_subject_catalog(subjects):
+    subjects_by_grade = {}
+    subject_name_by_key = {}
+
+    for subject in subjects:
+        grade_label = _normalize_grade_label(subject.grade)
+        if not grade_label:
+            continue
+
+        weekly_hours = int(subject.weekly_hours or 0)
+        if weekly_hours <= 0:
+            continue
+
+        subject_code = str(subject.subject_code or "").strip().upper()
+        subject_key, subject_name = _build_subject_identity(
+            subject_name=subject.subject_name,
+            fallback_code=subject_code,
+        )
+        if not subject_key:
+            continue
+
+        if subject_key not in subject_name_by_key:
+            subject_name_by_key[subject_key] = subject_name
+
+        subjects_by_grade.setdefault(grade_label, []).append(
+            {
+                "subject_key": subject_key,
+                "subject_code": subject_code or subject_name,
+                "subject_name": subject_name,
+                "weekly_hours": weekly_hours,
+            }
+        )
+
+    for grade_label in subjects_by_grade:
+        subjects_by_grade[grade_label].sort(
+            key=lambda item: (item["subject_name"], item["subject_code"])
+        )
+
+    return subjects_by_grade, subject_name_by_key
+
+
+def _build_report_class_allocation_data(subjects, planning_sections, reporting_context):
+    class_rows = _build_report_class_rows(planning_sections)
+    subjects_by_grade, subject_name_by_key = _build_report_subject_catalog(subjects)
+    teacher_profiles = reporting_context.get("teacher_profiles", [])
+
+    demand_items_by_subject = {}
+    for class_row in class_rows:
+        grade_subjects = subjects_by_grade.get(class_row["grade_label"], [])
+        for subject_item in grade_subjects:
+            demand_items_by_subject.setdefault(subject_item["subject_key"], []).append(
+                {
+                    "class_key": class_row["class_key"],
+                    "class_label": class_row["class_label"],
+                    "class_status": class_row["class_status"],
+                    "grade_label": class_row["grade_label"],
+                    "section_name": class_row["section_name"],
+                    "subject_key": subject_item["subject_key"],
+                    "subject_code": subject_item["subject_code"],
+                    "subject_name": subject_item["subject_name"],
+                    "required_hours": subject_item["weekly_hours"],
+                    "remaining_hours": subject_item["weekly_hours"],
+                }
+            )
+
+    for subject_key in demand_items_by_subject:
+        demand_items_by_subject[subject_key].sort(
+            key=lambda item: (
+                0 if item["class_status"] == "Current" else 1,
+                _grade_sort_key(item["grade_label"]),
+                item["section_name"],
+                item["class_label"],
+            )
+        )
+
+    sorted_profiles = sorted(
+        teacher_profiles,
+        key=lambda profile: (
+            -int(profile.get("allocated_hours", 0)),
+            profile.get("teacher_name", ""),
+            str(profile.get("teacher_id", "")),
+        ),
+    )
+
+    teacher_matrix_rows = []
+    assignment_rows = []
+
+    for profile in sorted_profiles:
+        allocation_breakdown = profile.get("allocation_breakdown", {}) or {}
+        primary_subject_keys = list(profile.get("subject_keys", []))
+        support_subject_keys = list(profile.get("support_subject_keys", []))
+
+        ordered_subject_keys = []
+        for subject_key in primary_subject_keys + support_subject_keys:
+            if subject_key not in ordered_subject_keys:
+                ordered_subject_keys.append(subject_key)
+        for subject_key in sorted(allocation_breakdown.keys()):
+            if subject_key not in ordered_subject_keys:
+                ordered_subject_keys.append(subject_key)
+
+        class_allocations = {}
+
+        for subject_key in ordered_subject_keys:
+            subject_hours_quota = int(allocation_breakdown.get(subject_key, 0))
+            if subject_hours_quota <= 0:
+                continue
+
+            for demand_item in demand_items_by_subject.get(subject_key, []):
+                if subject_hours_quota <= 0:
+                    break
+
+                subject_hours_remaining = int(demand_item["remaining_hours"])
+                if subject_hours_remaining <= 0:
+                    continue
+
+                allocated_hours = min(subject_hours_quota, subject_hours_remaining)
+                demand_item["remaining_hours"] = subject_hours_remaining - allocated_hours
+                subject_hours_quota -= allocated_hours
+
+                class_key = demand_item["class_key"]
+                class_allocations.setdefault(class_key, []).append(
+                    {
+                        "subject_key": subject_key,
+                        "subject_code": demand_item["subject_code"],
+                        "subject_name": demand_item["subject_name"],
+                        "allocated_hours": allocated_hours,
+                        "class_status": demand_item["class_status"],
+                    }
+                )
+
+                assignment_rows.append(
+                    {
+                        "teacher_id": profile.get("teacher_id", "-"),
+                        "teacher_name": profile.get("teacher_name", "-"),
+                        "class_label": demand_item["class_label"],
+                        "class_status": demand_item["class_status"],
+                        "subject_code": demand_item["subject_code"],
+                        "subject_name": demand_item["subject_name"],
+                        "allocated_hours": allocated_hours,
+                        "coverage_type": (
+                            "Support"
+                            if subject_key in support_subject_keys
+                            else "Primary"
+                        ),
+                    }
+                )
+
+        class_cells = {}
+        class_fill_subject_keys = {}
+        for class_key, allocation_items in class_allocations.items():
+            allocation_items.sort(
+                key=lambda item: (-item["allocated_hours"], item["subject_code"])
+            )
+            class_cells[class_key] = "\n".join(
+                f"{item['subject_code']} ({item['allocated_hours']}h)"
+                for item in allocation_items
+            )
+            class_fill_subject_keys[class_key] = allocation_items[0]["subject_key"]
+
+        teacher_matrix_rows.append(
+            {
+                "teacher_id": profile.get("teacher_id", "-"),
+                "teacher_name": profile.get("teacher_name", "-"),
+                "expected_allocated_hours": int(profile.get("allocated_hours", 0)),
+                "remaining_capacity_hours": int(
+                    profile.get("remaining_capacity_hours", REPORT_STANDARD_MAX_HOURS)
+                ),
+                "primary_subject_label": ", ".join(
+                    subject_name_by_key.get(subject_key, subject_key.title())
+                    for subject_key in primary_subject_keys
+                )
+                or "-",
+                "support_subject_label": ", ".join(
+                    subject_name_by_key.get(subject_key, subject_key.title())
+                    for subject_key in support_subject_keys
+                )
+                or "-",
+                "class_cells": class_cells,
+                "class_fill_subject_keys": class_fill_subject_keys,
+            }
+        )
+
+    assignment_rows.sort(
+        key=lambda row: (
+            row["teacher_name"],
+            row["class_label"],
+            row["subject_code"],
+        )
+    )
+
+    unassigned_rows = []
+    for subject_items in demand_items_by_subject.values():
+        for demand_item in subject_items:
+            if int(demand_item["remaining_hours"]) <= 0:
+                continue
+            unassigned_rows.append(
+                {
+                    "class_label": demand_item["class_label"],
+                    "class_status": demand_item["class_status"],
+                    "subject_code": demand_item["subject_code"],
+                    "subject_name": demand_item["subject_name"],
+                    "remaining_hours": int(demand_item["remaining_hours"]),
+                }
+            )
+
+    unassigned_rows.sort(
+        key=lambda row: (
+            row["class_label"],
+            row["subject_code"],
+        )
+    )
+
+    return {
+        "class_rows": class_rows,
+        "teacher_matrix_rows": teacher_matrix_rows,
+        "assignment_rows": assignment_rows,
+        "unassigned_rows": unassigned_rows,
+    }
+
+
+def _apply_excel_header_style(sheet, header_row: int, total_columns: int):
+    header_fill = PatternFill(start_color="0A4EA3", end_color="0A4EA3", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    for column_index in range(1, total_columns + 1):
+        cell = sheet.cell(row=header_row, column=column_index)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+
+def _subject_fill_for_key(subject_key: str):
+    if not subject_key:
+        return None
+    palette_index = sum(ord(char) for char in subject_key) % len(
+        REPORT_EXPORT_SUBJECT_FILL_PALETTE
+    )
+    color_code = REPORT_EXPORT_SUBJECT_FILL_PALETTE[palette_index]
+    return PatternFill(start_color=color_code, end_color=color_code, fill_type="solid")
+
+
+def _build_report_allocation_filename(branch_name: str, academic_year_name: str) -> str:
+    def _sanitize(text_value: str) -> str:
+        normalized = re.sub(r"[^A-Za-z0-9]+", "-", str(text_value or "").strip())
+        return normalized.strip("-").lower() or "scope"
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_branch = _sanitize(branch_name)
+    safe_year = _sanitize(academic_year_name)
+    return f"teacher_allocation_plan_{safe_branch}_{safe_year}_{timestamp}.xlsx"
+
+
+def _build_report_allocation_xlsx_bytes(
+    branch_name: str,
+    academic_year_name: str,
+    subjects,
+    planning_sections,
+    reporting_context,
+) -> bytes:
+    allocation_data = _build_report_class_allocation_data(
+        subjects=subjects,
+        planning_sections=planning_sections,
+        reporting_context=reporting_context,
+    )
+
+    class_rows = allocation_data["class_rows"]
+    teacher_matrix_rows = allocation_data["teacher_matrix_rows"]
+    assignment_rows = allocation_data["assignment_rows"]
+    unassigned_rows = allocation_data["unassigned_rows"]
+
+    report_summary = reporting_context.get("summary", {})
+    report_subject_rows = reporting_context.get("subject_rows", [])
+    report_teacher_rows = reporting_context.get("teacher_rows", [])
+
+    workbook = Workbook()
+    matrix_sheet = workbook.active
+    matrix_sheet.title = "Teacher_Class_Matrix"
+
+    matrix_headers = [
+        "Teacher ID",
+        "Teacher Name",
+        "Expected Hours (24h)",
+        "Remaining Capacity",
+        "Primary Subject",
+        "Support Subject",
+    ] + [class_row["class_label"] for class_row in class_rows]
+    matrix_sheet.append(matrix_headers)
+    _apply_excel_header_style(
+        sheet=matrix_sheet,
+        header_row=1,
+        total_columns=len(matrix_headers),
+    )
+    matrix_sheet.freeze_panes = "A2"
+    matrix_sheet.auto_filter.ref = f"A1:{get_column_letter(len(matrix_headers))}1"
+
+    full_load_fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
+    under_load_fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
+    neutral_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+
+    class_column_start = 7
+    class_order = [class_row["class_key"] for class_row in class_rows]
+
+    for row_data in teacher_matrix_rows:
+        matrix_row = [
+            row_data["teacher_id"],
+            row_data["teacher_name"],
+            row_data["expected_allocated_hours"],
+            row_data["remaining_capacity_hours"],
+            row_data["primary_subject_label"],
+            row_data["support_subject_label"],
+        ]
+        matrix_row.extend(
+            row_data["class_cells"].get(class_key, "")
+            for class_key in class_order
+        )
+        matrix_sheet.append(matrix_row)
+        excel_row_index = matrix_sheet.max_row
+
+        expected_hours_cell = matrix_sheet.cell(row=excel_row_index, column=3)
+        remaining_capacity_cell = matrix_sheet.cell(row=excel_row_index, column=4)
+        if int(row_data["expected_allocated_hours"]) >= REPORT_STANDARD_MAX_HOURS:
+            expected_hours_cell.fill = full_load_fill
+            remaining_capacity_cell.fill = full_load_fill
+        else:
+            expected_hours_cell.fill = under_load_fill
+            remaining_capacity_cell.fill = under_load_fill
+
+        for class_offset, class_key in enumerate(class_order):
+            column_index = class_column_start + class_offset
+            class_cell = matrix_sheet.cell(row=excel_row_index, column=column_index)
+            if not class_cell.value:
+                continue
+            fill_subject_key = row_data["class_fill_subject_keys"].get(class_key, "")
+            class_fill = _subject_fill_for_key(fill_subject_key)
+            if class_fill:
+                class_cell.fill = class_fill
+            class_cell.alignment = Alignment(
+                horizontal="left",
+                vertical="top",
+                wrap_text=True,
+            )
+
+    matrix_sheet.column_dimensions["A"].width = 14
+    matrix_sheet.column_dimensions["B"].width = 24
+    matrix_sheet.column_dimensions["C"].width = 18
+    matrix_sheet.column_dimensions["D"].width = 18
+    matrix_sheet.column_dimensions["E"].width = 24
+    matrix_sheet.column_dimensions["F"].width = 24
+    for column_index in range(class_column_start, len(matrix_headers) + 1):
+        matrix_sheet.column_dimensions[get_column_letter(column_index)].width = 18
+    for row_index in range(2, matrix_sheet.max_row + 1):
+        for col_index in range(1, 7):
+            matrix_sheet.cell(row=row_index, column=col_index).alignment = Alignment(
+                horizontal="left" if col_index in {2, 5, 6} else "center",
+                vertical="top",
+                wrap_text=True,
+            )
+        if matrix_sheet.max_column >= 7:
+            matrix_sheet.row_dimensions[row_index].height = 38
+
+    details_sheet = workbook.create_sheet("Teacher_Details")
+    detail_headers = [
+        "Teacher ID",
+        "Teacher Name",
+        "Class",
+        "Class Status",
+        "Subject Code",
+        "Subject Name",
+        "Allocated Hours",
+        "Coverage Type",
+    ]
+    details_sheet.append(detail_headers)
+    _apply_excel_header_style(
+        sheet=details_sheet,
+        header_row=1,
+        total_columns=len(detail_headers),
+    )
+    details_sheet.freeze_panes = "A2"
+    details_sheet.auto_filter.ref = f"A1:{get_column_letter(len(detail_headers))}1"
+
+    support_fill = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+    new_class_fill = PatternFill(start_color="E0F2FE", end_color="E0F2FE", fill_type="solid")
+
+    for item in assignment_rows:
+        details_sheet.append(
+            [
+                item["teacher_id"],
+                item["teacher_name"],
+                item["class_label"],
+                item["class_status"],
+                item["subject_code"],
+                item["subject_name"],
+                item["allocated_hours"],
+                item["coverage_type"],
+            ]
+        )
+        row_index = details_sheet.max_row
+        if item["coverage_type"] == "Support":
+            details_sheet.cell(row=row_index, column=8).fill = support_fill
+        if item["class_status"] == "New":
+            details_sheet.cell(row=row_index, column=4).fill = new_class_fill
+        details_sheet.cell(row=row_index, column=7).alignment = Alignment(
+            horizontal="center",
+            vertical="center",
+        )
+
+    details_sheet.column_dimensions["A"].width = 14
+    details_sheet.column_dimensions["B"].width = 24
+    details_sheet.column_dimensions["C"].width = 14
+    details_sheet.column_dimensions["D"].width = 12
+    details_sheet.column_dimensions["E"].width = 14
+    details_sheet.column_dimensions["F"].width = 26
+    details_sheet.column_dimensions["G"].width = 15
+    details_sheet.column_dimensions["H"].width = 14
+
+    summary_sheet = workbook.create_sheet("Summary")
+    summary_sheet["A1"] = "Teacher Allocation Planning Summary"
+    summary_sheet["A1"].font = Font(bold=True, size=14, color="0A4EA3")
+    summary_sheet["A2"] = f"Branch: {branch_name}"
+    summary_sheet["A3"] = f"Academic Year: {academic_year_name}"
+    summary_sheet["A4"] = f"Generated At: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+
+    summary_metrics = [
+        ("Total Required Hours", report_summary.get("total_required_hours", 0)),
+        ("Expected Covered Hours", report_summary.get("total_allocated_hours", 0)),
+        ("Uncovered Hours", report_summary.get("total_remaining_hours", 0)),
+        ("Coverage %", f"{report_summary.get('coverage_percentage', 0)}%"),
+        ("New Teachers Required", report_summary.get("total_new_teachers_required", 0)),
+        (
+            "Total Teachers Needed (Branch)",
+            report_summary.get("total_teachers_needed_branch", 0),
+        ),
+    ]
+    summary_sheet.append([])
+    summary_sheet.append(["Metric", "Value"])
+    metric_header_row = summary_sheet.max_row
+    _apply_excel_header_style(summary_sheet, metric_header_row, 2)
+    for metric_label, metric_value in summary_metrics:
+        summary_sheet.append([metric_label, metric_value])
+
+    subject_table_row = summary_sheet.max_row + 2
+    summary_sheet.cell(row=subject_table_row, column=1, value="Subject Summary")
+    summary_sheet.cell(row=subject_table_row, column=1).font = Font(
+        bold=True,
+        color="0A4EA3",
+    )
+    subject_headers = [
+        "Subject",
+        "Current Hours",
+        "New Hours",
+        "Total Required",
+        "Covered",
+        "Uncovered",
+        "Extra Teachers Needed",
+    ]
+    summary_sheet.append(subject_headers)
+    _apply_excel_header_style(summary_sheet, subject_table_row + 1, len(subject_headers))
+    for row in report_subject_rows:
+        summary_sheet.append(
+            [
+                row["subject_name"],
+                row["required_current_hours"],
+                row["required_new_hours"],
+                row["required_hours"],
+                row["allocated_hours"],
+                row["remaining_hours"],
+                row["additional_teachers_needed"],
+            ]
+        )
+        row_index = summary_sheet.max_row
+        uncovered_cell = summary_sheet.cell(row=row_index, column=6)
+        extra_teachers_cell = summary_sheet.cell(row=row_index, column=7)
+        if int(row["remaining_hours"]) > 0:
+            uncovered_cell.fill = under_load_fill
+        else:
+            uncovered_cell.fill = full_load_fill
+        if int(row["additional_teachers_needed"]) > 0:
+            extra_teachers_cell.fill = under_load_fill
+        else:
+            extra_teachers_cell.fill = full_load_fill
+
+    teacher_table_row = summary_sheet.max_row + 2
+    summary_sheet.cell(row=teacher_table_row, column=1, value="Teacher Load Summary")
+    summary_sheet.cell(row=teacher_table_row, column=1).font = Font(
+        bold=True,
+        color="0A4EA3",
+    )
+    teacher_headers = [
+        "Teacher ID",
+        "Teacher Name",
+        "Expected Hours",
+        "Primary Allocated",
+        "Support Allocated",
+        "Remaining Capacity",
+    ]
+    summary_sheet.append(teacher_headers)
+    _apply_excel_header_style(summary_sheet, teacher_table_row + 1, len(teacher_headers))
+    for row in report_teacher_rows:
+        summary_sheet.append(
+            [
+                row["teacher_id"],
+                row["teacher_name"],
+                row["expected_allocated_hours"],
+                row["primary_allocated_hours"],
+                row["support_allocated_hours"],
+                row["remaining_capacity_hours"],
+            ]
+        )
+        row_index = summary_sheet.max_row
+        expected_cell = summary_sheet.cell(row=row_index, column=3)
+        remaining_cell = summary_sheet.cell(row=row_index, column=6)
+        if int(row["expected_allocated_hours"]) >= REPORT_STANDARD_MAX_HOURS:
+            expected_cell.fill = full_load_fill
+            remaining_cell.fill = full_load_fill
+        else:
+            expected_cell.fill = under_load_fill
+            remaining_cell.fill = under_load_fill
+
+    unassigned_table_row = summary_sheet.max_row + 2
+    summary_sheet.cell(
+        row=unassigned_table_row,
+        column=1,
+        value="Unassigned Class Demand",
+    )
+    summary_sheet.cell(row=unassigned_table_row, column=1).font = Font(
+        bold=True,
+        color="0A4EA3",
+    )
+    unassigned_headers = [
+        "Class",
+        "Class Status",
+        "Subject Code",
+        "Subject Name",
+        "Unassigned Hours",
+    ]
+    summary_sheet.append(unassigned_headers)
+    _apply_excel_header_style(summary_sheet, unassigned_table_row + 1, len(unassigned_headers))
+    if unassigned_rows:
+        for row in unassigned_rows:
+            summary_sheet.append(
+                [
+                    row["class_label"],
+                    row["class_status"],
+                    row["subject_code"],
+                    row["subject_name"],
+                    row["remaining_hours"],
+                ]
+            )
+            row_index = summary_sheet.max_row
+            summary_sheet.cell(row=row_index, column=5).fill = under_load_fill
+    else:
+        summary_sheet.append(
+            [
+                "All classes are fully covered by existing allocations.",
+                "",
+                "",
+                "",
+                0,
+            ]
+        )
+        row_index = summary_sheet.max_row
+        summary_sheet.cell(row=row_index, column=1).fill = full_load_fill
+        summary_sheet.cell(row=row_index, column=5).fill = full_load_fill
+
+    for column_key, width in {
+        "A": 34,
+        "B": 22,
+        "C": 20,
+        "D": 20,
+        "E": 18,
+        "F": 18,
+        "G": 20,
+    }.items():
+        summary_sheet.column_dimensions[column_key].width = width
+
+    for row_index in range(1, summary_sheet.max_row + 1):
+        for col_index in range(1, 8):
+            cell = summary_sheet.cell(row=row_index, column=col_index)
+            if cell.value is None:
+                continue
+            if row_index <= 4:
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+            else:
+                cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+                if col_index in {2, 3, 4, 5, 6, 7}:
+                    cell.fill = cell.fill if cell.fill.fill_type else neutral_fill
+
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
 
 
 @app.middleware("http")
@@ -1394,6 +2064,77 @@ def dashboard(
             "active_year_id": active_year.id if active_year else None,
             "is_admin": auth.can_manage_users(user),
         }
+    )
+
+
+# ---------------------------------------
+# REPORT EXPORT
+# ---------------------------------------
+@app.get("/reports/allocation-plan.xlsx")
+def download_report_allocation_plan(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = auth.get_current_user(request, db)
+    if not user:
+        return RedirectResponse(url="/")
+
+    scoped_branch_id = getattr(user, "scope_branch_id", user.branch_id)
+    scoped_academic_year_id = getattr(
+        user,
+        "scope_academic_year_id",
+        user.academic_year_id,
+    )
+
+    branch = db.query(models.Branch).filter(
+        models.Branch.id == scoped_branch_id
+    ).first()
+    academic_year = db.query(models.AcademicYear).filter(
+        models.AcademicYear.id == scoped_academic_year_id
+    ).first()
+
+    subjects_rows = db.query(models.Subject).filter(
+        models.Subject.branch_id == scoped_branch_id,
+        models.Subject.academic_year_id == scoped_academic_year_id,
+    ).order_by(
+        models.Subject.grade.asc(),
+        models.Subject.subject_code.asc(),
+    ).all()
+    teachers_rows = db.query(models.Teacher).filter(
+        models.Teacher.branch_id == scoped_branch_id,
+        models.Teacher.academic_year_id == scoped_academic_year_id,
+    ).order_by(models.Teacher.id.asc()).all()
+    planning_sections = db.query(models.PlanningSection).filter(
+        models.PlanningSection.branch_id == scoped_branch_id,
+        models.PlanningSection.academic_year_id == scoped_academic_year_id,
+    ).all()
+
+    reporting_context = _build_reporting_context(
+        db=db,
+        subjects=subjects_rows,
+        planning_sections=planning_sections,
+        teachers=teachers_rows,
+    )
+    branch_name = branch.name if branch else "Not assigned"
+    academic_year_name = (
+        academic_year.year_name if academic_year else "Not assigned"
+    )
+    payload = _build_report_allocation_xlsx_bytes(
+        branch_name=branch_name,
+        academic_year_name=academic_year_name,
+        subjects=subjects_rows,
+        planning_sections=planning_sections,
+        reporting_context=reporting_context,
+    )
+    file_name = _build_report_allocation_filename(
+        branch_name=branch_name,
+        academic_year_name=academic_year_name,
+    )
+
+    return StreamingResponse(
+        io.BytesIO(payload),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{file_name}"'},
     )
 
 

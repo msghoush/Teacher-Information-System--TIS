@@ -127,6 +127,8 @@ def _classify_action(method: str, path: str) -> str:
         return "Switch Academic Year Scope"
     if method == "GET" and path == "/admin/audit-log":
         return "Download Audit Log"
+    if method == "GET" and path == "/reports/allocation-plan.xlsx":
+        return "Download Allocation Plan"
 
     if method == "GET" and path in {"/subjects", "/subjects/"}:
         return "View Subjects"
