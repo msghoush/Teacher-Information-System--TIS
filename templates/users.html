@@ -107,6 +107,12 @@
             flex-shrink: 0;
         }
 
+        .actions-school-logo-cognia-wrap {
+            width: 136px;
+            max-width: 34vw;
+            flex-shrink: 0;
+        }
+
         .actions-school-logo {
             display: block;
             width: 100%;
@@ -114,6 +120,12 @@
         }
 
         .actions-school-logo-alt {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        .actions-school-logo-cognia {
             display: block;
             width: 100%;
             height: auto;
@@ -574,6 +586,11 @@
                 width: 110px;
                 max-width: 44vw;
             }
+
+            .actions-school-logo-cognia-wrap {
+                width: 108px;
+                max-width: 42vw;
+            }
         }
     </style>
 </head>
@@ -592,6 +609,9 @@
                     </div>
                     <div class="actions-school-logo-alt-wrap">
                         <img class="actions-school-logo-alt" src="{{ url_for('static', path='images/andalus-logo-main.png') }}" alt="Andalus International Schools main logo">
+                    </div>
+                    <div class="actions-school-logo-cognia-wrap">
+                        <img class="actions-school-logo-cognia" src="{{ url_for('static', path='images/cognia-logo.png') }}" alt="Cognia logo">
                     </div>
                 </div>
                 <a class="btn-link btn-home" href="/dashboard">Dashboard</a>
