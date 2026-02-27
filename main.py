@@ -1468,7 +1468,8 @@ def _build_report_allocation_xlsx_bytes(
             else:
                 cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
                 if col_index in {2, 3, 4, 5, 6, 7}:
-                    cell.fill = cell.fill if cell.fill.fill_type else neutral_fill
+                    if not getattr(cell.fill, "fill_type", None):
+                        cell.fill = neutral_fill
 
     output = io.BytesIO()
     workbook.save(output)
