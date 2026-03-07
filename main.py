@@ -2449,12 +2449,19 @@ def setup_initial_data():
             Branch.status == True
         ).order_by(Branch.id.asc()).first()
 
+    legacy_position_map = {
+        "Education Excelency": "Education Excellence",
+        "Principle": "Principal",
+        "Priciple": "Principal",
+    }
     legacy_position_users = db.query(User).filter(
-        User.position == "Education Excelency"
+        User.position.in_(legacy_position_map.keys())
     ).all()
     if legacy_position_users:
         for user_row in legacy_position_users:
-            user_row.position = "Education Excellence"
+            normalized_position = legacy_position_map.get(user_row.position)
+            if normalized_position:
+                user_row.position = normalized_position
         db.commit()
 
     # Create Academic Year if not exists

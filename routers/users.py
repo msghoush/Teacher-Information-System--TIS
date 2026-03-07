@@ -17,13 +17,14 @@ templates = Jinja2Templates(directory="templates")
 
 POSITIONS = [
     "Academic Supervisor",
-    "Principle",
+    "Principal",
     "Vice Principal",
     "Education Excellence",
 ]
 
 POSITION_ALIASES = {
-    "Principal": "Principle",
+    "Principle": "Principal",
+    "Priciple": "Principal",
     "Vice Principle": "Vice Principal",
     "Education Excelency": "Education Excellence",
 }
