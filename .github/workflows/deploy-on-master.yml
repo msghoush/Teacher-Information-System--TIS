@@ -15,9 +15,9 @@ jobs:
           DEPLOY_HOOK_URL: ${{ secrets.DEPLOY_HOOK_URL }}
         run: |
           if [ -z "$DEPLOY_HOOK_URL" ]; then
-            echo "DEPLOY_HOOK_URL secret is missing."
-            echo "Add it in GitHub repository settings to enable automatic deployments."
-            exit 1
+            echo "::warning::DEPLOY_HOOK_URL secret is missing."
+            echo "Add it in GitHub repository settings to enable hook-based automatic deployments."
+            exit 0
           fi
 
           curl --fail --silent --show-error --location \
