@@ -2257,6 +2257,172 @@ def _seed_teacher_subject_allocations():
         )
 
 
+def _normalize_branch_name(value: str) -> str:
+    return " ".join(str(value or "").split()).strip().lower()
+
+
+def _get_branch_data_ids(db: Session):
+    data_branch_ids = set()
+    for model in (User, models.Subject, models.Teacher, models.PlanningSection):
+        rows = (
+            db.query(model.branch_id)
+            .filter(model.branch_id.isnot(None))
+            .distinct()
+            .all()
+        )
+        for row in rows:
+            if row[0] is not None:
+                data_branch_ids.add(row[0])
+    return data_branch_ids
+
+
+def _reassign_branch_scope_data(
+    db: Session,
+    from_branch_id: int,
+    to_branch_id: int,
+) -> bool:
+    if from_branch_id == to_branch_id:
+        return False
+
+    changed = False
+    for model in (User, models.Subject, models.Teacher, models.PlanningSection):
+        moved_count = (
+            db.query(model)
+            .filter(model.branch_id == from_branch_id)
+            .update({model.branch_id: to_branch_id}, synchronize_session=False)
+        )
+        if moved_count:
+            changed = True
+    return changed
+
+
+def _ensure_gender_branches(db: Session):
+    required_base_branch_names = [
+        "Hamadania",
+        "Manar",
+        "Obhor",
+        "Alshaati",
+        "Fayha",
+        "Najran",
+        "Zahra",
+        "Khamis Msheit",
+        "Abha",
+        "Rawda",
+    ]
+
+    existing_branches = db.query(Branch).order_by(Branch.id.asc()).all()
+    branches_by_name = {}
+    for branch_row in existing_branches:
+        key = _normalize_branch_name(branch_row.name)
+        if key:
+            branches_by_name.setdefault(key, []).append(branch_row)
+
+    data_branch_ids = _get_branch_data_ids(db)
+    branch_changes = False
+    default_branch = None
+
+    for base_name in required_base_branch_names:
+        boys_name = f"{base_name}-Boys"
+        girls_name = f"{base_name}-Girls"
+
+        base_key = _normalize_branch_name(base_name)
+        boys_key = _normalize_branch_name(boys_name)
+        girls_key = _normalize_branch_name(girls_name)
+
+        legacy_rows = list(branches_by_name.get(base_key, []))
+        boys_rows = branches_by_name.get(boys_key, [])
+        girls_rows = branches_by_name.get(girls_key, [])
+
+        boys_row = boys_rows[0] if boys_rows else None
+        girls_row = girls_rows[0] if girls_rows else None
+
+        if not boys_row:
+            rename_candidate = None
+            if legacy_rows:
+                rename_candidate = next(
+                    (row for row in legacy_rows if row.id in data_branch_ids),
+                    legacy_rows[0],
+                )
+                legacy_rows.remove(rename_candidate)
+
+            if rename_candidate:
+                if rename_candidate.name != boys_name:
+                    rename_candidate.name = boys_name
+                    branch_changes = True
+                if not rename_candidate.status:
+                    rename_candidate.status = True
+                    branch_changes = True
+                boys_row = rename_candidate
+                branches_by_name.setdefault(boys_key, []).append(boys_row)
+            else:
+                boys_row = Branch(
+                    name=boys_name,
+                    location="Main Campus",
+                    status=True,
+                )
+                db.add(boys_row)
+                db.flush()
+                branch_changes = True
+                branches_by_name.setdefault(boys_key, []).append(boys_row)
+        elif not boys_row.status:
+            boys_row.status = True
+            branch_changes = True
+
+        if not girls_row:
+            rename_candidate = legacy_rows.pop(0) if legacy_rows else None
+            if rename_candidate:
+                if rename_candidate.id in data_branch_ids:
+                    if _reassign_branch_scope_data(db, rename_candidate.id, boys_row.id):
+                        branch_changes = True
+                    data_branch_ids.discard(rename_candidate.id)
+                    data_branch_ids.add(boys_row.id)
+
+                if rename_candidate.name != girls_name:
+                    rename_candidate.name = girls_name
+                    branch_changes = True
+                if not rename_candidate.status:
+                    rename_candidate.status = True
+                    branch_changes = True
+                girls_row = rename_candidate
+                branches_by_name.setdefault(girls_key, []).append(girls_row)
+            else:
+                girls_row = Branch(
+                    name=girls_name,
+                    location="Main Campus",
+                    status=True,
+                )
+                db.add(girls_row)
+                db.flush()
+                branch_changes = True
+                branches_by_name.setdefault(girls_key, []).append(girls_row)
+        elif not girls_row.status:
+            girls_row.status = True
+            branch_changes = True
+
+        for legacy_row in legacy_rows:
+            if legacy_row.id in data_branch_ids:
+                if _reassign_branch_scope_data(db, legacy_row.id, boys_row.id):
+                    branch_changes = True
+                data_branch_ids.discard(legacy_row.id)
+                data_branch_ids.add(boys_row.id)
+
+            retired_name = f"{base_name}-Legacy-{legacy_row.id}"
+            if legacy_row.name != retired_name:
+                legacy_row.name = retired_name
+                branch_changes = True
+            if legacy_row.status:
+                legacy_row.status = False
+                branch_changes = True
+
+        if base_name == "Hamadania":
+            default_branch = boys_row
+
+    if branch_changes:
+        db.commit()
+
+    return default_branch
+
+
 # ---------------------------------------
 # Startup Initialization
 # ---------------------------------------
@@ -2272,55 +2438,16 @@ def setup_initial_data():
     admin_password = os.getenv("ADMIN_PASSWORD", "UnderProcess1984")
     admin_position = os.getenv("ADMIN_POSITION", "Developer")
 
-    required_branch_names = [
-        "Hamadania",
-        "Manar",
-        "Obhor",
-        "Alshaati",
-        "Fayha",
-        "Najran",
-        "Zahra",
-        "Khamis Msheit",
-        "Abha",
-        "Rawda",
-    ]
-    existing_branches = db.query(Branch).all()
-    branches_by_name = {
-        str(item.name).strip().lower(): item
-        for item in existing_branches
-        if item.name
-    }
-    default_branch = None
-    branch_changes = False
-
-    for branch_name in required_branch_names:
-        key = branch_name.lower()
-        branch_row = branches_by_name.get(key)
-        if not branch_row:
-            branch_row = Branch(
-                name=branch_name,
-                location="Main Campus",
-                status=True
-            )
-            db.add(branch_row)
-            db.flush()
-            branches_by_name[key] = branch_row
-            branch_changes = True
-        else:
-            if not branch_row.status:
-                branch_row.status = True
-                branch_changes = True
-
-        if branch_name == "Hamadania":
-            default_branch = branch_row
-
-    if branch_changes:
-        db.commit()
+    default_branch = _ensure_gender_branches(db)
 
     if not default_branch:
         default_branch = db.query(Branch).filter(
-            Branch.name == "Hamadania"
+            Branch.name == "Hamadania-Boys"
         ).first()
+    if not default_branch:
+        default_branch = db.query(Branch).filter(
+            Branch.status == True
+        ).order_by(Branch.id.asc()).first()
 
     legacy_position_users = db.query(User).filter(
         User.position == "Education Excelency"
