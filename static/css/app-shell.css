@@ -430,19 +430,19 @@ textarea {
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 12px 16px;
-    padding: 16px 18px;
+    gap: 8px 14px;
+    padding: 12px 16px;
     border: 1px solid rgba(255, 255, 255, 0.45);
-    border-radius: var(--app-radius-xl);
+    border-radius: 22px;
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(250, 252, 255, 0.8));
     box-shadow: var(--app-shadow);
 }
 
 .app-header-copy {
     display: grid;
-    gap: 8px;
+    gap: 4px;
     align-content: start;
-    flex: 1 1 340px;
+    flex: 1 1 280px;
     min-width: 0;
 }
 
@@ -451,12 +451,12 @@ textarea {
     align-items: center;
     gap: 10px;
     width: fit-content;
-    padding: 7px 12px;
+    padding: 6px 10px;
     border: 1px solid rgba(10, 78, 163, 0.12);
     border-radius: 999px;
     background: #edf4ff;
     color: var(--app-brand-deep);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.1em;
     text-transform: uppercase;
@@ -464,8 +464,8 @@ textarea {
 
 .app-header-copy h1 {
     margin: 0;
-    font-size: clamp(28px, 3vw, 40px);
-    line-height: 0.98;
+    font-size: clamp(24px, 2.4vw, 34px);
+    line-height: 1;
     letter-spacing: -0.04em;
 }
 
@@ -473,27 +473,19 @@ textarea {
     margin: 0;
     max-width: 60ch;
     color: var(--app-muted);
-    font-size: 13px;
-    line-height: 1.45;
+    font-size: 12px;
+    line-height: 1.35;
 }
 
 .app-header-side {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-    justify-items: end;
-    align-content: start;
-    flex: 0 1 520px;
-    min-width: min(100%, 340px);
-}
-
-.header-topline {
-    width: 100%;
-    display: flex;
+    flex-direction: row;
     align-items: center;
     justify-content: flex-end;
     flex-wrap: wrap;
-    gap: 10px 14px;
+    gap: 8px;
+    flex: 1 1 420px;
+    min-width: min(100%, 280px);
 }
 
 .header-brand-strip {
@@ -522,7 +514,6 @@ textarea {
 }
 
 .header-context-strip {
-    width: 100%;
     display: flex;
     align-items: stretch;
     justify-content: flex-end;
@@ -632,11 +623,10 @@ textarea {
     }
 
     .app-header-side {
-        justify-items: stretch;
+        justify-content: flex-start;
         min-width: 100%;
     }
 
-    .header-topline,
     .header-context-strip,
     .header-actions {
         justify-content: flex-start;
@@ -680,8 +670,7 @@ textarea {
     }
 
     .header-context-strip {
-        flex-direction: column;
-        align-items: stretch;
+        justify-content: flex-start;
     }
 
     .header-chip {

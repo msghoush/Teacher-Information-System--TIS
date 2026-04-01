@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260401c">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260401d">
     {% block page_styles %}{% endblock %}
 </head>
 <body>
@@ -152,20 +152,15 @@
                 <div class="app-header-copy">
                     <span class="page-kicker">{{ icon(shell.page_icon, "shell-icon") }} {{ shell.page_eyebrow }}</span>
                     <h1>{{ shell.page_title }}</h1>
+                    {% if shell.page_key == "dashboard" %}
                     <p>{{ shell.page_intro }}</p>
+                    {% endif %}
                 </div>
                 <div class="app-header-side">
-                    <div class="header-topline">
-                        <div class="header-brand-strip">
-                            <img class="header-school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Little Andalus International Schools logo">
-                            <img class="header-cognia-logo" src="{{ url_for('static', path='images/cognia-logo.png') }}" alt="Cognia logo">
-                            <img class="header-school-logo-main" src="{{ url_for('static', path='images/andalus-logo-main.png') }}" alt="Andalus International Schools main logo">
-                        </div>
-                        {% if header_actions | trim %}
-                        <div class="header-actions">
-                            {{ header_actions | safe }}
-                        </div>
-                        {% endif %}
+                    <div class="header-brand-strip">
+                        <img class="header-school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Little Andalus International Schools logo">
+                        <img class="header-cognia-logo" src="{{ url_for('static', path='images/cognia-logo.png') }}" alt="Cognia logo">
+                        <img class="header-school-logo-main" src="{{ url_for('static', path='images/andalus-logo-main.png') }}" alt="Andalus International Schools main logo">
                     </div>
                     <div class="header-context-strip">
                         <div class="header-chip">
@@ -181,6 +176,11 @@
                             <strong>{{ shell.role_label or "System User" }}</strong>
                         </div>
                     </div>
+                    {% if header_actions | trim %}
+                    <div class="header-actions">
+                        {{ header_actions | safe }}
+                    </div>
+                    {% endif %}
                 </div>
             </header>
 
