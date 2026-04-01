@@ -94,7 +94,7 @@ def _get_subject_choices(db: Session, branch_id: int, academic_year_id: int):
     ]
 
 
-def _get_teacher_allocation_map(db: Session, teachers):
+def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_year_id: int):
     teacher_ids = [teacher.id for teacher in teachers if getattr(teacher, "id", None)]
     if not teacher_ids:
         return {}
@@ -116,7 +116,9 @@ def _get_teacher_allocation_map(db: Session, teachers):
         subjects_by_code = {
             subject.subject_code: subject
             for subject in db.query(models.Subject).filter(
-                models.Subject.subject_code.in_(subject_codes)
+                models.Subject.subject_code.in_(subject_codes),
+                models.Subject.branch_id == branch_id,
+                models.Subject.academic_year_id == academic_year_id,
             ).all()
             if subject.subject_code
         }
@@ -189,7 +191,12 @@ def _render_teachers_page(
         models.Teacher.branch_id == branch_id,
         models.Teacher.academic_year_id == academic_year_id
     ).order_by(models.Teacher.id.desc()).all()
-    teacher_allocations = _get_teacher_allocation_map(db, teachers)
+    teacher_allocations = _get_teacher_allocation_map(
+        db,
+        teachers,
+        branch_id,
+        academic_year_id,
+    )
 
     return templates.TemplateResponse(
         "teachers.html",

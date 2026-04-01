@@ -162,6 +162,50 @@ def _validate_subject_payload(subject_code, subject_name, weekly_hours, grade):
     return errors
 
 
+def _get_existing_subject_codes_in_scope(db: Session, subject_codes, branch_id: int, academic_year_id: int):
+    normalized_codes = sorted({code for code in subject_codes if code})
+    if not normalized_codes:
+        return []
+
+    existing_codes = db.query(models.Subject.subject_code).filter(
+        models.Subject.subject_code.in_(normalized_codes),
+        models.Subject.branch_id == branch_id,
+        models.Subject.academic_year_id == academic_year_id,
+    ).all()
+    return sorted({code for (code,) in existing_codes if code})
+
+
+def _has_subject_assignment_in_scope(
+    db: Session,
+    subject_codes,
+    branch_id: int,
+    academic_year_id: int,
+):
+    normalized_codes = [code for code in subject_codes if code]
+    if not normalized_codes:
+        return False
+
+    has_teacher_reference = db.query(models.Teacher).filter(
+        models.Teacher.subject_code.in_(normalized_codes),
+        models.Teacher.branch_id == branch_id,
+        models.Teacher.academic_year_id == academic_year_id,
+    ).first()
+    if has_teacher_reference:
+        return True
+
+    has_allocation_reference = (
+        db.query(models.TeacherSubjectAllocation)
+        .join(models.Teacher, models.Teacher.id == models.TeacherSubjectAllocation.teacher_id)
+        .filter(
+            models.TeacherSubjectAllocation.subject_code.in_(normalized_codes),
+            models.Teacher.branch_id == branch_id,
+            models.Teacher.academic_year_id == academic_year_id,
+        )
+        .first()
+    )
+    return has_allocation_reference is not None
+
+
 def _render_subjects_page(
     request: Request,
     db: Session,
@@ -552,13 +596,15 @@ def import_subjects(
         )
 
     if imported_codes:
-        existing_codes = db.query(models.Subject.subject_code).filter(
-            models.Subject.subject_code.in_(imported_codes)
-        ).all()
-        existing_code_set = sorted({code for (code,) in existing_codes})
+        existing_code_set = _get_existing_subject_codes_in_scope(
+            db,
+            imported_codes,
+            branch_id,
+            academic_year_id,
+        )
         if existing_code_set:
             row_errors.append(
-                "These subject codes already exist in the system: "
+                "These subject codes already exist in the current branch and academic year: "
                 + ", ".join(existing_code_set)
             )
 
@@ -642,14 +688,16 @@ def add_subject(
     branch_id, academic_year_id = _get_scope_ids(current_user)
 
     existing_code = db.query(models.Subject).filter(
-        models.Subject.subject_code == subject_code
+        models.Subject.subject_code == subject_code,
+        models.Subject.branch_id == branch_id,
+        models.Subject.academic_year_id == academic_year_id,
     ).first()
     if existing_code:
         return _render_subjects_page(
             request=request,
             db=db,
             current_user=current_user,
-            error="Subject code already exists. Please use another code."
+            error="Subject code already exists in the current branch and academic year. Please use another code."
         )
 
     new_subject = models.Subject(
@@ -771,6 +819,8 @@ def update_subject(
 
     existing_code = db.query(models.Subject).filter(
         models.Subject.subject_code == subject_code,
+        models.Subject.branch_id == branch_id,
+        models.Subject.academic_year_id == academic_year_id,
         models.Subject.id != subject.id
     ).first()
     if existing_code:
@@ -780,7 +830,7 @@ def update_subject(
                 "request": request,
                 "subject": subject,
                 "user": current_user,
-                "error": "Subject code already exists. Please use another code.",
+                "error": "Subject code already exists in the current branch and academic year. Please use another code.",
             },
             status_code=400
         )
@@ -825,13 +875,12 @@ def delete_subject(
     ).first()
 
     if subject:
-        has_teacher_reference = db.query(models.Teacher).filter(
-            models.Teacher.subject_code == subject.subject_code
-        ).first()
-        has_allocation_reference = db.query(models.TeacherSubjectAllocation).filter(
-            models.TeacherSubjectAllocation.subject_code == subject.subject_code
-        ).first()
-        if has_teacher_reference or has_allocation_reference:
+        if _has_subject_assignment_in_scope(
+            db,
+            [subject.subject_code],
+            branch_id,
+            academic_year_id,
+        ):
             return _render_subjects_page(
                 request=request,
                 db=db,
@@ -904,20 +953,18 @@ def delete_subjects_bulk(
         for subject in subject_rows
         if subject.subject_code
     ]
-    if selected_subject_codes:
-        has_teacher_references = db.query(models.Teacher).filter(
-            models.Teacher.subject_code.in_(selected_subject_codes)
-        ).first()
-        has_allocation_references = db.query(models.TeacherSubjectAllocation).filter(
-            models.TeacherSubjectAllocation.subject_code.in_(selected_subject_codes)
-        ).first()
-        if has_teacher_references or has_allocation_references:
-            return _render_subjects_page(
-                request=request,
-                db=db,
-                current_user=current_user,
-                error="One or more selected subjects cannot be deleted because they are assigned to teachers.",
-            )
+    if _has_subject_assignment_in_scope(
+        db,
+        selected_subject_codes,
+        branch_id,
+        academic_year_id,
+    ):
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="One or more selected subjects cannot be deleted because they are assigned to teachers.",
+        )
 
     try:
         db.query(models.Subject).filter(

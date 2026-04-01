@@ -2229,6 +2229,311 @@ def _ensure_teachers_table_columns():
         )
 
 
+def _is_subject_code_foreign_key(foreign_key) -> bool:
+    constrained_columns = set(foreign_key.get("constrained_columns") or [])
+    referred_columns = set(foreign_key.get("referred_columns") or [])
+    return (
+        foreign_key.get("referred_table") == "subjects"
+        and "subject_code" in constrained_columns
+        and "subject_code" in referred_columns
+    )
+
+
+def _ensure_subject_scope_schema_sqlite(
+    rebuild_teachers: bool,
+    rebuild_allocations: bool,
+    reset_subject_indexes: bool,
+):
+    with engine.begin() as connection:
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+
+        if rebuild_allocations:
+            connection.execute(
+                text(
+                    "ALTER TABLE teacher_subject_allocations "
+                    "RENAME TO teacher_subject_allocations_legacy_subject_scope"
+                )
+            )
+
+        if rebuild_teachers:
+            connection.execute(
+                text(
+                    "ALTER TABLE teachers "
+                    "RENAME TO teachers_legacy_subject_scope"
+                )
+            )
+
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE teachers (
+                        id INTEGER NOT NULL,
+                        teacher_id VARCHAR(10),
+                        first_name VARCHAR,
+                        middle_name VARCHAR,
+                        last_name VARCHAR,
+                        subject_code VARCHAR,
+                        level VARCHAR,
+                        max_hours INTEGER,
+                        extra_hours_allowed BOOLEAN DEFAULT FALSE,
+                        extra_hours_count INTEGER DEFAULT 0,
+                        branch_id INTEGER,
+                        academic_year_id INTEGER,
+                        PRIMARY KEY (id),
+                        UNIQUE (teacher_id),
+                        FOREIGN KEY(branch_id) REFERENCES branches (id),
+                        FOREIGN KEY(academic_year_id) REFERENCES academic_years (id)
+                    )
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO teachers (
+                        id,
+                        teacher_id,
+                        first_name,
+                        middle_name,
+                        last_name,
+                        subject_code,
+                        level,
+                        max_hours,
+                        extra_hours_allowed,
+                        extra_hours_count,
+                        branch_id,
+                        academic_year_id
+                    )
+                    SELECT
+                        id,
+                        teacher_id,
+                        first_name,
+                        middle_name,
+                        last_name,
+                        subject_code,
+                        level,
+                        max_hours,
+                        COALESCE(extra_hours_allowed, FALSE),
+                        COALESCE(extra_hours_count, 0),
+                        branch_id,
+                        academic_year_id
+                    FROM teachers_legacy_subject_scope
+                    """
+                )
+            )
+        else:
+            connection.execute(
+                text(
+                    "UPDATE teachers "
+                    "SET extra_hours_allowed = FALSE "
+                    "WHERE extra_hours_allowed IS NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE teachers "
+                    "SET extra_hours_count = 0 "
+                    "WHERE extra_hours_count IS NULL"
+                )
+            )
+
+        if rebuild_allocations:
+            connection.execute(
+                text(
+                    """
+                    CREATE TABLE teacher_subject_allocations (
+                        id INTEGER NOT NULL,
+                        teacher_id INTEGER NOT NULL,
+                        subject_code VARCHAR NOT NULL,
+                        PRIMARY KEY (id),
+                        CONSTRAINT uq_teacher_subject_allocations_teacher_subject
+                            UNIQUE (teacher_id, subject_code),
+                        FOREIGN KEY(teacher_id) REFERENCES teachers (id)
+                    )
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO teacher_subject_allocations (
+                        id,
+                        teacher_id,
+                        subject_code
+                    )
+                    SELECT
+                        id,
+                        teacher_id,
+                        subject_code
+                    FROM teacher_subject_allocations_legacy_subject_scope
+                    """
+                )
+            )
+
+        if rebuild_allocations:
+            connection.execute(
+                text("DROP TABLE teacher_subject_allocations_legacy_subject_scope")
+            )
+        if rebuild_teachers:
+            connection.execute(text("DROP TABLE teachers_legacy_subject_scope"))
+
+        if rebuild_allocations:
+            connection.execute(
+                text(
+                    """
+                    CREATE INDEX ix_teacher_subject_allocations_teacher_id
+                    ON teacher_subject_allocations (teacher_id)
+                    """
+                )
+            )
+
+        if reset_subject_indexes:
+            connection.execute(text("DROP INDEX IF EXISTS ix_subjects_subject_code"))
+
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_subjects_subject_code "
+                "ON subjects (subject_code)"
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_subjects_scope_code "
+                "ON subjects (branch_id, academic_year_id, subject_code)"
+            )
+        )
+        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+
+
+def _ensure_subject_scope_schema_non_sqlite(
+    rebuild_teachers: bool,
+    rebuild_allocations: bool,
+    reset_subject_indexes: bool,
+    has_subject_code_index: bool,
+    has_scope_unique_index: bool,
+):
+    dialect = engine.dialect.name
+    with engine.begin() as connection:
+        if rebuild_teachers:
+            for foreign_key in inspect(engine).get_foreign_keys("teachers"):
+                if not _is_subject_code_foreign_key(foreign_key):
+                    continue
+                constraint_name = foreign_key.get("name")
+                if not constraint_name:
+                    continue
+                if dialect == "postgresql":
+                    connection.execute(
+                        text(
+                            f'ALTER TABLE "teachers" '
+                            f'DROP CONSTRAINT IF EXISTS "{constraint_name}"'
+                        )
+                    )
+                elif dialect in {"mysql", "mariadb"}:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE teachers "
+                            f"DROP FOREIGN KEY `{constraint_name}`"
+                        )
+                    )
+
+        if rebuild_allocations:
+            for foreign_key in inspect(engine).get_foreign_keys("teacher_subject_allocations"):
+                if not _is_subject_code_foreign_key(foreign_key):
+                    continue
+                constraint_name = foreign_key.get("name")
+                if not constraint_name:
+                    continue
+                if dialect == "postgresql":
+                    connection.execute(
+                        text(
+                            f'ALTER TABLE "teacher_subject_allocations" '
+                            f'DROP CONSTRAINT IF EXISTS "{constraint_name}"'
+                        )
+                    )
+                elif dialect in {"mysql", "mariadb"}:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE teacher_subject_allocations "
+                            f"DROP FOREIGN KEY `{constraint_name}`"
+                        )
+                    )
+
+        if reset_subject_indexes:
+            if dialect == "postgresql":
+                connection.execute(text('DROP INDEX IF EXISTS "ix_subjects_subject_code"'))
+            elif dialect in {"mysql", "mariadb"}:
+                connection.execute(text("ALTER TABLE subjects DROP INDEX ix_subjects_subject_code"))
+
+        if reset_subject_indexes or not has_subject_code_index:
+            connection.execute(
+                text("CREATE INDEX ix_subjects_subject_code ON subjects (subject_code)")
+            )
+
+        if not has_scope_unique_index:
+            connection.execute(
+                text(
+                    "CREATE UNIQUE INDEX uq_subjects_scope_code "
+                    "ON subjects (branch_id, academic_year_id, subject_code)"
+                )
+            )
+
+
+def _ensure_subject_scope_schema():
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    required_tables = {"subjects", "teachers", "teacher_subject_allocations"}
+    if not required_tables.issubset(table_names):
+        return
+
+    subject_indexes = {
+        index["name"]: index
+        for index in inspector.get_indexes("subjects")
+    }
+    teacher_subject_fks = [
+        foreign_key
+        for foreign_key in inspector.get_foreign_keys("teachers")
+        if _is_subject_code_foreign_key(foreign_key)
+    ]
+    allocation_subject_fks = [
+        foreign_key
+        for foreign_key in inspector.get_foreign_keys("teacher_subject_allocations")
+        if _is_subject_code_foreign_key(foreign_key)
+    ]
+
+    subject_code_index = subject_indexes.get("ix_subjects_subject_code")
+    has_subject_code_index = subject_code_index is not None
+    has_scope_unique_index = "uq_subjects_scope_code" in subject_indexes
+    reset_subject_indexes = bool(subject_code_index and subject_code_index.get("unique"))
+    rebuild_teachers = bool(teacher_subject_fks)
+    rebuild_allocations = bool(allocation_subject_fks)
+
+    if not any(
+        [
+            rebuild_teachers,
+            rebuild_allocations,
+            reset_subject_indexes,
+            not has_scope_unique_index,
+        ]
+    ):
+        return
+
+    if engine.dialect.name == "sqlite":
+        _ensure_subject_scope_schema_sqlite(
+            rebuild_teachers=rebuild_teachers,
+            rebuild_allocations=(rebuild_allocations or rebuild_teachers),
+            reset_subject_indexes=reset_subject_indexes,
+        )
+        return
+
+    _ensure_subject_scope_schema_non_sqlite(
+        rebuild_teachers=rebuild_teachers,
+        rebuild_allocations=rebuild_allocations,
+        reset_subject_indexes=reset_subject_indexes,
+        has_subject_code_index=has_subject_code_index,
+        has_scope_unique_index=has_scope_unique_index,
+    )
+
+
 def _seed_teacher_subject_allocations():
     inspector = inspect(engine)
     if (
@@ -2431,6 +2736,7 @@ def setup_initial_data():
 
     _ensure_users_table_columns()
     _ensure_teachers_table_columns()
+    _ensure_subject_scope_schema()
     _seed_teacher_subject_allocations()
     db = SessionLocal()
     admin_user_id = os.getenv("ADMIN_USER_ID", "2623252018")
