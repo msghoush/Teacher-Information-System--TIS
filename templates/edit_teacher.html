@@ -1,12 +1,11 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Edit Teacher - TIS</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <style>
-        :root {
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Edit Teacher | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+:root {
             --bg: #f3f6fb;
             --card: #ffffff;
             --line: #d8e2f0;
@@ -19,22 +18,7 @@
         * {
             box-sizing: border-box;
         }
-
-        body {
-            margin: 0;
-            min-height: 100vh;
-            color: var(--ink);
-            font-family: "Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif;
-            background:
-                radial-gradient(650px 420px at 0% 0%, rgba(10, 78, 163, 0.12), transparent 65%),
-                radial-gradient(620px 420px at 100% 100%, rgba(217, 119, 6, 0.12), transparent 62%),
-                var(--bg);
-            padding: 22px 14px;
-            display: grid;
-            place-items: center;
-        }
-
-        .panel {
+.panel {
             width: 100%;
             max-width: 780px;
             background: var(--card);
@@ -293,17 +277,12 @@
                 grid-template-columns: 1fr;
             }
         }
-    </style>
-</head>
-<body>
-    <main class="panel">
-        <div class="panel-brand">
-            <img class="panel-logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
-            <img class="panel-school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Little Andalus International Schools logo">
-            <img class="panel-cognia-logo" src="{{ url_for('static', path='images/cognia-logo.png') }}" alt="Cognia logo">
-            <img class="panel-school-logo-main" src="{{ url_for('static', path='images/andalus-logo-main.png') }}" alt="Andalus International Schools main logo">
-        </div>
-        <h1>Edit Teacher</h1>
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="panel">
+<h1>Edit Teacher</h1>
         <p class="sub">Update teacher details and workload rules in your current branch/year scope.</p>
 
         {% if error %}
@@ -373,10 +352,12 @@
                 <a class="btn btn-home" href="/dashboard">Dashboard</a>
             </div>
         </form>
-    </main>
+</main>
+{% endblock %}
 
-    <script>
-        const teacherIdInput = document.getElementById("teacher_id");
+{% block page_scripts %}
+<script>
+const teacherIdInput = document.getElementById("teacher_id");
         const extraAllowed = document.getElementById("extra_hours_allowed");
         const extraCountField = document.getElementById("extraHoursCountField");
         const extraCountInput = document.getElementById("extra_hours_count");
@@ -568,6 +549,4 @@
 
         updateAllocationSummary();
     </script>
-</body>
-</html>
-
+{% endblock %}

@@ -11,6 +11,7 @@ import auth
 import models
 from dependencies import get_db
 from auth import get_current_user, get_password_hash
+from ui_shell import build_shell_context
 
 router = APIRouter(prefix="/users", tags=["Users"])
 templates = Jinja2Templates(directory="templates")
@@ -135,6 +136,16 @@ def _render_edit_user_page(
             "error": error,
             "detail_errors": detail_errors or [],
             "form_data": form_data,
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="users",
+                title="Edit User",
+                eyebrow="Access Control",
+                intro="Adjust account access, branch ownership, and status from the same visual admin workspace.",
+                icon="users",
+            ),
         },
     )
 
@@ -194,6 +205,12 @@ def _render_users_page(
             "can_manage_users": can_manage_users,
             "can_edit_user_accounts": can_edit_user_accounts,
             "manageable_user_ids": manageable_user_ids,
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="users",
+            ),
         },
     )
 

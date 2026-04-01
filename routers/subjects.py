@@ -15,6 +15,7 @@ import auth
 import models
 from dependencies import get_db
 from auth import get_current_user
+from ui_shell import build_shell_context
 
 router = APIRouter(prefix="/subjects", tags=["Subjects"])
 templates = Jinja2Templates(directory="templates")
@@ -235,7 +236,13 @@ def _render_subjects_page(
             "can_delete": can_delete,
             "error": error,
             "success": success,
-            "detail_errors": detail_errors or []
+            "detail_errors": detail_errors or [],
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="subjects",
+            ),
         }
     )
 
@@ -762,7 +769,17 @@ def edit_subject_page(
             "request": request,
             "subject": subject,
             "user": current_user,
-            "error": ""
+            "error": "",
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="subjects",
+                title="Edit Subject",
+                eyebrow="Academic Catalog",
+                intro="Refine subject details while keeping branch and year context visible in the shared workspace.",
+                icon="subjects",
+            ),
         }
     )
 
@@ -816,6 +833,16 @@ def update_subject(
                 "subject": subject,
                 "user": current_user,
                 "error": " ".join(validation_errors),
+                **build_shell_context(
+                    request,
+                    db,
+                    current_user,
+                    page_key="subjects",
+                    title="Edit Subject",
+                    eyebrow="Academic Catalog",
+                    intro="Refine subject details while keeping branch and year context visible in the shared workspace.",
+                    icon="subjects",
+                ),
             },
             status_code=400
         )
@@ -835,6 +862,16 @@ def update_subject(
                 "subject": subject,
                 "user": current_user,
                 "error": "Subject code already exists in the current branch and academic year. Please use another code.",
+                **build_shell_context(
+                    request,
+                    db,
+                    current_user,
+                    page_key="subjects",
+                    title="Edit Subject",
+                    eyebrow="Academic Catalog",
+                    intro="Refine subject details while keeping branch and year context visible in the shared workspace.",
+                    icon="subjects",
+                ),
             },
             status_code=400
         )

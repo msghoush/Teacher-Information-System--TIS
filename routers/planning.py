@@ -8,6 +8,7 @@ import auth
 import models
 from dependencies import get_db
 from auth import get_current_user
+from ui_shell import build_shell_context
 
 router = APIRouter(prefix="/planning", tags=["Planning"])
 templates = Jinja2Templates(directory="templates")
@@ -250,6 +251,12 @@ def _render_planning_page(
             "detail_errors": detail_errors or [],
             "form_data": normalized_form_data,
             "user": current_user,
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="planning",
+            ),
         },
     )
 
@@ -446,6 +453,16 @@ def edit_planning_page(
             "aligned_subjects": aligned_subjects,
             "allocated_hours": allocated_hours,
             "error": "",
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="planning",
+                title="Edit Planning Section",
+                eyebrow="Section Planning",
+                intro="Update section structure and homeroom ownership while staying inside the same branch and year workspace.",
+                icon="planning",
+            ),
         },
     )
 
@@ -546,6 +563,16 @@ def update_planning_section(
                 "aligned_subjects": aligned_subjects,
                 "allocated_hours": allocated_hours,
                 "error": " ".join(errors),
+                **build_shell_context(
+                    request,
+                    db,
+                    current_user,
+                    page_key="planning",
+                    title="Edit Planning Section",
+                    eyebrow="Section Planning",
+                    intro="Update section structure and homeroom ownership while staying inside the same branch and year workspace.",
+                    icon="planning",
+                ),
             },
             status_code=400,
         )
@@ -580,6 +607,16 @@ def update_planning_section(
                 "aligned_subjects": aligned_subjects,
                 "allocated_hours": allocated_hours,
                 "error": "Unable to update planning section due to duplicate or invalid data.",
+                **build_shell_context(
+                    request,
+                    db,
+                    current_user,
+                    page_key="planning",
+                    title="Edit Planning Section",
+                    eyebrow="Section Planning",
+                    intro="Update section structure and homeroom ownership while staying inside the same branch and year workspace.",
+                    icon="planning",
+                ),
             },
             status_code=400,
         )

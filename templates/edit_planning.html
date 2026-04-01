@@ -1,12 +1,11 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Edit Planning Section</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <style>
-        :root {
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Edit Planning Section | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+:root {
             --bg: #f3f6fb;
             --card: #ffffff;
             --line: #d8e2f0;
@@ -20,20 +19,7 @@
         * {
             box-sizing: border-box;
         }
-
-        body {
-            margin: 0;
-            min-height: 100vh;
-            color: var(--ink);
-            font-family: "Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif;
-            background:
-                radial-gradient(700px 420px at 0% 0%, rgba(10, 78, 163, 0.12), transparent 65%),
-                radial-gradient(640px 420px at 100% 100%, rgba(217, 119, 6, 0.14), transparent 62%),
-                var(--bg);
-            padding: 22px 14px;
-        }
-
-        .panel {
+.panel {
             width: min(920px, 100%);
             margin: 0 auto;
             background: var(--card);
@@ -224,17 +210,12 @@
                 grid-template-columns: 1fr;
             }
         }
-    </style>
-</head>
-<body>
-    <main class="panel">
-        <div class="panel-brand">
-            <img class="panel-logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
-            <img class="panel-school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Little Andalus International Schools logo">
-            <img class="panel-cognia-logo" src="{{ url_for('static', path='images/cognia-logo.png') }}" alt="Cognia logo">
-            <img class="panel-school-logo-main" src="{{ url_for('static', path='images/andalus-logo-main.png') }}" alt="Andalus International Schools main logo">
-        </div>
-        <h1>Edit Planning Section</h1>
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="panel">
+<h1>Edit Planning Section</h1>
         <p>Update class setup for the selected section. Subject alignment and hours are auto-calculated from grade level.</p>
 
         {% if error %}
@@ -295,10 +276,12 @@
                 <a class="btn btn-home" href="/dashboard">Dashboard</a>
             </div>
         </form>
-    </main>
+</main>
+{% endblock %}
 
-    <script>
-        const gradeSelect = document.getElementById("grade_level");
+{% block page_scripts %}
+<script>
+const gradeSelect = document.getElementById("grade_level");
         const alignedSubjectsPreview = document.getElementById("alignedSubjectsPreview");
         const alignedSubjectsEmpty = document.getElementById("alignedSubjectsEmpty");
         const allocationSummary = document.getElementById("allocationSummary");
@@ -333,6 +316,4 @@
             renderAlignedSubjectsPreview();
         }
     </script>
-</body>
-</html>
-
+{% endblock %}

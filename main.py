@@ -22,6 +22,7 @@ from dependencies import get_db
 from routers import subjects, users, teachers, planning
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
+from ui_shell import build_shell_context
 from audit import (
     get_audit_log_path,
     get_audit_logger,
@@ -2082,6 +2083,13 @@ def dashboard(
             "scoped_branch_id": scoped_branch_id,
             "active_year_id": active_year.id if active_year else None,
             "is_admin": auth.can_manage_users(user),
+            **build_shell_context(
+                request,
+                db,
+                user,
+                page_key="dashboard",
+                notice=info_message,
+            ),
         }
     )
 

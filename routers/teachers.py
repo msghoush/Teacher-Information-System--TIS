@@ -10,6 +10,7 @@ import auth
 import models
 from dependencies import get_db
 from auth import get_current_user
+from ui_shell import build_shell_context
 
 router = APIRouter(prefix="/teachers", tags=["Teachers"])
 templates = Jinja2Templates(directory="templates")
@@ -213,6 +214,12 @@ def _render_teachers_page(
             "success": success,
             "detail_errors": detail_errors or [],
             "user": current_user,
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="teachers",
+            ),
         },
     )
 
@@ -439,6 +446,16 @@ def edit_teacher_page(
             "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
             "assigned_subject_codes": assigned_subject_codes,
             "error": "",
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="teachers",
+                title="Edit Teacher",
+                eyebrow="Staffing Desk",
+                intro="Adjust assignments, workload limits, and extra-hours settings without leaving the unified layout.",
+                icon="teachers",
+            ),
         },
     )
 
@@ -575,6 +592,16 @@ def update_teacher(
                 "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
                 "assigned_subject_codes": assigned_subject_codes,
                 "error": " ".join(errors),
+                **build_shell_context(
+                    request,
+                    db,
+                    current_user,
+                    page_key="teachers",
+                    title="Edit Teacher",
+                    eyebrow="Staffing Desk",
+                    intro="Adjust assignments, workload limits, and extra-hours settings without leaving the unified layout.",
+                    icon="teachers",
+                ),
             },
             status_code=400,
         )
@@ -613,6 +640,16 @@ def update_teacher(
                 "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
                 "assigned_subject_codes": assigned_subject_codes,
                 "error": "Unable to update teacher due to duplicate or invalid data.",
+                **build_shell_context(
+                    request,
+                    db,
+                    current_user,
+                    page_key="teachers",
+                    title="Edit Teacher",
+                    eyebrow="Staffing Desk",
+                    intro="Adjust assignments, workload limits, and extra-hours settings without leaving the unified layout.",
+                    icon="teachers",
+                ),
             },
             status_code=400,
         )

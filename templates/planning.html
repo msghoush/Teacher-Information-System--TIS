@@ -1,12 +1,11 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>TIS Planning</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <style>
-        :root {
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Planning | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+:root {
             --bg: #f3f6fb;
             --card: #ffffff;
             --line: #d8e2f0;
@@ -22,20 +21,7 @@
         * {
             box-sizing: border-box;
         }
-
-        body {
-            margin: 0;
-            min-height: 100vh;
-            color: var(--ink);
-            font-family: "Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif;
-            background:
-                radial-gradient(700px 420px at 0% 0%, rgba(10, 78, 163, 0.12), transparent 65%),
-                radial-gradient(640px 420px at 100% 100%, rgba(217, 119, 6, 0.14), transparent 62%),
-                var(--bg);
-            padding: 22px 14px;
-        }
-
-        .page {
+.page {
             max-width: 1200px;
             margin: 0 auto;
         }
@@ -572,34 +558,11 @@
                 max-width: 15vw;
             }
         }
-    </style>
-</head>
-<body>
-    <div class="page">
-        <section class="top">
-            <div class="title">
-                <div class="title-logo-wrap">
-                    <img class="title-logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
-                </div>
-            </div>
-            <div class="actions">
-                <div class="actions-school-logos">
-                    <div class="actions-school-logo-wrap">
-                        <img class="actions-school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Little Andalus International Schools logo">
-                    </div>
-                    <div class="actions-school-logo-cognia-wrap">
-                        <img class="actions-school-logo-cognia" src="{{ url_for('static', path='images/cognia-logo.png') }}" alt="Cognia logo">
-                    </div>
-                    <div class="actions-school-logo-alt-wrap">
-                        <img class="actions-school-logo-alt" src="{{ url_for('static', path='images/andalus-logo-main.png') }}" alt="Andalus International Schools main logo">
-                    </div>
-                </div>
-                <a class="btn-link btn-home" href="/dashboard">Dashboard</a>
-                <a class="btn-link btn-back" href="/">Login</a>
-            </div>
-        </section>
+</style>
+{% endblock %}
 
-        <section class="layout">
+{% block content %}
+<section class="layout">
             <article class="card">
                 <h2>Create Planning Section</h2>
                 <p>Define grade and section structure. Subjects and allocated hours are aligned automatically from Subjects module.</p>
@@ -773,10 +736,11 @@
                 {% endif %}
             </article>
         </section>
-    </div>
+{% endblock %}
 
-    <script>
-        const gradeSelect = document.getElementById("grade_level");
+{% block page_scripts %}
+<script>
+const gradeSelect = document.getElementById("grade_level");
         const alignedSubjectsPreview = document.getElementById("alignedSubjectsPreview");
         const alignedSubjectsEmpty = document.getElementById("alignedSubjectsEmpty");
         const allocationSummary = document.getElementById("allocationSummary");
@@ -859,6 +823,4 @@
 
         kpiValues.forEach((element) => animateValue(element));
     </script>
-</body>
-</html>
-
+{% endblock %}
