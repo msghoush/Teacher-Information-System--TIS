@@ -229,6 +229,7 @@ def _render_planning_page(
         normalized_form_data.update(form_data)
 
     return templates.TemplateResponse(
+        request,
         "planning.html",
         {
             "request": request,
@@ -432,6 +433,7 @@ def edit_planning_page(
     )
 
     return templates.TemplateResponse(
+        request,
         "edit_planning.html",
         {
             "request": request,
@@ -531,6 +533,7 @@ def update_planning_section(
             academic_year_id=academic_year_id,
         )
         return templates.TemplateResponse(
+            request,
             "edit_planning.html",
             {
                 "request": request,
@@ -564,6 +567,7 @@ def update_planning_section(
             academic_year_id=academic_year_id,
         )
         return templates.TemplateResponse(
+            request,
             "edit_planning.html",
             {
                 "request": request,
