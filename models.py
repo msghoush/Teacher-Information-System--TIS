@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -35,8 +35,18 @@ class User(Base):
 
 class Subject(Base):
     __tablename__ = "subjects"
+    __table_args__ = (
+        Index(
+            "uq_subjects_scope_code",
+            "branch_id",
+            "academic_year_id",
+            "subject_code",
+            unique=True,
+        ),
+    )
+
     id = Column(Integer, primary_key=True)
-    subject_code = Column(String, unique=True, index=True)
+    subject_code = Column(String, index=True)
     subject_name = Column(String)
     weekly_hours = Column(Integer)
     grade = Column(Integer)
@@ -51,7 +61,8 @@ class Teacher(Base):
     first_name = Column(String)
     middle_name = Column(String)
     last_name = Column(String)
-    subject_code = Column(String, ForeignKey("subjects.subject_code"))
+    # Stored as a scoped legacy value; validation is enforced in the app layer.
+    subject_code = Column(String)
     level = Column(String)
     max_hours = Column(Integer, default=24)
     extra_hours_allowed = Column(Boolean, default=False)
@@ -72,7 +83,9 @@ class TeacherSubjectAllocation(Base):
 
     id = Column(Integer, primary_key=True)
     teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False, index=True)
-    subject_code = Column(String, ForeignKey("subjects.subject_code"), nullable=False)
+    # Subject codes are branch/year scoped, so allocations store the selected code
+    # and resolve it through the teacher's current scope.
+    subject_code = Column(String, nullable=False)
 
 
 class PlanningSection(Base):
