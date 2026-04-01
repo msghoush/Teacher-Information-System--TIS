@@ -73,14 +73,14 @@ textarea {
     display: grid;
     grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
     gap: 20px;
-    padding: 18px;
+    padding: 16px;
 }
 
 .app-sidebar {
     position: sticky;
-    top: 18px;
+    top: 16px;
     align-self: start;
-    min-height: calc(100vh - 36px);
+    min-height: calc(100vh - 32px);
     display: flex;
     flex-direction: column;
     gap: 18px;
@@ -88,7 +88,7 @@ textarea {
     border: 1px solid rgba(255, 255, 255, 0.48);
     border-radius: var(--app-radius-xl);
     background:
-        linear-gradient(180deg, rgba(8, 41, 86, 0.96), rgba(7, 31, 65, 0.96)),
+        linear-gradient(180deg, rgba(24, 74, 136, 0.96), rgba(18, 54, 99, 0.96)),
         linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0));
     color: #f4f8ff;
     box-shadow: var(--app-shadow);
@@ -137,6 +137,20 @@ textarea {
     width: min(100%, 220px);
     height: auto;
     display: block;
+}
+
+.sidebar-logo-frame {
+    width: fit-content;
+    max-width: 100%;
+    padding: 14px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(235, 243, 255, 0.95));
+    box-shadow: 0 16px 32px rgba(9, 28, 58, 0.22);
+}
+
+.sidebar-logo-frame img {
+    width: min(100%, 210px);
 }
 
 .sidebar-brand-copy {
@@ -408,14 +422,16 @@ textarea {
 .app-main {
     min-width: 0;
     display: grid;
-    gap: 18px;
+    gap: 14px;
 }
 
 .app-header {
-    display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr);
-    gap: 18px;
-    padding: 22px 24px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px 18px;
+    padding: 18px 20px;
     border: 1px solid rgba(255, 255, 255, 0.45);
     border-radius: var(--app-radius-xl);
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(250, 252, 255, 0.8));
@@ -424,8 +440,10 @@ textarea {
 
 .app-header-copy {
     display: grid;
-    gap: 10px;
+    gap: 8px;
     align-content: start;
+    flex: 1 1 340px;
+    min-width: 0;
 }
 
 .page-kicker {
@@ -446,8 +464,8 @@ textarea {
 
 .app-header-copy h1 {
     margin: 0;
-    font-size: clamp(34px, 4vw, 46px);
-    line-height: 0.96;
+    font-size: clamp(30px, 3.4vw, 42px);
+    line-height: 0.98;
     letter-spacing: -0.04em;
 }
 
@@ -455,15 +473,17 @@ textarea {
     margin: 0;
     max-width: 60ch;
     color: var(--app-muted);
-    font-size: 15px;
-    line-height: 1.65;
+    font-size: 14px;
+    line-height: 1.5;
 }
 
 .app-header-side {
     display: grid;
-    gap: 14px;
+    gap: 10px;
     justify-items: end;
     align-content: start;
+    flex: 0 1 520px;
+    min-width: min(100%, 340px);
 }
 
 .header-brand-strip {
@@ -481,15 +501,15 @@ textarea {
 }
 
 .header-brand-strip .header-school-logo {
-    width: clamp(128px, 16vw, 182px);
+    width: clamp(112px, 13vw, 156px);
 }
 
 .header-brand-strip .header-school-logo-main {
-    width: clamp(132px, 17vw, 196px);
+    width: clamp(118px, 14vw, 168px);
 }
 
 .header-brand-strip .header-cognia-logo {
-    width: clamp(40px, 5vw, 58px);
+    width: clamp(34px, 4vw, 50px);
 }
 
 .header-chip-grid {
@@ -500,7 +520,7 @@ textarea {
 }
 
 .header-chip {
-    padding: 12px;
+    padding: 10px 12px;
     border: 1px solid var(--app-line);
     border-radius: 16px;
     background: rgba(255, 255, 255, 0.78);
@@ -520,7 +540,7 @@ textarea {
 }
 
 .header-chip strong {
-    margin-top: 6px;
+    margin-top: 4px;
     font-size: 14px;
     line-height: 1.35;
 }
@@ -531,6 +551,10 @@ textarea {
     justify-content: flex-end;
     flex-wrap: wrap;
     gap: 10px;
+}
+
+.header-actions:empty {
+    display: none;
 }
 
 .shell-action {
@@ -556,7 +580,7 @@ textarea {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 12px 16px;
+    padding: 10px 14px;
     border: 1px solid #b8cde9;
     border-radius: 16px;
     background: rgba(237, 244, 255, 0.92);
@@ -567,7 +591,7 @@ textarea {
 
 .page-stage {
     display: grid;
-    gap: 18px;
+    gap: 14px;
 }
 
 .page-stage > .panel {
@@ -597,11 +621,12 @@ textarea {
     }
 
     .app-header {
-        grid-template-columns: 1fr;
+        align-items: flex-start;
     }
 
     .app-header-side {
         justify-items: stretch;
+        min-width: 100%;
     }
 
     .header-actions {
@@ -643,5 +668,9 @@ textarea {
 
     .header-brand-strip {
         justify-content: flex-start;
+    }
+
+    .header-chip-grid {
+        grid-template-columns: 1fr;
     }
 }
