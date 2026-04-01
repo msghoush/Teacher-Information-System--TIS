@@ -7,10 +7,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260401a">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260401c">
     {% block page_styles %}{% endblock %}
 </head>
 <body>
+    {% set header_actions %}
+        {% block page_header_actions %}{% endblock %}
+    {% endset %}
     <div class="app-shell">
         <aside class="app-sidebar">
             <div class="sidebar-brand">
@@ -152,12 +155,19 @@
                     <p>{{ shell.page_intro }}</p>
                 </div>
                 <div class="app-header-side">
-                    <div class="header-brand-strip">
-                        <img class="header-school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Little Andalus International Schools logo">
-                        <img class="header-cognia-logo" src="{{ url_for('static', path='images/cognia-logo.png') }}" alt="Cognia logo">
-                        <img class="header-school-logo-main" src="{{ url_for('static', path='images/andalus-logo-main.png') }}" alt="Andalus International Schools main logo">
+                    <div class="header-topline">
+                        <div class="header-brand-strip">
+                            <img class="header-school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Little Andalus International Schools logo">
+                            <img class="header-cognia-logo" src="{{ url_for('static', path='images/cognia-logo.png') }}" alt="Cognia logo">
+                            <img class="header-school-logo-main" src="{{ url_for('static', path='images/andalus-logo-main.png') }}" alt="Andalus International Schools main logo">
+                        </div>
+                        {% if header_actions | trim %}
+                        <div class="header-actions">
+                            {{ header_actions | safe }}
+                        </div>
+                        {% endif %}
                     </div>
-                    <div class="header-chip-grid">
+                    <div class="header-context-strip">
                         <div class="header-chip">
                             <span>Branch</span>
                             <strong>{{ shell.branch_name }}</strong>
@@ -170,9 +180,6 @@
                             <span>Role</span>
                             <strong>{{ shell.role_label or "System User" }}</strong>
                         </div>
-                    </div>
-                    <div class="header-actions">
-                        {% block page_header_actions %}{% endblock %}
                     </div>
                 </div>
             </header>
