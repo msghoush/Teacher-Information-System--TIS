@@ -199,6 +199,7 @@ def _render_teachers_page(
     )
 
     return templates.TemplateResponse(
+        request,
         "teachers.html",
         {
             "request": request,
@@ -430,6 +431,7 @@ def edit_teacher_page(
     ]
 
     return templates.TemplateResponse(
+        request,
         "edit_teacher.html",
         {
             "request": request,
@@ -565,6 +567,7 @@ def update_teacher(
     if errors:
         assigned_subject_codes = list(normalized_subject_codes)
         return templates.TemplateResponse(
+            request,
             "edit_teacher.html",
             {
                 "request": request,
@@ -602,6 +605,7 @@ def update_teacher(
         db.rollback()
         assigned_subject_codes = list(normalized_subject_codes)
         return templates.TemplateResponse(
+            request,
             "edit_teacher.html",
             {
                 "request": request,

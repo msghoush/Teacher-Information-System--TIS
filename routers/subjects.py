@@ -224,6 +224,7 @@ def _render_subjects_page(
     ).order_by(models.Subject.id.desc()).all()
 
     return templates.TemplateResponse(
+        request,
         "subjects.html",
         {
             "request": request,
@@ -755,6 +756,7 @@ def edit_subject_page(
         return RedirectResponse(url="/subjects")
 
     return templates.TemplateResponse(
+        request,
         "edit_subject.html",
         {
             "request": request,
@@ -807,6 +809,7 @@ def update_subject(
     )
     if validation_errors:
         return templates.TemplateResponse(
+            request,
             "edit_subject.html",
             {
                 "request": request,
@@ -825,6 +828,7 @@ def update_subject(
     ).first()
     if existing_code:
         return templates.TemplateResponse(
+            request,
             "edit_subject.html",
             {
                 "request": request,

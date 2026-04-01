@@ -124,6 +124,7 @@ def _render_edit_user_page(
         role_choices.insert(0, normalized_row_role)
 
     return templates.TemplateResponse(
+        request,
         "edit_user.html",
         {
             "request": request,
@@ -177,6 +178,7 @@ def _render_users_page(
     }
 
     return templates.TemplateResponse(
+        request,
         "users.html",
         {
             "request": request,

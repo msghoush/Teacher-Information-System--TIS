@@ -1536,6 +1536,7 @@ def _render_login_page(
     )
     context["request"] = request
     return templates.TemplateResponse(
+        request,
         "index.html",
         context,
         status_code=status_code,
@@ -2049,6 +2050,7 @@ def dashboard(
     ).first()
 
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
             "request": request,
