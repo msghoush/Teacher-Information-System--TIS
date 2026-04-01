@@ -72,6 +72,7 @@ textarea {
     min-height: 100vh;
     display: grid;
     grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+    align-items: start;
     gap: 20px;
     padding: 16px;
 }
@@ -422,6 +423,9 @@ textarea {
 .app-main {
     min-width: 0;
     display: grid;
+    align-content: start;
+    align-items: start;
+    align-self: start;
     gap: 14px;
 }
 
@@ -589,6 +593,8 @@ textarea {
 
 .page-stage {
     display: grid;
+    align-content: start;
+    align-items: start;
     gap: 14px;
 }
 
