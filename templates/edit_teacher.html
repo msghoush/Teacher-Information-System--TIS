@@ -211,6 +211,96 @@
             color: #5d6b82;
         }
 
+        .subject-assignment-board {
+            margin-top: 10px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .subject-assignment-card {
+            border: 1px solid #dbe7f8;
+            border-radius: 10px;
+            background: #f5f9ff;
+            padding: 10px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .subject-assignment-head {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .subject-assignment-head strong {
+            font-size: 13px;
+            color: #1f3759;
+        }
+
+        .subject-assignment-head small {
+            font-size: 12px;
+            color: #4b5f7d;
+        }
+
+        .section-option-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        .section-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 8px;
+            border: 1px solid #cfe0f7;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+
+        .section-option.is-disabled {
+            opacity: 0.62;
+            background: #f3f6fb;
+        }
+
+        .section-option input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            margin: 2px 0 0;
+            accent-color: var(--brand);
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .section-option.is-disabled input[type="checkbox"] {
+            cursor: not-allowed;
+        }
+
+        .section-option-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .section-option-copy strong {
+            font-size: 12px;
+            color: #1f3759;
+        }
+
+        .section-option-copy small {
+            font-size: 11px;
+            color: #5d6b82;
+        }
+
+        .section-assignment-empty {
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px dashed #b5c6de;
+            border-radius: 10px;
+            background: #f8fbff;
+            font-size: 13px;
+            color: #4b5f7d;
+        }
+
         .hours-summary {
             margin-top: 8px;
             font-size: 12px;
@@ -283,7 +373,7 @@
 {% block content %}
 <main class="panel">
 <h1>Edit Teacher</h1>
-        <p class="sub">Update teacher details, workload rules, and the subjects this teacher is allowed to teach in your current branch/year scope. Section-by-section teaching load is assigned from Planning.</p>
+        <p class="sub">Update teacher details, workload rules, eligible subjects, and the exact sections this teacher covers for each selected subject in your current branch/year scope.</p>
 
         {% if error %}
         <div class="error">{{ error }}</div>
@@ -316,6 +406,8 @@
                         <div class="subject-empty">No subjects available for this branch and academic year.</div>
                         {% endif %}
                     </div>
+                    <div id="sectionAssignmentBoard" class="subject-assignment-board"></div>
+                    <div id="sectionAssignmentEmpty" class="section-assignment-empty">Select one or more subjects to assign their matching sections to this teacher.</div>
                     <div id="allocationSummary" class="hours-summary">Eligible subjects selected: 0</div>
                 </div>
                 <div class="field">
@@ -367,11 +459,25 @@ const teacherIdInput = document.getElementById("teacher_id");
         const subjectOptionItems = Array.from(document.querySelectorAll(".subject-option-item"));
         const subjectNoResult = document.getElementById("subjectNoResult");
         const subjectCodeInputs = Array.from(document.querySelectorAll("input[name='subject_codes']"));
+        const sectionAssignmentBoard = document.getElementById("sectionAssignmentBoard");
+        const sectionAssignmentEmpty = document.getElementById("sectionAssignmentEmpty");
         const allocationSummary = document.getElementById("allocationSummary");
         const standardMaxHours = 24;
+        const subjectChoices = {{ subject_choices | tojson }};
+        const sectionOptionsBySubject = {{ section_options_by_subject | tojson }};
+        let persistedSectionAssignmentValues = new Set({{ selected_section_assignment_values | tojson }});
+        const subjectChoicesByCode = Object.fromEntries(
+            subjectChoices.map((item) => [item.subject_code, item])
+        );
 
         const getSelectedSubjectCount = () => {
             return subjectCodeInputs.filter((input) => input.checked).length;
+        };
+
+        const getSelectedSectionAssignments = () => {
+            return Array.from(
+                document.querySelectorAll("input[name='section_assignment_values']:checked")
+            );
         };
 
         const getSafeMaxHours = () => {
@@ -397,11 +503,20 @@ const teacherIdInput = document.getElementById("teacher_id");
             }
 
             const selectedSubjectCount = getSelectedSubjectCount();
+            const selectedSectionAssignments = getSelectedSectionAssignments();
+            const assignedHours = selectedSectionAssignments.reduce((total, input) => {
+                const [subjectCode] = String(input.value || "").split("::");
+                const subject = subjectChoicesByCode[subjectCode] || {};
+                const parsedHours = Number(subject.weekly_hours || "0");
+                return total + (Number.isFinite(parsedHours) ? parsedHours : 0);
+            }, 0);
             const safeMaxHours = getSafeMaxHours();
             const safeExtraHours = getSafeExtraHours();
             const requiredHours = getRequiredAllocationHours();
-            allocationSummary.textContent = `Eligible subjects selected: ${selectedSubjectCount} | Teacher capacity: ${requiredHours}h (Max ${safeMaxHours} + Extra ${safeExtraHours}) | Actual teaching hours are assigned per section in Planning.`;
-            allocationSummary.classList.remove("mismatch");
+            const exceedsCapacity = requiredHours > 0 ? assignedHours > requiredHours : assignedHours > 0;
+            const remainingHours = Math.max(requiredHours - assignedHours, 0);
+            allocationSummary.textContent = `Eligible subjects selected: ${selectedSubjectCount} | Assigned sections: ${selectedSectionAssignments.length} | Teaching load: ${assignedHours}h / Capacity: ${requiredHours}h (Max ${safeMaxHours} + Extra ${safeExtraHours})${exceedsCapacity ? ` (Over capacity by ${assignedHours - requiredHours}h)` : ` (Remaining ${remainingHours}h)`}`;
+            allocationSummary.classList.toggle("mismatch", exceedsCapacity);
         };
 
         const filterSubjectOptions = () => {
@@ -426,6 +541,107 @@ const teacherIdInput = document.getElementById("teacher_id");
             }
         };
 
+        const renderSectionAssignmentBoard = () => {
+            if (!sectionAssignmentBoard || !sectionAssignmentEmpty) {
+                return;
+            }
+
+            const liveAssignmentInputs = Array.from(
+                document.querySelectorAll("input[name='section_assignment_values']")
+            );
+            if (liveAssignmentInputs.length > 0) {
+                persistedSectionAssignmentValues = new Set(
+                    liveAssignmentInputs
+                        .filter((input) => input.checked)
+                        .map((input) => String(input.value || ""))
+                );
+            }
+            const selectedSubjectCodes = subjectCodeInputs
+                .filter((input) => input.checked)
+                .map((input) => String(input.value || "").trim().toUpperCase())
+                .filter((value) => Boolean(value));
+
+            sectionAssignmentBoard.innerHTML = "";
+
+            if (selectedSubjectCodes.length === 0) {
+                sectionAssignmentEmpty.style.display = "block";
+                updateAllocationSummary();
+                return;
+            }
+
+            selectedSubjectCodes.forEach((subjectCode) => {
+                const subject = subjectChoicesByCode[subjectCode] || {};
+                const sectionOptions = sectionOptionsBySubject[subjectCode] || [];
+
+                const card = document.createElement("div");
+                card.className = "subject-assignment-card";
+
+                const cardHead = document.createElement("div");
+                cardHead.className = "subject-assignment-head";
+                const title = document.createElement("strong");
+                title.textContent = `${subjectCode} - ${subject.subject_name || "Unnamed Subject"}`;
+                const meta = document.createElement("small");
+                meta.textContent = `Grade ${subject.grade ?? "-"} | ${subject.weekly_hours || 0} hours per selected section`;
+                cardHead.appendChild(title);
+                cardHead.appendChild(meta);
+                card.appendChild(cardHead);
+
+                if (sectionOptions.length === 0) {
+                    const emptyState = document.createElement("div");
+                    emptyState.className = "section-assignment-empty";
+                    emptyState.textContent = "No planning sections exist yet for this subject grade in the current branch/year.";
+                    card.appendChild(emptyState);
+                    sectionAssignmentBoard.appendChild(card);
+                    return;
+                }
+
+                const grid = document.createElement("div");
+                grid.className = "section-option-grid";
+
+                sectionOptions.forEach((option) => {
+                    const optionValue = `${subjectCode}::${option.section_id}`;
+                    const optionLabel = document.createElement("label");
+                    optionLabel.className = `section-option${option.is_available ? "" : " is-disabled"}`;
+
+                    const input = document.createElement("input");
+                    input.type = "checkbox";
+                    input.name = "section_assignment_values";
+                    input.value = optionValue;
+                    input.checked = persistedSectionAssignmentValues.has(optionValue);
+                    input.disabled = !option.is_available;
+                    input.addEventListener("change", () => {
+                        if (input.checked) {
+                            persistedSectionAssignmentValues.add(optionValue);
+                        } else {
+                            persistedSectionAssignmentValues.delete(optionValue);
+                        }
+                        updateAllocationSummary();
+                    });
+                    optionLabel.appendChild(input);
+
+                    const copy = document.createElement("span");
+                    copy.className = "section-option-copy";
+                    const optionTitle = document.createElement("strong");
+                    optionTitle.textContent = option.label;
+                    const optionMeta = document.createElement("small");
+                    optionMeta.textContent = option.is_available
+                        ? "Available for this teacher"
+                        : `Already assigned to ${option.teacher_name || "another teacher"}`;
+                    copy.appendChild(optionTitle);
+                    copy.appendChild(optionMeta);
+                    optionLabel.appendChild(copy);
+
+                    grid.appendChild(optionLabel);
+                });
+
+                card.appendChild(grid);
+                sectionAssignmentBoard.appendChild(card);
+            });
+
+            sectionAssignmentEmpty.style.display = "none";
+            updateAllocationSummary();
+        };
+
         const syncExtraHoursVisibility = () => {
             if (!extraAllowed || !extraCountField || !extraCountInput) {
                 return;
@@ -446,7 +662,7 @@ const teacherIdInput = document.getElementById("teacher_id");
 
         if (subjectCodeInputs.length > 0) {
             subjectCodeInputs.forEach((input) => {
-                input.addEventListener("change", updateAllocationSummary);
+                input.addEventListener("change", renderSectionAssignmentBoard);
             });
         }
 
@@ -513,6 +729,19 @@ const teacherIdInput = document.getElementById("teacher_id");
                         return;
                     }
 
+                    const assignedHours = getSelectedSectionAssignments().reduce((total, input) => {
+                        const [subjectCode] = String(input.value || "").split("::");
+                        const subject = subjectChoicesByCode[subjectCode] || {};
+                        const parsedHours = Number(subject.weekly_hours || "0");
+                        return total + (Number.isFinite(parsedHours) ? parsedHours : 0);
+                    }, 0);
+                    const requiredHours = getRequiredAllocationHours();
+                    if (assignedHours > requiredHours) {
+                        event.preventDefault();
+                        window.alert(`Assigned section hours (${assignedHours}) exceed allowed capacity (${requiredHours}). Reduce the selected sections or increase allowed extra hours.`);
+                        return;
+                    }
+
                 });
             }
         }
@@ -525,6 +754,6 @@ const teacherIdInput = document.getElementById("teacher_id");
             syncExtraHoursVisibility();
         }
 
-        updateAllocationSummary();
+        renderSectionAssignmentBoard();
     </script>
 {% endblock %}
