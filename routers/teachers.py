@@ -508,6 +508,46 @@ def _render_edit_teacher_page(
         current_teacher_id=teacher.id,
     )
 
+    if assigned_subject_codes is None:
+        assigned_subject_codes = [
+            row.subject_code
+            for row in db.query(models.TeacherSubjectAllocation).filter(
+                models.TeacherSubjectAllocation.teacher_id == teacher.id
+            ).order_by(models.TeacherSubjectAllocation.subject_code.asc()).all()
+            if row.subject_code
+        ]
+
+    if selected_section_assignment_values is None:
+        selected_section_assignment_values = _get_teacher_section_assignment_values(
+            db,
+            teacher.id,
+        )
+
+    return templates.TemplateResponse(
+        request,
+        "edit_teacher.html",
+        {
+            "request": request,
+            "teacher": teacher,
+            "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
+            "section_options_by_subject": section_assignment_support["section_options_by_subject"],
+            "assigned_subject_codes": assigned_subject_codes,
+            "selected_section_assignment_values": selected_section_assignment_values,
+            "error": error,
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="teachers",
+                title="Edit Teacher",
+                eyebrow="Staffing Desk",
+                intro="Adjust eligible subjects, section teaching load, workload limits, and extra-hours settings without leaving the unified layout.",
+                icon="teachers",
+            ),
+        },
+        status_code=status_code,
+    )
+
 
 def _validate_section_assignments(
     subject_assignment_map,
@@ -566,46 +606,6 @@ def _validate_section_assignments(
             total_assigned_hours += int(subject.weekly_hours or 0)
 
     return errors, total_assigned_hours
-
-    if assigned_subject_codes is None:
-        assigned_subject_codes = [
-            row.subject_code
-            for row in db.query(models.TeacherSubjectAllocation).filter(
-                models.TeacherSubjectAllocation.teacher_id == teacher.id
-            ).order_by(models.TeacherSubjectAllocation.subject_code.asc()).all()
-            if row.subject_code
-        ]
-
-    if selected_section_assignment_values is None:
-        selected_section_assignment_values = _get_teacher_section_assignment_values(
-            db,
-            teacher.id,
-        )
-
-    return templates.TemplateResponse(
-        request,
-        "edit_teacher.html",
-        {
-            "request": request,
-            "teacher": teacher,
-            "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
-            "section_options_by_subject": section_assignment_support["section_options_by_subject"],
-            "assigned_subject_codes": assigned_subject_codes,
-            "selected_section_assignment_values": selected_section_assignment_values,
-            "error": error,
-            **build_shell_context(
-                request,
-                db,
-                current_user,
-                page_key="teachers",
-                title="Edit Teacher",
-                eyebrow="Staffing Desk",
-                intro="Adjust eligible subjects, section teaching load, workload limits, and extra-hours settings without leaving the unified layout.",
-                icon="teachers",
-            ),
-        },
-        status_code=status_code,
-    )
 
 
 @router.get("/")
