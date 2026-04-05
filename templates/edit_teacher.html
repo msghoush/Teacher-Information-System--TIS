@@ -134,6 +134,45 @@
             padding: 8px;
         }
 
+        .assignment-step {
+            margin-top: 10px;
+            border: 1px solid #dbe7f8;
+            border-radius: 12px;
+            background: #f8fbff;
+            padding: 12px;
+        }
+
+        .assignment-step:first-of-type {
+            margin-top: 0;
+        }
+
+        .assignment-step-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #e8f1ff;
+            color: #244a7c;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.7px;
+            text-transform: uppercase;
+        }
+
+        .assignment-step h3 {
+            margin: 0 0 4px;
+            font-size: 15px;
+            color: #17365d;
+        }
+
+        .assignment-step p {
+            margin: 0 0 10px;
+            font-size: 12px;
+            color: #51667f;
+        }
+
         .subject-search {
             width: 100%;
             padding: 9px 10px;
@@ -387,6 +426,10 @@
                 </div>
                 <div class="field field-wide">
                     <label>Eligible Subjects</label>
+                    <div class="assignment-step">
+                        <div class="assignment-step-label">Step 1</div>
+                        <h3>Select the subjects this teacher can teach</h3>
+                        <p>Tick one or more subjects first. The section assignment area will appear directly below for those selected subjects.</p>
                     <input id="subjectSearchInput" class="subject-search" type="text" placeholder="Search by code, subject name, or grade">
                     <div class="subject-picker" id="subjectPicker">
                         {% if subject_choices %}
@@ -406,8 +449,14 @@
                         <div class="subject-empty">No subjects available for this branch and academic year.</div>
                         {% endif %}
                     </div>
+                    </div>
+                    <div class="assignment-step">
+                        <div class="assignment-step-label">Step 2</div>
+                        <h3>Assign sections for each selected subject</h3>
+                        <p>This is where you choose the exact sections the teacher covers for the selected subject, for example Grade 5-A and Grade 5-B for the same subject.</p>
                     <div id="sectionAssignmentBoard" class="subject-assignment-board"></div>
-                    <div id="sectionAssignmentEmpty" class="section-assignment-empty">Select one or more subjects to assign their matching sections to this teacher.</div>
+                    <div id="sectionAssignmentEmpty" class="section-assignment-empty">Choose one or more subjects in Step 1, and the matching sections will appear here to assign to this teacher.</div>
+                    </div>
                     <div id="allocationSummary" class="hours-summary">Eligible subjects selected: 0</div>
                 </div>
                 <div class="field">
