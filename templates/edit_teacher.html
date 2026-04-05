@@ -283,7 +283,7 @@
 {% block content %}
 <main class="panel">
 <h1>Edit Teacher</h1>
-        <p class="sub">Update teacher details and workload rules in your current branch/year scope.</p>
+        <p class="sub">Update teacher details, workload rules, and the subjects this teacher is allowed to teach in your current branch/year scope. Section-by-section teaching load is assigned from Planning.</p>
 
         {% if error %}
         <div class="error">{{ error }}</div>
@@ -296,7 +296,7 @@
                     <input id="teacher_id" type="text" name="teacher_id" maxlength="10" value="{{ teacher.teacher_id }}" required>
                 </div>
                 <div class="field field-wide">
-                    <label>Assigned Subjects</label>
+                    <label>Eligible Subjects</label>
                     <input id="subjectSearchInput" class="subject-search" type="text" placeholder="Search by code, subject name, or grade">
                     <div class="subject-picker" id="subjectPicker">
                         {% if subject_choices %}
@@ -316,7 +316,7 @@
                         <div class="subject-empty">No subjects available for this branch and academic year.</div>
                         {% endif %}
                     </div>
-                    <div id="allocationSummary" class="hours-summary">Allocated subject hours: 0</div>
+                    <div id="allocationSummary" class="hours-summary">Eligible subjects selected: 0</div>
                 </div>
                 <div class="field">
                     <label for="first_name">First Name</label>
@@ -370,14 +370,8 @@ const teacherIdInput = document.getElementById("teacher_id");
         const allocationSummary = document.getElementById("allocationSummary");
         const standardMaxHours = 24;
 
-        const getAllocatedSubjectHours = () => {
-            return subjectCodeInputs.reduce((total, input) => {
-                if (!input.checked) {
-                    return total;
-                }
-                const parsedHours = Number(input.dataset.hours || "0");
-                return total + (Number.isFinite(parsedHours) ? parsedHours : 0);
-            }, 0);
+        const getSelectedSubjectCount = () => {
+            return subjectCodeInputs.filter((input) => input.checked).length;
         };
 
         const getSafeMaxHours = () => {
@@ -402,15 +396,12 @@ const teacherIdInput = document.getElementById("teacher_id");
                 return;
             }
 
-            const allocatedHours = getAllocatedSubjectHours();
+            const selectedSubjectCount = getSelectedSubjectCount();
             const safeMaxHours = getSafeMaxHours();
             const safeExtraHours = getSafeExtraHours();
             const requiredHours = getRequiredAllocationHours();
-            const exceedsCapacity = requiredHours > 0 ? allocatedHours > requiredHours : allocatedHours > 0;
-            const remainingHours = Math.max(requiredHours - allocatedHours, 0);
-
-            allocationSummary.textContent = `Allocated subject hours: ${allocatedHours} / Total allowed hours: ${requiredHours} (Max ${safeMaxHours} + Extra ${safeExtraHours})${exceedsCapacity ? ` (Over capacity by ${allocatedHours - requiredHours}h)` : ` (Within capacity, remaining ${remainingHours}h)`}`;
-            allocationSummary.classList.toggle("mismatch", exceedsCapacity);
+            allocationSummary.textContent = `Eligible subjects selected: ${selectedSubjectCount} | Teacher capacity: ${requiredHours}h (Max ${safeMaxHours} + Extra ${safeExtraHours}) | Actual teaching hours are assigned per section in Planning.`;
+            allocationSummary.classList.remove("mismatch");
         };
 
         const filterSubjectOptions = () => {
@@ -522,19 +513,6 @@ const teacherIdInput = document.getElementById("teacher_id");
                         return;
                     }
 
-                    const allocatedHours = getAllocatedSubjectHours();
-                    const requiredHours = getRequiredAllocationHours();
-                    if (!Number.isFinite(parsedValue) || allocatedHours > requiredHours) {
-                        event.preventDefault();
-                        if ((!extraAllowed || !extraAllowed.checked) && allocatedHours > standardMaxHours) {
-                            window.alert(`Allocated subject hours (${allocatedHours}) exceed 24. Please check Extra Hours Allowed and set Extra Hours Count for the additional hours.`);
-                            if (extraAllowed) {
-                                extraAllowed.focus();
-                            }
-                            return;
-                        }
-                        window.alert(`Allocated subject hours (${allocatedHours}) exceed allowed capacity (${requiredHours}) based on Max Hours + Extra Hours. Reduce assigned subjects or increase allowed extra hours.`);
-                    }
                 });
             }
         }

@@ -110,6 +110,27 @@ def _get_subject_alignment_map(db: Session, branch_id: int, academic_year_id: in
     return alignment_map
 
 
+def _get_subject_map_by_code(db: Session, branch_id: int, academic_year_id: int):
+    subjects = db.query(models.Subject).filter(
+        models.Subject.branch_id == branch_id,
+        models.Subject.academic_year_id == academic_year_id,
+    ).all()
+    return {
+        subject.subject_code: subject
+        for subject in subjects
+        if subject.subject_code
+    }
+
+
+def _build_teacher_display_name(teacher) -> str:
+    name_parts = [teacher.first_name]
+    if teacher.middle_name:
+        name_parts.append(teacher.middle_name)
+    name_parts.append(teacher.last_name)
+    full_name = " ".join(part for part in name_parts if part).strip()
+    return full_name if full_name else f"Teacher #{teacher.id}"
+
+
 def _get_teacher_choices(db: Session, branch_id: int, academic_year_id: int):
     teachers = db.query(models.Teacher).filter(
         models.Teacher.branch_id == branch_id,
@@ -122,12 +143,7 @@ def _get_teacher_choices(db: Session, branch_id: int, academic_year_id: int):
     choices = []
     names_by_id = {}
     for teacher in teachers:
-        name_parts = [teacher.first_name]
-        if teacher.middle_name:
-            name_parts.append(teacher.middle_name)
-        name_parts.append(teacher.last_name)
-        full_name = " ".join(part for part in name_parts if part).strip()
-        display_name = full_name if full_name else f"Teacher #{teacher.id}"
+        display_name = _build_teacher_display_name(teacher)
         names_by_id[teacher.id] = display_name
         choices.append(
             {
@@ -139,10 +155,169 @@ def _get_teacher_choices(db: Session, branch_id: int, academic_year_id: int):
     return choices, names_by_id
 
 
+def _get_teacher_subject_option_map(
+    db: Session,
+    branch_id: int,
+    academic_year_id: int,
+):
+    teachers = db.query(models.Teacher).filter(
+        models.Teacher.branch_id == branch_id,
+        models.Teacher.academic_year_id == academic_year_id,
+    ).order_by(
+        models.Teacher.first_name.asc(),
+        models.Teacher.last_name.asc(),
+    ).all()
+
+    teacher_ids = [teacher.id for teacher in teachers if getattr(teacher, "id", None)]
+    subject_codes_by_teacher = {
+        teacher.id: set()
+        for teacher in teachers
+        if getattr(teacher, "id", None)
+    }
+
+    if teacher_ids:
+        allocations = db.query(models.TeacherSubjectAllocation).filter(
+            models.TeacherSubjectAllocation.teacher_id.in_(teacher_ids)
+        ).all()
+    else:
+        allocations = []
+
+    for allocation in allocations:
+        if allocation.subject_code:
+            subject_codes_by_teacher.setdefault(allocation.teacher_id, set()).add(
+                allocation.subject_code
+            )
+
+    for teacher in teachers:
+        fallback_code = str(teacher.subject_code or "").strip().upper()
+        if fallback_code:
+            subject_codes_by_teacher.setdefault(teacher.id, set()).add(fallback_code)
+
+    options_by_subject = {}
+    for teacher in teachers:
+        display_name = _build_teacher_display_name(teacher)
+        option = {
+            "id": teacher.id,
+            "label": f"{teacher.teacher_id} - {display_name}",
+        }
+        for subject_code in sorted(subject_codes_by_teacher.get(teacher.id, set())):
+            options_by_subject.setdefault(subject_code, []).append(option)
+
+    for subject_code in options_by_subject:
+        options_by_subject[subject_code].sort(key=lambda item: item["label"])
+
+    return options_by_subject
+
+
+def _get_section_assignment_map(
+    db: Session,
+    planning_sections,
+    teacher_names_by_id,
+    subject_map_by_code,
+):
+    section_ids = [
+        section.id
+        for section in planning_sections
+        if getattr(section, "id", None)
+    ]
+    if not section_ids:
+        return {}
+
+    assignments = db.query(models.TeacherSectionAssignment).filter(
+        models.TeacherSectionAssignment.planning_section_id.in_(section_ids)
+    ).all()
+
+    assignment_map = {}
+    for assignment in assignments:
+        subject = subject_map_by_code.get(assignment.subject_code)
+        assignment_map.setdefault(assignment.planning_section_id, {})[
+            assignment.subject_code
+        ] = {
+            "teacher_id": assignment.teacher_id,
+            "teacher_name": teacher_names_by_id.get(assignment.teacher_id, "-"),
+            "weekly_hours": int(subject.weekly_hours or 0) if subject else 0,
+        }
+
+    return assignment_map
+
+
+def _build_section_assignment_rows(
+    aligned_subjects,
+    subject_teacher_options,
+    selected_teacher_ids_by_subject,
+):
+    rows = []
+    for subject in aligned_subjects:
+        subject_code = subject.get("subject_code")
+        if not subject_code:
+            continue
+        rows.append(
+            {
+                "subject_code": subject_code,
+                "subject_name": subject.get("subject_name") or "Unnamed Subject",
+                "weekly_hours": int(subject.get("weekly_hours", 0) or 0),
+                "teacher_options": subject_teacher_options.get(subject_code, []),
+                "selected_teacher_id": str(
+                    selected_teacher_ids_by_subject.get(subject_code, "")
+                ),
+            }
+        )
+    return rows
+
+
+def _get_current_assignment_selection_map(
+    section_assignment_map,
+    planning_section_id: int,
+):
+    return {
+        subject_code: details.get("teacher_id")
+        for subject_code, details in section_assignment_map.get(planning_section_id, {}).items()
+    }
+
+
+def _calculate_teacher_section_hours(
+    db: Session,
+    branch_id: int,
+    academic_year_id: int,
+    subject_map_by_code,
+    exclude_planning_section_id: int | None = None,
+):
+    planning_section_ids = [
+        section_id
+        for (section_id,) in db.query(models.PlanningSection.id).filter(
+            models.PlanningSection.branch_id == branch_id,
+            models.PlanningSection.academic_year_id == academic_year_id,
+        ).all()
+    ]
+    if not planning_section_ids:
+        return {}
+
+    assignments_query = db.query(models.TeacherSectionAssignment).filter(
+        models.TeacherSectionAssignment.planning_section_id.in_(planning_section_ids)
+    )
+    if exclude_planning_section_id is not None:
+        assignments_query = assignments_query.filter(
+            models.TeacherSectionAssignment.planning_section_id != exclude_planning_section_id
+        )
+
+    teacher_hours = {}
+    for assignment in assignments_query.all():
+        subject = subject_map_by_code.get(assignment.subject_code)
+        if not subject:
+            continue
+        teacher_hours[assignment.teacher_id] = (
+            teacher_hours.get(assignment.teacher_id, 0)
+            + int(subject.weekly_hours or 0)
+        )
+
+    return teacher_hours
+
+
 def _build_planning_rows(
     planning_sections,
     subject_alignment_map,
     teacher_names_by_id,
+    section_assignment_map,
 ):
     rows = []
     for section in planning_sections:
@@ -151,11 +326,29 @@ def _build_planning_rows(
             int(item.get("weekly_hours", 0))
             for item in aligned_subjects
         )
+        subject_assignments = []
+        assigned_hours = 0
+        for subject in aligned_subjects:
+            assignment_details = section_assignment_map.get(section.id, {}).get(
+                subject.get("subject_code"),
+                {},
+            )
+            subject_teacher_name = assignment_details.get("teacher_name") or ""
+            if subject_teacher_name:
+                assigned_hours += int(subject.get("weekly_hours", 0) or 0)
+            subject_assignments.append(
+                {
+                    **subject,
+                    "teacher_name": subject_teacher_name,
+                }
+            )
         rows.append(
             {
                 "record": section,
                 "aligned_subjects": aligned_subjects,
+                "subject_assignments": subject_assignments,
                 "allocated_hours": allocated_hours,
+                "assigned_hours": assigned_hours,
                 "homeroom_teacher_name": teacher_names_by_id.get(
                     section.homeroom_teacher_id,
                     "-",
@@ -197,15 +390,27 @@ def _render_planning_page(
         branch_id=branch_id,
         academic_year_id=academic_year_id,
     )
+    subject_map_by_code = _get_subject_map_by_code(
+        db=db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
     teacher_choices, teacher_names_by_id = _get_teacher_choices(
         db=db,
         branch_id=branch_id,
         academic_year_id=academic_year_id,
     )
+    section_assignment_map = _get_section_assignment_map(
+        db=db,
+        planning_sections=planning_sections,
+        teacher_names_by_id=teacher_names_by_id,
+        subject_map_by_code=subject_map_by_code,
+    )
     planning_rows = _build_planning_rows(
         planning_sections=planning_sections,
         subject_alignment_map=subject_alignment_map,
         teacher_names_by_id=teacher_names_by_id,
+        section_assignment_map=section_assignment_map,
     )
 
     current_sections_count = sum(
@@ -258,6 +463,114 @@ def _render_planning_page(
                 page_key="planning",
             ),
         },
+    )
+
+
+def _render_edit_planning_page(
+    request: Request,
+    db: Session,
+    current_user,
+    planning_section,
+    error: str = "",
+    form_data=None,
+    selected_assignment_teacher_ids=None,
+    status_code: int = 200,
+):
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    subject_alignment_map = _get_subject_alignment_map(
+        db=db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
+    teacher_choices, teacher_names_by_id = _get_teacher_choices(
+        db=db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
+    subject_teacher_options = _get_teacher_subject_option_map(
+        db=db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
+    subject_map_by_code = _get_subject_map_by_code(
+        db=db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
+    section_assignment_map = _get_section_assignment_map(
+        db=db,
+        planning_sections=[planning_section],
+        teacher_names_by_id=teacher_names_by_id,
+        subject_map_by_code=subject_map_by_code,
+    )
+
+    normalized_form_data = {
+        "grade_level": planning_section.grade_level,
+        "section_name": planning_section.section_name,
+        "class_status": planning_section.class_status,
+        "homeroom_teacher_id": (
+            str(planning_section.homeroom_teacher_id)
+            if planning_section.homeroom_teacher_id is not None
+            else ""
+        ),
+    }
+    if form_data:
+        normalized_form_data.update(form_data)
+
+    selected_grade_level = normalized_form_data.get("grade_level") or planning_section.grade_level
+    aligned_subjects = subject_alignment_map.get(selected_grade_level, [])
+    allocated_hours = sum(
+        int(item.get("weekly_hours", 0))
+        for item in aligned_subjects
+    )
+
+    current_assignment_teacher_ids = _get_current_assignment_selection_map(
+        section_assignment_map=section_assignment_map,
+        planning_section_id=planning_section.id,
+    )
+    if selected_assignment_teacher_ids is None:
+        selected_assignment_teacher_ids = current_assignment_teacher_ids
+
+    section_assignment_rows = _build_section_assignment_rows(
+        aligned_subjects=aligned_subjects,
+        subject_teacher_options=subject_teacher_options,
+        selected_teacher_ids_by_subject=selected_assignment_teacher_ids,
+    )
+
+    return templates.TemplateResponse(
+        request,
+        "edit_planning.html",
+        {
+            "request": request,
+            "planning_section": planning_section,
+            "grade_options": GRADE_OPTIONS,
+            "section_options": SECTION_OPTIONS,
+            "status_options": STATUS_OPTIONS,
+            "teacher_choices": teacher_choices,
+            "subject_alignment_map": subject_alignment_map,
+            "aligned_subjects": aligned_subjects,
+            "allocated_hours": allocated_hours,
+            "subject_teacher_options": subject_teacher_options,
+            "section_assignment_rows": section_assignment_rows,
+            "selected_assignment_teacher_ids": {
+                subject_code: str(teacher_id)
+                for subject_code, teacher_id in (selected_assignment_teacher_ids or {}).items()
+                if teacher_id is not None
+            },
+            "form_data": normalized_form_data,
+            "error": error,
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="planning",
+                title="Edit Planning Section",
+                eyebrow="Section Planning",
+                intro="Update section structure, homeroom ownership, and assign each grade-aligned subject to the right teacher for this section.",
+                icon="planning",
+            ),
+        },
+        status_code=status_code,
     )
 
 
@@ -396,7 +709,8 @@ def create_planning_section(
         current_user=current_user,
         success=(
             f"Planning section created successfully: Grade {normalized_grade_level} - "
-            f"Section {normalized_section_name} ({allocated_hours} allocated hours)."
+            f"Section {normalized_section_name} ({allocated_hours} allocated hours). "
+            "Open Edit to assign teachers to each aligned subject."
         ),
     )
 
@@ -423,47 +737,11 @@ def edit_planning_page(
     if not planning_section:
         return RedirectResponse(url="/planning", status_code=302)
 
-    subject_alignment_map = _get_subject_alignment_map(
+    return _render_edit_planning_page(
+        request=request,
         db=db,
-        branch_id=branch_id,
-        academic_year_id=academic_year_id,
-    )
-    aligned_subjects = subject_alignment_map.get(planning_section.grade_level, [])
-    allocated_hours = sum(
-        int(item.get("weekly_hours", 0))
-        for item in aligned_subjects
-    )
-    teacher_choices, _ = _get_teacher_choices(
-        db=db,
-        branch_id=branch_id,
-        academic_year_id=academic_year_id,
-    )
-
-    return templates.TemplateResponse(
-        request,
-        "edit_planning.html",
-        {
-            "request": request,
-            "planning_section": planning_section,
-            "grade_options": GRADE_OPTIONS,
-            "section_options": SECTION_OPTIONS,
-            "status_options": STATUS_OPTIONS,
-            "teacher_choices": teacher_choices,
-            "subject_alignment_map": subject_alignment_map,
-            "aligned_subjects": aligned_subjects,
-            "allocated_hours": allocated_hours,
-            "error": "",
-            **build_shell_context(
-                request,
-                db,
-                current_user,
-                page_key="planning",
-                title="Edit Planning Section",
-                eyebrow="Section Planning",
-                intro="Update section structure and homeroom ownership while staying inside the same branch and year workspace.",
-                icon="planning",
-            ),
-        },
+        current_user=current_user,
+        planning_section=planning_section,
     )
 
 
@@ -475,6 +753,8 @@ def update_planning_section(
     section_name: str = Form(...),
     class_status: str = Form(...),
     homeroom_teacher_id: str = Form(""),
+    assignment_subject_codes: list[str] = Form([]),
+    assignment_teacher_ids: list[str] = Form([]),
     db: Session = Depends(get_db),
 ):
     current_user = get_current_user(request, db)
@@ -497,6 +777,17 @@ def update_planning_section(
     normalized_section_name = _normalize_section_name(section_name)
     normalized_class_status = _normalize_class_status(class_status)
     parsed_homeroom_teacher_id = _parse_int(homeroom_teacher_id)
+    parsed_assignment_teacher_ids_by_subject = {}
+    for index, raw_subject_code in enumerate(assignment_subject_codes or []):
+        subject_code = str(raw_subject_code or "").strip().upper()
+        if not subject_code:
+            continue
+        raw_teacher_id = (
+            assignment_teacher_ids[index]
+            if index < len(assignment_teacher_ids)
+            else ""
+        )
+        parsed_assignment_teacher_ids_by_subject[subject_code] = _parse_int(raw_teacher_id)
 
     errors = []
     if normalized_grade_level not in GRADE_OPTIONS:
@@ -523,7 +814,17 @@ def update_planning_section(
         branch_id=branch_id,
         academic_year_id=academic_year_id,
     )
+    subject_map_by_code = _get_subject_map_by_code(
+        db=db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
     aligned_subjects = subject_alignment_map.get(normalized_grade_level, [])
+    aligned_subject_codes = {
+        item.get("subject_code")
+        for item in aligned_subjects
+        if item.get("subject_code")
+    }
     allocated_hours = sum(
         int(item.get("weekly_hours", 0))
         for item in aligned_subjects
@@ -543,36 +844,97 @@ def update_planning_section(
     if duplicate_section:
         errors.append("This grade and section already exists in planning for the current scope.")
 
-    if errors:
-        teacher_choices, _ = _get_teacher_choices(
-            db=db,
-            branch_id=branch_id,
-            academic_year_id=academic_year_id,
+    selected_teacher_ids = sorted({
+        teacher_id
+        for subject_code, teacher_id in parsed_assignment_teacher_ids_by_subject.items()
+        if subject_code in aligned_subject_codes and teacher_id is not None
+    })
+    scoped_teacher_map = {}
+    if selected_teacher_ids:
+        scoped_teacher_map = {
+            teacher.id: teacher
+            for teacher in db.query(models.Teacher).filter(
+                models.Teacher.id.in_(selected_teacher_ids),
+                models.Teacher.branch_id == branch_id,
+                models.Teacher.academic_year_id == academic_year_id,
+            ).all()
+        }
+
+    teacher_subject_option_map = _get_teacher_subject_option_map(
+        db=db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
+    teacher_hours_by_id = _calculate_teacher_section_hours(
+        db=db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+        subject_map_by_code=subject_map_by_code,
+        exclude_planning_section_id=planning_section.id,
+    )
+
+    for subject in aligned_subjects:
+        subject_code = subject.get("subject_code")
+        teacher_id = parsed_assignment_teacher_ids_by_subject.get(subject_code)
+        if teacher_id is None:
+            continue
+
+        teacher = scoped_teacher_map.get(teacher_id)
+        if not teacher:
+            errors.append(
+                f"Selected teacher for {subject_code} is not available in the current branch/year scope."
+            )
+            continue
+
+        eligible_teacher_ids = {
+            option.get("id")
+            for option in teacher_subject_option_map.get(subject_code, [])
+        }
+        if teacher_id not in eligible_teacher_ids:
+            errors.append(
+                f"{_build_teacher_display_name(teacher)} cannot be assigned to {subject_code} because that subject is not enabled in Teachers module."
+            )
+            continue
+
+        projected_hours = (
+            teacher_hours_by_id.get(teacher_id, 0)
+            + int(subject.get("weekly_hours", 0) or 0)
         )
-        return templates.TemplateResponse(
-            request,
-            "edit_planning.html",
-            {
-                "request": request,
-                "planning_section": planning_section,
-                "grade_options": GRADE_OPTIONS,
-                "section_options": SECTION_OPTIONS,
-                "status_options": STATUS_OPTIONS,
-                "teacher_choices": teacher_choices,
-                "subject_alignment_map": subject_alignment_map,
-                "aligned_subjects": aligned_subjects,
-                "allocated_hours": allocated_hours,
-                "error": " ".join(errors),
-                **build_shell_context(
-                    request,
-                    db,
-                    current_user,
-                    page_key="planning",
-                    title="Edit Planning Section",
-                    eyebrow="Section Planning",
-                    intro="Update section structure and homeroom ownership while staying inside the same branch and year workspace.",
-                    icon="planning",
+        teacher_hours_by_id[teacher_id] = projected_hours
+        allowed_hours = (
+            int(teacher.max_hours or 24)
+            + (
+                int(teacher.extra_hours_count or 0)
+                if teacher.extra_hours_allowed
+                else 0
+            )
+        )
+        if projected_hours > allowed_hours:
+            errors.append(
+                f"{_build_teacher_display_name(teacher)} would reach {projected_hours}h after assigning {subject_code}, which exceeds the allowed capacity of {allowed_hours}h."
+            )
+
+    if errors:
+        return _render_edit_planning_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            planning_section=planning_section,
+            error=" ".join(errors),
+            form_data={
+                "grade_level": normalized_grade_level or planning_section.grade_level,
+                "section_name": normalized_section_name or planning_section.section_name,
+                "class_status": normalized_class_status or planning_section.class_status,
+                "homeroom_teacher_id": (
+                    str(parsed_homeroom_teacher_id)
+                    if parsed_homeroom_teacher_id is not None
+                    else ""
                 ),
+            },
+            selected_assignment_teacher_ids={
+                subject_code: teacher_id
+                for subject_code, teacher_id in parsed_assignment_teacher_ids_by_subject.items()
+                if subject_code in aligned_subject_codes and teacher_id is not None
             },
             status_code=400,
         )
@@ -585,38 +947,44 @@ def update_planning_section(
     )
 
     try:
+        db.query(models.TeacherSectionAssignment).filter(
+            models.TeacherSectionAssignment.planning_section_id == planning_section.id
+        ).delete(synchronize_session=False)
+        for subject in aligned_subjects:
+            subject_code = subject.get("subject_code")
+            teacher_id = parsed_assignment_teacher_ids_by_subject.get(subject_code)
+            if not subject_code or teacher_id is None:
+                continue
+            db.add(
+                models.TeacherSectionAssignment(
+                    teacher_id=teacher_id,
+                    planning_section_id=planning_section.id,
+                    subject_code=subject_code,
+                )
+            )
         db.commit()
     except IntegrityError:
         db.rollback()
-        teacher_choices, _ = _get_teacher_choices(
+        return _render_edit_planning_page(
+            request=request,
             db=db,
-            branch_id=branch_id,
-            academic_year_id=academic_year_id,
-        )
-        return templates.TemplateResponse(
-            request,
-            "edit_planning.html",
-            {
-                "request": request,
-                "planning_section": planning_section,
-                "grade_options": GRADE_OPTIONS,
-                "section_options": SECTION_OPTIONS,
-                "status_options": STATUS_OPTIONS,
-                "teacher_choices": teacher_choices,
-                "subject_alignment_map": subject_alignment_map,
-                "aligned_subjects": aligned_subjects,
-                "allocated_hours": allocated_hours,
-                "error": "Unable to update planning section due to duplicate or invalid data.",
-                **build_shell_context(
-                    request,
-                    db,
-                    current_user,
-                    page_key="planning",
-                    title="Edit Planning Section",
-                    eyebrow="Section Planning",
-                    intro="Update section structure and homeroom ownership while staying inside the same branch and year workspace.",
-                    icon="planning",
+            current_user=current_user,
+            planning_section=planning_section,
+            error="Unable to update planning section due to duplicate or invalid data.",
+            form_data={
+                "grade_level": normalized_grade_level,
+                "section_name": normalized_section_name,
+                "class_status": normalized_class_status,
+                "homeroom_teacher_id": (
+                    str(parsed_homeroom_teacher_id)
+                    if parsed_homeroom_teacher_id is not None
+                    else ""
                 ),
+            },
+            selected_assignment_teacher_ids={
+                subject_code: teacher_id
+                for subject_code, teacher_id in parsed_assignment_teacher_ids_by_subject.items()
+                if subject_code in aligned_subject_codes and teacher_id is not None
             },
             status_code=400,
         )
@@ -644,6 +1012,9 @@ def delete_planning_section(
         models.PlanningSection.academic_year_id == academic_year_id,
     ).first()
     if planning_section:
+        db.query(models.TeacherSectionAssignment).filter(
+            models.TeacherSectionAssignment.planning_section_id == planning_section.id
+        ).delete(synchronize_session=False)
         db.delete(planning_section)
         db.commit()
 

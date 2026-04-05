@@ -565,7 +565,7 @@
 <section class="layout">
             <article class="card">
                 <h2>Create Planning Section</h2>
-                <p>Define grade and section structure. Subjects and allocated hours are aligned automatically from Subjects module.</p>
+                <p>Define grade and section structure. Subjects and required hours align automatically from Subjects module, then you can assign teachers per subject from the edit screen for each section.</p>
 
                 {% if success %}
                 <div class="success">{{ success }}</div>
@@ -671,7 +671,7 @@
                                 <th>Section</th>
                                 <th>Class Status</th>
                                 <th>Homeroom Teacher</th>
-                                <th>Subjects Aligned</th>
+                                <th>Subjects & Teacher Assignments</th>
                                 <th>Hours Allocated</th>
                                 {% if can_edit or can_delete %}
                                 <th>Actions</th>
@@ -691,10 +691,17 @@
                                 </td>
                                 <td>{{ row.homeroom_teacher_name }}</td>
                                 <td>
-                                    {% if row.aligned_subjects %}
+                                    {% if row.subject_assignments %}
                                     <ul class="aligned-list-table">
-                                        {% for subject in row.aligned_subjects %}
-                                        <li class="aligned-item-table">{{ subject.subject_code }} - {{ subject.subject_name }} ({{ subject.weekly_hours }}h)</li>
+                                        {% for subject in row.subject_assignments %}
+                                        <li class="aligned-item-table">
+                                            {{ subject.subject_code }} - {{ subject.subject_name }} ({{ subject.weekly_hours }}h)
+                                            {% if subject.teacher_name %}
+                                            | {{ subject.teacher_name }}
+                                            {% else %}
+                                            | Unassigned
+                                            {% endif %}
+                                        </li>
                                         {% endfor %}
                                     </ul>
                                     {% else %}
@@ -705,7 +712,7 @@
                                 {% if can_edit or can_delete %}
                                 <td class="row-actions">
                                     {% if can_edit %}
-                                    <a class="icon-action row-action-edit" href="/planning/edit/{{ record.id }}" aria-label="Edit planning section {{ record.id }}" title="Edit planning section">
+                                    <a class="icon-action row-action-edit" href="/planning/edit/{{ record.id }}" aria-label="Edit planning section {{ record.id }}" title="Edit section and assign subject teachers">
                                         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                                             <path d="M12 20h9"></path>
                                             <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>

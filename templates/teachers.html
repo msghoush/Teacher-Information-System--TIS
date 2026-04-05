@@ -614,7 +614,7 @@
 <section class="grid">
             <article class="card">
                 <h2>Add Teacher</h2>
-                <p>Capture teacher details and workload settings.</p>
+                <p>Capture teacher details, workload limits, and the subjects this teacher is allowed to teach. Real section teaching load is assigned from Planning.</p>
 
                 {% if success %}
                 <div class="success">{{ success }}</div>
@@ -640,7 +640,7 @@
                             <input id="teacher_id" type="text" name="teacher_id" maxlength="10" placeholder="Iqama/National ID (max 10 digits)" required>
                         </div>
                         <div class="field field-wide">
-                            <label>Assigned Subjects</label>
+                            <label>Eligible Subjects</label>
                             <input id="subjectSearchInput" class="subject-search" type="text" placeholder="Search by code, subject name, or grade">
                             <div class="subject-picker" id="subjectPicker">
                                 {% if subject_choices %}
@@ -660,7 +660,7 @@
                                 <div class="subject-empty">No subjects available for this branch and academic year.</div>
                                 {% endif %}
                             </div>
-                            <div id="allocationSummary" class="hours-summary">Allocated subject hours: 0</div>
+                            <div id="allocationSummary" class="hours-summary">Eligible subjects selected: 0</div>
                         </div>
                         <div class="field">
                             <label for="first_name">First Name</label>
@@ -715,7 +715,7 @@
                             </span>
                             {% endif %}
                         </div>
-                        <p>Review teacher assignments and workload settings.</p>
+                        <p>Review teacher capability, real section teaching load, and workload settings.</p>
                     </div>
                     <input id="teacherSearch" class="search" type="text" placeholder="Search by ID, name, or subject">
                 </div>
@@ -733,9 +733,10 @@
                                 {% endif %}
                                 <th>Teacher ID</th>
                                 <th>Full Name</th>
-                                <th>Assigned Subjects</th>
+                                <th>Eligible Subjects</th>
+                                <th>Section Teaching Load</th>
                                 <th>Max Hours</th>
-                                <th>Allocated Subject Hours</th>
+                                <th>Allocated Teaching Hours</th>
                                 <th>Hours Status</th>
                                 <th>Extra Hours Allowed</th>
                                 <th>Extra Hours Count</th>
@@ -765,6 +766,17 @@
                                     </ul>
                                     {% else %}
                                     -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if allocation and allocation.get("teaching_load_labels") %}
+                                    <ul class="assigned-list">
+                                        {% for label in allocation.get("teaching_load_labels") %}
+                                        <li class="assigned-item">{{ label }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% else %}
+                                    No section assignments yet
                                     {% endif %}
                                 </td>
                                 <td>{{ teacher.max_hours or 24 }}</td>
@@ -838,14 +850,8 @@ const searchInput = document.getElementById("teacherSearch");
         const allocationSummary = document.getElementById("allocationSummary");
         const standardMaxHours = 24;
 
-        const getAllocatedSubjectHours = () => {
-            return subjectCodeInputs.reduce((total, input) => {
-                if (!input.checked) {
-                    return total;
-                }
-                const parsedHours = Number(input.dataset.hours || "0");
-                return total + (Number.isFinite(parsedHours) ? parsedHours : 0);
-            }, 0);
+        const getSelectedSubjectCount = () => {
+            return subjectCodeInputs.filter((input) => input.checked).length;
         };
 
         const getSafeMaxHours = () => {
@@ -870,15 +876,12 @@ const searchInput = document.getElementById("teacherSearch");
                 return;
             }
 
-            const allocatedHours = getAllocatedSubjectHours();
+            const selectedSubjectCount = getSelectedSubjectCount();
             const safeMaxHours = getSafeMaxHours();
             const safeExtraHours = getSafeExtraHours();
             const requiredHours = getRequiredAllocationHours();
-            const exceedsCapacity = requiredHours > 0 ? allocatedHours > requiredHours : allocatedHours > 0;
-            const remainingHours = Math.max(requiredHours - allocatedHours, 0);
-
-            allocationSummary.textContent = `Allocated subject hours: ${allocatedHours} / Total allowed hours: ${requiredHours} (Max ${safeMaxHours} + Extra ${safeExtraHours})${exceedsCapacity ? ` (Over capacity by ${allocatedHours - requiredHours}h)` : ` (Within capacity, remaining ${remainingHours}h)`}`;
-            allocationSummary.classList.toggle("mismatch", exceedsCapacity);
+            allocationSummary.textContent = `Eligible subjects selected: ${selectedSubjectCount} | Teacher capacity: ${requiredHours}h (Max ${safeMaxHours} + Extra ${safeExtraHours}) | Actual teaching hours are assigned per section in Planning.`;
+            allocationSummary.classList.remove("mismatch");
         };
 
         const filterSubjectOptions = () => {
@@ -1057,19 +1060,6 @@ const searchInput = document.getElementById("teacherSearch");
                         return;
                     }
 
-                    const allocatedHours = getAllocatedSubjectHours();
-                    const requiredHours = getRequiredAllocationHours();
-                    if (!Number.isFinite(parsedValue) || allocatedHours > requiredHours) {
-                        event.preventDefault();
-                        if ((!extraAllowed || !extraAllowed.checked) && allocatedHours > standardMaxHours) {
-                            window.alert(`Allocated subject hours (${allocatedHours}) exceed 24. Please check Extra Hours Allowed and set Extra Hours Count for the additional hours.`);
-                            if (extraAllowed) {
-                                extraAllowed.focus();
-                            }
-                            return;
-                        }
-                        window.alert(`Allocated subject hours (${allocatedHours}) exceed allowed capacity (${requiredHours}) based on Max Hours + Extra Hours. Reduce assigned subjects or increase allowed extra hours.`);
-                    }
                 });
             }
         }

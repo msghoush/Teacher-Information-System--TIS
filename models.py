@@ -88,6 +88,34 @@ class TeacherSubjectAllocation(Base):
     subject_code = Column(String, nullable=False)
 
 
+class TeacherSectionAssignment(Base):
+    __tablename__ = "teacher_section_assignments"
+    __table_args__ = (
+        UniqueConstraint(
+            "planning_section_id",
+            "subject_code",
+            name="uq_teacher_section_assignments_section_subject",
+        ),
+        Index(
+            "ix_teacher_section_assignments_teacher_id",
+            "teacher_id",
+        ),
+        Index(
+            "ix_teacher_section_assignments_planning_section_id",
+            "planning_section_id",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
+    planning_section_id = Column(
+        Integer,
+        ForeignKey("planning_sections.id"),
+        nullable=False,
+    )
+    subject_code = Column(String, nullable=False)
+
+
 class PlanningSection(Base):
     __tablename__ = "planning_sections"
     __table_args__ = (
