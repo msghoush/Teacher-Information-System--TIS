@@ -172,6 +172,56 @@
             font-weight: 700;
         }
 
+        .assignment-note {
+            margin: 0 0 10px;
+            color: #415068;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .assignment-grid {
+            display: grid;
+            gap: 10px;
+        }
+
+        .assignment-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(220px, 1fr);
+            gap: 10px;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid #dbe7f8;
+            border-radius: 10px;
+            background: #f5f9ff;
+        }
+
+        .assignment-subject {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .assignment-subject strong {
+            font-size: 13px;
+            color: #1f3759;
+        }
+
+        .assignment-subject small {
+            font-size: 12px;
+            color: #4b5f7d;
+        }
+
+        .assignment-select {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .assignment-empty {
+            font-size: 13px;
+            color: #8f1d18;
+        }
+
         .actions {
             margin-top: 14px;
             display: flex;
@@ -209,6 +259,10 @@
             .grid {
                 grid-template-columns: 1fr;
             }
+
+            .assignment-row {
+                grid-template-columns: 1fr;
+            }
         }
 </style>
 {% endblock %}
@@ -216,7 +270,7 @@
 {% block content %}
 <main class="panel">
 <h1>Edit Planning Section</h1>
-        <p>Update class setup for the selected section. Subject alignment and hours are auto-calculated from grade level.</p>
+        <p>Update class setup for the selected section. Subject alignment is still automatic by grade, and now you can assign a teacher to each subject for this specific section.</p>
 
         {% if error %}
         <div class="error">{{ error }}</div>
@@ -228,7 +282,7 @@
                     <label for="grade_level">Grade Level</label>
                     <select id="grade_level" name="grade_level" required>
                         {% for grade in grade_options %}
-                        <option value="{{ grade }}" {% if planning_section.grade_level == grade %}selected{% endif %}>{{ "KG" if grade == "KG" else "Grade " ~ grade }}</option>
+                        <option value="{{ grade }}" {% if form_data.grade_level == grade %}selected{% endif %}>{{ "KG" if grade == "KG" else "Grade " ~ grade }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -236,7 +290,7 @@
                     <label for="section_name">Section</label>
                     <select id="section_name" name="section_name" required>
                         {% for section in section_options %}
-                        <option value="{{ section }}" {% if planning_section.section_name == section %}selected{% endif %}>Section {{ section }}</option>
+                        <option value="{{ section }}" {% if form_data.section_name == section %}selected{% endif %}>Section {{ section }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -244,7 +298,7 @@
                     <label for="class_status">Class Status</label>
                     <select id="class_status" name="class_status" required>
                         {% for status in status_options %}
-                        <option value="{{ status }}" {% if planning_section.class_status == status %}selected{% endif %}>{{ status }}</option>
+                        <option value="{{ status }}" {% if form_data.class_status == status %}selected{% endif %}>{{ status }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -253,7 +307,7 @@
                     <select id="homeroom_teacher_id" name="homeroom_teacher_id">
                         <option value="">Not Assigned</option>
                         {% for teacher in teacher_choices %}
-                        <option value="{{ teacher.id }}" {% if planning_section.homeroom_teacher_id == teacher.id %}selected{% endif %}>{{ teacher.label }}</option>
+                        <option value="{{ teacher.id }}" {% if form_data.homeroom_teacher_id|string == teacher.id|string %}selected{% endif %}>{{ teacher.label }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -267,6 +321,37 @@
                         </ul>
                         <div id="alignedSubjectsEmpty" class="auto-empty" {% if aligned_subjects %}style="display:none;"{% endif %}>No subjects found for the selected grade in the current branch/year scope.</div>
                         <div id="allocationSummary" class="auto-hours">Hours Allocated: {{ allocated_hours }}</div>
+                    </div>
+                </div>
+                <div class="field field-wide">
+                    <div class="auto-panel">
+                        <h3>Subject Teacher Assignments</h3>
+                        <p class="assignment-note">Choose the teacher for each subject in this section. The same teacher can teach the same subject in other sections, and the system will stop you only if the teacher does not have that subject enabled or their total hours go over capacity.</p>
+                        <div id="assignmentRows" class="assignment-grid">
+                            {% for item in section_assignment_rows %}
+                            <div class="assignment-row">
+                                <input type="hidden" name="assignment_subject_codes" value="{{ item.subject_code }}">
+                                <div class="assignment-subject">
+                                    <strong>{{ item.subject_code }} - {{ item.subject_name }}</strong>
+                                    <small>{{ item.weekly_hours }} hours/week for this section</small>
+                                </div>
+                                <div class="assignment-select">
+                                    <label for="assignment_{{ item.subject_code }}">Assigned Teacher</label>
+                                    <select
+                                        id="assignment_{{ item.subject_code }}"
+                                        name="assignment_teacher_ids"
+                                        data-subject-code="{{ item.subject_code }}"
+                                    >
+                                        <option value="">Not Assigned</option>
+                                        {% for teacher in item.teacher_options %}
+                                        <option value="{{ teacher.id }}" {% if item.selected_teacher_id == teacher.id|string %}selected{% endif %}>{{ teacher.label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div id="assignmentEmpty" class="assignment-empty" {% if section_assignment_rows %}style="display:none;"{% endif %}>No subject-teacher assignments are available until this section has aligned grade subjects.</div>
                     </div>
                 </div>
             </div>
@@ -285,7 +370,11 @@ const gradeSelect = document.getElementById("grade_level");
         const alignedSubjectsPreview = document.getElementById("alignedSubjectsPreview");
         const alignedSubjectsEmpty = document.getElementById("alignedSubjectsEmpty");
         const allocationSummary = document.getElementById("allocationSummary");
+        const assignmentRows = document.getElementById("assignmentRows");
+        const assignmentEmpty = document.getElementById("assignmentEmpty");
         const subjectAlignmentMap = {{ subject_alignment_map | tojson }};
+        const subjectTeacherOptions = {{ subject_teacher_options | tojson }};
+        const initialAssignmentTeacherIds = {{ selected_assignment_teacher_ids | tojson }};
 
         const renderAlignedSubjectsPreview = () => {
             if (!gradeSelect || !alignedSubjectsPreview || !allocationSummary) {
@@ -311,9 +400,107 @@ const gradeSelect = document.getElementById("grade_level");
             }
         };
 
+        const getCurrentAssignmentSelections = () => {
+            const selections = {};
+            if (!assignmentRows) {
+                return selections;
+            }
+
+            assignmentRows.querySelectorAll("select[data-subject-code]").forEach((select) => {
+                selections[select.dataset.subjectCode] = select.value || "";
+            });
+            return selections;
+        };
+
+        const renderAssignmentRows = () => {
+            if (!gradeSelect || !assignmentRows || !assignmentEmpty) {
+                return;
+            }
+
+            const selectedGrade = gradeSelect.value;
+            const alignedSubjects = subjectAlignmentMap[selectedGrade] || [];
+            const preservedSelections = getCurrentAssignmentSelections();
+            assignmentRows.innerHTML = "";
+
+            if (alignedSubjects.length === 0) {
+                assignmentEmpty.style.display = "block";
+                return;
+            }
+
+            alignedSubjects.forEach((subject) => {
+                const subjectCode = subject.subject_code;
+                const selectedTeacherId = (
+                    preservedSelections[subjectCode]
+                    ?? initialAssignmentTeacherIds[subjectCode]
+                    ?? ""
+                );
+                const teacherOptions = subjectTeacherOptions[subjectCode] || [];
+
+                const row = document.createElement("div");
+                row.className = "assignment-row";
+
+                const hiddenInput = document.createElement("input");
+                hiddenInput.type = "hidden";
+                hiddenInput.name = "assignment_subject_codes";
+                hiddenInput.value = subjectCode;
+                row.appendChild(hiddenInput);
+
+                const subjectBlock = document.createElement("div");
+                subjectBlock.className = "assignment-subject";
+
+                const subjectTitle = document.createElement("strong");
+                subjectTitle.textContent = `${subjectCode} - ${subject.subject_name}`;
+                subjectBlock.appendChild(subjectTitle);
+
+                const subjectMeta = document.createElement("small");
+                subjectMeta.textContent = `${subject.weekly_hours} hours/week for this section`;
+                subjectBlock.appendChild(subjectMeta);
+
+                row.appendChild(subjectBlock);
+
+                const selectBlock = document.createElement("div");
+                selectBlock.className = "assignment-select";
+
+                const selectLabel = document.createElement("label");
+                selectLabel.htmlFor = `assignment_${subjectCode}`;
+                selectLabel.textContent = "Assigned Teacher";
+                selectBlock.appendChild(selectLabel);
+
+                const select = document.createElement("select");
+                select.id = `assignment_${subjectCode}`;
+                select.name = "assignment_teacher_ids";
+                select.dataset.subjectCode = subjectCode;
+
+                const emptyOption = document.createElement("option");
+                emptyOption.value = "";
+                emptyOption.textContent = "Not Assigned";
+                select.appendChild(emptyOption);
+
+                teacherOptions.forEach((teacher) => {
+                    const option = document.createElement("option");
+                    option.value = String(teacher.id);
+                    option.textContent = teacher.label;
+                    if (String(selectedTeacherId) === String(teacher.id)) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+
+                selectBlock.appendChild(select);
+                row.appendChild(selectBlock);
+                assignmentRows.appendChild(row);
+            });
+
+            assignmentEmpty.style.display = "none";
+        };
+
         if (gradeSelect) {
-            gradeSelect.addEventListener("change", renderAlignedSubjectsPreview);
+            gradeSelect.addEventListener("change", () => {
+                renderAlignedSubjectsPreview();
+                renderAssignmentRows();
+            });
             renderAlignedSubjectsPreview();
+            renderAssignmentRows();
         }
     </script>
 {% endblock %}

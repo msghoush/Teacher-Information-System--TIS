@@ -95,6 +95,15 @@ def _get_subject_choices(db: Session, branch_id: int, academic_year_id: int):
     ]
 
 
+def _format_section_label(section) -> str:
+    if not section:
+        return "-"
+    grade_value = str(section.grade_level or "").strip().upper()
+    if grade_value == "KG":
+        return f"KG-{section.section_name}"
+    return f"Grade {grade_value}-{section.section_name}"
+
+
 def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_year_id: int):
     teacher_ids = [teacher.id for teacher in teachers if getattr(teacher, "id", None)]
     if not teacher_ids:
@@ -129,6 +138,7 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
             "subject_codes": [],
             "subject_labels": [],
             "allocated_hours": 0,
+            "teaching_load_labels": [],
             "required_hours": (
                 (teacher.max_hours or STANDARD_MAX_HOURS)
                 + (
@@ -161,7 +171,75 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
         teacher_data["subject_labels"].append(
             f"{allocation.subject_code} - {subject_name} (Grade {subject_grade}, {subject_hours}h)"
         )
+
+    section_assignments = db.query(models.TeacherSectionAssignment).filter(
+        models.TeacherSectionAssignment.teacher_id.in_(teacher_ids)
+    ).order_by(
+        models.TeacherSectionAssignment.teacher_id.asc(),
+        models.TeacherSectionAssignment.subject_code.asc(),
+        models.TeacherSectionAssignment.planning_section_id.asc(),
+    ).all()
+
+    planning_section_ids = sorted({
+        assignment.planning_section_id
+        for assignment in section_assignments
+        if assignment.planning_section_id
+    })
+    planning_sections_by_id = {}
+    if planning_section_ids:
+        planning_sections_by_id = {
+            section.id: section
+            for section in db.query(models.PlanningSection).filter(
+                models.PlanningSection.id.in_(planning_section_ids),
+                models.PlanningSection.branch_id == branch_id,
+                models.PlanningSection.academic_year_id == academic_year_id,
+            ).all()
+        }
+
+    teaching_load_map = {}
+    for assignment in section_assignments:
+        teacher_data = allocation_map.get(assignment.teacher_id)
+        if not teacher_data:
+            continue
+        subject = subjects_by_code.get(assignment.subject_code)
+        if not subject:
+            continue
+        subject_hours = int(subject.weekly_hours or 0)
+        section = planning_sections_by_id.get(assignment.planning_section_id)
+        section_label = _format_section_label(section)
+        subject_key = (assignment.teacher_id, assignment.subject_code)
+        subject_entry = teaching_load_map.setdefault(
+            subject_key,
+            {
+                "subject_code": assignment.subject_code,
+                "subject_name": subject.subject_name or "Unnamed Subject",
+                "hours": 0,
+                "sections": [],
+            },
+        )
+        subject_entry["hours"] += subject_hours
+        subject_entry["sections"].append(section_label)
         teacher_data["allocated_hours"] += subject_hours
+
+    for teacher in teachers:
+        teacher_data = allocation_map.get(teacher.id)
+        if not teacher_data:
+            continue
+        teacher_entries = [
+            data
+            for (teacher_id, _), data in teaching_load_map.items()
+            if teacher_id == teacher.id
+        ]
+        teacher_entries.sort(
+            key=lambda item: (item["subject_code"], item["subject_name"])
+        )
+        teacher_data["teaching_load_labels"] = [
+            (
+                f"{entry['subject_code']} - {entry['subject_name']} | "
+                f"Sections: {', '.join(entry['sections'])} | {entry['hours']}h"
+            )
+            for entry in teacher_entries
+        ]
 
     for teacher in teachers:
         teacher_data = allocation_map.get(teacher.id, {})
@@ -326,29 +404,6 @@ def create_teacher(
             errors.append("Extra hours count must be a positive whole number when extra hours are allowed.")
     else:
         parsed_extra_hours_count = 0
-
-    if parsed_max_hours is not None and parsed_max_hours > 0 and subject_map:
-        allocated_subject_hours = sum(
-            (subject_map[code].weekly_hours or 0)
-            for code in normalized_subject_codes
-            if code in subject_map
-        )
-        required_allocation_hours = parsed_max_hours + (
-            parsed_extra_hours_count if allowed_extra and parsed_extra_hours_count else 0
-        )
-        if allocated_subject_hours > required_allocation_hours:
-            guidance = (
-                "Enable Extra Hours Allowed and set Extra Hours Count to cover the additional hours."
-                if (not allowed_extra and allocated_subject_hours > STANDARD_MAX_HOURS)
-                else "Reduce assigned subjects or increase allowed extra hours."
-            )
-            errors.append(
-                "Allocated subject hours "
-                f"({allocated_subject_hours}) exceed allowed capacity "
-                f"({required_allocation_hours}) based on Max Hours ({parsed_max_hours}) "
-                f"+ Extra Hours ({parsed_extra_hours_count if allowed_extra else 0}). "
-                + guidance
-            )
 
     duplicate_teacher = db.query(models.Teacher).filter(
         models.Teacher.teacher_id == teacher_id
@@ -551,29 +606,6 @@ def update_teacher(
     else:
         parsed_extra_hours_count = 0
 
-    if parsed_max_hours is not None and parsed_max_hours > 0 and subject_map:
-        allocated_subject_hours = sum(
-            (subject_map[code].weekly_hours or 0)
-            for code in normalized_subject_codes
-            if code in subject_map
-        )
-        required_allocation_hours = parsed_max_hours + (
-            parsed_extra_hours_count if allowed_extra and parsed_extra_hours_count else 0
-        )
-        if allocated_subject_hours > required_allocation_hours:
-            guidance = (
-                "Enable Extra Hours Allowed and set Extra Hours Count to cover the additional hours."
-                if (not allowed_extra and allocated_subject_hours > STANDARD_MAX_HOURS)
-                else "Reduce assigned subjects or increase allowed extra hours."
-            )
-            errors.append(
-                "Allocated subject hours "
-                f"({allocated_subject_hours}) exceed allowed capacity "
-                f"({required_allocation_hours}) based on Max Hours ({parsed_max_hours}) "
-                f"+ Extra Hours ({parsed_extra_hours_count if allowed_extra else 0}). "
-                + guidance
-            )
-
     duplicate_teacher = db.query(models.Teacher).filter(
         models.Teacher.teacher_id == teacher_id,
         models.Teacher.id != teacher.id
@@ -677,6 +709,9 @@ def delete_teacher(
         models.Teacher.academic_year_id == academic_year_id
     ).first()
     if teacher:
+        db.query(models.TeacherSectionAssignment).filter(
+            models.TeacherSectionAssignment.teacher_id == teacher.id
+        ).delete(synchronize_session=False)
         db.query(models.TeacherSubjectAllocation).filter(
             models.TeacherSubjectAllocation.teacher_id == teacher.id
         ).delete(synchronize_session=False)
@@ -732,6 +767,9 @@ def delete_teachers_bulk(
         )
 
     teacher_ids_to_delete = list(teacher_map.keys())
+    db.query(models.TeacherSectionAssignment).filter(
+        models.TeacherSectionAssignment.teacher_id.in_(teacher_ids_to_delete)
+    ).delete(synchronize_session=False)
     db.query(models.TeacherSubjectAllocation).filter(
         models.TeacherSubjectAllocation.teacher_id.in_(teacher_ids_to_delete)
     ).delete(synchronize_session=False)
