@@ -558,30 +558,28 @@
 
         <section class="grid">
             <div class="stack">
+                {% if can_copy_year_data %}
                 <article class="card tools">
                     <h2>Copy From Academic Year</h2>
                     <p>Bring subject records from another academic year into the current branch/year scope. Existing subject codes in the target year stay untouched.</p>
 
-                    {% if can_modify %}
-                        {% if copy_year_choices %}
-                        <form method="post" action="/subjects/copy-from-year" onsubmit="return confirm('Copy subjects into {{ shell.academic_year_name }}? Existing subject codes in the current year will be kept.');">
-                            <div class="field">
-                                <label for="copy_subjects_source_academic_year_id">Source Academic Year</label>
-                                <select id="copy_subjects_source_academic_year_id" name="source_academic_year_id" required>
-                                    {% for year in copy_year_choices %}
-                                    <option value="{{ year.id }}">{{ year.year_name }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <button class="btn-save" type="submit" style="margin-top: 10px;">Copy Subjects Into Current Year</button>
-                        </form>
-                        {% else %}
-                        <div class="empty">No other academic years are available to copy from.</div>
-                        {% endif %}
+                    {% if copy_year_choices %}
+                    <form method="post" action="/subjects/copy-from-year" onsubmit="return confirm('Copy subjects into {{ shell.academic_year_name }}? Existing subject codes in the current year will be kept.');">
+                        <div class="field">
+                            <label for="copy_subjects_source_academic_year_id">Source Academic Year</label>
+                            <select id="copy_subjects_source_academic_year_id" name="source_academic_year_id" required>
+                                {% for year in copy_year_choices %}
+                                <option value="{{ year.id }}">{{ year.year_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button class="btn-save" type="submit" style="margin-top: 10px;">Copy Subjects Into Current Year</button>
+                    </form>
                     {% else %}
-                    <div class="empty">Your role is read-only. You can view subjects but cannot copy them into another year scope.</div>
+                    <div class="empty">No other academic years are available to copy from.</div>
                     {% endif %}
                 </article>
+                {% endif %}
 
                 <article class="card">
                     <h2>Add Subject</h2>

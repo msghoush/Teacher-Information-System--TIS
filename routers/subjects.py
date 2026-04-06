@@ -236,11 +236,16 @@ def _render_subjects_page(
     can_modify = auth.can_modify_data(current_user)
     can_edit = auth.can_edit_data(current_user)
     can_delete = auth.can_delete_data(current_user)
+    can_copy_year_data = auth.is_developer(current_user)
     subjects = db.query(models.Subject).filter(
         models.Subject.branch_id == branch_id,
         models.Subject.academic_year_id == academic_year_id
     ).order_by(models.Subject.id.desc()).all()
-    copy_year_choices = get_copy_year_choices(db, academic_year_id)
+    copy_year_choices = (
+        get_copy_year_choices(db, academic_year_id)
+        if can_copy_year_data
+        else []
+    )
 
     return templates.TemplateResponse(
         request,
@@ -252,6 +257,7 @@ def _render_subjects_page(
             "can_modify": can_modify,
             "can_edit": can_edit,
             "can_delete": can_delete,
+            "can_copy_year_data": can_copy_year_data,
             "error": error,
             "success": success,
             "detail_errors": detail_errors or [],
@@ -293,12 +299,12 @@ def copy_subjects_from_year(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_modify_data(current_user):
+    if not auth.is_developer(current_user):
         return _render_subjects_page(
             request=request,
             db=db,
             current_user=current_user,
-            error="Your role has read-only access and cannot copy subjects.",
+            error="Only the developer user can copy subjects between academic years.",
         )
 
     branch_id, target_academic_year_id = _get_scope_ids(current_user)

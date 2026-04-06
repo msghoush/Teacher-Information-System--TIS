@@ -380,7 +380,12 @@ def _render_planning_page(
     can_modify = auth.can_modify_data(current_user)
     can_edit = auth.can_edit_data(current_user)
     can_delete = auth.can_delete_data(current_user)
-    copy_year_choices = get_copy_year_choices(db, academic_year_id)
+    can_copy_year_data = auth.is_developer(current_user)
+    copy_year_choices = (
+        get_copy_year_choices(db, academic_year_id)
+        if can_copy_year_data
+        else []
+    )
 
     planning_sections = db.query(models.PlanningSection).filter(
         models.PlanningSection.branch_id == branch_id,
@@ -453,6 +458,7 @@ def _render_planning_page(
             "can_modify": can_modify,
             "can_edit": can_edit,
             "can_delete": can_delete,
+            "can_copy_year_data": can_copy_year_data,
             "error": error,
             "success": success,
             "detail_errors": detail_errors or [],
@@ -603,12 +609,12 @@ def copy_planning_from_year(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_modify_data(current_user):
+    if not auth.is_developer(current_user):
         return _render_planning_page(
             request=request,
             db=db,
             current_user=current_user,
-            error="Your role has read-only access and cannot copy planning data.",
+            error="Only the developer user can copy planning data between academic years.",
         )
 
     branch_id, target_academic_year_id = _get_scope_ids(current_user)

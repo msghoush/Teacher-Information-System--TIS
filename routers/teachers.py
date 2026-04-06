@@ -435,7 +435,12 @@ def _render_teachers_page(
     can_modify = auth.can_modify_data(current_user)
     can_edit = auth.can_edit_data(current_user)
     can_delete = auth.can_delete_data(current_user)
-    copy_year_choices = get_copy_year_choices(db, academic_year_id)
+    can_copy_year_data = auth.is_developer(current_user)
+    copy_year_choices = (
+        get_copy_year_choices(db, academic_year_id)
+        if can_copy_year_data
+        else []
+    )
 
     teachers = db.query(models.Teacher).filter(
         models.Teacher.branch_id == branch_id,
@@ -476,6 +481,7 @@ def _render_teachers_page(
             "can_modify": can_modify,
             "can_edit": can_edit,
             "can_delete": can_delete,
+            "can_copy_year_data": can_copy_year_data,
             "error": error,
             "success": success,
             "detail_errors": detail_errors or [],
@@ -638,12 +644,12 @@ def copy_teachers_from_year(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_modify_data(current_user):
+    if not auth.is_developer(current_user):
         return _render_teachers_page(
             request=request,
             db=db,
             current_user=current_user,
-            error="Your role has read-only access and cannot copy teachers.",
+            error="Only the developer user can copy teachers between academic years.",
         )
 
     branch_id, target_academic_year_id = _get_scope_ids(current_user)
