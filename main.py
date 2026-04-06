@@ -2688,6 +2688,204 @@ def _ensure_teachers_table_columns():
         )
 
 
+def _is_scope_teacher_unique_definition(columns) -> bool:
+    return tuple(columns or []) == ("branch_id", "academic_year_id", "teacher_id")
+
+
+def _is_global_teacher_unique_definition(columns) -> bool:
+    return tuple(columns or []) == ("teacher_id",)
+
+
+def _ensure_teacher_scope_schema_sqlite():
+    with engine.begin() as connection:
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        connection.execute(text("DROP INDEX IF EXISTS uq_teachers_scope_teacher_id"))
+        connection.execute(text("ALTER TABLE teachers RENAME TO teachers_legacy_scope_unique"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE teachers (
+                    id INTEGER NOT NULL,
+                    teacher_id VARCHAR(10),
+                    first_name VARCHAR,
+                    middle_name VARCHAR,
+                    last_name VARCHAR,
+                    subject_code VARCHAR,
+                    level VARCHAR,
+                    max_hours INTEGER,
+                    extra_hours_allowed BOOLEAN DEFAULT FALSE,
+                    extra_hours_count INTEGER DEFAULT 0,
+                    branch_id INTEGER,
+                    academic_year_id INTEGER,
+                    PRIMARY KEY (id),
+                    FOREIGN KEY(branch_id) REFERENCES branches (id),
+                    FOREIGN KEY(academic_year_id) REFERENCES academic_years (id)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO teachers (
+                    id,
+                    teacher_id,
+                    first_name,
+                    middle_name,
+                    last_name,
+                    subject_code,
+                    level,
+                    max_hours,
+                    extra_hours_allowed,
+                    extra_hours_count,
+                    branch_id,
+                    academic_year_id
+                )
+                SELECT
+                    id,
+                    teacher_id,
+                    first_name,
+                    middle_name,
+                    last_name,
+                    subject_code,
+                    level,
+                    max_hours,
+                    COALESCE(extra_hours_allowed, FALSE),
+                    COALESCE(extra_hours_count, 0),
+                    branch_id,
+                    academic_year_id
+                FROM teachers_legacy_scope_unique
+                """
+            )
+        )
+        connection.execute(text("DROP TABLE teachers_legacy_scope_unique"))
+        connection.execute(
+            text(
+                """
+                CREATE UNIQUE INDEX uq_teachers_scope_teacher_id
+                ON teachers (branch_id, academic_year_id, teacher_id)
+                """
+            )
+        )
+        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+
+
+def _ensure_teacher_scope_schema_non_sqlite(
+    teacher_unique_constraints,
+    teacher_indexes,
+):
+    dialect = engine.dialect.name
+    with engine.begin() as connection:
+        for unique_constraint in teacher_unique_constraints:
+            constraint_name = unique_constraint.get("name")
+            constrained_columns = unique_constraint.get("column_names") or []
+            if not constraint_name or not _is_global_teacher_unique_definition(constrained_columns):
+                continue
+
+            if dialect == "postgresql":
+                connection.execute(
+                    text(
+                        f'ALTER TABLE "teachers" '
+                        f'DROP CONSTRAINT IF EXISTS "{constraint_name}"'
+                    )
+                )
+            elif dialect in {"mysql", "mariadb"}:
+                connection.execute(
+                    text(
+                        "ALTER TABLE teachers "
+                        f"DROP INDEX `{constraint_name}`"
+                    )
+                )
+
+        for teacher_index in teacher_indexes:
+            index_name = teacher_index.get("name")
+            constrained_columns = teacher_index.get("column_names") or []
+            if not index_name or not teacher_index.get("unique"):
+                continue
+            if not _is_global_teacher_unique_definition(constrained_columns):
+                continue
+
+            if dialect == "postgresql":
+                connection.execute(
+                    text(f'DROP INDEX IF EXISTS "{index_name}"')
+                )
+            elif dialect in {"mysql", "mariadb"}:
+                connection.execute(
+                    text(f"DROP INDEX `{index_name}` ON teachers")
+                )
+
+        if dialect == "postgresql":
+            connection.execute(
+                text(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS uq_teachers_scope_teacher_id
+                    ON teachers (branch_id, academic_year_id, teacher_id)
+                    """
+                )
+            )
+        elif dialect in {"mysql", "mariadb"}:
+            scoped_index_exists = any(
+                teacher_index.get("name") == "uq_teachers_scope_teacher_id"
+                for teacher_index in teacher_indexes
+            )
+            if not scoped_index_exists:
+                connection.execute(
+                    text(
+                        """
+                        CREATE UNIQUE INDEX uq_teachers_scope_teacher_id
+                        ON teachers (branch_id, academic_year_id, teacher_id)
+                        """
+                    )
+                )
+
+
+def _ensure_teacher_scope_schema():
+    inspector = inspect(engine)
+    if "teachers" not in inspector.get_table_names():
+        return
+
+    teacher_unique_constraints = inspector.get_unique_constraints("teachers")
+    teacher_indexes = inspector.get_indexes("teachers")
+
+    has_scoped_unique = any(
+        _is_scope_teacher_unique_definition(
+            unique_constraint.get("column_names") or []
+        )
+        for unique_constraint in teacher_unique_constraints
+    ) or any(
+        teacher_index.get("unique")
+        and _is_scope_teacher_unique_definition(
+            teacher_index.get("column_names") or []
+        )
+        for teacher_index in teacher_indexes
+    )
+
+    has_global_teacher_unique = any(
+        _is_global_teacher_unique_definition(
+            unique_constraint.get("column_names") or []
+        )
+        for unique_constraint in teacher_unique_constraints
+    ) or any(
+        teacher_index.get("unique")
+        and _is_global_teacher_unique_definition(
+            teacher_index.get("column_names") or []
+        )
+        for teacher_index in teacher_indexes
+    )
+
+    if has_scoped_unique and not has_global_teacher_unique:
+        return
+
+    if engine.dialect.name == "sqlite":
+        _ensure_teacher_scope_schema_sqlite()
+        return
+
+    _ensure_teacher_scope_schema_non_sqlite(
+        teacher_unique_constraints=teacher_unique_constraints,
+        teacher_indexes=teacher_indexes,
+    )
+
+
 def _is_subject_code_foreign_key(foreign_key) -> bool:
     constrained_columns = set(foreign_key.get("constrained_columns") or [])
     referred_columns = set(foreign_key.get("referred_columns") or [])
@@ -3195,6 +3393,7 @@ def setup_initial_data():
 
     _ensure_users_table_columns()
     _ensure_teachers_table_columns()
+    _ensure_teacher_scope_schema()
     _ensure_subject_scope_schema()
     _seed_teacher_subject_allocations()
     db = SessionLocal()

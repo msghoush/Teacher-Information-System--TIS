@@ -56,8 +56,18 @@ class Subject(Base):
 
 class Teacher(Base):
     __tablename__ = "teachers"
+    __table_args__ = (
+        Index(
+            "uq_teachers_scope_teacher_id",
+            "branch_id",
+            "academic_year_id",
+            "teacher_id",
+            unique=True,
+        ),
+    )
+
     id = Column(Integer, primary_key=True)
-    teacher_id = Column(String(10), unique=True)
+    teacher_id = Column(String(10))
     first_name = Column(String)
     middle_name = Column(String)
     last_name = Column(String)

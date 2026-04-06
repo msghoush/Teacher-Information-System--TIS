@@ -16,6 +16,7 @@ import models
 from dependencies import get_db
 from auth import get_current_user
 from ui_shell import build_shell_context
+from year_copy import get_copy_year_choices, get_academic_year
 
 router = APIRouter(prefix="/subjects", tags=["Subjects"])
 templates = Jinja2Templates(directory="templates")
@@ -239,6 +240,7 @@ def _render_subjects_page(
         models.Subject.branch_id == branch_id,
         models.Subject.academic_year_id == academic_year_id
     ).order_by(models.Subject.id.desc()).all()
+    copy_year_choices = get_copy_year_choices(db, academic_year_id)
 
     return templates.TemplateResponse(
         request,
@@ -253,6 +255,7 @@ def _render_subjects_page(
             "error": error,
             "success": success,
             "detail_errors": detail_errors or [],
+            "copy_year_choices": copy_year_choices,
             **build_shell_context(
                 request,
                 db,
@@ -277,6 +280,114 @@ def subjects_page(
         request=request,
         db=db,
         current_user=current_user
+    )
+
+
+@router.post("/copy-from-year")
+def copy_subjects_from_year(
+    request: Request,
+    source_academic_year_id: int = Form(...),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    if not auth.can_modify_data(current_user):
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Your role has read-only access and cannot copy subjects.",
+        )
+
+    branch_id, target_academic_year_id = _get_scope_ids(current_user)
+    if source_academic_year_id == target_academic_year_id:
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Select a different academic year to copy subjects from.",
+        )
+
+    source_year = get_academic_year(db, source_academic_year_id)
+    target_year = get_academic_year(db, target_academic_year_id)
+    if not source_year or not target_year:
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="The selected academic year was not found.",
+        )
+
+    source_subjects = (
+        db.query(models.Subject)
+        .filter(
+            models.Subject.branch_id == branch_id,
+            models.Subject.academic_year_id == source_academic_year_id,
+        )
+        .order_by(models.Subject.grade.asc(), models.Subject.subject_code.asc())
+        .all()
+    )
+    if not source_subjects:
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error=f"No subjects were found in {source_year.year_name} for the current branch.",
+        )
+
+    target_subject_codes = {
+        subject_code
+        for (subject_code,) in (
+            db.query(models.Subject.subject_code)
+            .filter(
+                models.Subject.branch_id == branch_id,
+                models.Subject.academic_year_id == target_academic_year_id,
+            )
+            .all()
+        )
+        if subject_code
+    }
+
+    copied_count = 0
+    skipped_existing_count = 0
+    for source_subject in source_subjects:
+        if not source_subject.subject_code:
+            continue
+        if source_subject.subject_code in target_subject_codes:
+            skipped_existing_count += 1
+            continue
+
+        db.add(
+            models.Subject(
+                subject_code=source_subject.subject_code,
+                subject_name=source_subject.subject_name,
+                weekly_hours=source_subject.weekly_hours,
+                grade=source_subject.grade,
+                branch_id=branch_id,
+                academic_year_id=target_academic_year_id,
+            )
+        )
+        target_subject_codes.add(source_subject.subject_code)
+        copied_count += 1
+
+    if copied_count:
+        db.commit()
+
+    success_parts = [
+        f"Subjects copied from {source_year.year_name} to {target_year.year_name}: {copied_count} added.",
+    ]
+    if skipped_existing_count:
+        success_parts.append(f"{skipped_existing_count} already existed and were skipped.")
+    if not copied_count and not skipped_existing_count:
+        success_parts.append("No subject rows were eligible to copy.")
+
+    return _render_subjects_page(
+        request=request,
+        db=db,
+        current_user=current_user,
+        success=" ".join(success_parts),
     )
 
 

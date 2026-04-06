@@ -1,3 +1,4 @@
+from collections import defaultdict
 import re
 
 from fastapi import APIRouter, Request, Form, Depends
@@ -11,6 +12,7 @@ import models
 from dependencies import get_db
 from auth import get_current_user
 from ui_shell import build_shell_context
+from year_copy import get_copy_year_choices, get_academic_year
 
 router = APIRouter(prefix="/teachers", tags=["Teachers"])
 templates = Jinja2Templates(directory="templates")
@@ -433,6 +435,7 @@ def _render_teachers_page(
     can_modify = auth.can_modify_data(current_user)
     can_edit = auth.can_edit_data(current_user)
     can_delete = auth.can_delete_data(current_user)
+    copy_year_choices = get_copy_year_choices(db, academic_year_id)
 
     teachers = db.query(models.Teacher).filter(
         models.Teacher.branch_id == branch_id,
@@ -479,6 +482,7 @@ def _render_teachers_page(
             "form_data": normalized_form_data,
             "selected_subject_codes": selected_subject_codes or [],
             "selected_section_assignment_values": selected_section_assignment_values or [],
+            "copy_year_choices": copy_year_choices,
             "user": current_user,
             **build_shell_context(
                 request,
@@ -624,6 +628,322 @@ def teachers_page(
     )
 
 
+@router.post("/copy-from-year")
+def copy_teachers_from_year(
+    request: Request,
+    source_academic_year_id: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    if not auth.can_modify_data(current_user):
+        return _render_teachers_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Your role has read-only access and cannot copy teachers.",
+        )
+
+    branch_id, target_academic_year_id = _get_scope_ids(current_user)
+    if source_academic_year_id == target_academic_year_id:
+        return _render_teachers_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Select a different academic year to copy teachers from.",
+        )
+
+    source_year = get_academic_year(db, source_academic_year_id)
+    target_year = get_academic_year(db, target_academic_year_id)
+    if not source_year or not target_year:
+        return _render_teachers_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="The selected academic year was not found.",
+        )
+
+    source_teachers = (
+        db.query(models.Teacher)
+        .filter(
+            models.Teacher.branch_id == branch_id,
+            models.Teacher.academic_year_id == source_academic_year_id,
+        )
+        .order_by(
+            models.Teacher.first_name.asc(),
+            models.Teacher.last_name.asc(),
+            models.Teacher.id.asc(),
+        )
+        .all()
+    )
+    if not source_teachers:
+        return _render_teachers_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error=f"No teachers were found in {source_year.year_name} for the current branch.",
+        )
+
+    source_teacher_ids = [
+        teacher.id for teacher in source_teachers if getattr(teacher, "id", None)
+    ]
+    source_subject_codes_by_teacher = {
+        teacher_id: set() for teacher_id in source_teacher_ids
+    }
+    if source_teacher_ids:
+        source_allocations = (
+            db.query(models.TeacherSubjectAllocation)
+            .filter(models.TeacherSubjectAllocation.teacher_id.in_(source_teacher_ids))
+            .all()
+        )
+    else:
+        source_allocations = []
+
+    for allocation in source_allocations:
+        if allocation.subject_code:
+            source_subject_codes_by_teacher.setdefault(allocation.teacher_id, set()).add(
+                allocation.subject_code
+            )
+
+    source_assignments_by_teacher = defaultdict(list)
+    source_section_ids = set()
+    if source_teacher_ids:
+        source_section_assignments = (
+            db.query(models.TeacherSectionAssignment)
+            .filter(models.TeacherSectionAssignment.teacher_id.in_(source_teacher_ids))
+            .all()
+        )
+    else:
+        source_section_assignments = []
+
+    for assignment in source_section_assignments:
+        source_assignments_by_teacher[assignment.teacher_id].append(assignment)
+        source_section_ids.add(assignment.planning_section_id)
+
+    source_sections_by_id = {}
+    if source_section_ids:
+        source_sections_by_id = {
+            section.id: section
+            for section in db.query(models.PlanningSection).filter(
+                models.PlanningSection.id.in_(source_section_ids),
+                models.PlanningSection.branch_id == branch_id,
+                models.PlanningSection.academic_year_id == source_academic_year_id,
+            ).all()
+        }
+
+    target_subject_codes = {
+        subject_code
+        for (subject_code,) in (
+            db.query(models.Subject.subject_code)
+            .filter(
+                models.Subject.branch_id == branch_id,
+                models.Subject.academic_year_id == target_academic_year_id,
+            )
+            .all()
+        )
+        if subject_code
+    }
+
+    target_teachers = (
+        db.query(models.Teacher)
+        .filter(
+            models.Teacher.branch_id == branch_id,
+            models.Teacher.academic_year_id == target_academic_year_id,
+        )
+        .all()
+    )
+    target_teachers_by_teacher_id = {
+        teacher.teacher_id: teacher
+        for teacher in target_teachers
+        if teacher.teacher_id
+    }
+
+    target_teacher_ids = [
+        teacher.id for teacher in target_teachers if getattr(teacher, "id", None)
+    ]
+    existing_target_allocation_keys = set()
+    if target_teacher_ids:
+        for allocation in db.query(models.TeacherSubjectAllocation).filter(
+            models.TeacherSubjectAllocation.teacher_id.in_(target_teacher_ids)
+        ).all():
+            existing_target_allocation_keys.add(
+                (allocation.teacher_id, allocation.subject_code)
+            )
+
+    target_sections = (
+        db.query(models.PlanningSection)
+        .filter(
+            models.PlanningSection.branch_id == branch_id,
+            models.PlanningSection.academic_year_id == target_academic_year_id,
+        )
+        .all()
+    )
+    target_sections_by_key = {
+        (section.grade_level, section.section_name): section
+        for section in target_sections
+    }
+    target_section_ids = [
+        section.id for section in target_sections if getattr(section, "id", None)
+    ]
+    existing_target_assignment_keys = set()
+    if target_section_ids:
+        for assignment in db.query(models.TeacherSectionAssignment).filter(
+            models.TeacherSectionAssignment.planning_section_id.in_(target_section_ids)
+        ).all():
+            existing_target_assignment_keys.add(
+                (assignment.planning_section_id, assignment.subject_code)
+            )
+
+    created_teacher_count = 0
+    reused_teacher_count = 0
+    copied_subject_link_count = 0
+    copied_section_assignment_count = 0
+    skipped_missing_teacher_id_count = 0
+    skipped_missing_subject_count = 0
+    skipped_missing_section_count = 0
+    skipped_occupied_section_count = 0
+
+    for source_teacher in source_teachers:
+        normalized_teacher_id = _normalize_teacher_id(source_teacher.teacher_id or "")
+        if not normalized_teacher_id:
+            skipped_missing_teacher_id_count += 1
+            continue
+
+        target_teacher = target_teachers_by_teacher_id.get(normalized_teacher_id)
+        if target_teacher is None:
+            target_teacher = models.Teacher(
+                teacher_id=normalized_teacher_id,
+                first_name=source_teacher.first_name,
+                middle_name=source_teacher.middle_name,
+                last_name=source_teacher.last_name,
+                subject_code=None,
+                level=source_teacher.level,
+                max_hours=source_teacher.max_hours or STANDARD_MAX_HOURS,
+                extra_hours_allowed=bool(source_teacher.extra_hours_allowed),
+                extra_hours_count=source_teacher.extra_hours_count or 0,
+                branch_id=branch_id,
+                academic_year_id=target_academic_year_id,
+            )
+            db.add(target_teacher)
+            db.flush()
+            target_teachers_by_teacher_id[normalized_teacher_id] = target_teacher
+            created_teacher_count += 1
+        else:
+            reused_teacher_count += 1
+
+        source_subject_codes = set(source_subject_codes_by_teacher.get(source_teacher.id, set()))
+        fallback_subject_code = str(source_teacher.subject_code or "").strip().upper()
+        if fallback_subject_code:
+            source_subject_codes.add(fallback_subject_code)
+
+        valid_subject_codes = []
+        for subject_code in sorted(source_subject_codes):
+            if subject_code not in target_subject_codes:
+                skipped_missing_subject_count += 1
+                continue
+
+            valid_subject_codes.append(subject_code)
+            allocation_key = (target_teacher.id, subject_code)
+            if allocation_key in existing_target_allocation_keys:
+                continue
+
+            db.add(
+                models.TeacherSubjectAllocation(
+                    teacher_id=target_teacher.id,
+                    subject_code=subject_code,
+                )
+            )
+            existing_target_allocation_keys.add(allocation_key)
+            copied_subject_link_count += 1
+
+        if not target_teacher.subject_code and valid_subject_codes:
+            target_teacher.subject_code = valid_subject_codes[0]
+
+        for source_assignment in source_assignments_by_teacher.get(source_teacher.id, []):
+            subject_code = str(source_assignment.subject_code or "").strip().upper()
+            if not subject_code:
+                continue
+            if subject_code not in target_subject_codes:
+                skipped_missing_subject_count += 1
+                continue
+
+            source_section = source_sections_by_id.get(source_assignment.planning_section_id)
+            if not source_section:
+                skipped_missing_section_count += 1
+                continue
+
+            target_section = target_sections_by_key.get(
+                (source_section.grade_level, source_section.section_name)
+            )
+            if not target_section:
+                skipped_missing_section_count += 1
+                continue
+
+            allocation_key = (target_teacher.id, subject_code)
+            if allocation_key not in existing_target_allocation_keys:
+                db.add(
+                    models.TeacherSubjectAllocation(
+                        teacher_id=target_teacher.id,
+                        subject_code=subject_code,
+                    )
+                )
+                existing_target_allocation_keys.add(allocation_key)
+                copied_subject_link_count += 1
+
+            assignment_key = (target_section.id, subject_code)
+            if assignment_key in existing_target_assignment_keys:
+                skipped_occupied_section_count += 1
+                continue
+
+            db.add(
+                models.TeacherSectionAssignment(
+                    teacher_id=target_teacher.id,
+                    planning_section_id=target_section.id,
+                    subject_code=subject_code,
+                )
+            )
+            existing_target_assignment_keys.add(assignment_key)
+            copied_section_assignment_count += 1
+
+    db.commit()
+
+    success_parts = [
+        (
+            f"Teachers copied from {source_year.year_name} to {target_year.year_name}: "
+            f"{created_teacher_count} profiles added"
+        ),
+        f"{copied_subject_link_count} subject links added",
+        f"{copied_section_assignment_count} section-teaching links added.",
+    ]
+    if reused_teacher_count:
+        success_parts.append(f"{reused_teacher_count} existing teacher profiles were reused.")
+    if skipped_missing_teacher_id_count:
+        success_parts.append(
+            f"{skipped_missing_teacher_id_count} source teachers without an ID were skipped."
+        )
+    if skipped_missing_subject_count:
+        success_parts.append(
+            f"{skipped_missing_subject_count} subject links were skipped because the subject does not exist in the target year."
+        )
+    if skipped_missing_section_count:
+        success_parts.append(
+            f"{skipped_missing_section_count} section links were skipped because the matching planning section does not exist in the target year."
+        )
+    if skipped_occupied_section_count:
+        success_parts.append(
+            f"{skipped_occupied_section_count} section links were skipped because that section already has a teacher for the subject."
+        )
+
+    return _render_teachers_page(
+        request=request,
+        db=db,
+        current_user=current_user,
+        success=" ".join(success_parts),
+    )
+
+
 @router.post("/")
 def create_teacher(
     request: Request,
@@ -747,10 +1067,12 @@ def create_teacher(
             )
 
     duplicate_teacher = db.query(models.Teacher).filter(
-        models.Teacher.teacher_id == teacher_id
+        models.Teacher.teacher_id == teacher_id,
+        models.Teacher.branch_id == branch_id,
+        models.Teacher.academic_year_id == academic_year_id,
     ).first()
     if duplicate_teacher:
-        errors.append("Teacher ID already exists.")
+        errors.append("Teacher ID already exists in the current branch and academic year.")
 
     if errors:
         return _render_teachers_page(
@@ -994,10 +1316,12 @@ def update_teacher(
 
     duplicate_teacher = db.query(models.Teacher).filter(
         models.Teacher.teacher_id == teacher_id,
+        models.Teacher.branch_id == branch_id,
+        models.Teacher.academic_year_id == academic_year_id,
         models.Teacher.id != teacher.id
     ).first()
     if duplicate_teacher:
-        errors.append("Teacher ID already exists.")
+        errors.append("Teacher ID already exists in the current branch and academic year.")
 
     if errors:
         return _render_edit_teacher_page(

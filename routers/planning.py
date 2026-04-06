@@ -9,6 +9,7 @@ import models
 from dependencies import get_db
 from auth import get_current_user
 from ui_shell import build_shell_context
+from year_copy import get_copy_year_choices, get_academic_year
 
 router = APIRouter(prefix="/planning", tags=["Planning"])
 templates = Jinja2Templates(directory="templates")
@@ -379,6 +380,7 @@ def _render_planning_page(
     can_modify = auth.can_modify_data(current_user)
     can_edit = auth.can_edit_data(current_user)
     can_delete = auth.can_delete_data(current_user)
+    copy_year_choices = get_copy_year_choices(db, academic_year_id)
 
     planning_sections = db.query(models.PlanningSection).filter(
         models.PlanningSection.branch_id == branch_id,
@@ -455,6 +457,7 @@ def _render_planning_page(
             "success": success,
             "detail_errors": detail_errors or [],
             "form_data": normalized_form_data,
+            "copy_year_choices": copy_year_choices,
             "user": current_user,
             **build_shell_context(
                 request,
@@ -587,6 +590,299 @@ def planning_page(
         request=request,
         db=db,
         current_user=current_user,
+    )
+
+
+@router.post("/copy-from-year")
+def copy_planning_from_year(
+    request: Request,
+    source_academic_year_id: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    if not auth.can_modify_data(current_user):
+        return _render_planning_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Your role has read-only access and cannot copy planning data.",
+        )
+
+    branch_id, target_academic_year_id = _get_scope_ids(current_user)
+    if source_academic_year_id == target_academic_year_id:
+        return _render_planning_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Select a different academic year to copy planning from.",
+        )
+
+    source_year = get_academic_year(db, source_academic_year_id)
+    target_year = get_academic_year(db, target_academic_year_id)
+    if not source_year or not target_year:
+        return _render_planning_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="The selected academic year was not found.",
+        )
+
+    source_sections = (
+        db.query(models.PlanningSection)
+        .filter(
+            models.PlanningSection.branch_id == branch_id,
+            models.PlanningSection.academic_year_id == source_academic_year_id,
+        )
+        .order_by(
+            models.PlanningSection.grade_level.asc(),
+            models.PlanningSection.section_name.asc(),
+            models.PlanningSection.id.asc(),
+        )
+        .all()
+    )
+    if not source_sections:
+        return _render_planning_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error=f"No planning sections were found in {source_year.year_name} for the current branch.",
+        )
+
+    source_teacher_ids = sorted({
+        section.homeroom_teacher_id
+        for section in source_sections
+        if section.homeroom_teacher_id is not None
+    })
+    source_section_ids = [
+        section.id for section in source_sections if getattr(section, "id", None)
+    ]
+    source_assignments = []
+    if source_section_ids:
+        source_assignments = (
+            db.query(models.TeacherSectionAssignment)
+            .filter(
+                models.TeacherSectionAssignment.planning_section_id.in_(source_section_ids)
+            )
+            .all()
+        )
+        source_teacher_ids = sorted({
+            *source_teacher_ids,
+            *[
+                assignment.teacher_id
+                for assignment in source_assignments
+                if assignment.teacher_id is not None
+            ],
+        })
+
+    source_teachers_by_id = {}
+    if source_teacher_ids:
+        source_teachers_by_id = {
+            teacher.id: teacher
+            for teacher in db.query(models.Teacher).filter(
+                models.Teacher.id.in_(source_teacher_ids),
+                models.Teacher.branch_id == branch_id,
+                models.Teacher.academic_year_id == source_academic_year_id,
+            ).all()
+        }
+
+    target_teachers = (
+        db.query(models.Teacher)
+        .filter(
+            models.Teacher.branch_id == branch_id,
+            models.Teacher.academic_year_id == target_academic_year_id,
+        )
+        .all()
+    )
+    target_teachers_by_teacher_id = {
+        str(teacher.teacher_id or "").strip(): teacher
+        for teacher in target_teachers
+        if str(teacher.teacher_id or "").strip()
+    }
+
+    target_teacher_ids = [
+        teacher.id for teacher in target_teachers if getattr(teacher, "id", None)
+    ]
+    existing_target_allocation_keys = set()
+    if target_teacher_ids:
+        for allocation in db.query(models.TeacherSubjectAllocation).filter(
+            models.TeacherSubjectAllocation.teacher_id.in_(target_teacher_ids)
+        ).all():
+            existing_target_allocation_keys.add(
+                (allocation.teacher_id, allocation.subject_code)
+            )
+
+    target_subject_codes = {
+        subject_code
+        for (subject_code,) in (
+            db.query(models.Subject.subject_code)
+            .filter(
+                models.Subject.branch_id == branch_id,
+                models.Subject.academic_year_id == target_academic_year_id,
+            )
+            .all()
+        )
+        if subject_code
+    }
+
+    target_sections = (
+        db.query(models.PlanningSection)
+        .filter(
+            models.PlanningSection.branch_id == branch_id,
+            models.PlanningSection.academic_year_id == target_academic_year_id,
+        )
+        .all()
+    )
+    target_sections_by_key = {
+        (section.grade_level, section.section_name): section
+        for section in target_sections
+    }
+    target_section_ids = [
+        section.id for section in target_sections if getattr(section, "id", None)
+    ]
+    existing_target_assignment_map = {}
+    if target_section_ids:
+        for assignment in db.query(models.TeacherSectionAssignment).filter(
+            models.TeacherSectionAssignment.planning_section_id.in_(target_section_ids)
+        ).all():
+            existing_target_assignment_map[
+                (assignment.planning_section_id, assignment.subject_code)
+            ] = assignment.teacher_id
+
+    source_assignments_by_section = {}
+    for assignment in source_assignments:
+        source_assignments_by_section.setdefault(
+            assignment.planning_section_id,
+            [],
+        ).append(assignment)
+
+    created_section_count = 0
+    existing_section_count = 0
+    copied_homeroom_count = 0
+    copied_subject_link_count = 0
+    copied_assignment_count = 0
+    skipped_missing_teacher_count = 0
+    skipped_missing_subject_count = 0
+    skipped_assignment_conflict_count = 0
+
+    for source_section in source_sections:
+        section_key = (source_section.grade_level, source_section.section_name)
+        target_section = target_sections_by_key.get(section_key)
+        if target_section is None:
+            target_section = models.PlanningSection(
+                grade_level=source_section.grade_level,
+                section_name=source_section.section_name,
+                class_status=source_section.class_status,
+                homeroom_teacher_id=None,
+                branch_id=branch_id,
+                academic_year_id=target_academic_year_id,
+            )
+            db.add(target_section)
+            db.flush()
+            target_sections_by_key[section_key] = target_section
+            created_section_count += 1
+        else:
+            existing_section_count += 1
+
+        if (
+            source_section.homeroom_teacher_id is not None
+            and target_section.homeroom_teacher_id is None
+        ):
+            source_homeroom_teacher = source_teachers_by_id.get(
+                source_section.homeroom_teacher_id
+            )
+            normalized_teacher_id = (
+                str(getattr(source_homeroom_teacher, "teacher_id", "") or "").strip()
+            )
+            target_homeroom_teacher = target_teachers_by_teacher_id.get(
+                normalized_teacher_id
+            )
+            if target_homeroom_teacher is None:
+                skipped_missing_teacher_count += 1
+            else:
+                target_section.homeroom_teacher_id = target_homeroom_teacher.id
+                copied_homeroom_count += 1
+
+        for source_assignment in source_assignments_by_section.get(source_section.id, []):
+            subject_code = str(source_assignment.subject_code or "").strip().upper()
+            if not subject_code:
+                continue
+            if subject_code not in target_subject_codes:
+                skipped_missing_subject_count += 1
+                continue
+
+            source_teacher = source_teachers_by_id.get(source_assignment.teacher_id)
+            normalized_teacher_id = (
+                str(getattr(source_teacher, "teacher_id", "") or "").strip()
+            )
+            target_teacher = target_teachers_by_teacher_id.get(normalized_teacher_id)
+            if target_teacher is None:
+                skipped_missing_teacher_count += 1
+                continue
+
+            allocation_key = (target_teacher.id, subject_code)
+            if allocation_key not in existing_target_allocation_keys:
+                db.add(
+                    models.TeacherSubjectAllocation(
+                        teacher_id=target_teacher.id,
+                        subject_code=subject_code,
+                    )
+                )
+                existing_target_allocation_keys.add(allocation_key)
+                copied_subject_link_count += 1
+
+            assignment_key = (target_section.id, subject_code)
+            existing_teacher_id = existing_target_assignment_map.get(assignment_key)
+            if existing_teacher_id is not None:
+                if existing_teacher_id != target_teacher.id:
+                    skipped_assignment_conflict_count += 1
+                continue
+
+            db.add(
+                models.TeacherSectionAssignment(
+                    teacher_id=target_teacher.id,
+                    planning_section_id=target_section.id,
+                    subject_code=subject_code,
+                )
+            )
+            existing_target_assignment_map[assignment_key] = target_teacher.id
+            copied_assignment_count += 1
+
+    db.commit()
+
+    success_parts = [
+        (
+            f"Planning copied from {source_year.year_name} to {target_year.year_name}: "
+            f"{created_section_count} sections added"
+        ),
+        f"{copied_homeroom_count} homeroom links added",
+        f"{copied_subject_link_count} teacher-subject links added",
+        f"{copied_assignment_count} subject-teacher assignments added.",
+    ]
+    if existing_section_count:
+        success_parts.append(
+            f"{existing_section_count} matching sections already existed and were reused."
+        )
+    if skipped_missing_teacher_count:
+        success_parts.append(
+            f"{skipped_missing_teacher_count} teacher links were skipped because the teacher does not exist in the target year."
+        )
+    if skipped_missing_subject_count:
+        success_parts.append(
+            f"{skipped_missing_subject_count} subject-teacher links were skipped because the subject does not exist in the target year."
+        )
+    if skipped_assignment_conflict_count:
+        success_parts.append(
+            f"{skipped_assignment_conflict_count} subject-teacher links were skipped because the section already has an assigned teacher for that subject."
+        )
+
+    return _render_planning_page(
+        request=request,
+        db=db,
+        current_user=current_user,
+        success=" ".join(success_parts),
     )
 
 

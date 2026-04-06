@@ -742,6 +742,33 @@
 {% block content %}
 <section class="grid">
             <article class="card">
+                <h2>Copy From Academic Year</h2>
+                <p>Bring teacher profiles forward from another academic year into the current branch/year scope. Existing teacher records stay untouched, and section links are copied only when matching planning sections already exist in the target year.</p>
+
+                {% if can_modify %}
+                    {% if copy_year_choices %}
+                    <form method="post" action="/teachers/copy-from-year" autocomplete="off" onsubmit="return confirm('Copy teachers into {{ shell.academic_year_name }}? Existing current-year records will be kept.');">
+                        <div class="form-grid">
+                            <div class="field field-wide">
+                                <label for="copy_teachers_source_academic_year_id">Source Academic Year</label>
+                                <select id="copy_teachers_source_academic_year_id" name="source_academic_year_id" required>
+                                    {% for year in copy_year_choices %}
+                                    <option value="{{ year.id }}">{{ year.year_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <button class="btn-save" type="submit">Copy Teachers Into Current Year</button>
+                    </form>
+                    {% else %}
+                    <div class="empty">No other academic years are available to copy from.</div>
+                    {% endif %}
+                {% else %}
+                <div class="empty">Your role is read-only. You can view teacher records but cannot copy them into another year scope.</div>
+                {% endif %}
+            </article>
+
+            <article class="card">
                 <h2>Add Teacher</h2>
                 <p>Capture teacher details, workload limits, eligible subjects, and the exact sections this teacher covers for each selected subject.</p>
 

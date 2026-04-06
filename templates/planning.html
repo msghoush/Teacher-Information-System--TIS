@@ -564,6 +564,33 @@
 {% block content %}
 <section class="layout">
             <article class="card">
+                <h2>Copy From Academic Year</h2>
+                <p>Bring planning structure forward from another academic year into the current branch/year scope. Existing sections stay in place, and teacher links are added only when matching teachers and subjects already exist in the target year.</p>
+
+                {% if can_modify %}
+                    {% if copy_year_choices %}
+                    <form method="post" action="/planning/copy-from-year" autocomplete="off" onsubmit="return confirm('Copy planning data into {{ shell.academic_year_name }}? Existing current-year planning records will be kept.');">
+                        <div class="form-grid">
+                            <div class="field field-wide">
+                                <label for="copy_planning_source_academic_year_id">Source Academic Year</label>
+                                <select id="copy_planning_source_academic_year_id" name="source_academic_year_id" required>
+                                    {% for year in copy_year_choices %}
+                                    <option value="{{ year.id }}">{{ year.year_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <button class="btn-save" type="submit">Copy Planning Into Current Year</button>
+                    </form>
+                    {% else %}
+                    <div class="empty">No other academic years are available to copy from.</div>
+                    {% endif %}
+                {% else %}
+                <div class="empty">Your role is read-only. You can view planning records but cannot copy them into another year scope.</div>
+                {% endif %}
+            </article>
+
+            <article class="card">
                 <h2>Create Planning Section</h2>
                 <p>Define grade and section structure. Subjects and required hours align automatically from Subjects module, then you can assign teachers per subject from the edit screen for each section.</p>
 
