@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Form, Depends, Query
+from fastapi import FastAPI, Request, Form, Depends, Query, File, UploadFile
 from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -11,6 +11,7 @@ import os
 import re
 import time
 from typing import Optional
+from urllib.parse import quote_plus
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
@@ -77,6 +78,67 @@ FAVICON_CACHE_HEADERS = {
     "Pragma": "no-cache",
     "Expires": "0",
 }
+PROFILE_PHOTO_UPLOAD_DIR = os.path.join("static", "uploads", "profile_photos")
+PROFILE_PHOTO_RELATIVE_DIR = "uploads/profile_photos"
+PROFILE_PHOTO_MAX_BYTES = 3 * 1024 * 1024
+
+
+def _ensure_profile_photo_upload_dir():
+    os.makedirs(PROFILE_PHOTO_UPLOAD_DIR, exist_ok=True)
+
+
+def _detect_profile_photo_extension(file_bytes: bytes) -> str:
+    if file_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if file_bytes.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if file_bytes.startswith((b"GIF87a", b"GIF89a")):
+        return ".gif"
+    if (
+        len(file_bytes) >= 12
+        and file_bytes[:4] == b"RIFF"
+        and file_bytes[8:12] == b"WEBP"
+    ):
+        return ".webp"
+    return ""
+
+
+def _normalize_profile_photo_relative_path(relative_path: str) -> str:
+    return str(relative_path or "").replace("\\", "/").lstrip("/")
+
+
+def _delete_profile_photo_file(relative_path: str):
+    normalized_relative_path = _normalize_profile_photo_relative_path(relative_path)
+    if not normalized_relative_path.startswith(f"{PROFILE_PHOTO_RELATIVE_DIR}/"):
+        return
+
+    absolute_path = os.path.abspath(
+        os.path.join("static", *normalized_relative_path.split("/"))
+    )
+    upload_root = os.path.abspath(PROFILE_PHOTO_UPLOAD_DIR)
+    if not absolute_path.startswith(upload_root):
+        return
+    if os.path.exists(absolute_path):
+        try:
+            os.remove(absolute_path)
+        except OSError:
+            return
+
+
+def _safe_redirect_path(path: str) -> str:
+    cleaned = str(path or "").strip()
+    if not cleaned.startswith("/") or cleaned.startswith("//"):
+        return "/dashboard"
+    return cleaned
+
+
+def _redirect_with_notice(path: str, notice: str):
+    safe_path = _safe_redirect_path(path)
+    separator = "&" if "?" in safe_path else "?"
+    return RedirectResponse(
+        url=f"{safe_path}{separator}notice={quote_plus(str(notice or '').strip())}",
+        status_code=302,
+    )
 
 
 def _resolve_client_ip(request: Request) -> str:
@@ -2143,6 +2205,64 @@ def logout():
     return response
 
 
+@app.post("/profile/photo")
+async def upload_profile_photo(
+    request: Request,
+    profile_photo: UploadFile = File(...),
+    return_to: str = Form("/dashboard"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    safe_return_to = _safe_redirect_path(return_to)
+    if not profile_photo or not profile_photo.filename:
+        return _redirect_with_notice(
+            safe_return_to,
+            "Choose an image file before saving your profile photo.",
+        )
+
+    file_bytes = await profile_photo.read()
+    if not file_bytes:
+        return _redirect_with_notice(
+            safe_return_to,
+            "The selected file was empty. Choose another image.",
+        )
+    if len(file_bytes) > PROFILE_PHOTO_MAX_BYTES:
+        return _redirect_with_notice(
+            safe_return_to,
+            "Profile photo must be 3 MB or smaller.",
+        )
+
+    detected_extension = _detect_profile_photo_extension(file_bytes)
+    if not detected_extension:
+        return _redirect_with_notice(
+            safe_return_to,
+            "Use a PNG, JPG, GIF, or WEBP image for the profile photo.",
+        )
+
+    _ensure_profile_photo_upload_dir()
+    file_name = f"user_{current_user.id}_{int(time.time() * 1000)}{detected_extension}"
+    relative_path = f"{PROFILE_PHOTO_RELATIVE_DIR}/{file_name}"
+    absolute_path = os.path.join(PROFILE_PHOTO_UPLOAD_DIR, file_name)
+
+    with open(absolute_path, "wb") as output_file:
+        output_file.write(file_bytes)
+
+    previous_profile_image_path = str(
+        getattr(current_user, "profile_image_path", "") or ""
+    ).strip()
+    current_user.profile_image_path = relative_path
+    db.commit()
+    _delete_profile_photo_file(previous_profile_image_path)
+
+    return _redirect_with_notice(
+        safe_return_to,
+        "Profile photo updated successfully.",
+    )
+
+
 # ---------------------------------------
 # DEVELOPER: DOWNLOAD AUDIT LOG
 # ---------------------------------------
@@ -2633,6 +2753,10 @@ def _ensure_users_table_columns():
         if "position" not in existing_columns:
             connection.execute(
                 text("ALTER TABLE users ADD COLUMN position VARCHAR(50)")
+            )
+        if "profile_image_path" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE users ADD COLUMN profile_image_path VARCHAR(255)")
             )
 
 
@@ -3395,6 +3519,7 @@ def setup_initial_data():
     _ensure_teacher_scope_schema()
     _ensure_subject_scope_schema()
     _seed_teacher_subject_allocations()
+    _ensure_profile_photo_upload_dir()
     db = SessionLocal()
     admin_user_id = os.getenv("ADMIN_USER_ID", "2623252018")
     admin_username = os.getenv("ADMIN_USERNAME", "developer")

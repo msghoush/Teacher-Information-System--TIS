@@ -28,6 +28,7 @@ class User(Base):
     position = Column(String(50))
     password = Column(String)
     role = Column(String)
+    profile_image_path = Column(String(255))
     branch_id = Column(Integer, ForeignKey("branches.id"))
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
     is_active = Column(Boolean, default=True)
