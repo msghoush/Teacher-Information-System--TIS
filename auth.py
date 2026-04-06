@@ -12,6 +12,17 @@ ROLE_USER = "User"
 ROLE_LIMITED = "Limited Access"
 POSITION_EDUCATION_EXCELLENCE = "Education Excellence"
 
+DATA_MODIFY_ROLES = {
+    ROLE_DEVELOPER,
+    ROLE_ADMINISTRATOR,
+    ROLE_EDITOR,
+    ROLE_USER,
+}
+DATA_DELETE_ROLES = {
+    ROLE_DEVELOPER,
+    ROLE_ADMINISTRATOR,
+}
+
 
 def normalize_role(role: str) -> str:
     if not role:
@@ -74,15 +85,17 @@ def can_manage_users(user) -> bool:
 
 def can_modify_data(user) -> bool:
     role = normalize_role(getattr(user, "role", ""))
-    return role in {ROLE_DEVELOPER, ROLE_ADMINISTRATOR, ROLE_EDITOR, ROLE_USER}
+    return role in DATA_MODIFY_ROLES
 
 
 def can_edit_data(user) -> bool:
-    return is_developer(user)
+    role = normalize_role(getattr(user, "role", ""))
+    return role in DATA_MODIFY_ROLES
 
 
 def can_delete_data(user) -> bool:
-    return is_developer(user)
+    role = normalize_role(getattr(user, "role", ""))
+    return role in DATA_DELETE_ROLES
 
 
 def can_edit_user_accounts(user) -> bool:
