@@ -1297,7 +1297,7 @@
                                 </svg>
                             </a>
                         </div>
-                        <p>Manage non-teacher users, roles, and branch assignments.</p>
+                        <p>Manage non-teacher users, roles, and branch assignments across all academic years.</p>
                     </div>
                 </div>
                 {% if users_preview %}
@@ -1309,7 +1309,6 @@
                             <th>Position</th>
                             <th>Role</th>
                             <th>Branch</th>
-                            <th>Academic Year</th>
                             <th>Status</th>
                         </tr>
                         {% for row in users_preview %}
@@ -1319,14 +1318,13 @@
                             <td>{{ row.position or "-" }}</td>
                             <td>{{ row.role or "-" }}</td>
                             <td>{{ branch_map.get(row.branch_id, "Not assigned") }}</td>
-                            <td>{{ year_map.get(row.academic_year_id, "-") }}</td>
                             <td>{{ "Active" if row.is_active else "Inactive" }}</td>
                         </tr>
                         {% endfor %}
                     </table>
                 </div>
                 {% else %}
-                <div class="empty">No user records yet for this branch/year scope.</div>
+                <div class="empty">No user records yet for this branch scope.</div>
                 {% endif %}
             </div>
             {% endif %}

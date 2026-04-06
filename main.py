@@ -2424,8 +2424,7 @@ def dashboard(
         models.Teacher.academic_year_id == scoped_academic_year_id
     )
     users_query = db.query(models.User).filter(
-        models.User.branch_id == scoped_branch_id,
-        models.User.academic_year_id == scoped_academic_year_id
+        models.User.branch_id == scoped_branch_id
     )
     planning_sections_query = db.query(models.PlanningSection).filter(
         models.PlanningSection.branch_id == scoped_branch_id,

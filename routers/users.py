@@ -162,15 +162,7 @@ def _render_users_page(
     role = auth.normalize_role(current_user.role)
     can_manage_users = auth.can_manage_users(current_user)
     can_edit_user_accounts = auth.can_edit_user_accounts(current_user)
-    scope_academic_year_id = getattr(
-        current_user,
-        "scope_academic_year_id",
-        current_user.academic_year_id
-    )
-
-    users_query = db.query(models.User).filter(
-        models.User.academic_year_id == scope_academic_year_id
-    )
+    users_query = db.query(models.User)
     if role != auth.ROLE_DEVELOPER:
         users_query = users_query.filter(
             models.User.branch_id == current_user.branch_id
@@ -284,12 +276,6 @@ def create_user(
     if branch_id not in allowed_branch_ids:
         errors.append("You are not allowed to assign this branch.")
 
-    active_year = db.query(models.AcademicYear).filter(
-        models.AcademicYear.is_active == True
-    ).first()
-    if not active_year:
-        errors.append("No active academic year found. Set current year first.")
-
     duplicate_user_id = db.query(models.User).filter(
         or_(
             models.User.user_id == user_id,
@@ -317,7 +303,7 @@ def create_user(
         role=role,
         password=get_password_hash(password),
         branch_id=branch_id,
-        academic_year_id=active_year.id,
+        academic_year_id=getattr(current_user, "academic_year_id", None),
         is_active=True,
     )
 
