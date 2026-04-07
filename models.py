@@ -78,6 +78,8 @@ class Teacher(Base):
     max_hours = Column(Integer, default=24)
     extra_hours_allowed = Column(Boolean, default=False)
     extra_hours_count = Column(Integer, default=0)
+    teaches_national_section = Column(Boolean, default=False)
+    national_section_hours = Column(Integer, default=0)
     branch_id = Column(Integer, ForeignKey("branches.id"))
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
 

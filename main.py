@@ -23,6 +23,9 @@ from dependencies import get_db
 from routers import subjects, users, teachers, planning
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
+from teacher_capacity import (
+    get_teacher_capacity_breakdown,
+)
 from ui_shell import build_shell_context
 from audit import (
     get_audit_log_path,
@@ -436,14 +439,11 @@ def _build_reporting_context_from_section_assignments(
             key=lambda key: subject_demand_map.get(key, {}).get("subject_name", key),
         )
         allocated_hours = sum(allocation_breakdown.values())
-        teacher_capacity = (
-            int(teacher.max_hours or REPORT_STANDARD_MAX_HOURS)
-            + (
-                int(teacher.extra_hours_count or 0)
-                if teacher.extra_hours_allowed
-                else 0
-            )
+        teacher_capacity_breakdown = get_teacher_capacity_breakdown(
+            teacher,
+            default_max_hours=REPORT_STANDARD_MAX_HOURS,
         )
+        teacher_capacity = teacher_capacity_breakdown["international_capacity_hours"]
         total_existing_capacity_hours += teacher_capacity
 
         teacher_profiles.append(
@@ -458,6 +458,12 @@ def _build_reporting_context_from_section_assignments(
                 "remaining_capacity_hours": max(teacher_capacity - allocated_hours, 0),
                 "allocation_breakdown": allocation_breakdown,
                 "capacity_hours": teacher_capacity,
+                "total_capacity_hours": teacher_capacity_breakdown[
+                    "total_capacity_hours"
+                ],
+                "national_section_hours": teacher_capacity_breakdown[
+                    "national_section_hours"
+                ],
                 "primary_allocated_hours": allocated_hours,
                 "support_allocated_hours": 0,
             }
@@ -561,6 +567,12 @@ def _build_reporting_context_from_section_assignments(
                     "primary_subject_basis_hours",
                     0,
                 ),
+                "capacity_hours": profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS),
+                "total_capacity_hours": profile.get(
+                    "total_capacity_hours",
+                    REPORT_STANDARD_MAX_HOURS,
+                ),
+                "national_section_hours": profile.get("national_section_hours", 0),
                 "remaining_capacity_hours": profile["remaining_capacity_hours"],
             }
         )
@@ -664,6 +676,15 @@ def _build_reporting_context_from_section_assignments(
                 "allocation_breakdown": dict(profile["allocation_breakdown"]),
                 "allocated_hours": int(profile["allocated_hours"]),
                 "remaining_capacity_hours": int(profile["remaining_capacity_hours"]),
+                "capacity_hours": int(
+                    profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+                ),
+                "total_capacity_hours": int(
+                    profile.get("total_capacity_hours", REPORT_STANDARD_MAX_HOURS)
+                ),
+                "national_section_hours": int(
+                    profile.get("national_section_hours", 0)
+                ),
                 "primary_allocated_hours": int(profile.get("primary_allocated_hours", 0)),
                 "support_allocated_hours": int(profile.get("support_allocated_hours", 0)),
                 "primary_subject_basis_hours": int(
@@ -908,6 +929,11 @@ def _build_reporting_context(
             support_subject_keys,
             key=lambda key: subject_demand_map[key]["subject_name"],
         )
+        teacher_capacity_breakdown = get_teacher_capacity_breakdown(
+            teacher,
+            default_max_hours=REPORT_STANDARD_MAX_HOURS,
+        )
+        teacher_capacity = teacher_capacity_breakdown["international_capacity_hours"]
 
         teacher_profiles.append(
             {
@@ -923,7 +949,14 @@ def _build_reporting_context(
                     else 0
                 ),
                 "allocated_hours": 0,
-                "remaining_capacity_hours": REPORT_STANDARD_MAX_HOURS,
+                "remaining_capacity_hours": teacher_capacity,
+                "capacity_hours": teacher_capacity,
+                "total_capacity_hours": teacher_capacity_breakdown[
+                    "total_capacity_hours"
+                ],
+                "national_section_hours": teacher_capacity_breakdown[
+                    "national_section_hours"
+                ],
                 "allocation_breakdown": {},
             }
         )
@@ -946,7 +979,9 @@ def _build_reporting_context(
         if not profile["eligible_subject_keys"]:
             continue
 
-        remaining_capacity = REPORT_STANDARD_MAX_HOURS
+        remaining_capacity = int(
+            profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+        )
         allocation_breakdown = {}
 
         while remaining_capacity > 0:
@@ -991,8 +1026,14 @@ def _build_reporting_context(
             remaining_capacity -= allocated_hours
 
         allocated_hours_total = sum(allocation_breakdown.values())
-        if allocated_hours_total > REPORT_STANDARD_MAX_HOURS:
-            overflow_hours = allocated_hours_total - REPORT_STANDARD_MAX_HOURS
+        if allocated_hours_total > profile.get(
+            "capacity_hours",
+            REPORT_STANDARD_MAX_HOURS,
+        ):
+            overflow_hours = allocated_hours_total - profile.get(
+                "capacity_hours",
+                REPORT_STANDARD_MAX_HOURS,
+            )
             reduction_order = (
                 list(profile["support_subject_keys"]) + list(profile["subject_keys"])
             )
@@ -1023,14 +1064,15 @@ def _build_reporting_context(
         )
         total_allocated_hours = min(
             sum(allocation_breakdown.values()),
-            REPORT_STANDARD_MAX_HOURS,
+            profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS),
         )
         profile["allocation_breakdown"] = allocation_breakdown
         profile["allocated_hours"] = total_allocated_hours
         profile["primary_allocated_hours"] = primary_allocated_hours
         profile["support_allocated_hours"] = support_allocated_hours
         profile["remaining_capacity_hours"] = (
-            REPORT_STANDARD_MAX_HOURS - total_allocated_hours
+            profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+            - total_allocated_hours
         )
 
     teachers_per_subject = {}
@@ -1239,6 +1281,12 @@ def _build_reporting_context(
                     "primary_subject_basis_hours",
                     0,
                 ),
+                "capacity_hours": profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS),
+                "total_capacity_hours": profile.get(
+                    "total_capacity_hours",
+                    REPORT_STANDARD_MAX_HOURS,
+                ),
+                "national_section_hours": profile.get("national_section_hours", 0),
                 "remaining_capacity_hours": profile["remaining_capacity_hours"],
             }
         )
@@ -1277,7 +1325,10 @@ def _build_reporting_context(
     )
     total_allocated_hours = total_required_hours - total_remaining_hours
     total_existing_teachers = len(teachers)
-    total_existing_capacity_hours = total_existing_teachers * REPORT_STANDARD_MAX_HOURS
+    total_existing_capacity_hours = sum(
+        int(profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS))
+        for profile in teacher_profiles
+    )
     coverage_percentage = (
         round((total_allocated_hours / total_required_hours) * 100)
         if total_required_hours > 0
@@ -1292,7 +1343,10 @@ def _build_reporting_context(
     teachers_full_load = sum(
         1
         for profile in teacher_profiles
-        if profile["allocated_hours"] >= REPORT_STANDARD_MAX_HOURS
+        if profile["allocated_hours"] >= profile.get(
+            "capacity_hours",
+            REPORT_STANDARD_MAX_HOURS,
+        )
     )
     unused_existing_capacity_hours = max(
         total_existing_capacity_hours - total_allocated_hours,
@@ -1343,6 +1397,15 @@ def _build_reporting_context(
                 "allocation_breakdown": dict(profile["allocation_breakdown"]),
                 "allocated_hours": int(profile["allocated_hours"]),
                 "remaining_capacity_hours": int(profile["remaining_capacity_hours"]),
+                "capacity_hours": int(
+                    profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+                ),
+                "total_capacity_hours": int(
+                    profile.get("total_capacity_hours", REPORT_STANDARD_MAX_HOURS)
+                ),
+                "national_section_hours": int(
+                    profile.get("national_section_hours", 0)
+                ),
                 "primary_allocated_hours": int(profile.get("primary_allocated_hours", 0)),
                 "support_allocated_hours": int(profile.get("support_allocated_hours", 0)),
                 "primary_subject_basis_hours": int(
@@ -1567,6 +1630,9 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
                 "teacher_id": profile.get("teacher_id", "-"),
                 "teacher_name": profile.get("teacher_name", "-"),
                 "expected_allocated_hours": int(profile.get("allocated_hours", 0)),
+                "capacity_hours": int(
+                    profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+                ),
                 "remaining_capacity_hours": int(
                     profile.get("remaining_capacity_hours", REPORT_STANDARD_MAX_HOURS)
                 ),
@@ -1683,8 +1749,8 @@ def _build_report_allocation_xlsx_bytes(
     matrix_headers = [
         "Teacher ID",
         "Teacher Name",
-        "Expected Hours (24h)",
-        "Remaining Capacity",
+        "Expected Hours",
+        "Remaining Intl Capacity",
         "Primary Subject",
         "Support Subject",
     ] + [class_row["class_label"] for class_row in class_rows]
@@ -1722,7 +1788,9 @@ def _build_report_allocation_xlsx_bytes(
 
         expected_hours_cell = matrix_sheet.cell(row=excel_row_index, column=3)
         remaining_capacity_cell = matrix_sheet.cell(row=excel_row_index, column=4)
-        if int(row_data["expected_allocated_hours"]) >= REPORT_STANDARD_MAX_HOURS:
+        if int(row_data["expected_allocated_hours"]) >= int(
+            row_data.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+        ):
             expected_hours_cell.fill = full_load_fill
             remaining_capacity_cell.fill = full_load_fill
         else:
@@ -1913,7 +1981,9 @@ def _build_report_allocation_xlsx_bytes(
         row_index = summary_sheet.max_row
         expected_cell = summary_sheet.cell(row=row_index, column=3)
         remaining_cell = summary_sheet.cell(row=row_index, column=6)
-        if int(row["expected_allocated_hours"]) >= REPORT_STANDARD_MAX_HOURS:
+        if int(row["expected_allocated_hours"]) >= int(
+            row.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+        ):
             expected_cell.fill = full_load_fill
             remaining_cell.fill = full_load_fill
         else:
@@ -2793,6 +2863,18 @@ def _ensure_teachers_table_columns():
             connection.execute(
                 text("ALTER TABLE teachers ADD COLUMN extra_hours_count INTEGER DEFAULT 0")
             )
+        if "teaches_national_section" not in existing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE teachers ADD COLUMN teaches_national_section BOOLEAN DEFAULT FALSE"
+                )
+            )
+        if "national_section_hours" not in existing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE teachers ADD COLUMN national_section_hours INTEGER DEFAULT 0"
+                )
+            )
         if teacher_id_column and teacher_id_length and teacher_id_length < 10:
             if db_dialect == "postgresql":
                 connection.execute(
@@ -2808,6 +2890,20 @@ def _ensure_teachers_table_columns():
         )
         connection.execute(
             text("UPDATE teachers SET extra_hours_count = 0 WHERE extra_hours_count IS NULL")
+        )
+        connection.execute(
+            text(
+                "UPDATE teachers "
+                "SET teaches_national_section = FALSE "
+                "WHERE teaches_national_section IS NULL"
+            )
+        )
+        connection.execute(
+            text(
+                "UPDATE teachers "
+                "SET national_section_hours = 0 "
+                "WHERE national_section_hours IS NULL"
+            )
         )
 
 
@@ -2838,6 +2934,8 @@ def _ensure_teacher_scope_schema_sqlite():
                     max_hours INTEGER,
                     extra_hours_allowed BOOLEAN DEFAULT FALSE,
                     extra_hours_count INTEGER DEFAULT 0,
+                    teaches_national_section BOOLEAN DEFAULT FALSE,
+                    national_section_hours INTEGER DEFAULT 0,
                     branch_id INTEGER,
                     academic_year_id INTEGER,
                     PRIMARY KEY (id),
@@ -2861,6 +2959,8 @@ def _ensure_teacher_scope_schema_sqlite():
                     max_hours,
                     extra_hours_allowed,
                     extra_hours_count,
+                    teaches_national_section,
+                    national_section_hours,
                     branch_id,
                     academic_year_id
                 )
@@ -2875,6 +2975,8 @@ def _ensure_teacher_scope_schema_sqlite():
                     max_hours,
                     COALESCE(extra_hours_allowed, FALSE),
                     COALESCE(extra_hours_count, 0),
+                    COALESCE(teaches_national_section, FALSE),
+                    COALESCE(national_section_hours, 0),
                     branch_id,
                     academic_year_id
                 FROM teachers_legacy_scope_unique
@@ -3057,6 +3159,8 @@ def _ensure_subject_scope_schema_sqlite(
                         max_hours INTEGER,
                         extra_hours_allowed BOOLEAN DEFAULT FALSE,
                         extra_hours_count INTEGER DEFAULT 0,
+                        teaches_national_section BOOLEAN DEFAULT FALSE,
+                        national_section_hours INTEGER DEFAULT 0,
                         branch_id INTEGER,
                         academic_year_id INTEGER,
                         PRIMARY KEY (id),
@@ -3081,6 +3185,8 @@ def _ensure_subject_scope_schema_sqlite(
                         max_hours,
                         extra_hours_allowed,
                         extra_hours_count,
+                        teaches_national_section,
+                        national_section_hours,
                         branch_id,
                         academic_year_id
                     )
@@ -3095,6 +3201,8 @@ def _ensure_subject_scope_schema_sqlite(
                         max_hours,
                         COALESCE(extra_hours_allowed, FALSE),
                         COALESCE(extra_hours_count, 0),
+                        COALESCE(teaches_national_section, FALSE),
+                        COALESCE(national_section_hours, 0),
                         branch_id,
                         academic_year_id
                     FROM teachers_legacy_subject_scope
@@ -3114,6 +3222,20 @@ def _ensure_subject_scope_schema_sqlite(
                     "UPDATE teachers "
                     "SET extra_hours_count = 0 "
                     "WHERE extra_hours_count IS NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE teachers "
+                    "SET teaches_national_section = FALSE "
+                    "WHERE teaches_national_section IS NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE teachers "
+                    "SET national_section_hours = 0 "
+                    "WHERE national_section_hours IS NULL"
                 )
             )
 

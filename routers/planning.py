@@ -8,6 +8,7 @@ import auth
 import models
 from dependencies import get_db
 from auth import get_current_user
+from teacher_capacity import get_teacher_international_capacity_hours
 from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
 
@@ -1203,17 +1204,13 @@ def update_planning_section(
             + int(subject.get("weekly_hours", 0) or 0)
         )
         teacher_hours_by_id[teacher_id] = projected_hours
-        allowed_hours = (
-            int(teacher.max_hours or 24)
-            + (
-                int(teacher.extra_hours_count or 0)
-                if teacher.extra_hours_allowed
-                else 0
-            )
+        allowed_hours = get_teacher_international_capacity_hours(
+            teacher,
+            default_max_hours=24,
         )
         if projected_hours > allowed_hours:
             errors.append(
-                f"{_build_teacher_display_name(teacher)} would reach {projected_hours}h after assigning {subject_code}, which exceeds the allowed capacity of {allowed_hours}h."
+                f"{_build_teacher_display_name(teacher)} would reach {projected_hours}h after assigning {subject_code}, which exceeds the available international capacity of {allowed_hours}h."
             )
 
     if errors:

@@ -854,6 +854,16 @@
                             <label for="extra_hours_count">Extra Hours Count</label>
                             <input id="extra_hours_count" type="number" name="extra_hours_count" min="1" value="{{ form_data.extra_hours_count }}">
                         </div>
+                        <div class="field field-wide">
+                            <label class="toggle-row" for="teaches_national_section">
+                                <input id="teaches_national_section" type="checkbox" name="teaches_national_section" value="on" {% if form_data.teaches_national_section %}checked{% endif %}>
+                                Teaches In National Section
+                            </label>
+                        </div>
+                        <div class="field field-wide is-hidden" id="nationalSectionHoursField">
+                            <label for="national_section_hours">National Section Hours</label>
+                            <input id="national_section_hours" type="number" name="national_section_hours" min="1" value="{{ form_data.national_section_hours }}">
+                        </div>
                     </div>
                     <button class="btn-save" type="submit">Create Teacher</button>
                 </form>
@@ -902,6 +912,8 @@
                                 <th>Eligible Subjects</th>
                                 <th>Section Teaching Load</th>
                                 <th>Max Hours</th>
+                                <th>National Section Hours</th>
+                                <th>International Capacity</th>
                                 <th>Allocated Teaching Hours</th>
                                 <th>Hours Status</th>
                                 <th>Extra Hours Allowed</th>
@@ -946,6 +958,8 @@
                                     {% endif %}
                                 </td>
                                 <td>{{ teacher.max_hours or 24 }}</td>
+                                <td>{{ allocation.get("national_section_hours", 0) if allocation else (teacher.national_section_hours if teacher.teaches_national_section else 0) }}</td>
+                                <td>{{ allocation.get("international_capacity_hours", 0) if allocation else (((teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0)) - (teacher.national_section_hours if teacher.teaches_national_section else 0)) }}</td>
                                 <td>{{ allocation.get("allocated_hours", 0) if allocation else 0 }}</td>
                                 <td>
                                     {% if allocation %}
@@ -956,7 +970,7 @@
                                 </td>
                                 <td>{{ "Yes" if teacher.extra_hours_allowed else "No" }}</td>
                                 <td>{{ teacher.extra_hours_count if teacher.extra_hours_allowed else 0 }}</td>
-                                <td>{{ (teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0) }}</td>
+                                <td>{{ allocation.get("total_capacity_hours", 0) if allocation else ((teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0)) }}</td>
                                 {% if can_edit or can_delete %}
                                 <td class="row-actions">
                                     {% if can_edit %}
@@ -1006,6 +1020,9 @@ const searchInput = document.getElementById("teacherSearch");
         const extraAllowed = document.getElementById("extra_hours_allowed");
         const extraCountField = document.getElementById("extraHoursCountField");
         const extraCountInput = document.getElementById("extra_hours_count");
+        const nationalSectionToggle = document.getElementById("teaches_national_section");
+        const nationalSectionHoursField = document.getElementById("nationalSectionHoursField");
+        const nationalSectionHoursInput = document.getElementById("national_section_hours");
         const teacherIdInput = document.getElementById("teacher_id");
         const maxHoursInput = document.getElementById("max_hours");
         const teacherForm = document.getElementById("createTeacherForm");
@@ -1048,6 +1065,18 @@ const searchInput = document.getElementById("teacherSearch");
         };
 
         const getRequiredAllocationHours = () => {
+            return Math.max(getSafeMaxHours() + getSafeExtraHours() - getSafeNationalSectionHours(), 0);
+        };
+
+        const getSafeNationalSectionHours = () => {
+            if (!nationalSectionToggle || !nationalSectionToggle.checked) {
+                return 0;
+            }
+            const parsedNationalHours = Number(nationalSectionHoursInput ? nationalSectionHoursInput.value : 0);
+            return Number.isFinite(parsedNationalHours) && parsedNationalHours > 0 ? parsedNationalHours : 0;
+        };
+
+        const getTotalCapacityHours = () => {
             return getSafeMaxHours() + getSafeExtraHours();
         };
 
@@ -1066,10 +1095,12 @@ const searchInput = document.getElementById("teacherSearch");
             }, 0);
             const safeMaxHours = getSafeMaxHours();
             const safeExtraHours = getSafeExtraHours();
+            const safeNationalHours = getSafeNationalSectionHours();
+            const totalCapacityHours = getTotalCapacityHours();
             const requiredHours = getRequiredAllocationHours();
             const exceedsCapacity = requiredHours > 0 ? assignedHours > requiredHours : assignedHours > 0;
             const remainingHours = Math.max(requiredHours - assignedHours, 0);
-            allocationSummary.textContent = `Eligible subjects selected: ${selectedSubjectCount} | Assigned sections: ${selectedSectionAssignments.length} | Teaching load: ${assignedHours}h / Capacity: ${requiredHours}h (Max ${safeMaxHours} + Extra ${safeExtraHours})${exceedsCapacity ? ` (Over capacity by ${assignedHours - requiredHours}h)` : ` (Remaining ${remainingHours}h)`}`;
+            allocationSummary.textContent = `Eligible subjects selected: ${selectedSubjectCount} | Assigned sections: ${selectedSectionAssignments.length} | Teaching load: ${assignedHours}h / International capacity: ${requiredHours}h (Max ${safeMaxHours} + Extra ${safeExtraHours} = ${totalCapacityHours}h, National ${safeNationalHours}h)${exceedsCapacity ? ` (Over capacity by ${assignedHours - requiredHours}h)` : ` (Remaining ${remainingHours}h)`}`;
             allocationSummary.classList.toggle("mismatch", exceedsCapacity);
         };
 
@@ -1208,6 +1239,18 @@ const searchInput = document.getElementById("teacherSearch");
             }
         };
 
+        const syncNationalSectionVisibility = () => {
+            if (!nationalSectionToggle || !nationalSectionHoursField || !nationalSectionHoursInput) {
+                return;
+            }
+            const enabled = nationalSectionToggle.checked;
+            nationalSectionHoursField.style.display = enabled ? "" : "none";
+            nationalSectionHoursInput.disabled = !enabled;
+            if (!enabled) {
+                nationalSectionHoursInput.value = "1";
+            }
+        };
+
         const updateBulkDeleteState = () => {
             if (!bulkDeleteTrigger) {
                 return;
@@ -1275,6 +1318,14 @@ const searchInput = document.getElementById("teacherSearch");
             syncExtraHoursVisibility();
         }
 
+        if (nationalSectionToggle) {
+            nationalSectionToggle.addEventListener("change", () => {
+                syncNationalSectionVisibility();
+                updateAllocationSummary();
+            });
+            syncNationalSectionVisibility();
+        }
+
         if (teacherIdInput) {
             teacherIdInput.addEventListener("input", () => {
                 teacherIdInput.value = teacherIdInput.value.replace(/\D/g, "").slice(0, 10);
@@ -1295,6 +1346,11 @@ const searchInput = document.getElementById("teacherSearch");
         if (extraCountInput) {
             extraCountInput.addEventListener("input", updateAllocationSummary);
             extraCountInput.addEventListener("change", updateAllocationSummary);
+        }
+
+        if (nationalSectionHoursInput) {
+            nationalSectionHoursInput.addEventListener("input", updateAllocationSummary);
+            nationalSectionHoursInput.addEventListener("change", updateAllocationSummary);
         }
 
         if (maxHoursInput) {
@@ -1357,9 +1413,19 @@ const searchInput = document.getElementById("teacherSearch");
                         return total + (Number.isFinite(parsedHours) ? parsedHours : 0);
                     }, 0);
                     const requiredHours = getRequiredAllocationHours();
+                    const totalCapacityHours = getTotalCapacityHours();
+                    const nationalHours = getSafeNationalSectionHours();
+                    if (nationalHours > totalCapacityHours) {
+                        event.preventDefault();
+                        window.alert(`National section hours (${nationalHours}) cannot exceed total teacher capacity (${totalCapacityHours}).`);
+                        if (nationalSectionHoursInput) {
+                            nationalSectionHoursInput.focus();
+                        }
+                        return;
+                    }
                     if (assignedHours > requiredHours) {
                         event.preventDefault();
-                        window.alert(`Assigned section hours (${assignedHours}) exceed allowed capacity (${requiredHours}). Reduce the selected sections or increase allowed extra hours.`);
+                        window.alert(`Assigned section hours (${assignedHours}) exceed available international capacity (${requiredHours}). Reduce the selected sections, reduce national section hours, or increase allowed extra hours.`);
                         return;
                     }
 

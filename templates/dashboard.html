@@ -1264,7 +1264,8 @@
                             <th>Name</th>
                             <th>Subject Code</th>
                             <th>Extra Hours Count</th>
-                            <th>Total Hours Capacity</th>
+                            <th>National Section Hours</th>
+                            <th>International Capacity</th>
                         </tr>
                         {% for teacher in teachers_preview %}
                         <tr>
@@ -1272,7 +1273,8 @@
                             <td>{{ teacher.first_name }}{% if teacher.middle_name %} {{ teacher.middle_name }}{% endif %} {{ teacher.last_name }}</td>
                             <td>{{ teacher.subject_code }}</td>
                             <td>{{ teacher.extra_hours_count if teacher.extra_hours_allowed else 0 }}</td>
-                            <td>{{ (teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0) }}</td>
+                            <td>{{ teacher.national_section_hours if teacher.teaches_national_section else 0 }}</td>
+                            <td>{{ ((teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0)) - (teacher.national_section_hours if teacher.teaches_national_section else 0) }}</td>
                         </tr>
                         {% endfor %}
                     </table>
@@ -1379,7 +1381,7 @@
                     </div>
                 </div>
                 <div class="report-note">
-                    This report uses a fixed <strong>24 hours/week</strong> cap per existing teacher (standard allocation rule), regardless of custom Max Hours or Extra Hours settings.
+                    This report uses each teacher available international capacity based on <strong>Max Hours + Extra Hours - National Section Hours</strong>.
                 </div>
                 {% if report_summary.total_required_hours > 0 %}
                 <div class="report-decision-strip">
@@ -1409,7 +1411,7 @@
                     <div class="report-kpi report-kpi-covered">
                         <span>Expected Covered Hours</span>
                         <strong class="report-kpi-value" data-value="{{ report_summary.total_allocated_hours }}">{{ report_summary.total_allocated_hours }}</strong>
-                        <p>Allocated to existing teachers using 24h max each.</p>
+                        <p>Allocated using each teacher available international capacity.</p>
                     </div>
                     <div class="report-kpi report-kpi-gap">
                         <span>Uncovered Hours</span>
@@ -1530,8 +1532,8 @@
                 </div>
 
                 <div class="report-card report-teachers-card">
-                    <h4>Expected Allocation for Existing Teachers (24h max)</h4>
-                    <p>Each teacher is anchored to one primary subject (highest currently assigned hours), then support subject is used only if capacity remains, with a strict 24h cap.</p>
+                    <h4>Expected Allocation for Existing Teachers</h4>
+                    <p>Each teacher is anchored to one primary subject (highest currently assigned hours), then support subject is used only if international capacity remains after subtracting any national-section hours.</p>
                     {% if report_teacher_rows %}
                     <div class="table-wrap report-table">
                         <table>
@@ -1554,12 +1556,13 @@
                                     Primary: -
                                     {% endif %}
                                     {% if row.support_subject_labels %}
-                                    <div class="report-inline-note">Eligible support only after primary hours and still within 24h: {{ row.support_subject_labels | join(", ") }}</div>
+                                    <div class="report-inline-note">Eligible support only after primary hours and still within available international capacity ({{ row.capacity_hours }}h): {{ row.support_subject_labels | join(", ") }}</div>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <strong class="{{ 'report-hours-full' if row.expected_allocated_hours == 24 else 'report-hours-under' }}">{{ row.expected_allocated_hours }}h</strong>
+                                    <strong class="{{ 'report-hours-full' if row.capacity_hours > 0 and row.expected_allocated_hours >= row.capacity_hours else 'report-hours-under' }}">{{ row.expected_allocated_hours }}h</strong>
                                     <div class="report-inline-note">Primary allocated: {{ row.primary_allocated_hours }}h | Support allocated: {{ row.support_allocated_hours }}h</div>
+                                    <div class="report-inline-note">International capacity: {{ row.capacity_hours }}h | Total capacity: {{ row.total_capacity_hours }}h | National section: {{ row.national_section_hours }}h</div>
                                     {% if row.allocation_labels %}
                                     <div class="report-inline-note">{{ row.allocation_labels | join(", ") }}</div>
                                     {% endif %}
@@ -1573,7 +1576,7 @@
                     <div class="empty">No teacher records found in this branch/year scope.</div>
                     {% endif %}
                     <div class="report-footnote">
-                        Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Aligned to at least one report subject: {{ report_summary.teachers_with_subject_alignment }} | Utilized in forecast: {{ report_summary.teachers_utilized }} | Full load (24h): {{ report_summary.teachers_full_load }} | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
+                        Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Aligned to at least one report subject: {{ report_summary.teachers_with_subject_alignment }} | Utilized in forecast: {{ report_summary.teachers_utilized }} | Full load at international capacity: {{ report_summary.teachers_full_load }} | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
                     </div>
                 </div>
                 {% else %}

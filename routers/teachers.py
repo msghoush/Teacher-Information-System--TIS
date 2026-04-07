@@ -1,5 +1,6 @@
 from collections import defaultdict
 import re
+from types import SimpleNamespace
 
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import RedirectResponse
@@ -11,6 +12,12 @@ import auth
 import models
 from dependencies import get_db
 from auth import get_current_user
+from teacher_capacity import (
+    build_capacity_breakdown,
+    get_teacher_international_capacity_hours,
+    get_teacher_national_section_hours,
+    get_teacher_total_capacity_hours,
+)
 from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
 
@@ -79,6 +86,10 @@ def _parse_int(value):
 def _is_extra_hours_allowed(value) -> bool:
     cleaned = str(value).strip().lower()
     return cleaned in {"1", "true", "yes", "on"}
+
+
+def _teaches_national_section(value) -> bool:
+    return _is_extra_hours_allowed(value)
 
 
 def _get_subject_choices(db: Session, branch_id: int, academic_year_id: int):
@@ -314,13 +325,21 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
             "subject_labels": [],
             "allocated_hours": 0,
             "teaching_load_labels": [],
-            "required_hours": (
-                (teacher.max_hours or STANDARD_MAX_HOURS)
-                + (
-                    (teacher.extra_hours_count or 0)
-                    if teacher.extra_hours_allowed
-                    else 0
-                )
+            "required_hours": get_teacher_international_capacity_hours(
+                teacher,
+                default_max_hours=STANDARD_MAX_HOURS,
+            ),
+            "total_capacity_hours": get_teacher_total_capacity_hours(
+                teacher,
+                default_max_hours=STANDARD_MAX_HOURS,
+            ),
+            "national_section_hours": get_teacher_national_section_hours(
+                teacher,
+                default_max_hours=STANDARD_MAX_HOURS,
+            ),
+            "international_capacity_hours": get_teacher_international_capacity_hours(
+                teacher,
+                default_max_hours=STANDARD_MAX_HOURS,
             ),
             "matches_max_hours": False,
             "within_capacity": False,
@@ -465,6 +484,8 @@ def _render_teachers_page(
         "max_hours": "24",
         "extra_hours_allowed": False,
         "extra_hours_count": "1",
+        "teaches_national_section": False,
+        "national_section_hours": "1",
     }
     if form_data:
         normalized_form_data.update(form_data)
@@ -829,6 +850,10 @@ def copy_teachers_from_year(
                 max_hours=source_teacher.max_hours or STANDARD_MAX_HOURS,
                 extra_hours_allowed=bool(source_teacher.extra_hours_allowed),
                 extra_hours_count=source_teacher.extra_hours_count or 0,
+                teaches_national_section=bool(
+                    source_teacher.teaches_national_section
+                ),
+                national_section_hours=source_teacher.national_section_hours or 0,
                 branch_id=branch_id,
                 academic_year_id=target_academic_year_id,
             )
@@ -962,6 +987,8 @@ def create_teacher(
     max_hours: str = Form("24"),
     extra_hours_allowed: str = Form(""),
     extra_hours_count: str = Form("0"),
+    teaches_national_section: str = Form(""),
+    national_section_hours: str = Form("0"),
     db: Session = Depends(get_db),
 ):
     current_user = get_current_user(request, db)
@@ -989,6 +1016,10 @@ def create_teacher(
     parsed_max_hours = _parse_int(max_hours)
     allowed_extra = _is_extra_hours_allowed(extra_hours_allowed)
     parsed_extra_hours_count = _parse_int(extra_hours_count)
+    is_national_section_enabled = _teaches_national_section(
+        teaches_national_section
+    )
+    parsed_national_section_hours = _parse_int(national_section_hours)
     branch_id, academic_year_id = _get_scope_ids(current_user)
 
     errors = []
@@ -1046,6 +1077,37 @@ def create_teacher(
     else:
         parsed_extra_hours_count = 0
 
+    if is_national_section_enabled:
+        if (
+            parsed_national_section_hours is None
+            or parsed_national_section_hours <= 0
+        ):
+            errors.append(
+                "National section hours must be a positive whole number when National Section is enabled."
+            )
+    else:
+        parsed_national_section_hours = 0
+
+    capacity_breakdown = build_capacity_breakdown(
+        parsed_max_hours,
+        extra_hours_allowed=allowed_extra,
+        extra_hours_count=parsed_extra_hours_count or 0,
+        teaches_national_section=is_national_section_enabled,
+        national_section_hours=parsed_national_section_hours or 0,
+        default_max_hours=STANDARD_MAX_HOURS,
+    )
+    if (
+        parsed_max_hours is not None
+        and parsed_max_hours > 0
+        and is_national_section_enabled
+        and capacity_breakdown["national_section_hours"]
+        > capacity_breakdown["total_capacity_hours"]
+    ):
+        errors.append(
+            "National section hours cannot exceed the teacher total capacity "
+            f"({capacity_breakdown['total_capacity_hours']}h)."
+        )
+
     section_assignment_support = _get_section_options_by_subject(
         db=db,
         branch_id=branch_id,
@@ -1060,16 +1122,17 @@ def create_teacher(
     errors.extend(section_assignment_errors)
 
     if parsed_max_hours is not None and parsed_max_hours > 0:
-        required_allocation_hours = parsed_max_hours + (
-            parsed_extra_hours_count if allowed_extra and parsed_extra_hours_count else 0
-        )
-        if total_assigned_hours > required_allocation_hours:
+        available_international_hours = capacity_breakdown[
+            "international_capacity_hours"
+        ]
+        if total_assigned_hours > available_international_hours:
             errors.append(
                 "Assigned section hours "
                 f"({total_assigned_hours}) exceed allowed capacity "
-                f"({required_allocation_hours}) based on Max Hours ({parsed_max_hours}) "
-                f"+ Extra Hours ({parsed_extra_hours_count if allowed_extra else 0}). "
-                "Reduce the selected sections or increase allowed extra hours."
+                f"({available_international_hours}) based on Max Hours ({capacity_breakdown['max_hours']}) "
+                f"+ Extra Hours ({capacity_breakdown['extra_hours']}) "
+                f"- National Section Hours ({capacity_breakdown['national_section_hours']}). "
+                "Reduce the selected sections, reduce national section hours, or increase allowed extra hours."
             )
 
     duplicate_teacher = db.query(models.Teacher).filter(
@@ -1094,7 +1157,17 @@ def create_teacher(
                 "last_name": last_name,
                 "max_hours": str(parsed_max_hours or 24),
                 "extra_hours_allowed": allowed_extra,
-                "extra_hours_count": str(parsed_extra_hours_count or 1),
+                "extra_hours_count": str(
+                    parsed_extra_hours_count
+                    if parsed_extra_hours_count is not None
+                    else 1
+                ),
+                "teaches_national_section": is_national_section_enabled,
+                "national_section_hours": str(
+                    parsed_national_section_hours
+                    if parsed_national_section_hours is not None
+                    else 1
+                ),
             },
             selected_subject_codes=normalized_subject_codes,
             selected_section_assignment_values=normalized_section_assignment_values,
@@ -1110,6 +1183,12 @@ def create_teacher(
         max_hours=parsed_max_hours if parsed_max_hours is not None else STANDARD_MAX_HOURS,
         extra_hours_allowed=allowed_extra,
         extra_hours_count=parsed_extra_hours_count if parsed_extra_hours_count is not None else 0,
+        teaches_national_section=is_national_section_enabled,
+        national_section_hours=(
+            parsed_national_section_hours
+            if parsed_national_section_hours is not None
+            else 0
+        ),
         branch_id=branch_id,
         academic_year_id=academic_year_id,
     )
@@ -1148,7 +1227,17 @@ def create_teacher(
                 "last_name": last_name,
                 "max_hours": str(parsed_max_hours or 24),
                 "extra_hours_allowed": allowed_extra,
-                "extra_hours_count": str(parsed_extra_hours_count or 1),
+                "extra_hours_count": str(
+                    parsed_extra_hours_count
+                    if parsed_extra_hours_count is not None
+                    else 1
+                ),
+                "teaches_national_section": is_national_section_enabled,
+                "national_section_hours": str(
+                    parsed_national_section_hours
+                    if parsed_national_section_hours is not None
+                    else 1
+                ),
             },
             selected_subject_codes=normalized_subject_codes,
             selected_section_assignment_values=normalized_section_assignment_values,
@@ -1205,6 +1294,8 @@ def update_teacher(
     max_hours: str = Form("24"),
     extra_hours_allowed: str = Form(""),
     extra_hours_count: str = Form("0"),
+    teaches_national_section: str = Form(""),
+    national_section_hours: str = Form("0"),
     db: Session = Depends(get_db),
 ):
     current_user = get_current_user(request, db)
@@ -1236,6 +1327,10 @@ def update_teacher(
     parsed_max_hours = _parse_int(max_hours)
     allowed_extra = _is_extra_hours_allowed(extra_hours_allowed)
     parsed_extra_hours_count = _parse_int(extra_hours_count)
+    is_national_section_enabled = _teaches_national_section(
+        teaches_national_section
+    )
+    parsed_national_section_hours = _parse_int(national_section_hours)
 
     errors = []
     if not TEACHER_ID_PATTERN.match(teacher_id):
@@ -1292,6 +1387,37 @@ def update_teacher(
     else:
         parsed_extra_hours_count = 0
 
+    if is_national_section_enabled:
+        if (
+            parsed_national_section_hours is None
+            or parsed_national_section_hours <= 0
+        ):
+            errors.append(
+                "National section hours must be a positive whole number when National Section is enabled."
+            )
+    else:
+        parsed_national_section_hours = 0
+
+    capacity_breakdown = build_capacity_breakdown(
+        parsed_max_hours,
+        extra_hours_allowed=allowed_extra,
+        extra_hours_count=parsed_extra_hours_count or 0,
+        teaches_national_section=is_national_section_enabled,
+        national_section_hours=parsed_national_section_hours or 0,
+        default_max_hours=STANDARD_MAX_HOURS,
+    )
+    if (
+        parsed_max_hours is not None
+        and parsed_max_hours > 0
+        and is_national_section_enabled
+        and capacity_breakdown["national_section_hours"]
+        > capacity_breakdown["total_capacity_hours"]
+    ):
+        errors.append(
+            "National section hours cannot exceed the teacher total capacity "
+            f"({capacity_breakdown['total_capacity_hours']}h)."
+        )
+
     section_assignment_support = _get_section_options_by_subject(
         db=db,
         branch_id=branch_id,
@@ -1308,16 +1434,17 @@ def update_teacher(
     errors.extend(section_assignment_errors)
 
     if parsed_max_hours is not None and parsed_max_hours > 0:
-        required_allocation_hours = parsed_max_hours + (
-            parsed_extra_hours_count if allowed_extra and parsed_extra_hours_count else 0
-        )
-        if total_assigned_hours > required_allocation_hours:
+        available_international_hours = capacity_breakdown[
+            "international_capacity_hours"
+        ]
+        if total_assigned_hours > available_international_hours:
             errors.append(
                 "Assigned section hours "
                 f"({total_assigned_hours}) exceed allowed capacity "
-                f"({required_allocation_hours}) based on Max Hours ({parsed_max_hours}) "
-                f"+ Extra Hours ({parsed_extra_hours_count if allowed_extra else 0}). "
-                "Reduce the selected sections or increase allowed extra hours."
+                f"({available_international_hours}) based on Max Hours ({capacity_breakdown['max_hours']}) "
+                f"+ Extra Hours ({capacity_breakdown['extra_hours']}) "
+                f"- National Section Hours ({capacity_breakdown['national_section_hours']}). "
+                "Reduce the selected sections, reduce national section hours, or increase allowed extra hours."
             )
 
     duplicate_teacher = db.query(models.Teacher).filter(
@@ -1330,11 +1457,35 @@ def update_teacher(
         errors.append("Teacher ID already exists in the current branch and academic year.")
 
     if errors:
+        teacher_preview = SimpleNamespace(
+            id=teacher.id,
+            teacher_id=teacher_id,
+            first_name=first_name,
+            middle_name=middle_name if middle_name else None,
+            last_name=last_name,
+            max_hours=(
+                parsed_max_hours
+                if parsed_max_hours is not None
+                else STANDARD_MAX_HOURS
+            ),
+            extra_hours_allowed=allowed_extra,
+            extra_hours_count=(
+                parsed_extra_hours_count
+                if parsed_extra_hours_count is not None
+                else 0
+            ),
+            teaches_national_section=is_national_section_enabled,
+            national_section_hours=(
+                parsed_national_section_hours
+                if parsed_national_section_hours is not None
+                else 0
+            ),
+        )
         return _render_edit_teacher_page(
             request=request,
             db=db,
             current_user=current_user,
-            teacher=teacher,
+            teacher=teacher_preview,
             error=" ".join(errors),
             assigned_subject_codes=list(normalized_subject_codes),
             selected_section_assignment_values=normalized_section_assignment_values,
@@ -1350,6 +1501,12 @@ def update_teacher(
     teacher.max_hours = parsed_max_hours if parsed_max_hours is not None else STANDARD_MAX_HOURS
     teacher.extra_hours_allowed = allowed_extra
     teacher.extra_hours_count = parsed_extra_hours_count if parsed_extra_hours_count is not None else 0
+    teacher.teaches_national_section = is_national_section_enabled
+    teacher.national_section_hours = (
+        parsed_national_section_hours
+        if parsed_national_section_hours is not None
+        else 0
+    )
 
     try:
         db.query(models.TeacherSectionAssignment).filter(
