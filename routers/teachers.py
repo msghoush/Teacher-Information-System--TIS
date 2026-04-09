@@ -323,8 +323,15 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
         teacher.id: {
             "subject_codes": [],
             "subject_labels": [],
+            "subject_preview_codes": [],
+            "subject_count": 0,
+            "subject_hidden_count": 0,
             "allocated_hours": 0,
             "teaching_load_labels": [],
+            "teaching_load_preview_labels": [],
+            "teaching_load_count": 0,
+            "teaching_load_hidden_count": 0,
+            "section_assignment_count": 0,
             "required_hours": get_teacher_international_capacity_hours(
                 teacher,
                 default_max_hours=STANDARD_MAX_HOURS,
@@ -411,6 +418,12 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
         teacher_data = allocation_map.get(teacher.id)
         if not teacher_data:
             continue
+        teacher_data["subject_count"] = len(teacher_data["subject_labels"])
+        teacher_data["subject_preview_codes"] = teacher_data["subject_codes"][:2]
+        teacher_data["subject_hidden_count"] = max(
+            teacher_data["subject_count"] - len(teacher_data["subject_preview_codes"]),
+            0,
+        )
         teacher_entries = [
             data
             for (teacher_id, _), data in teaching_load_map.items()
@@ -426,6 +439,19 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
             )
             for entry in teacher_entries
         ]
+        teacher_data["teaching_load_preview_labels"] = [
+            f"{entry['subject_code']} x{len(entry['sections'])}"
+            for entry in teacher_entries[:2]
+        ]
+        teacher_data["teaching_load_count"] = len(teacher_entries)
+        teacher_data["teaching_load_hidden_count"] = max(
+            teacher_data["teaching_load_count"]
+            - len(teacher_data["teaching_load_preview_labels"]),
+            0,
+        )
+        teacher_data["section_assignment_count"] = sum(
+            len(entry["sections"]) for entry in teacher_entries
+        )
 
     for teacher in teachers:
         teacher_data = allocation_map.get(teacher.id, {})

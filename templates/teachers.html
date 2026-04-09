@@ -194,17 +194,17 @@
         }
 
         .grid {
-            margin-top: 14px;
+            margin-top: 10px;
             display: grid;
             grid-template-columns: 1fr;
-            gap: 12px;
+            gap: 10px;
         }
 
         .card {
             background: var(--card);
             border: 1px solid var(--line);
             border-radius: 14px;
-            padding: 14px;
+            padding: 12px;
         }
 
         .card h2 {
@@ -302,7 +302,7 @@
             border: 1px solid #dbe7f8;
             border-radius: 12px;
             background: #f8fbff;
-            padding: 12px;
+            padding: 10px;
         }
 
         .assignment-step:first-of-type {
@@ -416,14 +416,14 @@
         .subject-assignment-board {
             margin-top: 10px;
             display: grid;
-            gap: 10px;
+            gap: 8px;
         }
 
         .subject-assignment-card {
             border: 1px solid #dbe7f8;
             border-radius: 10px;
             background: #f5f9ff;
-            padding: 10px;
+            padding: 8px;
             display: grid;
             gap: 8px;
         }
@@ -495,7 +495,7 @@
 
         .section-assignment-empty {
             margin-top: 10px;
-            padding: 10px;
+            padding: 8px 10px;
             border: 1px dashed #b5c6de;
             border-radius: 10px;
             background: #f8fbff;
@@ -532,7 +532,7 @@
         }
 
         .btn-save {
-            margin-top: 12px;
+            margin-top: 10px;
             border: none;
             background: linear-gradient(140deg, var(--brand), var(--brand-dark));
             color: #fff;
@@ -549,7 +549,7 @@
             align-items: center;
             justify-content: space-between;
             gap: 8px;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
 
         .toolbar-head {
@@ -596,6 +596,7 @@
             border-bottom: 1px solid #e7edf7;
             text-align: left;
             font-size: 14px;
+            vertical-align: top;
         }
 
         th {
@@ -662,6 +663,74 @@
             min-width: 220px;
         }
 
+        .compact-list-details {
+            display: grid;
+            gap: 8px;
+        }
+
+        .compact-list-summary {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            list-style: none;
+            cursor: pointer;
+        }
+
+        .compact-list-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .compact-list-summary::before {
+            content: "+";
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #edf4ff;
+            border: 1px solid #c8daf3;
+            color: #234b7a;
+            font-size: 13px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .compact-list-details[open] .compact-list-summary::before {
+            content: "-";
+        }
+
+        .compact-pill,
+        .compact-preview-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 4px 8px;
+            font-size: 11px;
+            line-height: 1;
+            font-weight: 700;
+            border: 1px solid #d9e6f8;
+            background: #f8fbff;
+            color: #365275;
+        }
+
+        .compact-pill-strong {
+            border-color: #bed3f0;
+            background: #edf4ff;
+            color: #194d8d;
+        }
+
+        .compact-pill-muted {
+            color: #5d6b82;
+        }
+
+        .compact-preview-pill-more {
+            background: #fff7ed;
+            border-color: #f8d4ab;
+            color: #9a3412;
+        }
+
         .assigned-item {
             display: block;
             font-size: 12px;
@@ -677,7 +746,7 @@
             margin-top: 10px;
             border: 1px dashed #9db0ca;
             border-radius: 10px;
-            padding: 16px;
+            padding: 12px;
             color: #42566f;
             text-align: center;
             font-size: 14px;
@@ -937,22 +1006,45 @@
                                 <td>{{ teacher.first_name }}{% if teacher.middle_name %} {{ teacher.middle_name }}{% endif %} {{ teacher.last_name }}</td>
                                 <td>
                                     {% if allocation and allocation.get("subject_labels") %}
-                                    <ul class="assigned-list">
-                                        {% for label in allocation.get("subject_labels") %}
-                                        <li class="assigned-item">{{ label }}</li>
-                                        {% endfor %}
-                                    </ul>
+                                    <details class="compact-list-details" {% if allocation.get("subject_count", 0) <= 3 %}open{% endif %}>
+                                        <summary class="compact-list-summary">
+                                            <span class="compact-pill compact-pill-strong">{{ allocation.get("subject_count", 0) }} subjects</span>
+                                            {% for code in allocation.get("subject_preview_codes", []) %}
+                                            <span class="compact-preview-pill">{{ code }}</span>
+                                            {% endfor %}
+                                            {% if allocation.get("subject_hidden_count", 0) %}
+                                            <span class="compact-preview-pill compact-preview-pill-more">+{{ allocation.get("subject_hidden_count", 0) }} more</span>
+                                            {% endif %}
+                                        </summary>
+                                        <ul class="assigned-list">
+                                            {% for label in allocation.get("subject_labels") %}
+                                            <li class="assigned-item">{{ label }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </details>
                                     {% else %}
                                     -
                                     {% endif %}
                                 </td>
                                 <td>
                                     {% if allocation and allocation.get("teaching_load_labels") %}
-                                    <ul class="assigned-list">
-                                        {% for label in allocation.get("teaching_load_labels") %}
-                                        <li class="assigned-item">{{ label }}</li>
-                                        {% endfor %}
-                                    </ul>
+                                    <details class="compact-list-details" {% if allocation.get("teaching_load_count", 0) <= 2 %}open{% endif %}>
+                                        <summary class="compact-list-summary">
+                                            <span class="compact-pill compact-pill-strong">{{ allocation.get("section_assignment_count", 0) }} sections</span>
+                                            <span class="compact-pill">{{ allocation.get("teaching_load_count", 0) }} subject loads</span>
+                                            {% for preview in allocation.get("teaching_load_preview_labels", []) %}
+                                            <span class="compact-preview-pill">{{ preview }}</span>
+                                            {% endfor %}
+                                            {% if allocation.get("teaching_load_hidden_count", 0) %}
+                                            <span class="compact-preview-pill compact-preview-pill-more">+{{ allocation.get("teaching_load_hidden_count", 0) }} more</span>
+                                            {% endif %}
+                                        </summary>
+                                        <ul class="assigned-list">
+                                            {% for label in allocation.get("teaching_load_labels") %}
+                                            <li class="assigned-item">{{ label }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </details>
                                     {% else %}
                                     No section assignments yet
                                     {% endif %}
