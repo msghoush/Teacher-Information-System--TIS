@@ -1474,6 +1474,12 @@ const searchInput = document.getElementById("teacherSearch");
                 .filter((value) => Boolean(value))
         );
         const openSubjectGradeKeys = new Set();
+        const collapseCompactDetails = () => {
+            document.querySelectorAll(".compact-list-details").forEach((detail) => {
+                detail.open = false;
+                detail.removeAttribute("open");
+            });
+        };
 
         const getSelectedSubjectCount = () => {
             return selectedSubjectCodes.size;
@@ -2025,6 +2031,9 @@ const searchInput = document.getElementById("teacherSearch");
                 }
             }
         };
+
+        collapseCompactDetails();
+        window.addEventListener("pageshow", collapseCompactDetails);
 
         if (bulkSelectAll) {
             bulkSelectAll.addEventListener("change", () => {

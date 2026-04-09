@@ -862,6 +862,12 @@ const gradeSelect = document.getElementById("grade_level");
         const noPlanningResult = document.getElementById("noPlanningResult");
         const kpiValues = Array.from(document.querySelectorAll(".kpi-value"));
         const subjectAlignmentMap = {{ subject_alignment_map | tojson }};
+        const collapseSubjectAssignmentDetails = () => {
+            document.querySelectorAll(".subject-assignment-details").forEach((detail) => {
+                detail.open = false;
+                detail.removeAttribute("open");
+            });
+        };
 
         const renderAlignedSubjectsPreview = () => {
             if (!gradeSelect || !alignedSubjectsPreview || !allocationSummary) {
@@ -886,6 +892,9 @@ const gradeSelect = document.getElementById("grade_level");
                 alignedSubjectsEmpty.style.display = alignedSubjects.length === 0 ? "block" : "none";
             }
         };
+
+        collapseSubjectAssignmentDetails();
+        window.addEventListener("pageshow", collapseSubjectAssignmentDetails);
 
         if (gradeSelect) {
             gradeSelect.addEventListener("change", renderAlignedSubjectsPreview);
