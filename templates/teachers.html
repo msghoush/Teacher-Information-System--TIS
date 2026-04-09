@@ -434,17 +434,12 @@
         }
 
         .subject-grade-summary {
-            display: flex;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
             align-items: center;
-            justify-content: space-between;
             flex-wrap: wrap;
             gap: 8px;
-            padding: 10px 12px;
-            cursor: pointer;
-        }
-
-        .subject-grade-summary:hover {
-            background: #f8fbff;
+            padding: 8px 10px;
         }
 
         .subject-grade-group.is-open .subject-grade-summary {
@@ -453,10 +448,30 @@
         }
 
         .subject-grade-summary-main {
+            appearance: none;
+            -webkit-appearance: none;
+            border: none;
+            background: transparent;
+            padding: 0;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            min-width: 0;
+            cursor: pointer;
+            text-align: left;
+            color: inherit;
+        }
+
+        .subject-grade-summary-main:focus-visible {
+            outline: 2px solid rgba(10, 78, 163, 0.3);
+            outline-offset: 2px;
+            border-radius: 8px;
+        }
+
+        .subject-grade-title-copy {
             display: grid;
             gap: 3px;
             min-width: 0;
-            flex: 1;
         }
 
         .subject-grade-title {
@@ -482,13 +497,6 @@
             font-weight: 900;
             line-height: 1;
             flex-shrink: 0;
-            cursor: pointer;
-            padding: 0;
-        }
-
-        button.subject-grade-indicator {
-            appearance: none;
-            -webkit-appearance: none;
         }
 
         .subject-grade-subtitle {
@@ -1721,7 +1729,8 @@ const searchInput = document.getElementById("teacherSearch");
                 const group = document.createElement("div");
                 const isInitiallyOpen = term.length > 0 || openSubjectGradeKeys.has(gradeKey) || selectedCountInGrade > 0 || index === 0;
                 group.className = `subject-grade-group${isInitiallyOpen ? " is-open" : ""}`;
-                let indicatorButton = null;
+                let triggerButton = null;
+                let indicatorBadge = null;
                 let panel = null;
                 const syncGroupOpenState = (isOpen) => {
                     group.classList.toggle("is-open", isOpen);
@@ -1730,11 +1739,12 @@ const searchInput = document.getElementById("teacherSearch");
                     } else {
                         openSubjectGradeKeys.delete(gradeKey);
                     }
-                    summary.setAttribute("aria-expanded", isOpen ? "true" : "false");
-                    if (indicatorButton) {
-                        indicatorButton.textContent = isOpen ? "-" : "+";
-                        indicatorButton.setAttribute("aria-label", isOpen ? `Collapse ${getGradeLabel(gradeKey)}` : `Expand ${getGradeLabel(gradeKey)}`);
-                        indicatorButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+                    if (triggerButton) {
+                        triggerButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+                        triggerButton.setAttribute("aria-label", isOpen ? `Collapse ${getGradeLabel(gradeKey)}` : `Expand ${getGradeLabel(gradeKey)}`);
+                    }
+                    if (indicatorBadge) {
+                        indicatorBadge.textContent = isOpen ? "-" : "+";
                     }
                     if (panel) {
                         panel.style.display = isOpen ? "grid" : "none";
@@ -1743,44 +1753,33 @@ const searchInput = document.getElementById("teacherSearch");
 
                 const summary = document.createElement("div");
                 summary.className = "subject-grade-summary";
-                summary.setAttribute("role", "button");
-                summary.setAttribute("tabindex", "0");
-                summary.setAttribute("aria-expanded", isInitiallyOpen ? "true" : "false");
-                summary.addEventListener("click", () => {
-                    syncGroupOpenState(!group.classList.contains("is-open"));
-                });
-                summary.addEventListener("keydown", (event) => {
-                    if (event.key !== "Enter" && event.key !== " ") {
-                        return;
-                    }
-                    event.preventDefault();
-                    syncGroupOpenState(!group.classList.contains("is-open"));
-                });
 
-                const summaryMain = document.createElement("span");
+                const summaryMain = document.createElement("button");
+                summaryMain.type = "button";
                 summaryMain.className = "subject-grade-summary-main";
-
-                const title = document.createElement("span");
-                title.className = "subject-grade-title";
-                indicatorButton = document.createElement("button");
-                indicatorButton.type = "button";
-                indicatorButton.className = "subject-grade-indicator";
-                indicatorButton.addEventListener("click", (event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
+                summaryMain.addEventListener("click", () => {
                     syncGroupOpenState(!group.classList.contains("is-open"));
                 });
-                title.appendChild(indicatorButton);
+                triggerButton = summaryMain;
+
+                indicatorBadge = document.createElement("span");
+                indicatorBadge.className = "subject-grade-indicator";
+                indicatorBadge.setAttribute("aria-hidden", "true");
+                summaryMain.appendChild(indicatorBadge);
+
+                const titleCopy = document.createElement("span");
+                titleCopy.className = "subject-grade-title-copy";
 
                 const titleLabel = document.createElement("span");
+                titleLabel.className = "subject-grade-title";
                 titleLabel.textContent = getGradeLabel(gradeKey);
-                title.appendChild(titleLabel);
-                summaryMain.appendChild(title);
+                titleCopy.appendChild(titleLabel);
 
                 const subtitle = document.createElement("span");
                 subtitle.className = "subject-grade-subtitle";
                 subtitle.textContent = getGradePreviewText(subjectsInGrade);
-                summaryMain.appendChild(subtitle);
+                titleCopy.appendChild(subtitle);
+                summaryMain.appendChild(titleCopy);
                 summary.appendChild(summaryMain);
 
                 const summaryMeta = document.createElement("span");
