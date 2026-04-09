@@ -370,9 +370,6 @@
             border: 1px solid #c6d4e8;
             border-radius: 10px;
             background: linear-gradient(180deg, #fbfdff, #f4f8ff);
-            max-height: 520px;
-            overflow-y: auto;
-            overflow-x: hidden;
             padding: 8px;
             display: grid;
             gap: 8px;
@@ -528,13 +525,6 @@
             line-height: 1;
         }
 
-        .subject-grade-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            padding: 0 12px 10px;
-        }
-
         .subject-grade-btn {
             border: 1px solid #c8daf3;
             border-radius: 999px;
@@ -564,7 +554,12 @@
 
         .subject-grade-group.is-open .subject-grade-panel {
             display: grid;
-            gap: 10px;
+            gap: 8px;
+        }
+
+        .subject-grade-hint {
+            font-size: 12px;
+            color: #51667f;
         }
 
         .subject-grade-grid {
@@ -1210,7 +1205,7 @@
                                         <button id="clearAllSubjectsBtn" class="subject-grade-btn" type="button">Clear all</button>
                                     </div>
                                 </div>
-                                <div class="subject-selector-help">Use the <strong>+</strong> sign next to any grade to open its subjects, then tick the subjects you want for this teacher.</div>
+                                <div class="subject-selector-help">Use the <strong>+</strong> sign to open one grade, then tick the subject checkboxes you want for this teacher.</div>
                                 <div id="selectedSubjectChips" class="subject-selector-chips"></div>
                                 <div class="subject-picker" id="subjectPicker"></div>
                                 <div id="subjectNoResult" class="subject-empty" style="display:none;">No subjects match your search.</div>
@@ -1705,7 +1700,7 @@ const searchInput = document.getElementById("teacherSearch");
                 }).length;
 
                 const group = document.createElement("div");
-                const isInitiallyOpen = term.length > 0 || openSubjectGradeKeys.has(gradeKey) || selectedCountInGrade > 0;
+                const isInitiallyOpen = term.length > 0 || openSubjectGradeKeys.has(gradeKey);
                 group.className = `subject-grade-group${isInitiallyOpen ? " is-open" : ""}`;
                 let triggerButton = null;
                 let indicatorBadge = null;
@@ -1729,12 +1724,33 @@ const searchInput = document.getElementById("teacherSearch");
                     });
                 };
                 const syncGroupOpenState = (isOpen) => {
-                    group.classList.toggle("is-open", isOpen);
                     if (isOpen) {
+                        if (subjectPicker) {
+                            subjectPicker.querySelectorAll(".subject-grade-group.is-open").forEach((openGroup) => {
+                                if (openGroup === group) {
+                                    return;
+                                }
+                                openGroup.classList.remove("is-open");
+                                const openPanel = openGroup.querySelector(".subject-grade-panel");
+                                if (openPanel) {
+                                    openPanel.style.display = "none";
+                                }
+                                const openTrigger = openGroup.querySelector(".subject-grade-summary-main");
+                                if (openTrigger) {
+                                    openTrigger.setAttribute("aria-expanded", "false");
+                                }
+                                const openIndicator = openGroup.querySelector(".subject-grade-indicator");
+                                if (openIndicator) {
+                                    openIndicator.textContent = "+";
+                                }
+                            });
+                        }
+                        openSubjectGradeKeys.clear();
                         openSubjectGradeKeys.add(gradeKey);
                     } else {
                         openSubjectGradeKeys.delete(gradeKey);
                     }
+                    group.classList.toggle("is-open", isOpen);
                     if (triggerButton) {
                         triggerButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
                         triggerButton.setAttribute("aria-label", isOpen ? `Collapse ${getGradeLabel(gradeKey)}` : `Expand ${getGradeLabel(gradeKey)}`);
@@ -1799,45 +1815,10 @@ const searchInput = document.getElementById("teacherSearch");
                 panel = document.createElement("div");
                 panel.className = "subject-grade-panel";
 
-                const actions = document.createElement("div");
-                actions.className = "subject-grade-actions";
-
-                const selectAllButton = document.createElement("button");
-                selectAllButton.type = "button";
-                selectAllButton.className = "subject-grade-btn";
-                selectAllButton.textContent = "Select grade";
-                selectAllButton.disabled = selectedCountInGrade === subjectsInGrade.length;
-                selectAllButton.addEventListener("click", () => {
-                    subjectsInGrade.forEach((subject) => {
-                        const code = String(subject.subject_code || "").trim().toUpperCase();
-                        if (code) {
-                            selectedSubjectCodes.add(code);
-                        }
-                    });
-                    openSubjectGradeKeys.add(gradeKey);
-                    renderSelectedSubjectChips();
-                    renderSubjectPicker();
-                    renderSectionAssignmentBoard();
-                });
-                actions.appendChild(selectAllButton);
-
-                const clearGradeButton = document.createElement("button");
-                clearGradeButton.type = "button";
-                clearGradeButton.className = "subject-grade-btn";
-                clearGradeButton.textContent = "Clear grade";
-                clearGradeButton.disabled = selectedCountInGrade === 0;
-                clearGradeButton.addEventListener("click", () => {
-                    subjectsInGrade.forEach((subject) => {
-                        const code = String(subject.subject_code || "").trim().toUpperCase();
-                        selectedSubjectCodes.delete(code);
-                    });
-                    openSubjectGradeKeys.add(gradeKey);
-                    renderSelectedSubjectChips();
-                    renderSubjectPicker();
-                    renderSectionAssignmentBoard();
-                });
-                actions.appendChild(clearGradeButton);
-                panel.appendChild(actions);
+                const panelHint = document.createElement("div");
+                panelHint.className = "subject-grade-hint";
+                panelHint.textContent = "Select one or more subjects from this grade.";
+                panel.appendChild(panelHint);
 
                 const grid = document.createElement("div");
                 grid.className = "subject-grade-grid";
