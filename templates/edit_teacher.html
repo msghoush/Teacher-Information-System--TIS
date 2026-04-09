@@ -305,6 +305,22 @@
             font-weight: 800;
         }
 
+        .subject-grade-indicator {
+            width: 20px;
+            height: 20px;
+            border: 1px solid #c8daf3;
+            border-radius: 999px;
+            background: #edf4ff;
+            color: #244a7c;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 900;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
         .subject-grade-subtitle {
             font-size: 12px;
             color: #5d6b82;
@@ -366,10 +382,6 @@
         .subject-grade-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
-        }
-
-        .subject-grade-toggle {
-            background: #ffffff;
         }
 
         .subject-grade-panel {
@@ -642,7 +654,7 @@
                                 <button id="clearAllSubjectsBtn" class="subject-grade-btn" type="button">Clear all</button>
                             </div>
                         </div>
-                        <div class="subject-selector-help">Use <strong>Expand grade</strong> on any grade, then tick the subjects you want for this teacher.</div>
+                        <div class="subject-selector-help">Use the <strong>+</strong> sign next to any grade, then tick the subjects you want for this teacher.</div>
                         <div id="selectedSubjectChips" class="subject-selector-chips"></div>
                         <div class="subject-picker" id="subjectPicker"></div>
                         <div id="subjectNoResult" class="subject-empty" style="display:none;">No subjects match your search.</div>
@@ -982,7 +994,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                 const group = document.createElement("div");
                 const isInitiallyOpen = term.length > 0 || openSubjectGradeKeys.has(gradeKey) || selectedCountInGrade > 0 || index === 0;
                 group.className = `subject-grade-group${isInitiallyOpen ? " is-open" : ""}`;
-                let toggleButton = null;
+                let indicator = null;
                 let panel = null;
                 const syncGroupOpenState = (isOpen) => {
                     group.classList.toggle("is-open", isOpen);
@@ -991,11 +1003,10 @@ const teacherIdInput = document.getElementById("teacher_id");
                     } else {
                         openSubjectGradeKeys.delete(gradeKey);
                     }
-                    if (!toggleButton) {
-                        return;
+                    summary.setAttribute("aria-expanded", isOpen ? "true" : "false");
+                    if (indicator) {
+                        indicator.textContent = isOpen ? "-" : "+";
                     }
-                    toggleButton.textContent = isOpen ? "Collapse grade" : "Expand grade";
-                    toggleButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
                     if (panel) {
                         panel.hidden = !isOpen;
                     }
@@ -1005,10 +1016,8 @@ const teacherIdInput = document.getElementById("teacher_id");
                 summary.className = "subject-grade-summary";
                 summary.setAttribute("role", "button");
                 summary.setAttribute("tabindex", "0");
-                summary.addEventListener("click", (event) => {
-                    if (event.target.closest("button")) {
-                        return;
-                    }
+                summary.setAttribute("aria-expanded", isInitiallyOpen ? "true" : "false");
+                summary.addEventListener("click", () => {
                     syncGroupOpenState(!group.classList.contains("is-open"));
                 });
                 summary.addEventListener("keydown", (event) => {
@@ -1024,7 +1033,14 @@ const teacherIdInput = document.getElementById("teacher_id");
 
                 const title = document.createElement("span");
                 title.className = "subject-grade-title";
-                title.textContent = getGradeLabel(gradeKey);
+                indicator = document.createElement("span");
+                indicator.className = "subject-grade-indicator";
+                indicator.setAttribute("aria-hidden", "true");
+                title.appendChild(indicator);
+
+                const titleLabel = document.createElement("span");
+                titleLabel.textContent = getGradeLabel(gradeKey);
+                title.appendChild(titleLabel);
                 summaryMain.appendChild(title);
 
                 const subtitle = document.createElement("span");
@@ -1049,16 +1065,6 @@ const teacherIdInput = document.getElementById("teacher_id");
                 pills.appendChild(selectedPill);
 
                 summaryMeta.appendChild(pills);
-
-                toggleButton = document.createElement("button");
-                toggleButton.type = "button";
-                toggleButton.className = "subject-grade-btn subject-grade-toggle";
-                toggleButton.addEventListener("click", (event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    syncGroupOpenState(!group.classList.contains("is-open"));
-                });
-                summaryMeta.appendChild(toggleButton);
 
                 summary.appendChild(summaryMeta);
                 group.appendChild(summary);
