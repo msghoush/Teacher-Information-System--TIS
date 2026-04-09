@@ -207,8 +207,9 @@
             border: 1px solid #c6d4e8;
             border-radius: 10px;
             background: linear-gradient(180deg, #fbfdff, #f4f8ff);
-            max-height: 360px;
-            overflow: auto;
+            max-height: 520px;
+            overflow-y: auto;
+            overflow-x: hidden;
             padding: 8px;
             display: grid;
             gap: 8px;
@@ -984,11 +985,29 @@ const teacherIdInput = document.getElementById("teacher_id");
                 }).length;
 
                 const group = document.createElement("div");
-                const isInitiallyOpen = term.length > 0 || openSubjectGradeKeys.has(gradeKey) || selectedCountInGrade > 0 || index === 0;
+                const isInitiallyOpen = term.length > 0 || openSubjectGradeKeys.has(gradeKey) || selectedCountInGrade > 0;
                 group.className = `subject-grade-group${isInitiallyOpen ? " is-open" : ""}`;
                 let triggerButton = null;
                 let indicatorBadge = null;
                 let panel = null;
+                const revealPanel = () => {
+                    if (!panel || !subjectPicker) {
+                        return;
+                    }
+                    window.requestAnimationFrame(() => {
+                        const panelTop = panel.offsetTop;
+                        const panelBottom = panelTop + panel.offsetHeight;
+                        const viewportTop = subjectPicker.scrollTop;
+                        const viewportBottom = viewportTop + subjectPicker.clientHeight;
+                        if (panelTop < viewportTop) {
+                            subjectPicker.scrollTop = Math.max(panelTop - 8, 0);
+                            return;
+                        }
+                        if (panelBottom > viewportBottom) {
+                            subjectPicker.scrollTop = Math.max(panelBottom - subjectPicker.clientHeight + 8, 0);
+                        }
+                    });
+                };
                 const syncGroupOpenState = (isOpen) => {
                     group.classList.toggle("is-open", isOpen);
                     if (isOpen) {
@@ -1005,6 +1024,9 @@ const teacherIdInput = document.getElementById("teacher_id");
                     }
                     if (panel) {
                         panel.style.display = isOpen ? "grid" : "none";
+                        if (isOpen) {
+                            revealPanel();
+                        }
                     }
                 };
 
