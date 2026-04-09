@@ -73,8 +73,8 @@ textarea {
     display: grid;
     grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
     align-items: start;
-    gap: 20px;
-    padding: 16px;
+    gap: 16px;
+    padding: 12px;
 }
 
 .app-sidebar {
@@ -84,8 +84,8 @@ textarea {
     min-height: calc(100vh - 32px);
     display: flex;
     flex-direction: column;
-    gap: 18px;
-    padding: 22px;
+    gap: 14px;
+    padding: 18px;
     border: 1px solid rgba(255, 255, 255, 0.48);
     border-radius: var(--app-radius-xl);
     background:
@@ -491,7 +491,7 @@ textarea {
     align-content: start;
     align-items: start;
     align-self: start;
-    gap: 14px;
+    gap: 12px;
 }
 
 .app-header {
@@ -499,8 +499,8 @@ textarea {
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 8px 14px;
-    padding: 12px 16px;
+    gap: 6px 12px;
+    padding: 10px 14px;
     border: 1px solid rgba(255, 255, 255, 0.45);
     border-radius: 22px;
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(250, 252, 255, 0.8));
@@ -647,7 +647,7 @@ textarea {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 10px 14px;
+    padding: 9px 12px;
     border: 1px solid #b8cde9;
     border-radius: 16px;
     background: rgba(237, 244, 255, 0.92);
@@ -660,7 +660,7 @@ textarea {
     display: grid;
     align-content: start;
     align-items: start;
-    gap: 14px;
+    gap: 12px;
 }
 
 .page-stage > .panel {
@@ -668,7 +668,7 @@ textarea {
 }
 
 .page-panel {
-    padding: 18px;
+    padding: 16px;
     border: 1px solid rgba(255, 255, 255, 0.45);
     border-radius: var(--app-radius-xl);
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.88));

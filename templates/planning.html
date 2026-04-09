@@ -139,16 +139,16 @@
         }
 
         .layout {
-            margin-top: 14px;
+            margin-top: 10px;
             display: grid;
-            gap: 12px;
+            gap: 10px;
         }
 
         .card {
             background: var(--card);
             border: 1px solid var(--line);
             border-radius: 14px;
-            padding: 14px;
+            padding: 12px;
         }
 
         .card h2 {
@@ -165,8 +165,8 @@
         .stats {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
-            margin: 12px 0 12px;
+            gap: 10px;
+            margin: 10px 0;
         }
 
         .stat {
@@ -363,7 +363,7 @@
             align-items: center;
             justify-content: space-between;
             gap: 8px;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
 
         .search {
@@ -443,6 +443,74 @@
             min-width: 240px;
         }
 
+        .subject-assignment-details {
+            display: grid;
+            gap: 8px;
+        }
+
+        .subject-assignment-summary {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            list-style: none;
+            cursor: pointer;
+        }
+
+        .subject-assignment-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .subject-assignment-summary::before {
+            content: "+";
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #edf4ff;
+            border: 1px solid #c8daf3;
+            color: #234b7a;
+            font-size: 13px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .subject-assignment-details[open] .subject-assignment-summary::before {
+            content: "-";
+        }
+
+        .subject-summary-pill,
+        .subject-preview-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 4px 8px;
+            font-size: 11px;
+            line-height: 1;
+            font-weight: 700;
+            border: 1px solid #d9e6f8;
+            background: #f8fbff;
+            color: #365275;
+        }
+
+        .subject-summary-pill-strong {
+            border-color: #bed3f0;
+            background: #edf4ff;
+            color: #194d8d;
+        }
+
+        .subject-summary-pill-muted {
+            color: #5d6b82;
+        }
+
+        .subject-preview-pill-more {
+            background: #fff7ed;
+            border-color: #f8d4ab;
+            color: #9a3412;
+        }
+
         .aligned-item-table {
             display: block;
             font-size: 12px;
@@ -507,7 +575,7 @@
             margin-top: 10px;
             border: 1px dashed #9db0ca;
             border-radius: 10px;
-            padding: 16px;
+            padding: 12px;
             color: #42566f;
             text-align: center;
             font-size: 14px;
@@ -717,18 +785,31 @@
                                 <td>{{ row.homeroom_teacher_name }}</td>
                                 <td>
                                     {% if row.subject_assignments %}
-                                    <ul class="aligned-list-table">
-                                        {% for subject in row.subject_assignments %}
-                                        <li class="aligned-item-table">
-                                            {{ subject.subject_code }} - {{ subject.subject_name }} ({{ subject.weekly_hours }}h)
-                                            {% if subject.teacher_name %}
-                                            | {{ subject.teacher_name }}
-                                            {% else %}
-                                            | Unassigned
+                                    <details class="subject-assignment-details" {% if row.subject_count <= 3 %}open{% endif %}>
+                                        <summary class="subject-assignment-summary">
+                                            <span class="subject-summary-pill subject-summary-pill-strong">{{ row.subject_count }} subjects</span>
+                                            <span class="subject-summary-pill">{{ row.assigned_subject_count }} assigned</span>
+                                            <span class="subject-summary-pill subject-summary-pill-muted">{{ row.unassigned_subject_count }} unassigned</span>
+                                            {% for subject in row.subject_preview %}
+                                            <span class="subject-preview-pill">{{ subject.subject_code }}</span>
+                                            {% endfor %}
+                                            {% if row.subject_hidden_count %}
+                                            <span class="subject-preview-pill subject-preview-pill-more">+{{ row.subject_hidden_count }} more</span>
                                             {% endif %}
-                                        </li>
-                                        {% endfor %}
-                                    </ul>
+                                        </summary>
+                                        <ul class="aligned-list-table">
+                                            {% for subject in row.subject_assignments %}
+                                            <li class="aligned-item-table">
+                                                {{ subject.subject_code }} - {{ subject.subject_name }} ({{ subject.weekly_hours }}h)
+                                                {% if subject.teacher_name %}
+                                                | {{ subject.teacher_name }}
+                                                {% else %}
+                                                | Unassigned
+                                                {% endif %}
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </details>
                                     {% else %}
                                     -
                                     {% endif %}

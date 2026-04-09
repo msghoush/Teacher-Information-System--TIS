@@ -344,11 +344,24 @@ def _build_planning_rows(
                     "teacher_name": subject_teacher_name,
                 }
             )
+        subject_count = len(subject_assignments)
+        assigned_subject_count = sum(
+            1 for subject in subject_assignments if subject.get("teacher_name")
+        )
+        subject_preview = subject_assignments[:2]
         rows.append(
             {
                 "record": section,
                 "aligned_subjects": aligned_subjects,
                 "subject_assignments": subject_assignments,
+                "subject_count": subject_count,
+                "assigned_subject_count": assigned_subject_count,
+                "unassigned_subject_count": max(
+                    subject_count - assigned_subject_count,
+                    0,
+                ),
+                "subject_preview": subject_preview,
+                "subject_hidden_count": max(subject_count - len(subject_preview), 0),
                 "allocated_hours": allocated_hours,
                 "assigned_hours": assigned_hours,
                 "homeroom_teacher_name": teacher_names_by_id.get(
