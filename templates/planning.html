@@ -785,7 +785,7 @@
                                 <td>{{ row.homeroom_teacher_name }}</td>
                                 <td>
                                     {% if row.subject_assignments %}
-                                    <details class="subject-assignment-details" {% if row.subject_count <= 3 %}open{% endif %}>
+                                    <details class="subject-assignment-details">
                                         <summary class="subject-assignment-summary">
                                             <span class="subject-summary-pill subject-summary-pill-strong">{{ row.subject_count }} subjects</span>
                                             <span class="subject-summary-pill">{{ row.assigned_subject_count }} assigned</span>

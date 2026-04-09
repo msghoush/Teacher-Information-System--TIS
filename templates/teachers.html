@@ -1334,7 +1334,7 @@
                                         <div class="coverage-block">
                                             <span class="coverage-label">Subjects</span>
                                             {% if allocation and allocation.get("subject_labels") %}
-                                            <details class="compact-list-details" {% if allocation.get("subject_count", 0) <= 3 %}open{% endif %}>
+                                            <details class="compact-list-details">
                                                 <summary class="compact-list-summary">
                                                     <span class="compact-pill compact-pill-strong">{{ allocation.get("subject_count", 0) }} subjects</span>
                                                     {% for code in allocation.get("subject_preview_codes", []) %}
@@ -1357,7 +1357,7 @@
                                         <div class="coverage-block">
                                             <span class="coverage-label">Teaching Load</span>
                                             {% if allocation and allocation.get("teaching_load_labels") %}
-                                            <details class="compact-list-details" {% if allocation.get("teaching_load_count", 0) <= 2 %}open{% endif %}>
+                                            <details class="compact-list-details">
                                                 <summary class="compact-list-summary">
                                                     <span class="compact-pill compact-pill-strong">{{ allocation.get("section_assignment_count", 0) }} sections</span>
                                                     <span class="compact-pill">{{ allocation.get("teaching_load_count", 0) }} subject loads</span>
