@@ -288,13 +288,87 @@
             box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.2);
         }
 
+        .subject-selector-shell {
+            display: grid;
+            gap: 10px;
+        }
+
+        .subject-selector-topbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .subject-selector-tools {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .subject-selection-count {
+            font-size: 12px;
+            color: #51667f;
+            font-weight: 700;
+        }
+
+        .subject-selector-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .subject-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            max-width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #c8daf3;
+            border-radius: 999px;
+            background: #edf4ff;
+            color: #244a7c;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .subject-chip-label {
+            display: inline-block;
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .subject-chip-remove {
+            border: none;
+            background: transparent;
+            color: #244a7c;
+            font-size: 14px;
+            font-weight: 800;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .subject-chip-empty {
+            font-size: 12px;
+            color: #5d6b82;
+            padding: 4px 0;
+        }
+
         .subject-picker {
             border: 1px solid #c6d4e8;
-            border-radius: 8px;
-            background: #f8fbff;
-            max-height: 280px;
+            border-radius: 10px;
+            background: linear-gradient(180deg, #fbfdff, #f4f8ff);
+            max-height: 360px;
             overflow: auto;
             padding: 8px;
+            display: grid;
+            gap: 8px;
         }
 
         .assignment-step {
@@ -337,19 +411,94 @@
         }
 
         .subject-search {
-            width: 100%;
+            width: min(340px, 100%);
             padding: 9px 10px;
             border: 1px solid #c6d4e8;
             border-radius: 8px;
             font-size: 13px;
             background: #fff;
-            margin-bottom: 8px;
+            margin-bottom: 0;
         }
 
-        .subject-picker-grid {
+        .subject-grade-group {
+            border: 1px solid #dbe7f8;
+            border-radius: 10px;
+            background: #ffffff;
+            overflow: hidden;
+        }
+
+        .subject-grade-summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 10px 12px;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .subject-grade-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .subject-grade-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #17365d;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .subject-grade-pills {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .subject-grade-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            border: 1px solid #d9e6f8;
+            border-radius: 999px;
+            background: #f8fbff;
+            color: #365275;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .subject-grade-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 0 12px 10px;
+        }
+
+        .subject-grade-btn {
+            border: 1px solid #c8daf3;
+            border-radius: 999px;
+            background: #edf4ff;
+            color: #244a7c;
+            padding: 5px 9px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .subject-grade-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .subject-grade-grid {
             display: grid;
             grid-template-columns: 1fr;
             gap: 8px;
+            padding: 0 12px 12px;
         }
 
         .subject-option {
@@ -362,6 +511,11 @@
             border: 1px solid #dbe7f8;
             border-radius: 6px;
             background: #f5f9ff;
+        }
+
+        .subject-option.is-selected {
+            border-color: #9cc6b3;
+            background: #effaf4;
         }
 
         .subject-option:hover {
@@ -976,24 +1130,17 @@
                                 <div class="assignment-step-label">Step 1</div>
                                 <h3>Select the subjects this teacher can teach</h3>
                                 <p>Tick one or more subjects first. The section assignment area will appear directly below for those selected subjects.</p>
-                            <input id="subjectSearchInput" class="subject-search" type="text" placeholder="Search by code, subject name, or grade">
-                            <div class="subject-picker" id="subjectPicker">
-                                {% if subject_choices %}
-                                <div class="subject-picker-grid" id="subjectPickerGrid">
-                                {% for subject in subject_choices %}
-                                <label class="subject-option subject-option-item" data-search="{{ (subject.subject_code ~ ' ' ~ subject.subject_name ~ ' grade ' ~ (subject.grade if subject.grade is not none else '')) | lower }}" for="subject_code_{{ loop.index }}">
-                                    <input id="subject_code_{{ loop.index }}" type="checkbox" name="subject_codes" value="{{ subject.subject_code }}" data-hours="{{ subject.weekly_hours or 0 }}" {% if selected_subject_codes and subject.subject_code in selected_subject_codes %}checked{% endif %}>
-                                    <span class="subject-main">
-                                        <strong>{{ subject.subject_code }} - {{ subject.subject_name or "Unnamed Subject" }}</strong>
-                                        <small>Grade {{ subject.grade if subject.grade is not none else "-" }} | {{ subject.weekly_hours or 0 }} hours/week</small>
-                                    </span>
-                                </label>
-                                {% endfor %}
+                            <div class="subject-selector-shell">
+                                <div class="subject-selector-topbar">
+                                    <input id="subjectSearchInput" class="subject-search" type="text" placeholder="Search by code, subject name, or grade">
+                                    <div class="subject-selector-tools">
+                                        <span id="subjectSelectionCount" class="subject-selection-count">0 selected</span>
+                                        <button id="clearAllSubjectsBtn" class="subject-grade-btn" type="button">Clear all</button>
+                                    </div>
                                 </div>
+                                <div id="selectedSubjectChips" class="subject-selector-chips"></div>
+                                <div class="subject-picker" id="subjectPicker"></div>
                                 <div id="subjectNoResult" class="subject-empty" style="display:none;">No subjects match your search.</div>
-                                {% else %}
-                                <div class="subject-empty">No subjects available for this branch and academic year.</div>
-                                {% endif %}
                             </div>
                             </div>
                             <div class="assignment-step">
@@ -1238,9 +1385,11 @@ const searchInput = document.getElementById("teacherSearch");
         const maxHoursInput = document.getElementById("max_hours");
         const teacherForm = document.getElementById("createTeacherForm");
         const subjectSearchInput = document.getElementById("subjectSearchInput");
-        const subjectOptionItems = Array.from(document.querySelectorAll(".subject-option-item"));
+        const subjectSelectionCount = document.getElementById("subjectSelectionCount");
+        const clearAllSubjectsBtn = document.getElementById("clearAllSubjectsBtn");
+        const selectedSubjectChips = document.getElementById("selectedSubjectChips");
+        const subjectPicker = document.getElementById("subjectPicker");
         const subjectNoResult = document.getElementById("subjectNoResult");
-        const subjectCodeInputs = Array.from(document.querySelectorAll("input[name='subject_codes']"));
         const sectionAssignmentBoard = document.getElementById("sectionAssignmentBoard");
         const sectionAssignmentEmpty = document.getElementById("sectionAssignmentEmpty");
         const allocationSummary = document.getElementById("allocationSummary");
@@ -1249,11 +1398,21 @@ const searchInput = document.getElementById("teacherSearch");
         const sectionOptionsBySubject = {{ section_options_by_subject | tojson }};
         let persistedSectionAssignmentValues = new Set({{ selected_section_assignment_values | tojson }});
         const subjectChoicesByCode = Object.fromEntries(
-            subjectChoices.map((item) => [item.subject_code, item])
+            subjectChoices.map((item) => [String(item.subject_code || "").trim().toUpperCase(), item])
         );
+        let selectedSubjectCodes = new Set(
+            {{ selected_subject_codes | tojson }}
+                .map((value) => String(value || "").trim().toUpperCase())
+                .filter((value) => Boolean(value))
+        );
+        const openSubjectGradeKeys = new Set();
 
         const getSelectedSubjectCount = () => {
-            return subjectCodeInputs.filter((input) => input.checked).length;
+            return selectedSubjectCodes.size;
+        };
+
+        const getSelectedSubjectCodes = () => {
+            return Array.from(selectedSubjectCodes);
         };
 
         const getSelectedSectionAssignments = () => {
@@ -1315,21 +1474,283 @@ const searchInput = document.getElementById("teacherSearch");
             allocationSummary.classList.toggle("mismatch", exceedsCapacity);
         };
 
-        const filterSubjectOptions = () => {
-            if (!subjectSearchInput || subjectOptionItems.length === 0) {
+        const getGradeKey = (value) => {
+            const text = String(value ?? "").trim().toUpperCase();
+            if (!text || text === "0" || text === "KG") {
+                return "KG";
+            }
+            const parsed = Number(text);
+            if (Number.isFinite(parsed) && parsed > 0) {
+                return String(parsed);
+            }
+            return text;
+        };
+
+        const getGradeLabel = (gradeKey) => {
+            return gradeKey === "KG" ? "KG" : `Grade ${gradeKey}`;
+        };
+
+        const getGradeSortValue = (gradeKey) => {
+            if (gradeKey === "KG") {
+                return 0;
+            }
+            const parsed = Number(gradeKey);
+            return Number.isFinite(parsed) ? parsed : 99;
+        };
+
+        const getSubjectSearchText = (subject) => {
+            return [
+                subject.subject_code,
+                subject.subject_name,
+                getGradeLabel(getGradeKey(subject.grade)),
+            ]
+                .join(" ")
+                .toLowerCase();
+        };
+
+        const getSortedSelectedSubjects = () => {
+            return Array.from(selectedSubjectCodes)
+                .map((code) => subjectChoicesByCode[code])
+                .filter((subject) => Boolean(subject))
+                .sort((left, right) => {
+                    const leftGrade = getGradeSortValue(getGradeKey(left.grade));
+                    const rightGrade = getGradeSortValue(getGradeKey(right.grade));
+                    if (leftGrade !== rightGrade) {
+                        return leftGrade - rightGrade;
+                    }
+                    return String(left.subject_code || "").localeCompare(String(right.subject_code || ""));
+                });
+        };
+
+        const renderSelectedSubjectChips = () => {
+            if (subjectSelectionCount) {
+                subjectSelectionCount.textContent = `${getSelectedSubjectCount()} selected`;
+            }
+
+            if (clearAllSubjectsBtn) {
+                clearAllSubjectsBtn.disabled = getSelectedSubjectCount() === 0;
+            }
+
+            if (!selectedSubjectChips) {
                 return;
             }
 
-            const term = subjectSearchInput.value.trim().toLowerCase();
+            selectedSubjectChips.innerHTML = "";
+            const selectedSubjects = getSortedSelectedSubjects();
+
+            if (selectedSubjects.length === 0) {
+                const emptyState = document.createElement("span");
+                emptyState.className = "subject-chip-empty";
+                emptyState.textContent = "No subjects selected yet.";
+                selectedSubjectChips.appendChild(emptyState);
+                return;
+            }
+
+            selectedSubjects.forEach((subject) => {
+                const code = String(subject.subject_code || "").trim().toUpperCase();
+                const chip = document.createElement("span");
+                chip.className = "subject-chip";
+
+                const label = document.createElement("span");
+                label.className = "subject-chip-label";
+                label.textContent = `${code} - ${subject.subject_name || "Unnamed Subject"}`;
+                chip.appendChild(label);
+
+                const removeButton = document.createElement("button");
+                removeButton.type = "button";
+                removeButton.className = "subject-chip-remove";
+                removeButton.setAttribute("aria-label", `Remove subject ${code}`);
+                removeButton.textContent = "x";
+                removeButton.addEventListener("click", () => {
+                    selectedSubjectCodes.delete(code);
+                    renderSelectedSubjectChips();
+                    renderSubjectPicker();
+                    renderSectionAssignmentBoard();
+                });
+                chip.appendChild(removeButton);
+
+                selectedSubjectChips.appendChild(chip);
+            });
+        };
+
+        const renderSubjectPicker = () => {
+            if (!subjectPicker) {
+                return;
+            }
+
+            subjectPicker.innerHTML = "";
+
+            if (subjectChoices.length === 0) {
+                const emptyState = document.createElement("div");
+                emptyState.className = "subject-empty";
+                emptyState.textContent = "No subjects available for this branch and academic year.";
+                subjectPicker.appendChild(emptyState);
+                if (subjectNoResult) {
+                    subjectNoResult.style.display = "none";
+                }
+                return;
+            }
+
+            const term = subjectSearchInput ? subjectSearchInput.value.trim().toLowerCase() : "";
+            const groupedSubjects = new Map();
+
+            subjectChoices.forEach((subject) => {
+                const gradeKey = getGradeKey(subject.grade);
+                if (!groupedSubjects.has(gradeKey)) {
+                    groupedSubjects.set(gradeKey, []);
+                }
+                groupedSubjects.get(gradeKey).push(subject);
+            });
+
+            const sortedGrades = Array.from(groupedSubjects.keys()).sort((left, right) => {
+                const leftValue = getGradeSortValue(left);
+                const rightValue = getGradeSortValue(right);
+                if (leftValue !== rightValue) {
+                    return leftValue - rightValue;
+                }
+                return left.localeCompare(right);
+            });
+
             let visibleCount = 0;
 
-            subjectOptionItems.forEach((item) => {
-                const text = (item.dataset.search || item.textContent || "").toLowerCase();
-                const match = text.includes(term);
-                item.style.display = match ? "" : "none";
-                if (match) {
-                    visibleCount += 1;
+            sortedGrades.forEach((gradeKey, index) => {
+                const subjectsInGrade = groupedSubjects.get(gradeKey) || [];
+                const visibleSubjects = subjectsInGrade.filter((subject) => {
+                    const code = String(subject.subject_code || "").trim().toUpperCase();
+                    return selectedSubjectCodes.has(code) || getSubjectSearchText(subject).includes(term);
+                });
+
+                if (visibleSubjects.length === 0) {
+                    return;
                 }
+
+                visibleCount += visibleSubjects.length;
+
+                const selectedCountInGrade = subjectsInGrade.filter((subject) => {
+                    const code = String(subject.subject_code || "").trim().toUpperCase();
+                    return selectedSubjectCodes.has(code);
+                }).length;
+
+                const group = document.createElement("details");
+                group.className = "subject-grade-group";
+                group.open = term.length > 0 || openSubjectGradeKeys.has(gradeKey) || selectedCountInGrade > 0 || index === 0;
+                group.addEventListener("toggle", () => {
+                    if (group.open) {
+                        openSubjectGradeKeys.add(gradeKey);
+                    } else {
+                        openSubjectGradeKeys.delete(gradeKey);
+                    }
+                });
+
+                const summary = document.createElement("summary");
+                summary.className = "subject-grade-summary";
+
+                const title = document.createElement("span");
+                title.className = "subject-grade-title";
+                title.textContent = getGradeLabel(gradeKey);
+                summary.appendChild(title);
+
+                const pills = document.createElement("span");
+                pills.className = "subject-grade-pills";
+
+                const totalPill = document.createElement("span");
+                totalPill.className = "subject-grade-pill";
+                totalPill.textContent = `${subjectsInGrade.length} subjects`;
+                pills.appendChild(totalPill);
+
+                const selectedPill = document.createElement("span");
+                selectedPill.className = "subject-grade-pill";
+                selectedPill.textContent = `${selectedCountInGrade} selected`;
+                pills.appendChild(selectedPill);
+
+                summary.appendChild(pills);
+                group.appendChild(summary);
+
+                const actions = document.createElement("div");
+                actions.className = "subject-grade-actions";
+
+                const selectAllButton = document.createElement("button");
+                selectAllButton.type = "button";
+                selectAllButton.className = "subject-grade-btn";
+                selectAllButton.textContent = "Select grade";
+                selectAllButton.disabled = selectedCountInGrade === subjectsInGrade.length;
+                selectAllButton.addEventListener("click", () => {
+                    subjectsInGrade.forEach((subject) => {
+                        const code = String(subject.subject_code || "").trim().toUpperCase();
+                        if (code) {
+                            selectedSubjectCodes.add(code);
+                        }
+                    });
+                    renderSelectedSubjectChips();
+                    renderSubjectPicker();
+                    renderSectionAssignmentBoard();
+                });
+                actions.appendChild(selectAllButton);
+
+                const clearGradeButton = document.createElement("button");
+                clearGradeButton.type = "button";
+                clearGradeButton.className = "subject-grade-btn";
+                clearGradeButton.textContent = "Clear grade";
+                clearGradeButton.disabled = selectedCountInGrade === 0;
+                clearGradeButton.addEventListener("click", () => {
+                    subjectsInGrade.forEach((subject) => {
+                        const code = String(subject.subject_code || "").trim().toUpperCase();
+                        selectedSubjectCodes.delete(code);
+                    });
+                    renderSelectedSubjectChips();
+                    renderSubjectPicker();
+                    renderSectionAssignmentBoard();
+                });
+                actions.appendChild(clearGradeButton);
+                group.appendChild(actions);
+
+                const grid = document.createElement("div");
+                grid.className = "subject-grade-grid";
+
+                visibleSubjects
+                    .sort((left, right) => String(left.subject_code || "").localeCompare(String(right.subject_code || "")))
+                    .forEach((subject, subjectIndex) => {
+                        const code = String(subject.subject_code || "").trim().toUpperCase();
+                        const option = document.createElement("label");
+                        option.className = `subject-option subject-option-item${selectedSubjectCodes.has(code) ? " is-selected" : ""}`;
+                        option.setAttribute("for", `subject_code_${gradeKey}_${subjectIndex}`);
+
+                        const input = document.createElement("input");
+                        input.id = `subject_code_${gradeKey}_${subjectIndex}`;
+                        input.type = "checkbox";
+                        input.name = "subject_codes";
+                        input.value = code;
+                        input.checked = selectedSubjectCodes.has(code);
+                        input.dataset.hours = subject.weekly_hours || 0;
+                        input.addEventListener("change", () => {
+                            if (input.checked) {
+                                selectedSubjectCodes.add(code);
+                            } else {
+                                selectedSubjectCodes.delete(code);
+                            }
+                            renderSelectedSubjectChips();
+                            renderSubjectPicker();
+                            renderSectionAssignmentBoard();
+                        });
+                        option.appendChild(input);
+
+                        const copy = document.createElement("span");
+                        copy.className = "subject-main";
+
+                        const strong = document.createElement("strong");
+                        strong.textContent = `${code} - ${subject.subject_name || "Unnamed Subject"}`;
+                        copy.appendChild(strong);
+
+                        const small = document.createElement("small");
+                        small.textContent = `${getGradeLabel(gradeKey)} | ${subject.weekly_hours || 0} hours/week`;
+                        copy.appendChild(small);
+
+                        option.appendChild(copy);
+                        grid.appendChild(option);
+                    });
+
+                group.appendChild(grid);
+                subjectPicker.appendChild(group);
             });
 
             if (subjectNoResult) {
@@ -1352,20 +1773,17 @@ const searchInput = document.getElementById("teacherSearch");
                         .map((input) => String(input.value || ""))
                 );
             }
-            const selectedSubjectCodes = subjectCodeInputs
-                .filter((input) => input.checked)
-                .map((input) => String(input.value || "").trim().toUpperCase())
-                .filter((value) => Boolean(value));
+            const selectedSubjectCodesForBoard = getSelectedSubjectCodes();
 
             sectionAssignmentBoard.innerHTML = "";
 
-            if (selectedSubjectCodes.length === 0) {
+            if (selectedSubjectCodesForBoard.length === 0) {
                 sectionAssignmentEmpty.style.display = "block";
                 updateAllocationSummary();
                 return;
             }
 
-            selectedSubjectCodes.forEach((subjectCode) => {
+            selectedSubjectCodesForBoard.forEach((subjectCode) => {
                 const subject = subjectChoicesByCode[subjectCode] || {};
                 const sectionOptions = sectionOptionsBySubject[subjectCode] || [];
 
@@ -1543,15 +1961,17 @@ const searchInput = document.getElementById("teacherSearch");
             });
         }
 
-        if (subjectCodeInputs.length > 0) {
-            subjectCodeInputs.forEach((input) => {
-                input.addEventListener("change", renderSectionAssignmentBoard);
-            });
+        if (subjectSearchInput) {
+            subjectSearchInput.addEventListener("input", renderSubjectPicker);
         }
 
-        if (subjectSearchInput) {
-            subjectSearchInput.addEventListener("input", filterSubjectOptions);
-            filterSubjectOptions();
+        if (clearAllSubjectsBtn) {
+            clearAllSubjectsBtn.addEventListener("click", () => {
+                selectedSubjectCodes = new Set();
+                renderSelectedSubjectChips();
+                renderSubjectPicker();
+                renderSectionAssignmentBoard();
+            });
         }
 
         if (extraCountInput) {
@@ -1604,13 +2024,13 @@ const searchInput = document.getElementById("teacherSearch");
                         return;
                     }
 
-                    if (subjectCodeInputs.length === 0) {
+                    if (subjectChoices.length === 0) {
                         event.preventDefault();
                         window.alert("No subjects are available for assignment in the current branch/academic year.");
                         return;
                     }
 
-                    const selectedCount = subjectCodeInputs.filter((item) => item.checked).length;
+                    const selectedCount = getSelectedSubjectCount();
                     if (selectedCount === 0) {
                         event.preventDefault();
                         window.alert("Select at least one subject for this teacher.");
@@ -1644,6 +2064,8 @@ const searchInput = document.getElementById("teacherSearch");
             }
         }
 
+        renderSelectedSubjectChips();
+        renderSubjectPicker();
         renderSectionAssignmentBoard();
         updateBulkDeleteState();
 
