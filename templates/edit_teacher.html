@@ -319,6 +319,13 @@
             font-weight: 900;
             line-height: 1;
             flex-shrink: 0;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        button.subject-grade-indicator {
+            appearance: none;
+            -webkit-appearance: none;
         }
 
         .subject-grade-subtitle {
@@ -994,7 +1001,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                 const group = document.createElement("div");
                 const isInitiallyOpen = term.length > 0 || openSubjectGradeKeys.has(gradeKey) || selectedCountInGrade > 0 || index === 0;
                 group.className = `subject-grade-group${isInitiallyOpen ? " is-open" : ""}`;
-                let indicator = null;
+                let indicatorButton = null;
                 let panel = null;
                 const syncGroupOpenState = (isOpen) => {
                     group.classList.toggle("is-open", isOpen);
@@ -1004,11 +1011,13 @@ const teacherIdInput = document.getElementById("teacher_id");
                         openSubjectGradeKeys.delete(gradeKey);
                     }
                     summary.setAttribute("aria-expanded", isOpen ? "true" : "false");
-                    if (indicator) {
-                        indicator.textContent = isOpen ? "-" : "+";
+                    if (indicatorButton) {
+                        indicatorButton.textContent = isOpen ? "-" : "+";
+                        indicatorButton.setAttribute("aria-label", isOpen ? `Collapse ${getGradeLabel(gradeKey)}` : `Expand ${getGradeLabel(gradeKey)}`);
+                        indicatorButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
                     }
                     if (panel) {
-                        panel.hidden = !isOpen;
+                        panel.style.display = isOpen ? "grid" : "none";
                     }
                 };
 
@@ -1033,10 +1042,15 @@ const teacherIdInput = document.getElementById("teacher_id");
 
                 const title = document.createElement("span");
                 title.className = "subject-grade-title";
-                indicator = document.createElement("span");
-                indicator.className = "subject-grade-indicator";
-                indicator.setAttribute("aria-hidden", "true");
-                title.appendChild(indicator);
+                indicatorButton = document.createElement("button");
+                indicatorButton.type = "button";
+                indicatorButton.className = "subject-grade-indicator";
+                indicatorButton.addEventListener("click", (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    syncGroupOpenState(!group.classList.contains("is-open"));
+                });
+                title.appendChild(indicatorButton);
 
                 const titleLabel = document.createElement("span");
                 titleLabel.textContent = getGradeLabel(gradeKey);
