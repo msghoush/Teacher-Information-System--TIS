@@ -588,7 +588,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 880px;
+            min-width: 720px;
         }
 
         th, td {
@@ -652,6 +652,114 @@
             color: #fff;
             border-color: #b42318;
             background: #b42318;
+        }
+
+        .teacher-identity {
+            display: grid;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .teacher-identity strong {
+            font-size: 14px;
+            color: #1f3759;
+            line-height: 1.25;
+        }
+
+        .teacher-identity span {
+            font-size: 12px;
+            color: #5d6b82;
+            line-height: 1.25;
+        }
+
+        .coverage-stack {
+            display: grid;
+            gap: 8px;
+            min-width: 240px;
+        }
+
+        .coverage-block {
+            display: grid;
+            gap: 5px;
+        }
+
+        .coverage-label {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: #edf4ff;
+            color: #244a7c;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .capacity-chip-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            min-width: 220px;
+        }
+
+        .capacity-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            border: 1px solid #d9e6f8;
+            border-radius: 10px;
+            background: #f8fbff;
+            color: #365275;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .capacity-chip strong {
+            color: #163e73;
+            font-size: 12px;
+        }
+
+        .hours-status-cell {
+            display: grid;
+            gap: 6px;
+            min-width: 170px;
+        }
+
+        .hours-status-chip {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 5px 9px;
+            border-radius: 999px;
+            border: 1px solid #c5d3e8;
+            background: #f8fbff;
+            color: #2f4f75;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .hours-status-chip.is-good {
+            border-color: #add9c2;
+            background: #ecfaf3;
+            color: #067647;
+        }
+
+        .hours-status-chip.is-danger {
+            border-color: #f3b2b2;
+            background: #fff1f1;
+            color: #b42318;
+        }
+
+        .hours-status-note {
+            font-size: 12px;
+            color: #5d6b82;
+            line-height: 1.3;
         }
 
         .assigned-list {
@@ -976,18 +1084,10 @@
                                     <input id="bulkSelectAll" class="bulk-select" type="checkbox" aria-label="Select all teachers">
                                 </th>
                                 {% endif %}
-                                <th>Teacher ID</th>
-                                <th>Full Name</th>
-                                <th>Eligible Subjects</th>
-                                <th>Section Teaching Load</th>
-                                <th>Max Hours</th>
-                                <th>National Section Hours</th>
-                                <th>International Capacity</th>
-                                <th>Allocated Teaching Hours</th>
-                                <th>Hours Status</th>
-                                <th>Extra Hours Allowed</th>
-                                <th>Extra Hours Count</th>
-                                <th>Total Hours Capacity</th>
+                                <th>Teacher</th>
+                                <th>Coverage</th>
+                                <th>Capacity Snapshot</th>
+                                <th>Status</th>
                                 {% if can_edit or can_delete %}
                                 <th>Actions</th>
                                 {% endif %}
@@ -997,72 +1097,91 @@
                             {% for teacher in teachers %}
                             <tr class="teacher-row">
                                 {% set allocation = teacher_allocations.get(teacher.id) %}
+                                {% set allocated_hours = allocation.get("allocated_hours", 0) if allocation else 0 %}
+                                {% set national_hours = allocation.get("national_section_hours", 0) if allocation else (teacher.national_section_hours if teacher.teaches_national_section else 0) %}
+                                {% set international_capacity = allocation.get("international_capacity_hours", 0) if allocation else (((teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0)) - (teacher.national_section_hours if teacher.teaches_national_section else 0)) %}
+                                {% set total_capacity = allocation.get("total_capacity_hours", 0) if allocation else ((teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0)) %}
+                                {% set extra_hours = teacher.extra_hours_count if teacher.extra_hours_allowed else 0 %}
+                                {% set within_capacity = allocated_hours <= international_capacity %}
                                 {% if can_delete %}
                                 <td class="select-col">
                                     <input class="bulk-select bulk-select-item" type="checkbox" name="selected_teacher_ids" value="{{ teacher.id }}" aria-label="Select teacher {{ teacher.first_name }} {{ teacher.last_name }} for bulk delete">
                                 </td>
                                 {% endif %}
-                                <td>{{ teacher.teacher_id }}</td>
-                                <td>{{ teacher.first_name }}{% if teacher.middle_name %} {{ teacher.middle_name }}{% endif %} {{ teacher.last_name }}</td>
                                 <td>
-                                    {% if allocation and allocation.get("subject_labels") %}
-                                    <details class="compact-list-details" {% if allocation.get("subject_count", 0) <= 3 %}open{% endif %}>
-                                        <summary class="compact-list-summary">
-                                            <span class="compact-pill compact-pill-strong">{{ allocation.get("subject_count", 0) }} subjects</span>
-                                            {% for code in allocation.get("subject_preview_codes", []) %}
-                                            <span class="compact-preview-pill">{{ code }}</span>
-                                            {% endfor %}
-                                            {% if allocation.get("subject_hidden_count", 0) %}
-                                            <span class="compact-preview-pill compact-preview-pill-more">+{{ allocation.get("subject_hidden_count", 0) }} more</span>
+                                    <div class="teacher-identity">
+                                        <strong>{{ teacher.first_name }}{% if teacher.middle_name %} {{ teacher.middle_name }}{% endif %} {{ teacher.last_name }}</strong>
+                                        <span>ID {{ teacher.teacher_id }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="coverage-stack">
+                                        <div class="coverage-block">
+                                            <span class="coverage-label">Subjects</span>
+                                            {% if allocation and allocation.get("subject_labels") %}
+                                            <details class="compact-list-details" {% if allocation.get("subject_count", 0) <= 3 %}open{% endif %}>
+                                                <summary class="compact-list-summary">
+                                                    <span class="compact-pill compact-pill-strong">{{ allocation.get("subject_count", 0) }} subjects</span>
+                                                    {% for code in allocation.get("subject_preview_codes", []) %}
+                                                    <span class="compact-preview-pill">{{ code }}</span>
+                                                    {% endfor %}
+                                                    {% if allocation.get("subject_hidden_count", 0) %}
+                                                    <span class="compact-preview-pill compact-preview-pill-more">+{{ allocation.get("subject_hidden_count", 0) }} more</span>
+                                                    {% endif %}
+                                                </summary>
+                                                <ul class="assigned-list">
+                                                    {% for label in allocation.get("subject_labels") %}
+                                                    <li class="assigned-item">{{ label }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </details>
+                                            {% else %}
+                                            <span class="hours-status-note">No eligible subjects assigned.</span>
                                             {% endif %}
-                                        </summary>
-                                        <ul class="assigned-list">
-                                            {% for label in allocation.get("subject_labels") %}
-                                            <li class="assigned-item">{{ label }}</li>
-                                            {% endfor %}
-                                        </ul>
-                                    </details>
-                                    {% else %}
-                                    -
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if allocation and allocation.get("teaching_load_labels") %}
-                                    <details class="compact-list-details" {% if allocation.get("teaching_load_count", 0) <= 2 %}open{% endif %}>
-                                        <summary class="compact-list-summary">
-                                            <span class="compact-pill compact-pill-strong">{{ allocation.get("section_assignment_count", 0) }} sections</span>
-                                            <span class="compact-pill">{{ allocation.get("teaching_load_count", 0) }} subject loads</span>
-                                            {% for preview in allocation.get("teaching_load_preview_labels", []) %}
-                                            <span class="compact-preview-pill">{{ preview }}</span>
-                                            {% endfor %}
-                                            {% if allocation.get("teaching_load_hidden_count", 0) %}
-                                            <span class="compact-preview-pill compact-preview-pill-more">+{{ allocation.get("teaching_load_hidden_count", 0) }} more</span>
+                                        </div>
+                                        <div class="coverage-block">
+                                            <span class="coverage-label">Teaching Load</span>
+                                            {% if allocation and allocation.get("teaching_load_labels") %}
+                                            <details class="compact-list-details" {% if allocation.get("teaching_load_count", 0) <= 2 %}open{% endif %}>
+                                                <summary class="compact-list-summary">
+                                                    <span class="compact-pill compact-pill-strong">{{ allocation.get("section_assignment_count", 0) }} sections</span>
+                                                    <span class="compact-pill">{{ allocation.get("teaching_load_count", 0) }} subject loads</span>
+                                                    {% for preview in allocation.get("teaching_load_preview_labels", []) %}
+                                                    <span class="compact-preview-pill">{{ preview }}</span>
+                                                    {% endfor %}
+                                                    {% if allocation.get("teaching_load_hidden_count", 0) %}
+                                                    <span class="compact-preview-pill compact-preview-pill-more">+{{ allocation.get("teaching_load_hidden_count", 0) }} more</span>
+                                                    {% endif %}
+                                                </summary>
+                                                <ul class="assigned-list">
+                                                    {% for label in allocation.get("teaching_load_labels") %}
+                                                    <li class="assigned-item">{{ label }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </details>
+                                            {% else %}
+                                            <span class="hours-status-note">No section assignments yet.</span>
                                             {% endif %}
-                                        </summary>
-                                        <ul class="assigned-list">
-                                            {% for label in allocation.get("teaching_load_labels") %}
-                                            <li class="assigned-item">{{ label }}</li>
-                                            {% endfor %}
-                                        </ul>
-                                    </details>
-                                    {% else %}
-                                    No section assignments yet
-                                    {% endif %}
+                                        </div>
+                                    </div>
                                 </td>
-                                <td>{{ teacher.max_hours or 24 }}</td>
-                                <td>{{ allocation.get("national_section_hours", 0) if allocation else (teacher.national_section_hours if teacher.teaches_national_section else 0) }}</td>
-                                <td>{{ allocation.get("international_capacity_hours", 0) if allocation else (((teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0)) - (teacher.national_section_hours if teacher.teaches_national_section else 0)) }}</td>
-                                <td>{{ allocation.get("allocated_hours", 0) if allocation else 0 }}</td>
                                 <td>
-                                    {% if allocation %}
-                                    {{ "Within Capacity" if allocation.get("within_capacity") else "Over Capacity" }}
-                                    {% else %}
-                                    -
-                                    {% endif %}
+                                    <div class="capacity-chip-grid">
+                                        <span class="capacity-chip"><strong>{{ allocated_hours }}h</strong>Allocated</span>
+                                        <span class="capacity-chip"><strong>{{ international_capacity }}h</strong>Intl</span>
+                                        <span class="capacity-chip"><strong>{{ total_capacity }}h</strong>Total</span>
+                                        <span class="capacity-chip"><strong>{{ national_hours }}h</strong>National</span>
+                                    </div>
                                 </td>
-                                <td>{{ "Yes" if teacher.extra_hours_allowed else "No" }}</td>
-                                <td>{{ teacher.extra_hours_count if teacher.extra_hours_allowed else 0 }}</td>
-                                <td>{{ allocation.get("total_capacity_hours", 0) if allocation else ((teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0)) }}</td>
+                                <td>
+                                    <div class="hours-status-cell">
+                                        <span class="hours-status-chip {% if within_capacity %}is-good{% else %}is-danger{% endif %}">
+                                            {{ "Within Capacity" if within_capacity else "Over Capacity" }}
+                                        </span>
+                                        <span class="hours-status-note">Base max: {{ teacher.max_hours or 24 }}h</span>
+                                        <span class="hours-status-note">Extra hours: {{ extra_hours }}h {{ "enabled" if teacher.extra_hours_allowed else "disabled" }}</span>
+                                    </div>
+                                </td>
                                 {% if can_edit or can_delete %}
                                 <td class="row-actions">
                                     {% if can_edit %}
