@@ -441,15 +441,15 @@
             gap: 8px;
             padding: 10px 12px;
             cursor: pointer;
-            list-style: none;
-        }
-
-        .subject-grade-summary::-webkit-details-marker {
-            display: none;
         }
 
         .subject-grade-summary:hover {
             background: #f8fbff;
+        }
+
+        .subject-grade-group.is-open .subject-grade-summary {
+            background: #f8fbff;
+            border-bottom: 1px solid #e4edf9;
         }
 
         .subject-grade-summary-main {
@@ -535,11 +535,20 @@
             background: #ffffff;
         }
 
+        .subject-grade-panel {
+            display: none;
+            padding: 10px 12px 12px;
+        }
+
+        .subject-grade-group.is-open .subject-grade-panel {
+            display: grid;
+            gap: 10px;
+        }
+
         .subject-grade-grid {
             display: grid;
             grid-template-columns: 1fr;
             gap: 8px;
-            padding: 0 12px 12px;
         }
 
         .subject-option {
@@ -1179,7 +1188,7 @@
                                         <button id="clearAllSubjectsBtn" class="subject-grade-btn" type="button">Clear all</button>
                                     </div>
                                 </div>
-                                <div class="subject-selector-help">Use <strong>Show subjects</strong> on any grade, then tick the subjects you want for this teacher.</div>
+                                <div class="subject-selector-help">Use <strong>Expand grade</strong> on any grade, then tick the subjects you want for this teacher.</div>
                                 <div id="selectedSubjectChips" class="subject-selector-chips"></div>
                                 <div class="subject-picker" id="subjectPicker"></div>
                                 <div id="subjectNoResult" class="subject-empty" style="display:none;">No subjects match your search.</div>
@@ -1690,28 +1699,45 @@ const searchInput = document.getElementById("teacherSearch");
                     return selectedSubjectCodes.has(code);
                 }).length;
 
-                const group = document.createElement("details");
-                group.className = "subject-grade-group";
-                group.open = term.length > 0 || openSubjectGradeKeys.has(gradeKey) || selectedCountInGrade > 0 || index === 0;
+                const group = document.createElement("div");
+                const isInitiallyOpen = term.length > 0 || openSubjectGradeKeys.has(gradeKey) || selectedCountInGrade > 0 || index === 0;
+                group.className = `subject-grade-group${isInitiallyOpen ? " is-open" : ""}`;
                 let toggleButton = null;
-                const syncToggleButton = () => {
-                    if (!toggleButton) {
-                        return;
-                    }
-                    toggleButton.textContent = group.open ? "Hide subjects" : "Show subjects";
-                    toggleButton.setAttribute("aria-expanded", group.open ? "true" : "false");
-                };
-                group.addEventListener("toggle", () => {
-                    if (group.open) {
+                let panel = null;
+                const syncGroupOpenState = (isOpen) => {
+                    group.classList.toggle("is-open", isOpen);
+                    if (isOpen) {
                         openSubjectGradeKeys.add(gradeKey);
                     } else {
                         openSubjectGradeKeys.delete(gradeKey);
                     }
-                    syncToggleButton();
-                });
+                    if (!toggleButton) {
+                        return;
+                    }
+                    toggleButton.textContent = isOpen ? "Collapse grade" : "Expand grade";
+                    toggleButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+                    if (panel) {
+                        panel.hidden = !isOpen;
+                    }
+                };
 
-                const summary = document.createElement("summary");
+                const summary = document.createElement("div");
                 summary.className = "subject-grade-summary";
+                summary.setAttribute("role", "button");
+                summary.setAttribute("tabindex", "0");
+                summary.addEventListener("click", (event) => {
+                    if (event.target.closest("button")) {
+                        return;
+                    }
+                    syncGroupOpenState(!group.classList.contains("is-open"));
+                });
+                summary.addEventListener("keydown", (event) => {
+                    if (event.key !== "Enter" && event.key !== " ") {
+                        return;
+                    }
+                    event.preventDefault();
+                    syncGroupOpenState(!group.classList.contains("is-open"));
+                });
 
                 const summaryMain = document.createElement("span");
                 summaryMain.className = "subject-grade-summary-main";
@@ -1750,14 +1776,15 @@ const searchInput = document.getElementById("teacherSearch");
                 toggleButton.addEventListener("click", (event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    group.open = !group.open;
-                    syncToggleButton();
+                    syncGroupOpenState(!group.classList.contains("is-open"));
                 });
                 summaryMeta.appendChild(toggleButton);
 
                 summary.appendChild(summaryMeta);
                 group.appendChild(summary);
-                syncToggleButton();
+
+                panel = document.createElement("div");
+                panel.className = "subject-grade-panel";
 
                 const actions = document.createElement("div");
                 actions.className = "subject-grade-actions";
@@ -1797,7 +1824,7 @@ const searchInput = document.getElementById("teacherSearch");
                     renderSectionAssignmentBoard();
                 });
                 actions.appendChild(clearGradeButton);
-                group.appendChild(actions);
+                panel.appendChild(actions);
 
                 const grid = document.createElement("div");
                 grid.className = "subject-grade-grid";
@@ -1844,7 +1871,9 @@ const searchInput = document.getElementById("teacherSearch");
                         grid.appendChild(option);
                     });
 
-                group.appendChild(grid);
+                panel.appendChild(grid);
+                group.appendChild(panel);
+                syncGroupOpenState(isInitiallyOpen);
                 subjectPicker.appendChild(group);
             });
 
