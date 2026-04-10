@@ -240,7 +240,12 @@ def _render_subjects_page(
     subjects = db.query(models.Subject).filter(
         models.Subject.branch_id == branch_id,
         models.Subject.academic_year_id == academic_year_id
-    ).order_by(models.Subject.id.desc()).all()
+    ).order_by(
+        models.Subject.grade.asc(),
+        models.Subject.subject_code.asc(),
+        models.Subject.id.asc(),
+    ).all()
+    subject_grade_counts = Counter(subject.grade for subject in subjects)
     copy_year_choices = (
         get_copy_year_choices(db, academic_year_id)
         if can_copy_year_data
@@ -253,6 +258,7 @@ def _render_subjects_page(
         {
             "request": request,
             "subjects": subjects,
+            "subject_grade_counts": subject_grade_counts,
             "user": current_user,
             "can_modify": can_modify,
             "can_edit": can_edit,

@@ -418,6 +418,40 @@
             overflow: auto;
         }
 
+        .subject-grade-row td {
+            padding: 8px 11px;
+            background: #edf4ff;
+            border-bottom: 1px solid #d8e2f0;
+        }
+
+        .subject-grade-band {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .subject-grade-band strong {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            color: #234b7a;
+        }
+
+        .subject-grade-count {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 4px 8px;
+            border: 1px solid #c8daf3;
+            background: #ffffff;
+            color: #365275;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -694,12 +728,13 @@
                         </div>
                         <p>Search and manage records instantly.</p>
                     </div>
-                    <input id="subjectSearch" class="search" type="text" placeholder="Search by code or name">
+                    <input id="subjectSearch" class="search" type="text" placeholder="Search by code, name, or grade">
                 </div>
 
                 {% if subjects %}
                 <form id="bulkDeleteForm" method="post" action="/subjects/delete-bulk">
                 <div class="table-wrap">
+                    {% set column_count = 4 + (1 if can_delete else 0) + (1 if (can_edit or can_delete) else 0) %}
                     <table>
                         <thead>
                             <tr>
@@ -718,8 +753,20 @@
                             </tr>
                         </thead>
                         <tbody id="subjectsBody">
+                            {% set grade_ns = namespace(current_grade=None) %}
                             {% for subject in subjects %}
-                            <tr class="subject-row">
+                            {% if grade_ns.current_grade != subject.grade %}
+                            {% set grade_ns.current_grade = subject.grade %}
+                            <tr class="subject-grade-row" data-grade="{{ subject.grade }}">
+                                <td colspan="{{ column_count }}">
+                                    <div class="subject-grade-band">
+                                        <strong>{% if subject.grade == 0 %}KG{% else %}Grade {{ subject.grade }}{% endif %}</strong>
+                                        <span class="subject-grade-count">{{ subject_grade_counts.get(subject.grade, 0) }} subjects</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            <tr class="subject-row" data-grade="{{ subject.grade }}">
                                 {% if can_delete %}
                                 <td class="select-col">
                                     <input class="bulk-select bulk-select-item" type="checkbox" name="selected_subject_ids" value="{{ subject.id }}" aria-label="Select subject {{ subject.subject_code }} for bulk delete">
@@ -770,6 +817,7 @@
 <script>
 const searchInput = document.getElementById("subjectSearch");
         const rows = Array.from(document.querySelectorAll(".subject-row"));
+        const gradeRows = Array.from(document.querySelectorAll(".subject-grade-row"));
         const noResult = document.getElementById("noResult");
         const selectableSubjects = Array.from(document.querySelectorAll(".bulk-select-item"));
         const bulkSelectAll = document.getElementById("bulkSelectAll");
@@ -808,6 +856,14 @@ const searchInput = document.getElementById("subjectSearch");
                 }
             });
         });
+
+        const updateGradeRowVisibility = () => {
+            gradeRows.forEach((gradeRow) => {
+                const grade = gradeRow.dataset.grade || "";
+                const hasVisibleRow = rows.some((row) => row.dataset.grade === grade && row.style.display !== "none");
+                gradeRow.style.display = hasVisibleRow ? "" : "none";
+            });
+        };
 
         const updateBulkDeleteState = () => {
             if (!bulkDeleteTrigger) {
@@ -895,6 +951,8 @@ const searchInput = document.getElementById("subjectSearch");
                     }
                 });
 
+                updateGradeRowVisibility();
+
                 if (noResult) {
                     noResult.style.display = visible === 0 ? "block" : "none";
                 }
@@ -944,5 +1002,6 @@ const searchInput = document.getElementById("subjectSearch");
         }
 
         updateBulkDeleteState();
+        updateGradeRowVisibility();
     </script>
 {% endblock %}
