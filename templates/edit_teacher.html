@@ -641,9 +641,25 @@
 
         <form method="post" action="/teachers/edit/{{ teacher.id }}" autocomplete="off">
             <div class="grid">
-                <div class="field">
+                <div class="field field-wide">
                     <label for="teacher_id">Teacher Iqama/National ID</label>
                     <input id="teacher_id" type="text" name="teacher_id" maxlength="10" value="{{ teacher.teacher_id }}" required>
+                </div>
+                <div class="field">
+                    <label for="first_name">First Name</label>
+                    <input id="first_name" type="text" name="first_name" value="{{ teacher.first_name }}" required>
+                </div>
+                <div class="field">
+                    <label for="middle_name">Middle Name (Optional)</label>
+                    <input id="middle_name" type="text" name="middle_name" value="{{ teacher.middle_name or '' }}">
+                </div>
+                <div class="field">
+                    <label for="last_name">Last Name</label>
+                    <input id="last_name" type="text" name="last_name" value="{{ teacher.last_name }}" required>
+                </div>
+                <div class="field">
+                    <label for="max_hours">Max Hours</label>
+                    <input id="max_hours" type="number" name="max_hours" min="1" value="{{ teacher.max_hours or 24 }}" required>
                 </div>
                 <div class="field field-wide">
                     <label>Eligible Subjects</label>
@@ -673,22 +689,6 @@
                     <div id="sectionAssignmentEmpty" class="section-assignment-empty">Choose one or more subjects in Step 1, and the matching sections will appear here to assign to this teacher.</div>
                     </div>
                     <div id="allocationSummary" class="hours-summary">Eligible subjects selected: 0</div>
-                </div>
-                <div class="field">
-                    <label for="first_name">First Name</label>
-                    <input id="first_name" type="text" name="first_name" value="{{ teacher.first_name }}" required>
-                </div>
-                <div class="field">
-                    <label for="middle_name">Middle Name (Optional)</label>
-                    <input id="middle_name" type="text" name="middle_name" value="{{ teacher.middle_name or '' }}">
-                </div>
-                <div class="field">
-                    <label for="last_name">Last Name</label>
-                    <input id="last_name" type="text" name="last_name" value="{{ teacher.last_name }}" required>
-                </div>
-                <div class="field">
-                    <label for="max_hours">Max Hours</label>
-                    <input id="max_hours" type="number" name="max_hours" min="1" value="{{ teacher.max_hours or 24 }}" required>
                 </div>
                 <div class="field field-wide">
                     <label class="toggle-row" for="extra_hours_allowed">
