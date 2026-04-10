@@ -419,17 +419,63 @@
         }
 
         .subject-grade-row td {
-            padding: 8px 11px;
+            padding: 0;
             background: #edf4ff;
             border-bottom: 1px solid #d8e2f0;
+        }
+
+        .subject-grade-toggle {
+            width: 100%;
+            border: none;
+            background: transparent;
+            padding: 8px 11px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .subject-grade-toggle:focus-visible {
+            outline: 2px solid rgba(10, 78, 163, 0.35);
+            outline-offset: -2px;
         }
 
         .subject-grade-band {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .subject-grade-meta {
+            display: inline-flex;
+            align-items: center;
             gap: 8px;
             flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .subject-grade-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 999px;
+            border: 1px solid #c8daf3;
+            background: #ffffff;
+            color: #234b7a;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .subject-grade-toggle[aria-expanded="true"] .subject-grade-icon {
+            background: #dcecff;
+            border-color: #9fbde5;
         }
 
         .subject-grade-band strong {
@@ -450,6 +496,14 @@
             font-size: 11px;
             font-weight: 700;
             line-height: 1;
+        }
+
+        .subject-grade-hint {
+            color: #5d6b82;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
         }
 
         table {
@@ -759,10 +813,23 @@
                             {% set grade_ns.current_grade = subject.grade %}
                             <tr class="subject-grade-row" data-grade="{{ subject.grade }}">
                                 <td colspan="{{ column_count }}">
-                                    <div class="subject-grade-band">
-                                        <strong>{% if subject.grade == 0 %}KG{% else %}Grade {{ subject.grade }}{% endif %}</strong>
-                                        <span class="subject-grade-count">{{ subject_grade_counts.get(subject.grade, 0) }} subjects</span>
-                                    </div>
+                                    <button
+                                        class="subject-grade-toggle"
+                                        type="button"
+                                        data-grade="{{ subject.grade }}"
+                                        data-grade-label="{% if subject.grade == 0 %}KG{% else %}Grade {{ subject.grade }}{% endif %}"
+                                        aria-expanded="false"
+                                        title="Expand {% if subject.grade == 0 %}KG{% else %}Grade {{ subject.grade }}{% endif %}"
+                                    >
+                                        <span class="subject-grade-band">
+                                            <span class="subject-grade-icon" aria-hidden="true">+</span>
+                                            <strong>{% if subject.grade == 0 %}KG{% else %}Grade {{ subject.grade }}{% endif %}</strong>
+                                        </span>
+                                        <span class="subject-grade-meta">
+                                            <span class="subject-grade-count">{{ subject_grade_counts.get(subject.grade, 0) }} subjects</span>
+                                            <span class="subject-grade-hint">Show subjects</span>
+                                        </span>
+                                    </button>
                                 </td>
                             </tr>
                             {% endif %}
@@ -818,6 +885,7 @@
 const searchInput = document.getElementById("subjectSearch");
         const rows = Array.from(document.querySelectorAll(".subject-row"));
         const gradeRows = Array.from(document.querySelectorAll(".subject-grade-row"));
+        const gradeToggles = Array.from(document.querySelectorAll(".subject-grade-toggle"));
         const noResult = document.getElementById("noResult");
         const selectableSubjects = Array.from(document.querySelectorAll(".bulk-select-item"));
         const bulkSelectAll = document.getElementById("bulkSelectAll");
@@ -831,6 +899,18 @@ const searchInput = document.getElementById("subjectSearch");
         const fileInput = document.getElementById("subject_file");
         const focusButtons = Array.from(document.querySelectorAll("[data-focus-target]"));
         const clearButtons = Array.from(document.querySelectorAll("[data-clear-target]"));
+        const rowsByGrade = new Map();
+        const collapsedGrades = new Set(
+            gradeRows.map((gradeRow) => gradeRow.dataset.grade || "")
+        );
+
+        rows.forEach((row) => {
+            const grade = row.dataset.grade || "";
+            if (!rowsByGrade.has(grade)) {
+                rowsByGrade.set(grade, []);
+            }
+            rowsByGrade.get(grade).push(row);
+        });
 
         focusButtons.forEach((button) => {
             button.addEventListener("click", () => {
@@ -857,13 +937,74 @@ const searchInput = document.getElementById("subjectSearch");
             });
         });
 
-        const updateGradeRowVisibility = () => {
+        const syncGradeVisibility = () => {
+            const term = searchInput ? searchInput.value.trim().toLowerCase() : "";
+            let matchingCount = 0;
+
             gradeRows.forEach((gradeRow) => {
                 const grade = gradeRow.dataset.grade || "";
-                const hasVisibleRow = rows.some((row) => row.dataset.grade === grade && row.style.display !== "none");
-                gradeRow.style.display = hasVisibleRow ? "" : "none";
+                const gradeToggle = gradeRow.querySelector(".subject-grade-toggle");
+                const gradeIcon = gradeRow.querySelector(".subject-grade-icon");
+                const gradeHint = gradeRow.querySelector(".subject-grade-hint");
+                const gradeLabel = gradeToggle ? gradeToggle.dataset.gradeLabel || "grade" : "grade";
+                const gradeSubjectRows = rowsByGrade.get(grade) || [];
+                let gradeMatchCount = 0;
+
+                gradeSubjectRows.forEach((row) => {
+                    const matches = !term || row.textContent.toLowerCase().includes(term);
+                    if (matches) {
+                        gradeMatchCount += 1;
+                    }
+                });
+
+                const hasMatches = gradeMatchCount > 0;
+                const isExpanded = hasMatches && (term ? true : !collapsedGrades.has(grade));
+
+                gradeRow.style.display = hasMatches ? "" : "none";
+
+                gradeSubjectRows.forEach((row) => {
+                    const matches = !term || row.textContent.toLowerCase().includes(term);
+                    row.style.display = matches && isExpanded ? "" : "none";
+                });
+
+                if (gradeToggle) {
+                    gradeToggle.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+                    gradeToggle.setAttribute("aria-label", `${isExpanded ? "Collapse" : "Expand"} ${gradeLabel}`);
+                    gradeToggle.title = `${isExpanded ? "Collapse" : "Expand"} ${gradeLabel}`;
+                }
+
+                if (gradeIcon) {
+                    gradeIcon.textContent = isExpanded ? "-" : "+";
+                }
+
+                if (gradeHint) {
+                    gradeHint.textContent = isExpanded ? "Hide subjects" : "Show subjects";
+                }
+
+                matchingCount += gradeMatchCount;
             });
+
+            if (noResult) {
+                noResult.style.display = matchingCount === 0 ? "block" : "none";
+            }
         };
+
+        gradeToggles.forEach((toggle) => {
+            toggle.addEventListener("click", () => {
+                const grade = toggle.dataset.grade || "";
+                if (!grade) {
+                    return;
+                }
+
+                if (collapsedGrades.has(grade)) {
+                    collapsedGrades.delete(grade);
+                } else {
+                    collapsedGrades.add(grade);
+                }
+
+                syncGradeVisibility();
+            });
+        });
 
         const updateBulkDeleteState = () => {
             if (!bulkDeleteTrigger) {
@@ -938,25 +1079,7 @@ const searchInput = document.getElementById("subjectSearch");
         }
 
         if (searchInput && rows.length > 0) {
-            searchInput.addEventListener("input", () => {
-                const term = searchInput.value.trim().toLowerCase();
-                let visible = 0;
-
-                rows.forEach((row) => {
-                    const text = row.textContent.toLowerCase();
-                    const match = text.includes(term);
-                    row.style.display = match ? "" : "none";
-                    if (match) {
-                        visible += 1;
-                    }
-                });
-
-                updateGradeRowVisibility();
-
-                if (noResult) {
-                    noResult.style.display = visible === 0 ? "block" : "none";
-                }
-            });
+            searchInput.addEventListener("input", syncGradeVisibility);
         }
 
         if (downloadTemplateBtn) {
@@ -1002,6 +1125,6 @@ const searchInput = document.getElementById("subjectSearch");
         }
 
         updateBulkDeleteState();
-        updateGradeRowVisibility();
+        syncGradeVisibility();
     </script>
 {% endblock %}
