@@ -589,6 +589,95 @@
             background: #fff;
         }
 
+        .dashboard-subject-grade-row td {
+            padding: 0;
+            background: #edf4ff;
+            border-bottom: 1px solid #d8e2f0;
+        }
+
+        .dashboard-subject-grade-toggle {
+            width: 100%;
+            border: none;
+            background: transparent;
+            padding: 8px 11px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .dashboard-subject-grade-toggle:focus-visible {
+            outline: 2px solid rgba(10, 78, 163, 0.35);
+            outline-offset: -2px;
+        }
+
+        .dashboard-subject-grade-band {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .dashboard-subject-grade-meta {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .dashboard-subject-grade-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 999px;
+            border: 1px solid #c8daf3;
+            background: #ffffff;
+            color: #234b7a;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .dashboard-subject-grade-toggle[aria-expanded="true"] .dashboard-subject-grade-icon {
+            background: #dcecff;
+            border-color: #9fbde5;
+        }
+
+        .dashboard-subject-grade-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            color: #234b7a;
+        }
+
+        .dashboard-subject-grade-count,
+        .dashboard-subject-grade-hours {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 4px 8px;
+            border: 1px solid #c8daf3;
+            background: #ffffff;
+            color: #365275;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .dashboard-subject-grade-hint {
+            color: #5d6b82;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
         .tiles {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1217,20 +1306,51 @@
                 </div>
                 <div class="table-wrap">
                     <table>
-                        <tr>
-                            <th>Code</th>
-                            <th>Name</th>
-                            <th>Weekly Hours</th>
-                            <th>Grade</th>
-                        </tr>
-                        {% for subject in subjects_dashboard_rows %}
-                        <tr class="dashboard-subject-row" data-grade="{{ 'KG' if subject.grade == 0 else subject.grade }}" data-hours="{{ subject.weekly_hours or 0 }}">
-                            <td>{{ subject.subject_code }}</td>
-                            <td>{{ subject.subject_name }}</td>
-                            <td>{{ subject.weekly_hours }}</td>
-                            <td>{{ "KG" if subject.grade == 0 else subject.grade }}</td>
-                        </tr>
-                        {% endfor %}
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Name</th>
+                                <th>Weekly Hours</th>
+                                <th>Grade</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set dashboard_grade_ns = namespace(current_grade=None) %}
+                            {% for subject in subjects_dashboard_rows %}
+                            {% set dashboard_grade_key = 'KG' if subject.grade == 0 else subject.grade ~ '' %}
+                            {% if dashboard_grade_ns.current_grade != dashboard_grade_key %}
+                            {% set dashboard_grade_ns.current_grade = dashboard_grade_key %}
+                            <tr class="dashboard-subject-grade-row" data-grade="{{ dashboard_grade_key }}">
+                                <td colspan="4">
+                                    <button
+                                        class="dashboard-subject-grade-toggle"
+                                        type="button"
+                                        data-grade="{{ dashboard_grade_key }}"
+                                        data-grade-label="{% if dashboard_grade_key == 'KG' %}KG{% else %}Grade {{ dashboard_grade_key }}{% endif %}"
+                                        aria-expanded="false"
+                                        title="Expand {% if dashboard_grade_key == 'KG' %}KG{% else %}Grade {{ dashboard_grade_key }}{% endif %}"
+                                    >
+                                        <span class="dashboard-subject-grade-band">
+                                            <span class="dashboard-subject-grade-icon" aria-hidden="true">+</span>
+                                            <strong class="dashboard-subject-grade-label">{% if dashboard_grade_key == 'KG' %}KG{% else %}Grade {{ dashboard_grade_key }}{% endif %}</strong>
+                                        </span>
+                                        <span class="dashboard-subject-grade-meta">
+                                            <span class="dashboard-subject-grade-count">0 subjects</span>
+                                            <span class="dashboard-subject-grade-hours">0h</span>
+                                            <span class="dashboard-subject-grade-hint">Show subjects</span>
+                                        </span>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endif %}
+                            <tr class="dashboard-subject-row" data-grade="{{ dashboard_grade_key }}" data-hours="{{ subject.weekly_hours or 0 }}">
+                                <td>{{ subject.subject_code }}</td>
+                                <td>{{ subject.subject_name }}</td>
+                                <td>{{ subject.weekly_hours }}</td>
+                                <td>{{ dashboard_grade_key }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
                     </table>
                 </div>
                 <div id="dashboardNoSubjectResult" class="empty" style="display:none;">No subjects match the selected level/search filters.</div>
@@ -1593,6 +1713,8 @@
 const tabs = document.querySelectorAll(".tab");
         const panels = document.querySelectorAll(".panel");
         const dashboardSubjectRows = Array.from(document.querySelectorAll(".dashboard-subject-row"));
+        const dashboardSubjectGradeRows = Array.from(document.querySelectorAll(".dashboard-subject-grade-row"));
+        const dashboardSubjectGradeToggles = Array.from(document.querySelectorAll(".dashboard-subject-grade-toggle"));
         const dashboardSubjectSearch = document.getElementById("dashboardSubjectSearch");
         const dashboardNoSubjectResult = document.getElementById("dashboardNoSubjectResult");
         const dashboardSubjectGradeChipBar = document.getElementById("dashboardSubjectGradeChipBar");
@@ -1606,6 +1728,8 @@ const tabs = document.querySelectorAll(".tab");
         const reportGapFills = Array.from(document.querySelectorAll(".report-gap-fill"));
         const reportCoverageFill = document.getElementById("reportCoverageFill");
         const subjectGradeOrder = ["KG", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+        const dashboardSubjectRowsByGrade = new Map();
+        const collapsedDashboardGrades = new Set();
         let activeDashboardGrade = "ALL";
         let subjectKpiAnimated = false;
         let planningKpiAnimated = false;
@@ -1694,6 +1818,18 @@ const tabs = document.querySelectorAll(".tab");
             return `Grade ${grade}`;
         };
 
+        dashboardSubjectRows.forEach((row) => {
+            const grade = getDashboardRowGrade(row);
+            if (!dashboardSubjectRowsByGrade.has(grade)) {
+                dashboardSubjectRowsByGrade.set(grade, []);
+            }
+            dashboardSubjectRowsByGrade.get(grade).push(row);
+        });
+
+        dashboardSubjectGradeRows.forEach((gradeRow) => {
+            collapsedDashboardGrades.add(getDashboardRowGrade(gradeRow));
+        });
+
         const buildDashboardGradeStats = () => {
             const stats = {};
             subjectGradeOrder.forEach((grade) => {
@@ -1761,15 +1897,61 @@ const tabs = document.querySelectorAll(".tab");
             let visibleCount = 0;
             let visibleHours = 0;
 
-            dashboardSubjectRows.forEach((row) => {
-                const gradeMatch = activeDashboardGrade === "ALL" || getDashboardRowGrade(row) === activeDashboardGrade;
-                const searchMatch = (row.textContent || "").toLowerCase().includes(term);
-                const match = gradeMatch && searchMatch;
-                row.style.display = match ? "" : "none";
-                if (match) {
-                    visibleCount += 1;
-                    visibleHours += getDashboardRowHours(row);
+            dashboardSubjectGradeRows.forEach((gradeRow) => {
+                const grade = getDashboardRowGrade(gradeRow);
+                const gradeToggle = gradeRow.querySelector(".dashboard-subject-grade-toggle");
+                const gradeIcon = gradeRow.querySelector(".dashboard-subject-grade-icon");
+                const gradeHint = gradeRow.querySelector(".dashboard-subject-grade-hint");
+                const gradeCount = gradeRow.querySelector(".dashboard-subject-grade-count");
+                const gradeHours = gradeRow.querySelector(".dashboard-subject-grade-hours");
+                const gradeLabel = gradeToggle ? gradeToggle.dataset.gradeLabel || getDashboardGradeLabel(grade) : getDashboardGradeLabel(grade);
+                const gradeRows = dashboardSubjectRowsByGrade.get(grade) || [];
+                const gradeMatches = [];
+
+                gradeRows.forEach((row) => {
+                    const gradeMatch = activeDashboardGrade === "ALL" || grade === activeDashboardGrade;
+                    const searchMatch = (row.textContent || "").toLowerCase().includes(term);
+                    if (gradeMatch && searchMatch) {
+                        gradeMatches.push(row);
+                    }
+                });
+
+                const matchedCount = gradeMatches.length;
+                const matchedHours = gradeMatches.reduce((total, row) => total + getDashboardRowHours(row), 0);
+                const hasMatches = matchedCount > 0;
+                const isExpanded = hasMatches && (term ? true : !collapsedDashboardGrades.has(grade));
+
+                gradeRow.style.display = hasMatches ? "" : "none";
+
+                gradeRows.forEach((row) => {
+                    const isMatch = gradeMatches.includes(row);
+                    row.style.display = isMatch && isExpanded ? "" : "none";
+                });
+
+                if (gradeToggle) {
+                    gradeToggle.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+                    gradeToggle.setAttribute("aria-label", `${isExpanded ? "Collapse" : "Expand"} ${gradeLabel}`);
+                    gradeToggle.title = `${isExpanded ? "Collapse" : "Expand"} ${gradeLabel}`;
                 }
+
+                if (gradeIcon) {
+                    gradeIcon.textContent = isExpanded ? "-" : "+";
+                }
+
+                if (gradeHint) {
+                    gradeHint.textContent = isExpanded ? "Hide subjects" : "Show subjects";
+                }
+
+                if (gradeCount) {
+                    gradeCount.textContent = `${matchedCount} subjects`;
+                }
+
+                if (gradeHours) {
+                    gradeHours.textContent = `${matchedHours}h`;
+                }
+
+                visibleCount += matchedCount;
+                visibleHours += matchedHours;
             });
 
             if (dashboardNoSubjectResult) {
@@ -1788,6 +1970,23 @@ const tabs = document.querySelectorAll(".tab");
 
             updateDashboardSubjectSummary(visibleCount, visibleHours);
         };
+
+        dashboardSubjectGradeToggles.forEach((toggle) => {
+            toggle.addEventListener("click", () => {
+                const grade = getDashboardRowGrade(toggle);
+                if (!grade) {
+                    return;
+                }
+
+                if (collapsedDashboardGrades.has(grade)) {
+                    collapsedDashboardGrades.delete(grade);
+                } else {
+                    collapsedDashboardGrades.add(grade);
+                }
+
+                applyDashboardSubjectFilters();
+            });
+        });
 
         const animateSubjectKpis = () => {
             if (subjectKpiAnimated) {
