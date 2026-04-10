@@ -106,6 +106,19 @@ def _detect_profile_photo_extension(file_bytes: bytes) -> str:
     return ""
 
 
+def _profile_photo_media_type_from_extension(extension: str) -> str:
+    normalized_extension = str(extension or "").strip().lower()
+    if normalized_extension == ".png":
+        return "image/png"
+    if normalized_extension in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    if normalized_extension == ".gif":
+        return "image/gif"
+    if normalized_extension == ".webp":
+        return "image/webp"
+    return "application/octet-stream"
+
+
 def _normalize_profile_photo_relative_path(relative_path: str) -> str:
     return str(relative_path or "").replace("\\", "/").lstrip("/")
 
@@ -126,6 +139,56 @@ def _delete_profile_photo_file(relative_path: str):
             os.remove(absolute_path)
         except OSError:
             return
+
+
+def _migrate_profile_photos_to_database(db: Session):
+    users_needing_migration = db.query(User).filter(
+        User.profile_image_path.isnot(None),
+        User.profile_image_path != "",
+        User.profile_image_data.is_(None),
+    ).all()
+
+    if not users_needing_migration:
+        return
+
+    has_changes = False
+    for user_row in users_needing_migration:
+        normalized_relative_path = _normalize_profile_photo_relative_path(
+            getattr(user_row, "profile_image_path", "") or ""
+        )
+        if not normalized_relative_path.startswith(f"{PROFILE_PHOTO_RELATIVE_DIR}/"):
+            continue
+
+        absolute_path = os.path.abspath(
+            os.path.join("static", *normalized_relative_path.split("/"))
+        )
+        upload_root = os.path.abspath(PROFILE_PHOTO_UPLOAD_DIR)
+        if not absolute_path.startswith(upload_root):
+            continue
+        if not os.path.exists(absolute_path):
+            continue
+
+        try:
+            with open(absolute_path, "rb") as image_file:
+                file_bytes = image_file.read()
+        except OSError:
+            continue
+
+        if not file_bytes:
+            continue
+
+        detected_extension = _detect_profile_photo_extension(file_bytes)
+        if not detected_extension:
+            _, detected_extension = os.path.splitext(absolute_path)
+
+        user_row.profile_image_content_type = _profile_photo_media_type_from_extension(
+            detected_extension
+        )
+        user_row.profile_image_data = file_bytes
+        has_changes = True
+
+    if has_changes:
+        db.commit()
 
 
 def _safe_redirect_path(path: str) -> str:
@@ -2316,14 +2379,21 @@ async def upload_profile_photo(
     file_name = f"user_{current_user.id}_{int(time.time() * 1000)}{detected_extension}"
     relative_path = f"{PROFILE_PHOTO_RELATIVE_DIR}/{file_name}"
     absolute_path = os.path.join(PROFILE_PHOTO_UPLOAD_DIR, file_name)
+    profile_media_type = _profile_photo_media_type_from_extension(detected_extension)
 
-    with open(absolute_path, "wb") as output_file:
-        output_file.write(file_bytes)
+    try:
+        with open(absolute_path, "wb") as output_file:
+            output_file.write(file_bytes)
+    except OSError:
+        # Database-backed storage is the primary persistence mechanism.
+        pass
 
     previous_profile_image_path = str(
         getattr(current_user, "profile_image_path", "") or ""
     ).strip()
     current_user.profile_image_path = relative_path
+    current_user.profile_image_content_type = profile_media_type
+    current_user.profile_image_data = file_bytes
     db.commit()
     _delete_profile_photo_file(previous_profile_image_path)
 
@@ -2331,6 +2401,44 @@ async def upload_profile_photo(
         safe_return_to,
         "Profile photo updated successfully.",
     )
+
+
+@app.get("/profile/photo/current")
+def get_current_profile_photo(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return PlainTextResponse("Unauthorized", status_code=401)
+
+    profile_image_data = getattr(current_user, "profile_image_data", None)
+    if profile_image_data:
+        payload = bytes(profile_image_data)
+        media_type = str(
+            getattr(current_user, "profile_image_content_type", "") or ""
+        ).strip() or "application/octet-stream"
+        return StreamingResponse(
+            io.BytesIO(payload),
+            media_type=media_type,
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+        )
+
+    normalized_relative_path = _normalize_profile_photo_relative_path(
+        getattr(current_user, "profile_image_path", "") or ""
+    )
+    if normalized_relative_path.startswith(f"{PROFILE_PHOTO_RELATIVE_DIR}/"):
+        absolute_path = os.path.abspath(
+            os.path.join("static", *normalized_relative_path.split("/"))
+        )
+        upload_root = os.path.abspath(PROFILE_PHOTO_UPLOAD_DIR)
+        if absolute_path.startswith(upload_root) and os.path.exists(absolute_path):
+            return FileResponse(
+                absolute_path,
+                headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+            )
+
+    return PlainTextResponse("Profile photo not found", status_code=404)
 
 
 # ---------------------------------------
@@ -2827,6 +2935,19 @@ def _ensure_users_table_columns():
         if "profile_image_path" not in existing_columns:
             connection.execute(
                 text("ALTER TABLE users ADD COLUMN profile_image_path VARCHAR(255)")
+            )
+        if "profile_image_content_type" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE users ADD COLUMN profile_image_content_type VARCHAR(50)")
+            )
+        if "profile_image_data" not in existing_columns:
+            profile_image_binary_type = (
+                "BYTEA" if engine.dialect.name == "postgresql" else "BLOB"
+            )
+            connection.execute(
+                text(
+                    f"ALTER TABLE users ADD COLUMN profile_image_data {profile_image_binary_type}"
+                )
             )
 
 
@@ -3643,6 +3764,7 @@ def setup_initial_data():
     _seed_teacher_subject_allocations()
     _ensure_profile_photo_upload_dir()
     db = SessionLocal()
+    _migrate_profile_photos_to_database(db)
     admin_user_id = os.getenv("ADMIN_USER_ID", "2623252018")
     admin_username = os.getenv("ADMIN_USERNAME", "developer")
     admin_password = os.getenv("ADMIN_PASSWORD", "UnderProcess1984")

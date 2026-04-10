@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint, Index, LargeBinary
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -29,6 +29,8 @@ class User(Base):
     password = Column(String)
     role = Column(String)
     profile_image_path = Column(String(255))
+    profile_image_content_type = Column(String(50))
+    profile_image_data = Column(LargeBinary)
     branch_id = Column(Integer, ForeignKey("branches.id"))
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
     is_active = Column(Boolean, default=True)

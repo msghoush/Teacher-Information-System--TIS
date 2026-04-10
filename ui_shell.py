@@ -1,4 +1,5 @@
 import os
+from urllib.parse import quote_plus
 
 from sqlalchemy.orm import Session
 
@@ -135,8 +136,12 @@ def build_shell_context(
     effective_role = getattr(current_user, "effective_role", None) or getattr(current_user, "role", "")
     profile_image_path = str(getattr(current_user, "profile_image_path", "") or "").strip()
     normalized_profile_image_path = profile_image_path.replace("\\", "/").lstrip("/")
+    profile_image_data = getattr(current_user, "profile_image_data", None)
     profile_image_url = ""
-    if normalized_profile_image_path:
+    if profile_image_data:
+        version_token = quote_plus(normalized_profile_image_path or f"user-{current_user.id}")
+        profile_image_url = f"{request.url_for('get_current_profile_photo')}?v={version_token}"
+    elif normalized_profile_image_path:
         absolute_profile_image_path = os.path.join("static", *normalized_profile_image_path.split("/"))
         if os.path.exists(absolute_profile_image_path):
             profile_image_url = str(
