@@ -28,6 +28,7 @@ TEACHER_ID_PATTERN = re.compile(r"^\d{1,10}$")
 NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z\s'\-]*$")
 STANDARD_MAX_HOURS = 24
 SECTION_ASSIGNMENT_SEPARATOR = "::"
+MAX_DEGREE_MAJOR_LENGTH = 120
 
 
 def _get_scope_ids(current_user):
@@ -53,6 +54,10 @@ def _normalize_name(value: str) -> str:
     if not cleaned:
         return ""
     return " ".join(part.capitalize() for part in cleaned.split(" "))
+
+
+def _normalize_degree_major(value: str) -> str:
+    return _normalize_spaces(value).strip()
 
 
 def _normalize_subject_codes(values):
@@ -507,6 +512,7 @@ def _render_teachers_page(
         "first_name": "",
         "middle_name": "",
         "last_name": "",
+        "degree_major": "",
         "max_hours": "24",
         "extra_hours_allowed": False,
         "extra_hours_count": "1",
@@ -871,6 +877,7 @@ def copy_teachers_from_year(
                 first_name=source_teacher.first_name,
                 middle_name=source_teacher.middle_name,
                 last_name=source_teacher.last_name,
+                degree_major=source_teacher.degree_major,
                 subject_code=None,
                 level=source_teacher.level,
                 max_hours=source_teacher.max_hours or STANDARD_MAX_HOURS,
@@ -1008,6 +1015,7 @@ def create_teacher(
     first_name: str = Form(...),
     middle_name: str = Form(""),
     last_name: str = Form(...),
+    degree_major: str = Form(""),
     subject_codes: list[str] = Form([]),
     section_assignment_values: list[str] = Form([]),
     max_hours: str = Form("24"),
@@ -1033,6 +1041,7 @@ def create_teacher(
     first_name = _normalize_name(first_name)
     middle_name = _normalize_name(middle_name)
     last_name = _normalize_name(last_name)
+    degree_major = _normalize_degree_major(degree_major)
     normalized_subject_codes = _normalize_subject_codes(subject_codes)
     (
         section_assignment_map,
@@ -1064,6 +1073,13 @@ def create_teacher(
         errors.append("Last name is required.")
     elif not NAME_PATTERN.match(last_name):
         errors.append("Last name must contain letters only.")
+
+    if not degree_major:
+        errors.append("Degree / major is required so the system can guide subject alignment.")
+    elif len(degree_major) > MAX_DEGREE_MAJOR_LENGTH:
+        errors.append(
+            f"Degree / major must be {MAX_DEGREE_MAJOR_LENGTH} characters or fewer."
+        )
 
     if invalid_section_assignment_values:
         errors.append("One or more section assignments were invalid. Please reselect the sections.")
@@ -1181,6 +1197,7 @@ def create_teacher(
                 "first_name": first_name,
                 "middle_name": middle_name,
                 "last_name": last_name,
+                "degree_major": degree_major,
                 "max_hours": str(parsed_max_hours or 24),
                 "extra_hours_allowed": allowed_extra,
                 "extra_hours_count": str(
@@ -1204,6 +1221,7 @@ def create_teacher(
         first_name=first_name,
         middle_name=middle_name if middle_name else None,
         last_name=last_name,
+        degree_major=degree_major,
         subject_code=normalized_subject_codes[0] if normalized_subject_codes else None,
         level=None,
         max_hours=parsed_max_hours if parsed_max_hours is not None else STANDARD_MAX_HOURS,
@@ -1251,6 +1269,7 @@ def create_teacher(
                 "first_name": first_name,
                 "middle_name": middle_name,
                 "last_name": last_name,
+                "degree_major": degree_major,
                 "max_hours": str(parsed_max_hours or 24),
                 "extra_hours_allowed": allowed_extra,
                 "extra_hours_count": str(
@@ -1315,6 +1334,7 @@ def update_teacher(
     first_name: str = Form(...),
     middle_name: str = Form(""),
     last_name: str = Form(...),
+    degree_major: str = Form(""),
     subject_codes: list[str] = Form([]),
     section_assignment_values: list[str] = Form([]),
     max_hours: str = Form("24"),
@@ -1344,6 +1364,7 @@ def update_teacher(
     first_name = _normalize_name(first_name)
     middle_name = _normalize_name(middle_name)
     last_name = _normalize_name(last_name)
+    degree_major = _normalize_degree_major(degree_major)
     normalized_subject_codes = _normalize_subject_codes(subject_codes)
     (
         section_assignment_map,
@@ -1374,6 +1395,13 @@ def update_teacher(
         errors.append("Last name is required.")
     elif not NAME_PATTERN.match(last_name):
         errors.append("Last name must contain letters only.")
+
+    if not degree_major:
+        errors.append("Degree / major is required so the system can guide subject alignment.")
+    elif len(degree_major) > MAX_DEGREE_MAJOR_LENGTH:
+        errors.append(
+            f"Degree / major must be {MAX_DEGREE_MAJOR_LENGTH} characters or fewer."
+        )
 
     if invalid_section_assignment_values:
         errors.append("One or more section assignments were invalid. Please reselect the sections.")
@@ -1489,6 +1517,7 @@ def update_teacher(
             first_name=first_name,
             middle_name=middle_name if middle_name else None,
             last_name=last_name,
+            degree_major=degree_major,
             max_hours=(
                 parsed_max_hours
                 if parsed_max_hours is not None
@@ -1522,6 +1551,7 @@ def update_teacher(
     teacher.first_name = first_name
     teacher.middle_name = middle_name if middle_name else None
     teacher.last_name = last_name
+    teacher.degree_major = degree_major
     teacher.subject_code = normalized_subject_codes[0] if normalized_subject_codes else None
     teacher.level = None
     teacher.max_hours = parsed_max_hours if parsed_max_hours is not None else STANDARD_MAX_HOURS

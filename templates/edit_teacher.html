@@ -125,6 +125,12 @@
             box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.2);
         }
 
+        .field-note {
+            font-size: 12px;
+            color: #5d6b82;
+            line-height: 1.45;
+        }
+
         .subject-selector-shell {
             display: grid;
             gap: 10px;
@@ -134,6 +140,117 @@
             font-size: 12px;
             color: #5d6b82;
             margin: -2px 0 0;
+        }
+
+        .major-guidance {
+            padding: 12px;
+            border: 1px solid #dbe7f8;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #fcfdff, #f4f8ff);
+            display: grid;
+            gap: 10px;
+        }
+
+        .major-guidance[data-state="aligned"] {
+            border-color: #b8dec9;
+            background: linear-gradient(180deg, #fdfffe, #eefaf4);
+        }
+
+        .major-guidance[data-state="review"] {
+            border-color: #f0c99a;
+            background: linear-gradient(180deg, #fffdf8, #fff4e8);
+        }
+
+        .major-guidance[data-state="no-match"] {
+            border-color: #d7e0ee;
+            background: linear-gradient(180deg, #ffffff, #f6f8fc);
+        }
+
+        .major-guidance-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .major-guidance-copy {
+            display: grid;
+            gap: 6px;
+        }
+
+        .major-guidance-copy h4 {
+            margin: 0;
+            font-size: 14px;
+            color: #17365d;
+        }
+
+        .major-guidance-copy p {
+            margin: 0;
+            font-size: 12px;
+            color: #51667f;
+            line-height: 1.45;
+        }
+
+        .major-guidance-badge {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 5px 9px;
+            border-radius: 999px;
+            border: 1px solid #c8daf3;
+            background: #edf4ff;
+            color: #244a7c;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+        }
+
+        .major-guidance[data-state="aligned"] .major-guidance-badge {
+            border-color: #b8dec9;
+            background: #effaf4;
+            color: #0b6a63;
+        }
+
+        .major-guidance[data-state="review"] .major-guidance-badge {
+            border-color: #f0c99a;
+            background: #fff1df;
+            color: #9a5800;
+        }
+
+        .major-guidance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+        }
+
+        .major-guidance-stat {
+            padding: 10px;
+            border: 1px solid #dbe7f8;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.84);
+            display: grid;
+            gap: 4px;
+        }
+
+        .major-guidance-stat span {
+            font-size: 11px;
+            color: #62748d;
+            font-weight: 800;
+            letter-spacing: 0.45px;
+            text-transform: uppercase;
+        }
+
+        .major-guidance-stat strong {
+            font-size: 22px;
+            line-height: 1;
+            color: #17365d;
+        }
+
+        .major-guidance-stat small {
+            font-size: 12px;
+            color: #5a6d87;
         }
 
         .subject-selector-topbar {
@@ -176,6 +293,18 @@
             font-size: 12px;
             font-weight: 700;
             line-height: 1;
+        }
+
+        .subject-chip.is-match {
+            border-color: #bfe0d0;
+            background: #effaf4;
+            color: #0b6a63;
+        }
+
+        .subject-chip.is-review {
+            border-color: #efc89a;
+            background: #fff4e7;
+            color: #9a5800;
         }
 
         .subject-chip-label {
@@ -362,6 +491,12 @@
             line-height: 1;
         }
 
+        .subject-grade-pill.is-muted {
+            border-color: #e3e9f3;
+            background: #f8fafc;
+            color: #73849b;
+        }
+
         .subject-grade-btn {
             border: 1px solid #c8daf3;
             border-radius: 999px;
@@ -422,6 +557,16 @@
             background: #effaf4;
         }
 
+        .subject-option.is-major-match:not(.is-selected) {
+            border-color: #cfe7da;
+            background: #f7fcf9;
+        }
+
+        .subject-option.is-major-review:not(.is-selected) {
+            border-color: #f1dbb9;
+            background: #fffaf2;
+        }
+
         .subject-option:hover {
             border-color: #b9cbe5;
         }
@@ -463,6 +608,36 @@
             color: #4b5f7d;
             line-height: 1.25;
             word-break: break-word;
+        }
+
+        .subject-main-meta {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .subject-major-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.45px;
+            text-transform: uppercase;
+            line-height: 1;
+        }
+
+        .subject-major-badge.is-match {
+            background: #e8f7ef;
+            color: #0d7a47;
+        }
+
+        .subject-major-badge.is-review {
+            background: #fff1df;
+            color: #9a5800;
         }
 
         .subject-empty {
@@ -946,6 +1121,11 @@
                     <label for="last_name">Last Name</label>
                     <input id="last_name" type="text" name="last_name" value="{{ teacher.last_name }}" required>
                 </div>
+                <div class="field field-wide">
+                    <label for="degree_major">Degree / Major</label>
+                    <input id="degree_major" type="text" name="degree_major" maxlength="120" value="{{ teacher.degree_major or '' }}" placeholder="e.g. B.Ed Mathematics, Physics, English Literature" required>
+                    <div class="field-note">Used to highlight the subjects that best fit this teacher's specialization while you assign teaching load.</div>
+                </div>
                 <div class="field">
                     <label for="max_hours">Max Hours</label>
                     <input id="max_hours" type="number" name="max_hours" min="1" value="{{ teacher.max_hours or 24 }}" required>
@@ -965,6 +1145,32 @@
                             </div>
                         </div>
                         <div class="subject-selector-help">Use the <strong>+</strong> sign to open one grade, then tick the subject checkboxes you want for this teacher.</div>
+                        <div id="majorGuidance" class="major-guidance" data-state="empty">
+                            <div class="major-guidance-head">
+                                <div class="major-guidance-copy">
+                                    <span id="majorGuidanceBadge" class="major-guidance-badge">Add degree / major</span>
+                                    <h4>Subject Alignment Guide</h4>
+                                    <p id="majorGuidanceText">Enter the teacher's degree / major above. Matching subjects will be highlighted automatically and non-matching choices will be flagged for review.</p>
+                                </div>
+                            </div>
+                            <div class="major-guidance-grid">
+                                <div class="major-guidance-stat">
+                                    <span>Matching Subjects</span>
+                                    <strong id="majorGuidanceMatchingCount">0</strong>
+                                    <small>Available in this branch and year</small>
+                                </div>
+                                <div class="major-guidance-stat">
+                                    <span>Selected Match</span>
+                                    <strong id="majorGuidanceSelectedMatchCount">0</strong>
+                                    <small>Chosen and aligned with major</small>
+                                </div>
+                                <div class="major-guidance-stat">
+                                    <span>Review Needed</span>
+                                    <strong id="majorGuidanceSelectedReviewCount">0</strong>
+                                    <small>Chosen outside major keywords</small>
+                                </div>
+                            </div>
+                        </div>
                         <div id="selectedSubjectChips" class="subject-selector-chips"></div>
                         <div class="subject-picker" id="subjectPicker"></div>
                         <div id="subjectNoResult" class="subject-empty" style="display:none;">No subjects match your search.</div>
@@ -1079,6 +1285,7 @@
 {% block page_scripts %}
 <script>
 const teacherIdInput = document.getElementById("teacher_id");
+        const degreeMajorInput = document.getElementById("degree_major");
         const extraAllowed = document.getElementById("extra_hours_allowed");
         const extraCountField = document.getElementById("extraHoursCountField");
         const extraCountInput = document.getElementById("extra_hours_count");
@@ -1093,6 +1300,12 @@ const teacherIdInput = document.getElementById("teacher_id");
         const selectedSubjectChips = document.getElementById("selectedSubjectChips");
         const subjectPicker = document.getElementById("subjectPicker");
         const subjectNoResult = document.getElementById("subjectNoResult");
+        const majorGuidance = document.getElementById("majorGuidance");
+        const majorGuidanceBadge = document.getElementById("majorGuidanceBadge");
+        const majorGuidanceText = document.getElementById("majorGuidanceText");
+        const majorGuidanceMatchingCount = document.getElementById("majorGuidanceMatchingCount");
+        const majorGuidanceSelectedMatchCount = document.getElementById("majorGuidanceSelectedMatchCount");
+        const majorGuidanceSelectedReviewCount = document.getElementById("majorGuidanceSelectedReviewCount");
         const sectionAssignmentBoard = document.getElementById("sectionAssignmentBoard");
         const sectionAssignmentEmpty = document.getElementById("sectionAssignmentEmpty");
         const allocationSummary = document.getElementById("allocationSummary");
@@ -1127,6 +1340,58 @@ const teacherIdInput = document.getElementById("teacher_id");
                 .filter((value) => Boolean(value))
         );
         const openSubjectGradeKeys = new Set();
+        const subjectAlignmentKeywordGroups = {
+            math: ["math", "mathematics", "algebra", "geometry", "calculus", "statistics", "arithmetic", "trigonometry"],
+            science: ["science", "biology", "chemistry", "physics", "laboratory", "lab"],
+            biology: ["biology", "science", "life"],
+            chemistry: ["chemistry", "science"],
+            physics: ["physics", "science"],
+            english: ["english", "literature", "reading", "writing", "grammar", "phonics", "ela"],
+            arabic: ["arabic"],
+            french: ["french"],
+            islamic: ["islamic", "quran", "hadith", "fiqh", "tawheed", "religion"],
+            social: ["social", "history", "geography", "civics", "studies"],
+            history: ["history", "social"],
+            geography: ["geography", "social"],
+            computer: ["computer", "computing", "ict", "technology", "coding", "programming", "digital", "informatics"],
+            art: ["art", "drawing", "design", "visual"],
+            music: ["music"],
+            pe: ["physical", "pe", "sport", "sports", "fitness"],
+            economics: ["economics", "commerce", "business", "accounting", "finance"],
+            accounting: ["accounting", "business", "commerce", "economics", "finance"],
+            kindergarten: ["kg", "kindergarten", "early", "childhood", "homeroom"],
+        };
+        const subjectAlignmentStopwords = new Set([
+            "bachelor",
+            "masters",
+            "master",
+            "degree",
+            "major",
+            "minor",
+            "education",
+            "teaching",
+            "teacher",
+            "of",
+            "in",
+            "and",
+            "for",
+            "bed",
+            "ba",
+            "bs",
+            "ma",
+            "msc",
+            "bsc",
+            "med",
+            "phd",
+            "diploma",
+        ]);
+        const subjectAlignmentReverseGroups = Object.entries(subjectAlignmentKeywordGroups).reduce((map, [groupKey, aliases]) => {
+            map[groupKey] = groupKey;
+            aliases.forEach((alias) => {
+                map[alias] = groupKey;
+            });
+            return map;
+        }, {});
 
         const getSelectedSubjectCount = () => {
             return selectedSubjectCodes.size;
@@ -1418,6 +1683,142 @@ const teacherIdInput = document.getElementById("teacher_id");
                 });
         };
 
+        const getDegreeMajorValue = () => {
+            return degreeMajorInput ? String(degreeMajorInput.value || "").trim() : "";
+        };
+
+        const normalizeAlignmentText = (value) => {
+            return String(value || "")
+                .toLowerCase()
+                .replace(/[^\p{L}\p{N}]+/gu, " ")
+                .replace(/\s+/g, " ")
+                .trim();
+        };
+
+        const buildAlignmentTokenSet = (value) => {
+            const normalizedText = normalizeAlignmentText(value);
+            if (!normalizedText) {
+                return new Set();
+            }
+
+            const baseTokens = normalizedText
+                .split(" ")
+                .filter((token) => token && !subjectAlignmentStopwords.has(token));
+            const expandedTokens = new Set(baseTokens);
+
+            baseTokens.forEach((token) => {
+                const groupKey = subjectAlignmentReverseGroups[token];
+                if (!groupKey) {
+                    return;
+                }
+
+                expandedTokens.add(groupKey);
+                (subjectAlignmentKeywordGroups[groupKey] || []).forEach((alias) => {
+                    expandedTokens.add(alias);
+                });
+            });
+
+            return expandedTokens;
+        };
+
+        const getSubjectMajorAlignment = (subject) => {
+            const degreeMajorValue = getDegreeMajorValue();
+            if (!degreeMajorValue) {
+                return {
+                    status: "empty",
+                    label: "Add major",
+                };
+            }
+
+            const subjectText = `${subject.subject_code || ""} ${subject.subject_name || ""}`;
+            const normalizedMajorText = normalizeAlignmentText(degreeMajorValue);
+            const normalizedSubjectText = normalizeAlignmentText(subjectText);
+            if (
+                normalizedMajorText
+                && normalizedSubjectText
+                && (
+                    normalizedSubjectText.includes(normalizedMajorText)
+                    || normalizedMajorText.includes(normalizedSubjectText)
+                )
+            ) {
+                return {
+                    status: "match",
+                    label: "Major match",
+                };
+            }
+
+            const majorTokens = buildAlignmentTokenSet(degreeMajorValue);
+            const subjectTokens = buildAlignmentTokenSet(subjectText);
+            const hasOverlap = Array.from(majorTokens).some((token) => subjectTokens.has(token));
+            if (hasOverlap) {
+                return {
+                    status: "match",
+                    label: "Major match",
+                };
+            }
+
+            return {
+                status: "review",
+                label: "Review fit",
+            };
+        };
+
+        const updateMajorGuidance = () => {
+            if (!majorGuidance) {
+                return;
+            }
+
+            const degreeMajorValue = getDegreeMajorValue();
+            const selectedSubjects = getSortedSelectedSubjects();
+            const matchingSubjects = subjectChoices.filter((subject) => {
+                return getSubjectMajorAlignment(subject).status === "match";
+            });
+            const selectedMatchingSubjects = selectedSubjects.filter((subject) => {
+                return getSubjectMajorAlignment(subject).status === "match";
+            });
+            const selectedReviewSubjects = selectedSubjects.filter((subject) => {
+                return getSubjectMajorAlignment(subject).status === "review";
+            });
+
+            let state = "empty";
+            let badgeText = "Add degree / major";
+            let message = "Enter the teacher's degree / major above. Matching subjects will be highlighted automatically and non-matching choices will be flagged for review.";
+
+            if (!degreeMajorValue) {
+                state = "empty";
+            } else if (matchingSubjects.length === 0) {
+                state = "no-match";
+                badgeText = "No direct match";
+                message = `No direct subject keywords matched "${degreeMajorValue}" in the current branch and year. You can still assign subjects manually, but review them carefully.`;
+            } else if (selectedReviewSubjects.length > 0) {
+                state = "review";
+                badgeText = "Review selected subjects";
+                message = `${selectedReviewSubjects.length} selected subject${selectedReviewSubjects.length === 1 ? "" : "s"} do not match the entered major keywords. Double-check those choices before saving.`;
+            } else {
+                state = "aligned";
+                badgeText = "Major aligned";
+                message = `${matchingSubjects.length} subject${matchingSubjects.length === 1 ? "" : "s"} match "${degreeMajorValue}" in this branch and academic year.`;
+            }
+
+            majorGuidance.dataset.state = state;
+
+            if (majorGuidanceBadge) {
+                majorGuidanceBadge.textContent = badgeText;
+            }
+            if (majorGuidanceText) {
+                majorGuidanceText.textContent = message;
+            }
+            if (majorGuidanceMatchingCount) {
+                majorGuidanceMatchingCount.textContent = String(matchingSubjects.length);
+            }
+            if (majorGuidanceSelectedMatchCount) {
+                majorGuidanceSelectedMatchCount.textContent = String(selectedMatchingSubjects.length);
+            }
+            if (majorGuidanceSelectedReviewCount) {
+                majorGuidanceSelectedReviewCount.textContent = String(selectedReviewSubjects.length);
+            }
+        };
+
         const renderSelectedSubjectChips = () => {
             if (subjectSelectionCount) {
                 subjectSelectionCount.textContent = `${getSelectedSubjectCount()} selected`;
@@ -1439,13 +1840,17 @@ const teacherIdInput = document.getElementById("teacher_id");
                 emptyState.className = "subject-chip-empty";
                 emptyState.textContent = "No subjects selected yet.";
                 selectedSubjectChips.appendChild(emptyState);
+                updateMajorGuidance();
                 return;
             }
 
             selectedSubjects.forEach((subject) => {
                 const code = String(subject.subject_code || "").trim().toUpperCase();
+                const alignment = getSubjectMajorAlignment(subject);
                 const chip = document.createElement("span");
                 chip.className = "subject-chip";
+                chip.classList.toggle("is-match", alignment.status === "match");
+                chip.classList.toggle("is-review", alignment.status === "review");
 
                 const label = document.createElement("span");
                 label.className = "subject-chip-label";
@@ -1467,6 +1872,8 @@ const teacherIdInput = document.getElementById("teacher_id");
 
                 selectedSubjectChips.appendChild(chip);
             });
+
+            updateMajorGuidance();
         };
 
         const renderSubjectPicker = () => {
@@ -1525,6 +1932,9 @@ const teacherIdInput = document.getElementById("teacher_id");
                 const selectedCountInGrade = subjectsInGrade.filter((subject) => {
                     const code = String(subject.subject_code || "").trim().toUpperCase();
                     return selectedSubjectCodes.has(code);
+                }).length;
+                const alignedCountInGrade = subjectsInGrade.filter((subject) => {
+                    return getSubjectMajorAlignment(subject).status === "match";
                 }).length;
 
                 const group = document.createElement("div");
@@ -1635,6 +2045,13 @@ const teacherIdInput = document.getElementById("teacher_id");
                 selectedPill.textContent = `${selectedCountInGrade} selected`;
                 pills.appendChild(selectedPill);
 
+                if (getDegreeMajorValue()) {
+                    const alignedPill = document.createElement("span");
+                    alignedPill.className = `subject-grade-pill${alignedCountInGrade === 0 ? " is-muted" : ""}`;
+                    alignedPill.textContent = `${alignedCountInGrade} aligned`;
+                    pills.appendChild(alignedPill);
+                }
+
                 summaryMeta.appendChild(pills);
 
                 summary.appendChild(summaryMeta);
@@ -1652,11 +2069,25 @@ const teacherIdInput = document.getElementById("teacher_id");
                 grid.className = "subject-grade-grid";
 
                 visibleSubjects
-                    .sort((left, right) => String(left.subject_code || "").localeCompare(String(right.subject_code || "")))
+                    .slice()
+                    .sort((left, right) => {
+                        const leftStatus = getSubjectMajorAlignment(left).status;
+                        const rightStatus = getSubjectMajorAlignment(right).status;
+                        const alignmentPriority = { match: 0, empty: 1, review: 2 };
+                        const leftPriority = alignmentPriority[leftStatus] ?? 1;
+                        const rightPriority = alignmentPriority[rightStatus] ?? 1;
+                        if (leftPriority !== rightPriority) {
+                            return leftPriority - rightPriority;
+                        }
+                        return String(left.subject_code || "").localeCompare(String(right.subject_code || ""));
+                    })
                     .forEach((subject, subjectIndex) => {
                         const code = String(subject.subject_code || "").trim().toUpperCase();
+                        const alignment = getSubjectMajorAlignment(subject);
                         const option = document.createElement("label");
                         option.className = `subject-option subject-option-item${selectedSubjectCodes.has(code) ? " is-selected" : ""}`;
+                        option.classList.toggle("is-major-match", alignment.status === "match");
+                        option.classList.toggle("is-major-review", alignment.status === "review");
                         option.setAttribute("for", `subject_code_${gradeKey}_${subjectIndex}`);
 
                         const input = document.createElement("input");
@@ -1685,9 +2116,21 @@ const teacherIdInput = document.getElementById("teacher_id");
                         strong.textContent = `${code} - ${subject.subject_name || "Unnamed Subject"}`;
                         copy.appendChild(strong);
 
+                        const metaRow = document.createElement("span");
+                        metaRow.className = "subject-main-meta";
+
                         const small = document.createElement("small");
                         small.textContent = `${getGradeLabel(gradeKey)} | ${subject.weekly_hours || 0} hours/week`;
-                        copy.appendChild(small);
+                        metaRow.appendChild(small);
+
+                        if (alignment.status !== "empty") {
+                            const badge = document.createElement("span");
+                            badge.className = `subject-major-badge ${alignment.status === "match" ? "is-match" : "is-review"}`;
+                            badge.textContent = alignment.label;
+                            metaRow.appendChild(badge);
+                        }
+
+                        copy.appendChild(metaRow);
 
                         option.appendChild(copy);
                         grid.appendChild(option);
@@ -1877,6 +2320,15 @@ const teacherIdInput = document.getElementById("teacher_id");
 
         if (subjectSearchInput) {
             subjectSearchInput.addEventListener("input", renderSubjectPicker);
+        }
+
+        if (degreeMajorInput) {
+            const syncMajorGuidance = () => {
+                renderSelectedSubjectChips();
+                renderSubjectPicker();
+            };
+            degreeMajorInput.addEventListener("input", syncMajorGuidance);
+            degreeMajorInput.addEventListener("change", syncMajorGuidance);
         }
 
         if (clearAllSubjectsBtn) {

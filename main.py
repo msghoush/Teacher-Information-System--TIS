@@ -705,6 +705,7 @@ def _build_reporting_context_from_section_assignments(
     total_teachers_needed_branch = (
         total_existing_teachers + total_new_teachers_required
     )
+    largest_gap_row = report_gap_rows[0] if report_gap_rows else None
 
     report_summary = {
         "total_required_hours": total_required_hours,
@@ -724,6 +725,18 @@ def _build_reporting_context_from_section_assignments(
         "total_new_sections_planned": total_new_sections_planned,
         "total_new_teachers_required": total_new_teachers_required,
         "total_teachers_needed_branch": total_teachers_needed_branch,
+        "subjects_with_gaps": len(report_gap_rows),
+        "largest_gap_subject_name": (
+            largest_gap_row["subject_name"] if largest_gap_row else ""
+        ),
+        "largest_gap_hours": (
+            int(largest_gap_row["remaining_hours"]) if largest_gap_row else 0
+        ),
+        "largest_gap_teachers_needed": (
+            int(largest_gap_row["additional_teachers_needed"])
+            if largest_gap_row
+            else 0
+        ),
     }
 
     teacher_profiles_export = []
@@ -1426,6 +1439,7 @@ def _build_reporting_context(
     total_teachers_needed_branch = (
         total_existing_teachers + total_new_teachers_required
     )
+    largest_gap_row = report_gap_rows[0] if report_gap_rows else None
 
     report_summary = {
         "total_required_hours": total_required_hours,
@@ -1445,6 +1459,18 @@ def _build_reporting_context(
         "total_new_sections_planned": total_new_sections_planned,
         "total_new_teachers_required": total_new_teachers_required,
         "total_teachers_needed_branch": total_teachers_needed_branch,
+        "subjects_with_gaps": len(report_gap_rows),
+        "largest_gap_subject_name": (
+            largest_gap_row["subject_name"] if largest_gap_row else ""
+        ),
+        "largest_gap_hours": (
+            int(largest_gap_row["remaining_hours"]) if largest_gap_row else 0
+        ),
+        "largest_gap_teachers_needed": (
+            int(largest_gap_row["additional_teachers_needed"])
+            if largest_gap_row
+            else 0
+        ),
     }
 
     teacher_profiles_export = []
@@ -2975,6 +3001,10 @@ def _ensure_teachers_table_columns():
         if "middle_name" not in existing_columns:
             connection.execute(
                 text("ALTER TABLE teachers ADD COLUMN middle_name VARCHAR(100)")
+            )
+        if "degree_major" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE teachers ADD COLUMN degree_major VARCHAR(120)")
             )
         if "extra_hours_allowed" not in existing_columns:
             connection.execute(

@@ -1035,6 +1035,17 @@
             padding: 9px 10px;
         }
 
+        .report-gap-row.is-warning {
+            border-color: #f0d5a2;
+            background: linear-gradient(145deg, #fffdf7, #fff7e9);
+        }
+
+        .report-gap-row.is-critical {
+            border-color: #efc0b9;
+            background: linear-gradient(145deg, #fff8f6, #fff0ed);
+            box-shadow: 0 10px 24px rgba(180, 35, 24, 0.08);
+        }
+
         .report-gap-head {
             display: flex;
             align-items: center;
@@ -1043,6 +1054,12 @@
             font-size: 13px;
             font-weight: 700;
             color: #1f3559;
+        }
+
+        .report-gap-head strong {
+            font-size: 18px;
+            line-height: 1;
+            color: #b42318;
         }
 
         .report-gap-track {
@@ -1091,7 +1108,7 @@
         .report-visual-summary {
             margin-top: 12px;
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 12px;
         }
 
@@ -1103,6 +1120,99 @@
             box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
             display: grid;
             gap: 12px;
+        }
+
+        .report-visual-card-alert.is-critical {
+            border-color: #efc0b9;
+            background: linear-gradient(145deg, #fff8f6, #fff0ed);
+        }
+
+        .report-visual-card-alert.is-clear {
+            border-color: #b8dec9;
+            background: linear-gradient(145deg, #fdfffe, #eefaf4);
+        }
+
+        .report-alert-eyebrow {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 5px 9px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.45px;
+            text-transform: uppercase;
+            line-height: 1;
+            border: 1px solid #efc0b9;
+            background: #fff0ed;
+            color: #b42318;
+        }
+
+        .report-visual-card-alert.is-clear .report-alert-eyebrow {
+            border-color: #b8dec9;
+            background: #effaf4;
+            color: #0d7a47;
+        }
+
+        .report-alert-metric {
+            display: grid;
+            gap: 4px;
+            padding: 12px 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(180, 35, 24, 0.14);
+            background: rgba(255, 255, 255, 0.82);
+        }
+
+        .report-alert-metric strong {
+            font-size: 34px;
+            line-height: 1;
+            color: #b42318;
+        }
+
+        .report-alert-metric span {
+            font-size: 12px;
+            color: #8f2d21;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .report-visual-card-alert.is-clear .report-alert-metric {
+            border-color: rgba(13, 122, 71, 0.14);
+        }
+
+        .report-visual-card-alert.is-clear .report-alert-metric strong,
+        .report-visual-card-alert.is-clear .report-alert-metric span {
+            color: #0d7a47;
+        }
+
+        .report-alert-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+        }
+
+        .report-alert-chip {
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(211, 222, 237, 0.9);
+            background: rgba(255, 255, 255, 0.84);
+            display: grid;
+            gap: 5px;
+        }
+
+        .report-alert-chip span {
+            font-size: 11px;
+            color: #61748f;
+            font-weight: 800;
+            letter-spacing: 0.45px;
+            text-transform: uppercase;
+        }
+
+        .report-alert-chip strong {
+            font-size: 20px;
+            line-height: 1.1;
+            color: #17365d;
         }
 
         .report-visual-card h4 {
@@ -1272,6 +1382,22 @@
             box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
         }
 
+        .report-subject-item.is-covered {
+            border-color: #cfe7da;
+            background: linear-gradient(145deg, #fdfffe, #f3fbf7);
+        }
+
+        .report-subject-item.is-warning {
+            border-color: #f0d5a2;
+            background: linear-gradient(145deg, #fffdf7, #fff8ed);
+        }
+
+        .report-subject-item.is-critical {
+            border-color: #efc0b9;
+            background: linear-gradient(145deg, #fff8f6, #fff0ed);
+            box-shadow: 0 14px 28px rgba(180, 35, 24, 0.08);
+        }
+
         .report-subject-head {
             display: flex;
             align-items: flex-start;
@@ -1347,6 +1473,11 @@
             color: #b45309;
         }
 
+        .report-status-pill-critical {
+            background: #feeceb;
+            color: #b42318;
+        }
+
         .report-subject-track {
             margin-top: 12px;
             height: 12px;
@@ -1370,6 +1501,68 @@
             flex-wrap: wrap;
             font-size: 12px;
             color: #556981;
+        }
+
+        .report-subject-caption strong {
+            color: #17365d;
+        }
+
+        .report-caption-alert {
+            color: #b42318;
+            font-weight: 800;
+        }
+
+        .report-subject-urgency {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 8px;
+        }
+
+        .report-subject-alert-card {
+            border: 1px solid #dfe8f5;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            display: grid;
+            gap: 5px;
+        }
+
+        .report-subject-alert-card.is-covered {
+            border-color: #b8dec9;
+            background: #effaf4;
+        }
+
+        .report-subject-alert-card.is-warning {
+            border-color: #f0d5a2;
+            background: #fff8ea;
+        }
+
+        .report-subject-alert-card.is-critical {
+            border-color: #efc0b9;
+            background: #fff2ef;
+        }
+
+        .report-subject-alert-card span {
+            font-size: 11px;
+            color: #64768f;
+            font-weight: 800;
+            letter-spacing: 0.45px;
+            text-transform: uppercase;
+        }
+
+        .report-subject-alert-card strong {
+            font-size: 22px;
+            line-height: 1;
+            color: #17365d;
+        }
+
+        .report-subject-alert-card.is-warning strong {
+            color: #a16207;
+        }
+
+        .report-subject-alert-card.is-critical strong {
+            color: #b42318;
         }
 
         .report-subject-stats {
@@ -2079,6 +2272,39 @@
                 {% set current_demand_pct = ((report_summary.total_required_current_hours / report_summary.total_required_hours) * 100) if report_summary.total_required_hours else 0 %}
                 {% set existing_teacher_pct = ((report_summary.total_existing_teachers / report_summary.total_teachers_needed_branch) * 100) if report_summary.total_teachers_needed_branch else 0 %}
                 <div class="report-visual-summary">
+                    <article class="report-visual-card report-visual-card-alert {% if report_summary.total_remaining_hours > 0 %}is-critical{% else %}is-clear{% endif %}">
+                        <div>
+                            <span class="report-alert-eyebrow">
+                                {{ "Urgent staffing alert" if report_summary.total_remaining_hours > 0 else "Coverage stable" }}
+                            </span>
+                            <h4>{{ "Uncovered Subject Load" if report_summary.total_remaining_hours > 0 else "All Required Hours Covered" }}</h4>
+                            <p>
+                                {% if report_summary.total_remaining_hours > 0 %}
+                                {{ report_summary.total_remaining_hours }} weekly hours are still uncovered across {{ report_summary.subjects_with_gaps }} subjects. Largest current gap: {{ report_summary.largest_gap_subject_name or "N/A" }}.
+                                {% else %}
+                                Every required subject hour is currently covered by the teachers already in the system.
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="report-alert-metric">
+                            <strong>{{ report_summary.total_remaining_hours }}h</strong>
+                            <span>{{ "still uncovered" if report_summary.total_remaining_hours > 0 else "uncovered now" }}</span>
+                        </div>
+                        <div class="report-alert-grid">
+                            <div class="report-alert-chip">
+                                <span>Subjects with gaps</span>
+                                <strong>{{ report_summary.subjects_with_gaps }}</strong>
+                            </div>
+                            <div class="report-alert-chip">
+                                <span>Largest gap</span>
+                                <strong>{{ report_summary.largest_gap_hours }}h</strong>
+                            </div>
+                            <div class="report-alert-chip">
+                                <span>Teachers needed</span>
+                                <strong>{{ report_summary.total_new_teachers_required }}</strong>
+                            </div>
+                        </div>
+                    </article>
                     <article class="report-visual-card">
                         <div>
                             <h4>Coverage Snapshot</h4>
@@ -2191,14 +2417,33 @@
                             {% if row.remaining_hours == 0 %}
                                 {% set status_label = "Fully Covered" %}
                                 {% set status_class = "report-status-pill-good" %}
+                                {% set item_class = "is-covered" %}
+                                {% set alert_class = "is-covered" %}
+                                {% set fill_color = "#0f7f7a" %}
+                                {% set fill_remainder = "#dbe7f8" %}
+                            {% elif row.additional_teachers_needed >= 2 or row.remaining_hours >= 24 %}
+                                {% set status_label = "Critical Gap" %}
+                                {% set status_class = "report-status-pill-critical" %}
+                                {% set item_class = "is-critical" %}
+                                {% set alert_class = "is-critical" %}
+                                {% set fill_color = "#dc2626" %}
+                                {% set fill_remainder = "#fecaca" %}
                             {% elif row.coverage_percentage >= 70 %}
                                 {% set status_label = "Partial Gap" %}
                                 {% set status_class = "report-status-pill-partial" %}
+                                {% set item_class = "is-warning" %}
+                                {% set alert_class = "is-warning" %}
+                                {% set fill_color = "#d97706" %}
+                                {% set fill_remainder = "#fde7c2" %}
                             {% else %}
                                 {% set status_label = "Major Gap" %}
                                 {% set status_class = "report-status-pill-gap" %}
+                                {% set item_class = "is-warning" %}
+                                {% set alert_class = "is-warning" %}
+                                {% set fill_color = "#d97706" %}
+                                {% set fill_remainder = "#fde7c2" %}
                             {% endif %}
-                            <article class="report-subject-item">
+                            <article class="report-subject-item {{ item_class }}">
                                 <div class="report-subject-head">
                                     <div>
                                         <h5>{{ row.subject_name }}</h5>
@@ -2216,12 +2461,22 @@
                                 <div class="report-subject-track">
                                     <div
                                         class="report-subject-track-fill"
-                                        style="background: linear-gradient(90deg, #0f7f7a 0 {{ row.coverage_percentage }}%, #f0c96b {{ row.coverage_percentage }}% 100%);"
+                                        style="background: linear-gradient(90deg, {{ fill_color }} 0 {{ row.coverage_percentage }}%, {{ fill_remainder }} {{ row.coverage_percentage }}% 100%);"
                                     ></div>
                                 </div>
                                 <div class="report-subject-caption">
-                                    <span>{{ row.allocated_hours }}h covered of {{ row.required_hours }}h required</span>
-                                    <span>{{ row.remaining_hours }}h uncovered</span>
+                                    <span><strong>{{ row.allocated_hours }}h</strong> covered of {{ row.required_hours }}h required</span>
+                                    <span class="{% if row.remaining_hours > 0 %}report-caption-alert{% endif %}"><strong>{{ row.remaining_hours }}h</strong> uncovered</span>
+                                </div>
+                                <div class="report-subject-urgency">
+                                    <div class="report-subject-alert-card {{ alert_class }}">
+                                        <span>Uncovered Hours</span>
+                                        <strong>{{ row.remaining_hours }}h</strong>
+                                    </div>
+                                    <div class="report-subject-alert-card {{ alert_class }}">
+                                        <span>Teachers Needed</span>
+                                        <strong>{{ row.additional_teachers_needed }}</strong>
+                                    </div>
                                 </div>
                                 <div class="report-subject-stats">
                                     <div class="report-subject-stat">
@@ -2255,7 +2510,7 @@
                         {% if report_gap_rows %}
                         <div class="report-gap-list">
                             {% for row in report_gap_rows %}
-                            <div class="report-gap-row">
+                            <div class="report-gap-row {% if row.additional_teachers_needed >= 2 or row.remaining_hours >= 24 %}is-critical{% else %}is-warning{% endif %}">
                                 <div class="report-gap-head">
                                     <span>{{ row.subject_name }}</span>
                                     <strong>{{ row.remaining_hours }}h</strong>

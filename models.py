@@ -74,6 +74,7 @@ class Teacher(Base):
     first_name = Column(String)
     middle_name = Column(String)
     last_name = Column(String)
+    degree_major = Column(String(120))
     # Stored as a scoped legacy value; validation is enforced in the app layer.
     subject_code = Column(String)
     level = Column(String)
