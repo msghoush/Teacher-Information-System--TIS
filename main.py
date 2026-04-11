@@ -803,14 +803,13 @@ def _build_reporting_context(
     else:
         section_assignments = []
 
-    if section_assignments:
-        return _build_reporting_context_from_section_assignments(
-            db=db,
-            subjects=subjects,
-            planning_sections=planning_sections,
-            teachers=teachers,
-            section_assignments=section_assignments,
-        )
+    return _build_reporting_context_from_section_assignments(
+        db=db,
+        subjects=subjects,
+        planning_sections=planning_sections,
+        teachers=teachers,
+        section_assignments=section_assignments,
+    )
 
     sections_by_grade = {}
     current_sections_by_grade = {}
@@ -1838,9 +1837,9 @@ def _build_report_allocation_xlsx_bytes(
     matrix_headers = [
         "Teacher ID",
         "Teacher Name",
-        "Expected Hours",
+        "Assigned Hours",
         "Remaining Intl Capacity",
-        "Primary Subject",
+        "Assigned Subject",
         "Support Subject",
     ] + [class_row["class_label"] for class_row in class_rows]
     matrix_sheet.append(matrix_headers)
@@ -1983,7 +1982,7 @@ def _build_report_allocation_xlsx_bytes(
 
     summary_metrics = [
         ("Total Required Hours", report_summary.get("total_required_hours", 0)),
-        ("Expected Covered Hours", report_summary.get("total_allocated_hours", 0)),
+        ("Covered by Assigned Teachers", report_summary.get("total_allocated_hours", 0)),
         ("Uncovered Hours", report_summary.get("total_remaining_hours", 0)),
         ("Coverage %", f"{report_summary.get('coverage_percentage', 0)}%"),
         ("New Teachers Required", report_summary.get("total_new_teachers_required", 0)),
@@ -2049,7 +2048,7 @@ def _build_report_allocation_xlsx_bytes(
     teacher_headers = [
         "Teacher ID",
         "Teacher Name",
-        "Expected Hours",
+        "Assigned Hours",
         "Primary Allocated",
         "Support Allocated",
         "Remaining Capacity",

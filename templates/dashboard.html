@@ -2240,7 +2240,7 @@
                 <div class="panel-head">
                     <div>
                         <h3>Reports Workspace</h3>
-                        <p>Year-based teacher sufficiency forecast across subjects, teachers, and planning.</p>
+                        <p>Planning-based teacher sufficiency across opened sections, assigned teachers, and uncovered demand.</p>
                     </div>
                     <div class="panel-head-actions">
                         <a class="open-link" href="/planning">Open Planning</a>
@@ -2559,8 +2559,8 @@
                 <div class="report-card report-teachers-card">
                     <div class="report-card-head">
                         <div class="report-card-head-copy">
-                            <h4>Expected Allocation for Existing Teachers</h4>
-                            <p>Collapsed cards keep the report lighter. Open any teacher to inspect primary coverage, support coverage, and final allocation detail.</p>
+                            <h4>Actual Allocation Across Planned Sections</h4>
+                            <p>Collapsed cards keep the report lighter. Open any teacher to inspect the hours already assigned through planning and the remaining capacity still available.</p>
                         </div>
                         <span class="report-card-tag">{{ report_teacher_rows|length }} teachers</span>
                     </div>
@@ -2606,20 +2606,20 @@
                                     </div>
                                 </div>
                                 <div>
-                                    <div class="report-inline-note">Primary subject coverage</div>
+                                    <div class="report-inline-note">Assigned subject coverage</div>
                                     <div class="report-tag-list">
                                         {% if row.subject_labels %}
                                             {% for label in row.subject_labels %}
                                             <span class="report-tag">{{ label }}</span>
                                             {% endfor %}
                                         {% else %}
-                                            <span class="report-tag">No primary subject</span>
+                                            <span class="report-tag">No assigned subject yet</span>
                                         {% endif %}
                                     </div>
                                 </div>
                                 {% if row.support_subject_labels %}
                                 <div>
-                                    <div class="report-inline-note">Support subjects used only after primary allocation and within international capacity</div>
+                                    <div class="report-inline-note">Additional support coverage assigned beyond the teacher's main section load</div>
                                     <div class="report-tag-list">
                                         {% for label in row.support_subject_labels %}
                                         <span class="report-tag">{{ label }}</span>
@@ -2638,7 +2638,7 @@
                     <div class="empty">No teacher records found in this branch/year scope.</div>
                     {% endif %}
                     <div class="report-footnote">
-                        Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Aligned to at least one report subject: {{ report_summary.teachers_with_subject_alignment }} | Utilized in forecast: {{ report_summary.teachers_utilized }} | Full load at international capacity: {{ report_summary.teachers_full_load }} | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
+                        Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Aligned to at least one report subject: {{ report_summary.teachers_with_subject_alignment }} | Utilized in planned-section allocations: {{ report_summary.teachers_utilized }} | Full load at international capacity: {{ report_summary.teachers_full_load }} | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
                     </div>
                 </div>
                 {% else %}
