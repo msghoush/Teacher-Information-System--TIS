@@ -18,6 +18,19 @@ from teacher_capacity import (
     get_teacher_national_section_hours,
     get_teacher_total_capacity_hours,
 )
+from teacher_qualifications import (
+    QUALIFICATION_LOOKUP,
+    build_legacy_qualification_snapshot,
+    build_qualification_summary,
+    get_qualification_labels,
+    get_qualification_option_groups,
+    get_qualification_options_for_json,
+    get_subject_alignment_keyword_groups_for_json,
+    get_subject_qualification_alignment,
+    has_specialization_qualification,
+    infer_qualification_keys_from_legacy_text,
+    normalize_qualification_keys,
+)
 from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
 
@@ -28,7 +41,6 @@ TEACHER_ID_PATTERN = re.compile(r"^\d{1,10}$")
 NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z\s'\-]*$")
 STANDARD_MAX_HOURS = 24
 SECTION_ASSIGNMENT_SEPARATOR = "::"
-MAX_DEGREE_MAJOR_LENGTH = 120
 
 
 def _get_scope_ids(current_user):
@@ -54,10 +66,6 @@ def _normalize_name(value: str) -> str:
     if not cleaned:
         return ""
     return " ".join(part.capitalize() for part in cleaned.split(" "))
-
-
-def _normalize_degree_major(value: str) -> str:
-    return _normalize_spaces(value).strip()
 
 
 def _normalize_subject_codes(values):
@@ -284,6 +292,106 @@ def _get_teacher_section_assignment_values(db: Session, teacher_id: int):
     ]
 
 
+def _build_teacher_qualification_payload(teacher, qualification_keys):
+    normalized_keys = normalize_qualification_keys(qualification_keys)
+    if not normalized_keys:
+        normalized_keys = infer_qualification_keys_from_legacy_text(
+            getattr(teacher, "degree_major", "") or ""
+        )
+
+    return {
+        "keys": normalized_keys,
+        "labels": get_qualification_labels(normalized_keys),
+        "summary": build_qualification_summary(
+            normalized_keys,
+            fallback_text=getattr(teacher, "degree_major", "") or "",
+            max_items=3,
+        ),
+        "snapshot": build_legacy_qualification_snapshot(normalized_keys),
+    }
+
+
+def _get_teacher_qualification_map(db: Session, teachers):
+    teacher_ids = [
+        teacher.id
+        for teacher in teachers
+        if getattr(teacher, "id", None)
+    ]
+    qualification_keys_by_teacher = defaultdict(list)
+
+    if teacher_ids:
+        rows = (
+            db.query(models.TeacherQualificationSelection)
+            .filter(models.TeacherQualificationSelection.teacher_id.in_(teacher_ids))
+            .order_by(
+                models.TeacherQualificationSelection.teacher_id.asc(),
+                models.TeacherQualificationSelection.qualification_key.asc(),
+            )
+            .all()
+        )
+    else:
+        rows = []
+
+    for row in rows:
+        if row.qualification_key:
+            qualification_keys_by_teacher[row.teacher_id].append(
+                row.qualification_key
+            )
+
+    return {
+        teacher.id: _build_teacher_qualification_payload(
+            teacher,
+            qualification_keys_by_teacher.get(teacher.id, []),
+        )
+        for teacher in teachers
+        if getattr(teacher, "id", None)
+    }
+
+
+def _validate_subject_qualification_alignment(
+    normalized_subject_codes,
+    subject_map,
+    qualification_keys,
+):
+    errors = []
+    if not qualification_keys:
+        errors.append(
+            "Select at least one saved qualification for this teacher."
+        )
+        return errors
+
+    if not has_specialization_qualification(qualification_keys):
+        errors.append(
+            "Select at least one major or teaching specialization so subject compatibility can be validated."
+        )
+        return errors
+
+    incompatible_subject_details = []
+    for subject_code in normalized_subject_codes:
+        subject = subject_map.get(subject_code)
+        if not subject:
+            continue
+
+        alignment = get_subject_qualification_alignment(
+            subject_name=subject.subject_name or "",
+            fallback_code=subject.subject_code or subject_code,
+            qualification_keys=qualification_keys,
+        )
+        if alignment["recognized_subject"] and alignment["status"] != "match":
+            incompatible_subject_details.append(
+                f"{subject_code} ({subject.subject_name or 'Unnamed Subject'})"
+            )
+
+    if incompatible_subject_details:
+        errors.append(
+            "The selected qualifications do not match these subjects: "
+            + ", ".join(incompatible_subject_details)
+            + ". Add matching majors/specializations or remove those subjects."
+        )
+
+    return errors
+
+
 def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_year_id: int):
     teacher_ids = [teacher.id for teacher in teachers if getattr(teacher, "id", None)]
     if not teacher_ids:
@@ -480,6 +588,7 @@ def _render_teachers_page(
     form_data=None,
     selected_subject_codes=None,
     selected_section_assignment_values=None,
+    selected_qualification_keys=None,
 ):
     branch_id, academic_year_id = _get_scope_ids(current_user)
     can_modify = auth.can_modify_data(current_user)
@@ -496,6 +605,7 @@ def _render_teachers_page(
         models.Teacher.branch_id == branch_id,
         models.Teacher.academic_year_id == academic_year_id
     ).order_by(models.Teacher.id.desc()).all()
+    teacher_qualification_map = _get_teacher_qualification_map(db, teachers)
     teacher_allocations = _get_teacher_allocation_map(
         db,
         teachers,
@@ -512,7 +622,7 @@ def _render_teachers_page(
         "first_name": "",
         "middle_name": "",
         "last_name": "",
-        "degree_major": "",
+        "qualification_keys": [],
         "max_hours": "24",
         "extra_hours_allowed": False,
         "extra_hours_count": "1",
@@ -528,7 +638,11 @@ def _render_teachers_page(
         {
             "request": request,
             "teachers": teachers,
+            "teacher_qualification_map": teacher_qualification_map,
             "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
+            "qualification_option_groups": get_qualification_option_groups(),
+            "qualification_options": get_qualification_options_for_json(),
+            "subject_alignment_keyword_groups": get_subject_alignment_keyword_groups_for_json(),
             "section_options_by_subject": section_assignment_support["section_options_by_subject"],
             "teacher_allocations": teacher_allocations,
             "can_modify": can_modify,
@@ -541,6 +655,9 @@ def _render_teachers_page(
             "form_data": normalized_form_data,
             "selected_subject_codes": selected_subject_codes or [],
             "selected_section_assignment_values": selected_section_assignment_values or [],
+            "selected_qualification_keys": selected_qualification_keys
+            if selected_qualification_keys is not None
+            else normalized_form_data.get("qualification_keys", []),
             "copy_year_choices": copy_year_choices,
             "user": current_user,
             **build_shell_context(
@@ -561,9 +678,11 @@ def _render_edit_teacher_page(
     error: str = "",
     assigned_subject_codes=None,
     selected_section_assignment_values=None,
+    selected_qualification_keys=None,
     status_code: int = 200,
 ):
     branch_id, academic_year_id = _get_scope_ids(current_user)
+    teacher_qualification_map = _get_teacher_qualification_map(db, [teacher])
     section_assignment_support = _get_section_options_by_subject(
         db=db,
         branch_id=branch_id,
@@ -586,16 +705,26 @@ def _render_edit_teacher_page(
             teacher.id,
         )
 
+    if selected_qualification_keys is None:
+        selected_qualification_keys = (
+            teacher_qualification_map.get(getattr(teacher, "id", None), {}).get("keys", [])
+        )
+
     return templates.TemplateResponse(
         request,
         "edit_teacher.html",
         {
             "request": request,
             "teacher": teacher,
+            "teacher_qualification_map": teacher_qualification_map,
             "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
+            "qualification_option_groups": get_qualification_option_groups(),
+            "qualification_options": get_qualification_options_for_json(),
+            "subject_alignment_keyword_groups": get_subject_alignment_keyword_groups_for_json(),
             "section_options_by_subject": section_assignment_support["section_options_by_subject"],
             "assigned_subject_codes": assigned_subject_codes,
             "selected_section_assignment_values": selected_section_assignment_values,
+            "selected_qualification_keys": selected_qualification_keys,
             "error": error,
             **build_shell_context(
                 request,
@@ -766,6 +895,22 @@ def copy_teachers_from_year(
                 allocation.subject_code
             )
 
+    source_qualification_keys_by_teacher = defaultdict(list)
+    if source_teacher_ids:
+        source_qualification_rows = (
+            db.query(models.TeacherQualificationSelection)
+            .filter(models.TeacherQualificationSelection.teacher_id.in_(source_teacher_ids))
+            .all()
+        )
+    else:
+        source_qualification_rows = []
+
+    for qualification_row in source_qualification_rows:
+        if qualification_row.qualification_key:
+            source_qualification_keys_by_teacher[qualification_row.teacher_id].append(
+                qualification_row.qualification_key
+            )
+
     source_assignments_by_teacher = defaultdict(list)
     source_section_ids = set()
     if source_teacher_ids:
@@ -823,12 +968,19 @@ def copy_teachers_from_year(
         teacher.id for teacher in target_teachers if getattr(teacher, "id", None)
     ]
     existing_target_allocation_keys = set()
+    existing_target_qualification_keys = set()
     if target_teacher_ids:
         for allocation in db.query(models.TeacherSubjectAllocation).filter(
             models.TeacherSubjectAllocation.teacher_id.in_(target_teacher_ids)
         ).all():
             existing_target_allocation_keys.add(
                 (allocation.teacher_id, allocation.subject_code)
+            )
+        for qualification_row in db.query(models.TeacherQualificationSelection).filter(
+            models.TeacherQualificationSelection.teacher_id.in_(target_teacher_ids)
+        ).all():
+            existing_target_qualification_keys.add(
+                (qualification_row.teacher_id, qualification_row.qualification_key)
             )
 
     target_sections = (
@@ -870,6 +1022,17 @@ def copy_teachers_from_year(
             skipped_missing_teacher_id_count += 1
             continue
 
+        source_qualification_keys = normalize_qualification_keys(
+            source_qualification_keys_by_teacher.get(source_teacher.id, [])
+        )
+        if not source_qualification_keys:
+            source_qualification_keys = infer_qualification_keys_from_legacy_text(
+                source_teacher.degree_major or ""
+            )
+        qualification_snapshot = build_legacy_qualification_snapshot(
+            source_qualification_keys
+        )
+
         target_teacher = target_teachers_by_teacher_id.get(normalized_teacher_id)
         if target_teacher is None:
             target_teacher = models.Teacher(
@@ -877,7 +1040,7 @@ def copy_teachers_from_year(
                 first_name=source_teacher.first_name,
                 middle_name=source_teacher.middle_name,
                 last_name=source_teacher.last_name,
-                degree_major=source_teacher.degree_major,
+                degree_major=qualification_snapshot or source_teacher.degree_major,
                 subject_code=None,
                 level=source_teacher.level,
                 max_hours=source_teacher.max_hours or STANDARD_MAX_HOURS,
@@ -895,7 +1058,22 @@ def copy_teachers_from_year(
             target_teachers_by_teacher_id[normalized_teacher_id] = target_teacher
             created_teacher_count += 1
         else:
+            if not (target_teacher.degree_major or "").strip() and qualification_snapshot:
+                target_teacher.degree_major = qualification_snapshot
             reused_teacher_count += 1
+
+        for qualification_key in source_qualification_keys:
+            qualification_row_key = (target_teacher.id, qualification_key)
+            if qualification_row_key in existing_target_qualification_keys:
+                continue
+
+            db.add(
+                models.TeacherQualificationSelection(
+                    teacher_id=target_teacher.id,
+                    qualification_key=qualification_key,
+                )
+            )
+            existing_target_qualification_keys.add(qualification_row_key)
 
         source_subject_codes = set(source_subject_codes_by_teacher.get(source_teacher.id, set()))
         fallback_subject_code = str(source_teacher.subject_code or "").strip().upper()
@@ -1015,7 +1193,7 @@ def create_teacher(
     first_name: str = Form(...),
     middle_name: str = Form(""),
     last_name: str = Form(...),
-    degree_major: str = Form(""),
+    qualification_keys: list[str] = Form([]),
     subject_codes: list[str] = Form([]),
     section_assignment_values: list[str] = Form([]),
     max_hours: str = Form("24"),
@@ -1041,7 +1219,15 @@ def create_teacher(
     first_name = _normalize_name(first_name)
     middle_name = _normalize_name(middle_name)
     last_name = _normalize_name(last_name)
-    degree_major = _normalize_degree_major(degree_major)
+    raw_qualification_keys = [
+        str(value or "").strip()
+        for value in qualification_keys
+        if str(value or "").strip()
+    ]
+    normalized_qualification_keys = normalize_qualification_keys(raw_qualification_keys)
+    invalid_qualification_keys = sorted({
+        key for key in raw_qualification_keys if key not in QUALIFICATION_LOOKUP
+    })
     normalized_subject_codes = _normalize_subject_codes(subject_codes)
     (
         section_assignment_map,
@@ -1074,11 +1260,13 @@ def create_teacher(
     elif not NAME_PATTERN.match(last_name):
         errors.append("Last name must contain letters only.")
 
-    if not degree_major:
-        errors.append("Degree / major is required so the system can guide subject alignment.")
-    elif len(degree_major) > MAX_DEGREE_MAJOR_LENGTH:
+    if invalid_qualification_keys:
         errors.append(
-            f"Degree / major must be {MAX_DEGREE_MAJOR_LENGTH} characters or fewer."
+            "One or more selected qualifications were invalid. Please reselect them from the predefined list."
+        )
+    if not normalized_qualification_keys:
+        errors.append(
+            "Select at least one degree or specialization for this teacher."
         )
 
     if invalid_section_assignment_values:
@@ -1107,6 +1295,13 @@ def create_teacher(
                 "Selected subject codes do not exist in the current branch/academic year: "
                 + ", ".join(missing_subject_codes)
             )
+        errors.extend(
+            _validate_subject_qualification_alignment(
+                normalized_subject_codes=normalized_subject_codes,
+                subject_map=subject_map,
+                qualification_keys=normalized_qualification_keys,
+            )
+        )
 
     if parsed_max_hours is None or parsed_max_hours <= 0:
         errors.append("Max hours must be a positive whole number.")
@@ -1197,7 +1392,7 @@ def create_teacher(
                 "first_name": first_name,
                 "middle_name": middle_name,
                 "last_name": last_name,
-                "degree_major": degree_major,
+                "qualification_keys": normalized_qualification_keys,
                 "max_hours": str(parsed_max_hours or 24),
                 "extra_hours_allowed": allowed_extra,
                 "extra_hours_count": str(
@@ -1214,6 +1409,7 @@ def create_teacher(
             },
             selected_subject_codes=normalized_subject_codes,
             selected_section_assignment_values=normalized_section_assignment_values,
+            selected_qualification_keys=normalized_qualification_keys,
         )
 
     teacher = models.Teacher(
@@ -1221,7 +1417,7 @@ def create_teacher(
         first_name=first_name,
         middle_name=middle_name if middle_name else None,
         last_name=last_name,
-        degree_major=degree_major,
+        degree_major=build_legacy_qualification_snapshot(normalized_qualification_keys),
         subject_code=normalized_subject_codes[0] if normalized_subject_codes else None,
         level=None,
         max_hours=parsed_max_hours if parsed_max_hours is not None else STANDARD_MAX_HOURS,
@@ -1240,6 +1436,13 @@ def create_teacher(
     try:
         db.add(teacher)
         db.flush()
+        for qualification_key in normalized_qualification_keys:
+            db.add(
+                models.TeacherQualificationSelection(
+                    teacher_id=teacher.id,
+                    qualification_key=qualification_key,
+                )
+            )
         for subject_code in normalized_subject_codes:
             db.add(
                 models.TeacherSubjectAllocation(
@@ -1269,7 +1472,7 @@ def create_teacher(
                 "first_name": first_name,
                 "middle_name": middle_name,
                 "last_name": last_name,
-                "degree_major": degree_major,
+                "qualification_keys": normalized_qualification_keys,
                 "max_hours": str(parsed_max_hours or 24),
                 "extra_hours_allowed": allowed_extra,
                 "extra_hours_count": str(
@@ -1286,6 +1489,7 @@ def create_teacher(
             },
             selected_subject_codes=normalized_subject_codes,
             selected_section_assignment_values=normalized_section_assignment_values,
+            selected_qualification_keys=normalized_qualification_keys,
         )
 
     return _render_teachers_page(
@@ -1334,7 +1538,7 @@ def update_teacher(
     first_name: str = Form(...),
     middle_name: str = Form(""),
     last_name: str = Form(...),
-    degree_major: str = Form(""),
+    qualification_keys: list[str] = Form([]),
     subject_codes: list[str] = Form([]),
     section_assignment_values: list[str] = Form([]),
     max_hours: str = Form("24"),
@@ -1364,7 +1568,15 @@ def update_teacher(
     first_name = _normalize_name(first_name)
     middle_name = _normalize_name(middle_name)
     last_name = _normalize_name(last_name)
-    degree_major = _normalize_degree_major(degree_major)
+    raw_qualification_keys = [
+        str(value or "").strip()
+        for value in qualification_keys
+        if str(value or "").strip()
+    ]
+    normalized_qualification_keys = normalize_qualification_keys(raw_qualification_keys)
+    invalid_qualification_keys = sorted({
+        key for key in raw_qualification_keys if key not in QUALIFICATION_LOOKUP
+    })
     normalized_subject_codes = _normalize_subject_codes(subject_codes)
     (
         section_assignment_map,
@@ -1396,11 +1608,13 @@ def update_teacher(
     elif not NAME_PATTERN.match(last_name):
         errors.append("Last name must contain letters only.")
 
-    if not degree_major:
-        errors.append("Degree / major is required so the system can guide subject alignment.")
-    elif len(degree_major) > MAX_DEGREE_MAJOR_LENGTH:
+    if invalid_qualification_keys:
         errors.append(
-            f"Degree / major must be {MAX_DEGREE_MAJOR_LENGTH} characters or fewer."
+            "One or more selected qualifications were invalid. Please reselect them from the predefined list."
+        )
+    if not normalized_qualification_keys:
+        errors.append(
+            "Select at least one degree or specialization for this teacher."
         )
 
     if invalid_section_assignment_values:
@@ -1429,6 +1643,13 @@ def update_teacher(
                 "Selected subject codes do not exist in the current branch/academic year: "
                 + ", ".join(missing_subject_codes)
             )
+        errors.extend(
+            _validate_subject_qualification_alignment(
+                normalized_subject_codes=normalized_subject_codes,
+                subject_map=subject_map,
+                qualification_keys=normalized_qualification_keys,
+            )
+        )
 
     if parsed_max_hours is None or parsed_max_hours <= 0:
         errors.append("Max hours must be a positive whole number.")
@@ -1517,7 +1738,7 @@ def update_teacher(
             first_name=first_name,
             middle_name=middle_name if middle_name else None,
             last_name=last_name,
-            degree_major=degree_major,
+            degree_major=build_legacy_qualification_snapshot(normalized_qualification_keys),
             max_hours=(
                 parsed_max_hours
                 if parsed_max_hours is not None
@@ -1544,6 +1765,7 @@ def update_teacher(
             error=" ".join(errors),
             assigned_subject_codes=list(normalized_subject_codes),
             selected_section_assignment_values=normalized_section_assignment_values,
+            selected_qualification_keys=normalized_qualification_keys,
             status_code=400,
         )
 
@@ -1551,7 +1773,7 @@ def update_teacher(
     teacher.first_name = first_name
     teacher.middle_name = middle_name if middle_name else None
     teacher.last_name = last_name
-    teacher.degree_major = degree_major
+    teacher.degree_major = build_legacy_qualification_snapshot(normalized_qualification_keys)
     teacher.subject_code = normalized_subject_codes[0] if normalized_subject_codes else None
     teacher.level = None
     teacher.max_hours = parsed_max_hours if parsed_max_hours is not None else STANDARD_MAX_HOURS
@@ -1568,9 +1790,19 @@ def update_teacher(
         db.query(models.TeacherSectionAssignment).filter(
             models.TeacherSectionAssignment.teacher_id == teacher.id
         ).delete(synchronize_session=False)
+        db.query(models.TeacherQualificationSelection).filter(
+            models.TeacherQualificationSelection.teacher_id == teacher.id
+        ).delete(synchronize_session=False)
         db.query(models.TeacherSubjectAllocation).filter(
             models.TeacherSubjectAllocation.teacher_id == teacher.id
         ).delete(synchronize_session=False)
+        for qualification_key in normalized_qualification_keys:
+            db.add(
+                models.TeacherQualificationSelection(
+                    teacher_id=teacher.id,
+                    qualification_key=qualification_key,
+                )
+            )
         for subject_code in normalized_subject_codes:
             db.add(
                 models.TeacherSubjectAllocation(
@@ -1598,6 +1830,7 @@ def update_teacher(
             error="Unable to update teacher due to duplicate or invalid data.",
             assigned_subject_codes=list(normalized_subject_codes),
             selected_section_assignment_values=normalized_section_assignment_values,
+            selected_qualification_keys=normalized_qualification_keys,
             status_code=400,
         )
 
@@ -1626,6 +1859,9 @@ def delete_teacher(
     if teacher:
         db.query(models.TeacherSectionAssignment).filter(
             models.TeacherSectionAssignment.teacher_id == teacher.id
+        ).delete(synchronize_session=False)
+        db.query(models.TeacherQualificationSelection).filter(
+            models.TeacherQualificationSelection.teacher_id == teacher.id
         ).delete(synchronize_session=False)
         db.query(models.TeacherSubjectAllocation).filter(
             models.TeacherSubjectAllocation.teacher_id == teacher.id
@@ -1684,6 +1920,9 @@ def delete_teachers_bulk(
     teacher_ids_to_delete = list(teacher_map.keys())
     db.query(models.TeacherSectionAssignment).filter(
         models.TeacherSectionAssignment.teacher_id.in_(teacher_ids_to_delete)
+    ).delete(synchronize_session=False)
+    db.query(models.TeacherQualificationSelection).filter(
+        models.TeacherQualificationSelection.teacher_id.in_(teacher_ids_to_delete)
     ).delete(synchronize_session=False)
     db.query(models.TeacherSubjectAllocation).filter(
         models.TeacherSubjectAllocation.teacher_id.in_(teacher_ids_to_delete)

@@ -294,6 +294,157 @@
             line-height: 1.45;
         }
 
+        .qualification-shell {
+            display: grid;
+            gap: 10px;
+        }
+
+        .qualification-summary-bar {
+            display: grid;
+            gap: 8px;
+            padding: 10px 12px;
+            border: 1px solid #dbe7f8;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #fcfdff, #f4f8ff);
+        }
+
+        .qualification-summary-badge {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 5px 10px;
+            border-radius: 999px;
+            border: 1px solid #c8daf3;
+            background: #edf4ff;
+            color: #244a7c;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+        }
+
+        .qualification-chip-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .qualification-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 9px;
+            border-radius: 999px;
+            border: 1px solid #d7e2f3;
+            background: #ffffff;
+            color: #244a7c;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .qualification-chip.is-specialization {
+            border-color: #cfe7da;
+            background: #effaf4;
+            color: #0b6a63;
+        }
+
+        .qualification-chip-empty {
+            font-size: 12px;
+            color: #5d6b82;
+        }
+
+        .qualification-selector-grid {
+            display: grid;
+            gap: 10px;
+        }
+
+        .qualification-group {
+            padding: 12px;
+            border: 1px solid #dbe7f8;
+            border-radius: 14px;
+            background: #ffffff;
+            display: grid;
+            gap: 10px;
+        }
+
+        .qualification-group-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .qualification-group-head strong {
+            font-size: 13px;
+            color: #17365d;
+        }
+
+        .qualification-group-head span {
+            font-size: 11px;
+            color: #60728b;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .qualification-option-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 8px;
+        }
+
+        .qualification-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 9px 10px;
+            border: 1px solid #dbe7f8;
+            border-radius: 10px;
+            background: #f8fbff;
+            cursor: pointer;
+            transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+        }
+
+        .qualification-option:hover {
+            border-color: #b7cbe8;
+            background: #f4f8ff;
+        }
+
+        .qualification-option.is-selected {
+            border-color: #9cc6b3;
+            background: #effaf4;
+            box-shadow: 0 10px 24px rgba(11, 106, 99, 0.08);
+        }
+
+        .qualification-option input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            margin: 1px 0 0;
+            padding: 0;
+            accent-color: var(--brand);
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .qualification-copy {
+            display: grid;
+            gap: 3px;
+            min-width: 0;
+        }
+
+        .qualification-copy strong {
+            font-size: 12px;
+            color: #1f3759;
+            line-height: 1.35;
+        }
+
+        .qualification-copy small {
+            font-size: 11px;
+            color: #5b6f89;
+            line-height: 1.35;
+        }
+
         .subject-selector-shell {
             display: grid;
             gap: 10px;
@@ -1668,9 +1819,35 @@
                             <input id="last_name" type="text" name="last_name" value="{{ form_data.last_name }}" required>
                         </div>
                         <div class="field field-wide">
-                            <label for="degree_major">Degree / Major</label>
-                            <input id="degree_major" type="text" name="degree_major" maxlength="120" placeholder="e.g. B.Ed Mathematics, Physics, English Literature" value="{{ form_data.degree_major }}" required>
-                            <div class="field-note">Used to highlight the subjects that best fit this teacher's specialization while you assign teaching load.</div>
+                            <label>Qualifications</label>
+                            <div class="qualification-shell">
+                                <div class="qualification-summary-bar">
+                                    <span id="qualificationSelectionCount" class="qualification-summary-badge">{{ selected_qualification_keys|length }} selected</span>
+                                    <div id="qualificationSelectionChips" class="qualification-chip-list"></div>
+                                </div>
+                                <div class="qualification-selector-grid">
+                                    {% for group in qualification_option_groups %}
+                                    <div class="qualification-group">
+                                        <div class="qualification-group-head">
+                                            <strong>{{ group.label }}</strong>
+                                            <span>{{ group.options|length }} options</span>
+                                        </div>
+                                        <div class="qualification-option-grid">
+                                            {% for option in group.options %}
+                                            <label class="qualification-option{% if option.key in selected_qualification_keys %} is-selected{% endif %}">
+                                                <input class="qualification-checkbox" type="checkbox" name="qualification_keys" value="{{ option.key }}" {% if option.key in selected_qualification_keys %}checked{% endif %}>
+                                                <span class="qualification-copy">
+                                                    <strong>{{ option.label }}</strong>
+                                                    <small>{{ option.kind_label }}</small>
+                                                </span>
+                                            </label>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="field-note">Choose every degree level and subject specialization that applies. The system stores these selections in a structured way and uses them to validate subject compatibility.</div>
+                            </div>
                         </div>
                         <div class="field">
                             <label for="max_hours">Max Hours</label>
@@ -1694,9 +1871,9 @@
                                  <div id="majorGuidance" class="major-guidance" data-state="empty">
                                      <div class="major-guidance-head">
                                          <div class="major-guidance-copy">
-                                             <span id="majorGuidanceBadge" class="major-guidance-badge">Add degree / major</span>
+                                             <span id="majorGuidanceBadge" class="major-guidance-badge">Add qualifications</span>
                                              <h4>Subject Alignment Guide</h4>
-                                             <p id="majorGuidanceText">Enter the teacher's degree / major above. Matching subjects will be highlighted automatically and non-matching choices will be flagged for review.</p>
+                                             <p id="majorGuidanceText">Select the teacher's qualifications above. Matching subjects will be highlighted automatically and non-matching choices will be flagged for review.</p>
                                          </div>
                                      </div>
                                      <div class="major-guidance-grid">
@@ -1713,7 +1890,7 @@
                                          <div class="major-guidance-stat">
                                              <span>Review Needed</span>
                                              <strong id="majorGuidanceSelectedReviewCount">0</strong>
-                                             <small>Chosen outside major keywords</small>
+                                             <small>Chosen outside saved qualifications</small>
                                          </div>
                                      </div>
                                  </div>
@@ -1846,7 +2023,7 @@
                         </div>
                         <p>Review teacher capability, real section teaching load, and workload settings.</p>
                     </div>
-                    <input id="teacherSearch" class="search" type="text" placeholder="Search by ID, name, subject, or major">
+                    <input id="teacherSearch" class="search" type="text" placeholder="Search by ID, name, subject, or qualification">
                 </div>
 
                 {% if teachers %}
@@ -1886,9 +2063,10 @@
                                 {% endif %}
                                 <td>
                                     <div class="teacher-identity">
+                                        {% set qualification_data = teacher_qualification_map.get(teacher.id, {}) %}
                                         <strong>{{ teacher.first_name }}{% if teacher.middle_name %} {{ teacher.middle_name }}{% endif %} {{ teacher.last_name }}</strong>
                                         <span>ID {{ teacher.teacher_id }}</span>
-                                        <span>Degree / Major {{ teacher.degree_major or "Not set" }}</span>
+                                        <span>Qualifications {{ qualification_data.get("summary") or "Not set" }}</span>
                                     </div>
                                 </td>
                                 <td>
@@ -2012,7 +2190,9 @@ const searchInput = document.getElementById("teacherSearch");
         const nationalSectionHoursField = document.getElementById("nationalSectionHoursField");
         const nationalSectionHoursInput = document.getElementById("national_section_hours");
         const teacherIdInput = document.getElementById("teacher_id");
-        const degreeMajorInput = document.getElementById("degree_major");
+        const qualificationInputs = Array.from(document.querySelectorAll("input[name='qualification_keys']"));
+        const qualificationSelectionCount = document.getElementById("qualificationSelectionCount");
+        const qualificationSelectionChips = document.getElementById("qualificationSelectionChips");
         const maxHoursInput = document.getElementById("max_hours");
         const teacherForm = document.getElementById("createTeacherForm");
         const subjectSearchInput = document.getElementById("subjectSearchInput");
@@ -2050,8 +2230,18 @@ const searchInput = document.getElementById("teacherSearch");
         const allocationTotalCapacityValue = document.getElementById("allocationTotalCapacityValue");
         const standardMaxHours = 24;
         const subjectChoices = {{ subject_choices | tojson }};
+        const qualificationOptions = {{ qualification_options | tojson }};
+        let selectedQualificationKeys = new Set(
+            {{ selected_qualification_keys | tojson }}
+                .map((value) => String(value || "").trim())
+                .filter((value) => Boolean(value))
+        );
         const sectionOptionsBySubject = {{ section_options_by_subject | tojson }};
+        const subjectAlignmentKeywordGroups = {{ subject_alignment_keyword_groups | tojson }};
         let persistedSectionAssignmentValues = new Set({{ selected_section_assignment_values | tojson }});
+        const qualificationOptionsByKey = Object.fromEntries(
+            qualificationOptions.map((item) => [String(item.key || "").trim(), item])
+        );
         const subjectChoicesByCode = Object.fromEntries(
             subjectChoices.map((item) => [String(item.subject_code || "").trim().toUpperCase(), item])
         );
@@ -2061,51 +2251,6 @@ const searchInput = document.getElementById("teacherSearch");
                 .filter((value) => Boolean(value))
         );
         const openSubjectGradeKeys = new Set();
-        const subjectAlignmentKeywordGroups = {
-            math: ["math", "mathematics", "algebra", "geometry", "calculus", "statistics", "arithmetic", "trigonometry"],
-            science: ["science", "biology", "chemistry", "physics", "laboratory", "lab"],
-            biology: ["biology", "science", "life"],
-            chemistry: ["chemistry", "science"],
-            physics: ["physics", "science"],
-            english: ["english", "literature", "reading", "writing", "grammar", "phonics", "ela"],
-            arabic: ["arabic"],
-            french: ["french"],
-            islamic: ["islamic", "quran", "hadith", "fiqh", "tawheed", "religion"],
-            social: ["social", "history", "geography", "civics", "studies"],
-            history: ["history", "social"],
-            geography: ["geography", "social"],
-            computer: ["computer", "computing", "ict", "technology", "coding", "programming", "digital", "informatics"],
-            art: ["art", "drawing", "design", "visual"],
-            music: ["music"],
-            pe: ["physical", "pe", "sport", "sports", "fitness"],
-            economics: ["economics", "commerce", "business", "accounting", "finance"],
-            accounting: ["accounting", "business", "commerce", "economics", "finance"],
-            kindergarten: ["kg", "kindergarten", "early", "childhood", "homeroom"],
-        };
-        const subjectAlignmentStopwords = new Set([
-            "bachelor",
-            "masters",
-            "master",
-            "degree",
-            "major",
-            "minor",
-            "education",
-            "teaching",
-            "teacher",
-            "of",
-            "in",
-            "and",
-            "for",
-            "bed",
-            "ba",
-            "bs",
-            "ma",
-            "msc",
-            "bsc",
-            "med",
-            "phd",
-            "diploma",
-        ]);
         const subjectAlignmentReverseGroups = Object.entries(subjectAlignmentKeywordGroups).reduce((map, [groupKey, aliases]) => {
             map[groupKey] = groupKey;
             aliases.forEach((alias) => {
@@ -2410,10 +2555,6 @@ const searchInput = document.getElementById("teacherSearch");
                 });
         };
 
-        const getDegreeMajorValue = () => {
-            return degreeMajorInput ? String(degreeMajorInput.value || "").trim() : "";
-        };
-
         const normalizeAlignmentText = (value) => {
             return String(value || "")
                 .toLowerCase()
@@ -2430,7 +2571,7 @@ const searchInput = document.getElementById("teacherSearch");
 
             const baseTokens = normalizedText
                 .split(" ")
-                .filter((token) => token && !subjectAlignmentStopwords.has(token));
+                .filter((token) => Boolean(token));
             const expandedTokens = new Set(baseTokens);
 
             baseTokens.forEach((token) => {
@@ -2448,39 +2589,102 @@ const searchInput = document.getElementById("teacherSearch");
             return expandedTokens;
         };
 
+        const getSelectedQualificationKeys = () => {
+            return Array.from(selectedQualificationKeys);
+        };
+
+        const getSelectedQualificationChoices = () => {
+            return getSelectedQualificationKeys()
+                .map((key) => qualificationOptionsByKey[key])
+                .filter((option) => Boolean(option));
+        };
+
+        const getSelectedQualificationLabels = () => {
+            return getSelectedQualificationChoices().map((option) => option.label);
+        };
+
+        const getSelectedAlignmentKeys = () => {
+            const alignmentKeys = new Set();
+            getSelectedQualificationChoices().forEach((option) => {
+                (option.alignment_keys || []).forEach((alignmentKey) => {
+                    if (alignmentKey) {
+                        alignmentKeys.add(alignmentKey);
+                    }
+                });
+            });
+            return alignmentKeys;
+        };
+
+        const renderQualificationSummary = () => {
+            if (qualificationSelectionCount) {
+                qualificationSelectionCount.textContent = `${selectedQualificationKeys.size} selected`;
+            }
+
+            if (!qualificationSelectionChips) {
+                return;
+            }
+
+            qualificationSelectionChips.innerHTML = "";
+            const selectedQualifications = getSelectedQualificationChoices();
+            if (selectedQualifications.length === 0) {
+                const emptyState = document.createElement("span");
+                emptyState.className = "qualification-chip-empty";
+                emptyState.textContent = "No qualifications selected yet.";
+                qualificationSelectionChips.appendChild(emptyState);
+                return;
+            }
+
+            selectedQualifications.forEach((option) => {
+                const chip = document.createElement("span");
+                chip.className = `qualification-chip${option.kind === "specialization" ? " is-specialization" : ""}`;
+                chip.textContent = option.label;
+                qualificationSelectionChips.appendChild(chip);
+            });
+        };
+
+        const syncSelectedQualifications = () => {
+            selectedQualificationKeys = new Set(
+                qualificationInputs
+                    .filter((input) => input.checked)
+                    .map((input) => String(input.value || "").trim())
+                    .filter((value) => Boolean(value))
+            );
+        };
+
         const getSubjectMajorAlignment = (subject) => {
-            const degreeMajorValue = getDegreeMajorValue();
-            if (!degreeMajorValue) {
+            const selectedQualifications = getSelectedQualificationChoices();
+            if (selectedQualifications.length === 0) {
                 return {
                     status: "empty",
-                    label: "Add major",
+                    label: "Add qualifications",
+                };
+            }
+
+            const selectedAlignmentKeys = getSelectedAlignmentKeys();
+            if (selectedAlignmentKeys.size === 0) {
+                return {
+                    status: "review",
+                    label: "Add specialization",
                 };
             }
 
             const subjectText = `${subject.subject_code || ""} ${subject.subject_name || ""}`;
-            const normalizedMajorText = normalizeAlignmentText(degreeMajorValue);
-            const normalizedSubjectText = normalizeAlignmentText(subjectText);
-            if (
-                normalizedMajorText
-                && normalizedSubjectText
-                && (
-                    normalizedSubjectText.includes(normalizedMajorText)
-                    || normalizedMajorText.includes(normalizedSubjectText)
-                )
-            ) {
-                return {
-                    status: "match",
-                    label: "Major match",
-                };
-            }
-
-            const majorTokens = buildAlignmentTokenSet(degreeMajorValue);
             const subjectTokens = buildAlignmentTokenSet(subjectText);
-            const hasOverlap = Array.from(majorTokens).some((token) => subjectTokens.has(token));
-            if (hasOverlap) {
+            const subjectGroupKeys = new Set(
+                Object.keys(subjectAlignmentKeywordGroups).filter((groupKey) => {
+                    return subjectTokens.has(groupKey);
+                })
+            );
+            const matchedQualifications = selectedQualifications.filter((option) => {
+                return (option.alignment_keys || []).some((alignmentKey) => subjectGroupKeys.has(alignmentKey));
+            });
+
+            if (matchedQualifications.length > 0) {
                 return {
                     status: "match",
-                    label: "Major match",
+                    label: matchedQualifications.length === 1
+                        ? `Fits ${matchedQualifications[0].label}`
+                        : `Matches ${matchedQualifications.length} qualifications`,
                 };
             }
 
@@ -2495,7 +2699,9 @@ const searchInput = document.getElementById("teacherSearch");
                 return;
             }
 
-            const degreeMajorValue = getDegreeMajorValue();
+            const selectedQualifications = getSelectedQualificationChoices();
+            const qualificationLabels = getSelectedQualificationLabels();
+            const selectedAlignmentKeys = getSelectedAlignmentKeys();
             const selectedSubjects = getSortedSelectedSubjects();
             const matchingSubjects = subjectChoices.filter((subject) => {
                 return getSubjectMajorAlignment(subject).status === "match";
@@ -2508,23 +2714,27 @@ const searchInput = document.getElementById("teacherSearch");
             });
 
             let state = "empty";
-            let badgeText = "Add degree / major";
-            let message = "Enter the teacher's degree / major above. Matching subjects will be highlighted automatically and non-matching choices will be flagged for review.";
+            let badgeText = "Add qualifications";
+            let message = "Select the teacher's saved qualifications above. Matching subjects will be highlighted automatically and non-matching choices will be flagged for review.";
 
-            if (!degreeMajorValue) {
+            if (selectedQualifications.length === 0) {
                 state = "empty";
+            } else if (selectedAlignmentKeys.size === 0) {
+                state = "review";
+                badgeText = "Add specialization";
+                message = "Degree levels are selected, but no subject specialization is selected yet. Add at least one major or specialization so subject fit can be validated.";
             } else if (matchingSubjects.length === 0) {
                 state = "no-match";
                 badgeText = "No direct match";
-                message = `No direct subject keywords matched "${degreeMajorValue}" in the current branch and year. You can still assign subjects manually, but review them carefully.`;
+                message = `No direct subject matches were found for ${qualificationLabels.join(", ")} in the current branch and year. Review any selected subjects carefully.`;
             } else if (selectedReviewSubjects.length > 0) {
                 state = "review";
                 badgeText = "Review selected subjects";
-                message = `${selectedReviewSubjects.length} selected subject${selectedReviewSubjects.length === 1 ? "" : "s"} do not match the entered major keywords. Double-check those choices before saving.`;
+                message = `${selectedReviewSubjects.length} selected subject${selectedReviewSubjects.length === 1 ? "" : "s"} do not match the saved qualifications. Double-check those choices before saving.`;
             } else {
                 state = "aligned";
-                badgeText = "Major aligned";
-                message = `${matchingSubjects.length} subject${matchingSubjects.length === 1 ? "" : "s"} match "${degreeMajorValue}" in this branch and academic year.`;
+                badgeText = "Qualification aligned";
+                message = `${matchingSubjects.length} subject${matchingSubjects.length === 1 ? "" : "s"} align with ${qualificationLabels.join(", ")} in this branch and academic year.`;
             }
 
             majorGuidance.dataset.state = state;
@@ -2547,6 +2757,8 @@ const searchInput = document.getElementById("teacherSearch");
         };
 
         const renderSelectedSubjectChips = () => {
+            renderQualificationSummary();
+
             if (subjectSelectionCount) {
                 subjectSelectionCount.textContent = `${getSelectedSubjectCount()} selected`;
             }
@@ -2772,7 +2984,7 @@ const searchInput = document.getElementById("teacherSearch");
                 selectedPill.textContent = `${selectedCountInGrade} selected`;
                 pills.appendChild(selectedPill);
 
-                if (getDegreeMajorValue()) {
+                if (selectedQualificationKeys.size > 0) {
                     const alignedPill = document.createElement("span");
                     alignedPill.className = `subject-grade-pill${alignedCountInGrade === 0 ? " is-muted" : ""}`;
                     alignedPill.textContent = `${alignedCountInGrade} aligned`;
@@ -3127,14 +3339,14 @@ const searchInput = document.getElementById("teacherSearch");
             subjectSearchInput.addEventListener("input", renderSubjectPicker);
         }
 
-        if (degreeMajorInput) {
-            const syncMajorGuidance = () => {
+        qualificationInputs.forEach((input) => {
+            input.addEventListener("change", () => {
+                syncSelectedQualifications();
+                input.closest(".qualification-option")?.classList.toggle("is-selected", input.checked);
                 renderSelectedSubjectChips();
                 renderSubjectPicker();
-            };
-            degreeMajorInput.addEventListener("input", syncMajorGuidance);
-            degreeMajorInput.addEventListener("change", syncMajorGuidance);
-        }
+            });
+        });
 
         if (clearAllSubjectsBtn) {
             clearAllSubjectsBtn.addEventListener("click", () => {
@@ -3201,6 +3413,20 @@ const searchInput = document.getElementById("teacherSearch");
                         return;
                     }
 
+                    if (selectedQualificationKeys.size === 0) {
+                        event.preventDefault();
+                        window.alert("Select at least one degree or specialization for this teacher.");
+                        qualificationInputs[0]?.focus();
+                        return;
+                    }
+
+                    if (getSelectedAlignmentKeys().size === 0) {
+                        event.preventDefault();
+                        window.alert("Select at least one major or subject specialization so the system can validate subject compatibility.");
+                        qualificationInputs[0]?.focus();
+                        return;
+                    }
+
                     const selectedCount = getSelectedSubjectCount();
                     if (selectedCount === 0) {
                         event.preventDefault();
@@ -3227,6 +3453,7 @@ const searchInput = document.getElementById("teacherSearch");
             }
         }
 
+        syncSelectedQualifications();
         renderSelectedSubjectChips();
         renderSubjectPicker();
         renderSectionAssignmentBoard();

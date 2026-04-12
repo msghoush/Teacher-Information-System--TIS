@@ -104,6 +104,25 @@ class TeacherSubjectAllocation(Base):
     subject_code = Column(String, nullable=False)
 
 
+class TeacherQualificationSelection(Base):
+    __tablename__ = "teacher_qualification_selections"
+    __table_args__ = (
+        UniqueConstraint(
+            "teacher_id",
+            "qualification_key",
+            name="uq_teacher_qualification_selections_teacher_qualification",
+        ),
+        Index(
+            "ix_teacher_qualification_selections_teacher_id",
+            "teacher_id",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False, index=True)
+    qualification_key = Column(String(80), nullable=False)
+
+
 class TeacherSectionAssignment(Base):
     __tablename__ = "teacher_section_assignments"
     __table_args__ = (
