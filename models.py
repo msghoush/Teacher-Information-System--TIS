@@ -112,10 +112,6 @@ class TeacherQualificationSelection(Base):
             "qualification_key",
             name="uq_teacher_qualification_selections_teacher_qualification",
         ),
-        Index(
-            "ix_teacher_qualification_selections_teacher_id",
-            "teacher_id",
-        ),
     )
 
     id = Column(Integer, primary_key=True)
