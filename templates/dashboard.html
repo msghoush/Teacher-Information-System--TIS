@@ -2248,7 +2248,7 @@
                     </div>
                 </div>
                 <div class="report-note">
-                    This report uses each teacher available international capacity based on <strong>Max Hours + Extra Hours - National Section Hours</strong>. When a section has a homeroom teacher, the forecast reserves that teacher first for homeroom subjects before distributing the rest of the branch demand.
+                    This report uses each teacher available international capacity based on <strong>Max Hours + Extra Hours - National Section Hours</strong>. It reserves homeroom subjects first, redistributes the remaining load across compatible existing teachers by eligible subjects and major alignment, and only recommends hiring when the residual subject load reaches the <strong>{{ report_summary.minimum_hiring_threshold_hours }}h</strong> minimum threshold.
                 </div>
                 {% if report_summary.total_required_hours > 0 %}
                 <div class="report-decision-strip">
@@ -2260,7 +2260,7 @@
                     <div class="report-decision-card report-decision-new-teachers">
                         <span>New Teachers Required</span>
                         <strong class="report-kpi-value" data-value="{{ report_summary.total_new_teachers_required }}">{{ report_summary.total_new_teachers_required }}</strong>
-                        <p>Required hires based on uncovered subject hours.</p>
+                        <p>Required hires only after redistribution and the {{ report_summary.minimum_hiring_threshold_hours }}h minimum workload threshold check.</p>
                     </div>
                     <div class="report-decision-card report-decision-total">
                         <span>Total Teachers Needed (Branch)</span>
@@ -2272,36 +2272,60 @@
                 {% set current_demand_pct = ((report_summary.total_required_current_hours / report_summary.total_required_hours) * 100) if report_summary.total_required_hours else 0 %}
                 {% set existing_teacher_pct = ((report_summary.total_existing_teachers / report_summary.total_teachers_needed_branch) * 100) if report_summary.total_teachers_needed_branch else 0 %}
                 <div class="report-visual-summary">
-                    <article class="report-visual-card report-visual-card-alert {% if report_summary.total_remaining_hours > 0 %}is-critical{% else %}is-clear{% endif %}">
+                    <article class="report-visual-card report-visual-card-alert {% if report_summary.total_hiring_gap_hours > 0 %}is-critical{% else %}is-clear{% endif %}">
                         <div>
                             <span class="report-alert-eyebrow">
-                                {{ "Urgent staffing alert" if report_summary.total_remaining_hours > 0 else "Coverage stable" }}
+                                {% if report_summary.total_hiring_gap_hours > 0 %}
+                                Hiring threshold reached
+                                {% elif report_summary.total_internal_absorption_hours > 0 %}
+                                Internal absorption available
+                                {% else %}
+                                Coverage stable
+                                {% endif %}
                             </span>
-                            <h4>{{ "Uncovered Subject Load" if report_summary.total_remaining_hours > 0 else "All Required Hours Covered" }}</h4>
+                            <h4>
+                                {% if report_summary.total_hiring_gap_hours > 0 %}
+                                Hiring Requirement Outstanding
+                                {% elif report_summary.total_internal_absorption_hours > 0 %}
+                                Remaining Load Can Stay Internal
+                                {% else %}
+                                All Required Hours Covered
+                                {% endif %}
+                            </h4>
                             <p>
-                                {% if report_summary.total_remaining_hours > 0 %}
-                                {{ report_summary.total_remaining_hours }} weekly hours are still uncovered across {{ report_summary.subjects_with_gaps }} subjects. Largest current gap: {{ report_summary.largest_gap_subject_name or "N/A" }}.
+                                {% if report_summary.total_hiring_gap_hours > 0 %}
+                                {{ report_summary.total_hiring_gap_hours }} weekly hours still require hiring across {{ report_summary.subjects_requiring_hires }} subjects after internal redistribution. Largest hiring gap: {{ report_summary.largest_hiring_gap_subject_name or "N/A" }}.
+                                {% elif report_summary.total_internal_absorption_hours > 0 %}
+                                {{ report_summary.total_internal_absorption_hours }} weekly hours remain after redistribution, but each affected subject stays below the {{ report_summary.minimum_hiring_threshold_hours }}h hiring threshold and should be absorbed internally.
                                 {% else %}
                                 Every required subject hour is currently covered by the teachers already in the system.
                                 {% endif %}
                             </p>
                         </div>
                         <div class="report-alert-metric">
-                            <strong>{{ report_summary.total_remaining_hours }}h</strong>
-                            <span>{{ "still uncovered" if report_summary.total_remaining_hours > 0 else "uncovered now" }}</span>
+                            <strong>{{ report_summary.total_hiring_gap_hours if report_summary.total_hiring_gap_hours > 0 else report_summary.total_internal_absorption_hours }}h</strong>
+                            <span>
+                                {% if report_summary.total_hiring_gap_hours > 0 %}
+                                trigger hires
+                                {% elif report_summary.total_internal_absorption_hours > 0 %}
+                                absorb internally
+                                {% else %}
+                                uncovered now
+                                {% endif %}
+                            </span>
                         </div>
                         <div class="report-alert-grid">
                             <div class="report-alert-chip">
-                                <span>Subjects with gaps</span>
-                                <strong>{{ report_summary.subjects_with_gaps }}</strong>
+                                <span>{% if report_summary.total_hiring_gap_hours > 0 %}Hire-trigger subjects{% else %}Subjects with gaps{% endif %}</span>
+                                <strong>{{ report_summary.subjects_requiring_hires if report_summary.total_hiring_gap_hours > 0 else report_summary.subjects_with_gaps }}</strong>
                             </div>
                             <div class="report-alert-chip">
-                                <span>Largest gap</span>
-                                <strong>{{ report_summary.largest_gap_hours }}h</strong>
+                                <span>{% if report_summary.total_hiring_gap_hours > 0 %}Internal absorption{% else %}Largest gap{% endif %}</span>
+                                <strong>{{ report_summary.total_internal_absorption_hours if report_summary.total_hiring_gap_hours > 0 else report_summary.largest_gap_hours }}h</strong>
                             </div>
                             <div class="report-alert-chip">
-                                <span>Teachers needed</span>
-                                <strong>{{ report_summary.total_new_teachers_required }}</strong>
+                                <span>{% if report_summary.total_internal_absorption_hours > 0 and report_summary.total_hiring_gap_hours == 0 %}Minimum threshold{% else %}Teachers needed{% endif %}</span>
+                                <strong>{{ report_summary.minimum_hiring_threshold_hours if report_summary.total_internal_absorption_hours > 0 and report_summary.total_hiring_gap_hours == 0 else report_summary.total_new_teachers_required }}</strong>
                             </div>
                         </div>
                     </article>
@@ -2356,7 +2380,7 @@
                     <article class="report-visual-card">
                         <div>
                             <h4>Teacher Mix</h4>
-                            <p>Existing teachers versus new hires required to close remaining subject gaps.</p>
+                            <p>Existing teachers versus new hires required after redistribution and threshold-based hiring checks.</p>
                         </div>
                         <div class="report-donut-wrap">
                             <div class="report-donut-shell" style="--donut-segments: #0f7f7a 0 {{ existing_teacher_pct|round(1) }}%, #f2c572 {{ existing_teacher_pct|round(1) }}% 100%;">
@@ -2421,6 +2445,13 @@
                                 {% set alert_class = "is-covered" %}
                                 {% set fill_color = "#0f7f7a" %}
                                 {% set fill_remainder = "#dbe7f8" %}
+                            {% elif row.internal_absorption_recommended %}
+                                {% set status_label = "Absorb Internally" %}
+                                {% set status_class = "report-status-pill-partial" %}
+                                {% set item_class = "is-warning" %}
+                                {% set alert_class = "is-warning" %}
+                                {% set fill_color = "#2563eb" %}
+                                {% set fill_remainder = "#dbe7f8" %}
                             {% elif row.additional_teachers_needed >= 2 or row.remaining_hours >= 24 %}
                                 {% set status_label = "Critical Gap" %}
                                 {% set status_class = "report-status-pill-critical" %}
@@ -2428,6 +2459,13 @@
                                 {% set alert_class = "is-critical" %}
                                 {% set fill_color = "#dc2626" %}
                                 {% set fill_remainder = "#fecaca" %}
+                            {% elif row.additional_teachers_needed >= 1 %}
+                                {% set status_label = "Hiring Gap" %}
+                                {% set status_class = "report-status-pill-gap" %}
+                                {% set item_class = "is-warning" %}
+                                {% set alert_class = "is-warning" %}
+                                {% set fill_color = "#d97706" %}
+                                {% set fill_remainder = "#fde7c2" %}
                             {% elif row.coverage_percentage >= 70 %}
                                 {% set status_label = "Partial Gap" %}
                                 {% set status_class = "report-status-pill-partial" %}
@@ -2474,8 +2512,16 @@
                                         <strong>{{ row.remaining_hours }}h</strong>
                                     </div>
                                     <div class="report-subject-alert-card {{ alert_class }}">
+                                        {% if row.internal_absorption_recommended %}
+                                        <span>Action</span>
+                                        <strong>Internal</strong>
+                                        {% elif row.additional_teachers_needed == 0 and row.additional_teachers_note %}
+                                        <span>Action</span>
+                                        <strong>Combined Pool</strong>
+                                        {% else %}
                                         <span>Teachers Needed</span>
                                         <strong>{{ row.additional_teachers_needed }}</strong>
+                                        {% endif %}
                                     </div>
                                 </div>
                                 <div class="report-subject-stats">
@@ -2506,7 +2552,7 @@
 
                     <div class="report-card">
                         <h4>Uncovered Hours by Subject</h4>
-                        <p>Top subjects with remaining weekly demand after existing teacher allocation.</p>
+                        <p>Top subjects with remaining weekly demand after homeroom reservations, compatible-teacher redistribution, and the hiring-threshold check.</p>
                         {% if report_gap_rows %}
                         <div class="report-gap-list">
                             {% for row in report_gap_rows %}
@@ -2518,7 +2564,15 @@
                                 <div class="report-gap-track">
                                     <div class="report-gap-fill" data-width="{{ row.gap_chart_pct }}"></div>
                                 </div>
+                                {% if row.internal_absorption_recommended %}
+                                <small>Below {{ report_summary.minimum_hiring_threshold_hours }}h threshold: absorb internally.</small>
+                                {% elif row.additional_teachers_needed > 0 %}
                                 <small>Additional teachers required: {{ row.additional_teachers_needed }}</small>
+                                {% elif row.additional_teachers_note %}
+                                <small>{{ row.additional_teachers_note }}</small>
+                                {% else %}
+                                <small>Additional teachers required: 0</small>
+                                {% endif %}
                             </div>
                             {% endfor %}
                         </div>

@@ -50,7 +50,27 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 templates = Jinja2Templates(directory="templates")
 ACADEMIC_YEAR_NAME_PATTERN = re.compile(r"^\d{4}-\d{4}$")
+
+
+def _get_positive_int_env(name: str, default: int) -> int:
+    raw_value = str(os.getenv(name, "") or "").strip()
+    if not raw_value:
+        return default
+    try:
+        parsed_value = int(raw_value)
+    except ValueError:
+        return default
+    return parsed_value if parsed_value > 0 else default
+
+
 REPORT_STANDARD_MAX_HOURS = 24
+REPORT_MINIMUM_HIRING_HOURS = max(
+    1,
+    min(
+        REPORT_STANDARD_MAX_HOURS,
+        _get_positive_int_env("REPORT_MINIMUM_HIRING_HOURS", 20),
+    ),
+)
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
@@ -98,6 +118,33 @@ FAVICON_CACHE_HEADERS = {
 PROFILE_PHOTO_UPLOAD_DIR = os.path.join("static", "uploads", "profile_photos")
 PROFILE_PHOTO_RELATIVE_DIR = "uploads/profile_photos"
 PROFILE_PHOTO_MAX_BYTES = 3 * 1024 * 1024
+MAJOR_ALIGNMENT_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "b",
+    "ba",
+    "bed",
+    "bs",
+    "bsc",
+    "certificate",
+    "degree",
+    "diploma",
+    "ed",
+    "education",
+    "for",
+    "in",
+    "ma",
+    "major",
+    "masters",
+    "minor",
+    "msc",
+    "of",
+    "phd",
+    "teaching",
+    "the",
+    "with",
+}
 
 
 def _ensure_profile_photo_upload_dir():
@@ -339,6 +386,41 @@ def _build_teacher_display_name(teacher) -> str:
 def _normalize_subject_family_key(value: str) -> str:
     normalized = re.sub(r"[^a-z0-9]+", " ", str(value or "").lower())
     return " ".join(normalized.split())
+
+
+def _normalize_alignment_text(value: str) -> str:
+    return _normalize_subject_family_key(value)
+
+
+def _build_alignment_token_set(value: str):
+    return {
+        token
+        for token in _normalize_alignment_text(value).split()
+        if len(token) > 1 and token not in MAJOR_ALIGNMENT_STOPWORDS
+    }
+
+
+def _subject_matches_teacher_major(teacher, subject_name: str, subject_key: str = "") -> bool:
+    normalized_major = _normalize_alignment_text(getattr(teacher, "degree_major", ""))
+    if not normalized_major:
+        return False
+
+    major_tokens = _build_alignment_token_set(normalized_major)
+    subject_texts = [
+        _normalize_alignment_text(subject_name),
+        _normalize_alignment_text(subject_key),
+    ]
+    for subject_text in subject_texts:
+        if not subject_text:
+            continue
+        if len(subject_text) >= 4 and subject_text in normalized_major:
+            return True
+        if len(normalized_major) >= 4 and normalized_major in subject_text:
+            return True
+        if major_tokens and (_build_alignment_token_set(subject_text) & major_tokens):
+            return True
+
+    return False
 
 
 def _is_homeroom_subject_key(subject_key: str) -> bool:
@@ -804,32 +886,6 @@ def _build_reporting_context(
     planning_sections,
     teachers,
 ):
-    teacher_ids = [
-        teacher.id
-        for teacher in teachers
-        if getattr(teacher, "id", None)
-    ]
-    planning_section_ids = [
-        section.id
-        for section in planning_sections
-        if getattr(section, "id", None)
-    ]
-    if teacher_ids and planning_section_ids:
-        section_assignments = db.query(models.TeacherSectionAssignment).filter(
-            models.TeacherSectionAssignment.teacher_id.in_(teacher_ids),
-            models.TeacherSectionAssignment.planning_section_id.in_(planning_section_ids),
-        ).all()
-    else:
-        section_assignments = []
-
-    return _build_reporting_context_from_section_assignments(
-        db=db,
-        subjects=subjects,
-        planning_sections=planning_sections,
-        teachers=teachers,
-        section_assignments=section_assignments,
-    )
-
     sections_by_grade = {}
     current_sections_by_grade = {}
     new_sections_by_grade = {}
@@ -989,24 +1045,51 @@ def _build_reporting_context(
             key=lambda key: subject_demand_map[key]["subject_name"],
         )
         subject_hours_map = teacher_subject_hours_map.get(teacher_id, {})
+        ranked_subject_keys = []
+        major_aligned_subject_keys = []
         primary_subject_keys = []
+        secondary_subject_keys = []
         primary_subject_key = None
         if candidate_subject_keys:
             ranked_subject_keys = sorted(
                 candidate_subject_keys,
                 key=lambda key: (
+                    -int(
+                        _subject_matches_teacher_major(
+                            teacher,
+                            subject_demand_map[key]["subject_name"],
+                            key,
+                        )
+                    ),
                     -subject_hours_map.get(key, 0),
                     -subject_demand_map[key]["required_hours"],
                     subject_demand_map[key]["subject_name"],
                 ),
             )
-            primary_subject_key = ranked_subject_keys[0]
-            primary_subject_keys = [primary_subject_key]
+            major_aligned_subject_keys = [
+                key
+                for key in ranked_subject_keys
+                if _subject_matches_teacher_major(
+                    teacher,
+                    subject_demand_map[key]["subject_name"],
+                    key,
+                )
+            ]
+            if major_aligned_subject_keys:
+                primary_subject_keys = list(major_aligned_subject_keys)
+                secondary_subject_keys = [
+                    key for key in ranked_subject_keys if key not in primary_subject_keys
+                ]
+            else:
+                primary_subject_keys = list(ranked_subject_keys)
 
-        support_subject_keys = set()
-        if primary_subject_key:
+            primary_subject_key = ranked_subject_keys[0]
+
+        support_subject_keys = list(secondary_subject_keys)
+        seen_support_subject_keys = set(support_subject_keys)
+        for base_subject_key in ranked_subject_keys:
             for support_subject_key in CROSS_SUBJECT_SUPPORT_RULES.get(
-                primary_subject_key,
+                base_subject_key,
                 set(),
             ):
                 normalized_support_key = _normalize_subject_family_key(
@@ -1015,14 +1098,12 @@ def _build_reporting_context(
                 if (
                     normalized_support_key
                     and normalized_support_key in subject_demand_map
-                    and normalized_support_key not in primary_subject_keys
+                    and normalized_support_key not in ranked_subject_keys
+                    and normalized_support_key not in seen_support_subject_keys
                 ):
-                    support_subject_keys.add(normalized_support_key)
+                    support_subject_keys.append(normalized_support_key)
+                    seen_support_subject_keys.add(normalized_support_key)
 
-        sorted_support_subject_keys = sorted(
-            support_subject_keys,
-            key=lambda key: subject_demand_map[key]["subject_name"],
-        )
         teacher_capacity_breakdown = get_teacher_capacity_breakdown(
             teacher,
             default_max_hours=REPORT_STANDARD_MAX_HOURS,
@@ -1034,9 +1115,10 @@ def _build_reporting_context(
                 "teacher": teacher,
                 "name": _build_teacher_display_name(teacher),
                 "subject_keys": primary_subject_keys,
-                "support_subject_keys": sorted_support_subject_keys,
-                "eligible_subject_keys": primary_subject_keys + sorted_support_subject_keys,
-                "subject_count": len(primary_subject_keys),
+                "secondary_subject_keys": secondary_subject_keys,
+                "support_subject_keys": support_subject_keys,
+                "eligible_subject_keys": primary_subject_keys + support_subject_keys,
+                "subject_count": len(ranked_subject_keys),
                 "primary_subject_basis_hours": (
                     subject_hours_map.get(primary_subject_key, 0)
                     if primary_subject_key
@@ -1155,15 +1237,26 @@ def _build_reporting_context(
                 for subject_key in profile["subject_keys"]
                 if remaining_hours_by_subject.get(subject_key, 0) > 0
             ]
+            secondary_candidate_subject_keys = [
+                subject_key
+                for subject_key in profile.get("secondary_subject_keys", [])
+                if remaining_hours_by_subject.get(subject_key, 0) > 0
+            ]
+            support_candidate_subject_keys = [
+                subject_key
+                for subject_key in profile["support_subject_keys"]
+                if (
+                    subject_key not in profile.get("secondary_subject_keys", [])
+                    and remaining_hours_by_subject.get(subject_key, 0) > 0
+                )
+            ]
 
             if primary_candidate_subject_keys:
                 candidate_subject_keys = primary_candidate_subject_keys
+            elif secondary_candidate_subject_keys:
+                candidate_subject_keys = secondary_candidate_subject_keys
             else:
-                candidate_subject_keys = [
-                    subject_key
-                    for subject_key in profile["support_subject_keys"]
-                    if remaining_hours_by_subject.get(subject_key, 0) > 0
-                ]
+                candidate_subject_keys = support_candidate_subject_keys
 
             if not candidate_subject_keys:
                 break
@@ -1273,6 +1366,7 @@ def _build_reporting_context(
 
     subject_additional_teachers_map = {}
     subject_additional_teachers_note_map = {}
+    subject_internal_absorption_map = {}
     pooled_subject_keys = set()
     total_additional_teachers_needed = 0
     visited_rule_subjects = set()
@@ -1301,15 +1395,11 @@ def _build_reporting_context(
         if not component_with_remaining:
             continue
 
+        pooled_subject_keys.update(component_with_remaining)
         component_remaining_hours = sum(
             remaining_hours_by_subject.get(item_key, 0)
             for item_key in component_with_remaining
         )
-        component_teachers_needed = math.ceil(
-            component_remaining_hours / REPORT_STANDARD_MAX_HOURS
-        )
-        total_additional_teachers_needed += component_teachers_needed
-        pooled_subject_keys.update(component_with_remaining)
 
         anchor_subject_key = next(
             (
@@ -1332,7 +1422,31 @@ def _build_reporting_context(
             subject_demand_map[item_key]["subject_name"]
             for item_key in component_with_remaining
         )
+        if component_remaining_hours < REPORT_MINIMUM_HIRING_HOURS:
+            for item_key in component_with_remaining:
+                subject_additional_teachers_map[item_key] = 0
+                subject_internal_absorption_map[item_key] = True
+                if len(component_with_remaining) > 1:
+                    subject_additional_teachers_note_map[item_key] = (
+                        "Combined internal absorption pool: "
+                        + ", ".join(component_subject_names)
+                        + f". {component_remaining_hours}h remains below the "
+                        f"{REPORT_MINIMUM_HIRING_HOURS}h minimum hiring threshold."
+                    )
+                else:
+                    subject_additional_teachers_note_map[item_key] = (
+                        f"Remaining {component_remaining_hours}h is below the "
+                        f"{REPORT_MINIMUM_HIRING_HOURS}h minimum hiring threshold "
+                        "and should be absorbed internally."
+                    )
+            continue
+
+        component_teachers_needed = math.ceil(
+            component_remaining_hours / REPORT_STANDARD_MAX_HOURS
+        )
+        total_additional_teachers_needed += component_teachers_needed
         for item_key in component_with_remaining:
+            subject_internal_absorption_map[item_key] = False
             if item_key == anchor_subject_key:
                 subject_additional_teachers_map[item_key] = component_teachers_needed
                 if len(component_with_remaining) > 1:
@@ -1352,10 +1466,21 @@ def _build_reporting_context(
         if remaining_hours <= 0 or subject_key in pooled_subject_keys:
             continue
 
+        if remaining_hours < REPORT_MINIMUM_HIRING_HOURS:
+            subject_additional_teachers_map[subject_key] = 0
+            subject_internal_absorption_map[subject_key] = True
+            subject_additional_teachers_note_map[subject_key] = (
+                f"Remaining {remaining_hours}h is below the "
+                f"{REPORT_MINIMUM_HIRING_HOURS}h minimum hiring threshold and "
+                "should be absorbed internally."
+            )
+            continue
+
         subject_teachers_needed = math.ceil(
             remaining_hours / REPORT_STANDARD_MAX_HOURS
         )
         subject_additional_teachers_map[subject_key] = subject_teachers_needed
+        subject_internal_absorption_map[subject_key] = False
         total_additional_teachers_needed += subject_teachers_needed
 
     report_subject_rows = []
@@ -1389,6 +1514,10 @@ def _build_reporting_context(
                 "teachers_with_subject": teachers_per_subject.get(subject_key, 0),
                 "additional_teachers_needed": additional_teachers_needed,
                 "additional_teachers_note": additional_teachers_note,
+                "internal_absorption_recommended": bool(
+                    remaining_hours > 0
+                    and subject_internal_absorption_map.get(subject_key, False)
+                ),
             }
         )
 
@@ -1519,6 +1648,16 @@ def _build_reporting_context(
     total_remaining_hours = sum(
         row["remaining_hours"] for row in report_subject_rows
     )
+    total_hiring_gap_hours = sum(
+        row["remaining_hours"]
+        for row in report_subject_rows
+        if row["additional_teachers_needed"] > 0
+    )
+    total_internal_absorption_hours = sum(
+        row["remaining_hours"]
+        for row in report_subject_rows
+        if row.get("internal_absorption_recommended")
+    )
     total_allocated_hours = total_required_hours - total_remaining_hours
     total_existing_teachers = len(teachers)
     total_existing_capacity_hours = sum(
@@ -1561,7 +1700,21 @@ def _build_reporting_context(
     total_teachers_needed_branch = (
         total_existing_teachers + total_new_teachers_required
     )
+    subjects_requiring_hires = sum(
+        1
+        for row in report_subject_rows
+        if row["additional_teachers_needed"] > 0
+    )
+    subjects_absorbable_internally = sum(
+        1
+        for row in report_subject_rows
+        if row.get("internal_absorption_recommended")
+    )
     largest_gap_row = report_gap_rows[0] if report_gap_rows else None
+    largest_hiring_gap_row = next(
+        (row for row in report_subject_rows if row["additional_teachers_needed"] > 0),
+        None,
+    )
 
     report_summary = {
         "total_required_hours": total_required_hours,
@@ -1569,6 +1722,8 @@ def _build_reporting_context(
         "total_required_new_hours": total_required_new_hours,
         "total_allocated_hours": total_allocated_hours,
         "total_remaining_hours": total_remaining_hours,
+        "total_hiring_gap_hours": total_hiring_gap_hours,
+        "total_internal_absorption_hours": total_internal_absorption_hours,
         "coverage_percentage": coverage_percentage,
         "total_additional_teachers_needed": total_additional_teachers_needed,
         "total_existing_teachers": total_existing_teachers,
@@ -1582,6 +1737,9 @@ def _build_reporting_context(
         "total_new_teachers_required": total_new_teachers_required,
         "total_teachers_needed_branch": total_teachers_needed_branch,
         "subjects_with_gaps": len(report_gap_rows),
+        "subjects_requiring_hires": subjects_requiring_hires,
+        "subjects_absorbable_internally": subjects_absorbable_internally,
+        "minimum_hiring_threshold_hours": REPORT_MINIMUM_HIRING_HOURS,
         "largest_gap_subject_name": (
             largest_gap_row["subject_name"] if largest_gap_row else ""
         ),
@@ -1591,6 +1749,14 @@ def _build_reporting_context(
         "largest_gap_teachers_needed": (
             int(largest_gap_row["additional_teachers_needed"])
             if largest_gap_row
+            else 0
+        ),
+        "largest_hiring_gap_subject_name": (
+            largest_hiring_gap_row["subject_name"] if largest_hiring_gap_row else ""
+        ),
+        "largest_hiring_gap_hours": (
+            int(largest_hiring_gap_row["remaining_hours"])
+            if largest_hiring_gap_row
             else 0
         ),
     }
@@ -2214,6 +2380,15 @@ def _build_report_allocation_xlsx_bytes(
         ("Total Required Hours", report_summary.get("total_required_hours", 0)),
         ("Covered by Assigned Teachers", report_summary.get("total_allocated_hours", 0)),
         ("Uncovered Hours", report_summary.get("total_remaining_hours", 0)),
+        ("Hire-Trigger Hours", report_summary.get("total_hiring_gap_hours", 0)),
+        (
+            "Internal Absorption Hours",
+            report_summary.get("total_internal_absorption_hours", 0),
+        ),
+        (
+            "Minimum Hiring Threshold",
+            f"{report_summary.get('minimum_hiring_threshold_hours', 0)}h",
+        ),
         ("Coverage %", f"{report_summary.get('coverage_percentage', 0)}%"),
         ("New Teachers Required", report_summary.get("total_new_teachers_required", 0)),
         (
@@ -2242,6 +2417,7 @@ def _build_report_allocation_xlsx_bytes(
         "Covered",
         "Uncovered",
         "Extra Teachers Needed",
+        "Planning Decision",
     ]
     summary_sheet.append(subject_headers)
     _apply_excel_header_style(summary_sheet, subject_table_row + 1, len(subject_headers))
@@ -2255,6 +2431,7 @@ def _build_report_allocation_xlsx_bytes(
                 row["allocated_hours"],
                 row["remaining_hours"],
                 row["additional_teachers_needed"],
+                row.get("additional_teachers_note", ""),
             ]
         )
         row_index = summary_sheet.max_row
@@ -2364,11 +2541,12 @@ def _build_report_allocation_xlsx_bytes(
         "E": 18,
         "F": 18,
         "G": 20,
+        "H": 42,
     }.items():
         summary_sheet.column_dimensions[column_key].width = width
 
     for row_index in range(1, summary_sheet.max_row + 1):
-        for col_index in range(1, 8):
+        for col_index in range(1, 9):
             cell = summary_sheet.cell(row=row_index, column=col_index)
             if cell.value is None:
                 continue
