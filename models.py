@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint, Index, LargeBinary
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -28,6 +28,9 @@ class User(Base):
     position = Column(String(50))
     password = Column(String)
     role = Column(String)
+    profile_image_path = Column(String(255))
+    profile_image_content_type = Column(String(50))
+    profile_image_data = Column(LargeBinary)
     branch_id = Column(Integer, ForeignKey("branches.id"))
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
     is_active = Column(Boolean, default=True)
@@ -56,17 +59,30 @@ class Subject(Base):
 
 class Teacher(Base):
     __tablename__ = "teachers"
+    __table_args__ = (
+        Index(
+            "uq_teachers_scope_teacher_id",
+            "branch_id",
+            "academic_year_id",
+            "teacher_id",
+            unique=True,
+        ),
+    )
+
     id = Column(Integer, primary_key=True)
-    teacher_id = Column(String(10), unique=True)
+    teacher_id = Column(String(10))
     first_name = Column(String)
     middle_name = Column(String)
     last_name = Column(String)
+    degree_major = Column(String(120))
     # Stored as a scoped legacy value; validation is enforced in the app layer.
     subject_code = Column(String)
     level = Column(String)
     max_hours = Column(Integer, default=24)
     extra_hours_allowed = Column(Boolean, default=False)
     extra_hours_count = Column(Integer, default=0)
+    teaches_national_section = Column(Boolean, default=False)
+    national_section_hours = Column(Integer, default=0)
     branch_id = Column(Integer, ForeignKey("branches.id"))
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
 
@@ -85,6 +101,34 @@ class TeacherSubjectAllocation(Base):
     teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False, index=True)
     # Subject codes are branch/year scoped, so allocations store the selected code
     # and resolve it through the teacher's current scope.
+    subject_code = Column(String, nullable=False)
+
+
+class TeacherSectionAssignment(Base):
+    __tablename__ = "teacher_section_assignments"
+    __table_args__ = (
+        UniqueConstraint(
+            "planning_section_id",
+            "subject_code",
+            name="uq_teacher_section_assignments_section_subject",
+        ),
+        Index(
+            "ix_teacher_section_assignments_teacher_id",
+            "teacher_id",
+        ),
+        Index(
+            "ix_teacher_section_assignments_planning_section_id",
+            "planning_section_id",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
+    planning_section_id = Column(
+        Integer,
+        ForeignKey("planning_sections.id"),
+        nullable=False,
+    )
     subject_code = Column(String, nullable=False)
 
 

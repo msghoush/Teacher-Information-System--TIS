@@ -1,3 +1,6 @@
+import os
+from urllib.parse import quote_plus
+
 from sqlalchemy.orm import Session
 
 import auth
@@ -131,6 +134,20 @@ def build_shell_context(
         active_year_id = active_year.id if active_year else None
 
     effective_role = getattr(current_user, "effective_role", None) or getattr(current_user, "role", "")
+    profile_image_path = str(getattr(current_user, "profile_image_path", "") or "").strip()
+    normalized_profile_image_path = profile_image_path.replace("\\", "/").lstrip("/")
+    profile_image_data = getattr(current_user, "profile_image_data", None)
+    profile_image_url = ""
+    if profile_image_data:
+        version_token = quote_plus(normalized_profile_image_path or f"user-{current_user.id}")
+        profile_image_url = f"{request.url_for('get_current_profile_photo')}?v={version_token}"
+    elif normalized_profile_image_path:
+        absolute_profile_image_path = os.path.join("static", *normalized_profile_image_path.split("/"))
+        if os.path.exists(absolute_profile_image_path):
+            profile_image_url = str(
+                request.url_for("static", path=normalized_profile_image_path)
+            )
+    resolved_notice = notice or str(request.query_params.get("notice", "")).strip()
 
     return {
         "shell": {
@@ -143,6 +160,7 @@ def build_shell_context(
             "nav_items": _build_nav_items(request.url.path, can_manage_users),
             "user_name": f"{current_user.first_name} {current_user.last_name}".strip(),
             "role_label": effective_role,
+            "user_image_url": profile_image_url,
             "branch_name": branch.name if branch else "Not assigned",
             "academic_year_name": academic_year.year_name if academic_year else "Not assigned",
             "can_manage_system_settings": can_manage_system_settings,
@@ -152,6 +170,6 @@ def build_shell_context(
             "scoped_branch_id": scoped_branch_id,
             "scoped_academic_year_id": scoped_academic_year_id,
             "active_year_id": active_year_id,
-            "notice": notice,
+            "notice": resolved_notice,
         }
     }

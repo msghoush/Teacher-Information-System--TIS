@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260401e">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260409a">
     {% block page_styles %}{% endblock %}
 </head>
 <body>
@@ -137,10 +137,32 @@
 
             <div class="sidebar-footer">
                 <div class="sidebar-account">
-                    <span class="sidebar-avatar">{{ shell.user_name[:1] if shell.user_name else "U" }}</span>
-                    <div>
+                    <div class="sidebar-avatar">
+                        {% if shell.user_image_url %}
+                        <img class="sidebar-avatar-image" src="{{ shell.user_image_url }}" alt="{{ shell.user_name }} profile photo">
+                        {% else %}
+                        <span class="sidebar-avatar-fallback">{{ shell.user_name[:1] if shell.user_name else "U" }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="sidebar-account-copy">
                         <strong>{{ shell.user_name }}</strong>
                         <span>{{ shell.role_label or "System User" }}</span>
+                        <form class="sidebar-photo-form" method="post" action="/profile/photo" enctype="multipart/form-data" data-auto-submit-file-form>
+                            <input type="hidden" name="return_to" value="{{ request.url.path }}">
+                            <input
+                                id="sidebar_profile_photo"
+                                class="sidebar-photo-input"
+                                type="file"
+                                name="profile_photo"
+                                accept="image/png,image/jpeg,image/gif,image/webp"
+                                data-auto-submit-file-input
+                            >
+                            <label class="sidebar-photo-trigger" for="sidebar_profile_photo">
+                                {{ icon("settings", "shell-icon") }}
+                                {{ "Change photo" if shell.user_image_url else "Add photo" }}
+                            </label>
+                            <small class="sidebar-photo-help">PNG, JPG, GIF, or WEBP up to 3 MB</small>
+                        </form>
                     </div>
                 </div>
                 <a class="sidebar-logout" href="/logout">{{ icon("logout", "shell-icon") }} Logout</a>
@@ -195,5 +217,19 @@
     </div>
 
     {% block page_scripts %}{% endblock %}
+    <script>
+        const sidebarProfilePhotoInputs = Array.from(
+            document.querySelectorAll("[data-auto-submit-file-input]")
+        );
+
+        sidebarProfilePhotoInputs.forEach((input) => {
+            input.addEventListener("change", () => {
+                if (!input.files || input.files.length === 0 || !input.form) {
+                    return;
+                }
+                input.form.submit();
+            });
+        });
+    </script>
 </body>
 </html>

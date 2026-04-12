@@ -16,6 +16,7 @@ import models
 from dependencies import get_db
 from auth import get_current_user
 from ui_shell import build_shell_context
+from year_copy import get_copy_year_choices, get_academic_year
 
 router = APIRouter(prefix="/subjects", tags=["Subjects"])
 templates = Jinja2Templates(directory="templates")
@@ -204,7 +205,23 @@ def _has_subject_assignment_in_scope(
         )
         .first()
     )
-    return has_allocation_reference is not None
+    if has_allocation_reference is not None:
+        return True
+
+    has_section_assignment_reference = (
+        db.query(models.TeacherSectionAssignment)
+        .join(
+            models.PlanningSection,
+            models.PlanningSection.id == models.TeacherSectionAssignment.planning_section_id,
+        )
+        .filter(
+            models.TeacherSectionAssignment.subject_code.in_(normalized_codes),
+            models.PlanningSection.branch_id == branch_id,
+            models.PlanningSection.academic_year_id == academic_year_id,
+        )
+        .first()
+    )
+    return has_section_assignment_reference is not None
 
 
 def _render_subjects_page(
@@ -219,10 +236,21 @@ def _render_subjects_page(
     can_modify = auth.can_modify_data(current_user)
     can_edit = auth.can_edit_data(current_user)
     can_delete = auth.can_delete_data(current_user)
+    can_copy_year_data = auth.is_developer(current_user)
     subjects = db.query(models.Subject).filter(
         models.Subject.branch_id == branch_id,
         models.Subject.academic_year_id == academic_year_id
-    ).order_by(models.Subject.id.desc()).all()
+    ).order_by(
+        models.Subject.grade.asc(),
+        models.Subject.subject_code.asc(),
+        models.Subject.id.asc(),
+    ).all()
+    subject_grade_counts = Counter(subject.grade for subject in subjects)
+    copy_year_choices = (
+        get_copy_year_choices(db, academic_year_id)
+        if can_copy_year_data
+        else []
+    )
 
     return templates.TemplateResponse(
         request,
@@ -230,13 +258,16 @@ def _render_subjects_page(
         {
             "request": request,
             "subjects": subjects,
+            "subject_grade_counts": subject_grade_counts,
             "user": current_user,
             "can_modify": can_modify,
             "can_edit": can_edit,
             "can_delete": can_delete,
+            "can_copy_year_data": can_copy_year_data,
             "error": error,
             "success": success,
             "detail_errors": detail_errors or [],
+            "copy_year_choices": copy_year_choices,
             **build_shell_context(
                 request,
                 db,
@@ -261,6 +292,114 @@ def subjects_page(
         request=request,
         db=db,
         current_user=current_user
+    )
+
+
+@router.post("/copy-from-year")
+def copy_subjects_from_year(
+    request: Request,
+    source_academic_year_id: int = Form(...),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    if not auth.is_developer(current_user):
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Only the developer user can copy subjects between academic years.",
+        )
+
+    branch_id, target_academic_year_id = _get_scope_ids(current_user)
+    if source_academic_year_id == target_academic_year_id:
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Select a different academic year to copy subjects from.",
+        )
+
+    source_year = get_academic_year(db, source_academic_year_id)
+    target_year = get_academic_year(db, target_academic_year_id)
+    if not source_year or not target_year:
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="The selected academic year was not found.",
+        )
+
+    source_subjects = (
+        db.query(models.Subject)
+        .filter(
+            models.Subject.branch_id == branch_id,
+            models.Subject.academic_year_id == source_academic_year_id,
+        )
+        .order_by(models.Subject.grade.asc(), models.Subject.subject_code.asc())
+        .all()
+    )
+    if not source_subjects:
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error=f"No subjects were found in {source_year.year_name} for the current branch.",
+        )
+
+    target_subject_codes = {
+        subject_code
+        for (subject_code,) in (
+            db.query(models.Subject.subject_code)
+            .filter(
+                models.Subject.branch_id == branch_id,
+                models.Subject.academic_year_id == target_academic_year_id,
+            )
+            .all()
+        )
+        if subject_code
+    }
+
+    copied_count = 0
+    skipped_existing_count = 0
+    for source_subject in source_subjects:
+        if not source_subject.subject_code:
+            continue
+        if source_subject.subject_code in target_subject_codes:
+            skipped_existing_count += 1
+            continue
+
+        db.add(
+            models.Subject(
+                subject_code=source_subject.subject_code,
+                subject_name=source_subject.subject_name,
+                weekly_hours=source_subject.weekly_hours,
+                grade=source_subject.grade,
+                branch_id=branch_id,
+                academic_year_id=target_academic_year_id,
+            )
+        )
+        target_subject_codes.add(source_subject.subject_code)
+        copied_count += 1
+
+    if copied_count:
+        db.commit()
+
+    success_parts = [
+        f"Subjects copied from {source_year.year_name} to {target_year.year_name}: {copied_count} added.",
+    ]
+    if skipped_existing_count:
+        success_parts.append(f"{skipped_existing_count} already existed and were skipped.")
+    if not copied_count and not skipped_existing_count:
+        success_parts.append("No subject rows were eligible to copy.")
+
+    return _render_subjects_page(
+        request=request,
+        db=db,
+        current_user=current_user,
+        success=" ".join(success_parts),
     )
 
 
@@ -876,12 +1015,52 @@ def update_subject(
             status_code=400
         )
 
+    previous_subject_code = subject.subject_code
     subject.subject_code = subject_code
     subject.subject_name = subject_name
     subject.weekly_hours = weekly_hours
     subject.grade = grade
 
     try:
+        if previous_subject_code and previous_subject_code != subject_code:
+            teacher_ids_in_scope = [
+                teacher_id
+                for (teacher_id,) in db.query(models.Teacher.id).filter(
+                    models.Teacher.branch_id == branch_id,
+                    models.Teacher.academic_year_id == academic_year_id,
+                ).all()
+            ]
+            if teacher_ids_in_scope:
+                db.query(models.Teacher).filter(
+                    models.Teacher.id.in_(teacher_ids_in_scope),
+                    models.Teacher.subject_code == previous_subject_code,
+                ).update(
+                    {models.Teacher.subject_code: subject_code},
+                    synchronize_session=False,
+                )
+                db.query(models.TeacherSubjectAllocation).filter(
+                    models.TeacherSubjectAllocation.teacher_id.in_(teacher_ids_in_scope),
+                    models.TeacherSubjectAllocation.subject_code == previous_subject_code,
+                ).update(
+                    {models.TeacherSubjectAllocation.subject_code: subject_code},
+                    synchronize_session=False,
+                )
+
+            planning_section_ids_in_scope = [
+                planning_section_id
+                for (planning_section_id,) in db.query(models.PlanningSection.id).filter(
+                    models.PlanningSection.branch_id == branch_id,
+                    models.PlanningSection.academic_year_id == academic_year_id,
+                ).all()
+            ]
+            if planning_section_ids_in_scope:
+                db.query(models.TeacherSectionAssignment).filter(
+                    models.TeacherSectionAssignment.planning_section_id.in_(planning_section_ids_in_scope),
+                    models.TeacherSectionAssignment.subject_code == previous_subject_code,
+                ).update(
+                    {models.TeacherSectionAssignment.subject_code: subject_code},
+                    synchronize_session=False,
+                )
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -926,7 +1105,7 @@ def delete_subject(
                 request=request,
                 db=db,
                 current_user=current_user,
-                error="Cannot delete this subject because it is assigned to one or more teachers.",
+                error="Cannot delete this subject because it is assigned to one or more teachers or planning sections.",
             )
 
         try:
@@ -1004,7 +1183,7 @@ def delete_subjects_bulk(
             request=request,
             db=db,
             current_user=current_user,
-            error="One or more selected subjects cannot be deleted because they are assigned to teachers.",
+            error="One or more selected subjects cannot be deleted because they are assigned to teachers or planning sections.",
         )
 
     try:

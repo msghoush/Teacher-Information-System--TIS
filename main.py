@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Form, Depends, Query
+from fastapi import FastAPI, Request, Form, Depends, Query, File, UploadFile
 from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -11,6 +11,7 @@ import os
 import re
 import time
 from typing import Optional
+from urllib.parse import quote_plus
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
@@ -22,6 +23,9 @@ from dependencies import get_db
 from routers import subjects, users, teachers, planning
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
+from teacher_capacity import (
+    get_teacher_capacity_breakdown,
+)
 from ui_shell import build_shell_context
 from audit import (
     get_audit_log_path,
@@ -91,6 +95,130 @@ FAVICON_CACHE_HEADERS = {
     "Pragma": "no-cache",
     "Expires": "0",
 }
+PROFILE_PHOTO_UPLOAD_DIR = os.path.join("static", "uploads", "profile_photos")
+PROFILE_PHOTO_RELATIVE_DIR = "uploads/profile_photos"
+PROFILE_PHOTO_MAX_BYTES = 3 * 1024 * 1024
+
+
+def _ensure_profile_photo_upload_dir():
+    os.makedirs(PROFILE_PHOTO_UPLOAD_DIR, exist_ok=True)
+
+
+def _detect_profile_photo_extension(file_bytes: bytes) -> str:
+    if file_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if file_bytes.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if file_bytes.startswith((b"GIF87a", b"GIF89a")):
+        return ".gif"
+    if (
+        len(file_bytes) >= 12
+        and file_bytes[:4] == b"RIFF"
+        and file_bytes[8:12] == b"WEBP"
+    ):
+        return ".webp"
+    return ""
+
+
+def _profile_photo_media_type_from_extension(extension: str) -> str:
+    normalized_extension = str(extension or "").strip().lower()
+    if normalized_extension == ".png":
+        return "image/png"
+    if normalized_extension in {".jpg", ".jpeg"}:
+        return "image/jpeg"
+    if normalized_extension == ".gif":
+        return "image/gif"
+    if normalized_extension == ".webp":
+        return "image/webp"
+    return "application/octet-stream"
+
+
+def _normalize_profile_photo_relative_path(relative_path: str) -> str:
+    return str(relative_path or "").replace("\\", "/").lstrip("/")
+
+
+def _delete_profile_photo_file(relative_path: str):
+    normalized_relative_path = _normalize_profile_photo_relative_path(relative_path)
+    if not normalized_relative_path.startswith(f"{PROFILE_PHOTO_RELATIVE_DIR}/"):
+        return
+
+    absolute_path = os.path.abspath(
+        os.path.join("static", *normalized_relative_path.split("/"))
+    )
+    upload_root = os.path.abspath(PROFILE_PHOTO_UPLOAD_DIR)
+    if not absolute_path.startswith(upload_root):
+        return
+    if os.path.exists(absolute_path):
+        try:
+            os.remove(absolute_path)
+        except OSError:
+            return
+
+
+def _migrate_profile_photos_to_database(db: Session):
+    users_needing_migration = db.query(User).filter(
+        User.profile_image_path.isnot(None),
+        User.profile_image_path != "",
+        User.profile_image_data.is_(None),
+    ).all()
+
+    if not users_needing_migration:
+        return
+
+    has_changes = False
+    for user_row in users_needing_migration:
+        normalized_relative_path = _normalize_profile_photo_relative_path(
+            getattr(user_row, "profile_image_path", "") or ""
+        )
+        if not normalized_relative_path.startswith(f"{PROFILE_PHOTO_RELATIVE_DIR}/"):
+            continue
+
+        absolute_path = os.path.abspath(
+            os.path.join("static", *normalized_relative_path.split("/"))
+        )
+        upload_root = os.path.abspath(PROFILE_PHOTO_UPLOAD_DIR)
+        if not absolute_path.startswith(upload_root):
+            continue
+        if not os.path.exists(absolute_path):
+            continue
+
+        try:
+            with open(absolute_path, "rb") as image_file:
+                file_bytes = image_file.read()
+        except OSError:
+            continue
+
+        if not file_bytes:
+            continue
+
+        detected_extension = _detect_profile_photo_extension(file_bytes)
+        if not detected_extension:
+            _, detected_extension = os.path.splitext(absolute_path)
+
+        user_row.profile_image_content_type = _profile_photo_media_type_from_extension(
+            detected_extension
+        )
+        user_row.profile_image_data = file_bytes
+        has_changes = True
+
+    if has_changes:
+        db.commit()
+
+
+def _safe_redirect_path(path: str) -> str:
+    cleaned = str(path or "").strip()
+    if not cleaned.startswith("/") or cleaned.startswith("//"):
+        return "/dashboard"
+    return cleaned
+
+
+def _redirect_with_notice(path: str, notice: str):
+    safe_path = _safe_redirect_path(path)
+    separator = "&" if "?" in safe_path else "?"
+    return RedirectResponse(
+        url=f"{safe_path}{separator}notice={quote_plus(str(notice or '').strip())}",
+        status_code=302,
+    )
 
 
 def _resolve_client_ip(request: Request) -> str:
@@ -217,12 +345,491 @@ def _is_homeroom_subject_key(subject_key: str) -> bool:
     return _normalize_subject_family_key(subject_key) in HOMEROOM_SUBJECT_ALIASES
 
 
+def _build_reporting_context_from_section_assignments(
+    db: Session,
+    subjects,
+    planning_sections,
+    teachers,
+    section_assignments,
+):
+    sections_by_grade = {}
+    current_sections_by_grade = {}
+    new_sections_by_grade = {}
+
+    for section in planning_sections:
+        grade_label = _normalize_grade_label(section.grade_level)
+        if not grade_label:
+            continue
+
+        sections_by_grade[grade_label] = sections_by_grade.get(grade_label, 0) + 1
+        status = str(section.class_status or "").strip().lower()
+        if status == "current":
+            current_sections_by_grade[grade_label] = (
+                current_sections_by_grade.get(grade_label, 0) + 1
+            )
+        elif status == "new":
+            new_sections_by_grade[grade_label] = (
+                new_sections_by_grade.get(grade_label, 0) + 1
+            )
+
+    scoped_subjects_by_code = {
+        subject.subject_code: subject
+        for subject in subjects
+        if subject.subject_code
+    }
+    subject_demand_map = {}
+    required_hours_by_grade = {}
+    required_current_hours_by_grade = {}
+    required_new_hours_by_grade = {}
+
+    for subject in subjects:
+        grade_label = _normalize_grade_label(subject.grade)
+        if not grade_label:
+            continue
+
+        weekly_hours = int(subject.weekly_hours or 0)
+        if weekly_hours <= 0:
+            continue
+
+        sections_count = sections_by_grade.get(grade_label, 0)
+        if sections_count <= 0:
+            continue
+
+        current_sections_count = current_sections_by_grade.get(grade_label, 0)
+        new_sections_count = new_sections_by_grade.get(grade_label, 0)
+
+        subject_key, subject_label = _build_subject_identity(
+            subject_name=subject.subject_name,
+            fallback_code=subject.subject_code or "",
+        )
+        if not subject_key:
+            continue
+
+        required_hours = weekly_hours * sections_count
+        required_current_hours = weekly_hours * current_sections_count
+        required_new_hours = weekly_hours * new_sections_count
+
+        required_hours_by_grade[grade_label] = (
+            required_hours_by_grade.get(grade_label, 0) + required_hours
+        )
+        required_current_hours_by_grade[grade_label] = (
+            required_current_hours_by_grade.get(grade_label, 0) + required_current_hours
+        )
+        required_new_hours_by_grade[grade_label] = (
+            required_new_hours_by_grade.get(grade_label, 0) + required_new_hours
+        )
+
+        if subject_key not in subject_demand_map:
+            subject_demand_map[subject_key] = {
+                "subject_name": subject_label,
+                "required_hours": 0,
+                "required_current_hours": 0,
+                "required_new_hours": 0,
+                "grades": set(),
+            }
+
+        entry = subject_demand_map[subject_key]
+        entry["required_hours"] += required_hours
+        entry["required_current_hours"] += required_current_hours
+        entry["required_new_hours"] += required_new_hours
+        entry["grades"].add(grade_label)
+
+    teacher_ids = sorted(
+        teacher.id
+        for teacher in teachers
+        if getattr(teacher, "id", None)
+    )
+    teacher_subject_map = {
+        teacher_id: set()
+        for teacher_id in teacher_ids
+    }
+    if teacher_ids:
+        teacher_allocations = db.query(models.TeacherSubjectAllocation).filter(
+            models.TeacherSubjectAllocation.teacher_id.in_(teacher_ids)
+        ).all()
+    else:
+        teacher_allocations = []
+
+    for allocation in teacher_allocations:
+        subject = scoped_subjects_by_code.get(allocation.subject_code)
+        if not subject:
+            continue
+        subject_key, _ = _build_subject_identity(
+            subject_name=subject.subject_name,
+            fallback_code=subject.subject_code or "",
+        )
+        if subject_key and subject_key in subject_demand_map:
+            teacher_subject_map.setdefault(allocation.teacher_id, set()).add(subject_key)
+
+    for teacher in teachers:
+        subject_key_set = teacher_subject_map.setdefault(getattr(teacher, "id", None), set())
+        if subject_key_set:
+            continue
+        fallback_code = str(teacher.subject_code or "").strip().upper()
+        if not fallback_code:
+            continue
+        fallback_subject = scoped_subjects_by_code.get(fallback_code)
+        if not fallback_subject:
+            continue
+        subject_key, _ = _build_subject_identity(
+            subject_name=fallback_subject.subject_name,
+            fallback_code=fallback_subject.subject_code or "",
+        )
+        if subject_key and subject_key in subject_demand_map:
+            subject_key_set.add(subject_key)
+
+    actual_hours_by_teacher = {}
+    actual_hours_by_teacher_subject = {}
+    actual_hours_by_subject = {}
+
+    for assignment in section_assignments:
+        subject = scoped_subjects_by_code.get(assignment.subject_code)
+        if not subject:
+            continue
+
+        subject_key, _ = _build_subject_identity(
+            subject_name=subject.subject_name,
+            fallback_code=subject.subject_code or "",
+        )
+        if not subject_key or subject_key not in subject_demand_map:
+            continue
+
+        subject_hours = int(subject.weekly_hours or 0)
+        actual_hours_by_teacher[assignment.teacher_id] = (
+            actual_hours_by_teacher.get(assignment.teacher_id, 0) + subject_hours
+        )
+        teacher_subject_hours = actual_hours_by_teacher_subject.setdefault(
+            assignment.teacher_id,
+            {},
+        )
+        teacher_subject_hours[subject_key] = (
+            teacher_subject_hours.get(subject_key, 0) + subject_hours
+        )
+        actual_hours_by_subject[subject_key] = (
+            actual_hours_by_subject.get(subject_key, 0) + subject_hours
+        )
+
+    teacher_profiles = []
+    total_existing_capacity_hours = 0
+    for teacher in teachers:
+        teacher_id = getattr(teacher, "id", None)
+        allocation_breakdown = dict(
+            actual_hours_by_teacher_subject.get(teacher_id, {})
+        )
+        subject_keys = sorted(
+            allocation_breakdown.keys(),
+            key=lambda key: subject_demand_map.get(key, {}).get("subject_name", key),
+        )
+        allocated_hours = sum(allocation_breakdown.values())
+        teacher_capacity_breakdown = get_teacher_capacity_breakdown(
+            teacher,
+            default_max_hours=REPORT_STANDARD_MAX_HOURS,
+        )
+        teacher_capacity = teacher_capacity_breakdown["international_capacity_hours"]
+        total_existing_capacity_hours += teacher_capacity
+
+        teacher_profiles.append(
+            {
+                "teacher": teacher,
+                "name": _build_teacher_display_name(teacher),
+                "subject_keys": subject_keys,
+                "support_subject_keys": [],
+                "subject_count": len(subject_keys),
+                "primary_subject_basis_hours": max(allocation_breakdown.values(), default=0),
+                "allocated_hours": allocated_hours,
+                "remaining_capacity_hours": max(teacher_capacity - allocated_hours, 0),
+                "allocation_breakdown": allocation_breakdown,
+                "capacity_hours": teacher_capacity,
+                "total_capacity_hours": teacher_capacity_breakdown[
+                    "total_capacity_hours"
+                ],
+                "national_section_hours": teacher_capacity_breakdown[
+                    "national_section_hours"
+                ],
+                "primary_allocated_hours": allocated_hours,
+                "support_allocated_hours": 0,
+            }
+        )
+
+    teachers_per_subject = {}
+    for subject_keys in teacher_subject_map.values():
+        for subject_key in subject_keys:
+            teachers_per_subject[subject_key] = (
+                teachers_per_subject.get(subject_key, 0) + 1
+            )
+
+    report_subject_rows = []
+    total_additional_teachers_needed = 0
+    for subject_key, demand in subject_demand_map.items():
+        required_hours = demand["required_hours"]
+        allocated_hours = min(actual_hours_by_subject.get(subject_key, 0), required_hours)
+        remaining_hours = max(required_hours - allocated_hours, 0)
+        additional_teachers_needed = (
+            math.ceil(remaining_hours / REPORT_STANDARD_MAX_HOURS)
+            if remaining_hours > 0
+            else 0
+        )
+        total_additional_teachers_needed += additional_teachers_needed
+        coverage_percentage = (
+            round((allocated_hours / required_hours) * 100)
+            if required_hours > 0
+            else 0
+        )
+        grades = sorted(demand["grades"], key=_grade_sort_key)
+
+        report_subject_rows.append(
+            {
+                "subject_key": subject_key,
+                "subject_name": demand["subject_name"],
+                "grades": grades,
+                "required_hours": required_hours,
+                "required_current_hours": demand["required_current_hours"],
+                "required_new_hours": demand["required_new_hours"],
+                "allocated_hours": allocated_hours,
+                "remaining_hours": remaining_hours,
+                "coverage_percentage": coverage_percentage,
+                "teachers_with_subject": teachers_per_subject.get(subject_key, 0),
+                "additional_teachers_needed": additional_teachers_needed,
+                "additional_teachers_note": "",
+            }
+        )
+
+    report_subject_rows.sort(
+        key=lambda row: (
+            -row["remaining_hours"],
+            row["subject_name"],
+        )
+    )
+
+    report_gap_rows = [
+        dict(row)
+        for row in report_subject_rows
+        if row["remaining_hours"] > 0
+    ]
+    max_remaining_hours = max(
+        (row["remaining_hours"] for row in report_gap_rows),
+        default=0,
+    )
+    for row in report_gap_rows:
+        row["gap_chart_pct"] = (
+            round((row["remaining_hours"] / max_remaining_hours) * 100, 1)
+            if max_remaining_hours > 0
+            else 0
+        )
+    report_gap_rows = report_gap_rows[:8]
+
+    report_teacher_rows = []
+    for profile in teacher_profiles:
+        subject_labels = [
+            subject_demand_map[subject_key]["subject_name"]
+            for subject_key in profile["subject_keys"]
+            if subject_key in subject_demand_map
+        ]
+        allocation_labels = [
+            f"{subject_demand_map[subject_key]['subject_name']} ({hours}h)"
+            for subject_key, hours in sorted(
+                profile["allocation_breakdown"].items(),
+                key=lambda item: (-item[1], subject_demand_map.get(item[0], {}).get("subject_name", item[0])),
+            )
+            if subject_key in subject_demand_map
+        ]
+
+        teacher = profile["teacher"]
+        report_teacher_rows.append(
+            {
+                "teacher_id": teacher.teacher_id or "-",
+                "teacher_name": profile["name"],
+                "subject_labels": subject_labels,
+                "support_subject_labels": [],
+                "allocation_labels": allocation_labels,
+                "expected_allocated_hours": profile["allocated_hours"],
+                "primary_allocated_hours": profile.get("primary_allocated_hours", 0),
+                "support_allocated_hours": profile.get("support_allocated_hours", 0),
+                "primary_subject_basis_hours": profile.get(
+                    "primary_subject_basis_hours",
+                    0,
+                ),
+                "capacity_hours": profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS),
+                "total_capacity_hours": profile.get(
+                    "total_capacity_hours",
+                    REPORT_STANDARD_MAX_HOURS,
+                ),
+                "national_section_hours": profile.get("national_section_hours", 0),
+                "remaining_capacity_hours": profile["remaining_capacity_hours"],
+            }
+        )
+
+    report_teacher_rows.sort(
+        key=lambda row: (
+            -row["expected_allocated_hours"],
+            row["teacher_name"],
+        )
+    )
+
+    report_grade_rows = []
+    for grade_label, total_sections in sections_by_grade.items():
+        report_grade_rows.append(
+            {
+                "grade_label": grade_label,
+                "sections_total": total_sections,
+                "sections_current": current_sections_by_grade.get(grade_label, 0),
+                "sections_new": new_sections_by_grade.get(grade_label, 0),
+                "required_hours_total": required_hours_by_grade.get(grade_label, 0),
+                "required_hours_current": required_current_hours_by_grade.get(
+                    grade_label, 0
+                ),
+                "required_hours_new": required_new_hours_by_grade.get(grade_label, 0),
+            }
+        )
+    report_grade_rows.sort(
+        key=lambda row: _grade_sort_key(row["grade_label"])
+    )
+
+    total_required_hours = sum(
+        row["required_hours"] for row in report_subject_rows
+    )
+    total_remaining_hours = sum(
+        row["remaining_hours"] for row in report_subject_rows
+    )
+    total_allocated_hours = total_required_hours - total_remaining_hours
+    total_existing_teachers = len(teachers)
+    coverage_percentage = (
+        round((total_allocated_hours / total_required_hours) * 100)
+        if total_required_hours > 0
+        else 0
+    )
+    teachers_with_subject_alignment = sum(
+        1 for subject_keys in teacher_subject_map.values() if subject_keys
+    )
+    teachers_utilized = sum(
+        1 for profile in teacher_profiles if profile["allocated_hours"] > 0
+    )
+    teachers_full_load = sum(
+        1
+        for profile in teacher_profiles
+        if profile["allocated_hours"] >= profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+    )
+    unused_existing_capacity_hours = max(
+        total_existing_capacity_hours - total_allocated_hours,
+        0,
+    )
+    total_required_current_hours = sum(
+        required_current_hours_by_grade.values()
+    )
+    total_required_new_hours = sum(
+        required_new_hours_by_grade.values()
+    )
+    total_new_sections_planned = sum(new_sections_by_grade.values())
+    total_new_teachers_required = total_additional_teachers_needed
+    total_teachers_needed_branch = (
+        total_existing_teachers + total_new_teachers_required
+    )
+    largest_gap_row = report_gap_rows[0] if report_gap_rows else None
+
+    report_summary = {
+        "total_required_hours": total_required_hours,
+        "total_required_current_hours": total_required_current_hours,
+        "total_required_new_hours": total_required_new_hours,
+        "total_allocated_hours": total_allocated_hours,
+        "total_remaining_hours": total_remaining_hours,
+        "coverage_percentage": coverage_percentage,
+        "total_additional_teachers_needed": total_additional_teachers_needed,
+        "total_existing_teachers": total_existing_teachers,
+        "total_existing_capacity_hours": total_existing_capacity_hours,
+        "unused_existing_capacity_hours": unused_existing_capacity_hours,
+        "teachers_with_subject_alignment": teachers_with_subject_alignment,
+        "teachers_utilized": teachers_utilized,
+        "teachers_full_load": teachers_full_load,
+        "teachers_idle": max(total_existing_teachers - teachers_utilized, 0),
+        "total_new_sections_planned": total_new_sections_planned,
+        "total_new_teachers_required": total_new_teachers_required,
+        "total_teachers_needed_branch": total_teachers_needed_branch,
+        "subjects_with_gaps": len(report_gap_rows),
+        "largest_gap_subject_name": (
+            largest_gap_row["subject_name"] if largest_gap_row else ""
+        ),
+        "largest_gap_hours": (
+            int(largest_gap_row["remaining_hours"]) if largest_gap_row else 0
+        ),
+        "largest_gap_teachers_needed": (
+            int(largest_gap_row["additional_teachers_needed"])
+            if largest_gap_row
+            else 0
+        ),
+    }
+
+    teacher_profiles_export = []
+    for profile in teacher_profiles:
+        teacher = profile["teacher"]
+        teacher_profiles_export.append(
+            {
+                "teacher_pk": teacher.id,
+                "teacher_id": teacher.teacher_id or "-",
+                "teacher_name": profile["name"],
+                "subject_keys": list(profile["subject_keys"]),
+                "support_subject_keys": list(profile["support_subject_keys"]),
+                "allocation_breakdown": dict(profile["allocation_breakdown"]),
+                "allocated_hours": int(profile["allocated_hours"]),
+                "remaining_capacity_hours": int(profile["remaining_capacity_hours"]),
+                "capacity_hours": int(
+                    profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+                ),
+                "total_capacity_hours": int(
+                    profile.get("total_capacity_hours", REPORT_STANDARD_MAX_HOURS)
+                ),
+                "national_section_hours": int(
+                    profile.get("national_section_hours", 0)
+                ),
+                "primary_allocated_hours": int(profile.get("primary_allocated_hours", 0)),
+                "support_allocated_hours": int(profile.get("support_allocated_hours", 0)),
+                "primary_subject_basis_hours": int(
+                    profile.get("primary_subject_basis_hours", 0)
+                ),
+            }
+        )
+
+    return {
+        "summary": report_summary,
+        "subject_rows": report_subject_rows,
+        "gap_rows": report_gap_rows,
+        "teacher_rows": report_teacher_rows,
+        "grade_rows": report_grade_rows,
+        "teacher_profiles": teacher_profiles_export,
+    }
+
+
 def _build_reporting_context(
     db: Session,
     subjects,
     planning_sections,
     teachers,
 ):
+    teacher_ids = [
+        teacher.id
+        for teacher in teachers
+        if getattr(teacher, "id", None)
+    ]
+    planning_section_ids = [
+        section.id
+        for section in planning_sections
+        if getattr(section, "id", None)
+    ]
+    if teacher_ids and planning_section_ids:
+        section_assignments = db.query(models.TeacherSectionAssignment).filter(
+            models.TeacherSectionAssignment.teacher_id.in_(teacher_ids),
+            models.TeacherSectionAssignment.planning_section_id.in_(planning_section_ids),
+        ).all()
+    else:
+        section_assignments = []
+
+    return _build_reporting_context_from_section_assignments(
+        db=db,
+        subjects=subjects,
+        planning_sections=planning_sections,
+        teachers=teachers,
+        section_assignments=section_assignments,
+    )
+
     sections_by_grade = {}
     current_sections_by_grade = {}
     new_sections_by_grade = {}
@@ -416,6 +1023,11 @@ def _build_reporting_context(
             support_subject_keys,
             key=lambda key: subject_demand_map[key]["subject_name"],
         )
+        teacher_capacity_breakdown = get_teacher_capacity_breakdown(
+            teacher,
+            default_max_hours=REPORT_STANDARD_MAX_HOURS,
+        )
+        teacher_capacity = teacher_capacity_breakdown["international_capacity_hours"]
 
         teacher_profiles.append(
             {
@@ -438,7 +1050,14 @@ def _build_reporting_context(
                 "allocated_hours": 0,
                 "primary_allocated_hours": 0,
                 "support_allocated_hours": 0,
-                "remaining_capacity_hours": REPORT_STANDARD_MAX_HOURS,
+                "remaining_capacity_hours": teacher_capacity,
+                "capacity_hours": teacher_capacity,
+                "total_capacity_hours": teacher_capacity_breakdown[
+                    "total_capacity_hours"
+                ],
+                "national_section_hours": teacher_capacity_breakdown[
+                    "national_section_hours"
+                ],
                 "allocation_breakdown": {},
             }
         )
@@ -456,7 +1075,9 @@ def _build_reporting_context(
     for profile in teacher_profiles:
         teacher_id = getattr(profile["teacher"], "id", None)
         homeroom_items = homeroom_assignments_by_teacher.get(teacher_id, [])
-        homeroom_remaining_capacity = REPORT_STANDARD_MAX_HOURS
+        homeroom_remaining_capacity = int(
+            profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+        )
         homeroom_allocation_breakdown = {}
         homeroom_class_allocations = []
         homeroom_section_labels = []
@@ -504,8 +1125,10 @@ def _build_reporting_context(
         profile["homeroom_class_allocations"] = homeroom_class_allocations
         profile["homeroom_allocation_breakdown"] = homeroom_allocation_breakdown
         profile["allocated_hours"] = homeroom_allocated_hours
-        profile["remaining_capacity_hours"] = (
-            REPORT_STANDARD_MAX_HOURS - homeroom_allocated_hours
+        profile["remaining_capacity_hours"] = max(
+            int(profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS))
+            - homeroom_allocated_hours,
+            0,
         )
 
     allocation_sequence = sorted(
@@ -567,9 +1190,15 @@ def _build_reporting_context(
             )
             remaining_capacity -= allocated_hours
 
+        homeroom_allocated_hours = int(profile.get("homeroom_allocated_hours", 0))
         allocated_hours_total = sum(allocation_breakdown.values())
-        if allocated_hours_total > REPORT_STANDARD_MAX_HOURS:
-            overflow_hours = allocated_hours_total - REPORT_STANDARD_MAX_HOURS
+        teacher_capacity_hours = int(
+            profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+        )
+        if homeroom_allocated_hours + allocated_hours_total > teacher_capacity_hours:
+            overflow_hours = (
+                homeroom_allocated_hours + allocated_hours_total - teacher_capacity_hours
+            )
             reduction_order = (
                 list(profile["support_subject_keys"]) + list(profile["subject_keys"])
             )
@@ -598,17 +1227,17 @@ def _build_reporting_context(
             allocation_breakdown.get(subject_key, 0)
             for subject_key in profile["support_subject_keys"]
         )
-        homeroom_allocated_hours = int(profile.get("homeroom_allocated_hours", 0))
         total_allocated_hours = min(
             homeroom_allocated_hours + sum(allocation_breakdown.values()),
-            REPORT_STANDARD_MAX_HOURS,
+            teacher_capacity_hours,
         )
         profile["allocation_breakdown"] = allocation_breakdown
         profile["allocated_hours"] = total_allocated_hours
         profile["primary_allocated_hours"] = primary_allocated_hours
         profile["support_allocated_hours"] = support_allocated_hours
-        profile["remaining_capacity_hours"] = (
-            REPORT_STANDARD_MAX_HOURS - total_allocated_hours
+        profile["remaining_capacity_hours"] = max(
+            teacher_capacity_hours - total_allocated_hours,
+            0,
         )
 
     teachers_per_subject = {}
@@ -848,6 +1477,12 @@ def _build_reporting_context(
                     "primary_subject_basis_hours",
                     0,
                 ),
+                "capacity_hours": profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS),
+                "total_capacity_hours": profile.get(
+                    "total_capacity_hours",
+                    REPORT_STANDARD_MAX_HOURS,
+                ),
+                "national_section_hours": profile.get("national_section_hours", 0),
                 "remaining_capacity_hours": profile["remaining_capacity_hours"],
             }
         )
@@ -886,7 +1521,10 @@ def _build_reporting_context(
     )
     total_allocated_hours = total_required_hours - total_remaining_hours
     total_existing_teachers = len(teachers)
-    total_existing_capacity_hours = total_existing_teachers * REPORT_STANDARD_MAX_HOURS
+    total_existing_capacity_hours = sum(
+        int(profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS))
+        for profile in teacher_profiles
+    )
     coverage_percentage = (
         round((total_allocated_hours / total_required_hours) * 100)
         if total_required_hours > 0
@@ -903,7 +1541,10 @@ def _build_reporting_context(
     teachers_full_load = sum(
         1
         for profile in teacher_profiles
-        if profile["allocated_hours"] >= REPORT_STANDARD_MAX_HOURS
+        if profile["allocated_hours"] >= profile.get(
+            "capacity_hours",
+            REPORT_STANDARD_MAX_HOURS,
+        )
     )
     unused_existing_capacity_hours = max(
         total_existing_capacity_hours - total_allocated_hours,
@@ -920,6 +1561,7 @@ def _build_reporting_context(
     total_teachers_needed_branch = (
         total_existing_teachers + total_new_teachers_required
     )
+    largest_gap_row = report_gap_rows[0] if report_gap_rows else None
 
     report_summary = {
         "total_required_hours": total_required_hours,
@@ -939,6 +1581,18 @@ def _build_reporting_context(
         "total_new_sections_planned": total_new_sections_planned,
         "total_new_teachers_required": total_new_teachers_required,
         "total_teachers_needed_branch": total_teachers_needed_branch,
+        "subjects_with_gaps": len(report_gap_rows),
+        "largest_gap_subject_name": (
+            largest_gap_row["subject_name"] if largest_gap_row else ""
+        ),
+        "largest_gap_hours": (
+            int(largest_gap_row["remaining_hours"]) if largest_gap_row else 0
+        ),
+        "largest_gap_teachers_needed": (
+            int(largest_gap_row["additional_teachers_needed"])
+            if largest_gap_row
+            else 0
+        ),
     }
 
     teacher_profiles_export = []
@@ -967,6 +1621,15 @@ def _build_reporting_context(
                 "remaining_capacity_hours": int(profile["remaining_capacity_hours"]),
                 "homeroom_allocated_hours": int(
                     profile.get("homeroom_allocated_hours", 0)
+                ),
+                "capacity_hours": int(
+                    profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+                ),
+                "total_capacity_hours": int(
+                    profile.get("total_capacity_hours", REPORT_STANDARD_MAX_HOURS)
+                ),
+                "national_section_hours": int(
+                    profile.get("national_section_hours", 0)
                 ),
                 "primary_allocated_hours": int(profile.get("primary_allocated_hours", 0)),
                 "support_allocated_hours": int(profile.get("support_allocated_hours", 0)),
@@ -1282,6 +1945,9 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
                 "teacher_id": profile.get("teacher_id", "-"),
                 "teacher_name": profile.get("teacher_name", "-"),
                 "expected_allocated_hours": int(profile.get("allocated_hours", 0)),
+                "capacity_hours": int(
+                    profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+                ),
                 "remaining_capacity_hours": int(
                     profile.get("remaining_capacity_hours", REPORT_STANDARD_MAX_HOURS)
                 ),
@@ -1398,9 +2064,9 @@ def _build_report_allocation_xlsx_bytes(
     matrix_headers = [
         "Teacher ID",
         "Teacher Name",
-        "Expected Hours (24h)",
-        "Remaining Capacity",
-        "Primary Subject",
+        "Assigned Hours",
+        "Remaining Intl Capacity",
+        "Assigned Subject",
         "Support Subject",
     ] + [class_row["class_label"] for class_row in class_rows]
     matrix_sheet.append(matrix_headers)
@@ -1437,7 +2103,9 @@ def _build_report_allocation_xlsx_bytes(
 
         expected_hours_cell = matrix_sheet.cell(row=excel_row_index, column=3)
         remaining_capacity_cell = matrix_sheet.cell(row=excel_row_index, column=4)
-        if int(row_data["expected_allocated_hours"]) >= REPORT_STANDARD_MAX_HOURS:
+        if int(row_data["expected_allocated_hours"]) >= int(
+            row_data.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+        ):
             expected_hours_cell.fill = full_load_fill
             remaining_capacity_cell.fill = full_load_fill
         else:
@@ -1544,7 +2212,7 @@ def _build_report_allocation_xlsx_bytes(
 
     summary_metrics = [
         ("Total Required Hours", report_summary.get("total_required_hours", 0)),
-        ("Expected Covered Hours", report_summary.get("total_allocated_hours", 0)),
+        ("Covered by Assigned Teachers", report_summary.get("total_allocated_hours", 0)),
         ("Uncovered Hours", report_summary.get("total_remaining_hours", 0)),
         ("Coverage %", f"{report_summary.get('coverage_percentage', 0)}%"),
         ("New Teachers Required", report_summary.get("total_new_teachers_required", 0)),
@@ -1633,7 +2301,9 @@ def _build_report_allocation_xlsx_bytes(
         row_index = summary_sheet.max_row
         expected_cell = summary_sheet.cell(row=row_index, column=3)
         remaining_cell = summary_sheet.cell(row=row_index, column=7)
-        if int(row["expected_allocated_hours"]) >= REPORT_STANDARD_MAX_HOURS:
+        if int(row["expected_allocated_hours"]) >= int(
+            row.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+        ):
             expected_cell.fill = full_load_fill
             remaining_cell.fill = full_load_fill
         else:
@@ -1925,6 +2595,109 @@ def logout():
     return response
 
 
+@app.post("/profile/photo")
+async def upload_profile_photo(
+    request: Request,
+    profile_photo: UploadFile = File(...),
+    return_to: str = Form("/dashboard"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    safe_return_to = _safe_redirect_path(return_to)
+    if not profile_photo or not profile_photo.filename:
+        return _redirect_with_notice(
+            safe_return_to,
+            "Choose an image file before saving your profile photo.",
+        )
+
+    file_bytes = await profile_photo.read()
+    if not file_bytes:
+        return _redirect_with_notice(
+            safe_return_to,
+            "The selected file was empty. Choose another image.",
+        )
+    if len(file_bytes) > PROFILE_PHOTO_MAX_BYTES:
+        return _redirect_with_notice(
+            safe_return_to,
+            "Profile photo must be 3 MB or smaller.",
+        )
+
+    detected_extension = _detect_profile_photo_extension(file_bytes)
+    if not detected_extension:
+        return _redirect_with_notice(
+            safe_return_to,
+            "Use a PNG, JPG, GIF, or WEBP image for the profile photo.",
+        )
+
+    _ensure_profile_photo_upload_dir()
+    file_name = f"user_{current_user.id}_{int(time.time() * 1000)}{detected_extension}"
+    relative_path = f"{PROFILE_PHOTO_RELATIVE_DIR}/{file_name}"
+    absolute_path = os.path.join(PROFILE_PHOTO_UPLOAD_DIR, file_name)
+    profile_media_type = _profile_photo_media_type_from_extension(detected_extension)
+
+    try:
+        with open(absolute_path, "wb") as output_file:
+            output_file.write(file_bytes)
+    except OSError:
+        # Database-backed storage is the primary persistence mechanism.
+        pass
+
+    previous_profile_image_path = str(
+        getattr(current_user, "profile_image_path", "") or ""
+    ).strip()
+    current_user.profile_image_path = relative_path
+    current_user.profile_image_content_type = profile_media_type
+    current_user.profile_image_data = file_bytes
+    db.commit()
+    _delete_profile_photo_file(previous_profile_image_path)
+
+    return _redirect_with_notice(
+        safe_return_to,
+        "Profile photo updated successfully.",
+    )
+
+
+@app.get("/profile/photo/current")
+def get_current_profile_photo(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return PlainTextResponse("Unauthorized", status_code=401)
+
+    profile_image_data = getattr(current_user, "profile_image_data", None)
+    if profile_image_data:
+        payload = bytes(profile_image_data)
+        media_type = str(
+            getattr(current_user, "profile_image_content_type", "") or ""
+        ).strip() or "application/octet-stream"
+        return StreamingResponse(
+            io.BytesIO(payload),
+            media_type=media_type,
+            headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+        )
+
+    normalized_relative_path = _normalize_profile_photo_relative_path(
+        getattr(current_user, "profile_image_path", "") or ""
+    )
+    if normalized_relative_path.startswith(f"{PROFILE_PHOTO_RELATIVE_DIR}/"):
+        absolute_path = os.path.abspath(
+            os.path.join("static", *normalized_relative_path.split("/"))
+        )
+        upload_root = os.path.abspath(PROFILE_PHOTO_UPLOAD_DIR)
+        if absolute_path.startswith(upload_root) and os.path.exists(absolute_path):
+            return FileResponse(
+                absolute_path,
+                headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
+            )
+
+    return PlainTextResponse("Profile photo not found", status_code=404)
+
+
 # ---------------------------------------
 # DEVELOPER: DOWNLOAD AUDIT LOG
 # ---------------------------------------
@@ -2206,8 +2979,7 @@ def dashboard(
         models.Teacher.academic_year_id == scoped_academic_year_id
     )
     users_query = db.query(models.User).filter(
-        models.User.branch_id == scoped_branch_id,
-        models.User.academic_year_id == scoped_academic_year_id
+        models.User.branch_id == scoped_branch_id
     )
     planning_sections_query = db.query(models.PlanningSection).filter(
         models.PlanningSection.branch_id == scoped_branch_id,
@@ -2417,6 +3189,23 @@ def _ensure_users_table_columns():
             connection.execute(
                 text("ALTER TABLE users ADD COLUMN position VARCHAR(50)")
             )
+        if "profile_image_path" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE users ADD COLUMN profile_image_path VARCHAR(255)")
+            )
+        if "profile_image_content_type" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE users ADD COLUMN profile_image_content_type VARCHAR(50)")
+            )
+        if "profile_image_data" not in existing_columns:
+            profile_image_binary_type = (
+                "BYTEA" if engine.dialect.name == "postgresql" else "BLOB"
+            )
+            connection.execute(
+                text(
+                    f"ALTER TABLE users ADD COLUMN profile_image_data {profile_image_binary_type}"
+                )
+            )
 
 
 def _ensure_teachers_table_columns():
@@ -2444,6 +3233,10 @@ def _ensure_teachers_table_columns():
             connection.execute(
                 text("ALTER TABLE teachers ADD COLUMN middle_name VARCHAR(100)")
             )
+        if "degree_major" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE teachers ADD COLUMN degree_major VARCHAR(120)")
+            )
         if "extra_hours_allowed" not in existing_columns:
             connection.execute(
                 text("ALTER TABLE teachers ADD COLUMN extra_hours_allowed BOOLEAN DEFAULT FALSE")
@@ -2451,6 +3244,18 @@ def _ensure_teachers_table_columns():
         if "extra_hours_count" not in existing_columns:
             connection.execute(
                 text("ALTER TABLE teachers ADD COLUMN extra_hours_count INTEGER DEFAULT 0")
+            )
+        if "teaches_national_section" not in existing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE teachers ADD COLUMN teaches_national_section BOOLEAN DEFAULT FALSE"
+                )
+            )
+        if "national_section_hours" not in existing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE teachers ADD COLUMN national_section_hours INTEGER DEFAULT 0"
+                )
             )
         if teacher_id_column and teacher_id_length and teacher_id_length < 10:
             if db_dialect == "postgresql":
@@ -2468,6 +3273,224 @@ def _ensure_teachers_table_columns():
         connection.execute(
             text("UPDATE teachers SET extra_hours_count = 0 WHERE extra_hours_count IS NULL")
         )
+        connection.execute(
+            text(
+                "UPDATE teachers "
+                "SET teaches_national_section = FALSE "
+                "WHERE teaches_national_section IS NULL"
+            )
+        )
+        connection.execute(
+            text(
+                "UPDATE teachers "
+                "SET national_section_hours = 0 "
+                "WHERE national_section_hours IS NULL"
+            )
+        )
+
+
+def _is_scope_teacher_unique_definition(columns) -> bool:
+    return tuple(columns or []) == ("branch_id", "academic_year_id", "teacher_id")
+
+
+def _is_global_teacher_unique_definition(columns) -> bool:
+    return tuple(columns or []) == ("teacher_id",)
+
+
+def _ensure_teacher_scope_schema_sqlite():
+    with engine.begin() as connection:
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        connection.execute(text("DROP INDEX IF EXISTS uq_teachers_scope_teacher_id"))
+        connection.execute(text("ALTER TABLE teachers RENAME TO teachers_legacy_scope_unique"))
+        connection.execute(
+            text(
+                """
+                CREATE TABLE teachers (
+                    id INTEGER NOT NULL,
+                    teacher_id VARCHAR(10),
+                    first_name VARCHAR,
+                    middle_name VARCHAR,
+                    last_name VARCHAR,
+                    subject_code VARCHAR,
+                    level VARCHAR,
+                    max_hours INTEGER,
+                    extra_hours_allowed BOOLEAN DEFAULT FALSE,
+                    extra_hours_count INTEGER DEFAULT 0,
+                    teaches_national_section BOOLEAN DEFAULT FALSE,
+                    national_section_hours INTEGER DEFAULT 0,
+                    branch_id INTEGER,
+                    academic_year_id INTEGER,
+                    PRIMARY KEY (id),
+                    FOREIGN KEY(branch_id) REFERENCES branches (id),
+                    FOREIGN KEY(academic_year_id) REFERENCES academic_years (id)
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO teachers (
+                    id,
+                    teacher_id,
+                    first_name,
+                    middle_name,
+                    last_name,
+                    subject_code,
+                    level,
+                    max_hours,
+                    extra_hours_allowed,
+                    extra_hours_count,
+                    teaches_national_section,
+                    national_section_hours,
+                    branch_id,
+                    academic_year_id
+                )
+                SELECT
+                    id,
+                    teacher_id,
+                    first_name,
+                    middle_name,
+                    last_name,
+                    subject_code,
+                    level,
+                    max_hours,
+                    COALESCE(extra_hours_allowed, FALSE),
+                    COALESCE(extra_hours_count, 0),
+                    COALESCE(teaches_national_section, FALSE),
+                    COALESCE(national_section_hours, 0),
+                    branch_id,
+                    academic_year_id
+                FROM teachers_legacy_scope_unique
+                """
+            )
+        )
+        connection.execute(text("DROP TABLE teachers_legacy_scope_unique"))
+        connection.execute(
+            text(
+                """
+                CREATE UNIQUE INDEX uq_teachers_scope_teacher_id
+                ON teachers (branch_id, academic_year_id, teacher_id)
+                """
+            )
+        )
+        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+
+
+def _ensure_teacher_scope_schema_non_sqlite(
+    teacher_unique_constraints,
+    teacher_indexes,
+):
+    dialect = engine.dialect.name
+    with engine.begin() as connection:
+        for unique_constraint in teacher_unique_constraints:
+            constraint_name = unique_constraint.get("name")
+            constrained_columns = unique_constraint.get("column_names") or []
+            if not constraint_name or not _is_global_teacher_unique_definition(constrained_columns):
+                continue
+
+            if dialect == "postgresql":
+                connection.execute(
+                    text(
+                        f'ALTER TABLE "teachers" '
+                        f'DROP CONSTRAINT IF EXISTS "{constraint_name}"'
+                    )
+                )
+            elif dialect in {"mysql", "mariadb"}:
+                connection.execute(
+                    text(
+                        "ALTER TABLE teachers "
+                        f"DROP INDEX `{constraint_name}`"
+                    )
+                )
+
+        for teacher_index in teacher_indexes:
+            index_name = teacher_index.get("name")
+            constrained_columns = teacher_index.get("column_names") or []
+            if not index_name or not teacher_index.get("unique"):
+                continue
+            if not _is_global_teacher_unique_definition(constrained_columns):
+                continue
+
+            if dialect == "postgresql":
+                connection.execute(
+                    text(f'DROP INDEX IF EXISTS "{index_name}"')
+                )
+            elif dialect in {"mysql", "mariadb"}:
+                connection.execute(
+                    text(f"DROP INDEX `{index_name}` ON teachers")
+                )
+
+        if dialect == "postgresql":
+            connection.execute(
+                text(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS uq_teachers_scope_teacher_id
+                    ON teachers (branch_id, academic_year_id, teacher_id)
+                    """
+                )
+            )
+        elif dialect in {"mysql", "mariadb"}:
+            scoped_index_exists = any(
+                teacher_index.get("name") == "uq_teachers_scope_teacher_id"
+                for teacher_index in teacher_indexes
+            )
+            if not scoped_index_exists:
+                connection.execute(
+                    text(
+                        """
+                        CREATE UNIQUE INDEX uq_teachers_scope_teacher_id
+                        ON teachers (branch_id, academic_year_id, teacher_id)
+                        """
+                    )
+                )
+
+
+def _ensure_teacher_scope_schema():
+    inspector = inspect(engine)
+    if "teachers" not in inspector.get_table_names():
+        return
+
+    teacher_unique_constraints = inspector.get_unique_constraints("teachers")
+    teacher_indexes = inspector.get_indexes("teachers")
+
+    has_scoped_unique = any(
+        _is_scope_teacher_unique_definition(
+            unique_constraint.get("column_names") or []
+        )
+        for unique_constraint in teacher_unique_constraints
+    ) or any(
+        teacher_index.get("unique")
+        and _is_scope_teacher_unique_definition(
+            teacher_index.get("column_names") or []
+        )
+        for teacher_index in teacher_indexes
+    )
+
+    has_global_teacher_unique = any(
+        _is_global_teacher_unique_definition(
+            unique_constraint.get("column_names") or []
+        )
+        for unique_constraint in teacher_unique_constraints
+    ) or any(
+        teacher_index.get("unique")
+        and _is_global_teacher_unique_definition(
+            teacher_index.get("column_names") or []
+        )
+        for teacher_index in teacher_indexes
+    )
+
+    if has_scoped_unique and not has_global_teacher_unique:
+        return
+
+    if engine.dialect.name == "sqlite":
+        _ensure_teacher_scope_schema_sqlite()
+        return
+
+    _ensure_teacher_scope_schema_non_sqlite(
+        teacher_unique_constraints=teacher_unique_constraints,
+        teacher_indexes=teacher_indexes,
+    )
 
 
 def _is_subject_code_foreign_key(foreign_key) -> bool:
@@ -2518,6 +3541,8 @@ def _ensure_subject_scope_schema_sqlite(
                         max_hours INTEGER,
                         extra_hours_allowed BOOLEAN DEFAULT FALSE,
                         extra_hours_count INTEGER DEFAULT 0,
+                        teaches_national_section BOOLEAN DEFAULT FALSE,
+                        national_section_hours INTEGER DEFAULT 0,
                         branch_id INTEGER,
                         academic_year_id INTEGER,
                         PRIMARY KEY (id),
@@ -2542,6 +3567,8 @@ def _ensure_subject_scope_schema_sqlite(
                         max_hours,
                         extra_hours_allowed,
                         extra_hours_count,
+                        teaches_national_section,
+                        national_section_hours,
                         branch_id,
                         academic_year_id
                     )
@@ -2556,6 +3583,8 @@ def _ensure_subject_scope_schema_sqlite(
                         max_hours,
                         COALESCE(extra_hours_allowed, FALSE),
                         COALESCE(extra_hours_count, 0),
+                        COALESCE(teaches_national_section, FALSE),
+                        COALESCE(national_section_hours, 0),
                         branch_id,
                         academic_year_id
                     FROM teachers_legacy_subject_scope
@@ -2575,6 +3604,20 @@ def _ensure_subject_scope_schema_sqlite(
                     "UPDATE teachers "
                     "SET extra_hours_count = 0 "
                     "WHERE extra_hours_count IS NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE teachers "
+                    "SET teaches_national_section = FALSE "
+                    "WHERE teaches_national_section IS NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE teachers "
+                    "SET national_section_hours = 0 "
+                    "WHERE national_section_hours IS NULL"
                 )
             )
 
@@ -2977,9 +4020,12 @@ def setup_initial_data():
 
     _ensure_users_table_columns()
     _ensure_teachers_table_columns()
+    _ensure_teacher_scope_schema()
     _ensure_subject_scope_schema()
     _seed_teacher_subject_allocations()
+    _ensure_profile_photo_upload_dir()
     db = SessionLocal()
+    _migrate_profile_photos_to_database(db)
     admin_user_id = os.getenv("ADMIN_USER_ID", "2623252018")
     admin_username = os.getenv("ADMIN_USERNAME", "developer")
     admin_password = os.getenv("ADMIN_PASSWORD", "UnderProcess1984")

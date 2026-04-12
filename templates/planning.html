@@ -139,16 +139,16 @@
         }
 
         .layout {
-            margin-top: 14px;
+            margin-top: 10px;
             display: grid;
-            gap: 12px;
+            gap: 10px;
         }
 
         .card {
             background: var(--card);
             border: 1px solid var(--line);
             border-radius: 14px;
-            padding: 14px;
+            padding: 12px;
         }
 
         .card h2 {
@@ -165,8 +165,8 @@
         .stats {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
-            margin: 12px 0 12px;
+            gap: 10px;
+            margin: 10px 0;
         }
 
         .stat {
@@ -363,7 +363,7 @@
             align-items: center;
             justify-content: space-between;
             gap: 8px;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
 
         .search {
@@ -443,6 +443,74 @@
             min-width: 240px;
         }
 
+        .subject-assignment-details {
+            display: grid;
+            gap: 8px;
+        }
+
+        .subject-assignment-summary {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            list-style: none;
+            cursor: pointer;
+        }
+
+        .subject-assignment-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .subject-assignment-summary::before {
+            content: "+";
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #edf4ff;
+            border: 1px solid #c8daf3;
+            color: #234b7a;
+            font-size: 13px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .subject-assignment-details[open] .subject-assignment-summary::before {
+            content: "-";
+        }
+
+        .subject-summary-pill,
+        .subject-preview-pill {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 4px 8px;
+            font-size: 11px;
+            line-height: 1;
+            font-weight: 700;
+            border: 1px solid #d9e6f8;
+            background: #f8fbff;
+            color: #365275;
+        }
+
+        .subject-summary-pill-strong {
+            border-color: #bed3f0;
+            background: #edf4ff;
+            color: #194d8d;
+        }
+
+        .subject-summary-pill-muted {
+            color: #5d6b82;
+        }
+
+        .subject-preview-pill-more {
+            background: #fff7ed;
+            border-color: #f8d4ab;
+            color: #9a3412;
+        }
+
         .aligned-item-table {
             display: block;
             font-size: 12px;
@@ -507,7 +575,7 @@
             margin-top: 10px;
             border: 1px dashed #9db0ca;
             border-radius: 10px;
-            padding: 16px;
+            padding: 12px;
             color: #42566f;
             text-align: center;
             font-size: 14px;
@@ -563,9 +631,34 @@
 
 {% block content %}
 <section class="layout">
+            {% if can_copy_year_data %}
+            <article class="card">
+                <h2>Copy From Academic Year</h2>
+                <p>Bring planning structure forward from another academic year into the current branch/year scope. Existing sections stay in place, and teacher links are added only when matching teachers and subjects already exist in the target year.</p>
+
+                {% if copy_year_choices %}
+                <form method="post" action="/planning/copy-from-year" autocomplete="off" onsubmit="return confirm('Copy planning data into {{ shell.academic_year_name }}? Existing current-year planning records will be kept.');">
+                    <div class="form-grid">
+                        <div class="field field-wide">
+                            <label for="copy_planning_source_academic_year_id">Source Academic Year</label>
+                            <select id="copy_planning_source_academic_year_id" name="source_academic_year_id" required>
+                                {% for year in copy_year_choices %}
+                                <option value="{{ year.id }}">{{ year.year_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn-save" type="submit">Copy Planning Into Current Year</button>
+                </form>
+                {% else %}
+                <div class="empty">No other academic years are available to copy from.</div>
+                {% endif %}
+            </article>
+            {% endif %}
+
             <article class="card">
                 <h2>Create Planning Section</h2>
-                <p>Define grade and section structure. Subjects and allocated hours are aligned automatically from Subjects module.</p>
+                <p>Define grade and section structure. Subjects and required hours align automatically from Subjects module, then you can assign teachers per subject from the edit screen for each section.</p>
 
                 {% if success %}
                 <div class="success">{{ success }}</div>
@@ -671,7 +764,7 @@
                                 <th>Section</th>
                                 <th>Class Status</th>
                                 <th>Homeroom Teacher</th>
-                                <th>Subjects Aligned</th>
+                                <th>Subjects & Teacher Assignments</th>
                                 <th>Hours Allocated</th>
                                 {% if can_edit or can_delete %}
                                 <th>Actions</th>
@@ -691,12 +784,32 @@
                                 </td>
                                 <td>{{ row.homeroom_teacher_name }}</td>
                                 <td>
-                                    {% if row.aligned_subjects %}
-                                    <ul class="aligned-list-table">
-                                        {% for subject in row.aligned_subjects %}
-                                        <li class="aligned-item-table">{{ subject.subject_code }} - {{ subject.subject_name }} ({{ subject.weekly_hours }}h)</li>
-                                        {% endfor %}
-                                    </ul>
+                                    {% if row.subject_assignments %}
+                                    <details class="subject-assignment-details">
+                                        <summary class="subject-assignment-summary">
+                                            <span class="subject-summary-pill subject-summary-pill-strong">{{ row.subject_count }} subjects</span>
+                                            <span class="subject-summary-pill">{{ row.assigned_subject_count }} assigned</span>
+                                            <span class="subject-summary-pill subject-summary-pill-muted">{{ row.unassigned_subject_count }} unassigned</span>
+                                            {% for subject in row.subject_preview %}
+                                            <span class="subject-preview-pill">{{ subject.subject_code }}</span>
+                                            {% endfor %}
+                                            {% if row.subject_hidden_count %}
+                                            <span class="subject-preview-pill subject-preview-pill-more">+{{ row.subject_hidden_count }} more</span>
+                                            {% endif %}
+                                        </summary>
+                                        <ul class="aligned-list-table">
+                                            {% for subject in row.subject_assignments %}
+                                            <li class="aligned-item-table">
+                                                {{ subject.subject_code }} - {{ subject.subject_name }} ({{ subject.weekly_hours }}h)
+                                                {% if subject.teacher_name %}
+                                                | {{ subject.teacher_name }}
+                                                {% else %}
+                                                | Unassigned
+                                                {% endif %}
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </details>
                                     {% else %}
                                     -
                                     {% endif %}
@@ -705,7 +818,7 @@
                                 {% if can_edit or can_delete %}
                                 <td class="row-actions">
                                     {% if can_edit %}
-                                    <a class="icon-action row-action-edit" href="/planning/edit/{{ record.id }}" aria-label="Edit planning section {{ record.id }}" title="Edit planning section">
+                                    <a class="icon-action row-action-edit" href="/planning/edit/{{ record.id }}" aria-label="Edit planning section {{ record.id }}" title="Edit section and assign subject teachers">
                                         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                                             <path d="M12 20h9"></path>
                                             <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
@@ -749,6 +862,12 @@ const gradeSelect = document.getElementById("grade_level");
         const noPlanningResult = document.getElementById("noPlanningResult");
         const kpiValues = Array.from(document.querySelectorAll(".kpi-value"));
         const subjectAlignmentMap = {{ subject_alignment_map | tojson }};
+        const collapseSubjectAssignmentDetails = () => {
+            document.querySelectorAll(".subject-assignment-details").forEach((detail) => {
+                detail.open = false;
+                detail.removeAttribute("open");
+            });
+        };
 
         const renderAlignedSubjectsPreview = () => {
             if (!gradeSelect || !alignedSubjectsPreview || !allocationSummary) {
@@ -773,6 +892,9 @@ const gradeSelect = document.getElementById("grade_level");
                 alignedSubjectsEmpty.style.display = alignedSubjects.length === 0 ? "block" : "none";
             }
         };
+
+        collapseSubjectAssignmentDetails();
+        window.addEventListener("pageshow", collapseSubjectAssignmentDetails);
 
         if (gradeSelect) {
             gradeSelect.addEventListener("change", renderAlignedSubjectsPreview);

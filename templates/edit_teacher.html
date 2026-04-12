@@ -24,7 +24,7 @@
             background: var(--card);
             border: 1px solid var(--line);
             border-radius: 16px;
-            padding: 18px;
+            padding: 14px;
             box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1);
         }
 
@@ -71,7 +71,7 @@
         }
 
         .sub {
-            margin: 6px 0 14px;
+            margin: 6px 0 10px;
             color: var(--muted);
             font-size: 13px;
         }
@@ -89,7 +89,7 @@
         .grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            gap: 10px;
         }
 
         .field {
@@ -125,26 +125,416 @@
             box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.2);
         }
 
+        .field-note {
+            font-size: 12px;
+            color: #5d6b82;
+            line-height: 1.45;
+        }
+
+        .subject-selector-shell {
+            display: grid;
+            gap: 10px;
+        }
+
+        .subject-selector-help {
+            font-size: 12px;
+            color: #5d6b82;
+            margin: -2px 0 0;
+        }
+
+        .major-guidance {
+            padding: 12px;
+            border: 1px solid #dbe7f8;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #fcfdff, #f4f8ff);
+            display: grid;
+            gap: 10px;
+        }
+
+        .major-guidance[data-state="aligned"] {
+            border-color: #b8dec9;
+            background: linear-gradient(180deg, #fdfffe, #eefaf4);
+        }
+
+        .major-guidance[data-state="review"] {
+            border-color: #f0c99a;
+            background: linear-gradient(180deg, #fffdf8, #fff4e8);
+        }
+
+        .major-guidance[data-state="no-match"] {
+            border-color: #d7e0ee;
+            background: linear-gradient(180deg, #ffffff, #f6f8fc);
+        }
+
+        .major-guidance-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .major-guidance-copy {
+            display: grid;
+            gap: 6px;
+        }
+
+        .major-guidance-copy h4 {
+            margin: 0;
+            font-size: 14px;
+            color: #17365d;
+        }
+
+        .major-guidance-copy p {
+            margin: 0;
+            font-size: 12px;
+            color: #51667f;
+            line-height: 1.45;
+        }
+
+        .major-guidance-badge {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 5px 9px;
+            border-radius: 999px;
+            border: 1px solid #c8daf3;
+            background: #edf4ff;
+            color: #244a7c;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+        }
+
+        .major-guidance[data-state="aligned"] .major-guidance-badge {
+            border-color: #b8dec9;
+            background: #effaf4;
+            color: #0b6a63;
+        }
+
+        .major-guidance[data-state="review"] .major-guidance-badge {
+            border-color: #f0c99a;
+            background: #fff1df;
+            color: #9a5800;
+        }
+
+        .major-guidance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+        }
+
+        .major-guidance-stat {
+            padding: 10px;
+            border: 1px solid #dbe7f8;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.84);
+            display: grid;
+            gap: 4px;
+        }
+
+        .major-guidance-stat span {
+            font-size: 11px;
+            color: #62748d;
+            font-weight: 800;
+            letter-spacing: 0.45px;
+            text-transform: uppercase;
+        }
+
+        .major-guidance-stat strong {
+            font-size: 22px;
+            line-height: 1;
+            color: #17365d;
+        }
+
+        .major-guidance-stat small {
+            font-size: 12px;
+            color: #5a6d87;
+        }
+
+        .subject-selector-topbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .subject-selector-tools {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .subject-selection-count {
+            font-size: 12px;
+            color: #51667f;
+            font-weight: 700;
+        }
+
+        .subject-selector-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .subject-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            max-width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #c8daf3;
+            border-radius: 999px;
+            background: #edf4ff;
+            color: #244a7c;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .subject-chip.is-match {
+            border-color: #bfe0d0;
+            background: #effaf4;
+            color: #0b6a63;
+        }
+
+        .subject-chip.is-review {
+            border-color: #efc89a;
+            background: #fff4e7;
+            color: #9a5800;
+        }
+
+        .subject-chip-label {
+            display: inline-block;
+            max-width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .subject-chip-remove {
+            border: none;
+            background: transparent;
+            color: #244a7c;
+            font-size: 14px;
+            font-weight: 800;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .subject-chip-empty {
+            font-size: 12px;
+            color: #5d6b82;
+            padding: 4px 0;
+        }
+
         .subject-picker {
             border: 1px solid #c6d4e8;
-            border-radius: 8px;
-            background: #f8fbff;
-            max-height: 280px;
-            overflow: auto;
+            border-radius: 10px;
+            background: linear-gradient(180deg, #fbfdff, #f4f8ff);
             padding: 8px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .assignment-step {
+            margin-top: 10px;
+            border: 1px solid #dbe7f8;
+            border-radius: 12px;
+            background: #f8fbff;
+            padding: 10px;
+        }
+
+        .assignment-step:first-of-type {
+            margin-top: 0;
+        }
+
+        .assignment-step-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #e8f1ff;
+            color: #244a7c;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.7px;
+            text-transform: uppercase;
+        }
+
+        .assignment-step h3 {
+            margin: 0 0 4px;
+            font-size: 15px;
+            color: #17365d;
+        }
+
+        .assignment-step p {
+            margin: 0 0 10px;
+            font-size: 12px;
+            color: #51667f;
         }
 
         .subject-search {
-            width: 100%;
+            width: min(340px, 100%);
             padding: 9px 10px;
             border: 1px solid #c6d4e8;
             border-radius: 8px;
             font-size: 13px;
             background: #fff;
-            margin-bottom: 8px;
+            margin-bottom: 0;
         }
 
-        .subject-picker-grid {
+        .subject-grade-group {
+            border: 1px solid #dbe7f8;
+            border-radius: 10px;
+            background: #ffffff;
+            overflow: hidden;
+        }
+
+        .subject-grade-summary {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            min-height: 42px;
+        }
+
+        .subject-grade-group.is-open .subject-grade-summary {
+            background: #f8fbff;
+            border-bottom: 1px solid #e4edf9;
+        }
+
+        .subject-grade-summary-main {
+            appearance: none;
+            -webkit-appearance: none;
+            border: none;
+            background: transparent;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            cursor: pointer;
+            text-align: left;
+            color: inherit;
+        }
+
+        .subject-grade-summary-main:focus-visible {
+            outline: 2px solid rgba(10, 78, 163, 0.3);
+            outline-offset: 2px;
+            border-radius: 8px;
+        }
+
+        .subject-grade-title-copy {
+            display: flex;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .subject-grade-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #17365d;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .subject-grade-indicator {
+            width: 20px;
+            height: 20px;
+            border: 1px solid #c8daf3;
+            border-radius: 999px;
+            background: #edf4ff;
+            color: #244a7c;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 900;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
+        .subject-grade-summary-meta {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .subject-grade-pills {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .subject-grade-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            border: 1px solid #d9e6f8;
+            border-radius: 999px;
+            background: #f8fbff;
+            color: #365275;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .subject-grade-pill.is-muted {
+            border-color: #e3e9f3;
+            background: #f8fafc;
+            color: #73849b;
+        }
+
+        .subject-grade-btn {
+            border: 1px solid #c8daf3;
+            border-radius: 999px;
+            background: #edf4ff;
+            color: #244a7c;
+            padding: 5px 9px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .subject-grade-btn:hover {
+            border-color: #8fb3de;
+            background: #dfeeff;
+        }
+
+        .subject-grade-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .subject-grade-panel {
+            display: none;
+            padding: 10px 12px 12px;
+            background: #f8fbff;
+        }
+
+        .subject-grade-group.is-open .subject-grade-panel {
+            display: grid;
+            gap: 8px;
+        }
+
+        .subject-grade-hint {
+            font-size: 12px;
+            color: #51667f;
+        }
+
+        .subject-grade-grid {
             display: grid;
             grid-template-columns: 1fr;
             gap: 8px;
@@ -160,6 +550,21 @@
             border: 1px solid #dbe7f8;
             border-radius: 6px;
             background: #f5f9ff;
+        }
+
+        .subject-option.is-selected {
+            border-color: #9cc6b3;
+            background: #effaf4;
+        }
+
+        .subject-option.is-major-match:not(.is-selected) {
+            border-color: #cfe7da;
+            background: #f7fcf9;
+        }
+
+        .subject-option.is-major-review:not(.is-selected) {
+            border-color: #f1dbb9;
+            background: #fffaf2;
         }
 
         .subject-option:hover {
@@ -205,21 +610,417 @@
             word-break: break-word;
         }
 
+        .subject-main-meta {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .subject-major-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.45px;
+            text-transform: uppercase;
+            line-height: 1;
+        }
+
+        .subject-major-badge.is-match {
+            background: #e8f7ef;
+            color: #0d7a47;
+        }
+
+        .subject-major-badge.is-review {
+            background: #fff1df;
+            color: #9a5800;
+        }
+
         .subject-empty {
             padding: 8px 2px;
             font-size: 13px;
             color: #5d6b82;
         }
 
-        .hours-summary {
-            margin-top: 8px;
+        .subject-assignment-board {
+            margin-top: 10px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .subject-assignment-card {
+            border: 1px solid #dbe7f8;
+            border-radius: 10px;
+            background: #f5f9ff;
+            padding: 8px;
+            display: grid;
+            gap: 8px;
+            transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+        }
+
+        .subject-assignment-card.is-active {
+            border-color: #99ccb8;
+            background: linear-gradient(180deg, #fbfffd, #eefaf4);
+            box-shadow: 0 12px 28px rgba(11, 106, 99, 0.08);
+        }
+
+        .subject-assignment-head {
+            display: grid;
+            gap: 8px;
+        }
+
+        .subject-assignment-headline {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .subject-assignment-copy {
+            display: grid;
+            gap: 2px;
+        }
+
+        .subject-assignment-head strong {
+            font-size: 13px;
+            color: #1f3759;
+        }
+
+        .subject-assignment-head small {
             font-size: 12px;
-            color: #415068;
+            color: #4b5f7d;
+        }
+
+        .subject-assignment-stats {
+            display: flex;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .subject-assignment-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 5px 9px;
+            border: 1px solid #d4e3f7;
+            border-radius: 999px;
+            background: #ffffff;
+            color: #365275;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .subject-assignment-pill.is-strong {
+            border-color: #bfe0d0;
+            background: #effaf4;
+            color: #0b6a63;
+        }
+
+        .subject-assignment-status {
+            font-size: 12px;
+            font-weight: 700;
+            color: #51667f;
+        }
+
+        .subject-assignment-card.is-active .subject-assignment-status {
+            color: #0b6a63;
+        }
+
+        .section-option-grid {
+            display: grid;
+            gap: 8px;
+        }
+
+        .section-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 8px;
+            border: 1px solid #cfe0f7;
+            border-radius: 8px;
+            background: #ffffff;
+            transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+        }
+
+        .section-option.is-selected {
+            border-color: #8fc8b4;
+            background: linear-gradient(180deg, #fafffc, #ecf8f2);
+            box-shadow: 0 10px 24px rgba(11, 106, 99, 0.08);
+        }
+
+        .section-option.is-selected .section-option-copy strong {
+            color: #0b6a63;
+        }
+
+        .section-option.is-disabled {
+            opacity: 0.62;
+            background: #f3f6fb;
+        }
+
+        .section-option input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            margin: 2px 0 0;
+            accent-color: var(--brand);
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .section-option.is-disabled input[type="checkbox"] {
+            cursor: not-allowed;
+        }
+
+        .section-option-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .section-option-copy strong {
+            font-size: 12px;
+            color: #1f3759;
+        }
+
+        .section-option-copy small {
+            font-size: 11px;
+            color: #5d6b82;
+        }
+
+        .section-assignment-empty {
+            margin-top: 10px;
+            padding: 8px 10px;
+            border: 1px dashed #b5c6de;
+            border-radius: 10px;
+            background: #f8fbff;
+            font-size: 13px;
+            color: #4b5f7d;
+        }
+
+        .allocation-dashboard {
+            margin-top: 14px;
+            padding: 16px;
+            border: 1px solid #cfe0f7;
+            border-radius: 18px;
+            background: linear-gradient(180deg, #fcfdff, #f1f7ff);
+            box-shadow: 0 18px 38px rgba(32, 64, 108, 0.08);
+            display: grid;
+            gap: 14px;
+        }
+
+        .allocation-dashboard[data-state="ready"] {
+            border-color: #b6dceb;
+            background: linear-gradient(180deg, #fcfeff, #eef8fd);
+        }
+
+        .allocation-dashboard[data-state="balanced"] {
+            border-color: #b8dec9;
+            background: linear-gradient(180deg, #fdfffe, #eefaf4);
+        }
+
+        .allocation-dashboard[data-state="over"] {
+            border-color: #f0c0bb;
+            background: linear-gradient(180deg, #fffafa, #fff1ef);
+        }
+
+        .allocation-dashboard-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .allocation-copy {
+            display: grid;
+            gap: 8px;
+        }
+
+        .allocation-copy h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #17365d;
+        }
+
+        .allocation-copy p {
+            margin: 0;
+            font-size: 13px;
+            color: #51667f;
+            max-width: 620px;
+        }
+
+        .allocation-status-badge {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 6px 10px;
+            border: 1px solid #c8daf3;
+            border-radius: 999px;
+            background: #edf4ff;
+            color: #244a7c;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+        }
+
+        .allocation-dashboard[data-state="ready"] .allocation-status-badge {
+            border-color: #b6dceb;
+            background: #edf9fd;
+            color: #0f677a;
+        }
+
+        .allocation-dashboard[data-state="balanced"] .allocation-status-badge {
+            border-color: #b8dec9;
+            background: #effaf4;
+            color: #0b6a63;
+        }
+
+        .allocation-dashboard[data-state="over"] .allocation-status-badge {
+            border-color: #efc2bc;
+            background: #fff0ee;
+            color: #9f2d1f;
+        }
+
+        .allocation-hours-total {
+            min-width: 150px;
+            padding: 14px 16px;
+            border: 1px solid #d7e5f7;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.8);
+            display: grid;
+            gap: 4px;
+            justify-items: end;
+        }
+
+        .allocation-hours-total strong {
+            font-size: 30px;
+            line-height: 1;
+            color: #17365d;
+        }
+
+        .allocation-hours-total span {
+            font-size: 12px;
+            color: #5d6b82;
             font-weight: 700;
         }
 
-        .hours-summary.mismatch {
-            color: #8f1d18;
+        .allocation-progress-panel {
+            display: grid;
+            gap: 8px;
+            padding: 14px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.78);
+            border: 1px solid #deebfa;
+        }
+
+        .allocation-progress-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            font-size: 13px;
+            color: #48607f;
+            font-weight: 700;
+        }
+
+        .allocation-progress-track {
+            position: relative;
+            height: 14px;
+            border-radius: 999px;
+            background: #dfe9f7;
+            overflow: hidden;
+        }
+
+        .allocation-progress-bar {
+            display: block;
+            height: 100%;
+            width: 0;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+            transition: width 180ms ease, background 180ms ease;
+        }
+
+        .allocation-dashboard[data-state="ready"] .allocation-progress-bar {
+            background: linear-gradient(90deg, #06b6d4, #0f766e);
+        }
+
+        .allocation-dashboard[data-state="balanced"] .allocation-progress-bar {
+            background: linear-gradient(90deg, #22c55e, #0f766e);
+        }
+
+        .allocation-dashboard[data-state="over"] .allocation-progress-bar {
+            background: linear-gradient(90deg, #f97316, #dc2626);
+        }
+
+        .allocation-capacity-hint {
+            font-size: 12px;
+            color: #5a6d87;
+        }
+
+        .allocation-metrics-grid,
+        .allocation-breakdown-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+        }
+
+        .allocation-metric-card,
+        .allocation-breakdown-item {
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid #dbe7f8;
+            background: rgba(255, 255, 255, 0.8);
+            display: grid;
+            gap: 6px;
+        }
+
+        .allocation-metric-card span,
+        .allocation-breakdown-item span {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: #5a6d87;
+        }
+
+        .allocation-metric-card strong,
+        .allocation-breakdown-item strong {
+            font-size: 24px;
+            line-height: 1;
+            color: #17365d;
+        }
+
+        .allocation-metric-card small,
+        .allocation-breakdown-item small {
+            font-size: 12px;
+            color: #60728c;
+        }
+
+        .allocation-metric-card.is-danger {
+            border-color: #f0c0bb;
+            background: #fff4f2;
+        }
+
+        .allocation-metric-card.is-danger strong,
+        .allocation-metric-card.is-danger small {
+            color: #9f2d1f;
+        }
+
+        .allocation-metric-card.is-highlight {
+            border-color: #b8dec9;
+            background: #effaf4;
+        }
+
+        .allocation-metric-card.is-highlight strong,
+        .allocation-metric-card.is-highlight small {
+            color: #0b6a63;
         }
 
         .toggle-row {
@@ -239,7 +1040,7 @@
         }
 
         .actions {
-            margin-top: 16px;
+            margin-top: 10px;
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
@@ -276,6 +1077,19 @@
             .subject-picker-grid {
                 grid-template-columns: 1fr;
             }
+
+            .allocation-dashboard-head,
+            .subject-assignment-headline {
+                flex-direction: column;
+            }
+
+            .allocation-hours-total {
+                justify-items: start;
+            }
+
+            .subject-assignment-stats {
+                justify-content: flex-start;
+            }
         }
 </style>
 {% endblock %}
@@ -283,7 +1097,7 @@
 {% block content %}
 <main class="panel">
 <h1>Edit Teacher</h1>
-        <p class="sub">Update teacher details and workload rules in your current branch/year scope.</p>
+        <p class="sub">Update teacher details, workload rules, eligible subjects, and the exact sections this teacher covers for each selected subject in your current branch/year scope.</p>
 
         {% if error %}
         <div class="error">{{ error }}</div>
@@ -291,32 +1105,9 @@
 
         <form method="post" action="/teachers/edit/{{ teacher.id }}" autocomplete="off">
             <div class="grid">
-                <div class="field">
+                <div class="field field-wide">
                     <label for="teacher_id">Teacher Iqama/National ID</label>
                     <input id="teacher_id" type="text" name="teacher_id" maxlength="10" value="{{ teacher.teacher_id }}" required>
-                </div>
-                <div class="field field-wide">
-                    <label>Assigned Subjects</label>
-                    <input id="subjectSearchInput" class="subject-search" type="text" placeholder="Search by code, subject name, or grade">
-                    <div class="subject-picker" id="subjectPicker">
-                        {% if subject_choices %}
-                        <div class="subject-picker-grid" id="subjectPickerGrid">
-                        {% for subject in subject_choices %}
-                        <label class="subject-option subject-option-item" data-search="{{ (subject.subject_code ~ ' ' ~ subject.subject_name ~ ' grade ' ~ (subject.grade if subject.grade is not none else '')) | lower }}" for="subject_code_{{ loop.index }}">
-                            <input id="subject_code_{{ loop.index }}" type="checkbox" name="subject_codes" value="{{ subject.subject_code }}" data-hours="{{ subject.weekly_hours or 0 }}" {% if assigned_subject_codes and subject.subject_code in assigned_subject_codes %}checked{% endif %}>
-                            <span class="subject-main">
-                                <strong>{{ subject.subject_code }} - {{ subject.subject_name or "Unnamed Subject" }}</strong>
-                                <small>Grade {{ subject.grade if subject.grade is not none else "-" }} | {{ subject.weekly_hours or 0 }} hours/week</small>
-                            </span>
-                        </label>
-                        {% endfor %}
-                        </div>
-                        <div id="subjectNoResult" class="subject-empty" style="display:none;">No subjects match your search.</div>
-                        {% else %}
-                        <div class="subject-empty">No subjects available for this branch and academic year.</div>
-                        {% endif %}
-                    </div>
-                    <div id="allocationSummary" class="hours-summary">Allocated subject hours: 0</div>
                 </div>
                 <div class="field">
                     <label for="first_name">First Name</label>
@@ -330,9 +1121,135 @@
                     <label for="last_name">Last Name</label>
                     <input id="last_name" type="text" name="last_name" value="{{ teacher.last_name }}" required>
                 </div>
+                <div class="field field-wide">
+                    <label for="degree_major">Degree / Major</label>
+                    <input id="degree_major" type="text" name="degree_major" maxlength="120" value="{{ teacher.degree_major or '' }}" placeholder="e.g. B.Ed Mathematics, Physics, English Literature" required>
+                    <div class="field-note">Used to highlight the subjects that best fit this teacher's specialization while you assign teaching load.</div>
+                </div>
                 <div class="field">
                     <label for="max_hours">Max Hours</label>
                     <input id="max_hours" type="number" name="max_hours" min="1" value="{{ teacher.max_hours or 24 }}" required>
+                </div>
+                <div class="field field-wide">
+                    <label>Eligible Subjects</label>
+                    <div class="assignment-step">
+                        <div class="assignment-step-label">Step 1</div>
+                        <h3>Select the subjects this teacher can teach</h3>
+                        <p>Tick one or more subjects first. The section assignment area will appear directly below for those selected subjects.</p>
+                    <div class="subject-selector-shell">
+                        <div class="subject-selector-topbar">
+                            <input id="subjectSearchInput" class="subject-search" type="text" placeholder="Search by code, subject name, or grade">
+                            <div class="subject-selector-tools">
+                                <span id="subjectSelectionCount" class="subject-selection-count">0 selected</span>
+                                <button id="clearAllSubjectsBtn" class="subject-grade-btn" type="button">Clear all</button>
+                            </div>
+                        </div>
+                        <div class="subject-selector-help">Use the <strong>+</strong> sign to open one grade, then tick the subject checkboxes you want for this teacher.</div>
+                        <div id="majorGuidance" class="major-guidance" data-state="empty">
+                            <div class="major-guidance-head">
+                                <div class="major-guidance-copy">
+                                    <span id="majorGuidanceBadge" class="major-guidance-badge">Add degree / major</span>
+                                    <h4>Subject Alignment Guide</h4>
+                                    <p id="majorGuidanceText">Enter the teacher's degree / major above. Matching subjects will be highlighted automatically and non-matching choices will be flagged for review.</p>
+                                </div>
+                            </div>
+                            <div class="major-guidance-grid">
+                                <div class="major-guidance-stat">
+                                    <span>Matching Subjects</span>
+                                    <strong id="majorGuidanceMatchingCount">0</strong>
+                                    <small>Available in this branch and year</small>
+                                </div>
+                                <div class="major-guidance-stat">
+                                    <span>Selected Match</span>
+                                    <strong id="majorGuidanceSelectedMatchCount">0</strong>
+                                    <small>Chosen and aligned with major</small>
+                                </div>
+                                <div class="major-guidance-stat">
+                                    <span>Review Needed</span>
+                                    <strong id="majorGuidanceSelectedReviewCount">0</strong>
+                                    <small>Chosen outside major keywords</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="selectedSubjectChips" class="subject-selector-chips"></div>
+                        <div class="subject-picker" id="subjectPicker"></div>
+                        <div id="subjectNoResult" class="subject-empty" style="display:none;">No subjects match your search.</div>
+                    </div>
+                    </div>
+                    <div class="assignment-step">
+                        <div class="assignment-step-label">Step 2</div>
+                        <h3>Assign sections for each selected subject</h3>
+                        <p>This is where you choose the exact sections the teacher covers for the selected subject, for example Grade 5-A and Grade 5-B for the same subject.</p>
+                    <div id="sectionAssignmentBoard" class="subject-assignment-board"></div>
+                    <div id="sectionAssignmentEmpty" class="section-assignment-empty">Choose one or more subjects in Step 1, and the matching sections will appear here to assign to this teacher.</div>
+                    </div>
+                    <div id="allocationSummary" class="allocation-dashboard" data-state="empty" aria-live="polite">
+                        <div class="allocation-dashboard-head">
+                            <div class="allocation-copy">
+                                <span id="allocationStatusBadge" class="allocation-status-badge">Start with subjects</span>
+                                <h3>Teaching Load Overview</h3>
+                                <p id="allocationStatusText">Select eligible subjects first, then assign sections to see the teacher's live weekly hours and remaining international capacity.</p>
+                            </div>
+                            <div class="allocation-hours-total">
+                                <strong id="allocationAssignedHoursValue">0h</strong>
+                                <span>Allocated now</span>
+                            </div>
+                        </div>
+                        <div class="allocation-progress-panel">
+                            <div class="allocation-progress-meta">
+                                <span id="allocationProgressLabel">0h used of 24h international capacity</span>
+                                <strong id="allocationProgressPercent">0%</strong>
+                            </div>
+                            <div class="allocation-progress-track">
+                                <span id="allocationProgressBar" class="allocation-progress-bar" style="width: 0%;"></span>
+                            </div>
+                            <div id="allocationCapacityHint" class="allocation-capacity-hint">Base 24h, extra 0h, national 0h, total 24h.</div>
+                        </div>
+                        <div class="allocation-metrics-grid">
+                            <div class="allocation-metric-card">
+                                <span>Subjects Selected</span>
+                                <strong id="allocationSubjectCountValue">0</strong>
+                                <small>Eligible subjects chosen</small>
+                            </div>
+                            <div class="allocation-metric-card">
+                                <span>Sections Assigned</span>
+                                <strong id="allocationSectionCountValue">0</strong>
+                                <small>Live teaching assignments</small>
+                            </div>
+                            <div class="allocation-metric-card">
+                                <span>Intl Capacity</span>
+                                <strong id="allocationInternationalCapacityValue">24h</strong>
+                                <small>Hours available for international sections</small>
+                            </div>
+                            <div id="allocationRemainingMetric" class="allocation-metric-card">
+                                <span id="allocationRemainingHoursLabel">Remaining</span>
+                                <strong id="allocationRemainingHoursValue">24h</strong>
+                                <small id="allocationRemainingHoursNote">Hours still open for allocation</small>
+                            </div>
+                        </div>
+                        <div class="allocation-breakdown-grid">
+                            <div class="allocation-breakdown-item">
+                                <span>Max Hours</span>
+                                <strong id="allocationMaxHoursValue">24h</strong>
+                                <small>Base weekly limit</small>
+                            </div>
+                            <div class="allocation-breakdown-item">
+                                <span>Extra Hours</span>
+                                <strong id="allocationExtraHoursValue">0h</strong>
+                                <small>Optional added capacity</small>
+                            </div>
+                            <div class="allocation-breakdown-item">
+                                <span>National Hours</span>
+                                <strong id="allocationNationalHoursValue">0h</strong>
+                                <small>Reserved outside international load</small>
+                            </div>
+                            <div class="allocation-breakdown-item">
+                                <span>Total Capacity</span>
+                                <strong id="allocationTotalCapacityValue">24h</strong>
+                                <small>Max plus extra before deductions</small>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="field field-wide">
                     <label class="toggle-row" for="extra_hours_allowed">
@@ -343,6 +1260,16 @@
                 <div class="field field-wide" id="extraHoursCountField">
                     <label for="extra_hours_count">Extra Hours Count</label>
                     <input id="extra_hours_count" type="number" name="extra_hours_count" min="1" value="{{ teacher.extra_hours_count if teacher.extra_hours_count else 1 }}">
+                </div>
+                <div class="field field-wide">
+                    <label class="toggle-row" for="teaches_national_section">
+                        <input id="teaches_national_section" type="checkbox" name="teaches_national_section" value="on" {% if teacher.teaches_national_section %}checked{% endif %}>
+                        Teaches In National Section
+                    </label>
+                </div>
+                <div class="field field-wide" id="nationalSectionHoursField">
+                    <label for="national_section_hours">National Section Hours</label>
+                    <input id="national_section_hours" type="number" name="national_section_hours" min="1" value="{{ teacher.national_section_hours if teacher.national_section_hours else 1 }}">
                 </div>
             </div>
 
@@ -358,26 +1285,126 @@
 {% block page_scripts %}
 <script>
 const teacherIdInput = document.getElementById("teacher_id");
+        const degreeMajorInput = document.getElementById("degree_major");
         const extraAllowed = document.getElementById("extra_hours_allowed");
         const extraCountField = document.getElementById("extraHoursCountField");
         const extraCountInput = document.getElementById("extra_hours_count");
+        const nationalSectionToggle = document.getElementById("teaches_national_section");
+        const nationalSectionHoursField = document.getElementById("nationalSectionHoursField");
+        const nationalSectionHoursInput = document.getElementById("national_section_hours");
         const maxHoursInput = document.getElementById("max_hours");
         const teacherForm = document.querySelector("form[method='post']");
         const subjectSearchInput = document.getElementById("subjectSearchInput");
-        const subjectOptionItems = Array.from(document.querySelectorAll(".subject-option-item"));
+        const subjectSelectionCount = document.getElementById("subjectSelectionCount");
+        const clearAllSubjectsBtn = document.getElementById("clearAllSubjectsBtn");
+        const selectedSubjectChips = document.getElementById("selectedSubjectChips");
+        const subjectPicker = document.getElementById("subjectPicker");
         const subjectNoResult = document.getElementById("subjectNoResult");
-        const subjectCodeInputs = Array.from(document.querySelectorAll("input[name='subject_codes']"));
+        const majorGuidance = document.getElementById("majorGuidance");
+        const majorGuidanceBadge = document.getElementById("majorGuidanceBadge");
+        const majorGuidanceText = document.getElementById("majorGuidanceText");
+        const majorGuidanceMatchingCount = document.getElementById("majorGuidanceMatchingCount");
+        const majorGuidanceSelectedMatchCount = document.getElementById("majorGuidanceSelectedMatchCount");
+        const majorGuidanceSelectedReviewCount = document.getElementById("majorGuidanceSelectedReviewCount");
+        const sectionAssignmentBoard = document.getElementById("sectionAssignmentBoard");
+        const sectionAssignmentEmpty = document.getElementById("sectionAssignmentEmpty");
         const allocationSummary = document.getElementById("allocationSummary");
+        const allocationStatusBadge = document.getElementById("allocationStatusBadge");
+        const allocationStatusText = document.getElementById("allocationStatusText");
+        const allocationAssignedHoursValue = document.getElementById("allocationAssignedHoursValue");
+        const allocationProgressLabel = document.getElementById("allocationProgressLabel");
+        const allocationProgressPercent = document.getElementById("allocationProgressPercent");
+        const allocationProgressBar = document.getElementById("allocationProgressBar");
+        const allocationCapacityHint = document.getElementById("allocationCapacityHint");
+        const allocationSubjectCountValue = document.getElementById("allocationSubjectCountValue");
+        const allocationSectionCountValue = document.getElementById("allocationSectionCountValue");
+        const allocationInternationalCapacityValue = document.getElementById("allocationInternationalCapacityValue");
+        const allocationRemainingMetric = document.getElementById("allocationRemainingMetric");
+        const allocationRemainingHoursLabel = document.getElementById("allocationRemainingHoursLabel");
+        const allocationRemainingHoursValue = document.getElementById("allocationRemainingHoursValue");
+        const allocationRemainingHoursNote = document.getElementById("allocationRemainingHoursNote");
+        const allocationMaxHoursValue = document.getElementById("allocationMaxHoursValue");
+        const allocationExtraHoursValue = document.getElementById("allocationExtraHoursValue");
+        const allocationNationalHoursValue = document.getElementById("allocationNationalHoursValue");
+        const allocationTotalCapacityValue = document.getElementById("allocationTotalCapacityValue");
         const standardMaxHours = 24;
+        const subjectChoices = {{ subject_choices | tojson }};
+        const sectionOptionsBySubject = {{ section_options_by_subject | tojson }};
+        let persistedSectionAssignmentValues = new Set({{ selected_section_assignment_values | tojson }});
+        const subjectChoicesByCode = Object.fromEntries(
+            subjectChoices.map((item) => [String(item.subject_code || "").trim().toUpperCase(), item])
+        );
+        let selectedSubjectCodes = new Set(
+            {{ assigned_subject_codes | tojson }}
+                .map((value) => String(value || "").trim().toUpperCase())
+                .filter((value) => Boolean(value))
+        );
+        const openSubjectGradeKeys = new Set();
+        const subjectAlignmentKeywordGroups = {
+            math: ["math", "mathematics", "algebra", "geometry", "calculus", "statistics", "arithmetic", "trigonometry"],
+            science: ["science", "biology", "chemistry", "physics", "laboratory", "lab"],
+            biology: ["biology", "science", "life"],
+            chemistry: ["chemistry", "science"],
+            physics: ["physics", "science"],
+            english: ["english", "literature", "reading", "writing", "grammar", "phonics", "ela"],
+            arabic: ["arabic"],
+            french: ["french"],
+            islamic: ["islamic", "quran", "hadith", "fiqh", "tawheed", "religion"],
+            social: ["social", "history", "geography", "civics", "studies"],
+            history: ["history", "social"],
+            geography: ["geography", "social"],
+            computer: ["computer", "computing", "ict", "technology", "coding", "programming", "digital", "informatics"],
+            art: ["art", "drawing", "design", "visual"],
+            music: ["music"],
+            pe: ["physical", "pe", "sport", "sports", "fitness"],
+            economics: ["economics", "commerce", "business", "accounting", "finance"],
+            accounting: ["accounting", "business", "commerce", "economics", "finance"],
+            kindergarten: ["kg", "kindergarten", "early", "childhood", "homeroom"],
+        };
+        const subjectAlignmentStopwords = new Set([
+            "bachelor",
+            "masters",
+            "master",
+            "degree",
+            "major",
+            "minor",
+            "education",
+            "teaching",
+            "teacher",
+            "of",
+            "in",
+            "and",
+            "for",
+            "bed",
+            "ba",
+            "bs",
+            "ma",
+            "msc",
+            "bsc",
+            "med",
+            "phd",
+            "diploma",
+        ]);
+        const subjectAlignmentReverseGroups = Object.entries(subjectAlignmentKeywordGroups).reduce((map, [groupKey, aliases]) => {
+            map[groupKey] = groupKey;
+            aliases.forEach((alias) => {
+                map[alias] = groupKey;
+            });
+            return map;
+        }, {});
 
-        const getAllocatedSubjectHours = () => {
-            return subjectCodeInputs.reduce((total, input) => {
-                if (!input.checked) {
-                    return total;
-                }
-                const parsedHours = Number(input.dataset.hours || "0");
-                return total + (Number.isFinite(parsedHours) ? parsedHours : 0);
-            }, 0);
+        const getSelectedSubjectCount = () => {
+            return selectedSubjectCodes.size;
+        };
+
+        const getSelectedSubjectCodes = () => {
+            return Array.from(selectedSubjectCodes);
+        };
+
+        const getSelectedSectionAssignments = () => {
+            return Array.from(
+                document.querySelectorAll("input[name='section_assignment_values']:checked")
+            );
         };
 
         const getSafeMaxHours = () => {
@@ -394,7 +1421,102 @@ const teacherIdInput = document.getElementById("teacher_id");
         };
 
         const getRequiredAllocationHours = () => {
+            return Math.max(getSafeMaxHours() + getSafeExtraHours() - getSafeNationalSectionHours(), 0);
+        };
+
+        const getSafeNationalSectionHours = () => {
+            if (!nationalSectionToggle || !nationalSectionToggle.checked) {
+                return 0;
+            }
+            const parsedNationalHours = Number(nationalSectionHoursInput ? nationalSectionHoursInput.value : 0);
+            return Number.isFinite(parsedNationalHours) && parsedNationalHours > 0 ? parsedNationalHours : 0;
+        };
+
+        const getTotalCapacityHours = () => {
             return getSafeMaxHours() + getSafeExtraHours();
+        };
+
+        const getAssignedHoursFromInputs = (sectionAssignments) => {
+            return sectionAssignments.reduce((total, input) => {
+                const [subjectCode] = String(input.value || "").split("::");
+                const subject = subjectChoicesByCode[subjectCode] || {};
+                const parsedHours = Number(subject.weekly_hours || "0");
+                return total + (Number.isFinite(parsedHours) ? parsedHours : 0);
+            }, 0);
+        };
+
+        const getAllocationSnapshot = () => {
+            const selectedSubjectCount = getSelectedSubjectCount();
+            const selectedSectionAssignments = getSelectedSectionAssignments();
+            const selectedSectionCount = selectedSectionAssignments.length;
+            const assignedHours = getAssignedHoursFromInputs(selectedSectionAssignments);
+            const safeMaxHours = getSafeMaxHours();
+            const safeExtraHours = getSafeExtraHours();
+            const safeNationalHours = getSafeNationalSectionHours();
+            const totalCapacityHours = getTotalCapacityHours();
+            const requiredHours = getRequiredAllocationHours();
+            const exceedsCapacity = requiredHours > 0 ? assignedHours > requiredHours : assignedHours > 0;
+            const remainingHours = Math.max(requiredHours - assignedHours, 0);
+            const overHours = Math.max(assignedHours - requiredHours, 0);
+            const nationalHoursExceedTotal = safeNationalHours > totalCapacityHours;
+            const utilizationPercent = requiredHours > 0
+                ? (assignedHours / requiredHours) * 100
+                : assignedHours > 0
+                    ? 100
+                    : 0;
+
+            return {
+                selectedSubjectCount,
+                selectedSectionAssignments,
+                selectedSectionCount,
+                assignedHours,
+                safeMaxHours,
+                safeExtraHours,
+                safeNationalHours,
+                totalCapacityHours,
+                requiredHours,
+                exceedsCapacity,
+                remainingHours,
+                overHours,
+                nationalHoursExceedTotal,
+                utilizationPercent: Number.isFinite(utilizationPercent) ? utilizationPercent : 0,
+            };
+        };
+
+        const formatHours = (value) => `${value}h`;
+
+        const formatCount = (value, singular, plural = `${singular}s`) => {
+            return `${value} ${value === 1 ? singular : plural}`;
+        };
+
+        const updateSubjectAssignmentCardStates = () => {
+            document.querySelectorAll(".subject-assignment-card").forEach((card) => {
+                const weeklyHours = Number(card.dataset.weeklyHours || "0");
+                const selectedInputs = Array.from(
+                    card.querySelectorAll("input[name='section_assignment_values']:checked")
+                );
+                const selectedCount = selectedInputs.length;
+                const allocatedHours = selectedCount * (Number.isFinite(weeklyHours) ? weeklyHours : 0);
+                const selectedCountBadge = card.querySelector("[data-assignment-selected]");
+                const allocatedHoursBadge = card.querySelector("[data-assignment-hours]");
+                const statusNote = card.querySelector("[data-assignment-status]");
+
+                if (selectedCountBadge) {
+                    selectedCountBadge.textContent = formatCount(selectedCount, "section");
+                }
+
+                if (allocatedHoursBadge) {
+                    allocatedHoursBadge.textContent = `${formatHours(allocatedHours)} allocated`;
+                }
+
+                if (statusNote) {
+                    statusNote.textContent = selectedCount > 0
+                        ? `${formatCount(selectedCount, "section")} selected for this subject`
+                        : "No sections selected for this subject yet.";
+                }
+
+                card.classList.toggle("is-active", selectedCount > 0);
+            });
         };
 
         const updateAllocationSummary = () => {
@@ -402,37 +1524,768 @@ const teacherIdInput = document.getElementById("teacher_id");
                 return;
             }
 
-            const allocatedHours = getAllocatedSubjectHours();
-            const safeMaxHours = getSafeMaxHours();
-            const safeExtraHours = getSafeExtraHours();
-            const requiredHours = getRequiredAllocationHours();
-            const exceedsCapacity = requiredHours > 0 ? allocatedHours > requiredHours : allocatedHours > 0;
-            const remainingHours = Math.max(requiredHours - allocatedHours, 0);
+            const snapshot = getAllocationSnapshot();
+            const progressPercent = Math.max(snapshot.utilizationPercent, 0);
+            const progressWidth = snapshot.requiredHours > 0
+                ? Math.min(progressPercent, 100)
+                : snapshot.assignedHours > 0
+                    ? 100
+                    : 0;
 
-            allocationSummary.textContent = `Allocated subject hours: ${allocatedHours} / Total allowed hours: ${requiredHours} (Max ${safeMaxHours} + Extra ${safeExtraHours})${exceedsCapacity ? ` (Over capacity by ${allocatedHours - requiredHours}h)` : ` (Within capacity, remaining ${remainingHours}h)`}`;
-            allocationSummary.classList.toggle("mismatch", exceedsCapacity);
+            let state = "empty";
+            let badgeText = "Start with subjects";
+            let statusText = "Select eligible subjects first, then assign sections to see this teacher's weekly load.";
+            let remainingLabel = "Remaining";
+            let remainingValue = snapshot.remainingHours;
+            let remainingNote = "Hours still open for allocation";
+            let capacityHint = `Base ${formatHours(snapshot.safeMaxHours)} + Extra ${formatHours(snapshot.safeExtraHours)} = ${formatHours(snapshot.totalCapacityHours)} total, with ${formatHours(snapshot.safeNationalHours)} reserved for national sections.`;
+
+            if (snapshot.nationalHoursExceedTotal) {
+                state = "over";
+                badgeText = "Capacity settings conflict";
+                statusText = `National section hours (${formatHours(snapshot.safeNationalHours)}) are higher than total capacity (${formatHours(snapshot.totalCapacityHours)}).`;
+                remainingLabel = "Available";
+                remainingValue = 0;
+                remainingNote = "Fix the capacity settings first";
+                capacityHint = "Reduce national section hours or increase total capacity before assigning international sections.";
+            } else if (snapshot.selectedSubjectCount === 0) {
+                capacityHint = `The teacher can still take up to ${formatHours(snapshot.requiredHours)} international hours once subjects are selected.`;
+            } else if (snapshot.selectedSectionCount === 0) {
+                state = "ready";
+                badgeText = "Subjects selected";
+                statusText = `${formatCount(snapshot.selectedSubjectCount, "subject")} ready. Choose the exact sections below to turn them into weekly hours.`;
+                remainingNote = "Capacity is waiting for section allocation";
+            } else if (snapshot.exceedsCapacity) {
+                state = "over";
+                badgeText = "Over capacity";
+                statusText = `${formatHours(snapshot.assignedHours)} assigned across ${formatCount(snapshot.selectedSectionCount, "section")}. Reduce the load by ${formatHours(snapshot.overHours)} or increase available capacity.`;
+                remainingLabel = "Over by";
+                remainingValue = snapshot.overHours;
+                remainingNote = "Teacher is above available international hours";
+                capacityHint = `Assigned ${formatHours(snapshot.assignedHours)} while only ${formatHours(snapshot.requiredHours)} international hours are available.`;
+            } else {
+                state = "balanced";
+                badgeText = snapshot.remainingHours === 0 ? "Fully allocated" : "Within capacity";
+                statusText = snapshot.remainingHours === 0
+                    ? `This teacher is exactly full with ${formatHours(snapshot.assignedHours)} assigned across ${formatCount(snapshot.selectedSectionCount, "section")}.`
+                    : `${formatHours(snapshot.assignedHours)} assigned across ${formatCount(snapshot.selectedSectionCount, "section")}. ${formatHours(snapshot.remainingHours)} still available for international sections.`;
+                remainingNote = snapshot.remainingHours === 0
+                    ? "No international hours left"
+                    : "Hours still open for allocation";
+            }
+
+            allocationSummary.dataset.state = state;
+
+            if (allocationStatusBadge) {
+                allocationStatusBadge.textContent = badgeText;
+            }
+            if (allocationStatusText) {
+                allocationStatusText.textContent = statusText;
+            }
+            if (allocationAssignedHoursValue) {
+                allocationAssignedHoursValue.textContent = formatHours(snapshot.assignedHours);
+            }
+            if (allocationProgressLabel) {
+                allocationProgressLabel.textContent = `${formatHours(snapshot.assignedHours)} used of ${formatHours(snapshot.requiredHours)} international capacity`;
+            }
+            if (allocationProgressPercent) {
+                allocationProgressPercent.textContent = `${Math.round(progressPercent)}%`;
+            }
+            if (allocationProgressBar) {
+                allocationProgressBar.style.width = `${progressWidth}%`;
+            }
+            if (allocationCapacityHint) {
+                allocationCapacityHint.textContent = capacityHint;
+            }
+            if (allocationSubjectCountValue) {
+                allocationSubjectCountValue.textContent = String(snapshot.selectedSubjectCount);
+            }
+            if (allocationSectionCountValue) {
+                allocationSectionCountValue.textContent = String(snapshot.selectedSectionCount);
+            }
+            if (allocationInternationalCapacityValue) {
+                allocationInternationalCapacityValue.textContent = formatHours(snapshot.requiredHours);
+            }
+            if (allocationRemainingHoursLabel) {
+                allocationRemainingHoursLabel.textContent = remainingLabel;
+            }
+            if (allocationRemainingHoursValue) {
+                allocationRemainingHoursValue.textContent = formatHours(remainingValue);
+            }
+            if (allocationRemainingHoursNote) {
+                allocationRemainingHoursNote.textContent = remainingNote;
+            }
+            if (allocationRemainingMetric) {
+                allocationRemainingMetric.classList.toggle("is-danger", state === "over");
+                allocationRemainingMetric.classList.toggle("is-highlight", state === "balanced");
+            }
+            if (allocationMaxHoursValue) {
+                allocationMaxHoursValue.textContent = formatHours(snapshot.safeMaxHours);
+            }
+            if (allocationExtraHoursValue) {
+                allocationExtraHoursValue.textContent = formatHours(snapshot.safeExtraHours);
+            }
+            if (allocationNationalHoursValue) {
+                allocationNationalHoursValue.textContent = formatHours(snapshot.safeNationalHours);
+            }
+            if (allocationTotalCapacityValue) {
+                allocationTotalCapacityValue.textContent = formatHours(snapshot.totalCapacityHours);
+            }
+
+            updateSubjectAssignmentCardStates();
         };
 
-        const filterSubjectOptions = () => {
-            if (!subjectSearchInput || subjectOptionItems.length === 0) {
+        const getGradeKey = (value) => {
+            const text = String(value ?? "").trim().toUpperCase();
+            if (!text || text === "0" || text === "KG") {
+                return "KG";
+            }
+            const parsed = Number(text);
+            if (Number.isFinite(parsed) && parsed > 0) {
+                return String(parsed);
+            }
+            return text;
+        };
+
+        const getGradeLabel = (gradeKey) => {
+            return gradeKey === "KG" ? "KG" : `Grade ${gradeKey}`;
+        };
+
+        const getGradeSortValue = (gradeKey) => {
+            if (gradeKey === "KG") {
+                return 0;
+            }
+            const parsed = Number(gradeKey);
+            return Number.isFinite(parsed) ? parsed : 99;
+        };
+
+        const getSubjectSearchText = (subject) => {
+            return [
+                subject.subject_code,
+                subject.subject_name,
+                getGradeLabel(getGradeKey(subject.grade)),
+            ]
+                .join(" ")
+                .toLowerCase();
+        };
+
+        const getSortedSelectedSubjects = () => {
+            return Array.from(selectedSubjectCodes)
+                .map((code) => subjectChoicesByCode[code])
+                .filter((subject) => Boolean(subject))
+                .sort((left, right) => {
+                    const leftGrade = getGradeSortValue(getGradeKey(left.grade));
+                    const rightGrade = getGradeSortValue(getGradeKey(right.grade));
+                    if (leftGrade !== rightGrade) {
+                        return leftGrade - rightGrade;
+                    }
+                    return String(left.subject_code || "").localeCompare(String(right.subject_code || ""));
+                });
+        };
+
+        const getDegreeMajorValue = () => {
+            return degreeMajorInput ? String(degreeMajorInput.value || "").trim() : "";
+        };
+
+        const normalizeAlignmentText = (value) => {
+            return String(value || "")
+                .toLowerCase()
+                .replace(/[^\p{L}\p{N}]+/gu, " ")
+                .replace(/\s+/g, " ")
+                .trim();
+        };
+
+        const buildAlignmentTokenSet = (value) => {
+            const normalizedText = normalizeAlignmentText(value);
+            if (!normalizedText) {
+                return new Set();
+            }
+
+            const baseTokens = normalizedText
+                .split(" ")
+                .filter((token) => token && !subjectAlignmentStopwords.has(token));
+            const expandedTokens = new Set(baseTokens);
+
+            baseTokens.forEach((token) => {
+                const groupKey = subjectAlignmentReverseGroups[token];
+                if (!groupKey) {
+                    return;
+                }
+
+                expandedTokens.add(groupKey);
+                (subjectAlignmentKeywordGroups[groupKey] || []).forEach((alias) => {
+                    expandedTokens.add(alias);
+                });
+            });
+
+            return expandedTokens;
+        };
+
+        const getSubjectMajorAlignment = (subject) => {
+            const degreeMajorValue = getDegreeMajorValue();
+            if (!degreeMajorValue) {
+                return {
+                    status: "empty",
+                    label: "Add major",
+                };
+            }
+
+            const subjectText = `${subject.subject_code || ""} ${subject.subject_name || ""}`;
+            const normalizedMajorText = normalizeAlignmentText(degreeMajorValue);
+            const normalizedSubjectText = normalizeAlignmentText(subjectText);
+            if (
+                normalizedMajorText
+                && normalizedSubjectText
+                && (
+                    normalizedSubjectText.includes(normalizedMajorText)
+                    || normalizedMajorText.includes(normalizedSubjectText)
+                )
+            ) {
+                return {
+                    status: "match",
+                    label: "Major match",
+                };
+            }
+
+            const majorTokens = buildAlignmentTokenSet(degreeMajorValue);
+            const subjectTokens = buildAlignmentTokenSet(subjectText);
+            const hasOverlap = Array.from(majorTokens).some((token) => subjectTokens.has(token));
+            if (hasOverlap) {
+                return {
+                    status: "match",
+                    label: "Major match",
+                };
+            }
+
+            return {
+                status: "review",
+                label: "Review fit",
+            };
+        };
+
+        const updateMajorGuidance = () => {
+            if (!majorGuidance) {
                 return;
             }
 
-            const term = subjectSearchInput.value.trim().toLowerCase();
+            const degreeMajorValue = getDegreeMajorValue();
+            const selectedSubjects = getSortedSelectedSubjects();
+            const matchingSubjects = subjectChoices.filter((subject) => {
+                return getSubjectMajorAlignment(subject).status === "match";
+            });
+            const selectedMatchingSubjects = selectedSubjects.filter((subject) => {
+                return getSubjectMajorAlignment(subject).status === "match";
+            });
+            const selectedReviewSubjects = selectedSubjects.filter((subject) => {
+                return getSubjectMajorAlignment(subject).status === "review";
+            });
+
+            let state = "empty";
+            let badgeText = "Add degree / major";
+            let message = "Enter the teacher's degree / major above. Matching subjects will be highlighted automatically and non-matching choices will be flagged for review.";
+
+            if (!degreeMajorValue) {
+                state = "empty";
+            } else if (matchingSubjects.length === 0) {
+                state = "no-match";
+                badgeText = "No direct match";
+                message = `No direct subject keywords matched "${degreeMajorValue}" in the current branch and year. You can still assign subjects manually, but review them carefully.`;
+            } else if (selectedReviewSubjects.length > 0) {
+                state = "review";
+                badgeText = "Review selected subjects";
+                message = `${selectedReviewSubjects.length} selected subject${selectedReviewSubjects.length === 1 ? "" : "s"} do not match the entered major keywords. Double-check those choices before saving.`;
+            } else {
+                state = "aligned";
+                badgeText = "Major aligned";
+                message = `${matchingSubjects.length} subject${matchingSubjects.length === 1 ? "" : "s"} match "${degreeMajorValue}" in this branch and academic year.`;
+            }
+
+            majorGuidance.dataset.state = state;
+
+            if (majorGuidanceBadge) {
+                majorGuidanceBadge.textContent = badgeText;
+            }
+            if (majorGuidanceText) {
+                majorGuidanceText.textContent = message;
+            }
+            if (majorGuidanceMatchingCount) {
+                majorGuidanceMatchingCount.textContent = String(matchingSubjects.length);
+            }
+            if (majorGuidanceSelectedMatchCount) {
+                majorGuidanceSelectedMatchCount.textContent = String(selectedMatchingSubjects.length);
+            }
+            if (majorGuidanceSelectedReviewCount) {
+                majorGuidanceSelectedReviewCount.textContent = String(selectedReviewSubjects.length);
+            }
+        };
+
+        const renderSelectedSubjectChips = () => {
+            if (subjectSelectionCount) {
+                subjectSelectionCount.textContent = `${getSelectedSubjectCount()} selected`;
+            }
+
+            if (clearAllSubjectsBtn) {
+                clearAllSubjectsBtn.disabled = getSelectedSubjectCount() === 0;
+            }
+
+            if (!selectedSubjectChips) {
+                return;
+            }
+
+            selectedSubjectChips.innerHTML = "";
+            const selectedSubjects = getSortedSelectedSubjects();
+
+            if (selectedSubjects.length === 0) {
+                const emptyState = document.createElement("span");
+                emptyState.className = "subject-chip-empty";
+                emptyState.textContent = "No subjects selected yet.";
+                selectedSubjectChips.appendChild(emptyState);
+                updateMajorGuidance();
+                return;
+            }
+
+            selectedSubjects.forEach((subject) => {
+                const code = String(subject.subject_code || "").trim().toUpperCase();
+                const alignment = getSubjectMajorAlignment(subject);
+                const chip = document.createElement("span");
+                chip.className = "subject-chip";
+                chip.classList.toggle("is-match", alignment.status === "match");
+                chip.classList.toggle("is-review", alignment.status === "review");
+
+                const label = document.createElement("span");
+                label.className = "subject-chip-label";
+                label.textContent = `${code} - ${subject.subject_name || "Unnamed Subject"}`;
+                chip.appendChild(label);
+
+                const removeButton = document.createElement("button");
+                removeButton.type = "button";
+                removeButton.className = "subject-chip-remove";
+                removeButton.setAttribute("aria-label", `Remove subject ${code}`);
+                removeButton.textContent = "x";
+                removeButton.addEventListener("click", () => {
+                    selectedSubjectCodes.delete(code);
+                    renderSelectedSubjectChips();
+                    renderSubjectPicker();
+                    renderSectionAssignmentBoard();
+                });
+                chip.appendChild(removeButton);
+
+                selectedSubjectChips.appendChild(chip);
+            });
+
+            updateMajorGuidance();
+        };
+
+        const renderSubjectPicker = () => {
+            if (!subjectPicker) {
+                return;
+            }
+
+            subjectPicker.innerHTML = "";
+
+            if (subjectChoices.length === 0) {
+                const emptyState = document.createElement("div");
+                emptyState.className = "subject-empty";
+                emptyState.textContent = "No subjects available for this branch and academic year.";
+                subjectPicker.appendChild(emptyState);
+                if (subjectNoResult) {
+                    subjectNoResult.style.display = "none";
+                }
+                return;
+            }
+
+            const term = subjectSearchInput ? subjectSearchInput.value.trim().toLowerCase() : "";
+            const groupedSubjects = new Map();
+
+            subjectChoices.forEach((subject) => {
+                const gradeKey = getGradeKey(subject.grade);
+                if (!groupedSubjects.has(gradeKey)) {
+                    groupedSubjects.set(gradeKey, []);
+                }
+                groupedSubjects.get(gradeKey).push(subject);
+            });
+
+            const sortedGrades = Array.from(groupedSubjects.keys()).sort((left, right) => {
+                const leftValue = getGradeSortValue(left);
+                const rightValue = getGradeSortValue(right);
+                if (leftValue !== rightValue) {
+                    return leftValue - rightValue;
+                }
+                return left.localeCompare(right);
+            });
+
             let visibleCount = 0;
 
-            subjectOptionItems.forEach((item) => {
-                const text = (item.dataset.search || item.textContent || "").toLowerCase();
-                const match = text.includes(term);
-                item.style.display = match ? "" : "none";
-                if (match) {
-                    visibleCount += 1;
+            sortedGrades.forEach((gradeKey, index) => {
+                const subjectsInGrade = groupedSubjects.get(gradeKey) || [];
+                const visibleSubjects = subjectsInGrade.filter((subject) => {
+                    const code = String(subject.subject_code || "").trim().toUpperCase();
+                    return selectedSubjectCodes.has(code) || getSubjectSearchText(subject).includes(term);
+                });
+
+                if (visibleSubjects.length === 0) {
+                    return;
                 }
+
+                visibleCount += visibleSubjects.length;
+
+                const selectedCountInGrade = subjectsInGrade.filter((subject) => {
+                    const code = String(subject.subject_code || "").trim().toUpperCase();
+                    return selectedSubjectCodes.has(code);
+                }).length;
+                const alignedCountInGrade = subjectsInGrade.filter((subject) => {
+                    return getSubjectMajorAlignment(subject).status === "match";
+                }).length;
+
+                const group = document.createElement("div");
+                const isInitiallyOpen = term.length > 0 || openSubjectGradeKeys.has(gradeKey);
+                group.className = `subject-grade-group${isInitiallyOpen ? " is-open" : ""}`;
+                let triggerButton = null;
+                let indicatorBadge = null;
+                let panel = null;
+                const revealPanel = () => {
+                    if (!panel || !subjectPicker) {
+                        return;
+                    }
+                    window.requestAnimationFrame(() => {
+                        const panelTop = panel.offsetTop;
+                        const panelBottom = panelTop + panel.offsetHeight;
+                        const viewportTop = subjectPicker.scrollTop;
+                        const viewportBottom = viewportTop + subjectPicker.clientHeight;
+                        if (panelTop < viewportTop) {
+                            subjectPicker.scrollTop = Math.max(panelTop - 8, 0);
+                            return;
+                        }
+                        if (panelBottom > viewportBottom) {
+                            subjectPicker.scrollTop = Math.max(panelBottom - subjectPicker.clientHeight + 8, 0);
+                        }
+                    });
+                };
+                const syncGroupOpenState = (isOpen) => {
+                    if (isOpen) {
+                        if (subjectPicker) {
+                            subjectPicker.querySelectorAll(".subject-grade-group.is-open").forEach((openGroup) => {
+                                if (openGroup === group) {
+                                    return;
+                                }
+                                openGroup.classList.remove("is-open");
+                                const openPanel = openGroup.querySelector(".subject-grade-panel");
+                                if (openPanel) {
+                                    openPanel.style.display = "none";
+                                }
+                                const openTrigger = openGroup.querySelector(".subject-grade-summary-main");
+                                if (openTrigger) {
+                                    openTrigger.setAttribute("aria-expanded", "false");
+                                }
+                                const openIndicator = openGroup.querySelector(".subject-grade-indicator");
+                                if (openIndicator) {
+                                    openIndicator.textContent = "+";
+                                }
+                            });
+                        }
+                        openSubjectGradeKeys.clear();
+                        openSubjectGradeKeys.add(gradeKey);
+                    } else {
+                        openSubjectGradeKeys.delete(gradeKey);
+                    }
+                    group.classList.toggle("is-open", isOpen);
+                    if (triggerButton) {
+                        triggerButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+                        triggerButton.setAttribute("aria-label", isOpen ? `Collapse ${getGradeLabel(gradeKey)}` : `Expand ${getGradeLabel(gradeKey)}`);
+                    }
+                    if (indicatorBadge) {
+                        indicatorBadge.textContent = isOpen ? "-" : "+";
+                    }
+                    if (panel) {
+                        panel.style.display = isOpen ? "grid" : "none";
+                        if (isOpen) {
+                            revealPanel();
+                        }
+                    }
+                };
+
+                const summary = document.createElement("div");
+                summary.className = "subject-grade-summary";
+
+                const summaryMain = document.createElement("button");
+                summaryMain.type = "button";
+                summaryMain.className = "subject-grade-summary-main";
+                summaryMain.addEventListener("click", () => {
+                    syncGroupOpenState(!group.classList.contains("is-open"));
+                });
+                triggerButton = summaryMain;
+
+                indicatorBadge = document.createElement("span");
+                indicatorBadge.className = "subject-grade-indicator";
+                indicatorBadge.setAttribute("aria-hidden", "true");
+                summaryMain.appendChild(indicatorBadge);
+
+                const titleCopy = document.createElement("span");
+                titleCopy.className = "subject-grade-title-copy";
+
+                const titleLabel = document.createElement("span");
+                titleLabel.className = "subject-grade-title";
+                titleLabel.textContent = getGradeLabel(gradeKey);
+                titleCopy.appendChild(titleLabel);
+                summaryMain.appendChild(titleCopy);
+                summary.appendChild(summaryMain);
+
+                const summaryMeta = document.createElement("span");
+                summaryMeta.className = "subject-grade-summary-meta";
+                const pills = document.createElement("span");
+                pills.className = "subject-grade-pills";
+
+                const totalPill = document.createElement("span");
+                totalPill.className = "subject-grade-pill";
+                totalPill.textContent = `${subjectsInGrade.length} subjects`;
+                pills.appendChild(totalPill);
+
+                const selectedPill = document.createElement("span");
+                selectedPill.className = "subject-grade-pill";
+                selectedPill.textContent = `${selectedCountInGrade} selected`;
+                pills.appendChild(selectedPill);
+
+                if (getDegreeMajorValue()) {
+                    const alignedPill = document.createElement("span");
+                    alignedPill.className = `subject-grade-pill${alignedCountInGrade === 0 ? " is-muted" : ""}`;
+                    alignedPill.textContent = `${alignedCountInGrade} aligned`;
+                    pills.appendChild(alignedPill);
+                }
+
+                summaryMeta.appendChild(pills);
+
+                summary.appendChild(summaryMeta);
+                group.appendChild(summary);
+
+                panel = document.createElement("div");
+                panel.className = "subject-grade-panel";
+
+                const panelHint = document.createElement("div");
+                panelHint.className = "subject-grade-hint";
+                panelHint.textContent = "Select one or more subjects from this grade.";
+                panel.appendChild(panelHint);
+
+                const grid = document.createElement("div");
+                grid.className = "subject-grade-grid";
+
+                visibleSubjects
+                    .slice()
+                    .sort((left, right) => {
+                        const leftStatus = getSubjectMajorAlignment(left).status;
+                        const rightStatus = getSubjectMajorAlignment(right).status;
+                        const alignmentPriority = { match: 0, empty: 1, review: 2 };
+                        const leftPriority = alignmentPriority[leftStatus] ?? 1;
+                        const rightPriority = alignmentPriority[rightStatus] ?? 1;
+                        if (leftPriority !== rightPriority) {
+                            return leftPriority - rightPriority;
+                        }
+                        return String(left.subject_code || "").localeCompare(String(right.subject_code || ""));
+                    })
+                    .forEach((subject, subjectIndex) => {
+                        const code = String(subject.subject_code || "").trim().toUpperCase();
+                        const alignment = getSubjectMajorAlignment(subject);
+                        const option = document.createElement("label");
+                        option.className = `subject-option subject-option-item${selectedSubjectCodes.has(code) ? " is-selected" : ""}`;
+                        option.classList.toggle("is-major-match", alignment.status === "match");
+                        option.classList.toggle("is-major-review", alignment.status === "review");
+                        option.setAttribute("for", `subject_code_${gradeKey}_${subjectIndex}`);
+
+                        const input = document.createElement("input");
+                        input.id = `subject_code_${gradeKey}_${subjectIndex}`;
+                        input.type = "checkbox";
+                        input.name = "subject_codes";
+                        input.value = code;
+                        input.checked = selectedSubjectCodes.has(code);
+                        input.dataset.hours = subject.weekly_hours || 0;
+                        input.addEventListener("change", () => {
+                            if (input.checked) {
+                                selectedSubjectCodes.add(code);
+                            } else {
+                                selectedSubjectCodes.delete(code);
+                            }
+                            renderSelectedSubjectChips();
+                            renderSubjectPicker();
+                            renderSectionAssignmentBoard();
+                        });
+                        option.appendChild(input);
+
+                        const copy = document.createElement("span");
+                        copy.className = "subject-main";
+
+                        const strong = document.createElement("strong");
+                        strong.textContent = `${code} - ${subject.subject_name || "Unnamed Subject"}`;
+                        copy.appendChild(strong);
+
+                        const metaRow = document.createElement("span");
+                        metaRow.className = "subject-main-meta";
+
+                        const small = document.createElement("small");
+                        small.textContent = `${getGradeLabel(gradeKey)} | ${subject.weekly_hours || 0} hours/week`;
+                        metaRow.appendChild(small);
+
+                        if (alignment.status !== "empty") {
+                            const badge = document.createElement("span");
+                            badge.className = `subject-major-badge ${alignment.status === "match" ? "is-match" : "is-review"}`;
+                            badge.textContent = alignment.label;
+                            metaRow.appendChild(badge);
+                        }
+
+                        copy.appendChild(metaRow);
+
+                        option.appendChild(copy);
+                        grid.appendChild(option);
+                    });
+
+                panel.appendChild(grid);
+                group.appendChild(panel);
+                syncGroupOpenState(isInitiallyOpen);
+                subjectPicker.appendChild(group);
             });
 
             if (subjectNoResult) {
                 subjectNoResult.style.display = visibleCount === 0 ? "block" : "none";
             }
+        };
+
+        const renderSectionAssignmentBoard = () => {
+            if (!sectionAssignmentBoard || !sectionAssignmentEmpty) {
+                return;
+            }
+
+            const liveAssignmentInputs = Array.from(
+                document.querySelectorAll("input[name='section_assignment_values']")
+            );
+            if (liveAssignmentInputs.length > 0) {
+                persistedSectionAssignmentValues = new Set(
+                    liveAssignmentInputs
+                        .filter((input) => input.checked)
+                        .map((input) => String(input.value || ""))
+                );
+            }
+            const selectedSubjectCodesForBoard = getSelectedSubjectCodes();
+
+            sectionAssignmentBoard.innerHTML = "";
+
+            if (selectedSubjectCodesForBoard.length === 0) {
+                sectionAssignmentEmpty.style.display = "block";
+                updateAllocationSummary();
+                return;
+            }
+
+            selectedSubjectCodesForBoard.forEach((subjectCode) => {
+                const subject = subjectChoicesByCode[subjectCode] || {};
+                const sectionOptions = sectionOptionsBySubject[subjectCode] || [];
+                const subjectHours = Number(subject.weekly_hours || "0");
+                const safeSubjectHours = Number.isFinite(subjectHours) ? subjectHours : 0;
+
+                const card = document.createElement("div");
+                card.className = "subject-assignment-card";
+                card.dataset.subjectCode = subjectCode;
+                card.dataset.weeklyHours = String(safeSubjectHours);
+
+                const cardHead = document.createElement("div");
+                cardHead.className = "subject-assignment-head";
+
+                const headline = document.createElement("div");
+                headline.className = "subject-assignment-headline";
+
+                const copy = document.createElement("div");
+                copy.className = "subject-assignment-copy";
+
+                const title = document.createElement("strong");
+                title.textContent = `${subjectCode} - ${subject.subject_name || "Unnamed Subject"}`;
+                copy.appendChild(title);
+
+                const meta = document.createElement("small");
+                meta.textContent = `${getGradeLabel(getGradeKey(subject.grade))} | ${formatHours(safeSubjectHours)} per selected section`;
+                copy.appendChild(meta);
+                headline.appendChild(copy);
+
+                const stats = document.createElement("div");
+                stats.className = "subject-assignment-stats";
+
+                const perSectionPill = document.createElement("span");
+                perSectionPill.className = "subject-assignment-pill";
+                perSectionPill.textContent = `${formatHours(safeSubjectHours)} per section`;
+                stats.appendChild(perSectionPill);
+
+                const selectedPill = document.createElement("span");
+                selectedPill.className = "subject-assignment-pill";
+                selectedPill.setAttribute("data-assignment-selected", "true");
+                selectedPill.textContent = "0 sections";
+                stats.appendChild(selectedPill);
+
+                const hoursPill = document.createElement("span");
+                hoursPill.className = "subject-assignment-pill is-strong";
+                hoursPill.setAttribute("data-assignment-hours", "true");
+                hoursPill.textContent = "0h allocated";
+                stats.appendChild(hoursPill);
+
+                headline.appendChild(stats);
+                cardHead.appendChild(headline);
+
+                const status = document.createElement("small");
+                status.className = "subject-assignment-status";
+                status.setAttribute("data-assignment-status", "true");
+                status.textContent = "No sections selected for this subject yet.";
+                cardHead.appendChild(status);
+                card.appendChild(cardHead);
+
+                if (sectionOptions.length === 0) {
+                    const emptyState = document.createElement("div");
+                    emptyState.className = "section-assignment-empty";
+                    emptyState.textContent = "No planning sections exist yet for this subject grade in the current branch/year.";
+                    card.appendChild(emptyState);
+                    sectionAssignmentBoard.appendChild(card);
+                    return;
+                }
+
+                const grid = document.createElement("div");
+                grid.className = "section-option-grid";
+
+                sectionOptions.forEach((option) => {
+                    const optionValue = `${subjectCode}::${option.section_id}`;
+                    const optionLabel = document.createElement("label");
+                    optionLabel.className = `section-option${option.is_available ? "" : " is-disabled"}${persistedSectionAssignmentValues.has(optionValue) ? " is-selected" : ""}`;
+
+                    const input = document.createElement("input");
+                    input.type = "checkbox";
+                    input.name = "section_assignment_values";
+                    input.value = optionValue;
+                    input.checked = persistedSectionAssignmentValues.has(optionValue);
+                    input.disabled = !option.is_available;
+                    input.addEventListener("change", () => {
+                        if (input.checked) {
+                            persistedSectionAssignmentValues.add(optionValue);
+                        } else {
+                            persistedSectionAssignmentValues.delete(optionValue);
+                        }
+                        optionLabel.classList.toggle("is-selected", input.checked);
+                        updateAllocationSummary();
+                    });
+                    optionLabel.appendChild(input);
+
+                    const optionCopy = document.createElement("span");
+                    optionCopy.className = "section-option-copy";
+                    const optionTitle = document.createElement("strong");
+                    optionTitle.textContent = option.label;
+                    const optionMeta = document.createElement("small");
+                    optionMeta.textContent = option.is_available
+                        ? "Available for this teacher"
+                        : `Already assigned to ${option.teacher_name || "another teacher"}`;
+                    optionCopy.appendChild(optionTitle);
+                    optionCopy.appendChild(optionMeta);
+                    optionLabel.appendChild(optionCopy);
+
+                    grid.appendChild(optionLabel);
+                });
+
+                card.appendChild(grid);
+                sectionAssignmentBoard.appendChild(card);
+            });
+
+            sectionAssignmentEmpty.style.display = "none";
+            updateAllocationSummary();
         };
 
         const syncExtraHoursVisibility = () => {
@@ -447,26 +2300,54 @@ const teacherIdInput = document.getElementById("teacher_id");
             }
         };
 
+        const syncNationalSectionVisibility = () => {
+            if (!nationalSectionToggle || !nationalSectionHoursField || !nationalSectionHoursInput) {
+                return;
+            }
+            const enabled = nationalSectionToggle.checked;
+            nationalSectionHoursField.style.display = enabled ? "" : "none";
+            nationalSectionHoursInput.disabled = !enabled;
+            if (!enabled) {
+                nationalSectionHoursInput.value = "1";
+            }
+        };
+
         if (teacherIdInput) {
             teacherIdInput.addEventListener("input", () => {
                 teacherIdInput.value = teacherIdInput.value.replace(/\D/g, "").slice(0, 10);
             });
         }
 
-        if (subjectCodeInputs.length > 0) {
-            subjectCodeInputs.forEach((input) => {
-                input.addEventListener("change", updateAllocationSummary);
-            });
+        if (subjectSearchInput) {
+            subjectSearchInput.addEventListener("input", renderSubjectPicker);
         }
 
-        if (subjectSearchInput) {
-            subjectSearchInput.addEventListener("input", filterSubjectOptions);
-            filterSubjectOptions();
+        if (degreeMajorInput) {
+            const syncMajorGuidance = () => {
+                renderSelectedSubjectChips();
+                renderSubjectPicker();
+            };
+            degreeMajorInput.addEventListener("input", syncMajorGuidance);
+            degreeMajorInput.addEventListener("change", syncMajorGuidance);
+        }
+
+        if (clearAllSubjectsBtn) {
+            clearAllSubjectsBtn.addEventListener("click", () => {
+                selectedSubjectCodes = new Set();
+                renderSelectedSubjectChips();
+                renderSubjectPicker();
+                renderSectionAssignmentBoard();
+            });
         }
 
         if (extraCountInput) {
             extraCountInput.addEventListener("input", updateAllocationSummary);
             extraCountInput.addEventListener("change", updateAllocationSummary);
+        }
+
+        if (nationalSectionHoursInput) {
+            nationalSectionHoursInput.addEventListener("input", updateAllocationSummary);
+            nationalSectionHoursInput.addEventListener("change", updateAllocationSummary);
         }
 
         if (maxHoursInput) {
@@ -509,32 +2390,34 @@ const teacherIdInput = document.getElementById("teacher_id");
                         return;
                     }
 
-                    if (subjectCodeInputs.length === 0) {
+                    if (subjectChoices.length === 0) {
                         event.preventDefault();
                         window.alert("No subjects are available for assignment in the current branch/academic year.");
                         return;
                     }
 
-                    const selectedCount = subjectCodeInputs.filter((item) => item.checked).length;
+                    const selectedCount = getSelectedSubjectCount();
                     if (selectedCount === 0) {
                         event.preventDefault();
                         window.alert("Select at least one subject for this teacher.");
                         return;
                     }
 
-                    const allocatedHours = getAllocatedSubjectHours();
-                    const requiredHours = getRequiredAllocationHours();
-                    if (!Number.isFinite(parsedValue) || allocatedHours > requiredHours) {
+                    const allocationSnapshot = getAllocationSnapshot();
+                    if (allocationSnapshot.nationalHoursExceedTotal) {
                         event.preventDefault();
-                        if ((!extraAllowed || !extraAllowed.checked) && allocatedHours > standardMaxHours) {
-                            window.alert(`Allocated subject hours (${allocatedHours}) exceed 24. Please check Extra Hours Allowed and set Extra Hours Count for the additional hours.`);
-                            if (extraAllowed) {
-                                extraAllowed.focus();
-                            }
-                            return;
+                        window.alert(`National section hours (${allocationSnapshot.safeNationalHours}) cannot exceed total teacher capacity (${allocationSnapshot.totalCapacityHours}).`);
+                        if (nationalSectionHoursInput) {
+                            nationalSectionHoursInput.focus();
                         }
-                        window.alert(`Allocated subject hours (${allocatedHours}) exceed allowed capacity (${requiredHours}) based on Max Hours + Extra Hours. Reduce assigned subjects or increase allowed extra hours.`);
+                        return;
                     }
+                    if (allocationSnapshot.assignedHours > allocationSnapshot.requiredHours) {
+                        event.preventDefault();
+                        window.alert(`Assigned section hours (${allocationSnapshot.assignedHours}) exceed available international capacity (${allocationSnapshot.requiredHours}). Reduce the selected sections, reduce national section hours, or increase allowed extra hours.`);
+                        return;
+                    }
+
                 });
             }
         }
@@ -547,6 +2430,16 @@ const teacherIdInput = document.getElementById("teacher_id");
             syncExtraHoursVisibility();
         }
 
-        updateAllocationSummary();
+        if (nationalSectionToggle) {
+            nationalSectionToggle.addEventListener("change", () => {
+                syncNationalSectionVisibility();
+                updateAllocationSummary();
+            });
+            syncNationalSectionVisibility();
+        }
+
+        renderSelectedSubjectChips();
+        renderSubjectPicker();
+        renderSectionAssignmentBoard();
     </script>
 {% endblock %}
