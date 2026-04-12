@@ -217,6 +217,12 @@
             gap: 6px;
         }
 
+        .assignment-select small {
+            font-size: 12px;
+            line-height: 1.45;
+            color: #4b5f7d;
+        }
+
         .assignment-empty {
             font-size: 13px;
             color: #8f1d18;
@@ -310,6 +316,7 @@
                         <option value="{{ teacher.id }}" {% if form_data.homeroom_teacher_id|string == teacher.id|string %}selected{% endif %}>{{ teacher.label }}</option>
                         {% endfor %}
                     </select>
+                    <small class="assignment-note">For Grade 1 and Grade 2, leaving English, Mathematics, Mental Math, Performing Arts, Science, and Social Studies blank keeps them with the homeroom teacher by default.</small>
                 </div>
                 <div class="field field-wide">
                     <div class="auto-panel">
@@ -326,7 +333,7 @@
                 <div class="field field-wide">
                     <div class="auto-panel">
                         <h3>Subject Teacher Assignments</h3>
-                        <p class="assignment-note">Choose the teacher for each subject in this section. The same teacher can teach the same subject in other sections, and the system will stop you only if the teacher does not have that subject enabled or their total hours go over capacity.</p>
+                        <p class="assignment-note">Choose the teacher for each subject in this section. For Grade 1 and Grade 2 lower-primary homeroom subjects, leaving the row blank keeps the homeroom teacher as the default unless you intentionally override it here.</p>
                         <div id="assignmentRows" class="assignment-grid">
                             {% for item in section_assignment_rows %}
                             <div class="assignment-row">
@@ -367,6 +374,7 @@
 {% block page_scripts %}
 <script>
 const gradeSelect = document.getElementById("grade_level");
+        const homeroomTeacherSelect = document.getElementById("homeroom_teacher_id");
         const alignedSubjectsPreview = document.getElementById("alignedSubjectsPreview");
         const alignedSubjectsEmpty = document.getElementById("alignedSubjectsEmpty");
         const allocationSummary = document.getElementById("allocationSummary");
@@ -375,6 +383,49 @@ const gradeSelect = document.getElementById("grade_level");
         const subjectAlignmentMap = {{ subject_alignment_map | tojson }};
         const subjectTeacherOptions = {{ subject_teacher_options | tojson }};
         const initialAssignmentTeacherIds = {{ selected_assignment_teacher_ids | tojson }};
+        const lowerPrimaryHomeroomSubjectPrefixes = [
+            "english",
+            "mathematics",
+            "math",
+            "maths",
+            "mental math",
+            "performing arts",
+            "performing art",
+            "science",
+            "social studies",
+        ];
+
+        const normalizeSubjectKey = (value) => (
+            String(value || "")
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, " ")
+                .trim()
+        );
+
+        const isHomeroomDefaultSubject = (grade, subject) => {
+            if (!(grade === "1" || grade === "2")) {
+                return false;
+            }
+            const candidates = [
+                normalizeSubjectKey(subject.subject_name),
+                normalizeSubjectKey(subject.subject_code),
+            ];
+            return candidates.some((candidate) => (
+                candidate
+                && lowerPrimaryHomeroomSubjectPrefixes.some((prefix) => candidate.startsWith(prefix))
+            ));
+        };
+
+        const getHomeroomTeacherLabel = () => {
+            if (!homeroomTeacherSelect) {
+                return "Homeroom teacher";
+            }
+            const selectedOption = homeroomTeacherSelect.options[homeroomTeacherSelect.selectedIndex];
+            if (!selectedOption || !selectedOption.value) {
+                return "Homeroom teacher";
+            }
+            return selectedOption.textContent.trim();
+        };
 
         const renderAlignedSubjectsPreview = () => {
             if (!gradeSelect || !alignedSubjectsPreview || !allocationSummary) {
@@ -389,7 +440,9 @@ const gradeSelect = document.getElementById("grade_level");
             alignedSubjects.forEach((subject) => {
                 const row = document.createElement("li");
                 row.className = "aligned-item";
-                row.textContent = `${subject.subject_code} - ${subject.subject_name} (${subject.weekly_hours}h)`;
+                const homeroomDefaultActive = Boolean(homeroomTeacherSelect?.value)
+                    && isHomeroomDefaultSubject(selectedGrade, subject);
+                row.textContent = `${subject.subject_code} - ${subject.subject_name} (${subject.weekly_hours}h)${homeroomDefaultActive ? " - Homeroom default" : ""}`;
                 alignedSubjectsPreview.appendChild(row);
                 totalHours += Number(subject.weekly_hours || 0);
             });
@@ -435,6 +488,8 @@ const gradeSelect = document.getElementById("grade_level");
                     ?? ""
                 );
                 const teacherOptions = subjectTeacherOptions[subjectCode] || [];
+                const homeroomDefaultActive = Boolean(homeroomTeacherSelect?.value)
+                    && isHomeroomDefaultSubject(selectedGrade, subject);
 
                 const row = document.createElement("div");
                 row.className = "assignment-row";
@@ -473,7 +528,9 @@ const gradeSelect = document.getElementById("grade_level");
 
                 const emptyOption = document.createElement("option");
                 emptyOption.value = "";
-                emptyOption.textContent = "Not Assigned";
+                emptyOption.textContent = homeroomDefaultActive
+                    ? "Use Homeroom Default"
+                    : "Not Assigned";
                 select.appendChild(emptyOption);
 
                 teacherOptions.forEach((teacher) => {
@@ -487,6 +544,15 @@ const gradeSelect = document.getElementById("grade_level");
                 });
 
                 selectBlock.appendChild(select);
+                const selectNote = document.createElement("small");
+                if (homeroomDefaultActive && selectedTeacherId) {
+                    selectNote.textContent = "Manual override is active for this homeroom-default subject.";
+                } else if (homeroomDefaultActive) {
+                    selectNote.textContent = `Leave blank to keep ${getHomeroomTeacherLabel()} as the default teacher.`;
+                } else {
+                    selectNote.textContent = "Leave blank only if this subject should stay uncovered for now.";
+                }
+                selectBlock.appendChild(selectNote);
                 row.appendChild(selectBlock);
                 assignmentRows.appendChild(row);
             });
@@ -499,6 +565,12 @@ const gradeSelect = document.getElementById("grade_level");
                 renderAlignedSubjectsPreview();
                 renderAssignmentRows();
             });
+            if (homeroomTeacherSelect) {
+                homeroomTeacherSelect.addEventListener("change", () => {
+                    renderAlignedSubjectsPreview();
+                    renderAssignmentRows();
+                });
+            }
             renderAlignedSubjectsPreview();
             renderAssignmentRows();
         }

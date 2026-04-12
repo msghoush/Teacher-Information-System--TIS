@@ -1145,6 +1145,104 @@
             line-height: 1.4;
         }
 
+        .report-focus-metrics {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .report-focus-card {
+            border: 1px solid #d3deed;
+            border-radius: 16px;
+            background: linear-gradient(145deg, #ffffff, #f7fbff);
+            padding: 16px;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+        }
+
+        .report-focus-card.is-alert {
+            border-color: #efc0b9;
+            background: linear-gradient(145deg, #fff8f6, #fff0ed);
+        }
+
+        .report-focus-card.is-clear {
+            border-color: #b8dec9;
+            background: linear-gradient(145deg, #fdfffe, #eefaf4);
+        }
+
+        .report-focus-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.55px;
+            text-transform: uppercase;
+            color: #5d7392;
+        }
+
+        .report-focus-value {
+            display: block;
+            margin-top: 8px;
+            font-size: 40px;
+            line-height: 1;
+            color: #17365d;
+        }
+
+        .report-focus-card.is-alert .report-focus-value {
+            color: #b42318;
+        }
+
+        .report-focus-card.is-clear .report-focus-value {
+            color: #0d7a47;
+        }
+
+        .report-focus-card p {
+            margin: 8px 0 0;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #556981;
+        }
+
+        .report-coverage-brief {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
+            gap: 12px;
+            border: 1px solid #d3deed;
+            border-radius: 18px;
+            padding: 16px;
+            background: linear-gradient(145deg, #ffffff, #f7fbff);
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+        }
+
+        .report-coverage-brief.is-alert {
+            border-color: #efc0b9;
+            background: linear-gradient(145deg, #fff8f6, #fff0ed);
+        }
+
+        .report-coverage-brief.is-clear {
+            border-color: #b8dec9;
+            background: linear-gradient(145deg, #fdfffe, #eefaf4);
+        }
+
+        .report-coverage-copy {
+            display: grid;
+            gap: 8px;
+            align-content: start;
+        }
+
+        .report-coverage-copy h4 {
+            margin: 0;
+            font-size: 18px;
+            color: #17365d;
+        }
+
+        .report-coverage-copy p {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.55;
+            color: #556981;
+        }
+
         .report-visual-summary {
             margin-top: 12px;
             display: grid;
@@ -2094,6 +2192,10 @@
                 grid-template-columns: 1fr;
             }
 
+            .report-coverage-brief {
+                grid-template-columns: 1fr;
+            }
+
             .report-subject-stats,
             .report-teacher-columns {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2118,6 +2220,7 @@
             }
 
             .report-visual-summary,
+            .report-focus-metrics,
             .report-subject-stats,
             .report-teacher-columns {
                 grid-template-columns: 1fr;
@@ -2453,232 +2556,77 @@
                     </div>
                 </div>
                 <div class="report-note">
-                    This report uses each teacher available international capacity based on <strong>Max Hours + Extra Hours - National Section Hours</strong>. It reserves homeroom subjects first, redistributes the remaining load across compatible existing teachers by eligible subjects and major alignment, and then applies two decision paths: low-load non-core demand can still be absorbed internally, while priority subjects such as English, Arabic, Mathematics, Science, Islamic Studies, and Quran bypass the normal <strong>{{ report_summary.minimum_hiring_threshold_hours }}h</strong> minimum threshold.
+                    This report follows opened planning sections, applies the fixed Grade 1 and Grade 2 homeroom-default coverage first, and then redistributes the remaining load across existing teachers using enabled subjects, major alignment, admin overrides, and available international capacity.
                 </div>
                 {% if report_summary.total_required_hours > 0 %}
-                <div class="report-decision-strip">
-                    <div class="report-decision-card report-decision-classes">
-                        <div class="report-card-heading">
-                            <div>
-                                <span>New Classes to Open</span>
-                                <strong class="report-kpi-value" data-value="{{ report_summary.total_new_sections_planned }}">{{ report_summary.total_new_sections_planned }}</strong>
-                                <p>Planned new sections in this branch and academic year.</p>
-                            </div>
-                            <span class="report-card-icon">
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M4 19h16"></path>
-                                    <path d="M5 19V8l7-4 7 4v11"></path>
-                                    <path d="M9 10h6"></path>
-                                    <path d="M9 14h6"></path>
-                                </svg>
-                            </span>
-                        </div>
-                    </div>
-                    <div class="report-decision-card report-decision-new-teachers">
-                        <div class="report-card-heading">
-                            <div>
-                                <span>New Teachers Required</span>
-                                <strong class="report-kpi-value" data-value="{{ report_summary.total_new_teachers_required }}">{{ report_summary.total_new_teachers_required }}</strong>
-                                <p>Includes priority-subject gaps that bypass the normal {{ report_summary.minimum_hiring_threshold_hours }}h threshold.</p>
-                            </div>
-                            <span class="report-card-icon {% if report_summary.priority_subjects_with_gaps > 0 or report_summary.total_hiring_gap_hours > 0 %}is-critical{% endif %}">
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M12 3v10"></path>
-                                    <path d="M12 17h.01"></path>
-                                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                                </svg>
-                            </span>
-                        </div>
-                    </div>
-                    <div class="report-decision-card report-decision-total">
-                        <div class="report-card-heading">
-                            <div>
-                                <span>Total Teachers Needed (Branch)</span>
-                                <strong class="report-kpi-value" data-value="{{ report_summary.total_teachers_needed_branch }}">{{ report_summary.total_teachers_needed_branch }}</strong>
-                                <p>Current teachers {{ report_summary.total_existing_teachers }} + new required {{ report_summary.total_new_teachers_required }}.</p>
-                            </div>
-                            <span class="report-card-icon is-success">
-                                <svg viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M3 12h18"></path>
-                                    <path d="M12 3v18"></path>
-                                </svg>
-                            </span>
-                        </div>
-                    </div>
+                <div class="report-focus-metrics">
+                    <article class="report-focus-card">
+                        <span class="report-focus-label">Existing Teachers</span>
+                        <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_existing_teachers }}">{{ report_summary.total_existing_teachers }}</strong>
+                        <p>Teachers available in the current branch and academic year scope.</p>
+                    </article>
+                    <article class="report-focus-card {% if report_summary.total_remaining_hours > 0 %}is-alert{% else %}is-clear{% endif %}">
+                        <span class="report-focus-label">Uncovered Hours</span>
+                        <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_remaining_hours }}">{{ report_summary.total_remaining_hours }}h</strong>
+                        <p>Weekly hours still open after lower-primary homeroom defaults and compatible-teacher redistribution.</p>
+                    </article>
                 </div>
 
-                {% set current_demand_pct = ((report_summary.total_required_current_hours / report_summary.total_required_hours) * 100) if report_summary.total_required_hours else 0 %}
-                {% set existing_teacher_pct = ((report_summary.total_existing_teachers / report_summary.total_teachers_needed_branch) * 100) if report_summary.total_teachers_needed_branch else 0 %}
-                <div class="report-visual-summary">
-                    <article class="report-visual-card report-visual-card-alert {% if report_summary.priority_subjects_with_gaps > 0 or report_summary.total_hiring_gap_hours > 0 %}is-critical{% else %}is-clear{% endif %}">
-                        <div>
-                            <span class="report-alert-eyebrow">
-                                {% if report_summary.priority_subjects_with_gaps > 0 %}
-                                Priority staffing alert
-                                {% elif report_summary.total_hiring_gap_hours > 0 %}
-                                Hiring threshold reached
-                                {% elif report_summary.total_internal_absorption_hours > 0 %}
-                                Internal absorption available
-                                {% else %}
-                                Coverage stable
-                                {% endif %}
-                            </span>
-                            <h4>
-                                {% if report_summary.priority_subjects_with_gaps > 0 %}
-                                Priority Subjects Need Specialists
-                                {% elif report_summary.total_hiring_gap_hours > 0 %}
-                                Hiring Requirement Outstanding
-                                {% elif report_summary.total_internal_absorption_hours > 0 %}
-                                Remaining Load Can Stay Internal
-                                {% else %}
-                                All Required Hours Covered
-                                {% endif %}
-                            </h4>
-                            <p>
-                                {% if report_summary.priority_subjects_with_gaps > 0 %}
-                                {{ report_summary.priority_gap_hours }} weekly hours remain uncovered across {{ report_summary.priority_subjects_with_gaps }} priority subjects and {{ report_summary.priority_uncovered_sections }} planned sections. Largest priority gap: {{ report_summary.largest_priority_gap_subject_name or "N/A" }}.
-                                {% elif report_summary.total_hiring_gap_hours > 0 %}
-                                {{ report_summary.total_hiring_gap_hours }} weekly hours still require hiring across {{ report_summary.subjects_requiring_hires }} subjects after internal redistribution. Largest hiring gap: {{ report_summary.largest_hiring_gap_subject_name or "N/A" }}.
-                                {% elif report_summary.total_internal_absorption_hours > 0 %}
-                                {{ report_summary.total_internal_absorption_hours }} weekly hours remain after redistribution, but each affected subject stays below the {{ report_summary.minimum_hiring_threshold_hours }}h hiring threshold and should be absorbed internally.
-                                {% else %}
-                                Every required subject hour is currently covered by the teachers already in the system.
-                                {% endif %}
-                            </p>
+                <article class="report-coverage-brief {% if report_summary.total_remaining_hours > 0 %}is-alert{% else %}is-clear{% endif %}">
+                    <div class="report-coverage-copy">
+                        <span class="report-alert-eyebrow">
+                            {% if report_summary.priority_subjects_with_gaps > 0 %}
+                            Priority coverage alert
+                            {% elif report_summary.total_remaining_hours > 0 %}
+                            Coverage still open
+                            {% else %}
+                            Coverage stable
+                            {% endif %}
+                        </span>
+                        <h4>
+                            {% if report_summary.priority_subjects_with_gaps > 0 %}
+                            Priority subjects still need attention
+                            {% elif report_summary.total_remaining_hours > 0 %}
+                            Some planning hours are still open
+                            {% else %}
+                            Current teacher pool covers the planned load
+                            {% endif %}
+                        </h4>
+                        <p>Grade 1 and Grade 2 homeroom teachers automatically cover English, Mathematics, Mental Math, Performing Arts, Science, and Social Studies unless a section is manually assigned to someone else.</p>
+                        <p>
+                            {% if report_summary.total_remaining_hours > 0 %}
+                            Use the uncovered-hour total and the 24h staffing blocks only as decision support. The current plan still has {{ report_summary.total_staffing_requirement_blocks }} teacher-equivalent block{% if report_summary.total_staffing_requirement_blocks != 1 %}s{% endif %} open.
+                            {% else %}
+                            No uncovered hours remain in the current planning scope after the default homeroom and compatible-teacher coverage pass.
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="report-mini-stat-grid">
+                        <div class="report-mini-stat">
+                            <span>Total Demand</span>
+                            <strong>{{ report_summary.total_required_hours }}h</strong>
                         </div>
-                        <div class="report-alert-metric">
-                            <strong>{{ report_summary.priority_gap_hours if report_summary.priority_subjects_with_gaps > 0 else (report_summary.total_hiring_gap_hours if report_summary.total_hiring_gap_hours > 0 else report_summary.total_internal_absorption_hours) }}h</strong>
-                            <span>
-                                {% if report_summary.priority_subjects_with_gaps > 0 %}
-                                priority gap
-                                {% elif report_summary.total_hiring_gap_hours > 0 %}
-                                trigger hires
-                                {% elif report_summary.total_internal_absorption_hours > 0 %}
-                                absorb internally
-                                {% else %}
-                                uncovered now
-                                {% endif %}
-                            </span>
+                        <div class="report-mini-stat">
+                            <span>Covered</span>
+                            <strong>{{ report_summary.total_allocated_hours }}h</strong>
                         </div>
-                        <div class="report-alert-grid">
-                            <div class="report-alert-chip">
-                                <span>{% if report_summary.priority_subjects_with_gaps > 0 %}Priority subjects{% elif report_summary.total_hiring_gap_hours > 0 %}Hire-trigger subjects{% else %}Subjects with gaps{% endif %}</span>
-                                <strong>{{ report_summary.priority_subjects_with_gaps if report_summary.priority_subjects_with_gaps > 0 else (report_summary.subjects_requiring_hires if report_summary.total_hiring_gap_hours > 0 else report_summary.subjects_with_gaps) }}</strong>
-                            </div>
-                            <div class="report-alert-chip">
-                                <span>{% if report_summary.priority_subjects_with_gaps > 0 %}Open sections{% elif report_summary.total_hiring_gap_hours > 0 %}Internal absorption{% else %}Largest gap{% endif %}</span>
-                                <strong>{{ report_summary.priority_uncovered_sections if report_summary.priority_subjects_with_gaps > 0 else (report_summary.total_internal_absorption_hours if report_summary.total_hiring_gap_hours > 0 else report_summary.largest_gap_hours) }}{% if report_summary.priority_subjects_with_gaps == 0 %}h{% endif %}</strong>
-                            </div>
-                            <div class="report-alert-chip">
-                                <span>{% if report_summary.priority_subjects_with_gaps > 0 %}Urgent priority rows{% elif report_summary.total_internal_absorption_hours > 0 and report_summary.total_hiring_gap_hours == 0 %}Minimum threshold{% else %}Teachers needed{% endif %}</span>
-                                <strong>{{ report_summary.priority_urgent_subjects if report_summary.priority_subjects_with_gaps > 0 else (report_summary.minimum_hiring_threshold_hours if report_summary.total_internal_absorption_hours > 0 and report_summary.total_hiring_gap_hours == 0 else report_summary.total_new_teachers_required) }}</strong>
-                            </div>
+                        <div class="report-mini-stat">
+                            <span>Homeroom Default</span>
+                            <strong>{{ report_summary.homeroom_default_coverage_hours }}h</strong>
                         </div>
-                    </article>
-                    <article class="report-visual-card">
-                        <div>
-                            <h4>Coverage Snapshot</h4>
-                            <p>Apple-style visual split between covered and uncovered demand hours.</p>
+                        <div class="report-mini-stat">
+                            <span>24h Blocks</span>
+                            <strong>{{ report_summary.total_staffing_requirement_blocks }}</strong>
                         </div>
-                        <div class="report-donut-wrap">
-                            <div class="report-donut-shell" style="--donut-segments: #0a4ea3 0 {{ report_summary.coverage_percentage }}%, #e8eef8 {{ report_summary.coverage_percentage }}% 100%;">
-                                <div class="report-donut-center">
-                                    <strong class="report-kpi-value" data-value="{{ report_summary.coverage_percentage }}">{{ report_summary.coverage_percentage }}</strong>
-                                    <span>Covered %</span>
-                                </div>
-                            </div>
-                            <div class="report-donut-legend">
-                                <div class="report-legend-row">
-                                    <span class="report-legend-label"><span class="report-legend-dot" style="background:#0a4ea3;"></span>Covered</span>
-                                    <strong>{{ report_summary.total_allocated_hours }}h</strong>
-                                </div>
-                                <div class="report-legend-row">
-                                    <span class="report-legend-label"><span class="report-legend-dot" style="background:#e8eef8;"></span>Uncovered</span>
-                                    <strong>{{ report_summary.total_remaining_hours }}h</strong>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-                    <article class="report-visual-card">
-                        <div>
-                            <h4>Demand Mix</h4>
-                            <p>How total weekly demand is split between current classes and new planned classes.</p>
-                        </div>
-                        <div class="report-donut-wrap">
-                            <div class="report-donut-shell" style="--donut-segments: #1d4ed8 0 {{ current_demand_pct|round(1) }}%, #c79a14 {{ current_demand_pct|round(1) }}% 100%;">
-                                <div class="report-donut-center">
-                                    <strong>{{ report_summary.total_required_hours }}</strong>
-                                    <span>Total h</span>
-                                </div>
-                            </div>
-                            <div class="report-donut-legend">
-                                <div class="report-legend-row">
-                                    <span class="report-legend-label"><span class="report-legend-dot" style="background:#1d4ed8;"></span>Current</span>
-                                    <strong>{{ report_summary.total_required_current_hours }}h</strong>
-                                </div>
-                                <div class="report-legend-row">
-                                    <span class="report-legend-label"><span class="report-legend-dot" style="background:#c79a14;"></span>New</span>
-                                    <strong>{{ report_summary.total_required_new_hours }}h</strong>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-                    <article class="report-visual-card">
-                        <div>
-                            <h4>Teacher Mix</h4>
-                            <p>Existing teachers versus new hires required after redistribution and threshold-based hiring checks.</p>
-                        </div>
-                        <div class="report-donut-wrap">
-                            <div class="report-donut-shell" style="--donut-segments: #0f7f7a 0 {{ existing_teacher_pct|round(1) }}%, #f2c572 {{ existing_teacher_pct|round(1) }}% 100%;">
-                                <div class="report-donut-center">
-                                    <strong>{{ report_summary.total_teachers_needed_branch }}</strong>
-                                    <span>Total team</span>
-                                </div>
-                            </div>
-                            <div class="report-donut-legend">
-                                <div class="report-legend-row">
-                                    <span class="report-legend-label"><span class="report-legend-dot" style="background:#0f7f7a;"></span>Existing</span>
-                                    <strong>{{ report_summary.total_existing_teachers }}</strong>
-                                </div>
-                                <div class="report-legend-row">
-                                    <span class="report-legend-label"><span class="report-legend-dot" style="background:#f2c572;"></span>New required</span>
-                                    <strong>{{ report_summary.total_new_teachers_required }}</strong>
-                                </div>
-                            </div>
-                        </div>
-                    </article>
-                    <article class="report-visual-card">
-                        <div>
-                            <h4>Capacity Snapshot</h4>
-                            <p>Quick view of how much current teacher capacity is being used right now.</p>
-                        </div>
-                        <div class="report-mini-stat-grid">
-                            <div class="report-mini-stat">
-                                <span>Existing Capacity</span>
-                                <strong>{{ report_summary.total_existing_capacity_hours }}h</strong>
-                            </div>
-                            <div class="report-mini-stat">
-                                <span>Idle Capacity</span>
-                                <strong>{{ report_summary.unused_existing_capacity_hours }}h</strong>
-                            </div>
-                            <div class="report-mini-stat">
-                                <span>Teachers Utilized</span>
-                                <strong>{{ report_summary.teachers_utilized }}</strong>
-                            </div>
-                            <div class="report-mini-stat">
-                                <span>Full Load</span>
-                                <strong>{{ report_summary.teachers_full_load }}</strong>
-                            </div>
-                        </div>
-                    </article>
-                </div>
+                    </div>
+                </article>
 
                 <div class="report-layout">
                     <div class="report-card">
                         <div class="report-card-head">
                             <div class="report-card-head-copy">
-                                <h4>Subject Sufficiency Breakdown</h4>
-                                <p>Ranked by uncovered hours, but grounded in planned sections so each subject shows which sections are covered, which still need help, and which priority subjects bypass the normal low-load absorption rule.</p>
+                            <h4>Subject Sufficiency Breakdown</h4>
+                                <p>Ranked by uncovered hours and built from opened sections, with Grade 1 and Grade 2 homeroom-default coverage already applied before the remaining demand is calculated.</p>
                             </div>
                             <span class="report-card-tag">{{ report_subject_rows|length }} subjects</span>
                         </div>
@@ -2695,9 +2643,6 @@
                                         </div>
                                         <div class="report-inline-note">
                                             Sections covered {{ row.covered_sections_count or 0 }}/{{ row.total_sections or 0 }}
-                                            {% if row.recommended_sections_count %}
-                                            | Recommended absorption {{ row.recommended_sections_count }}
-                                            {% endif %}
                                             {% if row.uncovered_sections_count or row.partial_sections_count %}
                                             | Still open {{ (row.uncovered_sections_count or 0) + (row.partial_sections_count or 0) }}
                                             {% endif %}
@@ -2749,8 +2694,8 @@
                                         <strong>{{ row.covered_sections_count or 0 }}/{{ row.total_sections or 0 }}</strong>
                                     </div>
                                     <div class="report-subject-stat">
-                                        <span>Recommended</span>
-                                        <strong>{{ row.recommended_sections_count or 0 }}</strong>
+                                        <span>24h Blocks</span>
+                                        <strong>{{ row.teacher_requirement_blocks or 0 }}</strong>
                                     </div>
                                     <div class="report-subject-stat">
                                         <span>Open Sections</span>
@@ -2767,19 +2712,6 @@
                                         <div class="report-section-list">
                                             {% for label in row.covered_section_labels %}
                                             <span class="report-section-pill is-covered">{{ label }}</span>
-                                            {% endfor %}
-                                        </div>
-                                    </div>
-                                    {% endif %}
-                                    {% if row.recommended_section_labels %}
-                                    <div class="report-section-block is-recommended">
-                                        <div class="report-section-block-head">
-                                            <span>Internal Absorption Recommendations</span>
-                                            <strong>{{ row.recommended_sections_count }}</strong>
-                                        </div>
-                                        <div class="report-section-list">
-                                            {% for label in row.recommended_section_labels %}
-                                            <span class="report-section-pill is-recommended">{{ label }}</span>
                                             {% endfor %}
                                         </div>
                                     </div>
@@ -2813,9 +2745,6 @@
                                     </div>
                                     {% endif %}
                                 </div>
-                                {% if row.additional_teachers_note %}
-                                <div class="report-inline-note">{{ row.additional_teachers_note }}</div>
-                                {% endif %}
                             </article>
                             {% endfor %}
                         </div>
@@ -2823,11 +2752,11 @@
 
                     <div class="report-card">
                         <h4>Uncovered Hours by Subject</h4>
-                        <p>Top subjects with remaining weekly demand after homeroom reservations, compatible-teacher redistribution, and the hiring-threshold check.</p>
+                        <p>Top subjects with remaining weekly demand after lower-primary homeroom defaults and compatible-teacher redistribution.</p>
                         {% if report_gap_rows %}
                         <div class="report-gap-list">
                             {% for row in report_gap_rows %}
-                            <div class="report-gap-row {% if row.priority_staffing_urgent or row.additional_teachers_needed >= 2 or row.remaining_hours >= 24 %}is-critical{% else %}is-warning{% endif %}">
+                            <div class="report-gap-row {% if row.priority_staffing_urgent or row.teacher_requirement_blocks >= 2 or row.remaining_hours >= 24 %}is-critical{% else %}is-warning{% endif %}">
                                 <div class="report-gap-head">
                                     <span>{{ row.subject_name }}</span>
                                     <strong>{{ row.remaining_hours }}h</strong>
@@ -2835,12 +2764,10 @@
                                 <div class="report-gap-track">
                                     <div class="report-gap-fill" data-width="{{ row.gap_chart_pct }}"></div>
                                 </div>
-                                <small>{{ row.staffing_note or ("Additional teachers required: " ~ row.additional_teachers_needed) }}</small>
+                                <small>{{ row.staffing_note }}</small>
                                 <small>
                                     Sections covered {{ row.covered_sections_count or 0 }}/{{ row.total_sections or 0 }}
-                                    {% if row.recommended_sections_count %}
-                                    | Recommended {{ row.recommended_sections_count }}
-                                    {% endif %}
+                                    | 24h blocks {{ row.teacher_requirement_blocks or 0 }}
                                 </small>
                             </div>
                             {% endfor %}
@@ -2883,7 +2810,7 @@
                     <div class="report-card-head">
                         <div class="report-card-head-copy">
                             <h4>Expected Allocation Across Planned Sections</h4>
-                            <p>Collapsed cards keep the report lighter while still showing underloaded teachers, current versus maximum load, homeroom reservations, and recommended internal-absorption assignments before any hiring call.</p>
+                            <p>Compact teacher cards show current projected load, remaining international capacity, and the lower-primary homeroom hours already reserved in the planning pass.</p>
                         </div>
                         <span class="report-card-tag">{{ report_teacher_rows|length }} teachers</span>
                     </div>
@@ -2904,9 +2831,6 @@
                                     <span class="report-teacher-badge">{{ row.expected_allocated_hours }}h allocated</span>
                                     {% if row.is_underloaded %}
                                     <span class="report-teacher-badge report-teacher-badge-underloaded">Underloaded</span>
-                                    {% endif %}
-                                    {% if row.recommended_absorption_hours > 0 %}
-                                    <span class="report-teacher-badge report-teacher-badge-underloaded">{{ row.recommended_absorption_hours }}h recommended</span>
                                     {% endif %}
                                     <span class="report-teacher-badge report-teacher-badge-accent">
                                         {% if row.remaining_capacity_hours > 0 %}{{ row.remaining_capacity_hours }}h spare{% else %}Full load{% endif %}
@@ -2942,10 +2866,7 @@
                                 {% endif %}
                                 {% if row.is_underloaded %}
                                 <div class="report-inline-note">
-                                    Underloaded teacher identified with {{ row.remaining_capacity_hours }}h spare before redistribution recommendations.
-                                    {% if row.recommended_absorption_hours > 0 %}
-                                    Projected load after recommendations: {{ row.projected_allocated_hours }} / {{ row.capacity_hours }}h.
-                                    {% endif %}
+                                    This teacher still has {{ row.remaining_capacity_hours }}h of international capacity available in the current reporting pass.
                                 </div>
                                 {% endif %}
                                 {% if row.homeroom_section_labels %}
@@ -2997,17 +2918,8 @@
                                 {% if row.allocation_labels %}
                                 <div class="report-inline-note">{{ row.allocation_labels | join(", ") }}</div>
                                 {% endif %}
-                                {% if row.recommended_assignment_labels %}
-                                <div class="report-recommendation-box">
-                                    <strong>Recommended Internal Absorption</strong>
-                                    <div class="report-recommendation-list">
-                                        {% for label in row.recommended_assignment_labels %}
-                                        <div class="report-recommendation-item">{{ label }}</div>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                                {% elif row.is_underloaded %}
-                                <div class="report-inline-note">No compatible open section-hours remain after the subject and major compatibility check.</div>
+                                {% if row.is_underloaded %}
+                                <div class="report-inline-note">No additional subject recommendation is forced here; use the spare capacity and uncovered-hour data together when reviewing staffing decisions.</div>
                                 {% endif %}
                             </div>
                         </details>
@@ -3017,7 +2929,7 @@
                     <div class="empty">No teacher records found in this branch/year scope.</div>
                     {% endif %}
                     <div class="report-footnote">
-                        Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Aligned to at least one report subject: {{ report_summary.teachers_with_subject_alignment }} | Utilized in planned-section allocations: {{ report_summary.teachers_utilized }} | Full load at international capacity: {{ report_summary.teachers_full_load }} | Underloaded: {{ report_summary.underloaded_teachers }} | Underloaded with recommendations: {{ report_summary.underloaded_teachers_with_recommendations }} | Priority subjects with gaps: {{ report_summary.priority_subjects_with_gaps }} | Priority uncovered sections: {{ report_summary.priority_uncovered_sections }} | Recommended internal absorption: {{ report_summary.recommended_internal_absorption_hours }}h | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
+                        Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Utilized in planned-section allocations: {{ report_summary.teachers_utilized }} | Full load at international capacity: {{ report_summary.teachers_full_load }} | Underloaded: {{ report_summary.underloaded_teachers }} | Lower-primary homeroom default coverage: {{ report_summary.homeroom_default_coverage_hours }}h | Priority subjects with gaps: {{ report_summary.priority_subjects_with_gaps }} | Priority uncovered sections: {{ report_summary.priority_uncovered_sections }} | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
                     </div>
                 </div>
                 {% else %}

@@ -300,6 +300,12 @@
             box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.2);
         }
 
+        .field-note {
+            font-size: 12px;
+            line-height: 1.45;
+            color: #4b5f7d;
+        }
+
         .btn-save {
             margin-top: 12px;
             border: none;
@@ -711,6 +717,7 @@
                                 <option value="{{ teacher.id }}" {% if (form_data.homeroom_teacher_id|string) == (teacher.id|string) %}selected{% endif %}>{{ teacher.label }}</option>
                                 {% endfor %}
                             </select>
+                            <small class="field-note">For Grade 1 and Grade 2, the homeroom teacher defaults to English, Mathematics, Mental Math, Performing Arts, Science, and Social Studies unless you later assign them differently in Edit.</small>
                         </div>
                         <div class="field field-wide">
                             <div class="auto-panel">
@@ -802,7 +809,7 @@
                                             <li class="aligned-item-table">
                                                 {{ subject.subject_code }} - {{ subject.subject_name }} ({{ subject.weekly_hours }}h)
                                                 {% if subject.teacher_name %}
-                                                | {{ subject.teacher_name }}
+                                                | {{ subject.teacher_name }}{% if subject.assignment_source == "homeroom_default" %} (Homeroom Default){% endif %}
                                                 {% else %}
                                                 | Unassigned
                                                 {% endif %}
@@ -854,6 +861,7 @@
 {% block page_scripts %}
 <script>
 const gradeSelect = document.getElementById("grade_level");
+        const homeroomTeacherSelect = document.getElementById("homeroom_teacher_id");
         const alignedSubjectsPreview = document.getElementById("alignedSubjectsPreview");
         const alignedSubjectsEmpty = document.getElementById("alignedSubjectsEmpty");
         const allocationSummary = document.getElementById("allocationSummary");
@@ -862,11 +870,43 @@ const gradeSelect = document.getElementById("grade_level");
         const noPlanningResult = document.getElementById("noPlanningResult");
         const kpiValues = Array.from(document.querySelectorAll(".kpi-value"));
         const subjectAlignmentMap = {{ subject_alignment_map | tojson }};
+        const lowerPrimaryHomeroomSubjectPrefixes = [
+            "english",
+            "mathematics",
+            "math",
+            "maths",
+            "mental math",
+            "performing arts",
+            "performing art",
+            "science",
+            "social studies",
+        ];
         const collapseSubjectAssignmentDetails = () => {
             document.querySelectorAll(".subject-assignment-details").forEach((detail) => {
                 detail.open = false;
                 detail.removeAttribute("open");
             });
+        };
+
+        const normalizeSubjectKey = (value) => (
+            String(value || "")
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, " ")
+                .trim()
+        );
+
+        const isHomeroomDefaultSubject = (grade, subject) => {
+            if (!(grade === "1" || grade === "2")) {
+                return false;
+            }
+            const candidates = [
+                normalizeSubjectKey(subject.subject_name),
+                normalizeSubjectKey(subject.subject_code),
+            ];
+            return candidates.some((candidate) => (
+                candidate
+                && lowerPrimaryHomeroomSubjectPrefixes.some((prefix) => candidate.startsWith(prefix))
+            ));
         };
 
         const renderAlignedSubjectsPreview = () => {
@@ -882,7 +922,9 @@ const gradeSelect = document.getElementById("grade_level");
             alignedSubjects.forEach((subject) => {
                 const row = document.createElement("li");
                 row.className = "aligned-item";
-                row.textContent = `${subject.subject_code} - ${subject.subject_name} (${subject.weekly_hours}h)`;
+                const homeroomDefaultActive = Boolean(homeroomTeacherSelect?.value)
+                    && isHomeroomDefaultSubject(selectedGrade, subject);
+                row.textContent = `${subject.subject_code} - ${subject.subject_name} (${subject.weekly_hours}h)${homeroomDefaultActive ? " - Homeroom default" : ""}`;
                 alignedSubjectsPreview.appendChild(row);
                 totalHours += Number(subject.weekly_hours || 0);
             });
@@ -898,6 +940,9 @@ const gradeSelect = document.getElementById("grade_level");
 
         if (gradeSelect) {
             gradeSelect.addEventListener("change", renderAlignedSubjectsPreview);
+            if (homeroomTeacherSelect) {
+                homeroomTeacherSelect.addEventListener("change", renderAlignedSubjectsPreview);
+            }
             renderAlignedSubjectsPreview();
         }
 

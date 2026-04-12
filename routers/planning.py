@@ -8,6 +8,11 @@ import auth
 import models
 from dependencies import get_db
 from auth import get_current_user
+from homeroom_defaults import (
+    LOWER_PRIMARY_HOMEROOM_SUBJECT_LABELS,
+    is_default_homeroom_subject,
+    is_lower_primary_homeroom_grade,
+)
 from teacher_capacity import get_teacher_international_capacity_hours
 from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
@@ -215,6 +220,7 @@ def _get_section_assignment_map(
     db: Session,
     planning_sections,
     teacher_names_by_id,
+    subject_alignment_map,
     subject_map_by_code,
 ):
     section_ids = [
@@ -238,7 +244,39 @@ def _get_section_assignment_map(
             "teacher_id": assignment.teacher_id,
             "teacher_name": teacher_names_by_id.get(assignment.teacher_id, "-"),
             "weekly_hours": int(subject.weekly_hours or 0) if subject else 0,
+            "assignment_source": "manual",
         }
+
+    for section in planning_sections:
+        grade_label = _normalize_grade_level(section.grade_level)
+        if (
+            not section.homeroom_teacher_id
+            or not is_lower_primary_homeroom_grade(grade_label)
+        ):
+            continue
+
+        homeroom_teacher_name = teacher_names_by_id.get(
+            section.homeroom_teacher_id,
+            "-",
+        )
+        section_assignment_details = assignment_map.setdefault(section.id, {})
+        for subject in subject_alignment_map.get(grade_label, []):
+            subject_code = str(subject.get("subject_code") or "").strip().upper()
+            if not subject_code or subject_code in section_assignment_details:
+                continue
+            if not is_default_homeroom_subject(
+                grade_label,
+                subject_name=subject.get("subject_name", ""),
+                subject_code=subject_code,
+            ):
+                continue
+
+            section_assignment_details[subject_code] = {
+                "teacher_id": section.homeroom_teacher_id,
+                "teacher_name": homeroom_teacher_name,
+                "weekly_hours": int(subject.get("weekly_hours", 0) or 0),
+                "assignment_source": "homeroom_default",
+            }
 
     return assignment_map
 
@@ -274,6 +312,7 @@ def _get_current_assignment_selection_map(
     return {
         subject_code: details.get("teacher_id")
         for subject_code, details in section_assignment_map.get(planning_section_id, {}).items()
+        if details.get("assignment_source") == "manual"
     }
 
 
@@ -281,36 +320,57 @@ def _calculate_teacher_section_hours(
     db: Session,
     branch_id: int,
     academic_year_id: int,
+    subject_alignment_map,
     subject_map_by_code,
     exclude_planning_section_id: int | None = None,
 ):
-    planning_section_ids = [
-        section_id
-        for (section_id,) in db.query(models.PlanningSection.id).filter(
-            models.PlanningSection.branch_id == branch_id,
-            models.PlanningSection.academic_year_id == academic_year_id,
-        ).all()
-    ]
-    if not planning_section_ids:
+    planning_sections = db.query(models.PlanningSection).filter(
+        models.PlanningSection.branch_id == branch_id,
+        models.PlanningSection.academic_year_id == academic_year_id,
+    ).all()
+    if exclude_planning_section_id is not None:
+        planning_sections = [
+            section
+            for section in planning_sections
+            if getattr(section, "id", None) != exclude_planning_section_id
+        ]
+    if not planning_sections:
         return {}
 
-    assignments_query = db.query(models.TeacherSectionAssignment).filter(
-        models.TeacherSectionAssignment.planning_section_id.in_(planning_section_ids)
+    _, teacher_names_by_id = _get_teacher_choices(
+        db=db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
     )
-    if exclude_planning_section_id is not None:
-        assignments_query = assignments_query.filter(
-            models.TeacherSectionAssignment.planning_section_id != exclude_planning_section_id
-        )
+    section_assignment_map = _get_section_assignment_map(
+        db=db,
+        planning_sections=planning_sections,
+        teacher_names_by_id=teacher_names_by_id,
+        subject_alignment_map=subject_alignment_map,
+        subject_map_by_code=subject_map_by_code,
+    )
 
     teacher_hours = {}
-    for assignment in assignments_query.all():
-        subject = subject_map_by_code.get(assignment.subject_code)
-        if not subject:
-            continue
-        teacher_hours[assignment.teacher_id] = (
-            teacher_hours.get(assignment.teacher_id, 0)
-            + int(subject.weekly_hours or 0)
+    for section in planning_sections:
+        aligned_subjects = subject_alignment_map.get(
+            _normalize_grade_level(section.grade_level),
+            [],
         )
+        for subject in aligned_subjects:
+            subject_code = str(subject.get("subject_code") or "").strip().upper()
+            if not subject_code:
+                continue
+            assignment_details = section_assignment_map.get(section.id, {}).get(
+                subject_code,
+                {},
+            )
+            teacher_id = assignment_details.get("teacher_id")
+            if teacher_id is None:
+                continue
+            teacher_hours[teacher_id] = (
+                teacher_hours.get(teacher_id, 0)
+                + int(subject.get("weekly_hours", 0) or 0)
+            )
 
     return teacher_hours
 
@@ -342,6 +402,10 @@ def _build_planning_rows(
                 {
                     **subject,
                     "teacher_name": subject_teacher_name,
+                    "assignment_source": assignment_details.get(
+                        "assignment_source",
+                        "",
+                    ),
                 }
             )
         subject_count = len(subject_assignments)
@@ -425,6 +489,7 @@ def _render_planning_page(
         db=db,
         planning_sections=planning_sections,
         teacher_names_by_id=teacher_names_by_id,
+        subject_alignment_map=subject_alignment_map,
         subject_map_by_code=subject_map_by_code,
     )
     planning_rows = _build_planning_rows(
@@ -466,6 +531,9 @@ def _render_planning_page(
             "status_options": STATUS_OPTIONS,
             "subject_alignment_map": subject_alignment_map,
             "teacher_choices": teacher_choices,
+            "lower_primary_homeroom_subject_labels": list(
+                LOWER_PRIMARY_HOMEROOM_SUBJECT_LABELS
+            ),
             "current_sections_count": current_sections_count,
             "new_sections_count": new_sections_count,
             "total_allocated_hours": total_allocated_hours,
@@ -524,6 +592,7 @@ def _render_edit_planning_page(
         db=db,
         planning_sections=[planning_section],
         teacher_names_by_id=teacher_names_by_id,
+        subject_alignment_map=subject_alignment_map,
         subject_map_by_code=subject_map_by_code,
     )
 
@@ -575,6 +644,9 @@ def _render_edit_planning_page(
             "allocated_hours": allocated_hours,
             "subject_teacher_options": subject_teacher_options,
             "section_assignment_rows": section_assignment_rows,
+            "lower_primary_homeroom_subject_labels": list(
+                LOWER_PRIMARY_HOMEROOM_SUBJECT_LABELS
+            ),
             "selected_assignment_teacher_ids": {
                 subject_code: str(teacher_id)
                 for subject_code, teacher_id in (selected_assignment_teacher_ids or {}).items()
@@ -1185,6 +1257,7 @@ def update_planning_section(
         db=db,
         branch_id=branch_id,
         academic_year_id=academic_year_id,
+        subject_alignment_map=subject_alignment_map,
         subject_map_by_code=subject_map_by_code,
         exclude_planning_section_id=planning_section.id,
     )
@@ -1192,25 +1265,38 @@ def update_planning_section(
     for subject in aligned_subjects:
         subject_code = subject.get("subject_code")
         teacher_id = parsed_assignment_teacher_ids_by_subject.get(subject_code)
-        if teacher_id is None:
+        default_homeroom_assignment = bool(
+            homeroom_teacher
+            and teacher_id is None
+            and is_default_homeroom_subject(
+                normalized_grade_level,
+                subject_name=subject.get("subject_name", ""),
+                subject_code=subject_code or "",
+            )
+        )
+        if teacher_id is None and not default_homeroom_assignment:
             continue
 
-        teacher = scoped_teacher_map.get(teacher_id)
-        if not teacher:
-            errors.append(
-                f"Selected teacher for {subject_code} is not available in the current branch/year scope."
-            )
-            continue
+        if default_homeroom_assignment:
+            teacher = homeroom_teacher
+            teacher_id = homeroom_teacher.id
+        else:
+            teacher = scoped_teacher_map.get(teacher_id)
+            if not teacher:
+                errors.append(
+                    f"Selected teacher for {subject_code} is not available in the current branch/year scope."
+                )
+                continue
 
-        eligible_teacher_ids = {
-            option.get("id")
-            for option in teacher_subject_option_map.get(subject_code, [])
-        }
-        if teacher_id not in eligible_teacher_ids:
-            errors.append(
-                f"{_build_teacher_display_name(teacher)} cannot be assigned to {subject_code} because that subject is not enabled in Teachers module."
-            )
-            continue
+            eligible_teacher_ids = {
+                option.get("id")
+                for option in teacher_subject_option_map.get(subject_code, [])
+            }
+            if teacher_id not in eligible_teacher_ids:
+                errors.append(
+                    f"{_build_teacher_display_name(teacher)} cannot be assigned to {subject_code} because that subject is not enabled in Teachers module."
+                )
+                continue
 
         projected_hours = (
             teacher_hours_by_id.get(teacher_id, 0)
