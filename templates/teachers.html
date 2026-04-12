@@ -475,6 +475,11 @@
             background: linear-gradient(180deg, #fffdf8, #fff4e8);
         }
 
+        .major-guidance[data-state="override"] {
+            border-color: #e5bf81;
+            background: linear-gradient(180deg, #fff9ef, #fff0d8);
+        }
+
         .major-guidance[data-state="no-match"] {
             border-color: #d7e0ee;
             background: linear-gradient(180deg, #ffffff, #f6f8fc);
@@ -531,6 +536,12 @@
             border-color: #f0c99a;
             background: #fff1df;
             color: #9a5800;
+        }
+
+        .major-guidance[data-state="override"] .major-guidance-badge {
+            border-color: #e4bc76;
+            background: #fff0d1;
+            color: #9a5600;
         }
 
         .major-guidance-grid {
@@ -597,16 +608,17 @@
         .subject-chip {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 10px;
+            flex-wrap: wrap;
             max-width: 100%;
-            padding: 6px 8px;
+            padding: 8px 10px;
             border: 1px solid #c8daf3;
-            border-radius: 999px;
+            border-radius: 16px;
             background: #edf4ff;
             color: #244a7c;
             font-size: 12px;
             font-weight: 700;
-            line-height: 1;
+            line-height: 1.2;
         }
 
         .subject-chip.is-match {
@@ -621,12 +633,59 @@
             color: #9a5800;
         }
 
+        .subject-chip.is-overridden {
+            border-color: #e3b75c;
+            background: #fff2db;
+            color: #8b5000;
+        }
+
+        .subject-chip-main {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
         .subject-chip-label {
             display: inline-block;
             max-width: 100%;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        .subject-chip-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .subject-chip-override {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(191, 140, 43, 0.28);
+            background: rgba(255, 255, 255, 0.72);
+            color: #7d4600;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .subject-chip-override input[type="checkbox"] {
+            margin: 0;
+            accent-color: #b26100;
+        }
+
+        .subject-chip-override-note {
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #9a5800;
         }
 
         .subject-chip-remove {
@@ -952,6 +1011,11 @@
         .subject-major-badge.is-review {
             background: #fff1df;
             color: #9a5800;
+        }
+
+        .subject-major-badge.is-override {
+            background: #fff1d4;
+            color: #955100;
         }
 
         .subject-empty {
@@ -1873,7 +1937,7 @@
                                          <div class="major-guidance-copy">
                                              <span id="majorGuidanceBadge" class="major-guidance-badge">Add qualifications</span>
                                              <h4>Subject Alignment Guide</h4>
-                                             <p id="majorGuidanceText">Select the teacher's qualifications above. Matching subjects will be highlighted automatically and non-matching choices will be flagged for review.</p>
+                                             <p id="majorGuidanceText">Select the teacher's qualifications above. Matching subjects will be highlighted automatically and non-matching choices will be flagged for review. If you need to keep a mismatch, enable the explicit Admin Override for that subject.</p>
                                          </div>
                                      </div>
                                      <div class="major-guidance-grid">
@@ -1888,13 +1952,19 @@
                                              <small>Chosen and aligned with major</small>
                                          </div>
                                          <div class="major-guidance-stat">
+                                             <span>Overrides On</span>
+                                             <strong id="majorGuidanceOverrideCount">0</strong>
+                                             <small>Approved exception subjects</small>
+                                         </div>
+                                         <div class="major-guidance-stat">
                                              <span>Review Needed</span>
                                              <strong id="majorGuidanceSelectedReviewCount">0</strong>
-                                             <small>Chosen outside saved qualifications</small>
+                                             <small>Need override or different qualification</small>
                                          </div>
                                      </div>
                                  </div>
                                  <div id="selectedSubjectChips" class="subject-selector-chips"></div>
+                                 <div class="field-note">When a selected subject does not match the saved qualifications, turn on <strong>Admin Override</strong> for that subject to save it as an approved exception.</div>
                                  <div class="subject-picker" id="subjectPicker"></div>
                                  <div id="subjectNoResult" class="subject-empty" style="display:none;">No subjects match your search.</div>
                             </div>
@@ -1981,8 +2051,9 @@
                             </label>
                         </div>
                         <div class="field field-wide is-hidden" id="extraHoursCountField">
-                            <label for="extra_hours_count">Extra Hours Count</label>
-                            <input id="extra_hours_count" type="number" name="extra_hours_count" min="1" value="{{ form_data.extra_hours_count }}">
+                            <label for="extra_hours_count">Extra Hours To Allow</label>
+                            <input id="extra_hours_count" type="number" name="extra_hours_count" min="1" step="1" inputmode="numeric" placeholder="Enter exact extra hours" value="{{ form_data.extra_hours_count }}">
+                            <div class="field-note">Enter the exact number of extra hours this teacher may take beyond the standard maximum.</div>
                         </div>
                         <div class="field field-wide">
                             <label class="toggle-row" for="teaches_national_section">
@@ -2206,6 +2277,7 @@ const searchInput = document.getElementById("teacherSearch");
         const majorGuidanceText = document.getElementById("majorGuidanceText");
         const majorGuidanceMatchingCount = document.getElementById("majorGuidanceMatchingCount");
         const majorGuidanceSelectedMatchCount = document.getElementById("majorGuidanceSelectedMatchCount");
+        const majorGuidanceOverrideCount = document.getElementById("majorGuidanceOverrideCount");
         const majorGuidanceSelectedReviewCount = document.getElementById("majorGuidanceSelectedReviewCount");
         const sectionAssignmentBoard = document.getElementById("sectionAssignmentBoard");
         const sectionAssignmentEmpty = document.getElementById("sectionAssignmentEmpty");
@@ -2250,6 +2322,11 @@ const searchInput = document.getElementById("teacherSearch");
                 .map((value) => String(value || "").trim().toUpperCase())
                 .filter((value) => Boolean(value))
         );
+        let selectedOverrideSubjectCodes = new Set(
+            {{ selected_override_subject_codes | tojson }}
+                .map((value) => String(value || "").trim().toUpperCase())
+                .filter((value) => Boolean(value))
+        );
         const openSubjectGradeKeys = new Set();
         const subjectAlignmentReverseGroups = Object.entries(subjectAlignmentKeywordGroups).reduce((map, [groupKey, aliases]) => {
             map[groupKey] = groupKey;
@@ -2271,6 +2348,29 @@ const searchInput = document.getElementById("teacherSearch");
 
         const getSelectedSubjectCodes = () => {
             return Array.from(selectedSubjectCodes);
+        };
+
+        const getSelectedOverrideSubjectCodes = () => {
+            return Array.from(selectedOverrideSubjectCodes);
+        };
+
+        const isOverrideEnabledForSubject = (subjectCode) => {
+            return selectedOverrideSubjectCodes.has(String(subjectCode || "").trim().toUpperCase());
+        };
+
+        const syncOverrideSubjectCodes = () => {
+            Array.from(selectedOverrideSubjectCodes).forEach((subjectCode) => {
+                const normalizedCode = String(subjectCode || "").trim().toUpperCase();
+                const subject = subjectChoicesByCode[normalizedCode];
+                if (!subject || !selectedSubjectCodes.has(normalizedCode)) {
+                    selectedOverrideSubjectCodes.delete(normalizedCode);
+                    return;
+                }
+                const alignment = getSubjectMajorAlignment(subject);
+                if (alignment.status !== "review") {
+                    selectedOverrideSubjectCodes.delete(normalizedCode);
+                }
+            });
         };
 
         const getSelectedSectionAssignments = () => {
@@ -2699,6 +2799,7 @@ const searchInput = document.getElementById("teacherSearch");
                 return;
             }
 
+            syncOverrideSubjectCodes();
             const selectedQualifications = getSelectedQualificationChoices();
             const qualificationLabels = getSelectedQualificationLabels();
             const selectedAlignmentKeys = getSelectedAlignmentKeys();
@@ -2711,6 +2812,12 @@ const searchInput = document.getElementById("teacherSearch");
             });
             const selectedReviewSubjects = selectedSubjects.filter((subject) => {
                 return getSubjectMajorAlignment(subject).status === "review";
+            });
+            const selectedOverriddenSubjects = selectedReviewSubjects.filter((subject) => {
+                return isOverrideEnabledForSubject(subject.subject_code);
+            });
+            const pendingReviewSubjects = selectedReviewSubjects.filter((subject) => {
+                return !isOverrideEnabledForSubject(subject.subject_code);
             });
 
             let state = "empty";
@@ -2727,10 +2834,14 @@ const searchInput = document.getElementById("teacherSearch");
                 state = "no-match";
                 badgeText = "No direct match";
                 message = `No direct subject matches were found for ${qualificationLabels.join(", ")} in the current branch and year. Review any selected subjects carefully.`;
-            } else if (selectedReviewSubjects.length > 0) {
+            } else if (pendingReviewSubjects.length > 0) {
                 state = "review";
-                badgeText = "Review selected subjects";
-                message = `${selectedReviewSubjects.length} selected subject${selectedReviewSubjects.length === 1 ? "" : "s"} do not match the saved qualifications. Double-check those choices before saving.`;
+                badgeText = "Override needed";
+                message = `${pendingReviewSubjects.length} selected subject${pendingReviewSubjects.length === 1 ? "" : "s"} do not match the saved qualifications yet. Enable Admin Override for those subjects or adjust the saved qualifications before saving.`;
+            } else if (selectedOverriddenSubjects.length > 0) {
+                state = "override";
+                badgeText = "Admin overrides enabled";
+                message = `${selectedOverriddenSubjects.length} selected subject${selectedOverriddenSubjects.length === 1 ? "" : "s"} are saved as approved exceptions outside ${qualificationLabels.join(", ")}.`;
             } else {
                 state = "aligned";
                 badgeText = "Qualification aligned";
@@ -2751,13 +2862,17 @@ const searchInput = document.getElementById("teacherSearch");
             if (majorGuidanceSelectedMatchCount) {
                 majorGuidanceSelectedMatchCount.textContent = String(selectedMatchingSubjects.length);
             }
+            if (majorGuidanceOverrideCount) {
+                majorGuidanceOverrideCount.textContent = String(selectedOverriddenSubjects.length);
+            }
             if (majorGuidanceSelectedReviewCount) {
-                majorGuidanceSelectedReviewCount.textContent = String(selectedReviewSubjects.length);
+                majorGuidanceSelectedReviewCount.textContent = String(pendingReviewSubjects.length);
             }
         };
 
         const renderSelectedSubjectChips = () => {
             renderQualificationSummary();
+            syncOverrideSubjectCodes();
 
             if (subjectSelectionCount) {
                 subjectSelectionCount.textContent = `${getSelectedSubjectCount()} selected`;
@@ -2786,15 +2901,54 @@ const searchInput = document.getElementById("teacherSearch");
             selectedSubjects.forEach((subject) => {
                 const code = String(subject.subject_code || "").trim().toUpperCase();
                 const alignment = getSubjectMajorAlignment(subject);
-                const chip = document.createElement("span");
+                const chip = document.createElement("div");
                 chip.className = "subject-chip";
                 chip.classList.toggle("is-match", alignment.status === "match");
                 chip.classList.toggle("is-review", alignment.status === "review");
+                chip.classList.toggle("is-overridden", isOverrideEnabledForSubject(code));
+
+                const main = document.createElement("span");
+                main.className = "subject-chip-main";
 
                 const label = document.createElement("span");
                 label.className = "subject-chip-label";
                 label.textContent = `${code} - ${subject.subject_name || "Unnamed Subject"}`;
-                chip.appendChild(label);
+                main.appendChild(label);
+                chip.appendChild(main);
+
+                const actions = document.createElement("span");
+                actions.className = "subject-chip-actions";
+
+                if (alignment.status === "review") {
+                    const overrideLabel = document.createElement("label");
+                    overrideLabel.className = "subject-chip-override";
+
+                    const overrideInput = document.createElement("input");
+                    overrideInput.type = "checkbox";
+                    overrideInput.name = "qualification_override_subject_codes";
+                    overrideInput.value = code;
+                    overrideInput.checked = isOverrideEnabledForSubject(code);
+                    overrideInput.addEventListener("change", () => {
+                        if (overrideInput.checked) {
+                            selectedOverrideSubjectCodes.add(code);
+                        } else {
+                            selectedOverrideSubjectCodes.delete(code);
+                        }
+                        renderSelectedSubjectChips();
+                        renderSubjectPicker();
+                    });
+                    overrideLabel.appendChild(overrideInput);
+
+                    const overrideText = document.createElement("span");
+                    overrideText.textContent = "Admin Override";
+                    overrideLabel.appendChild(overrideText);
+                    actions.appendChild(overrideLabel);
+
+                    const overrideNote = document.createElement("span");
+                    overrideNote.className = "subject-chip-override-note";
+                    overrideNote.textContent = overrideInput.checked ? "Exception saved" : "Needs override";
+                    actions.appendChild(overrideNote);
+                }
 
                 const removeButton = document.createElement("button");
                 removeButton.type = "button";
@@ -2803,11 +2957,13 @@ const searchInput = document.getElementById("teacherSearch");
                 removeButton.textContent = "x";
                 removeButton.addEventListener("click", () => {
                     selectedSubjectCodes.delete(code);
+                    selectedOverrideSubjectCodes.delete(code);
                     renderSelectedSubjectChips();
                     renderSubjectPicker();
                     renderSectionAssignmentBoard();
                 });
-                chip.appendChild(removeButton);
+                actions.appendChild(removeButton);
+                chip.appendChild(actions);
 
                 selectedSubjectChips.appendChild(chip);
             });
@@ -3041,6 +3197,7 @@ const searchInput = document.getElementById("teacherSearch");
                                 selectedSubjectCodes.add(code);
                             } else {
                                 selectedSubjectCodes.delete(code);
+                                selectedOverrideSubjectCodes.delete(code);
                             }
                             renderSelectedSubjectChips();
                             renderSubjectPicker();
@@ -3067,6 +3224,13 @@ const searchInput = document.getElementById("teacherSearch");
                             badge.className = `subject-major-badge ${alignment.status === "match" ? "is-match" : "is-review"}`;
                             badge.textContent = alignment.label;
                             metaRow.appendChild(badge);
+                        }
+
+                        if (isOverrideEnabledForSubject(code)) {
+                            const overrideBadge = document.createElement("span");
+                            overrideBadge.className = "subject-major-badge is-override";
+                            overrideBadge.textContent = "Admin override";
+                            metaRow.appendChild(overrideBadge);
                         }
 
                         copy.appendChild(metaRow);
@@ -3232,10 +3396,11 @@ const searchInput = document.getElementById("teacherSearch");
                 return;
             }
             const enabled = extraAllowed.checked;
+            extraCountField.classList.toggle("is-hidden", !enabled);
             extraCountField.style.display = enabled ? "" : "none";
             extraCountInput.disabled = !enabled;
-            if (!enabled) {
-                extraCountInput.value = "1";
+            if (enabled && String(extraCountInput.value || "").trim() === "0") {
+                extraCountInput.value = "";
             }
         };
 
@@ -3244,6 +3409,7 @@ const searchInput = document.getElementById("teacherSearch");
                 return;
             }
             const enabled = nationalSectionToggle.checked;
+            nationalSectionHoursField.classList.toggle("is-hidden", !enabled);
             nationalSectionHoursField.style.display = enabled ? "" : "none";
             nationalSectionHoursInput.disabled = !enabled;
             if (!enabled) {
@@ -3351,6 +3517,7 @@ const searchInput = document.getElementById("teacherSearch");
         if (clearAllSubjectsBtn) {
             clearAllSubjectsBtn.addEventListener("click", () => {
                 selectedSubjectCodes = new Set();
+                selectedOverrideSubjectCodes = new Set();
                 renderSelectedSubjectChips();
                 renderSubjectPicker();
                 renderSectionAssignmentBoard();
@@ -3431,6 +3598,17 @@ const searchInput = document.getElementById("teacherSearch");
                     if (selectedCount === 0) {
                         event.preventDefault();
                         window.alert("Select at least one subject for this teacher.");
+                        return;
+                    }
+
+                    const pendingOverrideSubjects = getSortedSelectedSubjects().filter((subject) => {
+                        const code = String(subject.subject_code || "").trim().toUpperCase();
+                        return getSubjectMajorAlignment(subject).status === "review"
+                            && !isOverrideEnabledForSubject(code);
+                    });
+                    if (pendingOverrideSubjects.length > 0) {
+                        event.preventDefault();
+                        window.alert(`Enable Admin Override or adjust qualifications for these subjects before saving: ${pendingOverrideSubjects.map((subject) => String(subject.subject_code || "").trim().toUpperCase()).join(", ")}.`);
                         return;
                     }
 

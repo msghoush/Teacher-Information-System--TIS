@@ -80,6 +80,48 @@ def _normalize_subject_codes(values):
     return cleaned_codes
 
 
+def _collect_subject_qualification_alignment_issues(
+    normalized_subject_codes,
+    subject_map,
+    qualification_keys,
+):
+    issues = {
+        "errors": [],
+        "incompatible_codes": set(),
+        "incompatible_details": [],
+    }
+
+    if not qualification_keys:
+        issues["errors"].append(
+            "Select at least one saved qualification for this teacher."
+        )
+        return issues
+
+    if not has_specialization_qualification(qualification_keys):
+        issues["errors"].append(
+            "Select at least one major or teaching specialization so subject compatibility can be validated."
+        )
+        return issues
+
+    for subject_code in normalized_subject_codes:
+        subject = subject_map.get(subject_code)
+        if not subject:
+            continue
+
+        alignment = get_subject_qualification_alignment(
+            subject_name=subject.subject_name or "",
+            fallback_code=subject.subject_code or subject_code,
+            qualification_keys=qualification_keys,
+        )
+        if alignment["recognized_subject"] and alignment["status"] != "match":
+            issues["incompatible_codes"].add(subject_code)
+            issues["incompatible_details"].append(
+                f"{subject_code} ({subject.subject_name or 'Unnamed Subject'})"
+            )
+
+    return issues
+
+
 def _parse_int(value):
     if value is None:
         return None
@@ -103,6 +145,27 @@ def _is_extra_hours_allowed(value) -> bool:
 
 def _teaches_national_section(value) -> bool:
     return _is_extra_hours_allowed(value)
+
+
+def _get_teacher_subject_override_map(db: Session, teacher_ids):
+    teacher_ids = [teacher_id for teacher_id in teacher_ids if teacher_id]
+    override_map = defaultdict(list)
+    if not teacher_ids:
+        return override_map
+
+    rows = (
+        db.query(models.TeacherSubjectAllocation)
+        .filter(models.TeacherSubjectAllocation.teacher_id.in_(teacher_ids))
+        .order_by(
+            models.TeacherSubjectAllocation.teacher_id.asc(),
+            models.TeacherSubjectAllocation.subject_code.asc(),
+        )
+        .all()
+    )
+    for row in rows:
+        if row.compatibility_override and row.subject_code:
+            override_map[row.teacher_id].append(row.subject_code)
+    return override_map
 
 
 def _get_subject_choices(db: Session, branch_id: int, academic_year_id: int):
@@ -352,44 +415,39 @@ def _validate_subject_qualification_alignment(
     normalized_subject_codes,
     subject_map,
     qualification_keys,
+    override_subject_codes=None,
 ):
-    errors = []
-    if not qualification_keys:
-        errors.append(
-            "Select at least one saved qualification for this teacher."
-        )
-        return errors
+    override_subject_code_set = set(
+        _normalize_subject_codes(override_subject_codes or [])
+    )
+    issues = _collect_subject_qualification_alignment_issues(
+        normalized_subject_codes=normalized_subject_codes,
+        subject_map=subject_map,
+        qualification_keys=qualification_keys,
+    )
+    errors = list(issues["errors"])
+    incompatible_codes = set(issues["incompatible_codes"])
+    incompatible_details_by_code = {
+        detail.split(" ", 1)[0]: detail
+        for detail in issues["incompatible_details"]
+    }
+    unresolved_details = [
+        incompatible_details_by_code[subject_code]
+        for subject_code in sorted(incompatible_codes)
+        if subject_code not in override_subject_code_set
+    ]
 
-    if not has_specialization_qualification(qualification_keys):
-        errors.append(
-            "Select at least one major or teaching specialization so subject compatibility can be validated."
-        )
-        return errors
-
-    incompatible_subject_details = []
-    for subject_code in normalized_subject_codes:
-        subject = subject_map.get(subject_code)
-        if not subject:
-            continue
-
-        alignment = get_subject_qualification_alignment(
-            subject_name=subject.subject_name or "",
-            fallback_code=subject.subject_code or subject_code,
-            qualification_keys=qualification_keys,
-        )
-        if alignment["recognized_subject"] and alignment["status"] != "match":
-            incompatible_subject_details.append(
-                f"{subject_code} ({subject.subject_name or 'Unnamed Subject'})"
-            )
-
-    if incompatible_subject_details:
+    if unresolved_details:
         errors.append(
             "The selected qualifications do not match these subjects: "
-            + ", ".join(incompatible_subject_details)
-            + ". Add matching majors/specializations or remove those subjects."
+            + ", ".join(unresolved_details)
+            + ". Add matching majors/specializations, enable Admin Override for those subjects, or remove them."
         )
 
-    return errors
+    effective_override_subject_codes = sorted(
+        incompatible_codes & override_subject_code_set
+    )
+    return errors, effective_override_subject_codes
 
 
 def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_year_id: int):
@@ -435,6 +493,7 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
     allocation_map = {
         teacher.id: {
             "subject_codes": [],
+            "override_subject_codes": [],
             "subject_labels": [],
             "subject_preview_codes": [],
             "subject_count": 0,
@@ -482,8 +541,11 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
         if subject and subject.grade is not None:
             subject_grade = str(subject.grade)
         teacher_data["subject_codes"].append(allocation.subject_code)
+        if allocation.compatibility_override:
+            teacher_data["override_subject_codes"].append(allocation.subject_code)
         teacher_data["subject_labels"].append(
             f"{allocation.subject_code} - {subject_name} (Grade {subject_grade}, {subject_hours}h)"
+            + (" [Admin Override]" if allocation.compatibility_override else "")
         )
 
     planning_section_ids = sorted({
@@ -589,6 +651,7 @@ def _render_teachers_page(
     selected_subject_codes=None,
     selected_section_assignment_values=None,
     selected_qualification_keys=None,
+    selected_override_subject_codes=None,
 ):
     branch_id, academic_year_id = _get_scope_ids(current_user)
     can_modify = auth.can_modify_data(current_user)
@@ -625,7 +688,7 @@ def _render_teachers_page(
         "qualification_keys": [],
         "max_hours": "24",
         "extra_hours_allowed": False,
-        "extra_hours_count": "1",
+        "extra_hours_count": "",
         "teaches_national_section": False,
         "national_section_hours": "1",
     }
@@ -658,6 +721,9 @@ def _render_teachers_page(
             "selected_qualification_keys": selected_qualification_keys
             if selected_qualification_keys is not None
             else normalized_form_data.get("qualification_keys", []),
+            "selected_override_subject_codes": selected_override_subject_codes
+            if selected_override_subject_codes is not None
+            else normalized_form_data.get("override_subject_codes", []),
             "copy_year_choices": copy_year_choices,
             "user": current_user,
             **build_shell_context(
@@ -679,6 +745,7 @@ def _render_edit_teacher_page(
     assigned_subject_codes=None,
     selected_section_assignment_values=None,
     selected_qualification_keys=None,
+    selected_override_subject_codes=None,
     status_code: int = 200,
 ):
     branch_id, academic_year_id = _get_scope_ids(current_user)
@@ -709,6 +776,11 @@ def _render_edit_teacher_page(
         selected_qualification_keys = (
             teacher_qualification_map.get(getattr(teacher, "id", None), {}).get("keys", [])
         )
+    if selected_override_subject_codes is None:
+        selected_override_subject_codes = _get_teacher_subject_override_map(
+            db,
+            [getattr(teacher, "id", None)],
+        ).get(getattr(teacher, "id", None), [])
 
     return templates.TemplateResponse(
         request,
@@ -725,6 +797,7 @@ def _render_edit_teacher_page(
             "assigned_subject_codes": assigned_subject_codes,
             "selected_section_assignment_values": selected_section_assignment_values,
             "selected_qualification_keys": selected_qualification_keys,
+            "selected_override_subject_codes": selected_override_subject_codes,
             "error": error,
             **build_shell_context(
                 request,
@@ -880,6 +953,7 @@ def copy_teachers_from_year(
     source_subject_codes_by_teacher = {
         teacher_id: set() for teacher_id in source_teacher_ids
     }
+    source_subject_override_map_by_teacher = defaultdict(dict)
     if source_teacher_ids:
         source_allocations = (
             db.query(models.TeacherSubjectAllocation)
@@ -894,6 +968,9 @@ def copy_teachers_from_year(
             source_subject_codes_by_teacher.setdefault(allocation.teacher_id, set()).add(
                 allocation.subject_code
             )
+            source_subject_override_map_by_teacher[allocation.teacher_id][
+                allocation.subject_code
+            ] = bool(allocation.compatibility_override)
 
     source_qualification_keys_by_teacher = defaultdict(list)
     if source_teacher_ids:
@@ -1095,6 +1172,12 @@ def copy_teachers_from_year(
                 models.TeacherSubjectAllocation(
                     teacher_id=target_teacher.id,
                     subject_code=subject_code,
+                    compatibility_override=bool(
+                        source_subject_override_map_by_teacher.get(source_teacher.id, {}).get(
+                            subject_code,
+                            False,
+                        )
+                    ),
                 )
             )
             existing_target_allocation_keys.add(allocation_key)
@@ -1129,6 +1212,12 @@ def copy_teachers_from_year(
                     models.TeacherSubjectAllocation(
                         teacher_id=target_teacher.id,
                         subject_code=subject_code,
+                        compatibility_override=bool(
+                            source_subject_override_map_by_teacher.get(source_teacher.id, {}).get(
+                                subject_code,
+                                False,
+                            )
+                        ),
                     )
                 )
                 existing_target_allocation_keys.add(allocation_key)
@@ -1194,6 +1283,7 @@ def create_teacher(
     middle_name: str = Form(""),
     last_name: str = Form(...),
     qualification_keys: list[str] = Form([]),
+    qualification_override_subject_codes: list[str] = Form([]),
     subject_codes: list[str] = Form([]),
     section_assignment_values: list[str] = Form([]),
     max_hours: str = Form("24"),
@@ -1219,6 +1309,7 @@ def create_teacher(
     first_name = _normalize_name(first_name)
     middle_name = _normalize_name(middle_name)
     last_name = _normalize_name(last_name)
+    raw_extra_hours_count = str(extra_hours_count or "").strip()
     raw_qualification_keys = [
         str(value or "").strip()
         for value in qualification_keys
@@ -1229,6 +1320,9 @@ def create_teacher(
         key for key in raw_qualification_keys if key not in QUALIFICATION_LOOKUP
     })
     normalized_subject_codes = _normalize_subject_codes(subject_codes)
+    normalized_override_subject_codes = _normalize_subject_codes(
+        qualification_override_subject_codes
+    )
     (
         section_assignment_map,
         normalized_section_assignment_values,
@@ -1271,8 +1365,19 @@ def create_teacher(
 
     if invalid_section_assignment_values:
         errors.append("One or more section assignments were invalid. Please reselect the sections.")
+    invalid_override_subject_codes = sorted(
+        set(normalized_override_subject_codes) - set(normalized_subject_codes)
+    )
+    if invalid_override_subject_codes:
+        errors.append(
+            "Admin override can only be used for currently selected subjects: "
+            + ", ".join(invalid_override_subject_codes)
+        )
 
     subject_map = {}
+    effective_override_subject_codes = sorted(
+        set(normalized_override_subject_codes) & set(normalized_subject_codes)
+    )
     if not normalized_subject_codes:
         errors.append("Select at least one subject for this teacher.")
     else:
@@ -1295,13 +1400,16 @@ def create_teacher(
                 "Selected subject codes do not exist in the current branch/academic year: "
                 + ", ".join(missing_subject_codes)
             )
-        errors.extend(
-            _validate_subject_qualification_alignment(
-                normalized_subject_codes=normalized_subject_codes,
-                subject_map=subject_map,
-                qualification_keys=normalized_qualification_keys,
-            )
+        (
+            subject_alignment_errors,
+            effective_override_subject_codes,
+        ) = _validate_subject_qualification_alignment(
+            normalized_subject_codes=normalized_subject_codes,
+            subject_map=subject_map,
+            qualification_keys=normalized_qualification_keys,
+            override_subject_codes=normalized_override_subject_codes,
         )
+        errors.extend(subject_alignment_errors)
 
     if parsed_max_hours is None or parsed_max_hours <= 0:
         errors.append("Max hours must be a positive whole number.")
@@ -1393,13 +1501,10 @@ def create_teacher(
                 "middle_name": middle_name,
                 "last_name": last_name,
                 "qualification_keys": normalized_qualification_keys,
+                "override_subject_codes": effective_override_subject_codes,
                 "max_hours": str(parsed_max_hours or 24),
                 "extra_hours_allowed": allowed_extra,
-                "extra_hours_count": str(
-                    parsed_extra_hours_count
-                    if parsed_extra_hours_count is not None
-                    else 1
-                ),
+                "extra_hours_count": raw_extra_hours_count,
                 "teaches_national_section": is_national_section_enabled,
                 "national_section_hours": str(
                     parsed_national_section_hours
@@ -1410,6 +1515,7 @@ def create_teacher(
             selected_subject_codes=normalized_subject_codes,
             selected_section_assignment_values=normalized_section_assignment_values,
             selected_qualification_keys=normalized_qualification_keys,
+            selected_override_subject_codes=effective_override_subject_codes,
         )
 
     teacher = models.Teacher(
@@ -1448,6 +1554,7 @@ def create_teacher(
                 models.TeacherSubjectAllocation(
                     teacher_id=teacher.id,
                     subject_code=subject_code,
+                    compatibility_override=subject_code in effective_override_subject_codes,
                 )
             )
         for subject_code, planning_section_ids in section_assignment_map.items():
@@ -1473,13 +1580,10 @@ def create_teacher(
                 "middle_name": middle_name,
                 "last_name": last_name,
                 "qualification_keys": normalized_qualification_keys,
+                "override_subject_codes": effective_override_subject_codes,
                 "max_hours": str(parsed_max_hours or 24),
                 "extra_hours_allowed": allowed_extra,
-                "extra_hours_count": str(
-                    parsed_extra_hours_count
-                    if parsed_extra_hours_count is not None
-                    else 1
-                ),
+                "extra_hours_count": raw_extra_hours_count,
                 "teaches_national_section": is_national_section_enabled,
                 "national_section_hours": str(
                     parsed_national_section_hours
@@ -1490,6 +1594,7 @@ def create_teacher(
             selected_subject_codes=normalized_subject_codes,
             selected_section_assignment_values=normalized_section_assignment_values,
             selected_qualification_keys=normalized_qualification_keys,
+            selected_override_subject_codes=effective_override_subject_codes,
         )
 
     return _render_teachers_page(
@@ -1539,6 +1644,7 @@ def update_teacher(
     middle_name: str = Form(""),
     last_name: str = Form(...),
     qualification_keys: list[str] = Form([]),
+    qualification_override_subject_codes: list[str] = Form([]),
     subject_codes: list[str] = Form([]),
     section_assignment_values: list[str] = Form([]),
     max_hours: str = Form("24"),
@@ -1568,6 +1674,7 @@ def update_teacher(
     first_name = _normalize_name(first_name)
     middle_name = _normalize_name(middle_name)
     last_name = _normalize_name(last_name)
+    raw_extra_hours_count = str(extra_hours_count or "").strip()
     raw_qualification_keys = [
         str(value or "").strip()
         for value in qualification_keys
@@ -1578,6 +1685,9 @@ def update_teacher(
         key for key in raw_qualification_keys if key not in QUALIFICATION_LOOKUP
     })
     normalized_subject_codes = _normalize_subject_codes(subject_codes)
+    normalized_override_subject_codes = _normalize_subject_codes(
+        qualification_override_subject_codes
+    )
     (
         section_assignment_map,
         normalized_section_assignment_values,
@@ -1619,8 +1729,19 @@ def update_teacher(
 
     if invalid_section_assignment_values:
         errors.append("One or more section assignments were invalid. Please reselect the sections.")
+    invalid_override_subject_codes = sorted(
+        set(normalized_override_subject_codes) - set(normalized_subject_codes)
+    )
+    if invalid_override_subject_codes:
+        errors.append(
+            "Admin override can only be used for currently selected subjects: "
+            + ", ".join(invalid_override_subject_codes)
+        )
 
     subject_map = {}
+    effective_override_subject_codes = sorted(
+        set(normalized_override_subject_codes) & set(normalized_subject_codes)
+    )
     if not normalized_subject_codes:
         errors.append("Select at least one subject for this teacher.")
     else:
@@ -1643,13 +1764,16 @@ def update_teacher(
                 "Selected subject codes do not exist in the current branch/academic year: "
                 + ", ".join(missing_subject_codes)
             )
-        errors.extend(
-            _validate_subject_qualification_alignment(
-                normalized_subject_codes=normalized_subject_codes,
-                subject_map=subject_map,
-                qualification_keys=normalized_qualification_keys,
-            )
+        (
+            subject_alignment_errors,
+            effective_override_subject_codes,
+        ) = _validate_subject_qualification_alignment(
+            normalized_subject_codes=normalized_subject_codes,
+            subject_map=subject_map,
+            qualification_keys=normalized_qualification_keys,
+            override_subject_codes=normalized_override_subject_codes,
         )
+        errors.extend(subject_alignment_errors)
 
     if parsed_max_hours is None or parsed_max_hours <= 0:
         errors.append("Max hours must be a positive whole number.")
@@ -1766,6 +1890,7 @@ def update_teacher(
             assigned_subject_codes=list(normalized_subject_codes),
             selected_section_assignment_values=normalized_section_assignment_values,
             selected_qualification_keys=normalized_qualification_keys,
+            selected_override_subject_codes=effective_override_subject_codes,
             status_code=400,
         )
 
@@ -1808,6 +1933,7 @@ def update_teacher(
                 models.TeacherSubjectAllocation(
                     teacher_id=teacher.id,
                     subject_code=subject_code,
+                    compatibility_override=subject_code in effective_override_subject_codes,
                 )
             )
         for subject_code, planning_section_ids in section_assignment_map.items():
@@ -1831,6 +1957,7 @@ def update_teacher(
             assigned_subject_codes=list(normalized_subject_codes),
             selected_section_assignment_values=normalized_section_assignment_values,
             selected_qualification_keys=normalized_qualification_keys,
+            selected_override_subject_codes=effective_override_subject_codes,
             status_code=400,
         )
 

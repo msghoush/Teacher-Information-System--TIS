@@ -83,6 +83,13 @@ CROSS_SUBJECT_HIRING_ANCHOR_PRIORITY = [
     "social studies english",
     "social studies ksa",
 ]
+PRIORITY_STAFFING_SUBJECT_PREFIXES = {
+    "english": ("english",),
+    "arabic": ("arabic", "arbic"),
+    "math": ("mathematics", "math", "maths"),
+    "science": ("science", "general science", "biology", "chemistry", "physics"),
+    "islamic": ("islamic studies", "islamic", "quran", "holy quran"),
+}
 HOMEROOM_SUBJECT_ALIASES = {
     "english",
     "math",
@@ -400,6 +407,37 @@ def _build_alignment_token_set(value: str):
     }
 
 
+def _subject_starts_with_any(normalized_value: str, prefixes) -> bool:
+    normalized_text = _normalize_subject_family_key(normalized_value)
+    if not normalized_text:
+        return False
+
+    for prefix in prefixes:
+        normalized_prefix = _normalize_subject_family_key(prefix)
+        if not normalized_prefix:
+            continue
+        if normalized_text == normalized_prefix or normalized_text.startswith(
+            normalized_prefix + " "
+        ):
+            return True
+    return False
+
+
+def _get_priority_staffing_subject_family(subject_key: str = "", subject_name: str = "") -> str:
+    candidates = [
+        _normalize_subject_family_key(subject_name),
+        _normalize_subject_family_key(subject_key),
+    ]
+    for family, prefixes in PRIORITY_STAFFING_SUBJECT_PREFIXES.items():
+        if any(_subject_starts_with_any(candidate, prefixes) for candidate in candidates):
+            return family
+    return ""
+
+
+def _is_priority_staffing_subject(subject_key: str = "", subject_name: str = "") -> bool:
+    return bool(_get_priority_staffing_subject_family(subject_key, subject_name))
+
+
 def _subject_matches_degree_major(
     degree_major: str,
     subject_name: str,
@@ -436,12 +474,19 @@ def _subject_matches_teacher_major(teacher, subject_name: str, subject_key: str 
 
 
 def _build_profile_subject_compatibility(profile, subject_key: str, subject_name: str):
+    override_subject_keys = set(profile.get("override_subject_keys", []))
     eligible_subject_keys = (
         set(profile.get("subject_keys", []))
         | set(profile.get("secondary_subject_keys", []))
         | set(profile.get("support_subject_keys", []))
         | set(profile.get("homeroom_subject_keys", []))
     )
+    if subject_key in override_subject_keys:
+        return {
+            "priority": 2,
+            "basis": "Admin override",
+        }
+
     if subject_key in eligible_subject_keys:
         return {
             "priority": 0,
@@ -1011,6 +1056,11 @@ def _build_reporting_context(
         for teacher in teachers
         if getattr(teacher, "id", None)
     }
+    teacher_subject_override_map = {
+        teacher.id: set()
+        for teacher in teachers
+        if getattr(teacher, "id", None)
+    }
     teacher_subject_hours_map = {
         teacher.id: {}
         for teacher in teachers
@@ -1041,6 +1091,10 @@ def _build_reporting_context(
         if not subject_key or subject_key not in subject_demand_map:
             continue
         subject_key_set.add(subject_key)
+        if allocation.compatibility_override:
+            teacher_subject_override_map.setdefault(allocation.teacher_id, set()).add(
+                subject_key
+            )
         subject_hours = int(subject.weekly_hours or 0)
         subject_hours_map = teacher_subject_hours_map.get(allocation.teacher_id, {})
         subject_hours_map[subject_key] = (
@@ -1082,6 +1136,7 @@ def _build_reporting_context(
             teacher_subject_map.get(teacher_id, set()),
             key=lambda key: subject_demand_map[key]["subject_name"],
         )
+        override_subject_keys = set(teacher_subject_override_map.get(teacher_id, set()))
         subject_hours_map = teacher_subject_hours_map.get(teacher_id, {})
         ranked_subject_keys = []
         major_aligned_subject_keys = []
@@ -1156,6 +1211,7 @@ def _build_reporting_context(
                 "secondary_subject_keys": secondary_subject_keys,
                 "support_subject_keys": support_subject_keys,
                 "eligible_subject_keys": primary_subject_keys + support_subject_keys,
+                "override_subject_keys": sorted(override_subject_keys),
                 "subject_count": len(ranked_subject_keys),
                 "primary_subject_basis_hours": (
                     subject_hours_map.get(primary_subject_key, 0)
@@ -1460,7 +1516,19 @@ def _build_reporting_context(
             subject_demand_map[item_key]["subject_name"]
             for item_key in component_with_remaining
         )
-        if component_remaining_hours < REPORT_MINIMUM_HIRING_HOURS:
+        component_priority_subject_keys = [
+            item_key
+            for item_key in component_with_remaining
+            if _is_priority_staffing_subject(
+                item_key,
+                subject_demand_map[item_key]["subject_name"],
+            )
+        ]
+        component_has_priority_subject = bool(component_priority_subject_keys)
+        if (
+            component_remaining_hours < REPORT_MINIMUM_HIRING_HOURS
+            and not component_has_priority_subject
+        ):
             for item_key in component_with_remaining:
                 subject_additional_teachers_map[item_key] = 0
                 subject_internal_absorption_map[item_key] = True
@@ -1489,8 +1557,23 @@ def _build_reporting_context(
                 subject_additional_teachers_map[item_key] = component_teachers_needed
                 if len(component_with_remaining) > 1:
                     subject_additional_teachers_note_map[item_key] = (
-                        "Combined hiring pool: "
+                        (
+                            "Priority staffing pool: "
+                            if component_has_priority_subject
+                            else "Combined hiring pool: "
+                        )
                         + ", ".join(component_subject_names)
+                        + (
+                            f". Priority subjects bypass the {REPORT_MINIMUM_HIRING_HOURS}h minimum hiring threshold."
+                            if component_has_priority_subject
+                            and component_remaining_hours < REPORT_MINIMUM_HIRING_HOURS
+                            else ""
+                        )
+                    )
+                elif component_has_priority_subject and component_remaining_hours < REPORT_MINIMUM_HIRING_HOURS:
+                    subject_additional_teachers_note_map[item_key] = (
+                        f"{subject_demand_map[item_key]['subject_name']} is a priority subject "
+                        f"and bypasses the {REPORT_MINIMUM_HIRING_HOURS}h minimum hiring threshold."
                     )
             else:
                 subject_additional_teachers_map[item_key] = 0
@@ -1504,7 +1587,14 @@ def _build_reporting_context(
         if remaining_hours <= 0 or subject_key in pooled_subject_keys:
             continue
 
-        if remaining_hours < REPORT_MINIMUM_HIRING_HOURS:
+        priority_staffing_subject = _is_priority_staffing_subject(
+            subject_key,
+            subject_demand_map[subject_key]["subject_name"],
+        )
+        if (
+            remaining_hours < REPORT_MINIMUM_HIRING_HOURS
+            and not priority_staffing_subject
+        ):
             subject_additional_teachers_map[subject_key] = 0
             subject_internal_absorption_map[subject_key] = True
             subject_additional_teachers_note_map[subject_key] = (
@@ -1519,6 +1609,11 @@ def _build_reporting_context(
         )
         subject_additional_teachers_map[subject_key] = subject_teachers_needed
         subject_internal_absorption_map[subject_key] = False
+        if priority_staffing_subject and remaining_hours < REPORT_MINIMUM_HIRING_HOURS:
+            subject_additional_teachers_note_map[subject_key] = (
+                f"{subject_demand_map[subject_key]['subject_name']} is a priority subject "
+                f"and bypasses the {REPORT_MINIMUM_HIRING_HOURS}h minimum hiring threshold."
+            )
         total_additional_teachers_needed += subject_teachers_needed
 
     report_subject_rows = []
@@ -1552,6 +1647,10 @@ def _build_reporting_context(
                 "teachers_with_subject": teachers_per_subject.get(subject_key, 0),
                 "additional_teachers_needed": additional_teachers_needed,
                 "additional_teachers_note": additional_teachers_note,
+                "priority_staffing_subject": _is_priority_staffing_subject(
+                    subject_key,
+                    demand["subject_name"],
+                ),
                 "internal_absorption_recommended": bool(
                     remaining_hours > 0
                     and subject_internal_absorption_map.get(subject_key, False)
@@ -2201,8 +2300,14 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
             int(item["remaining_hours"])
             for item in subject_items
         )
+        subject_name = (
+            subject_items[0]["subject_name"]
+            if subject_items
+            else subject_name_by_key.get(subject_key, subject_key.title())
+        )
         if (
             subject_remaining_hours <= 0
+            or _is_priority_staffing_subject(subject_key, subject_name)
             or subject_remaining_hours >= REPORT_MINIMUM_HIRING_HOURS
         ):
             continue
@@ -2437,6 +2542,217 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
     }
 
 
+def _decorate_staffing_report_rows(report_subject_rows, report_summary):
+    decorated_rows = []
+    priority_subjects_with_gaps = 0
+    priority_urgent_subjects = 0
+    priority_uncovered_sections = 0
+    priority_gap_hours = 0
+    largest_priority_row = None
+
+    for row in report_subject_rows:
+        decorated_row = dict(row)
+        remaining_hours = int(decorated_row.get("remaining_hours", 0))
+        coverage_percentage = int(decorated_row.get("coverage_percentage", 0))
+        teachers_needed = int(decorated_row.get("additional_teachers_needed", 0))
+        uncovered_sections_count = int(decorated_row.get("uncovered_sections_count", 0))
+        partial_sections_count = int(decorated_row.get("partial_sections_count", 0))
+        open_gap_sections = uncovered_sections_count + partial_sections_count
+        priority_subject = bool(
+            decorated_row.get("priority_staffing_subject")
+            or _is_priority_staffing_subject(
+                decorated_row.get("subject_key", ""),
+                decorated_row.get("subject_name", ""),
+            )
+        )
+        priority_alert = priority_subject and remaining_hours > 0
+        priority_urgent = priority_alert and open_gap_sections >= 2
+
+        decorated_row["priority_staffing_subject"] = priority_subject
+        decorated_row["priority_staffing_alert"] = priority_alert
+        decorated_row["priority_staffing_urgent"] = priority_urgent
+        decorated_row["open_gap_sections_count"] = open_gap_sections
+
+        if priority_alert:
+            priority_subjects_with_gaps += 1
+            priority_uncovered_sections += open_gap_sections
+            priority_gap_hours += remaining_hours
+            if largest_priority_row is None or (
+                remaining_hours,
+                open_gap_sections,
+                decorated_row.get("subject_name", ""),
+            ) > (
+                int(largest_priority_row.get("remaining_hours", 0)),
+                int(largest_priority_row.get("open_gap_sections_count", 0)),
+                largest_priority_row.get("subject_name", ""),
+            ):
+                largest_priority_row = decorated_row
+        if priority_urgent:
+            priority_urgent_subjects += 1
+
+        if remaining_hours == 0:
+            decorated_row.update(
+                {
+                    "staffing_status_label": "Fully Covered",
+                    "staffing_status_class": "report-status-pill-good",
+                    "staffing_item_class": "is-covered",
+                    "staffing_alert_class": "is-covered",
+                    "staffing_fill_color": "#0f7f7a",
+                    "staffing_fill_remainder": "#dbe7f8",
+                    "staffing_icon": "shield",
+                }
+            )
+        elif priority_urgent:
+            decorated_row.update(
+                {
+                    "staffing_status_label": "Priority Alert",
+                    "staffing_status_class": "report-status-pill-critical",
+                    "staffing_item_class": "is-critical",
+                    "staffing_alert_class": "is-critical",
+                    "staffing_fill_color": "#b91c1c",
+                    "staffing_fill_remainder": "#fecaca",
+                    "staffing_icon": "alert",
+                }
+            )
+        elif priority_alert:
+            decorated_row.update(
+                {
+                    "staffing_status_label": "Specialist Needed",
+                    "staffing_status_class": "report-status-pill-gap",
+                    "staffing_item_class": "is-warning",
+                    "staffing_alert_class": "is-warning",
+                    "staffing_fill_color": "#d97706",
+                    "staffing_fill_remainder": "#fde7c2",
+                    "staffing_icon": "priority",
+                }
+            )
+        elif decorated_row.get("internal_absorption_recommended"):
+            decorated_row.update(
+                {
+                    "staffing_status_label": "Absorb Internally",
+                    "staffing_status_class": "report-status-pill-partial",
+                    "staffing_item_class": "is-warning",
+                    "staffing_alert_class": "is-warning",
+                    "staffing_fill_color": "#2563eb",
+                    "staffing_fill_remainder": "#dbe7f8",
+                    "staffing_icon": "swap",
+                }
+            )
+        elif teachers_needed >= 2 or remaining_hours >= 24:
+            decorated_row.update(
+                {
+                    "staffing_status_label": "Critical Gap",
+                    "staffing_status_class": "report-status-pill-critical",
+                    "staffing_item_class": "is-critical",
+                    "staffing_alert_class": "is-critical",
+                    "staffing_fill_color": "#dc2626",
+                    "staffing_fill_remainder": "#fecaca",
+                    "staffing_icon": "alert",
+                }
+            )
+        elif teachers_needed >= 1:
+            decorated_row.update(
+                {
+                    "staffing_status_label": "Hiring Gap",
+                    "staffing_status_class": "report-status-pill-gap",
+                    "staffing_item_class": "is-warning",
+                    "staffing_alert_class": "is-warning",
+                    "staffing_fill_color": "#d97706",
+                    "staffing_fill_remainder": "#fde7c2",
+                    "staffing_icon": "hire",
+                }
+            )
+        elif coverage_percentage >= 70:
+            decorated_row.update(
+                {
+                    "staffing_status_label": "Partial Gap",
+                    "staffing_status_class": "report-status-pill-partial",
+                    "staffing_item_class": "is-warning",
+                    "staffing_alert_class": "is-warning",
+                    "staffing_fill_color": "#d97706",
+                    "staffing_fill_remainder": "#fde7c2",
+                    "staffing_icon": "partial",
+                }
+            )
+        else:
+            decorated_row.update(
+                {
+                    "staffing_status_label": "Major Gap",
+                    "staffing_status_class": "report-status-pill-gap",
+                    "staffing_item_class": "is-warning",
+                    "staffing_alert_class": "is-warning",
+                    "staffing_fill_color": "#d97706",
+                    "staffing_fill_remainder": "#fde7c2",
+                    "staffing_icon": "gap",
+                }
+            )
+
+        if priority_alert:
+            decorated_row["staffing_action_label"] = "Specialist Need"
+            decorated_row["staffing_action_value"] = (
+                "Urgent" if priority_urgent else "Priority"
+            )
+            decorated_row["staffing_note"] = (
+                decorated_row.get("additional_teachers_note")
+                or "Priority subject gaps bypass the standard low-load absorption rule."
+            )
+        elif decorated_row.get("internal_absorption_recommended"):
+            decorated_row["staffing_action_label"] = "Action"
+            decorated_row["staffing_action_value"] = "Internal"
+            decorated_row["staffing_note"] = (
+                decorated_row.get("additional_teachers_note")
+                or "Low-load non-core demand can stay internal."
+            )
+        elif teachers_needed == 0 and decorated_row.get("additional_teachers_note"):
+            decorated_row["staffing_action_label"] = "Action"
+            decorated_row["staffing_action_value"] = "Combined Pool"
+            decorated_row["staffing_note"] = decorated_row.get("additional_teachers_note")
+        else:
+            decorated_row["staffing_action_label"] = "Teachers Needed"
+            decorated_row["staffing_action_value"] = str(teachers_needed)
+            decorated_row["staffing_note"] = decorated_row.get("additional_teachers_note", "")
+
+        decorated_rows.append(decorated_row)
+
+    max_remaining_hours = max(
+        (int(row.get("remaining_hours", 0)) for row in decorated_rows if int(row.get("remaining_hours", 0)) > 0),
+        default=0,
+    )
+    for row in decorated_rows:
+        remaining_hours = int(row.get("remaining_hours", 0))
+        row["gap_chart_pct"] = (
+            round((remaining_hours / max_remaining_hours) * 100, 1)
+            if max_remaining_hours > 0 and remaining_hours > 0
+            else 0
+        )
+
+    report_summary = dict(report_summary or {})
+    report_summary.update(
+        {
+            "priority_subjects_with_gaps": priority_subjects_with_gaps,
+            "priority_urgent_subjects": priority_urgent_subjects,
+            "priority_uncovered_sections": priority_uncovered_sections,
+            "priority_gap_hours": priority_gap_hours,
+            "largest_priority_gap_subject_name": (
+                largest_priority_row.get("subject_name", "")
+                if largest_priority_row
+                else ""
+            ),
+            "largest_priority_gap_hours": (
+                int(largest_priority_row.get("remaining_hours", 0))
+                if largest_priority_row
+                else 0
+            ),
+            "largest_priority_gap_sections": (
+                int(largest_priority_row.get("open_gap_sections_count", 0))
+                if largest_priority_row
+                else 0
+            ),
+        }
+    )
+    return decorated_rows, report_summary
+
+
 def _apply_excel_header_style(sheet, header_row: int, total_columns: int):
     header_fill = PatternFill(start_color="0A4EA3", end_color="0A4EA3", fill_type="solid")
     header_font = Font(color="FFFFFF", bold=True)
@@ -2485,9 +2801,20 @@ def _build_report_allocation_xlsx_bytes(
     teacher_matrix_rows = allocation_data["teacher_matrix_rows"]
     assignment_rows = allocation_data["assignment_rows"]
     unassigned_rows = allocation_data["unassigned_rows"]
+    subject_section_map = allocation_data.get("subject_section_map", {})
 
     report_summary = reporting_context.get("summary", {})
-    report_subject_rows = reporting_context.get("subject_rows", [])
+    report_subject_rows = [
+        {
+            **row,
+            **subject_section_map.get(row["subject_key"], {}),
+        }
+        for row in reporting_context.get("subject_rows", [])
+    ]
+    report_subject_rows, report_summary = _decorate_staffing_report_rows(
+        report_subject_rows,
+        report_summary,
+    )
     report_teacher_rows = reporting_context.get("teacher_rows", [])
 
     workbook = Workbook()
@@ -2649,6 +2976,18 @@ def _build_report_allocation_xlsx_bytes(
         ("Uncovered Hours", report_summary.get("total_remaining_hours", 0)),
         ("Hire-Trigger Hours", report_summary.get("total_hiring_gap_hours", 0)),
         (
+            "Priority Subject Gap Hours",
+            report_summary.get("priority_gap_hours", 0),
+        ),
+        (
+            "Priority Subjects With Gaps",
+            report_summary.get("priority_subjects_with_gaps", 0),
+        ),
+        (
+            "Priority Uncovered Sections",
+            report_summary.get("priority_uncovered_sections", 0),
+        ),
+        (
             "Internal Absorption Hours",
             report_summary.get("total_internal_absorption_hours", 0),
         ),
@@ -2698,7 +3037,7 @@ def _build_report_allocation_xlsx_bytes(
                 row["allocated_hours"],
                 row["remaining_hours"],
                 row["additional_teachers_needed"],
-                row.get("additional_teachers_note", ""),
+                row.get("staffing_note", row.get("additional_teachers_note", "")),
             ]
         )
         row_index = summary_sheet.max_row
@@ -3532,7 +3871,15 @@ def dashboard(
             }
         )
 
-    report_summary = dict(reporting_context["summary"])
+    report_subject_rows, report_summary = _decorate_staffing_report_rows(
+        report_subject_rows,
+        reporting_context["summary"],
+    )
+    report_gap_rows = [
+        row
+        for row in report_subject_rows
+        if int(row.get("remaining_hours", 0)) > 0
+    ][:8]
     report_summary["underloaded_teachers"] = sum(
         1 for row in report_teacher_rows if row.get("is_underloaded")
     )
@@ -3800,6 +4147,33 @@ def _ensure_teachers_table_columns():
                 "UPDATE teachers "
                 "SET national_section_hours = 0 "
                 "WHERE national_section_hours IS NULL"
+            )
+        )
+
+
+def _ensure_teacher_subject_allocation_columns():
+    inspector = inspect(engine)
+    if "teacher_subject_allocations" not in inspector.get_table_names():
+        return
+
+    existing_columns = {
+        col["name"] for col in inspector.get_columns("teacher_subject_allocations")
+    }
+
+    with engine.begin() as connection:
+        if "compatibility_override" not in existing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE teacher_subject_allocations "
+                    "ADD COLUMN compatibility_override BOOLEAN DEFAULT FALSE"
+                )
+            )
+
+        connection.execute(
+            text(
+                "UPDATE teacher_subject_allocations "
+                "SET compatibility_override = FALSE "
+                "WHERE compatibility_override IS NULL"
             )
         )
 
@@ -4537,6 +4911,7 @@ def setup_initial_data():
     _ensure_teachers_table_columns()
     _ensure_teacher_scope_schema()
     _ensure_subject_scope_schema()
+    _ensure_teacher_subject_allocation_columns()
     _seed_teacher_subject_allocations()
     _ensure_profile_photo_upload_dir()
     db = SessionLocal()

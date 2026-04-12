@@ -818,6 +818,46 @@
             background: var(--brand);
         }
 
+        .report-card-heading {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .report-card-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(29, 78, 216, 0.14);
+            background: rgba(255, 255, 255, 0.88);
+            color: #1d4ed8;
+            flex-shrink: 0;
+        }
+
+        .report-card-icon svg {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .report-card-icon.is-critical {
+            color: #b42318;
+            border-color: rgba(180, 35, 24, 0.16);
+        }
+
+        .report-card-icon.is-success {
+            color: #0d7a47;
+            border-color: rgba(13, 122, 71, 0.16);
+        }
+
         .report-decision-card span {
             display: block;
             font-size: 12px;
@@ -1411,6 +1451,29 @@
             color: #17365d;
         }
 
+        .report-subject-title-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .report-subject-flag {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(191, 38, 0, 0.14);
+            background: #fff2ef;
+            color: #b42318;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            line-height: 1;
+        }
+
         .report-subject-side {
             display: grid;
             justify-items: end;
@@ -1563,6 +1626,17 @@
 
         .report-subject-alert-card.is-critical strong {
             color: #b42318;
+        }
+
+        .report-subject-note {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px dashed rgba(148, 163, 184, 0.5);
+            background: rgba(255, 255, 255, 0.78);
+            font-size: 12px;
+            color: #5a6d86;
+            line-height: 1.45;
         }
 
         .report-subject-stats {
@@ -2379,34 +2453,69 @@
                     </div>
                 </div>
                 <div class="report-note">
-                    This report uses each teacher available international capacity based on <strong>Max Hours + Extra Hours - National Section Hours</strong>. It reserves homeroom subjects first, redistributes the remaining load across compatible existing teachers by eligible subjects and major alignment, and only recommends hiring when the residual subject load reaches the <strong>{{ report_summary.minimum_hiring_threshold_hours }}h</strong> minimum threshold.
+                    This report uses each teacher available international capacity based on <strong>Max Hours + Extra Hours - National Section Hours</strong>. It reserves homeroom subjects first, redistributes the remaining load across compatible existing teachers by eligible subjects and major alignment, and then applies two decision paths: low-load non-core demand can still be absorbed internally, while priority subjects such as English, Arabic, Mathematics, Science, Islamic Studies, and Quran bypass the normal <strong>{{ report_summary.minimum_hiring_threshold_hours }}h</strong> minimum threshold.
                 </div>
                 {% if report_summary.total_required_hours > 0 %}
                 <div class="report-decision-strip">
                     <div class="report-decision-card report-decision-classes">
-                        <span>New Classes to Open</span>
-                        <strong class="report-kpi-value" data-value="{{ report_summary.total_new_sections_planned }}">{{ report_summary.total_new_sections_planned }}</strong>
-                        <p>Planned new sections in this branch and academic year.</p>
+                        <div class="report-card-heading">
+                            <div>
+                                <span>New Classes to Open</span>
+                                <strong class="report-kpi-value" data-value="{{ report_summary.total_new_sections_planned }}">{{ report_summary.total_new_sections_planned }}</strong>
+                                <p>Planned new sections in this branch and academic year.</p>
+                            </div>
+                            <span class="report-card-icon">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M4 19h16"></path>
+                                    <path d="M5 19V8l7-4 7 4v11"></path>
+                                    <path d="M9 10h6"></path>
+                                    <path d="M9 14h6"></path>
+                                </svg>
+                            </span>
+                        </div>
                     </div>
                     <div class="report-decision-card report-decision-new-teachers">
-                        <span>New Teachers Required</span>
-                        <strong class="report-kpi-value" data-value="{{ report_summary.total_new_teachers_required }}">{{ report_summary.total_new_teachers_required }}</strong>
-                        <p>Required hires only after redistribution and the {{ report_summary.minimum_hiring_threshold_hours }}h minimum workload threshold check.</p>
+                        <div class="report-card-heading">
+                            <div>
+                                <span>New Teachers Required</span>
+                                <strong class="report-kpi-value" data-value="{{ report_summary.total_new_teachers_required }}">{{ report_summary.total_new_teachers_required }}</strong>
+                                <p>Includes priority-subject gaps that bypass the normal {{ report_summary.minimum_hiring_threshold_hours }}h threshold.</p>
+                            </div>
+                            <span class="report-card-icon {% if report_summary.priority_subjects_with_gaps > 0 or report_summary.total_hiring_gap_hours > 0 %}is-critical{% endif %}">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M12 3v10"></path>
+                                    <path d="M12 17h.01"></path>
+                                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                </svg>
+                            </span>
+                        </div>
                     </div>
                     <div class="report-decision-card report-decision-total">
-                        <span>Total Teachers Needed (Branch)</span>
-                        <strong class="report-kpi-value" data-value="{{ report_summary.total_teachers_needed_branch }}">{{ report_summary.total_teachers_needed_branch }}</strong>
-                        <p>Current teachers {{ report_summary.total_existing_teachers }} + new required {{ report_summary.total_new_teachers_required }}.</p>
+                        <div class="report-card-heading">
+                            <div>
+                                <span>Total Teachers Needed (Branch)</span>
+                                <strong class="report-kpi-value" data-value="{{ report_summary.total_teachers_needed_branch }}">{{ report_summary.total_teachers_needed_branch }}</strong>
+                                <p>Current teachers {{ report_summary.total_existing_teachers }} + new required {{ report_summary.total_new_teachers_required }}.</p>
+                            </div>
+                            <span class="report-card-icon is-success">
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M3 12h18"></path>
+                                    <path d="M12 3v18"></path>
+                                </svg>
+                            </span>
+                        </div>
                     </div>
                 </div>
 
                 {% set current_demand_pct = ((report_summary.total_required_current_hours / report_summary.total_required_hours) * 100) if report_summary.total_required_hours else 0 %}
                 {% set existing_teacher_pct = ((report_summary.total_existing_teachers / report_summary.total_teachers_needed_branch) * 100) if report_summary.total_teachers_needed_branch else 0 %}
                 <div class="report-visual-summary">
-                    <article class="report-visual-card report-visual-card-alert {% if report_summary.total_hiring_gap_hours > 0 %}is-critical{% else %}is-clear{% endif %}">
+                    <article class="report-visual-card report-visual-card-alert {% if report_summary.priority_subjects_with_gaps > 0 or report_summary.total_hiring_gap_hours > 0 %}is-critical{% else %}is-clear{% endif %}">
                         <div>
                             <span class="report-alert-eyebrow">
-                                {% if report_summary.total_hiring_gap_hours > 0 %}
+                                {% if report_summary.priority_subjects_with_gaps > 0 %}
+                                Priority staffing alert
+                                {% elif report_summary.total_hiring_gap_hours > 0 %}
                                 Hiring threshold reached
                                 {% elif report_summary.total_internal_absorption_hours > 0 %}
                                 Internal absorption available
@@ -2415,7 +2524,9 @@
                                 {% endif %}
                             </span>
                             <h4>
-                                {% if report_summary.total_hiring_gap_hours > 0 %}
+                                {% if report_summary.priority_subjects_with_gaps > 0 %}
+                                Priority Subjects Need Specialists
+                                {% elif report_summary.total_hiring_gap_hours > 0 %}
                                 Hiring Requirement Outstanding
                                 {% elif report_summary.total_internal_absorption_hours > 0 %}
                                 Remaining Load Can Stay Internal
@@ -2424,7 +2535,9 @@
                                 {% endif %}
                             </h4>
                             <p>
-                                {% if report_summary.total_hiring_gap_hours > 0 %}
+                                {% if report_summary.priority_subjects_with_gaps > 0 %}
+                                {{ report_summary.priority_gap_hours }} weekly hours remain uncovered across {{ report_summary.priority_subjects_with_gaps }} priority subjects and {{ report_summary.priority_uncovered_sections }} planned sections. Largest priority gap: {{ report_summary.largest_priority_gap_subject_name or "N/A" }}.
+                                {% elif report_summary.total_hiring_gap_hours > 0 %}
                                 {{ report_summary.total_hiring_gap_hours }} weekly hours still require hiring across {{ report_summary.subjects_requiring_hires }} subjects after internal redistribution. Largest hiring gap: {{ report_summary.largest_hiring_gap_subject_name or "N/A" }}.
                                 {% elif report_summary.total_internal_absorption_hours > 0 %}
                                 {{ report_summary.total_internal_absorption_hours }} weekly hours remain after redistribution, but each affected subject stays below the {{ report_summary.minimum_hiring_threshold_hours }}h hiring threshold and should be absorbed internally.
@@ -2434,9 +2547,11 @@
                             </p>
                         </div>
                         <div class="report-alert-metric">
-                            <strong>{{ report_summary.total_hiring_gap_hours if report_summary.total_hiring_gap_hours > 0 else report_summary.total_internal_absorption_hours }}h</strong>
+                            <strong>{{ report_summary.priority_gap_hours if report_summary.priority_subjects_with_gaps > 0 else (report_summary.total_hiring_gap_hours if report_summary.total_hiring_gap_hours > 0 else report_summary.total_internal_absorption_hours) }}h</strong>
                             <span>
-                                {% if report_summary.total_hiring_gap_hours > 0 %}
+                                {% if report_summary.priority_subjects_with_gaps > 0 %}
+                                priority gap
+                                {% elif report_summary.total_hiring_gap_hours > 0 %}
                                 trigger hires
                                 {% elif report_summary.total_internal_absorption_hours > 0 %}
                                 absorb internally
@@ -2447,16 +2562,16 @@
                         </div>
                         <div class="report-alert-grid">
                             <div class="report-alert-chip">
-                                <span>{% if report_summary.total_hiring_gap_hours > 0 %}Hire-trigger subjects{% else %}Subjects with gaps{% endif %}</span>
-                                <strong>{{ report_summary.subjects_requiring_hires if report_summary.total_hiring_gap_hours > 0 else report_summary.subjects_with_gaps }}</strong>
+                                <span>{% if report_summary.priority_subjects_with_gaps > 0 %}Priority subjects{% elif report_summary.total_hiring_gap_hours > 0 %}Hire-trigger subjects{% else %}Subjects with gaps{% endif %}</span>
+                                <strong>{{ report_summary.priority_subjects_with_gaps if report_summary.priority_subjects_with_gaps > 0 else (report_summary.subjects_requiring_hires if report_summary.total_hiring_gap_hours > 0 else report_summary.subjects_with_gaps) }}</strong>
                             </div>
                             <div class="report-alert-chip">
-                                <span>{% if report_summary.total_hiring_gap_hours > 0 %}Internal absorption{% else %}Largest gap{% endif %}</span>
-                                <strong>{{ report_summary.total_internal_absorption_hours if report_summary.total_hiring_gap_hours > 0 else report_summary.largest_gap_hours }}h</strong>
+                                <span>{% if report_summary.priority_subjects_with_gaps > 0 %}Open sections{% elif report_summary.total_hiring_gap_hours > 0 %}Internal absorption{% else %}Largest gap{% endif %}</span>
+                                <strong>{{ report_summary.priority_uncovered_sections if report_summary.priority_subjects_with_gaps > 0 else (report_summary.total_internal_absorption_hours if report_summary.total_hiring_gap_hours > 0 else report_summary.largest_gap_hours) }}{% if report_summary.priority_subjects_with_gaps == 0 %}h{% endif %}</strong>
                             </div>
                             <div class="report-alert-chip">
-                                <span>{% if report_summary.total_internal_absorption_hours > 0 and report_summary.total_hiring_gap_hours == 0 %}Minimum threshold{% else %}Teachers needed{% endif %}</span>
-                                <strong>{{ report_summary.minimum_hiring_threshold_hours if report_summary.total_internal_absorption_hours > 0 and report_summary.total_hiring_gap_hours == 0 else report_summary.total_new_teachers_required }}</strong>
+                                <span>{% if report_summary.priority_subjects_with_gaps > 0 %}Urgent priority rows{% elif report_summary.total_internal_absorption_hours > 0 and report_summary.total_hiring_gap_hours == 0 %}Minimum threshold{% else %}Teachers needed{% endif %}</span>
+                                <strong>{{ report_summary.priority_urgent_subjects if report_summary.priority_subjects_with_gaps > 0 else (report_summary.minimum_hiring_threshold_hours if report_summary.total_internal_absorption_hours > 0 and report_summary.total_hiring_gap_hours == 0 else report_summary.total_new_teachers_required) }}</strong>
                             </div>
                         </div>
                     </article>
@@ -2563,59 +2678,21 @@
                         <div class="report-card-head">
                             <div class="report-card-head-copy">
                                 <h4>Subject Sufficiency Breakdown</h4>
-                                <p>Ranked by uncovered hours, but grounded in planned sections so each subject shows which sections are covered, which still need help, and where internal absorption is being recommended.</p>
+                                <p>Ranked by uncovered hours, but grounded in planned sections so each subject shows which sections are covered, which still need help, and which priority subjects bypass the normal low-load absorption rule.</p>
                             </div>
                             <span class="report-card-tag">{{ report_subject_rows|length }} subjects</span>
                         </div>
                         <div class="report-subject-list">
                             {% for row in report_subject_rows %}
-                            {% if row.remaining_hours == 0 %}
-                                {% set status_label = "Fully Covered" %}
-                                {% set status_class = "report-status-pill-good" %}
-                                {% set item_class = "is-covered" %}
-                                {% set alert_class = "is-covered" %}
-                                {% set fill_color = "#0f7f7a" %}
-                                {% set fill_remainder = "#dbe7f8" %}
-                            {% elif row.internal_absorption_recommended %}
-                                {% set status_label = "Absorb Internally" %}
-                                {% set status_class = "report-status-pill-partial" %}
-                                {% set item_class = "is-warning" %}
-                                {% set alert_class = "is-warning" %}
-                                {% set fill_color = "#2563eb" %}
-                                {% set fill_remainder = "#dbe7f8" %}
-                            {% elif row.additional_teachers_needed >= 2 or row.remaining_hours >= 24 %}
-                                {% set status_label = "Critical Gap" %}
-                                {% set status_class = "report-status-pill-critical" %}
-                                {% set item_class = "is-critical" %}
-                                {% set alert_class = "is-critical" %}
-                                {% set fill_color = "#dc2626" %}
-                                {% set fill_remainder = "#fecaca" %}
-                            {% elif row.additional_teachers_needed >= 1 %}
-                                {% set status_label = "Hiring Gap" %}
-                                {% set status_class = "report-status-pill-gap" %}
-                                {% set item_class = "is-warning" %}
-                                {% set alert_class = "is-warning" %}
-                                {% set fill_color = "#d97706" %}
-                                {% set fill_remainder = "#fde7c2" %}
-                            {% elif row.coverage_percentage >= 70 %}
-                                {% set status_label = "Partial Gap" %}
-                                {% set status_class = "report-status-pill-partial" %}
-                                {% set item_class = "is-warning" %}
-                                {% set alert_class = "is-warning" %}
-                                {% set fill_color = "#d97706" %}
-                                {% set fill_remainder = "#fde7c2" %}
-                            {% else %}
-                                {% set status_label = "Major Gap" %}
-                                {% set status_class = "report-status-pill-gap" %}
-                                {% set item_class = "is-warning" %}
-                                {% set alert_class = "is-warning" %}
-                                {% set fill_color = "#d97706" %}
-                                {% set fill_remainder = "#fde7c2" %}
-                            {% endif %}
-                            <article class="report-subject-item {{ item_class }}">
+                            <article class="report-subject-item {{ row.staffing_item_class }}">
                                 <div class="report-subject-head">
                                     <div>
-                                        <h5>{{ row.subject_name }}</h5>
+                                        <div class="report-subject-title-row">
+                                            <h5>{{ row.subject_name }}</h5>
+                                            {% if row.priority_staffing_subject %}
+                                            <span class="report-subject-flag">Priority Subject</span>
+                                            {% endif %}
+                                        </div>
                                         <div class="report-inline-note">
                                             Sections covered {{ row.covered_sections_count or 0 }}/{{ row.total_sections or 0 }}
                                             {% if row.recommended_sections_count %}
@@ -2627,14 +2704,14 @@
                                         </div>
                                     </div>
                                     <div class="report-subject-side">
-                                        <span class="report-status-pill {{ status_class }}">{{ status_label }}</span>
+                                        <span class="report-status-pill {{ row.staffing_status_class }}">{{ row.staffing_status_label }}</span>
                                         <strong class="report-subject-coverage">{{ row.coverage_percentage }}%</strong>
                                     </div>
                                 </div>
                                 <div class="report-subject-track">
                                     <div
                                         class="report-subject-track-fill"
-                                        style="background: linear-gradient(90deg, {{ fill_color }} 0 {{ row.coverage_percentage }}%, {{ fill_remainder }} {{ row.coverage_percentage }}% 100%);"
+                                        style="background: linear-gradient(90deg, {{ row.staffing_fill_color }} 0 {{ row.coverage_percentage }}%, {{ row.staffing_fill_remainder }} {{ row.coverage_percentage }}% 100%);"
                                     ></div>
                                 </div>
                                 <div class="report-subject-caption">
@@ -2642,23 +2719,18 @@
                                     <span class="{% if row.remaining_hours > 0 %}report-caption-alert{% endif %}"><strong>{{ row.remaining_hours }}h</strong> uncovered</span>
                                 </div>
                                 <div class="report-subject-urgency">
-                                    <div class="report-subject-alert-card {{ alert_class }}">
+                                    <div class="report-subject-alert-card {{ row.staffing_alert_class }}">
                                         <span>Uncovered Hours</span>
                                         <strong>{{ row.remaining_hours }}h</strong>
                                     </div>
-                                    <div class="report-subject-alert-card {{ alert_class }}">
-                                        {% if row.internal_absorption_recommended %}
-                                        <span>Action</span>
-                                        <strong>Internal</strong>
-                                        {% elif row.additional_teachers_needed == 0 and row.additional_teachers_note %}
-                                        <span>Action</span>
-                                        <strong>Combined Pool</strong>
-                                        {% else %}
-                                        <span>Teachers Needed</span>
-                                        <strong>{{ row.additional_teachers_needed }}</strong>
-                                        {% endif %}
+                                    <div class="report-subject-alert-card {{ row.staffing_alert_class }}">
+                                        <span>{{ row.staffing_action_label }}</span>
+                                        <strong>{{ row.staffing_action_value }}</strong>
                                     </div>
                                 </div>
+                                {% if row.staffing_note %}
+                                <div class="report-subject-note">{{ row.staffing_note }}</div>
+                                {% endif %}
                                 <div class="report-subject-stats">
                                     <div class="report-subject-stat">
                                         <span>Current Hours</span>
@@ -2755,7 +2827,7 @@
                         {% if report_gap_rows %}
                         <div class="report-gap-list">
                             {% for row in report_gap_rows %}
-                            <div class="report-gap-row {% if row.additional_teachers_needed >= 2 or row.remaining_hours >= 24 %}is-critical{% else %}is-warning{% endif %}">
+                            <div class="report-gap-row {% if row.priority_staffing_urgent or row.additional_teachers_needed >= 2 or row.remaining_hours >= 24 %}is-critical{% else %}is-warning{% endif %}">
                                 <div class="report-gap-head">
                                     <span>{{ row.subject_name }}</span>
                                     <strong>{{ row.remaining_hours }}h</strong>
@@ -2763,15 +2835,7 @@
                                 <div class="report-gap-track">
                                     <div class="report-gap-fill" data-width="{{ row.gap_chart_pct }}"></div>
                                 </div>
-                                {% if row.internal_absorption_recommended %}
-                                <small>Below {{ report_summary.minimum_hiring_threshold_hours }}h threshold: absorb internally.</small>
-                                {% elif row.additional_teachers_needed > 0 %}
-                                <small>Additional teachers required: {{ row.additional_teachers_needed }}</small>
-                                {% elif row.additional_teachers_note %}
-                                <small>{{ row.additional_teachers_note }}</small>
-                                {% else %}
-                                <small>Additional teachers required: 0</small>
-                                {% endif %}
+                                <small>{{ row.staffing_note or ("Additional teachers required: " ~ row.additional_teachers_needed) }}</small>
                                 <small>
                                     Sections covered {{ row.covered_sections_count or 0 }}/{{ row.total_sections or 0 }}
                                     {% if row.recommended_sections_count %}
@@ -2953,7 +3017,7 @@
                     <div class="empty">No teacher records found in this branch/year scope.</div>
                     {% endif %}
                     <div class="report-footnote">
-                        Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Aligned to at least one report subject: {{ report_summary.teachers_with_subject_alignment }} | Utilized in planned-section allocations: {{ report_summary.teachers_utilized }} | Full load at international capacity: {{ report_summary.teachers_full_load }} | Underloaded: {{ report_summary.underloaded_teachers }} | Underloaded with recommendations: {{ report_summary.underloaded_teachers_with_recommendations }} | Recommended internal absorption: {{ report_summary.recommended_internal_absorption_hours }}h | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
+                        Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Aligned to at least one report subject: {{ report_summary.teachers_with_subject_alignment }} | Utilized in planned-section allocations: {{ report_summary.teachers_utilized }} | Full load at international capacity: {{ report_summary.teachers_full_load }} | Underloaded: {{ report_summary.underloaded_teachers }} | Underloaded with recommendations: {{ report_summary.underloaded_teachers_with_recommendations }} | Priority subjects with gaps: {{ report_summary.priority_subjects_with_gaps }} | Priority uncovered sections: {{ report_summary.priority_uncovered_sections }} | Recommended internal absorption: {{ report_summary.recommended_internal_absorption_hours }}h | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
                     </div>
                 </div>
                 {% else %}

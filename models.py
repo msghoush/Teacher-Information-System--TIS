@@ -102,6 +102,7 @@ class TeacherSubjectAllocation(Base):
     # Subject codes are branch/year scoped, so allocations store the selected code
     # and resolve it through the teacher's current scope.
     subject_code = Column(String, nullable=False)
+    compatibility_override = Column(Boolean, default=False, nullable=False)
 
 
 class TeacherQualificationSelection(Base):
