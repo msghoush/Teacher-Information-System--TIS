@@ -59,6 +59,20 @@ CROSS_SUBJECT_HIRING_ANCHOR_PRIORITY = [
     "social studies english",
     "social studies ksa",
 ]
+HOMEROOM_SUBJECT_ALIASES = {
+    "english",
+    "math",
+    "maths",
+    "mathematics",
+    "social studies english",
+    "social studies in english",
+    "science",
+    "performing arts",
+    "performing art",
+    "wellbeing",
+    "well being",
+    "well-being",
+}
 REPORT_EXPORT_SUBJECT_FILL_PALETTE = [
     "E8F1FF",
     "EAF8F4",
@@ -195,7 +209,12 @@ def _build_teacher_display_name(teacher) -> str:
 
 
 def _normalize_subject_family_key(value: str) -> str:
-    return " ".join(str(value or "").split()).lower()
+    normalized = re.sub(r"[^a-z0-9]+", " ", str(value or "").lower())
+    return " ".join(normalized.split())
+
+
+def _is_homeroom_subject_key(subject_key: str) -> bool:
+    return _normalize_subject_family_key(subject_key) in HOMEROOM_SUBJECT_ALIASES
 
 
 def _build_reporting_context(
@@ -411,7 +430,14 @@ def _build_reporting_context(
                     if primary_subject_key
                     else 0
                 ),
+                "homeroom_allocated_hours": 0,
+                "homeroom_subject_keys": [],
+                "homeroom_section_labels": [],
+                "homeroom_class_allocations": [],
+                "homeroom_allocation_breakdown": {},
                 "allocated_hours": 0,
+                "primary_allocated_hours": 0,
+                "support_allocated_hours": 0,
                 "remaining_capacity_hours": REPORT_STANDARD_MAX_HOURS,
                 "allocation_breakdown": {},
             }
@@ -421,6 +447,66 @@ def _build_reporting_context(
         subject_key: data["required_hours"]
         for subject_key, data in subject_demand_map.items()
     }
+    # Reserve homeroom-owned class subjects before pooled branchwide allocation.
+    homeroom_assignments_by_teacher = _build_homeroom_assignments_by_teacher(
+        subjects=subjects,
+        planning_sections=planning_sections,
+    )
+
+    for profile in teacher_profiles:
+        teacher_id = getattr(profile["teacher"], "id", None)
+        homeroom_items = homeroom_assignments_by_teacher.get(teacher_id, [])
+        homeroom_remaining_capacity = REPORT_STANDARD_MAX_HOURS
+        homeroom_allocation_breakdown = {}
+        homeroom_class_allocations = []
+        homeroom_section_labels = []
+
+        for item in homeroom_items:
+            if homeroom_remaining_capacity <= 0:
+                break
+
+            subject_key = item["subject_key"]
+            subject_remaining_hours = remaining_hours_by_subject.get(subject_key, 0)
+            if subject_remaining_hours <= 0:
+                continue
+
+            allocated_hours = min(
+                homeroom_remaining_capacity,
+                int(item["required_hours"]),
+                subject_remaining_hours,
+            )
+            if allocated_hours <= 0:
+                continue
+
+            remaining_hours_by_subject[subject_key] = (
+                subject_remaining_hours - allocated_hours
+            )
+            homeroom_remaining_capacity -= allocated_hours
+            homeroom_allocation_breakdown[subject_key] = (
+                homeroom_allocation_breakdown.get(subject_key, 0) + allocated_hours
+            )
+            homeroom_class_allocations.append(
+                {
+                    **item,
+                    "allocated_hours": allocated_hours,
+                }
+            )
+            if item["class_label"] not in homeroom_section_labels:
+                homeroom_section_labels.append(item["class_label"])
+
+        homeroom_allocated_hours = sum(homeroom_allocation_breakdown.values())
+        profile["homeroom_allocated_hours"] = homeroom_allocated_hours
+        profile["homeroom_subject_keys"] = sorted(
+            homeroom_allocation_breakdown.keys(),
+            key=lambda key: subject_demand_map[key]["subject_name"],
+        )
+        profile["homeroom_section_labels"] = homeroom_section_labels
+        profile["homeroom_class_allocations"] = homeroom_class_allocations
+        profile["homeroom_allocation_breakdown"] = homeroom_allocation_breakdown
+        profile["allocated_hours"] = homeroom_allocated_hours
+        profile["remaining_capacity_hours"] = (
+            REPORT_STANDARD_MAX_HOURS - homeroom_allocated_hours
+        )
 
     allocation_sequence = sorted(
         teacher_profiles,
@@ -435,7 +521,9 @@ def _build_reporting_context(
         if not profile["eligible_subject_keys"]:
             continue
 
-        remaining_capacity = REPORT_STANDARD_MAX_HOURS
+        remaining_capacity = int(
+            profile.get("remaining_capacity_hours", REPORT_STANDARD_MAX_HOURS)
+        )
         allocation_breakdown = {}
 
         while remaining_capacity > 0:
@@ -510,8 +598,9 @@ def _build_reporting_context(
             allocation_breakdown.get(subject_key, 0)
             for subject_key in profile["support_subject_keys"]
         )
+        homeroom_allocated_hours = int(profile.get("homeroom_allocated_hours", 0))
         total_allocated_hours = min(
-            sum(allocation_breakdown.values()),
+            homeroom_allocated_hours + sum(allocation_breakdown.values()),
             REPORT_STANDARD_MAX_HOURS,
         )
         profile["allocation_breakdown"] = allocation_breakdown
@@ -524,7 +613,10 @@ def _build_reporting_context(
 
     teachers_per_subject = {}
     for profile in teacher_profiles:
-        for subject_key in profile["eligible_subject_keys"]:
+        covered_subject_keys = set(profile["eligible_subject_keys"]) | set(
+            profile.get("homeroom_subject_keys", [])
+        )
+        for subject_key in covered_subject_keys:
             teachers_per_subject[subject_key] = (
                 teachers_per_subject.get(subject_key, 0) + 1
             )
@@ -705,6 +797,11 @@ def _build_reporting_context(
             subject_demand_map[subject_key]["subject_name"]
             for subject_key in profile["support_subject_keys"]
         ]
+        homeroom_subject_labels = [
+            subject_demand_map[subject_key]["subject_name"]
+            for subject_key in profile.get("homeroom_subject_keys", [])
+        ]
+        homeroom_section_labels = list(profile.get("homeroom_section_labels", []))
         allocation_labels = [
             f"{subject_demand_map[subject_key]['subject_name']} ({hours}h)"
             for subject_key, hours in sorted(
@@ -712,6 +809,25 @@ def _build_reporting_context(
                 key=lambda item: (-item[1], subject_demand_map[item[0]]["subject_name"]),
             )
         ]
+        homeroom_labels_by_class = {}
+        for item in profile.get("homeroom_class_allocations", []):
+            homeroom_labels_by_class.setdefault(item["class_label"], []).append(item)
+        homeroom_allocation_labels = []
+        for class_label in sorted(homeroom_labels_by_class.keys()):
+            allocation_items = homeroom_labels_by_class[class_label]
+            allocation_items.sort(
+                key=lambda item: (
+                    -item["allocated_hours"],
+                    item["subject_name"],
+                )
+            )
+            homeroom_allocation_labels.append(
+                f"{class_label}: "
+                + ", ".join(
+                    f"{item['subject_name']} ({item['allocated_hours']}h)"
+                    for item in allocation_items
+                )
+            )
 
         teacher = profile["teacher"]
         report_teacher_rows.append(
@@ -720,8 +836,12 @@ def _build_reporting_context(
                 "teacher_name": profile["name"],
                 "subject_labels": subject_labels,
                 "support_subject_labels": support_subject_labels,
+                "homeroom_subject_labels": homeroom_subject_labels,
+                "homeroom_section_labels": homeroom_section_labels,
+                "homeroom_allocation_labels": homeroom_allocation_labels,
                 "allocation_labels": allocation_labels,
                 "expected_allocated_hours": profile["allocated_hours"],
+                "homeroom_allocated_hours": profile.get("homeroom_allocated_hours", 0),
                 "primary_allocated_hours": profile.get("primary_allocated_hours", 0),
                 "support_allocated_hours": profile.get("support_allocated_hours", 0),
                 "primary_subject_basis_hours": profile.get(
@@ -773,7 +893,9 @@ def _build_reporting_context(
         else 0
     )
     teachers_with_subject_alignment = sum(
-        1 for profile in teacher_profiles if profile["subject_count"] > 0
+        1
+        for profile in teacher_profiles
+        if profile["subject_count"] > 0 or profile.get("homeroom_section_labels")
     )
     teachers_utilized = sum(
         1 for profile in teacher_profiles if profile["allocated_hours"] > 0
@@ -829,9 +951,23 @@ def _build_reporting_context(
                 "teacher_name": profile["name"],
                 "subject_keys": list(profile["subject_keys"]),
                 "support_subject_keys": list(profile["support_subject_keys"]),
+                "homeroom_subject_keys": list(profile.get("homeroom_subject_keys", [])),
+                "homeroom_section_labels": list(
+                    profile.get("homeroom_section_labels", [])
+                ),
+                "homeroom_class_allocations": [
+                    dict(item)
+                    for item in profile.get("homeroom_class_allocations", [])
+                ],
+                "homeroom_allocation_breakdown": dict(
+                    profile.get("homeroom_allocation_breakdown", {})
+                ),
                 "allocation_breakdown": dict(profile["allocation_breakdown"]),
                 "allocated_hours": int(profile["allocated_hours"]),
                 "remaining_capacity_hours": int(profile["remaining_capacity_hours"]),
+                "homeroom_allocated_hours": int(
+                    profile.get("homeroom_allocated_hours", 0)
+                ),
                 "primary_allocated_hours": int(profile.get("primary_allocated_hours", 0)),
                 "support_allocated_hours": int(profile.get("support_allocated_hours", 0)),
                 "primary_subject_basis_hours": int(
@@ -879,6 +1015,7 @@ def _build_report_class_rows(planning_sections):
                 "grade_label": grade_label,
                 "section_name": section_name,
                 "class_status": class_status,
+                "homeroom_teacher_id": section.homeroom_teacher_id,
             }
         )
 
@@ -933,17 +1070,23 @@ def _build_report_subject_catalog(subjects):
     return subjects_by_grade, subject_name_by_key
 
 
-def _build_report_class_allocation_data(subjects, planning_sections, reporting_context):
+def _build_homeroom_assignments_by_teacher(subjects, planning_sections):
     class_rows = _build_report_class_rows(planning_sections)
-    subjects_by_grade, subject_name_by_key = _build_report_subject_catalog(subjects)
-    teacher_profiles = reporting_context.get("teacher_profiles", [])
+    subjects_by_grade, _ = _build_report_subject_catalog(subjects)
+    assignments_by_teacher = {}
 
-    demand_items_by_subject = {}
     for class_row in class_rows:
-        grade_subjects = subjects_by_grade.get(class_row["grade_label"], [])
-        for subject_item in grade_subjects:
-            demand_items_by_subject.setdefault(subject_item["subject_key"], []).append(
+        homeroom_teacher_id = class_row.get("homeroom_teacher_id")
+        if not homeroom_teacher_id:
+            continue
+
+        for subject_item in subjects_by_grade.get(class_row["grade_label"], []):
+            if not _is_homeroom_subject_key(subject_item["subject_key"]):
+                continue
+
+            assignments_by_teacher.setdefault(homeroom_teacher_id, []).append(
                 {
+                    "teacher_id": homeroom_teacher_id,
                     "class_key": class_row["class_key"],
                     "class_label": class_row["class_label"],
                     "class_status": class_row["class_status"],
@@ -953,9 +1096,50 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
                     "subject_code": subject_item["subject_code"],
                     "subject_name": subject_item["subject_name"],
                     "required_hours": subject_item["weekly_hours"],
-                    "remaining_hours": subject_item["weekly_hours"],
                 }
             )
+
+    for teacher_id in assignments_by_teacher:
+        assignments_by_teacher[teacher_id].sort(
+            key=lambda item: (
+                0 if item["class_status"] == "Current" else 1,
+                _grade_sort_key(item["grade_label"]),
+                item["section_name"],
+                item["subject_name"],
+            )
+        )
+
+    return assignments_by_teacher
+
+
+def _build_report_class_allocation_data(subjects, planning_sections, reporting_context):
+    class_rows = _build_report_class_rows(planning_sections)
+    subjects_by_grade, subject_name_by_key = _build_report_subject_catalog(subjects)
+    teacher_profiles = reporting_context.get("teacher_profiles", [])
+
+    demand_items_by_subject = {}
+    demand_items_lookup = {}
+    for class_row in class_rows:
+        grade_subjects = subjects_by_grade.get(class_row["grade_label"], [])
+        for subject_item in grade_subjects:
+            demand_item = {
+                "class_key": class_row["class_key"],
+                "class_label": class_row["class_label"],
+                "class_status": class_row["class_status"],
+                "grade_label": class_row["grade_label"],
+                "section_name": class_row["section_name"],
+                "subject_key": subject_item["subject_key"],
+                "subject_code": subject_item["subject_code"],
+                "subject_name": subject_item["subject_name"],
+                "required_hours": subject_item["weekly_hours"],
+                "remaining_hours": subject_item["weekly_hours"],
+            }
+            demand_items_by_subject.setdefault(subject_item["subject_key"], []).append(
+                demand_item
+            )
+            demand_items_lookup[
+                (class_row["class_key"], subject_item["subject_key"])
+            ] = demand_item
 
     for subject_key in demand_items_by_subject:
         demand_items_by_subject[subject_key].sort(
@@ -983,6 +1167,9 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
         allocation_breakdown = profile.get("allocation_breakdown", {}) or {}
         primary_subject_keys = list(profile.get("subject_keys", []))
         support_subject_keys = list(profile.get("support_subject_keys", []))
+        homeroom_class_allocations = list(
+            profile.get("homeroom_class_allocations", [])
+        )
 
         ordered_subject_keys = []
         for subject_key in primary_subject_keys + support_subject_keys:
@@ -993,6 +1180,45 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
                 ordered_subject_keys.append(subject_key)
 
         class_allocations = {}
+
+        # Seed class allocations with reserved homeroom work so export matches report math.
+        for item in homeroom_class_allocations:
+            allocated_hours = int(item.get("allocated_hours", 0))
+            if allocated_hours <= 0:
+                continue
+
+            demand_item = demand_items_lookup.get(
+                (item.get("class_key"), item.get("subject_key"))
+            )
+            if demand_item:
+                demand_item["remaining_hours"] = max(
+                    int(demand_item["remaining_hours"]) - allocated_hours,
+                    0,
+                )
+
+            class_key = item.get("class_key")
+            class_allocations.setdefault(class_key, []).append(
+                {
+                    "subject_key": item.get("subject_key"),
+                    "subject_code": item.get("subject_code"),
+                    "subject_name": item.get("subject_name"),
+                    "allocated_hours": allocated_hours,
+                    "class_status": item.get("class_status"),
+                }
+            )
+
+            assignment_rows.append(
+                {
+                    "teacher_id": profile.get("teacher_id", "-"),
+                    "teacher_name": profile.get("teacher_name", "-"),
+                    "class_label": item.get("class_label", "-"),
+                    "class_status": item.get("class_status", "Current"),
+                    "subject_code": item.get("subject_code", "-"),
+                    "subject_name": item.get("subject_name", "-"),
+                    "allocated_hours": allocated_hours,
+                    "coverage_type": "Homeroom",
+                }
+            )
 
         for subject_key in ordered_subject_keys:
             subject_hours_quota = int(allocation_breakdown.get(subject_key, 0))
@@ -1272,6 +1498,7 @@ def _build_report_allocation_xlsx_bytes(
     details_sheet.auto_filter.ref = f"A1:{get_column_letter(len(detail_headers))}1"
 
     support_fill = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+    homeroom_fill = PatternFill(start_color="EDE9FE", end_color="EDE9FE", fill_type="solid")
     new_class_fill = PatternFill(start_color="E0F2FE", end_color="E0F2FE", fill_type="solid")
 
     for item in assignment_rows:
@@ -1290,6 +1517,8 @@ def _build_report_allocation_xlsx_bytes(
         row_index = details_sheet.max_row
         if item["coverage_type"] == "Support":
             details_sheet.cell(row=row_index, column=8).fill = support_fill
+        elif item["coverage_type"] == "Homeroom":
+            details_sheet.cell(row=row_index, column=8).fill = homeroom_fill
         if item["class_status"] == "New":
             details_sheet.cell(row=row_index, column=4).fill = new_class_fill
         details_sheet.cell(row=row_index, column=7).alignment = Alignment(
@@ -1382,6 +1611,7 @@ def _build_report_allocation_xlsx_bytes(
         "Teacher ID",
         "Teacher Name",
         "Expected Hours",
+        "Homeroom Allocated",
         "Primary Allocated",
         "Support Allocated",
         "Remaining Capacity",
@@ -1394,6 +1624,7 @@ def _build_report_allocation_xlsx_bytes(
                 row["teacher_id"],
                 row["teacher_name"],
                 row["expected_allocated_hours"],
+                row.get("homeroom_allocated_hours", 0),
                 row["primary_allocated_hours"],
                 row["support_allocated_hours"],
                 row["remaining_capacity_hours"],
@@ -1401,7 +1632,7 @@ def _build_report_allocation_xlsx_bytes(
         )
         row_index = summary_sheet.max_row
         expected_cell = summary_sheet.cell(row=row_index, column=3)
-        remaining_cell = summary_sheet.cell(row=row_index, column=6)
+        remaining_cell = summary_sheet.cell(row=row_index, column=7)
         if int(row["expected_allocated_hours"]) >= REPORT_STANDARD_MAX_HOURS:
             expected_cell.fill = full_load_fill
             remaining_cell.fill = full_load_fill

@@ -1381,7 +1381,7 @@
                     </div>
                 </div>
                 <div class="report-note">
-                    This report uses a fixed <strong>24 hours/week</strong> cap per existing teacher (standard allocation rule), regardless of custom Max Hours or Extra Hours settings.
+                    This report uses a fixed <strong>24 hours/week</strong> cap per existing teacher (standard allocation rule), regardless of custom Max Hours or Extra Hours settings. When a section has a homeroom teacher, the report reserves that teacher first for homeroom subjects: English, Mathematics, Social Studies English, Science, Performing Arts, and Wellbeing.
                 </div>
                 {% if report_summary.total_required_hours > 0 %}
                 <div class="report-decision-strip">
@@ -1533,7 +1533,7 @@
 
                 <div class="report-card report-teachers-card">
                     <h4>Expected Allocation for Existing Teachers (24h max)</h4>
-                    <p>Each teacher is anchored to one primary subject (highest currently assigned hours), then support subject is used only if capacity remains, with a strict 24h cap.</p>
+                    <p>Homeroom sections reserve their teacher first. Any remaining capacity then follows the primary-subject and support-subject forecast, still capped at 24 hours.</p>
                     {% if report_teacher_rows %}
                     <div class="table-wrap report-table">
                         <table>
@@ -1549,9 +1549,14 @@
                                 <td>{{ row.teacher_id }}</td>
                                 <td>{{ row.teacher_name }}</td>
                                 <td>
+                                    {% if row.homeroom_section_labels %}
+                                    Homeroom: {{ row.homeroom_section_labels | join(", ") }}
+                                    {% if row.homeroom_subject_labels %}
+                                    <div class="report-inline-note">Reserved homeroom subjects: {{ row.homeroom_subject_labels | join(", ") }}</div>
+                                    {% endif %}
+                                    {% endif %}
                                     {% if row.subject_labels %}
-                                    Primary (highest assigned hours): {{ row.subject_labels | join(", ") }}
-                                    <div class="report-inline-note">Current assigned hours in primary: {{ row.primary_subject_basis_hours }}h</div>
+                                    <div class="report-inline-note">Primary forecast basis (highest assigned hours): {{ row.subject_labels | join(", ") }} | Current assigned hours in primary: {{ row.primary_subject_basis_hours }}h</div>
                                     {% else %}
                                     Primary: -
                                     {% endif %}
@@ -1561,7 +1566,10 @@
                                 </td>
                                 <td>
                                     <strong class="{{ 'report-hours-full' if row.expected_allocated_hours == 24 else 'report-hours-under' }}">{{ row.expected_allocated_hours }}h</strong>
-                                    <div class="report-inline-note">Primary allocated: {{ row.primary_allocated_hours }}h | Support allocated: {{ row.support_allocated_hours }}h</div>
+                                    <div class="report-inline-note">Homeroom allocated: {{ row.homeroom_allocated_hours }}h | Primary allocated: {{ row.primary_allocated_hours }}h | Support allocated: {{ row.support_allocated_hours }}h</div>
+                                    {% if row.homeroom_allocation_labels %}
+                                    <div class="report-inline-note">{{ row.homeroom_allocation_labels | join(" | ") }}</div>
+                                    {% endif %}
                                     {% if row.allocation_labels %}
                                     <div class="report-inline-note">{{ row.allocation_labels | join(", ") }}</div>
                                     {% endif %}
