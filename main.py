@@ -400,8 +400,12 @@ def _build_alignment_token_set(value: str):
     }
 
 
-def _subject_matches_teacher_major(teacher, subject_name: str, subject_key: str = "") -> bool:
-    normalized_major = _normalize_alignment_text(getattr(teacher, "degree_major", ""))
+def _subject_matches_degree_major(
+    degree_major: str,
+    subject_name: str,
+    subject_key: str = "",
+) -> bool:
+    normalized_major = _normalize_alignment_text(degree_major)
     if not normalized_major:
         return False
 
@@ -421,6 +425,40 @@ def _subject_matches_teacher_major(teacher, subject_name: str, subject_key: str 
             return True
 
     return False
+
+
+def _subject_matches_teacher_major(teacher, subject_name: str, subject_key: str = "") -> bool:
+    return _subject_matches_degree_major(
+        getattr(teacher, "degree_major", ""),
+        subject_name,
+        subject_key,
+    )
+
+
+def _build_profile_subject_compatibility(profile, subject_key: str, subject_name: str):
+    eligible_subject_keys = (
+        set(profile.get("subject_keys", []))
+        | set(profile.get("secondary_subject_keys", []))
+        | set(profile.get("support_subject_keys", []))
+        | set(profile.get("homeroom_subject_keys", []))
+    )
+    if subject_key in eligible_subject_keys:
+        return {
+            "priority": 0,
+            "basis": "Eligible subject",
+        }
+
+    if _subject_matches_degree_major(
+        profile.get("degree_major", ""),
+        subject_name,
+        subject_key,
+    ):
+        return {
+            "priority": 1,
+            "basis": "Major match",
+        }
+
+    return None
 
 
 def _is_homeroom_subject_key(subject_key: str) -> bool:
@@ -1590,8 +1628,10 @@ def _build_reporting_context(
         teacher = profile["teacher"]
         report_teacher_rows.append(
             {
+                "teacher_pk": teacher.id,
                 "teacher_id": teacher.teacher_id or "-",
                 "teacher_name": profile["name"],
+                "degree_major": str(getattr(teacher, "degree_major", "") or "").strip(),
                 "subject_labels": subject_labels,
                 "support_subject_labels": support_subject_labels,
                 "homeroom_subject_labels": homeroom_subject_labels,
@@ -1769,7 +1809,9 @@ def _build_reporting_context(
                 "teacher_pk": teacher.id,
                 "teacher_id": teacher.teacher_id or "-",
                 "teacher_name": profile["name"],
+                "degree_major": str(getattr(teacher, "degree_major", "") or "").strip(),
                 "subject_keys": list(profile["subject_keys"]),
+                "secondary_subject_keys": list(profile.get("secondary_subject_keys", [])),
                 "support_subject_keys": list(profile["support_subject_keys"]),
                 "homeroom_subject_keys": list(profile.get("homeroom_subject_keys", [])),
                 "homeroom_section_labels": list(
@@ -1962,6 +2004,8 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
                 "subject_name": subject_item["subject_name"],
                 "required_hours": subject_item["weekly_hours"],
                 "remaining_hours": subject_item["weekly_hours"],
+                "recommended_hours": 0,
+                "recommended_assignments": [],
             }
             demand_items_by_subject.setdefault(subject_item["subject_key"], []).append(
                 demand_item
@@ -1991,6 +2035,7 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
 
     teacher_matrix_rows = []
     assignment_rows = []
+    teacher_matrix_row_by_pk = {}
 
     for profile in sorted_profiles:
         allocation_breakdown = profile.get("allocation_breakdown", {}) or {}
@@ -2108,8 +2153,10 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
 
         teacher_matrix_rows.append(
             {
+                "teacher_pk": profile.get("teacher_pk"),
                 "teacher_id": profile.get("teacher_id", "-"),
                 "teacher_name": profile.get("teacher_name", "-"),
+                "degree_major": profile.get("degree_major", ""),
                 "expected_allocated_hours": int(profile.get("allocated_hours", 0)),
                 "capacity_hours": int(
                     profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
@@ -2117,6 +2164,8 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
                 "remaining_capacity_hours": int(
                     profile.get("remaining_capacity_hours", REPORT_STANDARD_MAX_HOURS)
                 ),
+                "recommended_absorption_hours": 0,
+                "recommended_assignment_labels": [],
                 "primary_subject_label": ", ".join(
                     subject_name_by_key.get(subject_key, subject_key.title())
                     for subject_key in primary_subject_keys
@@ -2131,6 +2180,7 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
                 "class_fill_subject_keys": class_fill_subject_keys,
             }
         )
+        teacher_matrix_row_by_pk[profile.get("teacher_pk")] = teacher_matrix_rows[-1]
 
     assignment_rows.sort(
         key=lambda row: (
@@ -2139,6 +2189,114 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
             row["subject_code"],
         )
     )
+
+    remaining_recommendation_capacity_by_teacher = {
+        profile.get("teacher_pk"): int(profile.get("remaining_capacity_hours", 0))
+        for profile in sorted_profiles
+    }
+    recommendation_rows = []
+
+    for subject_key, subject_items in demand_items_by_subject.items():
+        subject_remaining_hours = sum(
+            int(item["remaining_hours"])
+            for item in subject_items
+        )
+        if (
+            subject_remaining_hours <= 0
+            or subject_remaining_hours >= REPORT_MINIMUM_HIRING_HOURS
+        ):
+            continue
+
+        for demand_item in subject_items:
+            recommendation_hours_needed = int(demand_item["remaining_hours"])
+            if recommendation_hours_needed <= 0:
+                continue
+
+            candidate_profiles = []
+            for profile in sorted_profiles:
+                teacher_pk = profile.get("teacher_pk")
+                spare_capacity = remaining_recommendation_capacity_by_teacher.get(
+                    teacher_pk,
+                    0,
+                )
+                if spare_capacity <= 0:
+                    continue
+
+                compatibility = _build_profile_subject_compatibility(
+                    profile,
+                    demand_item["subject_key"],
+                    demand_item["subject_name"],
+                )
+                if not compatibility:
+                    continue
+
+                candidate_profiles.append((profile, compatibility))
+
+            candidate_profiles.sort(
+                key=lambda item: (
+                    item[1]["priority"],
+                    -remaining_recommendation_capacity_by_teacher.get(
+                        item[0].get("teacher_pk"),
+                        0,
+                    ),
+                    int(item[0].get("allocated_hours", 0)),
+                    item[0].get("teacher_name", ""),
+                    str(item[0].get("teacher_id", "")),
+                )
+            )
+
+            for profile, compatibility in candidate_profiles:
+                if recommendation_hours_needed <= 0:
+                    break
+
+                teacher_pk = profile.get("teacher_pk")
+                spare_capacity = remaining_recommendation_capacity_by_teacher.get(
+                    teacher_pk,
+                    0,
+                )
+                if spare_capacity <= 0:
+                    continue
+
+                recommended_hours = min(spare_capacity, recommendation_hours_needed)
+                if recommended_hours <= 0:
+                    continue
+
+                remaining_recommendation_capacity_by_teacher[teacher_pk] = (
+                    spare_capacity - recommended_hours
+                )
+                recommendation_hours_needed -= recommended_hours
+                demand_item["recommended_hours"] = (
+                    int(demand_item.get("recommended_hours", 0)) + recommended_hours
+                )
+
+                recommendation_entry = {
+                    "teacher_pk": teacher_pk,
+                    "teacher_id": profile.get("teacher_id", "-"),
+                    "teacher_name": profile.get("teacher_name", "-"),
+                    "class_label": demand_item["class_label"],
+                    "class_status": demand_item["class_status"],
+                    "subject_key": demand_item["subject_key"],
+                    "subject_code": demand_item["subject_code"],
+                    "subject_name": demand_item["subject_name"],
+                    "allocated_hours": recommended_hours,
+                    "match_basis": compatibility["basis"],
+                }
+                demand_item["recommended_assignments"].append(recommendation_entry)
+                recommendation_rows.append(recommendation_entry)
+
+                teacher_matrix_row = teacher_matrix_row_by_pk.get(teacher_pk)
+                if teacher_matrix_row is not None:
+                    teacher_matrix_row["recommended_absorption_hours"] = (
+                        int(teacher_matrix_row.get("recommended_absorption_hours", 0))
+                        + recommended_hours
+                    )
+                    teacher_matrix_row.setdefault(
+                        "recommended_assignment_labels",
+                        [],
+                    ).append(
+                        f"{demand_item['class_label']} - {demand_item['subject_name']} "
+                        f"({recommended_hours}h, {compatibility['basis']})"
+                    )
 
     unassigned_rows = []
     for subject_items in demand_items_by_subject.values():
@@ -2162,11 +2320,120 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
         )
     )
 
+    subject_section_rows = []
+    subject_section_map = {}
+    for subject_key, subject_items in demand_items_by_subject.items():
+        total_sections = len(subject_items)
+        covered_section_labels = []
+        partial_section_labels = []
+        recommended_section_labels = []
+        uncovered_section_labels = []
+
+        for demand_item in subject_items:
+            required_hours = int(demand_item["required_hours"])
+            remaining_hours = int(demand_item["remaining_hours"])
+            recommended_hours = int(demand_item.get("recommended_hours", 0))
+            allocated_hours = max(required_hours - remaining_hours, 0)
+            class_label = demand_item["class_label"]
+
+            if remaining_hours <= 0:
+                covered_section_labels.append(class_label)
+            elif allocated_hours > 0:
+                partial_section_labels.append(
+                    f"{class_label} ({allocated_hours}/{required_hours}h covered)"
+                )
+
+            if recommended_hours > 0:
+                recommended_section_labels.append(
+                    f"{class_label}: "
+                    + ", ".join(
+                        f"{entry['teacher_name']} ({entry['allocated_hours']}h, {entry['match_basis']})"
+                        for entry in demand_item.get("recommended_assignments", [])
+                    )
+                )
+            elif remaining_hours > 0 and allocated_hours <= 0:
+                uncovered_section_labels.append(class_label)
+
+        section_row = {
+            "subject_key": subject_key,
+            "total_sections": total_sections,
+            "covered_sections_count": len(covered_section_labels),
+            "partial_sections_count": len(partial_section_labels),
+            "recommended_sections_count": len(recommended_section_labels),
+            "uncovered_sections_count": len(uncovered_section_labels),
+            "covered_section_labels": covered_section_labels,
+            "partial_section_labels": partial_section_labels,
+            "recommended_section_labels": recommended_section_labels,
+            "uncovered_section_labels": uncovered_section_labels,
+            "recommended_hours": sum(
+                int(item.get("recommended_hours", 0))
+                for item in subject_items
+            ),
+        }
+        subject_section_rows.append(section_row)
+        subject_section_map[subject_key] = section_row
+
+    underloaded_teacher_rows = []
+    for teacher_matrix_row in teacher_matrix_rows:
+        current_remaining_capacity = int(
+            teacher_matrix_row.get("remaining_capacity_hours", 0)
+        )
+        if current_remaining_capacity <= 0:
+            continue
+
+        recommended_absorption_hours = int(
+            teacher_matrix_row.get("recommended_absorption_hours", 0)
+        )
+        expected_allocated_hours = int(
+            teacher_matrix_row.get("expected_allocated_hours", 0)
+        )
+        capacity_hours = int(
+            teacher_matrix_row.get("capacity_hours", REPORT_STANDARD_MAX_HOURS)
+        )
+        projected_allocated_hours = min(
+            expected_allocated_hours + recommended_absorption_hours,
+            capacity_hours,
+        )
+        projected_remaining_capacity = max(
+            capacity_hours - projected_allocated_hours,
+            0,
+        )
+
+        underloaded_teacher_rows.append(
+            {
+                "teacher_pk": teacher_matrix_row.get("teacher_pk"),
+                "teacher_id": teacher_matrix_row.get("teacher_id", "-"),
+                "teacher_name": teacher_matrix_row.get("teacher_name", "-"),
+                "degree_major": teacher_matrix_row.get("degree_major", ""),
+                "current_load_hours": expected_allocated_hours,
+                "capacity_hours": capacity_hours,
+                "remaining_capacity_hours": current_remaining_capacity,
+                "projected_allocated_hours": projected_allocated_hours,
+                "projected_remaining_capacity_hours": projected_remaining_capacity,
+                "recommended_absorption_hours": recommended_absorption_hours,
+                "recommended_assignment_labels": list(
+                    teacher_matrix_row.get("recommended_assignment_labels", [])
+                ),
+            }
+        )
+
+    underloaded_teacher_rows.sort(
+        key=lambda row: (
+            -row["recommended_absorption_hours"],
+            -row["remaining_capacity_hours"],
+            row["teacher_name"],
+        )
+    )
+
     return {
         "class_rows": class_rows,
         "teacher_matrix_rows": teacher_matrix_rows,
         "assignment_rows": assignment_rows,
         "unassigned_rows": unassigned_rows,
+        "subject_section_rows": subject_section_rows,
+        "subject_section_map": subject_section_map,
+        "underloaded_teacher_rows": underloaded_teacher_rows,
+        "recommendation_rows": recommendation_rows,
     }
 
 
@@ -3210,6 +3477,72 @@ def dashboard(
         planning_sections=planning_sections,
         teachers=teachers_for_reporting,
     )
+    allocation_data = _build_report_class_allocation_data(
+        subjects=subjects_dashboard_rows,
+        planning_sections=planning_sections,
+        reporting_context=reporting_context,
+    )
+    subject_section_map = allocation_data.get("subject_section_map", {})
+    report_subject_rows = []
+    for row in reporting_context["subject_rows"]:
+        report_subject_rows.append(
+            {
+                **row,
+                **subject_section_map.get(row["subject_key"], {}),
+            }
+        )
+    report_gap_rows = []
+    for row in reporting_context["gap_rows"]:
+        report_gap_rows.append(
+            {
+                **row,
+                **subject_section_map.get(row["subject_key"], {}),
+            }
+        )
+
+    underloaded_teacher_map = {
+        row.get("teacher_pk"): row
+        for row in allocation_data.get("underloaded_teacher_rows", [])
+    }
+    report_teacher_rows = []
+    for row in reporting_context["teacher_rows"]:
+        underloaded_row = underloaded_teacher_map.get(row.get("teacher_pk"), {})
+        report_teacher_rows.append(
+            {
+                **row,
+                "is_underloaded": int(row.get("remaining_capacity_hours", 0)) > 0,
+                "recommended_absorption_hours": int(
+                    underloaded_row.get("recommended_absorption_hours", 0)
+                ),
+                "recommended_assignment_labels": list(
+                    underloaded_row.get("recommended_assignment_labels", [])
+                ),
+                "projected_allocated_hours": int(
+                    underloaded_row.get(
+                        "projected_allocated_hours",
+                        row.get("expected_allocated_hours", 0),
+                    )
+                ),
+                "projected_remaining_capacity_hours": int(
+                    underloaded_row.get(
+                        "projected_remaining_capacity_hours",
+                        row.get("remaining_capacity_hours", 0),
+                    )
+                ),
+            }
+        )
+
+    report_summary = dict(reporting_context["summary"])
+    report_summary["underloaded_teachers"] = sum(
+        1 for row in report_teacher_rows if row.get("is_underloaded")
+    )
+    report_summary["underloaded_teachers_with_recommendations"] = sum(
+        1 for row in report_teacher_rows if row.get("recommended_absorption_hours", 0) > 0
+    )
+    report_summary["recommended_internal_absorption_hours"] = sum(
+        row.get("recommended_absorption_hours", 0)
+        for row in report_teacher_rows
+    )
     all_years = db.query(models.AcademicYear).order_by(
         models.AcademicYear.year_name.desc()
     ).all()
@@ -3249,10 +3582,14 @@ def dashboard(
             "subjects_dashboard_rows": subjects_dashboard_rows,
             "teachers_preview": teachers_preview,
             "users_preview": users_preview,
-            "report_summary": reporting_context["summary"],
-            "report_subject_rows": reporting_context["subject_rows"],
-            "report_gap_rows": reporting_context["gap_rows"],
-            "report_teacher_rows": reporting_context["teacher_rows"],
+            "report_summary": report_summary,
+            "report_subject_rows": report_subject_rows,
+            "report_gap_rows": report_gap_rows,
+            "report_teacher_rows": report_teacher_rows,
+            "report_underloaded_teacher_rows": allocation_data.get(
+                "underloaded_teacher_rows",
+                [],
+            ),
             "report_grade_rows": reporting_context["grade_rows"],
             "all_years": all_years,
             "year_map": year_map,

@@ -1596,6 +1596,97 @@
             line-height: 1.1;
         }
 
+        .report-section-summary {
+            margin-top: 12px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .report-section-block {
+            border: 1px solid #dfe8f5;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.88);
+            padding: 10px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .report-section-block.is-covered {
+            border-color: #b8dec9;
+            background: #effaf4;
+        }
+
+        .report-section-block.is-recommended {
+            border-color: #bfd5fb;
+            background: #eff5ff;
+        }
+
+        .report-section-block.is-open {
+            border-color: #efc0b9;
+            background: #fff2ef;
+        }
+
+        .report-section-block-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .report-section-block-head span {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: #63768f;
+            font-weight: 800;
+        }
+
+        .report-section-block-head strong {
+            font-size: 14px;
+            color: #17365d;
+        }
+
+        .report-section-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .report-section-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 5px 8px;
+            border-radius: 999px;
+            border: 1px solid #d4e1f3;
+            background: #fff;
+            color: #355276;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1.2;
+            max-width: 100%;
+            text-align: left;
+            white-space: normal;
+        }
+
+        .report-section-pill.is-covered {
+            border-color: #b8dec9;
+            background: #f3fbf7;
+            color: #0d7a47;
+        }
+
+        .report-section-pill.is-recommended {
+            border-color: #bfd5fb;
+            background: #f2f7ff;
+            color: #2454a6;
+        }
+
+        .report-section-pill.is-open {
+            border-color: #efc0b9;
+            background: #fff5f2;
+            color: #b42318;
+        }
+
         .report-grade-grid {
             display: grid;
             gap: 10px;
@@ -1674,6 +1765,11 @@
             box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
         }
 
+        .report-teacher-item.is-underloaded {
+            border-color: #bfd5fb;
+            box-shadow: 0 12px 24px rgba(37, 84, 166, 0.08);
+        }
+
         .report-teacher-item summary {
             list-style: none;
             cursor: pointer;
@@ -1731,6 +1827,12 @@
             background: #fff7e8;
             color: #9a5f04;
             border-color: #f0d49a;
+        }
+
+        .report-teacher-badge-underloaded {
+            background: #eff5ff;
+            color: #2454a6;
+            border-color: #bfd5fb;
         }
 
         .report-teacher-body {
@@ -1800,6 +1902,35 @@
             font-size: 11px;
             font-weight: 700;
             line-height: 1;
+        }
+
+        .report-recommendation-box {
+            border: 1px solid #bfd5fb;
+            border-radius: 12px;
+            background: #f4f8ff;
+            padding: 10px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .report-recommendation-box strong {
+            color: #17365d;
+            font-size: 14px;
+        }
+
+        .report-recommendation-list {
+            display: grid;
+            gap: 6px;
+        }
+
+        .report-recommendation-item {
+            border: 1px solid #d7e4fa;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.92);
+            padding: 8px 9px;
+            font-size: 12px;
+            color: #355276;
+            line-height: 1.4;
         }
 
         @keyframes rise {
@@ -2432,7 +2563,7 @@
                         <div class="report-card-head">
                             <div class="report-card-head-copy">
                                 <h4>Subject Sufficiency Breakdown</h4>
-                                <p>Ranked by uncovered hours so the biggest staffing gaps are visible first. Most of the report data is shown here as visual cards instead of a crowded table.</p>
+                                <p>Ranked by uncovered hours, but grounded in planned sections so each subject shows which sections are covered, which still need help, and where internal absorption is being recommended.</p>
                             </div>
                             <span class="report-card-tag">{{ report_subject_rows|length }} subjects</span>
                         </div>
@@ -2485,10 +2616,14 @@
                                 <div class="report-subject-head">
                                     <div>
                                         <h5>{{ row.subject_name }}</h5>
-                                        <div class="report-grade-pill-row">
-                                            {% for grade in row.grades %}
-                                            <span class="report-grade-pill">{{ grade }}</span>
-                                            {% endfor %}
+                                        <div class="report-inline-note">
+                                            Sections covered {{ row.covered_sections_count or 0 }}/{{ row.total_sections or 0 }}
+                                            {% if row.recommended_sections_count %}
+                                            | Recommended absorption {{ row.recommended_sections_count }}
+                                            {% endif %}
+                                            {% if row.uncovered_sections_count or row.partial_sections_count %}
+                                            | Still open {{ (row.uncovered_sections_count or 0) + (row.partial_sections_count or 0) }}
+                                            {% endif %}
                                         </div>
                                     </div>
                                     <div class="report-subject-side">
@@ -2538,9 +2673,73 @@
                                         <strong>{{ row.teachers_with_subject }}</strong>
                                     </div>
                                     <div class="report-subject-stat">
-                                        <span>Extra Needed</span>
-                                        <strong>{{ row.additional_teachers_needed }}</strong>
+                                        <span>Covered Sections</span>
+                                        <strong>{{ row.covered_sections_count or 0 }}/{{ row.total_sections or 0 }}</strong>
                                     </div>
+                                    <div class="report-subject-stat">
+                                        <span>Recommended</span>
+                                        <strong>{{ row.recommended_sections_count or 0 }}</strong>
+                                    </div>
+                                    <div class="report-subject-stat">
+                                        <span>Open Sections</span>
+                                        <strong>{{ (row.uncovered_sections_count or 0) + (row.partial_sections_count or 0) }}</strong>
+                                    </div>
+                                </div>
+                                <div class="report-section-summary">
+                                    {% if row.covered_section_labels %}
+                                    <div class="report-section-block is-covered">
+                                        <div class="report-section-block-head">
+                                            <span>Covered Sections</span>
+                                            <strong>{{ row.covered_sections_count }}</strong>
+                                        </div>
+                                        <div class="report-section-list">
+                                            {% for label in row.covered_section_labels %}
+                                            <span class="report-section-pill is-covered">{{ label }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% if row.recommended_section_labels %}
+                                    <div class="report-section-block is-recommended">
+                                        <div class="report-section-block-head">
+                                            <span>Internal Absorption Recommendations</span>
+                                            <strong>{{ row.recommended_sections_count }}</strong>
+                                        </div>
+                                        <div class="report-section-list">
+                                            {% for label in row.recommended_section_labels %}
+                                            <span class="report-section-pill is-recommended">{{ label }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% if row.partial_section_labels or row.uncovered_section_labels %}
+                                    <div class="report-section-block is-open">
+                                        <div class="report-section-block-head">
+                                            <span>Sections Still Open</span>
+                                            <strong>{{ (row.partial_sections_count or 0) + (row.uncovered_sections_count or 0) }}</strong>
+                                        </div>
+                                        {% if row.partial_section_labels %}
+                                        <div>
+                                            <div class="report-inline-note">Partially covered</div>
+                                            <div class="report-section-list">
+                                                {% for label in row.partial_section_labels %}
+                                                <span class="report-section-pill is-open">{{ label }}</span>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                        {% if row.uncovered_section_labels %}
+                                        <div>
+                                            <div class="report-inline-note">No compatible allocation yet</div>
+                                            <div class="report-section-list">
+                                                {% for label in row.uncovered_section_labels %}
+                                                <span class="report-section-pill is-open">{{ label }}</span>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
                                 </div>
                                 {% if row.additional_teachers_note %}
                                 <div class="report-inline-note">{{ row.additional_teachers_note }}</div>
@@ -2573,6 +2772,12 @@
                                 {% else %}
                                 <small>Additional teachers required: 0</small>
                                 {% endif %}
+                                <small>
+                                    Sections covered {{ row.covered_sections_count or 0 }}/{{ row.total_sections or 0 }}
+                                    {% if row.recommended_sections_count %}
+                                    | Recommended {{ row.recommended_sections_count }}
+                                    {% endif %}
+                                </small>
                             </div>
                             {% endfor %}
                         </div>
@@ -2614,7 +2819,7 @@
                     <div class="report-card-head">
                         <div class="report-card-head-copy">
                             <h4>Expected Allocation Across Planned Sections</h4>
-                            <p>Collapsed cards keep the report lighter while still showing homeroom reservations, primary forecast load, support load, and remaining international capacity.</p>
+                            <p>Collapsed cards keep the report lighter while still showing underloaded teachers, current versus maximum load, homeroom reservations, and recommended internal-absorption assignments before any hiring call.</p>
                         </div>
                         <span class="report-card-tag">{{ report_teacher_rows|length }} teachers</span>
                     </div>
@@ -2623,16 +2828,22 @@
                         {% for row in report_teacher_rows %}
                         {% set teacher_fill_pct = ((row.expected_allocated_hours / row.capacity_hours) * 100) if row.capacity_hours else 0 %}
                         {% set teacher_fill = 100 if teacher_fill_pct > 100 else teacher_fill_pct %}
-                        <details class="report-teacher-item">
+                        <details class="report-teacher-item{% if row.is_underloaded %} is-underloaded{% endif %}">
                             <summary>
                                 <div class="report-teacher-head">
                                     <strong>{{ row.teacher_name }}</strong>
                                     <div class="report-teacher-meta">
-                                        ID {{ row.teacher_id }} | Capacity {{ row.capacity_hours }}h | Remaining {{ row.remaining_capacity_hours }}h
+                                        ID {{ row.teacher_id }} | Current {{ row.expected_allocated_hours }} / {{ row.capacity_hours }}h | Remaining {{ row.remaining_capacity_hours }}h
                                     </div>
                                 </div>
                                 <div class="report-teacher-badges">
                                     <span class="report-teacher-badge">{{ row.expected_allocated_hours }}h allocated</span>
+                                    {% if row.is_underloaded %}
+                                    <span class="report-teacher-badge report-teacher-badge-underloaded">Underloaded</span>
+                                    {% endif %}
+                                    {% if row.recommended_absorption_hours > 0 %}
+                                    <span class="report-teacher-badge report-teacher-badge-underloaded">{{ row.recommended_absorption_hours }}h recommended</span>
+                                    {% endif %}
                                     <span class="report-teacher-badge report-teacher-badge-accent">
                                         {% if row.remaining_capacity_hours > 0 %}{{ row.remaining_capacity_hours }}h spare{% else %}Full load{% endif %}
                                     </span>
@@ -2662,6 +2873,17 @@
                                 <div class="report-inline-note">
                                     Total capacity {{ row.total_capacity_hours }}h | National section {{ row.national_section_hours }}h | International capacity {{ row.capacity_hours }}h
                                 </div>
+                                {% if row.degree_major %}
+                                <div class="report-inline-note">Degree / major: {{ row.degree_major }}</div>
+                                {% endif %}
+                                {% if row.is_underloaded %}
+                                <div class="report-inline-note">
+                                    Underloaded teacher identified with {{ row.remaining_capacity_hours }}h spare before redistribution recommendations.
+                                    {% if row.recommended_absorption_hours > 0 %}
+                                    Projected load after recommendations: {{ row.projected_allocated_hours }} / {{ row.capacity_hours }}h.
+                                    {% endif %}
+                                </div>
+                                {% endif %}
                                 {% if row.homeroom_section_labels %}
                                 <div>
                                     <div class="report-inline-note">Reserved homeroom sections</div>
@@ -2711,6 +2933,18 @@
                                 {% if row.allocation_labels %}
                                 <div class="report-inline-note">{{ row.allocation_labels | join(", ") }}</div>
                                 {% endif %}
+                                {% if row.recommended_assignment_labels %}
+                                <div class="report-recommendation-box">
+                                    <strong>Recommended Internal Absorption</strong>
+                                    <div class="report-recommendation-list">
+                                        {% for label in row.recommended_assignment_labels %}
+                                        <div class="report-recommendation-item">{{ label }}</div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% elif row.is_underloaded %}
+                                <div class="report-inline-note">No compatible open section-hours remain after the subject and major compatibility check.</div>
+                                {% endif %}
                             </div>
                         </details>
                         {% endfor %}
@@ -2719,7 +2953,7 @@
                     <div class="empty">No teacher records found in this branch/year scope.</div>
                     {% endif %}
                     <div class="report-footnote">
-                        Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Aligned to at least one report subject: {{ report_summary.teachers_with_subject_alignment }} | Utilized in planned-section allocations: {{ report_summary.teachers_utilized }} | Full load at international capacity: {{ report_summary.teachers_full_load }} | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
+                        Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Aligned to at least one report subject: {{ report_summary.teachers_with_subject_alignment }} | Utilized in planned-section allocations: {{ report_summary.teachers_utilized }} | Full load at international capacity: {{ report_summary.teachers_full_load }} | Underloaded: {{ report_summary.underloaded_teachers }} | Underloaded with recommendations: {{ report_summary.underloaded_teachers_with_recommendations }} | Recommended internal absorption: {{ report_summary.recommended_internal_absorption_hours }}h | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
                     </div>
                 </div>
                 {% else %}
