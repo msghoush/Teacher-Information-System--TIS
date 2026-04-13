@@ -2913,17 +2913,17 @@
                     <article class="report-focus-card">
                         <span class="report-focus-label">Whole New Hires</span>
                         <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_new_teachers_required }}">{{ report_summary.total_new_teachers_required }}</strong>
-                        <p>{{ report_summary.hireable_covered_hours }}h can be covered by full 24-hour hires.</p>
+                        <p>
+                            {{ report_summary.hireable_covered_hours }}h can be covered by full 24-hour hires.
+                            {% if report_summary.remaining_uncovered_hours_after_hires > 0 %}
+                            {{ report_summary.remaining_uncovered_hours_after_hires }}h still remain after those hires.
+                            {% endif %}
+                        </p>
                     </article>
                     <article class="report-focus-card {% if report_summary.total_uncovered_hours > 0 %}is-alert{% else %}is-clear{% endif %}">
                         <span class="report-focus-label">Total Uncovered Hours</span>
                         <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_uncovered_hours }}">{{ report_summary.total_uncovered_hours }}h</strong>
                         <p>Raw uncovered weekly hours from all unassigned subject-section demand in planning.</p>
-                    </article>
-                    <article class="report-focus-card {% if report_summary.remaining_uncovered_hours_after_hires > 0 %}is-alert{% else %}is-clear{% endif %}">
-                        <span class="report-focus-label">Remainder After Full Hires</span>
-                        <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.remaining_uncovered_hours_after_hires }}">{{ report_summary.remaining_uncovered_hours_after_hires }}h</strong>
-                        <p>Hours still open after allocating the uncovered total into full 24-hour teacher hires.</p>
                     </article>
                 </div>
 
