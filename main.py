@@ -4147,9 +4147,9 @@ def dashboard(
     ).limit(8).all()
     subject_hours_by_grade = {}
     for subject in subjects_dashboard_rows:
-        if subject.grade is None:
+        grade_label = _normalize_grade_label(getattr(subject, "grade", None))
+        if not grade_label:
             continue
-        grade_label = "KG" if int(subject.grade) == 0 else str(int(subject.grade))
         subject_hours_by_grade[grade_label] = (
             subject_hours_by_grade.get(grade_label, 0)
             + int(subject.weekly_hours or 0)
