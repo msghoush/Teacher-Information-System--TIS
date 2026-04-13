@@ -14,6 +14,10 @@ from homeroom_defaults import (
     is_default_homeroom_subject,
     is_lower_primary_homeroom_grade,
 )
+from teacher_qualifications import (
+    get_subject_qualification_alignment,
+    infer_qualification_keys_from_legacy_text,
+)
 from teacher_capacity import get_teacher_international_capacity_hours
 from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
@@ -137,6 +141,50 @@ def _build_teacher_display_name(teacher) -> str:
     name_parts.append(teacher.last_name)
     full_name = " ".join(part for part in name_parts if part).strip()
     return full_name if full_name else f"Teacher #{teacher.id}"
+
+
+def _is_override_enabled(value) -> bool:
+    cleaned = str(value or "").strip().lower()
+    return cleaned in {"1", "true", "yes", "on"}
+
+
+def _build_assignment_alignment_warnings(
+    aligned_subjects,
+    parsed_assignment_teacher_ids_by_subject,
+    scoped_teacher_map,
+):
+    warnings = []
+    for subject in aligned_subjects:
+        subject_code = subject.get("subject_code")
+        teacher_id = parsed_assignment_teacher_ids_by_subject.get(subject_code)
+        if teacher_id is None:
+            continue
+        teacher = scoped_teacher_map.get(teacher_id)
+        if not teacher:
+            continue
+        qualification_keys = infer_qualification_keys_from_legacy_text(
+            getattr(teacher, "degree_major", "") or ""
+        )
+        alignment = get_subject_qualification_alignment(
+            subject_name=subject.get("subject_name") or "",
+            fallback_code=subject_code or "",
+            qualification_keys=qualification_keys,
+        )
+        if alignment.get("status") == "match":
+            continue
+        warnings.append(
+            {
+                "teacher_name": _build_teacher_display_name(teacher),
+                "subject_code": subject_code,
+                "subject_name": subject.get("subject_name") or "Unnamed Subject",
+                "degree": getattr(teacher, "degree_major", "") or "Not recorded",
+                "major": ", ".join(alignment.get("matched_qualification_labels", [])) or "Review fit",
+                "reason": (
+                    "The assigned subject is not aligned with the teacher's recorded qualifications."
+                ),
+            }
+        )
+    return warnings
 
 
 def _get_teacher_choices(db: Session, branch_id: int, academic_year_id: int):
@@ -605,6 +653,7 @@ def _render_edit_planning_page(
     error: str = "",
     form_data=None,
     selected_assignment_teacher_ids=None,
+    qualification_warning=None,
     status_code: int = 200,
 ):
     branch_id, academic_year_id = _get_scope_ids(current_user)
@@ -694,6 +743,7 @@ def _render_edit_planning_page(
             },
             "form_data": normalized_form_data,
             "error": error,
+            "qualification_warning": qualification_warning,
             **build_shell_context(
                 request,
                 db,
@@ -1183,6 +1233,7 @@ def update_planning_section(
     homeroom_teacher_id: str = Form(""),
     assignment_subject_codes: list[str] = Form([]),
     assignment_teacher_ids: list[str] = Form([]),
+    qualification_override: str = Form(""),
     db: Session = Depends(get_db),
 ):
     current_user = get_current_user(request, db)
@@ -1373,6 +1424,44 @@ def update_planning_section(
                 subject_code: teacher_id
                 for subject_code, teacher_id in parsed_assignment_teacher_ids_by_subject.items()
                 if subject_code in aligned_subject_codes and teacher_id is not None
+            },
+            status_code=400,
+        )
+
+    qualification_warnings = _build_assignment_alignment_warnings(
+        aligned_subjects=aligned_subjects,
+        parsed_assignment_teacher_ids_by_subject=parsed_assignment_teacher_ids_by_subject,
+        scoped_teacher_map=scoped_teacher_map,
+    )
+    if qualification_warnings and not _is_override_enabled(qualification_override):
+        return _render_edit_planning_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            planning_section=planning_section,
+            form_data={
+                "grade_level": normalized_grade_level or planning_section.grade_level,
+                "section_name": normalized_section_name or planning_section.section_name,
+                "class_status": normalized_class_status or planning_section.class_status,
+                "homeroom_teacher_id": (
+                    str(parsed_homeroom_teacher_id)
+                    if parsed_homeroom_teacher_id is not None
+                    else ""
+                ),
+            },
+            selected_assignment_teacher_ids={
+                subject_code: teacher_id
+                for subject_code, teacher_id in parsed_assignment_teacher_ids_by_subject.items()
+                if subject_code in aligned_subject_codes and teacher_id is not None
+            },
+            qualification_warning={
+                "title": "Qualification mismatch warning",
+                "message": (
+                    "One or more teacher-subject assignments do not align with the "
+                    "teacher's recorded degree/major. Review the warning below and "
+                    "use the override checkbox if this section assignment is intentional."
+                ),
+                "items": qualification_warnings,
             },
             status_code=400,
         )

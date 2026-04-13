@@ -771,14 +771,15 @@
         }
 
         .report-note {
-            margin-bottom: 12px;
-            border: 1px solid #bfd2ea;
-            background: #f1f6ff;
+            margin-bottom: 14px;
+            border: 1px solid #d7e3f1;
+            background: linear-gradient(135deg, #f7fbff 0%, #eef5ff 50%, #f8fafc 100%);
             color: #123d72;
-            border-radius: 10px;
-            padding: 10px 12px;
+            border-radius: 16px;
+            padding: 14px 16px;
             font-size: 13px;
-            line-height: 1.5;
+            line-height: 1.6;
+            box-shadow: 0 12px 26px rgba(15, 23, 42, 0.05);
         }
 
         .report-decision-strip {
@@ -888,6 +889,131 @@
             font-size: 13px;
             color: #536885;
             line-height: 1.4;
+        }
+
+        .report-visual-grid {
+            margin-top: 18px;
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 14px;
+        }
+
+        .report-visual-card {
+            border: 1px solid #d3deed;
+            border-radius: 18px;
+            padding: 18px;
+            background: linear-gradient(155deg, #ffffff 0%, #f6f9ff 60%, #edf5ff 100%);
+            box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+        }
+
+        .report-visual-card h4 {
+            margin: 0 0 6px;
+            font-size: 18px;
+            color: #163258;
+            letter-spacing: -0.02em;
+        }
+
+        .report-visual-card p {
+            margin: 0 0 14px;
+            color: #536885;
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .report-donut-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .report-donut-card {
+            border: 1px solid #dbe5f2;
+            border-radius: 16px;
+            padding: 14px;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .report-donut-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 16px 28px rgba(15, 23, 42, 0.08);
+        }
+
+        .report-donut-card h5 {
+            margin: 0 0 10px;
+            font-size: 13px;
+            color: #355276;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .report-chart-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .report-chart-row {
+            display: grid;
+            gap: 5px;
+        }
+
+        .report-chart-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: 13px;
+            color: #26456d;
+            font-weight: 700;
+        }
+
+        .report-chart-track {
+            width: 100%;
+            height: 12px;
+            border-radius: 999px;
+            background: #e5edf8;
+            overflow: hidden;
+        }
+
+        .report-chart-fill {
+            width: 0;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #0a4ea3, #4f8ddd);
+            transition: width 700ms ease;
+        }
+
+        .report-focus-bar {
+            margin: 14px 0 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .report-focus-chip {
+            border: 1px solid #b7c9e2;
+            background: #fff;
+            color: #325077;
+            border-radius: 999px;
+            padding: 7px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 120ms ease, border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+        }
+
+        .report-focus-chip:hover {
+            transform: translateY(-1px);
+            border-color: #8aaedf;
+            background: #edf4ff;
+            color: #083b7e;
+        }
+
+        .report-focus-chip.active {
+            border-color: var(--brand);
+            background: var(--brand);
+            color: #fff;
         }
 
         .report-kpis {
@@ -1146,10 +1272,10 @@
         }
 
         .report-focus-metrics {
-            margin-top: 12px;
+            margin-top: 16px;
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 12px;
+            gap: 14px;
         }
 
         .report-focus-card {
@@ -1182,9 +1308,10 @@
         .report-focus-value {
             display: block;
             margin-top: 8px;
-            font-size: 40px;
+            font-size: 36px;
             line-height: 1;
             color: #17365d;
+            letter-spacing: -0.03em;
         }
 
         .report-focus-card.is-alert .report-focus-value {
@@ -1203,15 +1330,15 @@
         }
 
         .report-coverage-brief {
-            margin-top: 12px;
+            margin-top: 16px;
             display: grid;
             grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
-            gap: 12px;
+            gap: 16px;
             border: 1px solid #d3deed;
             border-radius: 18px;
-            padding: 16px;
+            padding: 18px;
             background: linear-gradient(145deg, #ffffff, #f7fbff);
-            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
         }
 
         .report-coverage-brief.is-alert {
@@ -1367,14 +1494,14 @@
         }
 
         .report-donut-wrap {
-            display: flex;
-            align-items: center;
+            display: grid;
+            justify-items: center;
             gap: 12px;
         }
 
         .report-donut-shell {
             position: relative;
-            width: 118px;
+            width: 108px;
             aspect-ratio: 1;
             border-radius: 50%;
             background: conic-gradient(var(--donut-segments, #0a4ea3 0 75%, #e6edf7 75% 100%));
@@ -1421,8 +1548,8 @@
         .report-donut-legend {
             display: grid;
             gap: 6px;
+            width: 100%;
             min-width: 0;
-            flex: 1;
         }
 
         .report-legend-row {
@@ -1432,17 +1559,20 @@
             gap: 8px;
             font-size: 12px;
             color: #42566f;
+            flex-wrap: wrap;
         }
 
         .report-legend-row strong {
             color: #17365d;
             font-size: 13px;
+            flex-shrink: 0;
         }
 
         .report-legend-label {
             display: inline-flex;
             align-items: center;
             gap: 7px;
+            min-width: 0;
         }
 
         .report-legend-dot {
@@ -1671,6 +1801,88 @@
         .report-caption-alert {
             color: #b42318;
             font-weight: 800;
+        }
+
+        .report-contributor-panel {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid #d8e4f3;
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(241, 247, 255, 0.92));
+        }
+
+        .report-contributor-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .report-contributor-head span {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #537096;
+        }
+
+        .report-contributor-head strong {
+            font-size: 18px;
+            color: #17365d;
+        }
+
+        .report-contributor-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+        }
+
+        .report-contributor-chip {
+            padding: 10px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid #dbe7f6;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+        }
+
+        .report-contributor-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .report-contributor-meta span {
+            font-size: 13px;
+            font-weight: 700;
+            color: #17365d;
+        }
+
+        .report-contributor-meta strong {
+            font-size: 13px;
+            color: #0a4ea3;
+        }
+
+        .report-contributor-track {
+            height: 8px;
+            border-radius: 999px;
+            background: #e4edf8;
+            overflow: hidden;
+        }
+
+        .report-contributor-fill {
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #0a4ea3, #3d8df5);
+        }
+
+        .report-contributor-foot {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #5d7597;
+            line-height: 1.45;
         }
 
         .report-subject-urgency {
@@ -2201,6 +2413,14 @@
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
+            .report-visual-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .report-donut-grid {
+                grid-template-columns: 1fr;
+            }
+
             .subject-toolbar {
                 justify-content: stretch;
             }
@@ -2242,6 +2462,15 @@
 
             .report-teacher-badges {
                 justify-content: flex-start;
+            }
+
+            .report-focus-bar {
+                justify-content: stretch;
+            }
+
+            .report-focus-chip {
+                width: 100%;
+                text-align: center;
             }
         }
 </style>
@@ -2553,7 +2782,7 @@
                 <div class="panel-head">
                     <div>
                         <h3>Reports Workspace</h3>
-                        <p>Planning-based teacher sufficiency across opened sections, assigned teachers, and uncovered demand.</p>
+                        <p>Section-accurate assignment coverage across opened sections, assigned teachers, and uncovered demand.</p>
                     </div>
                     <div class="panel-head-actions">
                         <a class="open-link" href="/planning">Open Planning</a>
@@ -2561,19 +2790,132 @@
                     </div>
                 </div>
                 <div class="report-note">
-                    This report follows opened planning sections, applies the fixed Grade 1 and Grade 2 homeroom-default coverage first, and then redistributes the remaining load across existing teachers using enabled subjects, major alignment, admin overrides, and available international capacity.
+                    This report follows opened planning sections and counts coverage only when a matching section-subject assignment exists, with Grade 1 and Grade 2 homeroom-default subjects applied automatically where configured.
                 </div>
                 {% if report_summary.total_required_hours > 0 %}
+                <div class="report-visual-grid">
+                    <div class="report-visual-card">
+                        <h4>Executive Coverage Snapshot</h4>
+                        <p>Polished donut views summarize section coverage, section mix, and the hiring plan using whole teachers plus any remaining uncovered hours.</p>
+                        <div class="report-donut-grid">
+                            <div class="report-donut-card" title="Coverage across all required section-hours in the current planning scope.">
+                                <h5>Coverage</h5>
+                                <div class="report-donut-wrap">
+                                    <div class="report-donut-shell" style="--donut-segments: #0a4ea3 0 {{ report_visuals.coverage_pct }}%, #dbe7f8 {{ report_visuals.coverage_pct }}% 100%;">
+                                        <div class="report-donut-center">
+                                            <strong>{{ report_visuals.coverage_pct }}%</strong>
+                                            <span>Covered</span>
+                                        </div>
+                                    </div>
+                                    <div class="report-donut-legend">
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#0a4ea3;"></span>Covered</span>
+                                            <strong>{{ report_summary.total_allocated_hours }}h</strong>
+                                        </div>
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#dbe7f8;"></span>Uncovered</span>
+                                            <strong>{{ report_summary.total_remaining_hours }}h</strong>
+                                        </div>
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#94a3b8;"></span>Total Demand</span>
+                                            <strong>{{ report_summary.total_required_hours }}h</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="report-donut-card" title="Distribution of current versus new sections in the selected scope.">
+                                <h5>Section Mix</h5>
+                                <div class="report-donut-wrap">
+                                    <div class="report-donut-shell" style="--donut-segments: #0f7f7a 0 {{ report_visuals.current_section_pct }}%, #f2c25f {{ report_visuals.current_section_pct }}% 100%;">
+                                        <div class="report-donut-center">
+                                            <strong>{{ planning_total_sections }}</strong>
+                                            <span>Sections</span>
+                                        </div>
+                                    </div>
+                                    <div class="report-donut-legend">
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#0f7f7a;"></span>Current</span>
+                                            <strong>{{ planning_current_sections_count }}</strong>
+                                        </div>
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#f2c25f;"></span>New</span>
+                                            <strong>{{ planning_new_sections_count }}</strong>
+                                        </div>
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#cbd5e1;"></span>Mix</span>
+                                            <strong>{{ report_visuals.current_section_pct }}% current</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="report-donut-card" title="Whole-teacher hiring view: uncovered hours are grouped into 24-hour hires, with any remaining uncovered hours shown separately.">
+                                <h5>Staffing Plan</h5>
+                                <div class="report-donut-wrap">
+                                    <div class="report-donut-shell" style="--donut-segments: #1d4ed8 0 {{ report_visuals.existing_teacher_pct }}%, #f59e0b {{ report_visuals.existing_teacher_pct }}% 100%;">
+                                        <div class="report-donut-center">
+                                            <strong>{{ report_summary.total_teachers_needed_branch }}</strong>
+                                            <span>Teachers</span>
+                                        </div>
+                                    </div>
+                                    <div class="report-donut-legend">
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#1d4ed8;"></span>Existing</span>
+                                            <strong>{{ report_summary.total_existing_teachers }}</strong>
+                                        </div>
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#f59e0b;"></span>Whole Hires</span>
+                                            <strong>{{ report_summary.total_new_teachers_required }}</strong>
+                                        </div>
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#ef4444;"></span>Remainder</span>
+                                            <strong>{{ report_summary.remaining_uncovered_hours_after_hires }}h</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="report-visual-card">
+                        <h4>Priority Subject Gaps</h4>
+                        <p>A simplified view highlights the subjects with the largest uncovered-hour gaps so the dashboard stays focused on staffing action.</p>
+                        {% if report_visuals.top_subject_gap %}
+                        <div class="report-chart-list">
+                            {% for item in report_visuals.top_subject_gap %}
+                            <div class="report-chart-row">
+                                <div class="report-chart-head">
+                                    <span>{{ item.label }}</span>
+                                    <strong>{{ item.value }}h</strong>
+                                </div>
+                                <div class="report-chart-track">
+                                    <div class="report-chart-fill" data-width="{{ item.width_pct }}"></div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
                 <div class="report-focus-metrics">
                     <article class="report-focus-card">
                         <span class="report-focus-label">Existing Teachers</span>
                         <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_existing_teachers }}">{{ report_summary.total_existing_teachers }}</strong>
                         <p>Teachers available in the current branch and academic year scope.</p>
                     </article>
-                    <article class="report-focus-card {% if report_summary.total_remaining_hours > 0 %}is-alert{% else %}is-clear{% endif %}">
-                        <span class="report-focus-label">Uncovered Hours</span>
-                        <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_remaining_hours }}">{{ report_summary.total_remaining_hours }}h</strong>
-                        <p>Weekly hours still open after lower-primary homeroom defaults and compatible-teacher redistribution.</p>
+                    <article class="report-focus-card">
+                        <span class="report-focus-label">Whole New Hires</span>
+                        <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_new_teachers_required }}">{{ report_summary.total_new_teachers_required }}</strong>
+                        <p>
+                            {{ report_summary.hireable_covered_hours }}h can be covered by full 24-hour hires.
+                            {% if report_summary.remaining_uncovered_hours_after_hires > 0 %}
+                            {{ report_summary.remaining_uncovered_hours_after_hires }}h still remain after those hires.
+                            {% endif %}
+                        </p>
+                    </article>
+                    <article class="report-focus-card {% if report_summary.total_uncovered_hours > 0 %}is-alert{% else %}is-clear{% endif %}">
+                        <span class="report-focus-label">Total Uncovered Hours</span>
+                        <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_uncovered_hours }}">{{ report_summary.total_uncovered_hours }}h</strong>
+                        <p>Raw uncovered weekly hours from all unassigned subject-section demand in planning.</p>
                     </article>
                 </div>
 
@@ -2600,7 +2942,7 @@
                         <p>Grade 1 and Grade 2 homeroom teachers automatically cover English, Mathematics, Mental Math, Performing Arts, Science, Social Studies, and Well Being unless a section is manually assigned to someone else.</p>
                         <p>
                             {% if report_summary.total_remaining_hours > 0 %}
-                            Use the uncovered-hour total and the 24h staffing blocks only as decision support. The current plan still has {{ report_summary.total_staffing_requirement_blocks }} teacher-equivalent block{% if report_summary.total_staffing_requirement_blocks != 1 %}s{% endif %} open.
+                            Total uncovered demand is {{ report_summary.total_uncovered_hours }}h. That translates to {{ report_summary.total_new_teachers_required }} whole teacher{% if report_summary.total_new_teachers_required != 1 %}s{% endif %} covering {{ report_summary.hireable_covered_hours }}h, with {{ report_summary.remaining_uncovered_hours_after_hires }}h still left open after those hires.
                             {% else %}
                             No uncovered hours remain in the current planning scope after the default homeroom and compatible-teacher coverage pass.
                             {% endif %}
@@ -2616,12 +2958,16 @@
                             <strong>{{ report_summary.total_allocated_hours }}h</strong>
                         </div>
                         <div class="report-mini-stat">
+                            <span>Total Uncovered</span>
+                            <strong>{{ report_summary.total_uncovered_hours }}h</strong>
+                        </div>
+                        <div class="report-mini-stat">
                             <span>Homeroom Default</span>
                             <strong>{{ report_summary.homeroom_default_coverage_hours }}h</strong>
                         </div>
                         <div class="report-mini-stat">
-                            <span>24h Blocks</span>
-                            <strong>{{ report_summary.total_staffing_requirement_blocks }}</strong>
+                            <span>Hire Split</span>
+                            <strong>{{ report_summary.total_new_teachers_required }} + {{ report_summary.remaining_uncovered_hours_after_hires }}h</strong>
                         </div>
                     </div>
                 </article>
@@ -2668,6 +3014,36 @@
                                     <span><strong>{{ row.allocated_hours }}h</strong> covered of {{ row.required_hours }}h required</span>
                                     <span class="{% if row.remaining_hours > 0 %}report-caption-alert{% endif %}"><strong>{{ row.remaining_hours }}h</strong> uncovered</span>
                                 </div>
+                                <div class="report-contributor-panel">
+                                    <div class="report-contributor-head">
+                                        <span>Teacher Coverage</span>
+                                        <strong>{{ row.assigned_teacher_count or 0 }}</strong>
+                                    </div>
+                                    {% if row.assigned_teacher_contributors %}
+                                    <div class="report-contributor-list">
+                                        {% for contributor in row.assigned_teacher_contributors %}
+                                        <div class="report-contributor-chip">
+                                            <div class="report-contributor-meta">
+                                                <span>{{ contributor.teacher_name }}</span>
+                                                <strong>{{ contributor.allocated_hours }}h</strong>
+                                            </div>
+                                            <div class="report-contributor-track">
+                                                <div class="report-contributor-fill" style="width: {{ contributor.share_percentage }}%;"></div>
+                                            </div>
+                                            <div class="report-contributor-foot">
+                                                {% if contributor.section_labels %}
+                                                {{ contributor.section_labels | join(" | ") }}
+                                                {% else %}
+                                                Covering this subject in assigned sections.
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% else %}
+                                    <div class="report-inline-note">No teachers are currently assigned to this subject.</div>
+                                    {% endif %}
+                                </div>
                                 <div class="report-subject-urgency">
                                     <div class="report-subject-alert-card {{ row.staffing_alert_class }}">
                                         <span>Uncovered Hours</span>
@@ -2692,7 +3068,7 @@
                                     </div>
                                     <div class="report-subject-stat">
                                         <span>Teachers</span>
-                                        <strong>{{ row.teachers_with_subject }}</strong>
+                                        <strong>{{ row.assigned_teacher_count or 0 }}</strong>
                                     </div>
                                     <div class="report-subject-stat">
                                         <span>Covered Sections</span>
@@ -2814,8 +3190,8 @@
                 <div class="report-card report-teachers-card">
                     <div class="report-card-head">
                         <div class="report-card-head-copy">
-                            <h4>Expected Allocation Across Planned Sections</h4>
-                            <p>Compact teacher cards show current projected load, remaining international capacity, and the lower-primary homeroom hours already reserved in the planning pass.</p>
+                            <h4>Assigned Coverage Across Planned Sections</h4>
+                            <p>Compact teacher cards show the current assigned load, remaining international capacity, and the lower-primary homeroom hours already covered by default rules.</p>
                         </div>
                         <span class="report-card-tag">{{ report_teacher_rows|length }} teachers</span>
                     </div>
@@ -2871,7 +3247,7 @@
                                 {% endif %}
                                 {% if row.is_underloaded %}
                                 <div class="report-inline-note">
-                                    This teacher still has {{ row.remaining_capacity_hours }}h of international capacity available in the current reporting pass.
+                                    This teacher still has {{ row.remaining_capacity_hours }}h of international capacity available after the current section assignments.
                                 </div>
                                 {% endif %}
                                 {% if row.homeroom_section_labels %}
@@ -2895,7 +3271,7 @@
                                 </div>
                                 {% endif %}
                                 <div>
-                                    <div class="report-inline-note">Primary forecast basis</div>
+                                    <div class="report-inline-note">Assigned subject coverage</div>
                                     <div class="report-tag-list">
                                         {% if row.subject_labels %}
                                             {% for label in row.subject_labels %}
@@ -2906,7 +3282,7 @@
                                         {% endif %}
                                     </div>
                                 </div>
-                                <div class="report-inline-note">Current assigned hours in primary basis: {{ row.primary_subject_basis_hours }}h</div>
+                                <div class="report-inline-note">Current assigned hours in listed subjects: {{ row.primary_subject_basis_hours }}h</div>
                                 {% if row.support_subject_labels %}
                                 <div>
                                     <div class="report-inline-note">Support subjects used only after primary demand is covered</div>
@@ -2964,7 +3340,10 @@ const tabs = document.querySelectorAll(".tab");
         const planningKpiValues = Array.from(document.querySelectorAll(".planning-kpi-value"));
         const reportKpiValues = Array.from(document.querySelectorAll(".report-kpi-value"));
         const reportGapFills = Array.from(document.querySelectorAll(".report-gap-fill"));
+        const reportChartFills = Array.from(document.querySelectorAll(".report-chart-fill"));
         const reportCoverageFill = document.getElementById("reportCoverageFill");
+        const reportFocusChips = Array.from(document.querySelectorAll(".report-focus-chip"));
+        const reportSubjectRows = Array.from(document.querySelectorAll(".report-subject-row"));
         const subjectGradeOrder = ["KG", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
         const dashboardSubjectRowsByGrade = new Map();
         const collapsedDashboardGrades = new Set();
@@ -3030,7 +3409,30 @@ const tabs = document.querySelectorAll(".tab");
 
             applyWidth(reportCoverageFill);
             reportGapFills.forEach((element) => applyWidth(element));
+            reportChartFills.forEach((element) => applyWidth(element));
             reportBarsAnimated = true;
+        };
+
+        const applyReportSubjectFilter = (filterValue) => {
+            if (reportSubjectRows.length === 0) {
+                return;
+            }
+
+            reportFocusChips.forEach((chip) => {
+                chip.classList.toggle("active", chip.dataset.filter === filterValue);
+            });
+
+            reportSubjectRows.forEach((row) => {
+                let match = true;
+                if (filterValue === "gap") {
+                    match = row.dataset.gap === "1";
+                } else if (filterValue === "full") {
+                    match = row.dataset.full === "1";
+                } else if (filterValue === "hire") {
+                    match = row.dataset.hire === "1";
+                }
+                row.style.display = match ? "" : "none";
+            });
         };
 
         const getDashboardRowGrade = (row) => {
@@ -3248,6 +3650,15 @@ const tabs = document.querySelectorAll(".tab");
             if (dashboardSubjectSearch) {
                 dashboardSubjectSearch.addEventListener("input", applyDashboardSubjectFilters);
             }
+        }
+
+        if (reportFocusChips.length > 0) {
+            reportFocusChips.forEach((chip) => {
+                chip.addEventListener("click", () => {
+                    applyReportSubjectFilter(chip.dataset.filter || "all");
+                });
+            });
+            applyReportSubjectFilter("all");
         }
 
         tabs.forEach((tab) => {
