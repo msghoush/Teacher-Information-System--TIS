@@ -355,15 +355,18 @@ def _build_subject_identity(subject_name: str, fallback_code: str = ""):
 
 
 def _build_teacher_display_name(teacher) -> str:
+    if teacher is None:
+        return "Unknown Teacher"
     name_parts = [
-        str(teacher.first_name or "").strip(),
-        str(teacher.middle_name or "").strip(),
-        str(teacher.last_name or "").strip(),
+        str(getattr(teacher, "first_name", "") or "").strip(),
+        str(getattr(teacher, "middle_name", "") or "").strip(),
+        str(getattr(teacher, "last_name", "") or "").strip(),
     ]
     full_name = " ".join(part for part in name_parts if part).strip()
     if full_name:
         return full_name
-    return f"Teacher #{teacher.id}"
+    teacher_pk = getattr(teacher, "id", None)
+    return f"Teacher #{teacher_pk}" if teacher_pk is not None else "Unknown Teacher"
 
 
 def _normalize_subject_family_key(value: str) -> str:
