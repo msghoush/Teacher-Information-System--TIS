@@ -1494,14 +1494,14 @@
         }
 
         .report-donut-wrap {
-            display: flex;
-            align-items: center;
+            display: grid;
+            justify-items: center;
             gap: 12px;
         }
 
         .report-donut-shell {
             position: relative;
-            width: 118px;
+            width: 108px;
             aspect-ratio: 1;
             border-radius: 50%;
             background: conic-gradient(var(--donut-segments, #0a4ea3 0 75%, #e6edf7 75% 100%));
@@ -1548,8 +1548,8 @@
         .report-donut-legend {
             display: grid;
             gap: 6px;
+            width: 100%;
             min-width: 0;
-            flex: 1;
         }
 
         .report-legend-row {
@@ -1559,17 +1559,20 @@
             gap: 8px;
             font-size: 12px;
             color: #42566f;
+            flex-wrap: wrap;
         }
 
         .report-legend-row strong {
             color: #17365d;
             font-size: 13px;
+            flex-shrink: 0;
         }
 
         .report-legend-label {
             display: inline-flex;
             align-items: center;
             gap: 7px;
+            min-width: 0;
         }
 
         .report-legend-dot {
@@ -2868,8 +2871,8 @@
                         </div>
                     </div>
                     <div class="report-visual-card">
-                        <h4>Demand Heatmap</h4>
-                        <p>Priority subjects and grade demand are surfaced visually so staffing gaps are easier to spot before reading the detailed breakdown.</p>
+                        <h4>Priority Subject Gaps</h4>
+                        <p>A simplified view highlights the subjects with the largest uncovered-hour gaps so the dashboard stays focused on staffing action.</p>
                         {% if report_visuals.top_subject_gap %}
                         <div class="report-chart-list">
                             {% for item in report_visuals.top_subject_gap %}
@@ -2877,22 +2880,6 @@
                                 <div class="report-chart-head">
                                     <span>{{ item.label }}</span>
                                     <strong>{{ item.value }}h</strong>
-                                </div>
-                                <div class="report-chart-track">
-                                    <div class="report-chart-fill" data-width="{{ item.width_pct }}"></div>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                        {% endif %}
-                        {% if report_visuals.grade_mix %}
-                        <h4 class="report-subtitle">Grade Demand</h4>
-                        <div class="report-chart-list">
-                            {% for item in report_visuals.grade_mix[:6] %}
-                            <div class="report-chart-row">
-                                <div class="report-chart-head">
-                                    <span>{{ item.label }}</span>
-                                    <strong>{{ item.total_hours }}h</strong>
                                 </div>
                                 <div class="report-chart-track">
                                     <div class="report-chart-fill" data-width="{{ item.width_pct }}"></div>
