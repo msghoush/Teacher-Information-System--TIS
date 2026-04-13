@@ -3960,7 +3960,6 @@ def _ensure_teachers_table_columns():
                 text("ALTER TABLE teachers ADD COLUMN middle_name VARCHAR(100)")
             )
         if "degree_major" not in existing_columns:
-        if "degree_major" not in existing_columns:
             connection.execute(
                 text("ALTER TABLE teachers ADD COLUMN degree_major VARCHAR(120)")
             )
