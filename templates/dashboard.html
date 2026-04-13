@@ -2722,7 +2722,7 @@
                 <div class="panel-head">
                     <div>
                         <h3>Reports Workspace</h3>
-                        <p>Planning-based teacher sufficiency across opened sections, assigned teachers, and uncovered demand.</p>
+                        <p>Section-accurate assignment coverage across opened sections, assigned teachers, and uncovered demand.</p>
                     </div>
                     <div class="panel-head-actions">
                         <a class="open-link" href="/planning">Open Planning</a>
@@ -2730,7 +2730,7 @@
                     </div>
                 </div>
                 <div class="report-note">
-                    This report follows opened planning sections, applies the fixed Grade 1 and Grade 2 homeroom-default coverage first, and then redistributes the remaining load across existing teachers using enabled subjects, major alignment, admin overrides, and available international capacity.
+                    This report follows opened planning sections and counts coverage only when a matching section-subject assignment exists, with Grade 1 and Grade 2 homeroom-default subjects applied automatically where configured.
                 </div>
                 {% if report_summary.total_required_hours > 0 %}
                 <div class="report-visual-grid">
@@ -3054,8 +3054,8 @@
                 <div class="report-card report-teachers-card">
                     <div class="report-card-head">
                         <div class="report-card-head-copy">
-                            <h4>Expected Allocation Across Planned Sections</h4>
-                            <p>Compact teacher cards show current projected load, remaining international capacity, and the lower-primary homeroom hours already reserved in the planning pass.</p>
+                            <h4>Assigned Coverage Across Planned Sections</h4>
+                            <p>Compact teacher cards show the current assigned load, remaining international capacity, and the lower-primary homeroom hours already covered by default rules.</p>
                         </div>
                         <span class="report-card-tag">{{ report_teacher_rows|length }} teachers</span>
                     </div>
@@ -3111,7 +3111,7 @@
                                 {% endif %}
                                 {% if row.is_underloaded %}
                                 <div class="report-inline-note">
-                                    This teacher still has {{ row.remaining_capacity_hours }}h of international capacity available in the current reporting pass.
+                                    This teacher still has {{ row.remaining_capacity_hours }}h of international capacity available after the current section assignments.
                                 </div>
                                 {% endif %}
                                 {% if row.homeroom_section_labels %}
@@ -3135,7 +3135,7 @@
                                 </div>
                                 {% endif %}
                                 <div>
-                                    <div class="report-inline-note">Primary forecast basis</div>
+                                    <div class="report-inline-note">Assigned subject coverage</div>
                                     <div class="report-tag-list">
                                         {% if row.subject_labels %}
                                             {% for label in row.subject_labels %}
@@ -3146,7 +3146,7 @@
                                         {% endif %}
                                     </div>
                                 </div>
-                                <div class="report-inline-note">Current assigned hours in primary basis: {{ row.primary_subject_basis_hours }}h</div>
+                                <div class="report-inline-note">Current assigned hours in listed subjects: {{ row.primary_subject_basis_hours }}h</div>
                                 {% if row.support_subject_labels %}
                                 <div>
                                     <div class="report-inline-note">Support subjects used only after primary demand is covered</div>
