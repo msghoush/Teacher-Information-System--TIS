@@ -1948,11 +1948,36 @@ def update_teacher(
         db.commit()
     except IntegrityError:
         db.rollback()
+        teacher_preview = SimpleNamespace(
+            id=teacher.id,
+            teacher_id=teacher_id,
+            first_name=first_name,
+            middle_name=middle_name if middle_name else None,
+            last_name=last_name,
+            degree_major=build_legacy_qualification_snapshot(normalized_qualification_keys),
+            max_hours=(
+                parsed_max_hours
+                if parsed_max_hours is not None
+                else STANDARD_MAX_HOURS
+            ),
+            extra_hours_allowed=allowed_extra,
+            extra_hours_count=(
+                parsed_extra_hours_count
+                if parsed_extra_hours_count is not None
+                else 0
+            ),
+            teaches_national_section=is_national_section_enabled,
+            national_section_hours=(
+                parsed_national_section_hours
+                if parsed_national_section_hours is not None
+                else 0
+            ),
+        )
         return _render_edit_teacher_page(
             request=request,
             db=db,
             current_user=current_user,
-            teacher=teacher,
+            teacher=teacher_preview,
             error="Unable to update teacher due to duplicate or invalid data.",
             assigned_subject_codes=list(normalized_subject_codes),
             selected_section_assignment_values=normalized_section_assignment_values,

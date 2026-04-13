@@ -88,6 +88,23 @@
             font-size: 13px;
         }
 
+        .warning {
+            background: #fff7e8;
+            color: #9a3412;
+            border-left: 4px solid #f59e0b;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 12px;
+            font-size: 13px;
+        }
+
+        .warning-list {
+            margin: 0 0 12px;
+            padding-left: 20px;
+            color: #9a3412;
+            font-size: 13px;
+        }
+
         .grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -282,6 +299,18 @@
         <div class="error">{{ error }}</div>
         {% endif %}
 
+        {% if qualification_warning %}
+        <div class="warning">
+            <strong>{{ qualification_warning["title"] }}</strong><br>
+            {{ qualification_warning["message"] }}
+        </div>
+        <ul class="warning-list">
+            {% for item in qualification_warning["items"] %}
+            <li>{{ item.teacher_name }} -> {{ item.subject_code }} - {{ item.subject_name }} | Degree: {{ item.degree }} | Major: {{ item.major }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
         <form method="post" action="/planning/edit/{{ planning_section.id }}">
             <div class="grid">
                 <div class="field">
@@ -362,6 +391,14 @@
                     </div>
                 </div>
             </div>
+            {% if qualification_warning %}
+            <div class="field field-wide">
+                <label for="qualification_override">
+                    <input id="qualification_override" type="checkbox" name="qualification_override" value="on">
+                    Admin override: keep these teacher-subject assignments for this section even though the recorded degree/major does not align
+                </label>
+            </div>
+            {% endif %}
             <div class="actions">
                 <button class="btn btn-primary" type="submit">Update Planning Section</button>
                 <a class="btn btn-secondary" href="/planning">Cancel</a>

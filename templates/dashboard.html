@@ -890,6 +890,163 @@
             line-height: 1.4;
         }
 
+        .report-visual-grid {
+            margin-top: 14px;
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 12px;
+        }
+
+        .report-visual-card {
+            border: 1px solid #d3deed;
+            border-radius: 14px;
+            padding: 14px;
+            background: linear-gradient(145deg, #ffffff, #f4f8ff);
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+        }
+
+        .report-visual-card h4 {
+            margin: 0 0 6px;
+            font-size: 16px;
+            color: #163258;
+        }
+
+        .report-visual-card p {
+            margin: 0 0 12px;
+            color: #536885;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .report-donut-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .report-donut-card {
+            border: 1px solid #dbe5f2;
+            border-radius: 12px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        .report-donut {
+            width: 126px;
+            height: 126px;
+            margin: 0 auto 10px;
+            border-radius: 50%;
+            position: relative;
+            display: grid;
+            place-items: center;
+        }
+
+        .report-donut::after {
+            content: "";
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: inset 0 0 0 1px #e2e8f0;
+        }
+
+        .report-donut-value {
+            position: absolute;
+            z-index: 1;
+            font-size: 24px;
+            font-weight: 800;
+            color: #163258;
+        }
+
+        .report-donut-legend {
+            display: grid;
+            gap: 6px;
+        }
+
+        .report-donut-legend span {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 12px;
+            color: #415068;
+            font-weight: 700;
+        }
+
+        .report-donut-legend em {
+            font-style: normal;
+            color: #6b7c92;
+            font-weight: 600;
+        }
+
+        .report-chart-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .report-chart-row {
+            display: grid;
+            gap: 5px;
+        }
+
+        .report-chart-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: 13px;
+            color: #26456d;
+            font-weight: 700;
+        }
+
+        .report-chart-track {
+            width: 100%;
+            height: 12px;
+            border-radius: 999px;
+            background: #e5edf8;
+            overflow: hidden;
+        }
+
+        .report-chart-fill {
+            width: 0;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #0a4ea3, #4f8ddd);
+            transition: width 700ms ease;
+        }
+
+        .report-focus-bar {
+            margin: 14px 0 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .report-focus-chip {
+            border: 1px solid #b7c9e2;
+            background: #fff;
+            color: #325077;
+            border-radius: 999px;
+            padding: 7px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 120ms ease, border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+        }
+
+        .report-focus-chip:hover {
+            transform: translateY(-1px);
+            border-color: #8aaedf;
+            background: #edf4ff;
+            color: #083b7e;
+        }
+
+        .report-focus-chip.active {
+            border-color: var(--brand);
+            background: var(--brand);
+            color: #fff;
+        }
+
         .report-kpis {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2201,6 +2358,14 @@
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
 
+            .report-visual-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .report-donut-grid {
+                grid-template-columns: 1fr;
+            }
+
             .subject-toolbar {
                 justify-content: stretch;
             }
@@ -2242,6 +2407,15 @@
 
             .report-teacher-badges {
                 justify-content: flex-start;
+            }
+
+            .report-focus-bar {
+                justify-content: stretch;
+            }
+
+            .report-focus-chip {
+                width: 100%;
+                text-align: center;
             }
         }
 </style>
@@ -2559,6 +2733,77 @@
                     This report follows opened planning sections, applies the fixed Grade 1 and Grade 2 homeroom-default coverage first, and then redistributes the remaining load across existing teachers using enabled subjects, major alignment, admin overrides, and available international capacity.
                 </div>
                 {% if report_summary.total_required_hours > 0 %}
+                <div class="report-visual-grid">
+                    <div class="report-visual-card">
+                        <h4>Coverage Snapshot</h4>
+                        <p>Interactive donut views bring back the quick-glance dashboard feel for coverage, section mix, and staffing pressure.</p>
+                        <div class="report-donut-grid">
+                            <div class="report-donut-card">
+                                <div class="report-donut" style="background: conic-gradient(#0a4ea3 0 {{ report_visuals.coverage_pct }}%, #dbe7f8 {{ report_visuals.coverage_pct }}% 100%);">
+                                    <span class="report-donut-value">{{ report_visuals.coverage_pct }}%</span>
+                                </div>
+                                <div class="report-donut-legend">
+                                    <span>Covered <em>{{ report_summary.total_allocated_hours }}h</em></span>
+                                    <span>Uncovered <em>{{ report_summary.total_remaining_hours }}h</em></span>
+                                </div>
+                            </div>
+                            <div class="report-donut-card">
+                                <div class="report-donut" style="background: conic-gradient(#0f7f7a 0 {{ report_visuals.current_section_pct }}%, #f2c25f {{ report_visuals.current_section_pct }}% 100%);">
+                                    <span class="report-donut-value">{{ planning_total_sections }}</span>
+                                </div>
+                                <div class="report-donut-legend">
+                                    <span>Current Sections <em>{{ planning_current_sections_count }}</em></span>
+                                    <span>New Sections <em>{{ planning_new_sections_count }}</em></span>
+                                </div>
+                            </div>
+                            <div class="report-donut-card">
+                                <div class="report-donut" style="background: conic-gradient(#1d4ed8 0 {{ report_visuals.existing_teacher_pct }}%, #f59e0b {{ report_visuals.existing_teacher_pct }}% 100%);">
+                                    <span class="report-donut-value">{{ report_summary.total_teachers_needed_branch }}</span>
+                                </div>
+                                <div class="report-donut-legend">
+                                    <span>Existing Teachers <em>{{ report_summary.total_existing_teachers }}</em></span>
+                                    <span>New Hires <em>{{ report_summary.total_new_teachers_required }}</em></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="report-visual-card">
+                        <h4>Demand Heatmap</h4>
+                        <p>Priority subjects and grade demand are surfaced visually so staffing gaps are easier to spot before reading the detailed breakdown.</p>
+                        {% if report_visuals.top_subject_gap %}
+                        <div class="report-chart-list">
+                            {% for item in report_visuals.top_subject_gap %}
+                            <div class="report-chart-row">
+                                <div class="report-chart-head">
+                                    <span>{{ item.label }}</span>
+                                    <strong>{{ item.value }}h</strong>
+                                </div>
+                                <div class="report-chart-track">
+                                    <div class="report-chart-fill" data-width="{{ item.width_pct }}"></div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        {% if report_visuals.grade_mix %}
+                        <h4 class="report-subtitle">Grade Demand</h4>
+                        <div class="report-chart-list">
+                            {% for item in report_visuals.grade_mix[:6] %}
+                            <div class="report-chart-row">
+                                <div class="report-chart-head">
+                                    <span>{{ item.label }}</span>
+                                    <strong>{{ item.total_hours }}h</strong>
+                                </div>
+                                <div class="report-chart-track">
+                                    <div class="report-chart-fill" data-width="{{ item.width_pct }}"></div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
                 <div class="report-focus-metrics">
                     <article class="report-focus-card">
                         <span class="report-focus-label">Existing Teachers</span>
@@ -2959,7 +3204,10 @@ const tabs = document.querySelectorAll(".tab");
         const planningKpiValues = Array.from(document.querySelectorAll(".planning-kpi-value"));
         const reportKpiValues = Array.from(document.querySelectorAll(".report-kpi-value"));
         const reportGapFills = Array.from(document.querySelectorAll(".report-gap-fill"));
+        const reportChartFills = Array.from(document.querySelectorAll(".report-chart-fill"));
         const reportCoverageFill = document.getElementById("reportCoverageFill");
+        const reportFocusChips = Array.from(document.querySelectorAll(".report-focus-chip"));
+        const reportSubjectRows = Array.from(document.querySelectorAll(".report-subject-row"));
         const subjectGradeOrder = ["KG", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
         const dashboardSubjectRowsByGrade = new Map();
         const collapsedDashboardGrades = new Set();
@@ -3025,7 +3273,30 @@ const tabs = document.querySelectorAll(".tab");
 
             applyWidth(reportCoverageFill);
             reportGapFills.forEach((element) => applyWidth(element));
+            reportChartFills.forEach((element) => applyWidth(element));
             reportBarsAnimated = true;
+        };
+
+        const applyReportSubjectFilter = (filterValue) => {
+            if (reportSubjectRows.length === 0) {
+                return;
+            }
+
+            reportFocusChips.forEach((chip) => {
+                chip.classList.toggle("active", chip.dataset.filter === filterValue);
+            });
+
+            reportSubjectRows.forEach((row) => {
+                let match = true;
+                if (filterValue === "gap") {
+                    match = row.dataset.gap === "1";
+                } else if (filterValue === "full") {
+                    match = row.dataset.full === "1";
+                } else if (filterValue === "hire") {
+                    match = row.dataset.hire === "1";
+                }
+                row.style.display = match ? "" : "none";
+            });
         };
 
         const getDashboardRowGrade = (row) => {
@@ -3235,6 +3506,15 @@ const tabs = document.querySelectorAll(".tab");
             if (dashboardSubjectSearch) {
                 dashboardSubjectSearch.addEventListener("input", applyDashboardSubjectFilters);
             }
+        }
+
+        if (reportFocusChips.length > 0) {
+            reportFocusChips.forEach((chip) => {
+                chip.addEventListener("click", () => {
+                    applyReportSubjectFilter(chip.dataset.filter || "all");
+                });
+            });
+            applyReportSubjectFilter("all");
         }
 
         tabs.forEach((tab) => {

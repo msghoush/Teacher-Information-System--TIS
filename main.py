@@ -1827,6 +1827,92 @@ def _build_reporting_context(
     }
 
 
+def _build_dashboard_report_visuals(
+    report_summary,
+    report_subject_rows,
+    report_grade_rows,
+    planning_current_sections_count,
+    planning_new_sections_count,
+):
+    coverage_pct = max(
+        0,
+        min(100, int(report_summary.get("coverage_percentage", 0) or 0)),
+    )
+    uncovered_pct = max(0, 100 - coverage_pct)
+
+    total_sections = planning_current_sections_count + planning_new_sections_count
+    current_section_pct = (
+        round((planning_current_sections_count / total_sections) * 100)
+        if total_sections > 0
+        else 0
+    )
+    new_section_pct = max(0, 100 - current_section_pct) if total_sections > 0 else 0
+
+    existing_teachers = int(report_summary.get("total_existing_teachers", 0) or 0)
+    new_teachers_required = int(
+        report_summary.get("total_new_teachers_required", 0) or 0
+    )
+    total_teacher_mix = existing_teachers + new_teachers_required
+    existing_teacher_pct = (
+        round((existing_teachers / total_teacher_mix) * 100)
+        if total_teacher_mix > 0
+        else 0
+    )
+    new_teacher_pct = (
+        max(0, 100 - existing_teacher_pct)
+        if total_teacher_mix > 0
+        else 0
+    )
+
+    top_subject_gap = [
+        {
+            "label": row["subject_name"],
+            "value": int(row["remaining_hours"]),
+            "coverage": int(row["coverage_percentage"]),
+        }
+        for row in sorted(
+            report_subject_rows,
+            key=lambda row: (-row["remaining_hours"], row["subject_name"]),
+        )[:6]
+        if int(row.get("remaining_hours", 0) or 0) > 0
+    ]
+    max_subject_gap = max((item["value"] for item in top_subject_gap), default=0)
+    for item in top_subject_gap:
+        item["width_pct"] = (
+            round((item["value"] / max_subject_gap) * 100, 1)
+            if max_subject_gap > 0
+            else 0
+        )
+
+    grade_mix = [
+        {
+            "label": row["grade_label"],
+            "total_hours": int(row["required_hours_total"]),
+            "new_hours": int(row["required_hours_new"]),
+        }
+        for row in report_grade_rows
+        if int(row.get("required_hours_total", 0) or 0) > 0
+    ]
+    max_grade_hours = max((item["total_hours"] for item in grade_mix), default=0)
+    for item in grade_mix:
+        item["width_pct"] = (
+            round((item["total_hours"] / max_grade_hours) * 100, 1)
+            if max_grade_hours > 0
+            else 0
+        )
+
+    return {
+        "coverage_pct": coverage_pct,
+        "uncovered_pct": uncovered_pct,
+        "current_section_pct": current_section_pct,
+        "new_section_pct": new_section_pct,
+        "existing_teacher_pct": existing_teacher_pct,
+        "new_teacher_pct": new_teacher_pct,
+        "top_subject_gap": top_subject_gap,
+        "grade_mix": grade_mix,
+    }
+
+
 def _build_report_class_rows(planning_sections):
     class_rows = []
     seen_class_keys = set()
@@ -3660,6 +3746,13 @@ def dashboard(
         row.get("recommended_absorption_hours", 0)
         for row in report_teacher_rows
     )
+    report_visuals = _build_dashboard_report_visuals(
+        report_summary=reporting_context["summary"],
+        report_subject_rows=reporting_context["subject_rows"],
+        report_grade_rows=reporting_context["grade_rows"],
+        planning_current_sections_count=planning_current_sections_count,
+        planning_new_sections_count=planning_new_sections_count,
+    )
     all_years = db.query(models.AcademicYear).order_by(
         models.AcademicYear.year_name.desc()
     ).all()
@@ -3708,6 +3801,7 @@ def dashboard(
                 [],
             ),
             "report_grade_rows": reporting_context["grade_rows"],
+            "report_visuals": report_visuals,
             "all_years": all_years,
             "year_map": year_map,
             "branch_map": branch_map,
@@ -3866,6 +3960,7 @@ def _ensure_teachers_table_columns():
                 text("ALTER TABLE teachers ADD COLUMN middle_name VARCHAR(100)")
             )
         if "degree_major" not in existing_columns:
+        if "degree_major" not in existing_columns:
             connection.execute(
                 text("ALTER TABLE teachers ADD COLUMN degree_major VARCHAR(120)")
             )
@@ -3970,6 +4065,8 @@ def _ensure_teacher_scope_schema_sqlite():
                     first_name VARCHAR,
                     middle_name VARCHAR,
                     last_name VARCHAR,
+                    degree VARCHAR,
+                    major VARCHAR,
                     subject_code VARCHAR,
                     level VARCHAR,
                     max_hours INTEGER,
@@ -3995,6 +4092,8 @@ def _ensure_teacher_scope_schema_sqlite():
                     first_name,
                     middle_name,
                     last_name,
+                    degree,
+                    major,
                     subject_code,
                     level,
                     max_hours,
@@ -4011,6 +4110,8 @@ def _ensure_teacher_scope_schema_sqlite():
                     first_name,
                     middle_name,
                     last_name,
+                    degree,
+                    major,
                     subject_code,
                     level,
                     max_hours,
@@ -4195,6 +4296,8 @@ def _ensure_subject_scope_schema_sqlite(
                         first_name VARCHAR,
                         middle_name VARCHAR,
                         last_name VARCHAR,
+                        degree VARCHAR,
+                        major VARCHAR,
                         subject_code VARCHAR,
                         level VARCHAR,
                         max_hours INTEGER,
@@ -4221,6 +4324,8 @@ def _ensure_subject_scope_schema_sqlite(
                         first_name,
                         middle_name,
                         last_name,
+                        degree,
+                        major,
                         subject_code,
                         level,
                         max_hours,
@@ -4237,6 +4342,8 @@ def _ensure_subject_scope_schema_sqlite(
                         first_name,
                         middle_name,
                         last_name,
+                        degree,
+                        major,
                         subject_code,
                         level,
                         max_hours,
