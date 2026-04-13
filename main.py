@@ -1877,10 +1877,10 @@ def _build_reporting_context(
     )
     # Reserve homeroom-owned class subjects before pooled branchwide allocation.
     homeroom_assignments_by_teacher = _build_homeroom_assignments_by_teacher(
-        subjects=subjects,
-        planning_sections=planning_sections,
-        explicit_section_subject_keys=explicit_section_subject_keys,
-        valid_teacher_ids={teacher.id for teacher in teachers if getattr(teacher, "id", None)},
+    subjects=subjects,
+    planning_sections=planning_sections,
+    explicit_section_subject_keys=explicit_section_subject_keys,
+    valid_teacher_ids={teacher.id for teacher in teachers if getattr(teacher, "id", None)},
     )
 
     for profile in teacher_profiles:
