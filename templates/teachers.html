@@ -2148,8 +2148,8 @@
                                             <details class="compact-list-details">
                                                 <summary class="compact-list-summary">
                                                     <span class="compact-pill compact-pill-strong">{{ allocation.get("subject_count", 0) }} subjects</span>
-                                                    {% for code in allocation.get("subject_preview_codes", []) %}
-                                                    <span class="compact-preview-pill">{{ code }}</span>
+                                                    {% for label in allocation.get("subject_preview_labels", []) %}
+                                                    <span class="compact-preview-pill">{{ label }}</span>
                                                     {% endfor %}
                                                     {% if allocation.get("subject_hidden_count", 0) %}
                                                     <span class="compact-preview-pill compact-preview-pill-more">+{{ allocation.get("subject_hidden_count", 0) }} more</span>
@@ -2187,6 +2187,30 @@
                                             </details>
                                             {% else %}
                                             <span class="hours-status-note">No section assignments yet.</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="coverage-block">
+                                            <span class="coverage-label">Homeroom</span>
+                                            {% if allocation and allocation.get("homeroom_coverage_labels") %}
+                                            <details class="compact-list-details">
+                                                <summary class="compact-list-summary">
+                                                    <span class="compact-pill compact-pill-strong">{{ allocation.get("homeroom_sections_count", 0) }} sections</span>
+                                                    <span class="compact-pill">{{ allocation.get("homeroom_subject_count", 0) }} subjects covered</span>
+                                                    {% for label in allocation.get("homeroom_preview_labels", []) %}
+                                                    <span class="compact-preview-pill">{{ label }}</span>
+                                                    {% endfor %}
+                                                    {% if allocation.get("homeroom_hidden_count", 0) %}
+                                                    <span class="compact-preview-pill compact-preview-pill-more">+{{ allocation.get("homeroom_hidden_count", 0) }} more</span>
+                                                    {% endif %}
+                                                </summary>
+                                                <ul class="assigned-list">
+                                                    {% for label in allocation.get("homeroom_coverage_labels") %}
+                                                    <li class="assigned-item">{{ label }}</li>
+                                                    {% endfor %}
+                                                </ul>
+                                            </details>
+                                            {% else %}
+                                            <span class="hours-status-note">No homeroom coverage assigned.</span>
                                             {% endif %}
                                         </div>
                                     </div>

@@ -717,7 +717,7 @@
                                 <option value="{{ teacher.id }}" {% if (form_data.homeroom_teacher_id|string) == (teacher.id|string) %}selected{% endif %}>{{ teacher.label }}</option>
                                 {% endfor %}
                             </select>
-                            <small class="field-note">For Grade 1 and Grade 2, the homeroom teacher defaults to English, Mathematics, Mental Math, Performing Arts, Science, and Social Studies unless you later assign them differently in Edit.</small>
+                            <small class="field-note">For Grade 1 and Grade 2, the homeroom teacher defaults to English, Mathematics, Mental Math, Performing Arts, Science, Social Studies, and Well Being unless you later assign them differently in Edit.</small>
                         </div>
                         <div class="field field-wide">
                             <div class="auto-panel">
@@ -798,7 +798,7 @@
                                             <span class="subject-summary-pill">{{ row.assigned_subject_count }} assigned</span>
                                             <span class="subject-summary-pill subject-summary-pill-muted">{{ row.unassigned_subject_count }} unassigned</span>
                                             {% for subject in row.subject_preview %}
-                                            <span class="subject-preview-pill">{{ subject.subject_code }}</span>
+                                            <span class="subject-preview-pill">{{ subject.display_preview or subject.subject_code }}</span>
                                             {% endfor %}
                                             {% if row.subject_hidden_count %}
                                             <span class="subject-preview-pill subject-preview-pill-more">+{{ row.subject_hidden_count }} more</span>
@@ -807,7 +807,7 @@
                                         <ul class="aligned-list-table">
                                             {% for subject in row.subject_assignments %}
                                             <li class="aligned-item-table">
-                                                {{ subject.subject_code }} - {{ subject.subject_name }} ({{ subject.weekly_hours }}h)
+                                                {{ subject.display_label or (subject.subject_code ~ " - " ~ subject.subject_name ~ " (" ~ subject.weekly_hours ~ "h)") }}
                                                 {% if subject.teacher_name %}
                                                 | {{ subject.teacher_name }}{% if subject.assignment_source == "homeroom_default" %} (Homeroom Default){% endif %}
                                                 {% else %}

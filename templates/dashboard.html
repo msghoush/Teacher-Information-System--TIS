@@ -2398,9 +2398,14 @@
                                 </td>
                             </tr>
                             {% endif %}
-                            <tr class="dashboard-subject-row" data-grade="{{ dashboard_grade_key }}" data-hours="{{ subject.weekly_hours or 0 }}">
+                            <tr class="dashboard-subject-row" data-grade="{{ dashboard_grade_key }}" data-hours="{{ subject.weekly_hours or 0 }}" data-subject-count="{{ subject.effective_subject_count or 1 }}">
                                 <td>{{ subject.subject_code }}</td>
-                                <td>{{ subject.subject_name }}</td>
+                                <td>
+                                    {{ subject.subject_name }}
+                                    {% if subject.homeroom_bundle_subject_labels %}
+                                    <div class="report-inline-note">Includes {{ subject.homeroom_bundle_subject_labels | join(", ") }}</div>
+                                    {% endif %}
+                                </td>
                                 <td>{{ subject.weekly_hours }}</td>
                                 <td>{{ dashboard_grade_key }}</td>
                             </tr>
@@ -2592,7 +2597,7 @@
                             Current teacher pool covers the planned load
                             {% endif %}
                         </h4>
-                        <p>Grade 1 and Grade 2 homeroom teachers automatically cover English, Mathematics, Mental Math, Performing Arts, Science, and Social Studies unless a section is manually assigned to someone else.</p>
+                        <p>Grade 1 and Grade 2 homeroom teachers automatically cover English, Mathematics, Mental Math, Performing Arts, Science, Social Studies, and Well Being unless a section is manually assigned to someone else.</p>
                         <p>
                             {% if report_summary.total_remaining_hours > 0 %}
                             Use the uncovered-hour total and the 24h staffing blocks only as decision support. The current plan still has {{ report_summary.total_staffing_requirement_blocks }} teacher-equivalent block{% if report_summary.total_staffing_requirement_blocks != 1 %}s{% endif %} open.
@@ -3041,6 +3046,11 @@ const tabs = document.querySelectorAll(".tab");
             return Number.isFinite(parsedHours) ? parsedHours : 0;
         };
 
+        const getDashboardRowSubjectCount = (row) => {
+            const parsedCount = Number(row.dataset.subjectCount || "1");
+            return Number.isFinite(parsedCount) && parsedCount > 0 ? parsedCount : 1;
+        };
+
         const getDashboardGradeLabel = (grade) => {
             if (grade === "ALL") {
                 return "All Levels";
@@ -3074,7 +3084,7 @@ const tabs = document.querySelectorAll(".tab");
                 if (!stats[grade]) {
                     stats[grade] = { subjects: 0, hours: 0 };
                 }
-                stats[grade].subjects += 1;
+                stats[grade].subjects += getDashboardRowSubjectCount(row);
                 stats[grade].hours += getDashboardRowHours(row);
             });
 
@@ -3083,7 +3093,7 @@ const tabs = document.querySelectorAll(".tab");
 
         const dashboardGradeStats = buildDashboardGradeStats();
         const dashboardAllTotals = dashboardSubjectRows.reduce((total, row) => {
-            total.subjects += 1;
+            total.subjects += getDashboardRowSubjectCount(row);
             total.hours += getDashboardRowHours(row);
             return total;
         }, { subjects: 0, hours: 0 });
@@ -3149,7 +3159,10 @@ const tabs = document.querySelectorAll(".tab");
                     }
                 });
 
-                const matchedCount = gradeMatches.length;
+                const matchedCount = gradeMatches.reduce(
+                    (total, row) => total + getDashboardRowSubjectCount(row),
+                    0,
+                );
                 const matchedHours = gradeMatches.reduce((total, row) => total + getDashboardRowHours(row), 0);
                 const hasMatches = matchedCount > 0;
                 const isExpanded = hasMatches && (term ? true : !collapsedDashboardGrades.has(grade));

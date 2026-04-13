@@ -12,6 +12,11 @@ import auth
 import models
 from dependencies import get_db
 from auth import get_current_user
+from homeroom_defaults import (
+    get_homeroom_bundle_subject_labels,
+    is_default_homeroom_subject,
+    is_homeroom_bundle_subject,
+)
 from teacher_capacity import (
     build_capacity_breakdown,
     get_teacher_international_capacity_hours,
@@ -208,6 +213,53 @@ def _format_section_label(section) -> str:
     if grade_value == "KG":
         return f"KG-{section.section_name}"
     return f"Grade {grade_value}-{section.section_name}"
+
+
+def _normalize_grade_label(value) -> str:
+    grade_value = str(value or "").strip().upper()
+    if grade_value in {"K", "KG"}:
+        return "KG"
+    parsed_grade = _parse_int(grade_value)
+    if parsed_grade is None:
+        return grade_value
+    return "KG" if parsed_grade == 0 else str(parsed_grade)
+
+
+def _build_teacher_subject_display_entries(
+    subject_code: str,
+    subject_name: str,
+    subject_grade: str,
+    subject_hours: int,
+    compatibility_override: bool = False,
+):
+    bundle_subject_labels = get_homeroom_bundle_subject_labels(
+        subject_code=subject_code,
+        subject_name=subject_name,
+        weekly_hours=subject_hours,
+    )
+    override_suffix = " [Admin Override]" if compatibility_override else ""
+    if bundle_subject_labels:
+        return [
+            {
+                "detail_label": (
+                    f"{subject_code} - {bundle_subject} "
+                    f"(included in {subject_name}, Grade {subject_grade}, "
+                    f"{subject_hours}h homeroom bundle){override_suffix}"
+                ),
+                "preview_label": bundle_subject,
+            }
+            for bundle_subject in bundle_subject_labels
+        ]
+
+    return [
+        {
+            "detail_label": (
+                f"{subject_code} - {subject_name} "
+                f"(Grade {subject_grade}, {subject_hours}h){override_suffix}"
+            ),
+            "preview_label": subject_code,
+        }
+    ]
 
 
 def _format_section_assignment_value(subject_code: str, planning_section_id: int) -> str:
@@ -470,32 +522,28 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
         models.TeacherSectionAssignment.planning_section_id.asc(),
     ).all()
 
-    subject_codes = sorted({
-        code
-        for code in (
-            [allocation.subject_code for allocation in allocations if allocation.subject_code]
-            + [assignment.subject_code for assignment in section_assignments if assignment.subject_code]
-        )
-        if code
-    })
-    subjects_by_code = {}
-    if subject_codes:
-        subjects_by_code = {
-            subject.subject_code: subject
-            for subject in db.query(models.Subject).filter(
-                models.Subject.subject_code.in_(subject_codes),
-                models.Subject.branch_id == branch_id,
-                models.Subject.academic_year_id == academic_year_id,
-            ).all()
-            if subject.subject_code
-        }
+    scoped_subjects = db.query(models.Subject).filter(
+        models.Subject.branch_id == branch_id,
+        models.Subject.academic_year_id == academic_year_id,
+    ).all()
+    subjects_by_code = {
+        subject.subject_code: subject
+        for subject in scoped_subjects
+        if subject.subject_code
+    }
+    subjects_by_grade = defaultdict(list)
+    for subject in scoped_subjects:
+        grade_label = _subject_grade_label(subject.grade)
+        if not grade_label:
+            continue
+        subjects_by_grade[grade_label].append(subject)
 
     allocation_map = {
         teacher.id: {
             "subject_codes": [],
             "override_subject_codes": [],
             "subject_labels": [],
-            "subject_preview_codes": [],
+            "subject_preview_labels": [],
             "subject_count": 0,
             "subject_hidden_count": 0,
             "allocated_hours": 0,
@@ -504,6 +552,11 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
             "teaching_load_count": 0,
             "teaching_load_hidden_count": 0,
             "section_assignment_count": 0,
+            "homeroom_coverage_labels": [],
+            "homeroom_preview_labels": [],
+            "homeroom_sections_count": 0,
+            "homeroom_subject_count": 0,
+            "homeroom_hidden_count": 0,
             "required_hours": get_teacher_international_capacity_hours(
                 teacher,
                 default_max_hours=STANDARD_MAX_HOURS,
@@ -543,16 +596,51 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
         teacher_data["subject_codes"].append(allocation.subject_code)
         if allocation.compatibility_override:
             teacher_data["override_subject_codes"].append(allocation.subject_code)
-        teacher_data["subject_labels"].append(
-            f"{allocation.subject_code} - {subject_name} (Grade {subject_grade}, {subject_hours}h)"
-            + (" [Admin Override]" if allocation.compatibility_override else "")
+        teacher_data["subject_labels"].extend(
+            entry["detail_label"]
+            for entry in _build_teacher_subject_display_entries(
+                subject_code=allocation.subject_code,
+                subject_name=subject_name,
+                subject_grade=subject_grade,
+                subject_hours=subject_hours,
+                compatibility_override=getattr(
+                    allocation,
+                    "compatibility_override",
+                    False,
+                ),
+            )
+        )
+        teacher_data["subject_preview_labels"].extend(
+            entry["preview_label"]
+            for entry in _build_teacher_subject_display_entries(
+                subject_code=allocation.subject_code,
+                subject_name=subject_name,
+                subject_grade=subject_grade,
+                subject_hours=subject_hours,
+                compatibility_override=getattr(
+                    allocation,
+                    "compatibility_override",
+                    False,
+                ),
+            )
         )
 
-    planning_section_ids = sorted({
-        assignment.planning_section_id
-        for assignment in section_assignments
-        if assignment.planning_section_id
-    })
+    planning_section_ids = sorted(
+        {
+            assignment.planning_section_id
+            for assignment in section_assignments
+            if assignment.planning_section_id
+        }
+        | {
+            section.id
+            for section in db.query(models.PlanningSection).filter(
+                models.PlanningSection.branch_id == branch_id,
+                models.PlanningSection.academic_year_id == academic_year_id,
+                models.PlanningSection.homeroom_teacher_id.in_(teacher_ids),
+            ).all()
+            if getattr(section, "id", None)
+        }
+    )
     planning_sections_by_id = {}
     if planning_section_ids:
         planning_sections_by_id = {
@@ -589,14 +677,111 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
         subject_entry["sections"].append(section_label)
         teacher_data["allocated_hours"] += subject_hours
 
+    explicit_assignment_map = {
+        (
+            assignment.planning_section_id,
+            str(assignment.subject_code or "").strip().upper(),
+        ): assignment.teacher_id
+        for assignment in section_assignments
+        if assignment.planning_section_id and assignment.subject_code
+    }
+    homeroom_sections_seen_by_teacher = defaultdict(set)
+
+    for section in planning_sections_by_id.values():
+        homeroom_teacher_id = getattr(section, "homeroom_teacher_id", None)
+        teacher_data = allocation_map.get(homeroom_teacher_id)
+        if not teacher_data:
+            continue
+
+        grade_label = _normalize_grade_label(section.grade_level)
+        if not grade_label:
+            continue
+
+        bundle_subjects = []
+        default_subjects = []
+        for subject in subjects_by_grade.get(grade_label, []):
+            subject_code = str(subject.subject_code or "").strip().upper()
+            if not subject_code:
+                continue
+
+            explicit_teacher_id = explicit_assignment_map.get((section.id, subject_code))
+            if explicit_teacher_id not in {None, homeroom_teacher_id}:
+                continue
+
+            subject_item = {
+                "subject": subject,
+                "subject_code": subject_code,
+                "subject_name": subject.subject_name or "Unnamed Subject",
+                "weekly_hours": int(subject.weekly_hours or 0),
+                "is_explicit_assignment": explicit_teacher_id == homeroom_teacher_id,
+            }
+
+            if is_homeroom_bundle_subject(
+                subject_code=subject_code,
+                subject_name=subject_item["subject_name"],
+                weekly_hours=subject_item["weekly_hours"],
+            ):
+                bundle_subjects.append(subject_item)
+                continue
+
+            if is_default_homeroom_subject(
+                grade_label,
+                subject_name=subject_item["subject_name"],
+                subject_code=subject_code,
+            ):
+                default_subjects.append(subject_item)
+
+        coverage_subjects = bundle_subjects or default_subjects
+        if not coverage_subjects:
+            continue
+
+        section_label = _format_section_label(section)
+        if section_label not in homeroom_sections_seen_by_teacher[homeroom_teacher_id]:
+            homeroom_sections_seen_by_teacher[homeroom_teacher_id].add(section_label)
+            teacher_data["homeroom_sections_count"] += 1
+            teacher_data["homeroom_preview_labels"].append(section_label)
+
+        if bundle_subjects:
+            bundle_subject = bundle_subjects[0]
+            included_subject_labels = list(
+                get_homeroom_bundle_subject_labels(
+                    subject_code=bundle_subject["subject_code"],
+                    subject_name=bundle_subject["subject_name"],
+                    weekly_hours=bundle_subject["weekly_hours"],
+                )
+            )
+            teacher_data["homeroom_subject_count"] += len(included_subject_labels)
+            teacher_data["homeroom_coverage_labels"].append(
+                f"{section_label}: {bundle_subject['subject_code']} - "
+                f"{bundle_subject['subject_name']} ({bundle_subject['weekly_hours']}h) "
+                f"| Includes {', '.join(included_subject_labels)}"
+            )
+            if not bundle_subject["is_explicit_assignment"]:
+                teacher_data["allocated_hours"] += bundle_subject["weekly_hours"]
+            continue
+
+        homeroom_subject_names = []
+        default_subject_hours = 0
+        for subject_item in coverage_subjects:
+            homeroom_subject_names.append(subject_item["subject_name"])
+            teacher_data["homeroom_subject_count"] += 1
+            default_subject_hours += subject_item["weekly_hours"]
+            if not subject_item["is_explicit_assignment"]:
+                teacher_data["allocated_hours"] += subject_item["weekly_hours"]
+
+        teacher_data["homeroom_coverage_labels"].append(
+            f"{section_label}: Homeroom default covers "
+            f"{', '.join(homeroom_subject_names)} ({default_subject_hours}h)"
+        )
+
     for teacher in teachers:
         teacher_data = allocation_map.get(teacher.id)
         if not teacher_data:
             continue
         teacher_data["subject_count"] = len(teacher_data["subject_labels"])
-        teacher_data["subject_preview_codes"] = teacher_data["subject_codes"][:2]
+        teacher_data["subject_preview_labels"] = teacher_data["subject_preview_labels"][:2]
         teacher_data["subject_hidden_count"] = max(
-            teacher_data["subject_count"] - len(teacher_data["subject_preview_codes"]),
+            teacher_data["subject_count"] - len(teacher_data["subject_preview_labels"]),
             0,
         )
         teacher_entries = [
@@ -607,13 +792,25 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
         teacher_entries.sort(
             key=lambda item: (item["subject_code"], item["subject_name"])
         )
-        teacher_data["teaching_load_labels"] = [
-            (
-                f"{entry['subject_code']} - {entry['subject_name']} | "
-                f"Sections: {', '.join(entry['sections'])} | {entry['hours']}h"
+        teacher_data["teaching_load_labels"] = []
+        for entry in teacher_entries:
+            bundle_subject_labels = list(
+                get_homeroom_bundle_subject_labels(
+                    entry["subject_code"],
+                    entry["subject_name"],
+                    entry["hours"],
+                )
             )
-            for entry in teacher_entries
-        ]
+            bundle_prefix = (
+                f"Includes {', '.join(bundle_subject_labels)} | "
+                if bundle_subject_labels
+                else ""
+            )
+            teacher_data["teaching_load_labels"].append(
+                f"{entry['subject_code']} - {entry['subject_name']} | "
+                f"{bundle_prefix}Sections: {', '.join(entry['sections'])} | "
+                f"{entry['hours']}h"
+            )
         teacher_data["teaching_load_preview_labels"] = [
             f"{entry['subject_code']} x{len(entry['sections'])}"
             for entry in teacher_entries[:2]
@@ -626,6 +823,12 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
         )
         teacher_data["section_assignment_count"] = sum(
             len(entry["sections"]) for entry in teacher_entries
+        )
+        teacher_data["homeroom_preview_labels"] = teacher_data["homeroom_preview_labels"][:2]
+        teacher_data["homeroom_hidden_count"] = max(
+            teacher_data["homeroom_sections_count"]
+            - len(teacher_data["homeroom_preview_labels"]),
+            0,
         )
 
     for teacher in teachers:

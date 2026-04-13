@@ -37,7 +37,10 @@ from audit import (
     get_audit_xlsx_filename,
 )
 from homeroom_defaults import (
+    get_effective_subject_count,
+    get_homeroom_bundle_subject_labels,
     is_default_homeroom_subject,
+    is_homeroom_bundle_subject,
     is_lower_primary_homeroom_grade,
 )
 
@@ -354,6 +357,24 @@ def _build_subject_identity(subject_name: str, fallback_code: str = ""):
     return "", ""
 
 
+def _build_subject_display_labels(
+    subject_name: str,
+    subject_code: str = "",
+    weekly_hours: int = 0,
+):
+    bundle_subject_labels = get_homeroom_bundle_subject_labels(
+        subject_code=subject_code,
+        subject_name=subject_name,
+        weekly_hours=weekly_hours,
+    )
+    if bundle_subject_labels:
+        return [
+            f"{bundle_subject} ({subject_name}, {weekly_hours}h bundle)"
+            for bundle_subject in bundle_subject_labels
+        ]
+    return [subject_name]
+
+
 def _build_teacher_display_name(teacher) -> str:
     name_parts = [
         str(teacher.first_name or "").strip(),
@@ -569,6 +590,15 @@ def _build_reporting_context_from_section_assignments(
         if subject_key not in subject_demand_map:
             subject_demand_map[subject_key] = {
                 "subject_name": subject_label,
+                "subject_code": subject.subject_code or "",
+                "weekly_hours": weekly_hours,
+                "bundle_subject_labels": list(
+                    get_homeroom_bundle_subject_labels(
+                        subject_code=subject.subject_code or "",
+                        subject_name=subject.subject_name or "",
+                        weekly_hours=weekly_hours,
+                    )
+                ),
                 "required_hours": 0,
                 "required_current_hours": 0,
                 "required_new_hours": 0,
@@ -1132,6 +1162,11 @@ def _build_reporting_context(
         for teacher in teachers
         if getattr(teacher, "id", None)
     }
+    teacher_subject_effective_count_map = {
+        teacher.id: 0
+        for teacher in teachers
+        if getattr(teacher, "id", None)
+    }
     teacher_subject_hours_map = {
         teacher.id: {}
         for teacher in teachers
@@ -1162,6 +1197,14 @@ def _build_reporting_context(
         if not subject_key or subject_key not in subject_demand_map:
             continue
         subject_key_set.add(subject_key)
+        teacher_subject_effective_count_map[allocation.teacher_id] = (
+            teacher_subject_effective_count_map.get(allocation.teacher_id, 0)
+            + get_effective_subject_count(
+                subject_code=subject.subject_code or "",
+                subject_name=subject.subject_name or "",
+                weekly_hours=subject.weekly_hours,
+            )
+        )
         if allocation.compatibility_override:
             teacher_subject_override_map.setdefault(allocation.teacher_id, set()).add(
                 subject_key
@@ -1191,6 +1234,14 @@ def _build_reporting_context(
         )
         if subject_key and subject_key in subject_demand_map:
             subject_key_set.add(subject_key)
+            teacher_subject_effective_count_map[getattr(teacher, "id", None)] = (
+                teacher_subject_effective_count_map.get(getattr(teacher, "id", None), 0)
+                + get_effective_subject_count(
+                    subject_code=fallback_subject.subject_code or "",
+                    subject_name=fallback_subject.subject_name or "",
+                    weekly_hours=fallback_subject.weekly_hours,
+                )
+            )
             fallback_subject_hours_map = teacher_subject_hours_map.get(
                 getattr(teacher, "id", None),
                 {},
@@ -1283,7 +1334,10 @@ def _build_reporting_context(
                 "support_subject_keys": support_subject_keys,
                 "eligible_subject_keys": primary_subject_keys + support_subject_keys,
                 "override_subject_keys": sorted(override_subject_keys),
-                "subject_count": len(ranked_subject_keys),
+                "subject_count": max(
+                    teacher_subject_effective_count_map.get(teacher_id, 0),
+                    len(ranked_subject_keys),
+                ),
                 "primary_subject_basis_hours": (
                     subject_hours_map.get(primary_subject_key, 0)
                     if primary_subject_key
@@ -1589,16 +1643,31 @@ def _build_reporting_context(
     report_teacher_rows = []
     for profile in teacher_profiles:
         subject_labels = [
-            subject_demand_map[subject_key]["subject_name"]
+            label
             for subject_key in profile["subject_keys"]
+            for label in _build_subject_display_labels(
+                subject_name=subject_demand_map[subject_key]["subject_name"],
+                subject_code=subject_demand_map[subject_key].get("subject_code", ""),
+                weekly_hours=subject_demand_map[subject_key].get("weekly_hours", 0),
+            )
         ]
         support_subject_labels = [
-            subject_demand_map[subject_key]["subject_name"]
+            label
             for subject_key in profile["support_subject_keys"]
+            for label in _build_subject_display_labels(
+                subject_name=subject_demand_map[subject_key]["subject_name"],
+                subject_code=subject_demand_map[subject_key].get("subject_code", ""),
+                weekly_hours=subject_demand_map[subject_key].get("weekly_hours", 0),
+            )
         ]
         homeroom_subject_labels = [
-            subject_demand_map[subject_key]["subject_name"]
+            label
             for subject_key in profile.get("homeroom_subject_keys", [])
+            for label in _build_subject_display_labels(
+                subject_name=subject_demand_map[subject_key]["subject_name"],
+                subject_code=subject_demand_map[subject_key].get("subject_code", ""),
+                weekly_hours=subject_demand_map[subject_key].get("weekly_hours", 0),
+            )
         ]
         homeroom_section_labels = list(profile.get("homeroom_section_labels", []))
         allocation_labels = [
@@ -1623,7 +1692,18 @@ def _build_reporting_context(
             homeroom_allocation_labels.append(
                 f"{class_label}: "
                 + ", ".join(
-                    f"{item['subject_name']} ({item['allocated_hours']}h)"
+                    (
+                        f"{item['subject_name']} ({item['allocated_hours']}h)"
+                        if not get_homeroom_bundle_subject_labels(
+                            subject_code=item.get("subject_code", ""),
+                            subject_name=item.get("subject_name", ""),
+                            weekly_hours=item.get("allocated_hours", 0),
+                        )
+                        else (
+                            f"{item['subject_name']} ({item['allocated_hours']}h) "
+                            f"| Includes {', '.join(get_homeroom_bundle_subject_labels(item.get('subject_code', ''), item.get('subject_name', ''), item.get('allocated_hours', 0)))}"
+                        )
+                    )
                     for item in allocation_items
                 )
             )
@@ -1927,19 +2007,33 @@ def _build_homeroom_assignments_by_teacher(
         if not homeroom_teacher_id:
             continue
 
+        bundle_subject_items = []
+        default_subject_items = []
         for subject_item in subjects_by_grade.get(class_row["grade_label"], []):
-            if not is_default_homeroom_subject(
+            explicit_section_key = (
+                class_row.get("planning_section_id"),
+                str(subject_item["subject_code"] or "").strip().upper(),
+            )
+            if explicit_section_key in explicit_section_subject_keys:
+                continue
+
+            if is_homeroom_bundle_subject(
+                subject_code=subject_item["subject_code"],
+                subject_name=subject_item["subject_name"],
+                weekly_hours=subject_item["weekly_hours"],
+            ):
+                bundle_subject_items.append(subject_item)
+                continue
+
+            if is_default_homeroom_subject(
                 class_row["grade_label"],
                 subject_key=subject_item["subject_key"],
                 subject_name=subject_item["subject_name"],
                 subject_code=subject_item["subject_code"],
             ):
-                continue
-            if (
-                class_row.get("planning_section_id"),
-                str(subject_item["subject_code"] or "").strip().upper(),
-            ) in explicit_section_subject_keys:
-                continue
+                default_subject_items.append(subject_item)
+
+        for subject_item in bundle_subject_items or default_subject_items:
 
             assignments_by_teacher.setdefault(homeroom_teacher_id, []).append(
                 {
@@ -3539,7 +3633,32 @@ def dashboard(
         models.PlanningSection.branch_id == scoped_branch_id,
         models.PlanningSection.academic_year_id == scoped_academic_year_id,
     )
-    subject_count = subjects_query.count()
+    subjects_dashboard_rows = subjects_query.order_by(
+        models.Subject.grade.asc(),
+        models.Subject.subject_code.asc(),
+    ).all()
+    for subject in subjects_dashboard_rows:
+        bundle_subject_labels = list(
+            get_homeroom_bundle_subject_labels(
+                subject_code=subject.subject_code or "",
+                subject_name=subject.subject_name or "",
+                weekly_hours=subject.weekly_hours,
+            )
+        )
+        setattr(
+            subject,
+            "effective_subject_count",
+            get_effective_subject_count(
+                subject_code=subject.subject_code or "",
+                subject_name=subject.subject_name or "",
+                weekly_hours=subject.weekly_hours,
+            ),
+        )
+        setattr(subject, "homeroom_bundle_subject_labels", bundle_subject_labels)
+    subject_count = sum(
+        int(getattr(subject, "effective_subject_count", 1) or 1)
+        for subject in subjects_dashboard_rows
+    )
     teacher_count = teachers_query.count()
     users_count = users_query.count()
     planning_sections = planning_sections_query.all()
@@ -3554,10 +3673,6 @@ def dashboard(
         for section in planning_sections
         if str(section.class_status).strip().lower() == "new"
     )
-    subjects_dashboard_rows = subjects_query.order_by(
-        models.Subject.grade.asc(),
-        models.Subject.subject_code.asc(),
-    ).all()
     teachers_for_reporting = teachers_query.order_by(
         models.Teacher.id.asc()
     ).all()

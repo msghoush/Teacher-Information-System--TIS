@@ -9,6 +9,7 @@ import models
 from dependencies import get_db
 from auth import get_current_user
 from homeroom_defaults import (
+    get_homeroom_bundle_subject_labels,
     LOWER_PRIMARY_HOMEROOM_SUBJECT_LABELS,
     is_default_homeroom_subject,
     is_lower_primary_homeroom_grade,
@@ -305,6 +306,45 @@ def _build_section_assignment_rows(
     return rows
 
 
+def _build_planning_subject_display_entries(
+    subject,
+    teacher_name: str,
+    assignment_source: str,
+):
+    subject_code = subject.get("subject_code") or ""
+    subject_name = subject.get("subject_name") or "Unnamed Subject"
+    weekly_hours = int(subject.get("weekly_hours", 0) or 0)
+    bundle_subject_labels = get_homeroom_bundle_subject_labels(
+        subject_code=subject_code,
+        subject_name=subject_name,
+        weekly_hours=weekly_hours,
+    )
+    if bundle_subject_labels:
+        return [
+            {
+                **subject,
+                "display_preview": bundle_subject,
+                "display_label": (
+                    f"{subject_code} - {bundle_subject} "
+                    f"(included in {subject_name}, {weekly_hours}h homeroom bundle)"
+                ),
+                "teacher_name": teacher_name,
+                "assignment_source": assignment_source,
+            }
+            for bundle_subject in bundle_subject_labels
+        ]
+
+    return [
+        {
+            **subject,
+            "display_preview": subject_code,
+            "display_label": f"{subject_code} - {subject_name} ({weekly_hours}h)",
+            "teacher_name": teacher_name,
+            "assignment_source": assignment_source,
+        }
+    ]
+
+
 def _get_current_assignment_selection_map(
     section_assignment_map,
     planning_section_id: int,
@@ -398,15 +438,15 @@ def _build_planning_rows(
             subject_teacher_name = assignment_details.get("teacher_name") or ""
             if subject_teacher_name:
                 assigned_hours += int(subject.get("weekly_hours", 0) or 0)
-            subject_assignments.append(
-                {
-                    **subject,
-                    "teacher_name": subject_teacher_name,
-                    "assignment_source": assignment_details.get(
+            subject_assignments.extend(
+                _build_planning_subject_display_entries(
+                    subject=subject,
+                    teacher_name=subject_teacher_name,
+                    assignment_source=assignment_details.get(
                         "assignment_source",
                         "",
                     ),
-                }
+                )
             )
         subject_count = len(subject_assignments)
         assigned_subject_count = sum(
