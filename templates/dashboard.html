@@ -1830,6 +1830,88 @@
             font-weight: 800;
         }
 
+        .report-contributor-panel {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid #d8e4f3;
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(241, 247, 255, 0.92));
+        }
+
+        .report-contributor-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .report-contributor-head span {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #537096;
+        }
+
+        .report-contributor-head strong {
+            font-size: 18px;
+            color: #17365d;
+        }
+
+        .report-contributor-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+        }
+
+        .report-contributor-chip {
+            padding: 10px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid #dbe7f6;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+        }
+
+        .report-contributor-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .report-contributor-meta span {
+            font-size: 13px;
+            font-weight: 700;
+            color: #17365d;
+        }
+
+        .report-contributor-meta strong {
+            font-size: 13px;
+            color: #0a4ea3;
+        }
+
+        .report-contributor-track {
+            height: 8px;
+            border-radius: 999px;
+            background: #e4edf8;
+            overflow: hidden;
+        }
+
+        .report-contributor-fill {
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #0a4ea3, #3d8df5);
+        }
+
+        .report-contributor-foot {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #5d7597;
+            line-height: 1.45;
+        }
+
         .report-subject-urgency {
             margin-top: 12px;
             display: grid;
@@ -2908,6 +2990,36 @@
                                     <span><strong>{{ row.allocated_hours }}h</strong> covered of {{ row.required_hours }}h required</span>
                                     <span class="{% if row.remaining_hours > 0 %}report-caption-alert{% endif %}"><strong>{{ row.remaining_hours }}h</strong> uncovered</span>
                                 </div>
+                                <div class="report-contributor-panel">
+                                    <div class="report-contributor-head">
+                                        <span>Teacher Coverage</span>
+                                        <strong>{{ row.assigned_teacher_count or 0 }}</strong>
+                                    </div>
+                                    {% if row.assigned_teacher_contributors %}
+                                    <div class="report-contributor-list">
+                                        {% for contributor in row.assigned_teacher_contributors %}
+                                        <div class="report-contributor-chip">
+                                            <div class="report-contributor-meta">
+                                                <span>{{ contributor.teacher_name }}</span>
+                                                <strong>{{ contributor.allocated_hours }}h</strong>
+                                            </div>
+                                            <div class="report-contributor-track">
+                                                <div class="report-contributor-fill" style="width: {{ contributor.share_percentage }}%;"></div>
+                                            </div>
+                                            <div class="report-contributor-foot">
+                                                {% if contributor.section_labels %}
+                                                {{ contributor.section_labels | join(" | ") }}
+                                                {% else %}
+                                                Covering this subject in assigned sections.
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    {% else %}
+                                    <div class="report-inline-note">No teachers are currently assigned to this subject.</div>
+                                    {% endif %}
+                                </div>
                                 <div class="report-subject-urgency">
                                     <div class="report-subject-alert-card {{ row.staffing_alert_class }}">
                                         <span>Uncovered Hours</span>
@@ -2932,7 +3044,7 @@
                                     </div>
                                     <div class="report-subject-stat">
                                         <span>Teachers</span>
-                                        <strong>{{ row.teachers_with_subject }}</strong>
+                                        <strong>{{ row.assigned_teacher_count or 0 }}</strong>
                                     </div>
                                     <div class="report-subject-stat">
                                         <span>Covered Sections</span>

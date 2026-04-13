@@ -586,6 +586,16 @@ def _build_reporting_context_from_section_assignments(
         for teacher in teachers
         if getattr(teacher, "id", None)
     )
+    planning_sections_by_id = {
+        section.id: section
+        for section in planning_sections
+        if getattr(section, "id", None)
+    }
+    teachers_by_id = {
+        teacher.id: teacher
+        for teacher in teachers
+        if getattr(teacher, "id", None)
+    }
     teacher_subject_map = {
         teacher_id: set()
         for teacher_id in teacher_ids
@@ -628,6 +638,7 @@ def _build_reporting_context_from_section_assignments(
     actual_hours_by_teacher = {}
     actual_hours_by_teacher_subject = {}
     actual_hours_by_subject = {}
+    actual_teacher_contributors_by_subject = {}
     actual_homeroom_breakdown_by_teacher = {}
     actual_homeroom_section_labels_by_teacher = {}
     actual_homeroom_allocations_by_teacher = {}
@@ -666,6 +677,28 @@ def _build_reporting_context_from_section_assignments(
         actual_hours_by_subject[subject_key] = (
             actual_hours_by_subject.get(subject_key, 0) + subject_hours
         )
+        subject_contributors = actual_teacher_contributors_by_subject.setdefault(
+            subject_key,
+            {},
+        )
+        teacher_name = _build_teacher_display_name(teachers_by_id.get(assignment.teacher_id))
+        teacher_contributor = subject_contributors.setdefault(
+            assignment.teacher_id,
+            {
+                "teacher_id": assignment.teacher_id,
+                "teacher_name": teacher_name,
+                "allocated_hours": 0,
+                "section_labels": set(),
+            },
+        )
+        teacher_contributor["allocated_hours"] += subject_hours
+        planning_section = planning_sections_by_id.get(assignment.planning_section_id)
+        if planning_section:
+            grade_label = _normalize_grade_label(planning_section.grade_level)
+            section_name = str(planning_section.section_name or "").strip().upper()
+            if grade_label and section_name:
+                display_grade = "KG" if grade_label == "KG" else f"G{grade_label}"
+                teacher_contributor["section_labels"].add(f"{display_grade}-{section_name}")
 
     for teacher_id, homeroom_items in homeroom_assignments_by_teacher.items():
         for item in homeroom_items:
@@ -703,6 +736,22 @@ def _build_reporting_context_from_section_assignments(
                     "allocated_hours": subject_hours,
                 }
             )
+            subject_contributors = actual_teacher_contributors_by_subject.setdefault(
+                subject_key,
+                {},
+            )
+            teacher_name = _build_teacher_display_name(teachers_by_id.get(teacher_id))
+            teacher_contributor = subject_contributors.setdefault(
+                teacher_id,
+                {
+                    "teacher_id": teacher_id,
+                    "teacher_name": teacher_name,
+                    "allocated_hours": 0,
+                    "section_labels": set(),
+                },
+            )
+            teacher_contributor["allocated_hours"] += subject_hours
+            teacher_contributor["section_labels"].add(item["class_label"])
 
     teacher_profiles = []
     total_existing_capacity_hours = 0
@@ -778,6 +827,33 @@ def _build_reporting_context_from_section_assignments(
         required_hours = demand["required_hours"]
         allocated_hours = min(actual_hours_by_subject.get(subject_key, 0), required_hours)
         remaining_hours = max(required_hours - allocated_hours, 0)
+        subject_contributors = []
+        for contributor in actual_teacher_contributors_by_subject.get(subject_key, {}).values():
+            contributor_allocated_hours = int(contributor.get("allocated_hours", 0))
+            contributor_share = (
+                round((contributor_allocated_hours / required_hours) * 100)
+                if required_hours > 0
+                else 0
+            )
+            section_labels = sorted(
+                label for label in contributor.get("section_labels", set()) if label
+            )
+            subject_contributors.append(
+                {
+                    "teacher_id": contributor.get("teacher_id"),
+                    "teacher_name": contributor.get("teacher_name", "-"),
+                    "allocated_hours": contributor_allocated_hours,
+                    "share_percentage": contributor_share,
+                    "section_labels": section_labels,
+                    "section_count": len(section_labels),
+                }
+            )
+        subject_contributors.sort(
+            key=lambda item: (
+                -item["allocated_hours"],
+                item["teacher_name"],
+            )
+        )
         teacher_requirement_blocks = (
             math.ceil(remaining_hours / REPORT_STANDARD_MAX_HOURS)
             if remaining_hours > 0
@@ -801,7 +877,16 @@ def _build_reporting_context_from_section_assignments(
                 "allocated_hours": allocated_hours,
                 "remaining_hours": remaining_hours,
                 "coverage_percentage": coverage_percentage,
-                "teachers_with_subject": teachers_per_subject.get(subject_key, 0),
+                "teachers_with_subject": len(subject_contributors),
+                "assigned_teacher_count": len(subject_contributors),
+                "assigned_teacher_names": [
+                    contributor["teacher_name"] for contributor in subject_contributors
+                ],
+                "assigned_teacher_labels": [
+                    f"{contributor['teacher_name']} ({contributor['allocated_hours']}h)"
+                    for contributor in subject_contributors
+                ],
+                "assigned_teacher_contributors": subject_contributors,
                 "teacher_requirement_blocks": teacher_requirement_blocks,
                 "additional_teachers_needed": teacher_requirement_blocks,
                 "additional_teachers_note": "",
