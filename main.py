@@ -2389,6 +2389,7 @@ def _enrich_report_summary_hiring_metrics(report_summary):
     )
     total_existing_teachers = int(summary.get("total_existing_teachers", 0) or 0)
     total_teachers_needed_branch = total_existing_teachers + whole_new_hires
+    summary["total_uncovered_hours"] = uncovered_hours
     summary["total_new_teachers_required"] = whole_new_hires
     summary["remaining_uncovered_hours_after_hires"] = (
         remaining_uncovered_hours_after_hires

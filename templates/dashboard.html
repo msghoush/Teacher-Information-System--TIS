@@ -2915,10 +2915,15 @@
                         <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_new_teachers_required }}">{{ report_summary.total_new_teachers_required }}</strong>
                         <p>{{ report_summary.hireable_covered_hours }}h can be covered by full 24-hour hires.</p>
                     </article>
-                    <article class="report-focus-card {% if report_summary.total_remaining_hours > 0 %}is-alert{% else %}is-clear{% endif %}">
-                        <span class="report-focus-label">Remaining Uncovered Hours</span>
+                    <article class="report-focus-card {% if report_summary.total_uncovered_hours > 0 %}is-alert{% else %}is-clear{% endif %}">
+                        <span class="report-focus-label">Total Uncovered Hours</span>
+                        <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_uncovered_hours }}">{{ report_summary.total_uncovered_hours }}h</strong>
+                        <p>Raw uncovered weekly hours from all unassigned subject-section demand in planning.</p>
+                    </article>
+                    <article class="report-focus-card {% if report_summary.remaining_uncovered_hours_after_hires > 0 %}is-alert{% else %}is-clear{% endif %}">
+                        <span class="report-focus-label">Remainder After Full Hires</span>
                         <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.remaining_uncovered_hours_after_hires }}">{{ report_summary.remaining_uncovered_hours_after_hires }}h</strong>
-                        <p>Hours still open after grouping uncovered demand into whole 24-hour teacher hires.</p>
+                        <p>Hours still open after allocating the uncovered total into full 24-hour teacher hires.</p>
                     </article>
                 </div>
 
@@ -2945,7 +2950,7 @@
                         <p>Grade 1 and Grade 2 homeroom teachers automatically cover English, Mathematics, Mental Math, Performing Arts, Science, and Social Studies unless a section is manually assigned to someone else.</p>
                         <p>
                             {% if report_summary.total_remaining_hours > 0 %}
-                            The current plan needs {{ report_summary.total_new_teachers_required }} whole teacher{% if report_summary.total_new_teachers_required != 1 %}s{% endif %} covering {{ report_summary.hireable_covered_hours }}h, with {{ report_summary.remaining_uncovered_hours_after_hires }}h still left open after those hires.
+                            Total uncovered demand is {{ report_summary.total_uncovered_hours }}h. That translates to {{ report_summary.total_new_teachers_required }} whole teacher{% if report_summary.total_new_teachers_required != 1 %}s{% endif %} covering {{ report_summary.hireable_covered_hours }}h, with {{ report_summary.remaining_uncovered_hours_after_hires }}h still left open after those hires.
                             {% else %}
                             No uncovered hours remain in the current planning scope after the default homeroom and compatible-teacher coverage pass.
                             {% endif %}
@@ -2961,11 +2966,15 @@
                             <strong>{{ report_summary.total_allocated_hours }}h</strong>
                         </div>
                         <div class="report-mini-stat">
+                            <span>Total Uncovered</span>
+                            <strong>{{ report_summary.total_uncovered_hours }}h</strong>
+                        </div>
+                        <div class="report-mini-stat">
                             <span>Homeroom Default</span>
                             <strong>{{ report_summary.homeroom_default_coverage_hours }}h</strong>
                         </div>
                         <div class="report-mini-stat">
-                            <span>Whole Hires + Remainder</span>
+                            <span>Hire Split</span>
                             <strong>{{ report_summary.total_new_teachers_required }} + {{ report_summary.remaining_uncovered_hours_after_hires }}h</strong>
                         </div>
                     </div>
