@@ -1245,7 +1245,7 @@ def _build_report_class_allocation_data_from_section_assignments(
         subjects=subjects,
         planning_sections=planning_sections,
         explicit_section_subject_keys=explicit_section_subject_keys,
-        valid_teacher_ids=set(teachers_by_id.keys()),
+        valid_teacher_ids=set(teacher_by_id.keys())
     )
 
     assignment_rows = []
