@@ -236,6 +236,7 @@ def _build_teacher_subject_display_entries(
         subject_code=subject_code,
         subject_name=subject_name,
         weekly_hours=subject_hours,
+        grade_label=subject_grade,
     )
     override_suffix = " [Admin Override]" if compatibility_override else ""
     if bundle_subject_labels:
@@ -669,6 +670,7 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
             {
                 "subject_code": assignment.subject_code,
                 "subject_name": subject.subject_name or "Unnamed Subject",
+                "grade_label": _subject_grade_label(subject.grade),
                 "hours": 0,
                 "sections": [],
             },
@@ -720,6 +722,7 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
                 subject_code=subject_code,
                 subject_name=subject_item["subject_name"],
                 weekly_hours=subject_item["weekly_hours"],
+                grade_label=grade_label,
             ):
                 bundle_subjects.append(subject_item)
                 continue
@@ -748,6 +751,7 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
                     subject_code=bundle_subject["subject_code"],
                     subject_name=bundle_subject["subject_name"],
                     weekly_hours=bundle_subject["weekly_hours"],
+                    grade_label=grade_label,
                 )
             )
             teacher_data["homeroom_subject_count"] += len(included_subject_labels)
@@ -799,6 +803,7 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
                     entry["subject_code"],
                     entry["subject_name"],
                     entry["hours"],
+                    entry.get("grade_label"),
                 )
             )
             bundle_prefix = (

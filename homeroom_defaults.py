@@ -70,7 +70,11 @@ def is_homeroom_bundle_subject(
     subject_code: str = "",
     subject_name: str = "",
     weekly_hours=None,
+    grade_label=None,
 ) -> bool:
+    if grade_label is not None and not is_lower_primary_homeroom_grade(grade_label):
+        return False
+
     normalized_code = normalize_subject_code(subject_code)
     if not normalized_code.startswith("hrt"):
         return False
@@ -91,11 +95,13 @@ def get_homeroom_bundle_subject_labels(
     subject_code: str = "",
     subject_name: str = "",
     weekly_hours=None,
+    grade_label=None,
 ):
     if not is_homeroom_bundle_subject(
         subject_code=subject_code,
         subject_name=subject_name,
         weekly_hours=weekly_hours,
+        grade_label=grade_label,
     ):
         return ()
     return HOMEROOM_BUNDLE_SUBJECT_LABELS
@@ -105,11 +111,13 @@ def get_effective_subject_count(
     subject_code: str = "",
     subject_name: str = "",
     weekly_hours=None,
+    grade_label=None,
 ) -> int:
     bundle_labels = get_homeroom_bundle_subject_labels(
         subject_code=subject_code,
         subject_name=subject_name,
         weekly_hours=weekly_hours,
+        grade_label=grade_label,
     )
     return len(bundle_labels) if bundle_labels else 1
 

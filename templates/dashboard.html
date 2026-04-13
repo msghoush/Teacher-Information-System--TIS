@@ -2979,7 +2979,7 @@
                             <h4>Subject Sufficiency Breakdown</h4>
                                 <p>Ranked by uncovered hours and built from opened sections, with Grade 1 and Grade 2 homeroom-default coverage already applied before the remaining demand is calculated.</p>
                             </div>
-                            <span class="report-card-tag">{{ report_subject_rows|length }} subjects</span>
+                            <span class="report-card-tag">{{ report_subject_count or report_subject_rows|length }} subjects</span>
                         </div>
                         <div class="report-subject-list">
                             {% for row in report_subject_rows %}

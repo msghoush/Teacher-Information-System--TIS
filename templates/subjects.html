@@ -636,7 +636,7 @@
 <section class="stats">
             <div class="stat">
                 <span>Total Subjects</span>
-                <strong id="subjectCount">{{ subjects|length }}</strong>
+                <strong id="subjectCount">{{ subject_total_count }}</strong>
             </div>
             <div class="stat">
                 <span>Current User</span>
@@ -840,7 +840,14 @@
                                 </td>
                                 {% endif %}
                                 <td>{{ subject.subject_code }}</td>
-                                <td>{{ subject.subject_name }}</td>
+                                <td>
+                                    {{ subject.subject_name }}
+                                    {% if subject.homeroom_bundle_subject_labels %}
+                                    <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">
+                                        Includes {{ subject.homeroom_bundle_subject_labels | join(", ") }}
+                                    </div>
+                                    {% endif %}
+                                </td>
                                 <td>{{ subject.weekly_hours }}</td>
                                 <td>{{ "KG" if subject.grade == 0 else subject.grade }}</td>
                                 {% if can_edit or can_delete %}

@@ -15,6 +15,10 @@ import auth
 import models
 from dependencies import get_db
 from auth import get_current_user
+from homeroom_defaults import (
+    get_effective_subject_count,
+    get_homeroom_bundle_subject_labels,
+)
 from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
 
@@ -245,7 +249,27 @@ def _render_subjects_page(
         models.Subject.subject_code.asc(),
         models.Subject.id.asc(),
     ).all()
-    subject_grade_counts = Counter(subject.grade for subject in subjects)
+    subject_grade_counts = Counter()
+    subject_total_count = 0
+    for subject in subjects:
+        effective_subject_count = get_effective_subject_count(
+            subject_code=subject.subject_code or "",
+            subject_name=subject.subject_name or "",
+            weekly_hours=subject.weekly_hours,
+            grade_label=subject.grade,
+        )
+        homeroom_bundle_subject_labels = list(
+            get_homeroom_bundle_subject_labels(
+                subject_code=subject.subject_code or "",
+                subject_name=subject.subject_name or "",
+                weekly_hours=subject.weekly_hours,
+                grade_label=subject.grade,
+            )
+        )
+        setattr(subject, "effective_subject_count", effective_subject_count)
+        setattr(subject, "homeroom_bundle_subject_labels", homeroom_bundle_subject_labels)
+        subject_grade_counts[subject.grade] += effective_subject_count
+        subject_total_count += effective_subject_count
     copy_year_choices = (
         get_copy_year_choices(db, academic_year_id)
         if can_copy_year_data
@@ -258,6 +282,7 @@ def _render_subjects_page(
         {
             "request": request,
             "subjects": subjects,
+            "subject_total_count": subject_total_count,
             "subject_grade_counts": subject_grade_counts,
             "user": current_user,
             "can_modify": can_modify,

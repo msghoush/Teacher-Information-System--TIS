@@ -358,6 +358,7 @@ def _build_planning_subject_display_entries(
     subject,
     teacher_name: str,
     assignment_source: str,
+    grade_label=None,
 ):
     subject_code = subject.get("subject_code") or ""
     subject_name = subject.get("subject_name") or "Unnamed Subject"
@@ -366,6 +367,7 @@ def _build_planning_subject_display_entries(
         subject_code=subject_code,
         subject_name=subject_name,
         weekly_hours=weekly_hours,
+        grade_label=grade_label,
     )
     if bundle_subject_labels:
         return [
@@ -494,6 +496,7 @@ def _build_planning_rows(
                         "assignment_source",
                         "",
                     ),
+                    grade_label=section.grade_level,
                 )
             )
         subject_count = len(subject_assignments)
