@@ -2378,6 +2378,30 @@ def _build_dashboard_report_visuals(
     }
 
 
+def _enrich_report_summary_hiring_metrics(report_summary):
+    summary = dict(report_summary or {})
+    uncovered_hours = int(summary.get("total_remaining_hours", 0) or 0)
+    whole_new_hires = uncovered_hours // REPORT_STANDARD_MAX_HOURS
+    remaining_uncovered_hours_after_hires = (
+        uncovered_hours % REPORT_STANDARD_MAX_HOURS
+        if uncovered_hours > 0
+        else 0
+    )
+    total_existing_teachers = int(summary.get("total_existing_teachers", 0) or 0)
+    total_teachers_needed_branch = total_existing_teachers + whole_new_hires
+    summary["total_new_teachers_required"] = whole_new_hires
+    summary["remaining_uncovered_hours_after_hires"] = (
+        remaining_uncovered_hours_after_hires
+    )
+    summary["hireable_covered_hours"] = (
+        whole_new_hires * REPORT_STANDARD_MAX_HOURS
+    )
+    summary["total_teachers_needed_branch"] = total_teachers_needed_branch
+    summary["new_hire_capacity_hours"] = whole_new_hires * REPORT_STANDARD_MAX_HOURS
+    summary["staffing_remainder_has_gap"] = remaining_uncovered_hours_after_hires > 0
+    return summary
+
+
 def _build_report_class_rows(planning_sections):
     class_rows = []
     seen_class_keys = set()
@@ -3076,6 +3100,7 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
             ),
         }
     )
+    report_summary = _enrich_report_summary_hiring_metrics(report_summary)
     return decorated_rows, report_summary
 
 
@@ -4228,8 +4253,8 @@ def dashboard(
         for row in report_teacher_rows
     )
     report_visuals = _build_dashboard_report_visuals(
-        report_summary=reporting_context["summary"],
-        report_subject_rows=reporting_context["subject_rows"],
+        report_summary=report_summary,
+        report_subject_rows=report_subject_rows,
         report_grade_rows=reporting_context["grade_rows"],
         planning_current_sections_count=planning_current_sections_count,
         planning_new_sections_count=planning_new_sections_count,

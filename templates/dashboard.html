@@ -771,14 +771,15 @@
         }
 
         .report-note {
-            margin-bottom: 12px;
-            border: 1px solid #bfd2ea;
-            background: #f1f6ff;
+            margin-bottom: 14px;
+            border: 1px solid #d7e3f1;
+            background: linear-gradient(135deg, #f7fbff 0%, #eef5ff 50%, #f8fafc 100%);
             color: #123d72;
-            border-radius: 10px;
-            padding: 10px 12px;
+            border-radius: 16px;
+            padding: 14px 16px;
             font-size: 13px;
-            line-height: 1.5;
+            line-height: 1.6;
+            box-shadow: 0 12px 26px rgba(15, 23, 42, 0.05);
         }
 
         .report-decision-strip {
@@ -891,92 +892,60 @@
         }
 
         .report-visual-grid {
-            margin-top: 14px;
+            margin-top: 18px;
             display: grid;
             grid-template-columns: 1.2fr 1fr;
-            gap: 12px;
+            gap: 14px;
         }
 
         .report-visual-card {
             border: 1px solid #d3deed;
-            border-radius: 14px;
-            padding: 14px;
-            background: linear-gradient(145deg, #ffffff, #f4f8ff);
-            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+            border-radius: 18px;
+            padding: 18px;
+            background: linear-gradient(155deg, #ffffff 0%, #f6f9ff 60%, #edf5ff 100%);
+            box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
         }
 
         .report-visual-card h4 {
             margin: 0 0 6px;
-            font-size: 16px;
+            font-size: 18px;
             color: #163258;
+            letter-spacing: -0.02em;
         }
 
         .report-visual-card p {
-            margin: 0 0 12px;
+            margin: 0 0 14px;
             color: #536885;
             font-size: 13px;
-            line-height: 1.45;
+            line-height: 1.55;
         }
 
         .report-donut-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 12px;
+            gap: 14px;
         }
 
         .report-donut-card {
             border: 1px solid #dbe5f2;
-            border-radius: 12px;
-            padding: 12px;
-            background: rgba(255, 255, 255, 0.9);
+            border-radius: 16px;
+            padding: 14px;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
         }
 
-        .report-donut {
-            width: 126px;
-            height: 126px;
-            margin: 0 auto 10px;
-            border-radius: 50%;
-            position: relative;
-            display: grid;
-            place-items: center;
+        .report-donut-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 16px 28px rgba(15, 23, 42, 0.08);
         }
 
-        .report-donut::after {
-            content: "";
-            width: 72px;
-            height: 72px;
-            border-radius: 50%;
-            background: #fff;
-            box-shadow: inset 0 0 0 1px #e2e8f0;
-        }
-
-        .report-donut-value {
-            position: absolute;
-            z-index: 1;
-            font-size: 24px;
-            font-weight: 800;
-            color: #163258;
-        }
-
-        .report-donut-legend {
-            display: grid;
-            gap: 6px;
-        }
-
-        .report-donut-legend span {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-            font-size: 12px;
-            color: #415068;
-            font-weight: 700;
-        }
-
-        .report-donut-legend em {
-            font-style: normal;
-            color: #6b7c92;
-            font-weight: 600;
+        .report-donut-card h5 {
+            margin: 0 0 10px;
+            font-size: 13px;
+            color: #355276;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
         }
 
         .report-chart-list {
@@ -1303,10 +1272,10 @@
         }
 
         .report-focus-metrics {
-            margin-top: 12px;
+            margin-top: 16px;
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 12px;
+            gap: 14px;
         }
 
         .report-focus-card {
@@ -1339,9 +1308,10 @@
         .report-focus-value {
             display: block;
             margin-top: 8px;
-            font-size: 40px;
+            font-size: 36px;
             line-height: 1;
             color: #17365d;
+            letter-spacing: -0.03em;
         }
 
         .report-focus-card.is-alert .report-focus-value {
@@ -1360,15 +1330,15 @@
         }
 
         .report-coverage-brief {
-            margin-top: 12px;
+            margin-top: 16px;
             display: grid;
             grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
-            gap: 12px;
+            gap: 16px;
             border: 1px solid #d3deed;
             border-radius: 18px;
-            padding: 16px;
+            padding: 18px;
             background: linear-gradient(145deg, #ffffff, #f7fbff);
-            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
         }
 
         .report-coverage-brief.is-alert {
@@ -2817,34 +2787,82 @@
                 {% if report_summary.total_required_hours > 0 %}
                 <div class="report-visual-grid">
                     <div class="report-visual-card">
-                        <h4>Coverage Snapshot</h4>
-                        <p>Interactive donut views bring back the quick-glance dashboard feel for coverage, section mix, and staffing pressure.</p>
+                        <h4>Executive Coverage Snapshot</h4>
+                        <p>Polished donut views summarize section coverage, section mix, and the hiring plan using whole teachers plus any remaining uncovered hours.</p>
                         <div class="report-donut-grid">
-                            <div class="report-donut-card">
-                                <div class="report-donut" style="background: conic-gradient(#0a4ea3 0 {{ report_visuals.coverage_pct }}%, #dbe7f8 {{ report_visuals.coverage_pct }}% 100%);">
-                                    <span class="report-donut-value">{{ report_visuals.coverage_pct }}%</span>
-                                </div>
-                                <div class="report-donut-legend">
-                                    <span>Covered <em>{{ report_summary.total_allocated_hours }}h</em></span>
-                                    <span>Uncovered <em>{{ report_summary.total_remaining_hours }}h</em></span>
+                            <div class="report-donut-card" title="Coverage across all required section-hours in the current planning scope.">
+                                <h5>Coverage</h5>
+                                <div class="report-donut-wrap">
+                                    <div class="report-donut-shell" style="--donut-segments: #0a4ea3 0 {{ report_visuals.coverage_pct }}%, #dbe7f8 {{ report_visuals.coverage_pct }}% 100%;">
+                                        <div class="report-donut-center">
+                                            <strong>{{ report_visuals.coverage_pct }}%</strong>
+                                            <span>Covered</span>
+                                        </div>
+                                    </div>
+                                    <div class="report-donut-legend">
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#0a4ea3;"></span>Covered</span>
+                                            <strong>{{ report_summary.total_allocated_hours }}h</strong>
+                                        </div>
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#dbe7f8;"></span>Uncovered</span>
+                                            <strong>{{ report_summary.total_remaining_hours }}h</strong>
+                                        </div>
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#94a3b8;"></span>Total Demand</span>
+                                            <strong>{{ report_summary.total_required_hours }}h</strong>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="report-donut-card">
-                                <div class="report-donut" style="background: conic-gradient(#0f7f7a 0 {{ report_visuals.current_section_pct }}%, #f2c25f {{ report_visuals.current_section_pct }}% 100%);">
-                                    <span class="report-donut-value">{{ planning_total_sections }}</span>
-                                </div>
-                                <div class="report-donut-legend">
-                                    <span>Current Sections <em>{{ planning_current_sections_count }}</em></span>
-                                    <span>New Sections <em>{{ planning_new_sections_count }}</em></span>
+                            <div class="report-donut-card" title="Distribution of current versus new sections in the selected scope.">
+                                <h5>Section Mix</h5>
+                                <div class="report-donut-wrap">
+                                    <div class="report-donut-shell" style="--donut-segments: #0f7f7a 0 {{ report_visuals.current_section_pct }}%, #f2c25f {{ report_visuals.current_section_pct }}% 100%;">
+                                        <div class="report-donut-center">
+                                            <strong>{{ planning_total_sections }}</strong>
+                                            <span>Sections</span>
+                                        </div>
+                                    </div>
+                                    <div class="report-donut-legend">
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#0f7f7a;"></span>Current</span>
+                                            <strong>{{ planning_current_sections_count }}</strong>
+                                        </div>
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#f2c25f;"></span>New</span>
+                                            <strong>{{ planning_new_sections_count }}</strong>
+                                        </div>
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#cbd5e1;"></span>Mix</span>
+                                            <strong>{{ report_visuals.current_section_pct }}% current</strong>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="report-donut-card">
-                                <div class="report-donut" style="background: conic-gradient(#1d4ed8 0 {{ report_visuals.existing_teacher_pct }}%, #f59e0b {{ report_visuals.existing_teacher_pct }}% 100%);">
-                                    <span class="report-donut-value">{{ report_summary.total_teachers_needed_branch }}</span>
-                                </div>
-                                <div class="report-donut-legend">
-                                    <span>Existing Teachers <em>{{ report_summary.total_existing_teachers }}</em></span>
-                                    <span>New Hires <em>{{ report_summary.total_new_teachers_required }}</em></span>
+                            <div class="report-donut-card" title="Whole-teacher hiring view: uncovered hours are grouped into 24-hour hires, with any remaining uncovered hours shown separately.">
+                                <h5>Staffing Plan</h5>
+                                <div class="report-donut-wrap">
+                                    <div class="report-donut-shell" style="--donut-segments: #1d4ed8 0 {{ report_visuals.existing_teacher_pct }}%, #f59e0b {{ report_visuals.existing_teacher_pct }}% 100%;">
+                                        <div class="report-donut-center">
+                                            <strong>{{ report_summary.total_teachers_needed_branch }}</strong>
+                                            <span>Teachers</span>
+                                        </div>
+                                    </div>
+                                    <div class="report-donut-legend">
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#1d4ed8;"></span>Existing</span>
+                                            <strong>{{ report_summary.total_existing_teachers }}</strong>
+                                        </div>
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#f59e0b;"></span>Whole Hires</span>
+                                            <strong>{{ report_summary.total_new_teachers_required }}</strong>
+                                        </div>
+                                        <div class="report-legend-row">
+                                            <span class="report-legend-label"><span class="report-legend-dot" style="background:#ef4444;"></span>Remainder</span>
+                                            <strong>{{ report_summary.remaining_uncovered_hours_after_hires }}h</strong>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2892,10 +2910,15 @@
                         <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_existing_teachers }}">{{ report_summary.total_existing_teachers }}</strong>
                         <p>Teachers available in the current branch and academic year scope.</p>
                     </article>
+                    <article class="report-focus-card">
+                        <span class="report-focus-label">Whole New Hires</span>
+                        <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_new_teachers_required }}">{{ report_summary.total_new_teachers_required }}</strong>
+                        <p>{{ report_summary.hireable_covered_hours }}h can be covered by full 24-hour hires.</p>
+                    </article>
                     <article class="report-focus-card {% if report_summary.total_remaining_hours > 0 %}is-alert{% else %}is-clear{% endif %}">
-                        <span class="report-focus-label">Uncovered Hours</span>
-                        <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_remaining_hours }}">{{ report_summary.total_remaining_hours }}h</strong>
-                        <p>Weekly hours still open after lower-primary homeroom defaults and compatible-teacher redistribution.</p>
+                        <span class="report-focus-label">Remaining Uncovered Hours</span>
+                        <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.remaining_uncovered_hours_after_hires }}">{{ report_summary.remaining_uncovered_hours_after_hires }}h</strong>
+                        <p>Hours still open after grouping uncovered demand into whole 24-hour teacher hires.</p>
                     </article>
                 </div>
 
@@ -2922,7 +2945,7 @@
                         <p>Grade 1 and Grade 2 homeroom teachers automatically cover English, Mathematics, Mental Math, Performing Arts, Science, and Social Studies unless a section is manually assigned to someone else.</p>
                         <p>
                             {% if report_summary.total_remaining_hours > 0 %}
-                            Use the uncovered-hour total and the 24h staffing blocks only as decision support. The current plan still has {{ report_summary.total_staffing_requirement_blocks }} teacher-equivalent block{% if report_summary.total_staffing_requirement_blocks != 1 %}s{% endif %} open.
+                            The current plan needs {{ report_summary.total_new_teachers_required }} whole teacher{% if report_summary.total_new_teachers_required != 1 %}s{% endif %} covering {{ report_summary.hireable_covered_hours }}h, with {{ report_summary.remaining_uncovered_hours_after_hires }}h still left open after those hires.
                             {% else %}
                             No uncovered hours remain in the current planning scope after the default homeroom and compatible-teacher coverage pass.
                             {% endif %}
@@ -2942,8 +2965,8 @@
                             <strong>{{ report_summary.homeroom_default_coverage_hours }}h</strong>
                         </div>
                         <div class="report-mini-stat">
-                            <span>24h Blocks</span>
-                            <strong>{{ report_summary.total_staffing_requirement_blocks }}</strong>
+                            <span>Whole Hires + Remainder</span>
+                            <strong>{{ report_summary.total_new_teachers_required }} + {{ report_summary.remaining_uncovered_hours_after_hires }}h</strong>
                         </div>
                     </div>
                 </article>
