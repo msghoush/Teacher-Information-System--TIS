@@ -1509,7 +1509,8 @@
             aspect-ratio: 1;
             border-radius: 50%;
             background:
-                radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.36), transparent 30%),
+                radial-gradient(circle at 30% 26%, rgba(255, 255, 255, 0.46), transparent 20%),
+                radial-gradient(circle at 68% 72%, rgba(255, 255, 255, 0.12), transparent 26%),
                 conic-gradient(from -90deg, var(--donut-segments, #0a4ea3 0 75%, #e6edf7 75% 100%));
             display: grid;
             place-items: center;
@@ -1520,9 +1521,11 @@
         .report-donut-shell::before {
             content: "";
             position: absolute;
-            inset: 6px;
+            inset: 4px;
             border-radius: 50%;
-            border: 1px solid rgba(255, 255, 255, 0.26);
+            background:
+                conic-gradient(from -90deg, rgba(255, 255, 255, 0.22), transparent 22%, transparent 78%, rgba(255, 255, 255, 0.08)),
+                radial-gradient(circle at center, transparent 58%, rgba(10, 25, 45, 0.05) 78%, transparent 82%);
             pointer-events: none;
         }
 
@@ -2822,7 +2825,7 @@
                             <div class="report-donut-card" title="Coverage across all required section-hours in the current planning scope.">
                                 <h5>{{ icon("report", "icon") }} Coverage</h5>
                                 <div class="report-donut-wrap">
-                                    <div class="report-donut-shell" style="--donut-segments: #245fb1 0 {{ report_visuals.coverage_pct }}%, #dce6f3 {{ report_visuals.coverage_pct }}% 100%;">
+                                    <div class="report-donut-shell" style="--donut-segments: #3f7fd1 0%, #245fb1 {{ report_visuals.coverage_pct }}%, #dce6f3 {{ report_visuals.coverage_pct }}%, #eef3f9 100%;">
                                         <div class="report-donut-center">
                                             <strong>{{ report_visuals.coverage_pct }}%</strong>
                                             <span>Covered</span>
@@ -2847,7 +2850,7 @@
                             <div class="report-donut-card" title="Distribution of current versus new sections in the selected scope.">
                                 <h5>{{ icon("year", "icon") }} Section Mix</h5>
                                 <div class="report-donut-wrap">
-                                    <div class="report-donut-shell" style="--donut-segments: #2b8c82 0 {{ report_visuals.current_section_pct }}%, #dcb85f {{ report_visuals.current_section_pct }}% 100%;">
+                                    <div class="report-donut-shell" style="--donut-segments: #3b9d92 0%, #2b8c82 {{ report_visuals.current_section_pct }}%, #dcb85f {{ report_visuals.current_section_pct }}%, #f0dfb0 100%;">
                                         <div class="report-donut-center">
                                             <strong>{{ planning_total_sections }}</strong>
                                             <span>Sections</span>
@@ -2872,7 +2875,7 @@
                             <div class="report-donut-card" title="Whole-teacher hiring view: uncovered hours are grouped into 24-hour hires, with any remaining uncovered hours shown separately.">
                                 <h5>{{ icon("teachers", "icon") }} Staffing Plan</h5>
                                 <div class="report-donut-wrap">
-                                    <div class="report-donut-shell" style="--donut-segments: #3b63d4 0 {{ report_visuals.existing_teacher_pct }}%, #d6a856 {{ report_visuals.existing_teacher_pct }}% 100%;">
+                                    <div class="report-donut-shell" style="--donut-segments: #5579e2 0%, #3b63d4 {{ report_visuals.existing_teacher_pct }}%, #d6a856 {{ report_visuals.existing_teacher_pct }}%, #efd7aa 100%;">
                                         <div class="report-donut-center">
                                             <strong>{{ report_summary.total_teachers_needed_branch }}</strong>
                                             <span>Teachers</span>
