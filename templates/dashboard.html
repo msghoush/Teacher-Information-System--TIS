@@ -1504,28 +1504,34 @@
         }
 
         .report-donut-shell {
-            --donut-reveal: 0%;
+            --donut-primary: #0a4ea3;
+            --donut-secondary: #d7e1ef;
+            --donut-target: 0;
+            --donut-sweep: 0;
             position: relative;
             width: 118px;
             aspect-ratio: 1;
             border-radius: 50%;
-            background: conic-gradient(from -90deg, var(--donut-segments, #0a4ea3 0 75%, #d7e1ef 75% 100%));
+            background: conic-gradient(
+                from -90deg,
+                var(--donut-primary) 0 calc(var(--donut-sweep) * 1%),
+                var(--donut-secondary) calc(var(--donut-sweep) * 1%) 100%
+            );
             display: grid;
             place-items: center;
             flex-shrink: 0;
             overflow: hidden;
             box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08), inset 0 0 0 1px rgba(7, 34, 72, 0.08);
-            animation: donutReveal 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
 
         .report-donut-shell::before {
             content: "";
             position: absolute;
-            inset: -1px;
+            inset: 0;
             border-radius: 50%;
             background:
-                conic-gradient(from -90deg, transparent 0 var(--donut-reveal), #f7faff var(--donut-reveal) 100%),
-                radial-gradient(circle at center, transparent 57%, rgba(6, 24, 49, 0.16) 72%, transparent 77%);
+                radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.16), transparent 18%),
+                radial-gradient(circle at 50% 50%, transparent 57%, rgba(7, 34, 72, 0.16) 72%, transparent 77%);
             pointer-events: none;
         }
 
@@ -2341,21 +2347,6 @@
             line-height: 1.4;
         }
 
-        @property --donut-reveal {
-            syntax: "<percentage>";
-            inherits: false;
-            initial-value: 0%;
-        }
-
-        @keyframes donutReveal {
-            from {
-                --donut-reveal: 0%;
-            }
-            to {
-                --donut-reveal: 100%;
-            }
-        }
-
         @keyframes rise {
             from {
                 opacity: 0;
@@ -2840,7 +2831,7 @@
                             <div class="report-donut-card" title="Coverage across all required section-hours in the current planning scope.">
                                 <h5>{{ icon("report", "icon") }} Coverage</h5>
                                 <div class="report-donut-wrap">
-                                    <div class="report-donut-shell" style="--donut-segments: #083b7d 0%, #0a4ea3 28%, #1c63c2 55%, #0a4ea3 {{ report_visuals.coverage_pct }}%, #d9e3f1 {{ report_visuals.coverage_pct }}%, #d9e3f1 100%;">
+                                    <div class="report-donut-shell" style="--donut-primary: #0a4ea3; --donut-secondary: #d9e3f1; --donut-target: {{ report_visuals.coverage_pct }};">
                                         <div class="report-donut-center">
                                             <strong>{{ report_visuals.coverage_pct }}%</strong>
                                             <span>Covered</span>
@@ -2865,7 +2856,7 @@
                             <div class="report-donut-card" title="Distribution of current versus new sections in the selected scope.">
                                 <h5>{{ icon("year", "icon") }} Section Mix</h5>
                                 <div class="report-donut-wrap">
-                                    <div class="report-donut-shell" style="--donut-segments: #0d6c67 0%, #0f7f7a 24%, #12958e {{ report_visuals.current_section_pct }}%, #b8840c {{ report_visuals.current_section_pct }}%, #c79a14 76%, #d39f12 100%;">
+                                    <div class="report-donut-shell" style="--donut-primary: #0f7f7a; --donut-secondary: #c79a14; --donut-target: {{ report_visuals.current_section_pct }};">
                                         <div class="report-donut-center">
                                             <strong>{{ planning_total_sections }}</strong>
                                             <span>Sections</span>
@@ -2890,7 +2881,7 @@
                             <div class="report-donut-card" title="Whole-teacher hiring view: uncovered hours are grouped into 24-hour hires, with any remaining uncovered hours shown separately.">
                                 <h5>{{ icon("teachers", "icon") }} Staffing Plan</h5>
                                 <div class="report-donut-wrap">
-                                    <div class="report-donut-shell" style="--donut-segments: #2149ba 0%, #3158cf 24%, #4b72de {{ report_visuals.existing_teacher_pct }}%, #b87405 {{ report_visuals.existing_teacher_pct }}%, #cb8708 76%, #dc980c 100%;">
+                                    <div class="report-donut-shell" style="--donut-primary: #3158cf; --donut-secondary: #c98a08; --donut-target: {{ report_visuals.existing_teacher_pct }};">
                                         <div class="report-donut-center">
                                             <strong>{{ report_summary.total_teachers_needed_branch }}</strong>
                                             <span>Teachers</span>
@@ -3383,6 +3374,7 @@ const tabs = document.querySelectorAll(".tab");
         const reportCoverageFill = document.getElementById("reportCoverageFill");
         const reportFocusChips = Array.from(document.querySelectorAll(".report-focus-chip"));
         const reportSubjectRows = Array.from(document.querySelectorAll(".report-subject-row"));
+        const reportDonutShells = Array.from(document.querySelectorAll(".report-donut-shell"));
         const subjectGradeOrder = ["KG", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
         const dashboardSubjectRowsByGrade = new Map();
         const collapsedDashboardGrades = new Set();
@@ -3391,6 +3383,7 @@ const tabs = document.querySelectorAll(".tab");
         let planningKpiAnimated = false;
         let reportKpiAnimated = false;
         let reportBarsAnimated = false;
+        let reportDonutsAnimated = false;
 
         const animateNumericValue = (element) => {
             const target = Number(element.dataset.value || element.textContent || "0");
@@ -3430,6 +3423,37 @@ const tabs = document.querySelectorAll(".tab");
             reportKpiAnimated = true;
         };
 
+        const animateReportDonuts = () => {
+            if (reportDonutsAnimated) {
+                return;
+            }
+
+            reportDonutShells.forEach((shell, index) => {
+                const targetValue = Number(shell.style.getPropertyValue("--donut-target") || "0");
+                const safeTarget = Math.max(0, Math.min(100, targetValue));
+                const delay = index * 120;
+                shell.style.setProperty("--donut-sweep", "0");
+
+                setTimeout(() => {
+                    const startAt = performance.now();
+                    const durationMs = 900;
+
+                    const tick = (timestamp) => {
+                        const progress = Math.min((timestamp - startAt) / durationMs, 1);
+                        const eased = 1 - Math.pow(1 - progress, 3);
+                        shell.style.setProperty("--donut-sweep", String(safeTarget * eased));
+                        if (progress < 1) {
+                            requestAnimationFrame(tick);
+                        }
+                    };
+
+                    requestAnimationFrame(tick);
+                }, delay);
+            });
+
+            reportDonutsAnimated = true;
+        };
+
         const animateReportBars = () => {
             if (reportBarsAnimated) {
                 return;
@@ -3446,6 +3470,7 @@ const tabs = document.querySelectorAll(".tab");
                 });
             };
 
+            animateReportDonuts();
             applyWidth(reportCoverageFill);
             reportGapFills.forEach((element) => applyWidth(element));
             reportChartFills.forEach((element) => applyWidth(element));
