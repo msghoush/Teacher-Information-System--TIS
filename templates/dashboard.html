@@ -927,67 +927,13 @@
         }
 
         .report-donut-card {
-            --donut-accent: rgba(10, 78, 163, 0.18);
             position: relative;
             overflow: hidden;
-            isolation: isolate;
             border: 1px solid #dbe5f2;
             border-radius: 18px;
             padding: 14px;
-            background: linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(243, 248, 255, 0.96));
-            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.82);
-            transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
-        }
-
-        .report-donut-card::before {
-            content: "";
-            position: absolute;
-            top: -42px;
-            right: -36px;
-            width: 118px;
-            height: 118px;
-            border-radius: 50%;
-            background: radial-gradient(circle, var(--donut-accent), transparent 68%);
-            opacity: 0.95;
-            z-index: -1;
-            transition: transform 0.28s ease, opacity 0.28s ease;
-        }
-
-        .report-donut-card::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(120deg, transparent 22%, rgba(255, 255, 255, 0.55) 50%, transparent 78%);
-            transform: translateX(-140%);
-            transition: transform 0.8s ease;
-            pointer-events: none;
-        }
-
-        .report-donut-card:nth-child(1) {
-            --donut-accent: rgba(10, 78, 163, 0.22);
-        }
-
-        .report-donut-card:nth-child(2) {
-            --donut-accent: rgba(15, 127, 122, 0.2);
-        }
-
-        .report-donut-card:nth-child(3) {
-            --donut-accent: rgba(245, 158, 11, 0.22);
-        }
-
-        .report-donut-card:hover {
-            transform: translateY(-4px) scale(1.01);
-            border-color: #bfd3ef;
-            box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
-        }
-
-        .report-donut-card:hover::before {
-            transform: scale(1.12);
-            opacity: 1;
-        }
-
-        .report-donut-card:hover::after {
-            transform: translateX(140%);
+            background: linear-gradient(160deg, #ffffff, #f7faff);
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.82);
         }
 
         .report-donut-card h5 {
@@ -1002,7 +948,7 @@
             color: #355276;
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            background: rgba(237, 244, 255, 0.86);
+            background: #f4f8ff;
             border: 1px solid #d6e3f5;
         }
 
@@ -1562,23 +1508,22 @@
             width: 118px;
             aspect-ratio: 1;
             border-radius: 50%;
-            background: conic-gradient(var(--donut-segments, #0a4ea3 0 75%, #e6edf7 75% 100%));
+            background:
+                radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.36), transparent 30%),
+                conic-gradient(from -90deg, var(--donut-segments, #0a4ea3 0 75%, #e6edf7 75% 100%));
             display: grid;
             place-items: center;
             flex-shrink: 0;
-            box-shadow: 0 16px 28px rgba(15, 23, 42, 0.12), inset 0 0 0 1px rgba(255, 255, 255, 0.45);
-            animation: donutFloat 4.8s ease-in-out infinite;
-            transition: transform 0.26s ease, box-shadow 0.26s ease, filter 0.26s ease;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.42);
         }
 
         .report-donut-shell::before {
             content: "";
             position: absolute;
-            inset: -8px;
+            inset: 6px;
             border-radius: 50%;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.34), transparent 70%);
-            filter: blur(6px);
-            z-index: 0;
+            border: 1px solid rgba(255, 255, 255, 0.26);
+            pointer-events: none;
         }
 
         .report-donut-shell::after {
@@ -1586,14 +1531,8 @@
             width: 72%;
             height: 72%;
             border-radius: 50%;
-            background: linear-gradient(145deg, #ffffff, #f1f6ff);
-            box-shadow: inset 0 0 0 1px #dfe7f3, 0 6px 14px rgba(15, 23, 42, 0.08);
-        }
-
-        .report-donut-card:hover .report-donut-shell {
-            transform: scale(1.06) rotate(8deg);
-            box-shadow: 0 20px 34px rgba(15, 23, 42, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.55);
-            filter: saturate(1.08);
+            background: linear-gradient(145deg, #ffffff, #f4f8ff);
+            box-shadow: inset 0 0 0 1px #dfe7f3, 0 4px 10px rgba(15, 23, 42, 0.05);
         }
 
         .report-donut-center {
@@ -1642,13 +1581,6 @@
             border-radius: 10px;
             background: rgba(248, 251, 255, 0.92);
             border: 1px solid #e1e9f5;
-            transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
-        }
-
-        .report-legend-row:hover {
-            transform: translateX(2px);
-            border-color: #c5d8ef;
-            background: #ffffff;
         }
 
         .report-legend-row strong {
@@ -2406,15 +2338,6 @@
             line-height: 1.4;
         }
 
-        @keyframes donutFloat {
-            0%, 100% {
-                transform: translateY(0);
-            }
-            50% {
-                transform: translateY(-3px);
-            }
-        }
-
         @keyframes rise {
             from {
                 opacity: 0;
@@ -2899,7 +2822,7 @@
                             <div class="report-donut-card" title="Coverage across all required section-hours in the current planning scope.">
                                 <h5>{{ icon("report", "icon") }} Coverage</h5>
                                 <div class="report-donut-wrap">
-                                    <div class="report-donut-shell" style="--donut-segments: #0a4ea3 0 {{ report_visuals.coverage_pct }}%, #dbe7f8 {{ report_visuals.coverage_pct }}% 100%;">
+                                    <div class="report-donut-shell" style="--donut-segments: #245fb1 0 {{ report_visuals.coverage_pct }}%, #dce6f3 {{ report_visuals.coverage_pct }}% 100%;">
                                         <div class="report-donut-center">
                                             <strong>{{ report_visuals.coverage_pct }}%</strong>
                                             <span>Covered</span>
@@ -2924,7 +2847,7 @@
                             <div class="report-donut-card" title="Distribution of current versus new sections in the selected scope.">
                                 <h5>{{ icon("year", "icon") }} Section Mix</h5>
                                 <div class="report-donut-wrap">
-                                    <div class="report-donut-shell" style="--donut-segments: #0f7f7a 0 {{ report_visuals.current_section_pct }}%, #f2c25f {{ report_visuals.current_section_pct }}% 100%;">
+                                    <div class="report-donut-shell" style="--donut-segments: #2b8c82 0 {{ report_visuals.current_section_pct }}%, #dcb85f {{ report_visuals.current_section_pct }}% 100%;">
                                         <div class="report-donut-center">
                                             <strong>{{ planning_total_sections }}</strong>
                                             <span>Sections</span>
@@ -2949,7 +2872,7 @@
                             <div class="report-donut-card" title="Whole-teacher hiring view: uncovered hours are grouped into 24-hour hires, with any remaining uncovered hours shown separately.">
                                 <h5>{{ icon("teachers", "icon") }} Staffing Plan</h5>
                                 <div class="report-donut-wrap">
-                                    <div class="report-donut-shell" style="--donut-segments: #1d4ed8 0 {{ report_visuals.existing_teacher_pct }}%, #f59e0b {{ report_visuals.existing_teacher_pct }}% 100%;">
+                                    <div class="report-donut-shell" style="--donut-segments: #3b63d4 0 {{ report_visuals.existing_teacher_pct }}%, #d6a856 {{ report_visuals.existing_teacher_pct }}% 100%;">
                                         <div class="report-donut-center">
                                             <strong>{{ report_summary.total_teachers_needed_branch }}</strong>
                                             <span>Teachers</span>
