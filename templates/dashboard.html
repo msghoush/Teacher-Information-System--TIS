@@ -1504,6 +1504,7 @@
         }
 
         .report-donut-shell {
+            --donut-reveal: 0%;
             position: relative;
             width: 118px;
             aspect-ratio: 1;
@@ -1512,15 +1513,19 @@
             display: grid;
             place-items: center;
             flex-shrink: 0;
+            overflow: hidden;
             box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08), inset 0 0 0 1px rgba(7, 34, 72, 0.08);
+            animation: donutReveal 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
 
         .report-donut-shell::before {
             content: "";
             position: absolute;
-            inset: 0;
+            inset: -1px;
             border-radius: 50%;
-            background: radial-gradient(circle at center, transparent 57%, rgba(6, 24, 49, 0.16) 72%, transparent 77%);
+            background:
+                conic-gradient(from -90deg, transparent 0 var(--donut-reveal), #f7faff var(--donut-reveal) 100%),
+                radial-gradient(circle at center, transparent 57%, rgba(6, 24, 49, 0.16) 72%, transparent 77%);
             pointer-events: none;
         }
 
@@ -2336,6 +2341,21 @@
             line-height: 1.4;
         }
 
+        @property --donut-reveal {
+            syntax: "<percentage>";
+            inherits: false;
+            initial-value: 0%;
+        }
+
+        @keyframes donutReveal {
+            from {
+                --donut-reveal: 0%;
+            }
+            to {
+                --donut-reveal: 100%;
+            }
+        }
+
         @keyframes rise {
             from {
                 opacity: 0;
@@ -2845,7 +2865,7 @@
                             <div class="report-donut-card" title="Distribution of current versus new sections in the selected scope.">
                                 <h5>{{ icon("year", "icon") }} Section Mix</h5>
                                 <div class="report-donut-wrap">
-                                    <div class="report-donut-shell" style="--donut-segments: #0d6c67 0%, #0f7f7a 24%, #12958e 50%, #c79a14 {{ report_visuals.current_section_pct }}%, #dfc27e {{ report_visuals.current_section_pct }}%, #dfc27e 100%;">
+                                    <div class="report-donut-shell" style="--donut-segments: #0d6c67 0%, #0f7f7a 24%, #12958e {{ report_visuals.current_section_pct }}%, #b8840c {{ report_visuals.current_section_pct }}%, #c79a14 76%, #d39f12 100%;">
                                         <div class="report-donut-center">
                                             <strong>{{ planning_total_sections }}</strong>
                                             <span>Sections</span>
@@ -2870,7 +2890,7 @@
                             <div class="report-donut-card" title="Whole-teacher hiring view: uncovered hours are grouped into 24-hour hires, with any remaining uncovered hours shown separately.">
                                 <h5>{{ icon("teachers", "icon") }} Staffing Plan</h5>
                                 <div class="report-donut-wrap">
-                                    <div class="report-donut-shell" style="--donut-segments: #2149ba 0%, #3158cf 24%, #4b72de 50%, #c98a08 {{ report_visuals.existing_teacher_pct }}%, #dcb670 {{ report_visuals.existing_teacher_pct }}%, #dcb670 100%;">
+                                    <div class="report-donut-shell" style="--donut-segments: #2149ba 0%, #3158cf 24%, #4b72de {{ report_visuals.existing_teacher_pct }}%, #b87405 {{ report_visuals.existing_teacher_pct }}%, #cb8708 76%, #dc980c 100%;">
                                         <div class="report-donut-center">
                                             <strong>{{ report_summary.total_teachers_needed_branch }}</strong>
                                             <span>Teachers</span>
