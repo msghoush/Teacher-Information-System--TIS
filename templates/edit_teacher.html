@@ -1328,8 +1328,8 @@
 
 {% block content %}
 <main class="panel">
-<h1>Edit Teacher</h1>
-        <p class="sub">Update teacher details, workload rules, eligible subjects, and the exact sections this teacher covers for each selected subject in your current branch/year scope.</p>
+<h1 class="section-heading"><span class="section-heading-icon">{{ icon("teachers", "icon") }}</span>Edit Teacher</h1>
+        <p class="sub">Update teacher details, workload rules, eligible subjects, and section assignments through a cleaner, more professional review screen.</p>
 
         {% if error %}
         <div class="error">{{ error }}</div>
@@ -1392,7 +1392,7 @@
                     <label>Eligible Subjects</label>
                     <div class="assignment-step">
                         <div class="assignment-step-label">Step 1</div>
-                        <h3>Select the subjects this teacher can teach</h3>
+                        <h3 class="section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Select the subjects this teacher can teach</h3>
                         <p>Tick one or more subjects first. The section assignment area will appear directly below for those selected subjects.</p>
                     <div class="subject-selector-shell">
                         <div class="subject-selector-topbar">
@@ -1442,7 +1442,7 @@
                     </div>
                     <div class="assignment-step">
                         <div class="assignment-step-label">Step 2</div>
-                        <h3>Assign sections for each selected subject</h3>
+                        <h3 class="section-heading"><span class="section-heading-icon">{{ icon("planning", "icon") }}</span>Assign sections for each selected subject</h3>
                         <p>This is where you choose the exact sections the teacher covers for the selected subject, for example Grade 5-A and Grade 5-B for the same subject.</p>
                     <div id="sectionAssignmentBoard" class="subject-assignment-board"></div>
                     <div id="sectionAssignmentEmpty" class="section-assignment-empty">Choose one or more subjects in Step 1, and the matching sections will appear here to assign to this teacher.</div>
@@ -1451,7 +1451,7 @@
                         <div class="allocation-dashboard-head">
                             <div class="allocation-copy">
                                 <span id="allocationStatusBadge" class="allocation-status-badge">Start with subjects</span>
-                                <h3>Teaching Load Overview</h3>
+                                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("report", "icon") }}</span>Teaching Load Overview</h3>
                                 <p id="allocationStatusText">Select eligible subjects first, then assign sections to see the teacher's live weekly hours and remaining international capacity.</p>
                             </div>
                             <div class="allocation-hours-total">
@@ -1539,9 +1539,9 @@
             </div>
 
             <div class="actions">
-                <button class="btn btn-save" type="submit">Save Changes</button>
-                <a class="btn btn-secondary" href="/teachers">Cancel</a>
-                <a class="btn btn-home" href="/dashboard">Dashboard</a>
+                <button class="btn btn-save" type="submit">{{ icon("save", "icon") }} Save Changes</button>
+                <a class="btn btn-secondary" href="/teachers">{{ icon("close", "icon") }} Cancel</a>
+                <a class="btn btn-home" href="/dashboard">{{ icon("dashboard", "icon") }} Dashboard</a>
             </div>
         </form>
 </main>

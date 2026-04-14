@@ -163,8 +163,8 @@
 
 {% block content %}
 <main class="panel">
-<h1>Edit Subject</h1>
-        <p class="sub">Update subject details in your current branch/year scope.</p>
+<h1 class="section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Edit Subject</h1>
+        <p class="sub">Update subject details in your current branch and academic year scope with the same theme and structure.</p>
 
         {% if error %}
         <div class="error">{{ error }}</div>
@@ -193,9 +193,9 @@
             </div>
 
             <div class="actions">
-                <button class="btn btn-save" type="submit">Save Changes</button>
-                <a class="btn btn-secondary" href="/subjects">Cancel</a>
-                <a class="btn btn-home" href="/dashboard">Dashboard</a>
+                <button class="btn btn-save" type="submit">{{ icon("save", "icon") }} Save Changes</button>
+                <a class="btn btn-secondary" href="/subjects">{{ icon("close", "icon") }} Cancel</a>
+                <a class="btn btn-home" href="/dashboard">{{ icon("dashboard", "icon") }} Dashboard</a>
             </div>
         </form>
 </main>

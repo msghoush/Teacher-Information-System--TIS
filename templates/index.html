@@ -48,17 +48,72 @@
         }
 
         .brand-area {
+            position: relative;
+            overflow: hidden;
             padding: 28px;
-            background: #f6f8fb;
+            background:
+                radial-gradient(220px 180px at 0% 0%, rgba(10, 78, 163, 0.12), transparent 70%),
+                radial-gradient(180px 160px at 100% 100%, rgba(199, 154, 20, 0.14), transparent 70%),
+                #f6f8fb;
             border-right: 1px solid var(--line);
             display: flex;
             align-items: center;
             justify-content: center;
         }
 
+        .brand-stack {
+            width: min(92%, 390px);
+            max-width: 390px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .brand-badge {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(10, 78, 163, 0.08);
+            border: 1px solid rgba(10, 78, 163, 0.12);
+            color: var(--brand-dark);
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
         .brand-logo-frame {
             width: min(92%, 390px);
             max-width: 390px;
+        }
+
+        .brand-copy h1 {
+            margin: 0;
+            font-size: 24px;
+            color: var(--brand-dark);
+        }
+
+        .brand-copy p {
+            margin: 6px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .brand-points {
+            display: grid;
+            gap: 8px;
+        }
+
+        .brand-point {
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid #d9e4f3;
+            background: rgba(255, 255, 255, 0.7);
+            color: #24456f;
+            font-size: 12px;
+            font-weight: 700;
         }
 
         .brand-logo {
@@ -186,8 +241,20 @@
 <body>
     <main class="shell">
         <section class="brand-area">
-            <div class="brand-logo-frame">
-                <img class="brand-logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
+            <div class="brand-stack">
+                <span class="brand-badge">Teacher Information System</span>
+                <div class="brand-logo-frame">
+                    <img class="brand-logo" src="{{ url_for('static', path='images/tis-logo.png') }}" alt="Teacher Information System logo">
+                </div>
+                <div class="brand-copy">
+                    <h1>Unified school operations</h1>
+                    <p>Manage staffing, subjects, academic planning, and reporting through one professional workspace with the same trusted identity.</p>
+                </div>
+                <div class="brand-points">
+                    <div class="brand-point">Branch-aware administration</div>
+                    <div class="brand-point">Academic year planning</div>
+                    <div class="brand-point">Teacher and user management</div>
+                </div>
             </div>
         </section>
 

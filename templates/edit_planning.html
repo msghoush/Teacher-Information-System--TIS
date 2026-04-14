@@ -292,8 +292,8 @@
 
 {% block content %}
 <main class="panel">
-<h1>Edit Planning Section</h1>
-        <p>Update class setup for the selected section. Subject alignment is still automatic by grade, and now you can assign a teacher to each subject for this specific section.</p>
+<h1 class="section-heading"><span class="section-heading-icon">{{ icon("planning", "icon") }}</span>Edit Planning Section</h1>
+        <p>Update the selected class setup with the same structured workflow, including automatic subject alignment and cleaner teacher assignment controls.</p>
 
         {% if error %}
         <div class="error">{{ error }}</div>
@@ -349,7 +349,7 @@
                 </div>
                 <div class="field field-wide">
                     <div class="auto-panel">
-                        <h3>Subjects Aligned (Automatic)</h3>
+                        <h3 class="section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Subjects Aligned (Automatic)</h3>
                         <ul id="alignedSubjectsPreview" class="aligned-list">
                             {% for subject in aligned_subjects %}
                             <li class="aligned-item">{{ subject.subject_code }} - {{ subject.subject_name }} ({{ subject.weekly_hours }}h)</li>
@@ -361,7 +361,7 @@
                 </div>
                 <div class="field field-wide">
                     <div class="auto-panel">
-                        <h3>Subject Teacher Assignments</h3>
+                        <h3 class="section-heading"><span class="section-heading-icon">{{ icon("teachers", "icon") }}</span>Subject Teacher Assignments</h3>
                         <p class="assignment-note">Choose the teacher for each subject in this section. For Grade 1 and Grade 2 lower-primary homeroom subjects, leaving the row blank keeps the homeroom teacher as the default unless you intentionally override it here.</p>
                         <div id="assignmentRows" class="assignment-grid">
                             {% for item in section_assignment_rows %}
@@ -400,9 +400,9 @@
             </div>
             {% endif %}
             <div class="actions">
-                <button class="btn btn-primary" type="submit">Update Planning Section</button>
-                <a class="btn btn-secondary" href="/planning">Cancel</a>
-                <a class="btn btn-home" href="/dashboard">Dashboard</a>
+                <button class="btn btn-primary" type="submit">{{ icon("save", "icon") }} Update Planning Section</button>
+                <a class="btn btn-secondary" href="/planning">{{ icon("close", "icon") }} Cancel</a>
+                <a class="btn btn-home" href="/dashboard">{{ icon("dashboard", "icon") }} Dashboard</a>
             </div>
         </form>
 </main>
