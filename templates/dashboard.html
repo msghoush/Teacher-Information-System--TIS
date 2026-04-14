@@ -2483,15 +2483,15 @@
 {% block content %}
 <section class="stats">
             <div class="stat">
-                <span>Subjects</span>
+                <span>{{ icon("subjects", "icon") }} Subjects</span>
                 <strong>{{ subject_count }}</strong>
             </div>
             <div class="stat">
-                <span>Teachers</span>
+                <span>{{ icon("teachers", "icon") }} Teachers</span>
                 <strong>{{ teacher_count }}</strong>
             </div>
             <div class="stat">
-                <span>Users</span>
+                <span>{{ icon("users", "icon") }} Users</span>
                 <strong>{{ users_count }}</strong>
             </div>
         </section>
@@ -2549,7 +2549,7 @@
                 <div class="panel-head">
                     <div>
                         <div class="panel-title">
-                            <h3>Subjects Workspace</h3>
+                            <h3 class="section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Subjects Workspace</h3>
                             <a class="icon-action" href="/subjects" aria-label="Open subjects quick actions" title="Open subjects quick actions">
                                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                                     <path d="M8 6h10"></path>
@@ -2652,7 +2652,7 @@
                 <div class="panel-head">
                     <div>
                         <div class="panel-title">
-                            <h3>Teachers Workspace</h3>
+                            <h3 class="section-heading"><span class="section-heading-icon">{{ icon("teachers", "icon") }}</span>Teachers Workspace</h3>
                             <a class="icon-action" href="/teachers" aria-label="Open teachers quick actions" title="Open teachers quick actions">
                                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                                     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
@@ -2698,7 +2698,7 @@
                 <div class="panel-head">
                     <div>
                         <div class="panel-title">
-                            <h3>Users Workspace</h3>
+                            <h3 class="section-heading"><span class="section-heading-icon">{{ icon("users", "icon") }}</span>Users Workspace</h3>
                             <a class="icon-action" href="/users" aria-label="Open users quick actions" title="Open users quick actions">
                                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                                     <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>

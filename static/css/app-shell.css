@@ -604,6 +604,9 @@ textarea {
 }
 
 .header-chip span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     color: var(--app-muted);
     font-size: 11px;
     font-weight: 700;
@@ -641,6 +644,81 @@ textarea {
     border-color: transparent;
     background: linear-gradient(135deg, var(--app-brand), var(--app-brand-deep));
     color: #ffffff;
+}
+
+.sidebar-config-btn,
+.sidebar-config-link,
+.sidebar-logout,
+.shell-action,
+.header-chip,
+.page-panel,
+.page-stage .card,
+.page-stage .stat,
+.page-stage .workspace,
+.page-stage .btn-save,
+.page-stage .btn-import,
+.page-stage .btn-export,
+.page-stage .btn-template,
+.page-stage .btn-link {
+    transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.sidebar-config-btn:hover,
+.sidebar-config-link:hover,
+.sidebar-logout:hover,
+.shell-action:hover,
+.page-stage .btn-save:hover,
+.page-stage .btn-import:hover,
+.page-stage .btn-export:hover,
+.page-stage .btn-template:hover,
+.page-stage .btn-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+}
+
+.header-chip:hover {
+    transform: translateY(-1px);
+    border-color: var(--app-line-strong);
+    background: #ffffff;
+}
+
+.page-panel:hover,
+.page-stage .card:hover,
+.page-stage .stat:hover,
+.page-stage .workspace:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
+}
+
+.page-stage .btn-save,
+.page-stage .btn-import,
+.page-stage .btn-export,
+.page-stage .btn-template,
+.page-stage .btn-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.section-heading {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-heading-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    border: 1px solid #d6e3f5;
+    background: linear-gradient(135deg, #edf4ff, #ffffff);
+    color: var(--app-brand-deep);
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
+    flex-shrink: 0;
 }
 
 .shell-notice {

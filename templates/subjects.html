@@ -651,7 +651,7 @@
             <div class="stack">
                 {% if can_copy_year_data %}
                 <article class="card tools">
-                    <h2>Copy From Academic Year</h2>
+                    <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("copy", "icon") }}</span>Copy From Academic Year</span></h2>
                     <p>Bring subject records from another academic year into the current branch/year scope. Existing subject codes in the target year stay untouched.</p>
 
                     {% if copy_year_choices %}
@@ -664,7 +664,7 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <button class="btn-save" type="submit" style="margin-top: 10px;">Copy Subjects Into Current Year</button>
+                        <button class="btn-save" type="submit" style="margin-top: 10px;">{{ icon("copy", "icon") }} Copy Subjects Into Current Year</button>
                     </form>
                     {% else %}
                     <div class="empty">No other academic years are available to copy from.</div>
@@ -673,7 +673,7 @@
                 {% endif %}
 
                 <article class="card">
-                    <h2>Add Subject</h2>
+                    <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("add", "icon") }}</span>Add Subject</span></h2>
                     <p>Create a new subject record in the current scope.</p>
 
                     {% if success %}
@@ -712,7 +712,7 @@
                                 <input id="weekly_hours" type="number" name="weekly_hours" min="1" placeholder="e.g. 4" required>
                             </div>
                         </div>
-                        <button class="btn-save" type="submit">Add Subject</button>
+                        <button class="btn-save" type="submit">{{ icon("add", "icon") }} Add Subject</button>
                     </form>
                     {% else %}
                     <div class="empty">Your role is read-only. You can view subjects but cannot add or edit them.</div>
@@ -720,11 +720,11 @@
                 </article>
 
                 <article class="card tools">
-                    <h2>Excel Import / Export</h2>
+                    <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("report", "icon") }}</span>Excel Import / Export</span></h2>
                     <p>Download template, fill your data, then import automatically.</p>
 
-                    <a id="exportSubjectsBtn" class="btn-export" href="/subjects/export">Export Current Subjects</a>
-                    <a id="downloadTemplateBtn" class="btn-template" href="/subjects/template">Download Excel Template</a>
+                    <a id="exportSubjectsBtn" class="btn-export" href="/subjects/export">{{ icon("download", "icon") }} Export Current Subjects</a>
+                    <a id="downloadTemplateBtn" class="btn-template" href="/subjects/template">{{ icon("table", "icon") }} Download Excel Template</a>
 
                     {% if can_modify %}
                     <form id="importForm" method="post" action="/subjects/import" enctype="multipart/form-data">
@@ -732,7 +732,7 @@
                             <label for="subject_file">Select Excel File (.xlsx)</label>
                             <input id="subject_file" class="file-input" type="file" name="subject_file" accept=".xlsx" required>
                         </div>
-                        <button class="btn-import" type="submit">Import Excel Data</button>
+                        <button class="btn-import" type="submit">{{ icon("upload", "icon") }} Import Excel Data</button>
                     </form>
 
                     <ol class="steps">
@@ -752,7 +752,7 @@
                 <div class="toolbar">
                     <div class="toolbar-head">
                         <div class="title-with-actions">
-                            <h2>Subjects Table</h2>
+                            <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("table", "icon") }}</span>Subjects Table</span></h2>
                             <button class="icon-action" type="button" data-focus-target="subjectSearch" aria-label="Focus subjects search" title="Focus subjects search">
                                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                                     <circle cx="11" cy="11" r="7"></circle>

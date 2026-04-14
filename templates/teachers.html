@@ -1837,7 +1837,7 @@
 <section class="grid">
             {% if can_copy_year_data %}
             <article class="card">
-                <h2>Copy From Academic Year</h2>
+                <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("copy", "icon") }}</span>Copy From Academic Year</span></h2>
                 <p>Bring teacher profiles forward from another academic year into the current branch/year scope. Existing teacher records stay untouched, and section links are copied only when matching planning sections already exist in the target year.</p>
 
                 {% if copy_year_choices %}
@@ -1852,7 +1852,7 @@
                             </select>
                         </div>
                     </div>
-                    <button class="btn-save" type="submit">Copy Teachers Into Current Year</button>
+                    <button class="btn-save" type="submit">{{ icon("copy", "icon") }} Copy Teachers Into Current Year</button>
                 </form>
                 {% else %}
                 <div class="empty">No other academic years are available to copy from.</div>
@@ -1861,7 +1861,7 @@
             {% endif %}
 
             <article class="card">
-                <h2>Add Teacher</h2>
+                <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("teachers", "icon") }}</span>Add Teacher</span></h2>
                 <p>Capture teacher details, workload limits, eligible subjects, and the exact sections this teacher covers for each selected subject.</p>
 
                 {% if success %}
@@ -2083,7 +2083,7 @@
                             <input id="national_section_hours" type="number" name="national_section_hours" min="1" value="{{ form_data.national_section_hours }}">
                         </div>
                     </div>
-                    <button class="btn-save" type="submit">Create Teacher</button>
+                    <button class="btn-save" type="submit">{{ icon("add", "icon") }} Create Teacher</button>
                 </form>
                 {% else %}
                 <div class="empty">Your role is read-only. You can view teacher records but cannot create new records.</div>
@@ -2094,7 +2094,7 @@
                 <div class="toolbar">
                     <div class="toolbar-head">
                         <div class="title-with-actions">
-                            <h2>Teachers Table</h2>
+                            <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("table", "icon") }}</span>Teachers Table</span></h2>
                             {% if can_delete %}
                             <span class="title-actions">
                                 <button id="bulkDeleteTrigger" class="icon-action icon-action-danger" type="submit" form="bulkDeleteForm" aria-label="Delete selected teachers" title="Select teachers from the table to delete">

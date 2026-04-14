@@ -586,7 +586,7 @@
 {% block content %}
 <section class="grid">
             <article class="card">
-                <h2>Add User</h2>
+                <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("add", "icon") }}</span>Add User</span></h2>
                 <p>Add Academic Supervisor, Principal, Vice Principal, or Education Excellence staff users.</p>
 
                 {% if success %}
@@ -651,7 +651,7 @@
                             <input id="password" type="password" name="password" autocomplete="new-password" value="" required>
                         </div>
                     </div>
-                    <button class="btn-save" type="submit">Create User</button>
+                    <button class="btn-save" type="submit">{{ icon("add", "icon") }} Create User</button>
                 </form>
             </article>
 
@@ -659,7 +659,7 @@
                 <div class="toolbar">
                     <div class="toolbar-head">
                         <div class="title-with-actions">
-                            <h2>Users Table</h2>
+                            <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("table", "icon") }}</span>Users Table</span></h2>
                             {% if can_edit_user_accounts %}
                             <span class="title-actions">
                                 <button id="bulkDeleteTrigger" class="icon-action icon-action-danger" type="submit" form="bulkDeleteForm" aria-label="Delete selected users" title="Select users from the table to delete">
