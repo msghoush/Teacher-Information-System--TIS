@@ -3173,60 +3173,6 @@
                         </div>
                     </div>
 
-                    <div class="report-card">
-                        <h4>Uncovered Hours by Subject</h4>
-                        <p>Top subjects with remaining weekly demand after lower-primary homeroom defaults and compatible-teacher redistribution.</p>
-                        {% if report_gap_rows %}
-                        <div class="report-gap-list">
-                            {% for row in report_gap_rows %}
-                            <div class="report-gap-row {% if row.priority_staffing_urgent or row.teacher_requirement_blocks >= 2 or row.remaining_hours >= 24 %}is-critical{% else %}is-warning{% endif %}">
-                                <div class="report-gap-head">
-                                    <span>{{ row.subject_name }}</span>
-                                    <strong>{{ row.remaining_hours }}h</strong>
-                                </div>
-                                <div class="report-gap-track">
-                                    <div class="report-gap-fill" data-width="{{ row.gap_chart_pct }}"></div>
-                                </div>
-                                <small>{{ row.staffing_note }}</small>
-                                <small>
-                                    Sections covered {{ row.covered_sections_count or 0 }}/{{ row.total_sections or 0 }}
-                                    | 24h blocks {{ row.teacher_requirement_blocks or 0 }}
-                                </small>
-                            </div>
-                            {% endfor %}
-                        </div>
-                        {% else %}
-                        <div class="empty">All required hours are covered by existing teachers.</div>
-                        {% endif %}
-
-                        <h4 class="report-subtitle">Demand by Grade</h4>
-                        {% if report_grade_rows %}
-                        <div class="report-grade-grid">
-                            {% for grade_row in report_grade_rows %}
-                            {% set current_mix_pct = ((grade_row.required_hours_current / grade_row.required_hours_total) * 100) if grade_row.required_hours_total else 0 %}
-                            <article class="report-grade-card">
-                                <div class="report-grade-card-head">
-                                    <h5>{{ grade_row.grade_label }}</h5>
-                                    <span class="report-grade-hours-total">{{ grade_row.required_hours_total }}h</span>
-                                </div>
-                                <div class="report-grade-section-line">
-                                    Sections: Current {{ grade_row.sections_current }} | New {{ grade_row.sections_new }} | Total {{ grade_row.sections_total }}
-                                </div>
-                                <div
-                                    class="report-grade-mix-track"
-                                    style="background: linear-gradient(90deg, #1d4ed8 0 {{ current_mix_pct|round(1) }}%, #c79a14 {{ current_mix_pct|round(1) }}% 100%);"
-                                ></div>
-                                <div class="report-grade-mix-legend">
-                                    <span>Current {{ grade_row.required_hours_current }}h</span>
-                                    <span>New {{ grade_row.required_hours_new }}h</span>
-                                </div>
-                            </article>
-                            {% endfor %}
-                        </div>
-                        {% else %}
-                        <div class="empty">No grade demand data is available in this scope yet.</div>
-                        {% endif %}
-                    </div>
                 </div>
 
                 <div class="report-card report-teachers-card">
