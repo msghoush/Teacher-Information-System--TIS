@@ -2906,8 +2906,8 @@
                         </div>
                     </div>
                     <div class="report-visual-card">
-                        <h4>Priority Subject Gaps</h4>
-                        <p>A simplified view highlights the subjects with the largest uncovered-hour gaps so the dashboard stays focused on staffing action.</p>
+                        <h4>{{ icon("report", "icon") }} Uncovered Hours</h4>
+                        <p>All subjects that still have uncovered hours, based on the current reporting and assignment data.</p>
                         {% if report_visuals.top_subject_gap %}
                         <div class="report-chart-list">
                             {% for item in report_visuals.top_subject_gap %}

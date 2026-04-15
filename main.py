@@ -2455,10 +2455,13 @@ def _build_dashboard_report_visuals(
             "coverage": int(row["coverage_percentage"]),
         }
         for row in sorted(
-            report_subject_rows,
+            (
+                row
+                for row in report_subject_rows
+                if int(row.get("remaining_hours", 0) or 0) > 0
+            ),
             key=lambda row: (-row["remaining_hours"], row["subject_name"]),
-        )[:6]
-        if int(row.get("remaining_hours", 0) or 0) > 0
+        )
     ]
     max_subject_gap = max((item["value"] for item in top_subject_gap), default=0)
     for item in top_subject_gap:
@@ -4408,7 +4411,7 @@ def dashboard(
         row
         for row in report_subject_rows
         if int(row.get("remaining_hours", 0)) > 0
-    ][:8]
+    ]
     report_summary["underloaded_teachers"] = sum(
         1 for row in report_teacher_rows if row.get("is_underloaded")
     )
