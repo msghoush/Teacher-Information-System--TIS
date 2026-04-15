@@ -2034,10 +2034,11 @@
         }
 
         .report-contributor-track {
-            height: 8px;
+            height: 10px;
             border-radius: 999px;
-            background: #e4edf8;
+            background: linear-gradient(90deg, #e6eef8, #d9e5f4);
             overflow: hidden;
+            box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
         }
 
         .report-contributor-fill {
@@ -2048,11 +2049,26 @@
             animation: reportBarReveal 900ms ease both;
         }
 
+        .report-contributor-capacity {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-top: 7px;
+            font-size: 11px;
+            color: #5d7597;
+            flex-wrap: wrap;
+        }
+
+        .report-contributor-capacity strong {
+            color: #17365d;
+        }
+
         .report-contributor-foot {
             margin-top: 7px;
             font-size: 11px;
             color: #5d7597;
-            line-height: 1.4;
+            line-height: 1.5;
         }
 
         .report-inline-note {
@@ -3156,14 +3172,24 @@
                                             <div class="report-contributor-chip">
                                                 <div class="report-contributor-meta">
                                                     <span>{{ contributor.teacher_name }}</span>
-                                                    <strong>{{ contributor.allocated_hours }}h</strong>
+                                                    <strong>{{ contributor.allocated_hours }}/{{ contributor.capacity_hours }}h</strong>
                                                 </div>
-                                                <div class="report-contributor-track">
+                                                <div class="report-contributor-track" title="{{ contributor.share_percentage }}% of 24h capacity used">
                                                     <div class="report-contributor-fill" style="width: {{ contributor.share_percentage }}%;"></div>
+                                                </div>
+                                                <div class="report-contributor-capacity">
+                                                    <span><strong>{{ contributor.share_percentage }}%</strong> of 24h load</span>
+                                                    <span>
+                                                        {% if contributor.remaining_capacity_hours > 0 %}
+                                                        {{ contributor.remaining_capacity_hours }}h free
+                                                        {% else %}
+                                                        Fully allocated
+                                                        {% endif %}
+                                                    </span>
                                                 </div>
                                                 <div class="report-contributor-foot">
                                                     {% if contributor.section_labels %}
-                                                    {{ contributor.section_labels | join(" • ") }}
+                                                    {{ contributor.section_labels | join(" · ") }}
                                                     {% else %}
                                                     Assigned in active sections
                                                     {% endif %}
