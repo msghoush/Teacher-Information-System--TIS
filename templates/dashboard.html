@@ -1141,17 +1141,22 @@
         }
 
         .report-layout {
-            margin-top: 12px;
+            margin-top: 14px;
             display: grid;
-            grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-            gap: 12px;
+            grid-template-columns: 1fr;
+            gap: 14px;
         }
 
         .report-card {
             border: 1px solid #d3deed;
-            border-radius: 12px;
-            background: #fff;
-            padding: 14px;
+            border-radius: 18px;
+            background: linear-gradient(160deg, #ffffff, #f7fbff);
+            padding: 18px;
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.07);
+        }
+
+        .report-card-subjects {
+            padding: 20px;
         }
 
         .report-card h4 {
@@ -1677,15 +1682,38 @@
 
         .report-subject-list {
             display: grid;
-            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(390px, 1fr));
+            gap: 16px;
+            align-items: stretch;
         }
 
         .report-subject-item {
+            position: relative;
+            overflow: hidden;
+            display: grid;
+            gap: 12px;
+            min-height: 100%;
             border: 1px solid #d9e4f3;
-            border-radius: 16px;
-            background: linear-gradient(145deg, #ffffff, #f9fbff);
-            padding: 14px;
-            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+            border-radius: 20px;
+            background: linear-gradient(155deg, #ffffff, #f8fbff);
+            padding: 16px;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+            transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
+            animation: reportCardRise 420ms ease both;
+        }
+
+        .report-subject-item::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 4px;
+            background: linear-gradient(90deg, #0a4ea3, #3d8df5);
+            opacity: 0.95;
+        }
+
+        .report-subject-item:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 18px 34px rgba(15, 23, 42, 0.10);
         }
 
         .report-subject-item.is-covered {
@@ -1693,9 +1721,17 @@
             background: linear-gradient(145deg, #fdfffe, #f3fbf7);
         }
 
+        .report-subject-item.is-covered::before {
+            background: linear-gradient(90deg, #0d7a47, #28b37a);
+        }
+
         .report-subject-item.is-warning {
             border-color: #f0d5a2;
             background: linear-gradient(145deg, #fffdf7, #fff8ed);
+        }
+
+        .report-subject-item.is-warning::before {
+            background: linear-gradient(90deg, #b77906, #f0b44c);
         }
 
         .report-subject-item.is-critical {
@@ -1704,17 +1740,22 @@
             box-shadow: 0 14px 28px rgba(180, 35, 24, 0.08);
         }
 
+        .report-subject-item.is-critical::before {
+            background: linear-gradient(90deg, #b42318, #ef4444);
+        }
+
         .report-subject-head {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 12px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: start;
+            gap: 14px;
         }
 
         .report-subject-head h5 {
             margin: 0;
-            font-size: 16px;
+            font-size: 18px;
             color: #17365d;
+            letter-spacing: -0.02em;
         }
 
         .report-subject-title-row {
@@ -1728,7 +1769,7 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 4px 8px;
+            padding: 4px 9px;
             border-radius: 999px;
             border: 1px solid rgba(191, 38, 0, 0.14);
             background: #fff2ef;
@@ -1743,14 +1784,34 @@
         .report-subject-side {
             display: grid;
             justify-items: end;
-            gap: 6px;
+            gap: 8px;
             text-align: right;
         }
 
+        .report-subject-coverage-wrap {
+            display: grid;
+            gap: 4px;
+            padding: 9px 11px;
+            min-width: 98px;
+            border-radius: 14px;
+            border: 1px solid #dde7f5;
+            background: rgba(255, 255, 255, 0.88);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+        }
+
         .report-subject-coverage {
-            font-size: 24px;
+            font-size: 30px;
             line-height: 1;
             color: #17365d;
+            letter-spacing: -0.05em;
+        }
+
+        .report-subject-coverage-wrap small {
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #60748f;
         }
 
         .report-grade-pill-row {
@@ -1808,21 +1869,72 @@
         }
 
         .report-subject-track {
-            margin-top: 12px;
-            height: 12px;
+            margin-top: 2px;
+            height: 14px;
             border-radius: 999px;
             background: #e5edf7;
             overflow: hidden;
+            box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
         }
 
         .report-subject-track-fill {
             width: 100%;
             height: 100%;
             border-radius: 999px;
+            transform-origin: left center;
+            animation: reportBarReveal 900ms ease both;
+        }
+
+        .report-subject-kpis {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+        }
+
+        .report-subject-kpi-chip {
+            border: 1px solid #dfe8f5;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.92);
+            padding: 10px 12px;
+            display: grid;
+            gap: 4px;
+        }
+
+        .report-subject-kpi-chip span {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.55px;
+            color: #63768f;
+            font-weight: 800;
+        }
+
+        .report-subject-kpi-chip strong {
+            display: block;
+            font-size: 22px;
+            color: #17365d;
+            line-height: 1;
+        }
+
+        .report-subject-kpi-chip.is-clear {
+            border-color: #b8dec9;
+            background: linear-gradient(145deg, #fdfffe, #eefaf4);
+        }
+
+        .report-subject-kpi-chip.is-clear strong {
+            color: #0d7a47;
+        }
+
+        .report-subject-kpi-chip.is-gap {
+            border-color: #efc0b9;
+            background: linear-gradient(145deg, #fff8f6, #fff0ed);
+        }
+
+        .report-subject-kpi-chip.is-gap strong {
+            color: #b42318;
         }
 
         .report-subject-caption {
-            margin-top: 7px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -1842,11 +1954,12 @@
         }
 
         .report-contributor-panel {
-            margin-top: 12px;
-            padding: 12px;
-            border-radius: 14px;
+            padding: 14px;
+            border-radius: 16px;
             border: 1px solid #d8e4f3;
-            background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(241, 247, 255, 0.92));
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(241, 247, 255, 0.92));
+            display: grid;
+            gap: 10px;
         }
 
         .report-contributor-head {
@@ -1854,7 +1967,6 @@
             align-items: center;
             justify-content: space-between;
             gap: 10px;
-            margin-bottom: 10px;
         }
 
         .report-contributor-head span {
@@ -1872,16 +1984,23 @@
 
         .report-contributor-list {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
             gap: 10px;
         }
 
         .report-contributor-chip {
-            padding: 10px;
+            padding: 12px;
             border-radius: 12px;
-            background: rgba(255, 255, 255, 0.92);
+            background: rgba(255, 255, 255, 0.94);
             border: 1px solid #dbe7f6;
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+            transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+        }
+
+        .report-contributor-chip:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+            border-color: #bfd5fb;
         }
 
         .report-contributor-meta {
@@ -1914,6 +2033,8 @@
             height: 100%;
             border-radius: inherit;
             background: linear-gradient(90deg, #0a4ea3, #3d8df5);
+            transform-origin: left center;
+            animation: reportBarReveal 900ms ease both;
         }
 
         .report-contributor-foot {
@@ -1924,17 +2045,16 @@
         }
 
         .report-subject-urgency {
-            margin-top: 12px;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
         }
 
         .report-subject-alert-card {
             border: 1px solid #dfe8f5;
-            border-radius: 12px;
+            border-radius: 14px;
             background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
+            padding: 11px 12px;
             display: grid;
             gap: 5px;
         }
@@ -1963,7 +2083,7 @@
         }
 
         .report-subject-alert-card strong {
-            font-size: 22px;
+            font-size: 24px;
             line-height: 1;
             color: #17365d;
         }
@@ -1977,28 +2097,26 @@
         }
 
         .report-subject-note {
-            margin-top: 10px;
-            padding: 10px 12px;
+            padding: 11px 12px;
             border-radius: 12px;
             border: 1px dashed rgba(148, 163, 184, 0.5);
             background: rgba(255, 255, 255, 0.78);
             font-size: 12px;
             color: #5a6d86;
-            line-height: 1.45;
+            line-height: 1.5;
         }
 
         .report-subject-stats {
-            margin-top: 12px;
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
         }
 
         .report-subject-stat {
             border: 1px solid #e0e8f5;
-            border-radius: 12px;
+            border-radius: 13px;
             background: #fff;
-            padding: 9px 10px;
+            padding: 10px 11px;
         }
 
         .report-subject-stat span {
@@ -2013,22 +2131,21 @@
         .report-subject-stat strong {
             display: block;
             margin-top: 5px;
-            font-size: 16px;
+            font-size: 18px;
             color: #17365d;
             line-height: 1.1;
         }
 
         .report-section-summary {
-            margin-top: 12px;
             display: grid;
-            gap: 8px;
+            gap: 10px;
         }
 
         .report-section-block {
             border: 1px solid #dfe8f5;
-            border-radius: 12px;
+            border-radius: 14px;
             background: rgba(255, 255, 255, 0.88);
-            padding: 10px;
+            padding: 12px;
             display: grid;
             gap: 8px;
         }
@@ -2071,21 +2188,21 @@
         .report-section-list {
             display: flex;
             flex-wrap: wrap;
-            gap: 6px;
+            gap: 8px;
         }
 
         .report-section-pill {
             display: inline-flex;
             align-items: center;
-            justify-content: center;
-            padding: 5px 8px;
+            justify-content: flex-start;
+            padding: 6px 10px;
             border-radius: 999px;
             border: 1px solid #d4e1f3;
             background: #fff;
             color: #355276;
             font-size: 11px;
             font-weight: 700;
-            line-height: 1.2;
+            line-height: 1.25;
             max-width: 100%;
             text-align: left;
             white-space: normal;
@@ -2107,6 +2224,28 @@
             border-color: #efc0b9;
             background: #fff5f2;
             color: #b42318;
+        }
+
+        @keyframes reportCardRise {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes reportBarReveal {
+            from {
+                transform: scaleX(0);
+                opacity: 0.45;
+            }
+            to {
+                transform: scaleX(1);
+                opacity: 1;
+            }
         }
 
         .report-grade-grid {
@@ -2485,10 +2624,13 @@
             }
 
             .report-card-head,
-            .report-subject-head,
             .report-teacher-item summary {
                 flex-direction: column;
                 align-items: flex-start;
+            }
+
+            .report-subject-head {
+                grid-template-columns: 1fr;
             }
 
             .report-donut-wrap {
@@ -3015,16 +3157,17 @@
                 </article>
 
                 <div class="report-layout">
-                    <div class="report-card">
+                    <div class="report-card report-card-subjects">
                         <div class="report-card-head">
                             <div class="report-card-head-copy">
-                            <h4>Subject Sufficiency Breakdown</h4>
+                                <h4>{{ icon("subjects", "icon") }} Subject Sufficiency Breakdown</h4>
                                 <p>Ranked by uncovered hours and built from opened sections, with Grade 1 and Grade 2 homeroom-default coverage already applied before the remaining demand is calculated.</p>
                             </div>
                             <span class="report-card-tag">{{ report_subject_count or report_subject_rows|length }} subjects</span>
                         </div>
                         <div class="report-subject-list">
                             {% for row in report_subject_rows %}
+                            {% set open_sections_total = (row.uncovered_sections_count or 0) + (row.partial_sections_count or 0) %}
                             <article class="report-subject-item {{ row.staffing_item_class }}">
                                 <div class="report-subject-head">
                                     <div>
@@ -3036,14 +3179,17 @@
                                         </div>
                                         <div class="report-inline-note">
                                             Sections covered {{ row.covered_sections_count or 0 }}/{{ row.total_sections or 0 }}
-                                            {% if row.uncovered_sections_count or row.partial_sections_count %}
-                                            | Still open {{ (row.uncovered_sections_count or 0) + (row.partial_sections_count or 0) }}
+                                            {% if open_sections_total %}
+                                            | Still open {{ open_sections_total }}
                                             {% endif %}
                                         </div>
                                     </div>
                                     <div class="report-subject-side">
                                         <span class="report-status-pill {{ row.staffing_status_class }}">{{ row.staffing_status_label }}</span>
-                                        <strong class="report-subject-coverage">{{ row.coverage_percentage }}%</strong>
+                                        <div class="report-subject-coverage-wrap">
+                                            <strong class="report-subject-coverage"><span class="report-kpi-value" data-value="{{ row.coverage_percentage }}">{{ row.coverage_percentage }}</span>%</strong>
+                                            <small>Coverage</small>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="report-subject-track">
@@ -3052,14 +3198,28 @@
                                         style="background: linear-gradient(90deg, {{ row.staffing_fill_color }} 0 {{ row.coverage_percentage }}%, {{ row.staffing_fill_remainder }} {{ row.coverage_percentage }}% 100%);"
                                     ></div>
                                 </div>
+                                <div class="report-subject-kpis">
+                                    <div class="report-subject-kpi-chip is-clear">
+                                        <span>Covered Hours</span>
+                                        <strong><span class="report-kpi-value" data-value="{{ row.allocated_hours }}">{{ row.allocated_hours }}</span>h</strong>
+                                    </div>
+                                    <div class="report-subject-kpi-chip {% if row.remaining_hours > 0 %}is-gap{% else %}is-clear{% endif %}">
+                                        <span>Uncovered Hours</span>
+                                        <strong><span class="report-kpi-value" data-value="{{ row.remaining_hours }}">{{ row.remaining_hours }}</span>h</strong>
+                                    </div>
+                                    <div class="report-subject-kpi-chip">
+                                        <span>Teacher Coverage</span>
+                                        <strong><span class="report-kpi-value" data-value="{{ row.assigned_teacher_count or 0 }}">{{ row.assigned_teacher_count or 0 }}</span></strong>
+                                    </div>
+                                </div>
                                 <div class="report-subject-caption">
-                                    <span><strong>{{ row.allocated_hours }}h</strong> covered of {{ row.required_hours }}h required</span>
-                                    <span class="{% if row.remaining_hours > 0 %}report-caption-alert{% endif %}"><strong>{{ row.remaining_hours }}h</strong> uncovered</span>
+                                    <span><strong>{{ row.required_hours }}h</strong> total required this week</span>
+                                    <span class="{% if row.remaining_hours > 0 %}report-caption-alert{% endif %}">{% if open_sections_total > 0 %}{{ open_sections_total }} open section{% if open_sections_total != 1 %}s{% endif %}{% else %}Fully covered{% endif %}</span>
                                 </div>
                                 <div class="report-contributor-panel">
                                     <div class="report-contributor-head">
                                         <span>Teacher Coverage</span>
-                                        <strong>{{ row.assigned_teacher_count or 0 }}</strong>
+                                        <strong><span class="report-kpi-value" data-value="{{ row.assigned_teacher_count or 0 }}">{{ row.assigned_teacher_count or 0 }}</span></strong>
                                     </div>
                                     {% if row.assigned_teacher_contributors %}
                                     <div class="report-contributor-list">
@@ -3088,12 +3248,12 @@
                                 </div>
                                 <div class="report-subject-urgency">
                                     <div class="report-subject-alert-card {{ row.staffing_alert_class }}">
-                                        <span>Uncovered Hours</span>
-                                        <strong>{{ row.remaining_hours }}h</strong>
+                                        <span>Open Sections</span>
+                                        <strong><span class="report-kpi-value" data-value="{{ open_sections_total }}">{{ open_sections_total }}</span></strong>
                                     </div>
                                     <div class="report-subject-alert-card {{ row.staffing_alert_class }}">
                                         <span>{{ row.staffing_action_label }}</span>
-                                        <strong>{{ row.staffing_action_value }}</strong>
+                                        <strong><span class="report-kpi-value" data-value="{{ row.staffing_action_value|int }}">{{ row.staffing_action_value }}</span></strong>
                                     </div>
                                 </div>
                                 {% if row.staffing_note %}
@@ -3102,15 +3262,15 @@
                                 <div class="report-subject-stats">
                                     <div class="report-subject-stat">
                                         <span>Current Hours</span>
-                                        <strong>{{ row.required_current_hours }}h</strong>
+                                        <strong><span class="report-kpi-value" data-value="{{ row.required_current_hours }}">{{ row.required_current_hours }}</span>h</strong>
                                     </div>
                                     <div class="report-subject-stat">
                                         <span>New Hours</span>
-                                        <strong>{{ row.required_new_hours }}h</strong>
+                                        <strong><span class="report-kpi-value" data-value="{{ row.required_new_hours }}">{{ row.required_new_hours }}</span>h</strong>
                                     </div>
                                     <div class="report-subject-stat">
                                         <span>Teachers</span>
-                                        <strong>{{ row.assigned_teacher_count or 0 }}</strong>
+                                        <strong><span class="report-kpi-value" data-value="{{ row.assigned_teacher_count or 0 }}">{{ row.assigned_teacher_count or 0 }}</span></strong>
                                     </div>
                                     <div class="report-subject-stat">
                                         <span>Covered Sections</span>
@@ -3118,11 +3278,11 @@
                                     </div>
                                     <div class="report-subject-stat">
                                         <span>24h Blocks</span>
-                                        <strong>{{ row.teacher_requirement_blocks or 0 }}</strong>
+                                        <strong><span class="report-kpi-value" data-value="{{ row.teacher_requirement_blocks or 0 }}">{{ row.teacher_requirement_blocks or 0 }}</span></strong>
                                     </div>
                                     <div class="report-subject-stat">
                                         <span>Open Sections</span>
-                                        <strong>{{ (row.uncovered_sections_count or 0) + (row.partial_sections_count or 0) }}</strong>
+                                        <strong><span class="report-kpi-value" data-value="{{ open_sections_total }}">{{ open_sections_total }}</span></strong>
                                     </div>
                                 </div>
                                 <div class="report-section-summary">
@@ -3143,7 +3303,7 @@
                                     <div class="report-section-block is-open">
                                         <div class="report-section-block-head">
                                             <span>Sections Still Open</span>
-                                            <strong>{{ (row.partial_sections_count or 0) + (row.uncovered_sections_count or 0) }}</strong>
+                                            <strong>{{ open_sections_total }}</strong>
                                         </div>
                                         {% if row.partial_section_labels %}
                                         <div>

@@ -2938,7 +2938,7 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
                 covered_section_labels.append(class_label)
             elif allocated_hours > 0:
                 partial_section_labels.append(
-                    f"{class_label} ({allocated_hours}/{required_hours}h covered)"
+                    f"{class_label} — {remaining_hours}h"
                 )
 
             if recommended_hours > 0:
@@ -2950,7 +2950,7 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
                     )
                 )
             elif remaining_hours > 0 and allocated_hours <= 0:
-                uncovered_section_labels.append(class_label)
+                uncovered_section_labels.append(f"{class_label} — {remaining_hours}h")
 
         section_row = {
             "subject_key": subject_key,
