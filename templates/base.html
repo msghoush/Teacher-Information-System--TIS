@@ -169,13 +169,7 @@
         <div class="app-main">
             <header class="app-header">
                 <div class="app-header-copy">
-                    {% if shell.page_key != "dashboard" %}
-                    <span class="page-kicker">{{ icon(shell.page_icon, "shell-icon") }} {{ shell.page_eyebrow }}</span>
-                    {% endif %}
-                    <h1>{{ shell.page_title }}</h1>
-                    {% if shell.page_key == "dashboard" %}
-                    <p>{{ shell.page_intro }}</p>
-                    {% endif %}
+                    <h1 class="page-title">{{ icon(shell.page_icon, "shell-icon page-title-icon") }} <span>{{ shell.page_title }}</span></h1>
                 </div>
                 <div class="app-header-side">
                     <div class="header-brand-strip">

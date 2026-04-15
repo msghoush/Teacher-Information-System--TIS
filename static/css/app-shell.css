@@ -531,19 +531,33 @@ textarea {
     text-transform: uppercase;
 }
 
-.app-header-copy h1 {
+.app-header-copy h1,
+.app-header-copy .page-title {
     margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    width: fit-content;
+    padding: 10px 14px;
+    border: 1px solid rgba(10, 78, 163, 0.12);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(237, 244, 255, 0.92));
+    box-shadow: 0 10px 24px rgba(10, 78, 163, 0.08);
+    color: var(--app-brand-deep);
     font-size: clamp(24px, 2.4vw, 34px);
     line-height: 1;
     letter-spacing: -0.04em;
 }
 
-.app-header-copy p {
-    margin: 0;
-    max-width: 60ch;
-    color: var(--app-muted);
-    font-size: 12px;
-    line-height: 1.35;
+.page-title-icon {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    color: var(--app-brand);
+}
+
+.page-title span {
+    display: inline-block;
 }
 
 .app-header-side {
