@@ -1688,14 +1688,20 @@
         }
 
         .report-subject-item {
+            --subject-accent: #0a4ea3;
+            --subject-accent-soft: #dbe7f8;
+            --subject-accent-surface: #f5f9ff;
+            --subject-pill-bg: #edf4ff;
+            --subject-pill-fg: #17365d;
+            --subject-pill-border: #cfe0f4;
             position: relative;
             overflow: hidden;
             display: grid;
             gap: 14px;
             min-height: 100%;
-            border: 1px solid #d9e4f3;
+            border: 1px solid var(--subject-accent-soft);
             border-radius: 20px;
-            background: linear-gradient(155deg, #ffffff, #f8fbff);
+            background: linear-gradient(155deg, #ffffff, var(--subject-accent-surface));
             padding: 16px;
             box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
             transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
@@ -1707,41 +1713,18 @@
             position: absolute;
             inset: 0 0 auto 0;
             height: 4px;
-            background: linear-gradient(90deg, #0a4ea3, #3d8df5);
+            background: linear-gradient(90deg, var(--subject-accent), var(--subject-accent-soft));
             opacity: 0.95;
         }
 
         .report-subject-item:hover {
             transform: translateY(-4px);
+            border-color: var(--subject-accent);
             box-shadow: 0 18px 34px rgba(15, 23, 42, 0.10);
         }
 
-        .report-subject-item.is-covered {
-            border-color: #cfe7da;
-            background: linear-gradient(145deg, #fdfffe, #f3fbf7);
-        }
-
-        .report-subject-item.is-covered::before {
-            background: linear-gradient(90deg, #0d7a47, #28b37a);
-        }
-
-        .report-subject-item.is-warning {
-            border-color: #f0d5a2;
-            background: linear-gradient(145deg, #fffdf7, #fff8ed);
-        }
-
-        .report-subject-item.is-warning::before {
-            background: linear-gradient(90deg, #b77906, #f0b44c);
-        }
-
         .report-subject-item.is-critical {
-            border-color: #efc0b9;
-            background: linear-gradient(145deg, #fff8f6, #fff0ed);
-            box-shadow: 0 14px 28px rgba(180, 35, 24, 0.08);
-        }
-
-        .report-subject-item.is-critical::before {
-            background: linear-gradient(90deg, #b42318, #ef4444);
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
         }
 
         .report-subject-head {
@@ -1789,7 +1772,7 @@
         }
 
         .report-subject-donut {
-            width: 110px;
+            width: 118px;
             box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08), inset 0 0 0 1px rgba(7, 34, 72, 0.08);
         }
 
@@ -1798,7 +1781,7 @@
         }
 
         .report-subject-donut .report-donut-center strong {
-            font-size: 31px;
+            font-size: 38px;
             font-weight: 900;
             letter-spacing: -0.03em;
             line-height: 1;
@@ -1825,6 +1808,9 @@
             justify-content: center;
             padding: 5px 9px;
             border-radius: 999px;
+            border: 1px solid var(--subject-pill-border);
+            background: var(--subject-pill-bg);
+            color: var(--subject-pill-fg);
             font-size: 11px;
             font-weight: 800;
             letter-spacing: 0.5px;
@@ -1832,24 +1818,13 @@
             line-height: 1;
         }
 
-        .report-status-pill-good {
-            background: #e8f7ef;
-            color: #0d7a47;
-        }
-
-        .report-status-pill-partial {
-            background: #fff7e8;
-            color: #a16207;
-        }
-
-        .report-status-pill-gap {
-            background: #fff0eb;
-            color: #b45309;
-        }
-
+        .report-status-pill-good,
+        .report-status-pill-partial,
+        .report-status-pill-gap,
         .report-status-pill-critical {
-            background: #feeceb;
-            color: #b42318;
+            background: var(--subject-pill-bg);
+            color: var(--subject-pill-fg);
+            border-color: var(--subject-pill-border);
         }
 
         .report-subject-track {
@@ -2553,7 +2528,7 @@
             }
 
             .report-subject-donut {
-                width: 102px;
+                width: 108px;
             }
 
             .report-subject-kpis {
@@ -3095,7 +3070,7 @@
                         <div class="report-subject-list">
                             {% for row in report_subject_card_rows %}
                             {% set open_sections_total = (row.uncovered_sections_count or 0) + (row.partial_sections_count or 0) %}
-                            <article class="report-subject-item {{ row.staffing_item_class }}">
+                            <article class="report-subject-item {{ row.staffing_item_class }}" style="--subject-accent: {{ row.subject_donut_primary }}; --subject-accent-soft: {{ row.subject_donut_secondary }}; --subject-accent-surface: {{ row.subject_accent_surface }}; --subject-pill-bg: {{ row.subject_status_bg }}; --subject-pill-fg: {{ row.subject_status_text }}; --subject-pill-border: {{ row.subject_status_border }};">
                                 <div class="report-subject-head">
                                     <div>
                                         <div class="report-subject-title-row">
@@ -3120,7 +3095,7 @@
                                 </div>
 
                                 <div class="report-subject-track">
-                                    <div class="report-subject-track-fill" style="background: linear-gradient(90deg, {{ row.staffing_fill_color }} 0 {{ row.coverage_percentage }}%, {{ row.staffing_fill_remainder }} {{ row.coverage_percentage }}% 100%);"></div>
+                                    <div class="report-subject-track-fill" style="background: linear-gradient(90deg, {{ row.subject_donut_primary }} 0 {{ row.coverage_percentage }}%, {{ row.subject_donut_secondary }} {{ row.coverage_percentage }}% 100%);"></div>
                                 </div>
 
                                 <div class="report-subject-kpis">

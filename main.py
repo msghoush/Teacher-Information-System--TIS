@@ -3175,6 +3175,26 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
         decorated_row["open_gap_sections_count"] = open_gap_sections
         decorated_row["subject_donut_primary"] = donut_primary_color
         decorated_row["subject_donut_secondary"] = donut_secondary_color
+        decorated_row["subject_accent_surface"] = _blend_hex_colors(
+            donut_secondary_color,
+            "#ffffff",
+            0.48,
+        )
+        decorated_row["subject_status_bg"] = _blend_hex_colors(
+            donut_primary_color,
+            "#ffffff",
+            0.84,
+        )
+        decorated_row["subject_status_border"] = _blend_hex_colors(
+            donut_primary_color,
+            "#ffffff",
+            0.62,
+        )
+        decorated_row["subject_status_text"] = _blend_hex_colors(
+            donut_primary_color,
+            "#0f172a",
+            0.08,
+        )
 
         if priority_alert:
             priority_subjects_with_gaps += 1
