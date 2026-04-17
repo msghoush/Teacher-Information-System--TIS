@@ -1788,13 +1788,27 @@
             color: #17365d;
             text-shadow: 0 1px 0 rgba(255, 255, 255, 0.98);
             font-variant-numeric: tabular-nums;
+            display: inline-flex;
+            align-items: flex-start;
+            justify-content: center;
         }
 
-        .report-subject-donut .report-donut-center .report-kpi-value {
+        .report-subject-donut .report-donut-center strong .report-kpi-value {
             font-weight: 900;
+            line-height: 0.95;
         }
 
-        .report-subject-donut .report-donut-center span {
+        .report-subject-donut .report-donut-center strong .report-percent-sign {
+            font-size: 0.44em;
+            font-weight: 800;
+            line-height: 1;
+            margin-left: 2px;
+            position: relative;
+            top: 0.2em;
+            opacity: 0.9;
+        }
+
+        .report-subject-donut .report-donut-center > span {
             font-size: 11px;
             font-weight: 800;
             letter-spacing: 0.1em;
@@ -3087,7 +3101,7 @@
                                         <span class="report-status-pill {{ row.staffing_status_class }}">{{ row.staffing_status_label }}</span>
                                         <div class="report-donut-shell report-subject-donut" style="--donut-primary: {{ row.subject_donut_primary }}; --donut-secondary: {{ row.subject_donut_secondary }}; --donut-target: {{ row.coverage_percentage }};">
                                             <div class="report-donut-center">
-                                                <strong><span class="report-kpi-value" data-value="{{ row.coverage_percentage }}">{{ row.coverage_percentage }}</span>%</strong>
+                                                <strong><span class="report-kpi-value" data-value="{{ row.coverage_percentage }}">{{ row.coverage_percentage }}</span><span class="report-percent-sign">%</span></strong>
                                                 <span>covered</span>
                                             </div>
                                         </div>
