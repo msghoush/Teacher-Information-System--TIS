@@ -3100,42 +3100,42 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
 
     def _subject_coverage_donut_palette(coverage_percentage: int):
         safe_coverage = max(0, min(100, int(coverage_percentage or 0)))
-        theme_red = "#8f1116"
+        theme_red = "#b42318"
         theme_orange = "#d97706"
         theme_amber = "#c79a14"
         theme_green = "#0d7a47"
 
-        if safe_coverage <= 25:
+        if safe_coverage <= 40:
             primary_color = theme_red
-            remainder_tint = "#f1b7b4"
-            secondary_mix_ratio = 0.50
-        elif safe_coverage <= 50:
-            interpolation_ratio = (safe_coverage - 25) / 25
+            remainder_tint = "#f2c5c8"
+            secondary_mix_ratio = 0.38
+        elif safe_coverage <= 60:
+            interpolation_ratio = (safe_coverage - 40) / 20
             primary_color = _blend_hex_colors(
                 theme_red,
                 theme_orange,
                 interpolation_ratio,
             )
-            remainder_tint = "#f8d1c8"
-            secondary_mix_ratio = 0.60
-        elif safe_coverage <= 75:
-            interpolation_ratio = (safe_coverage - 50) / 25
+            remainder_tint = "#f6d1cb"
+            secondary_mix_ratio = 0.50
+        elif safe_coverage <= 80:
+            interpolation_ratio = (safe_coverage - 60) / 20
             primary_color = _blend_hex_colors(
                 theme_orange,
                 theme_amber,
                 interpolation_ratio,
             )
             remainder_tint = "#f9e1bf"
-            secondary_mix_ratio = 0.68
+            secondary_mix_ratio = 0.64
         else:
-            interpolation_ratio = (safe_coverage - 75) / 25
+            interpolation_ratio = (safe_coverage - 80) / 20
             primary_color = _blend_hex_colors(
                 theme_amber,
                 theme_green,
                 interpolation_ratio,
             )
             remainder_tint = "#d6ecde"
-            secondary_mix_ratio = 0.74
+            secondary_mix_ratio = 0.72
 
         secondary_color = _blend_hex_colors(
             primary_color,
@@ -3240,8 +3240,8 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
                     "staffing_status_class": "report-status-pill-critical",
                     "staffing_item_class": "is-critical",
                     "staffing_alert_class": "is-critical",
-                    "staffing_fill_color": "#b91c1c",
-                    "staffing_fill_remainder": "#fecaca",
+                    "staffing_fill_color": "#b42318",
+                    "staffing_fill_remainder": "#f5c6ca",
                     "staffing_icon": "alert",
                 }
             )
@@ -3264,8 +3264,8 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
                     "staffing_status_class": "report-status-pill-critical",
                     "staffing_item_class": "is-critical",
                     "staffing_alert_class": "is-critical",
-                    "staffing_fill_color": "#dc2626",
-                    "staffing_fill_remainder": "#fecaca",
+                    "staffing_fill_color": "#b42318",
+                    "staffing_fill_remainder": "#f5c6ca",
                     "staffing_icon": "alert",
                 }
             )
