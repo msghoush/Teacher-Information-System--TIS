@@ -4453,6 +4453,14 @@ def dashboard(
         row.get("recommended_absorption_hours", 0)
         for row in report_teacher_rows
     )
+    report_subject_card_rows = sorted(
+        report_subject_rows,
+        key=lambda row: (
+            -int(row.get("coverage_percentage", 0) or 0),
+            int(row.get("remaining_hours", 0) or 0),
+            str(row.get("subject_name", "") or "").lower(),
+        ),
+    )
     report_visuals = _build_dashboard_report_visuals(
         report_summary=report_summary,
         report_subject_rows=report_subject_rows,
@@ -4502,6 +4510,7 @@ def dashboard(
             "report_summary": report_summary,
             "report_subject_count": report_subject_count,
             "report_subject_rows": report_subject_rows,
+            "report_subject_card_rows": report_subject_card_rows,
             "report_gap_rows": report_gap_rows,
             "report_teacher_rows": report_teacher_rows,
             "report_underloaded_teacher_rows": allocation_data.get(

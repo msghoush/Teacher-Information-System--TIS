@@ -3106,7 +3106,7 @@
                             <span class="report-card-tag">{{ report_subject_count or report_subject_rows|length }} subjects</span>
                         </div>
                         <div class="report-subject-list">
-                            {% for row in report_subject_rows %}
+                            {% for row in report_subject_card_rows %}
                             {% set open_sections_total = (row.uncovered_sections_count or 0) + (row.partial_sections_count or 0) %}
                             <article class="report-subject-item {{ row.staffing_item_class }}">
                                 <div class="report-subject-head">
