@@ -3067,68 +3067,6 @@ def _build_report_class_allocation_data(subjects, planning_sections, reporting_c
 
 
 def _decorate_staffing_report_rows(report_subject_rows, report_summary):
-    def _hex_to_rgb(color_value: str):
-        cleaned_value = str(color_value or "").strip().lstrip("#")
-        if len(cleaned_value) != 6:
-            return (10, 78, 163)
-        try:
-            return (
-                int(cleaned_value[0:2], 16),
-                int(cleaned_value[2:4], 16),
-                int(cleaned_value[4:6], 16),
-            )
-        except ValueError:
-            return (10, 78, 163)
-
-    def _rgb_to_hex(rgb_value):
-        red, green, blue = rgb_value
-        safe_red = max(0, min(255, int(round(red))))
-        safe_green = max(0, min(255, int(round(green))))
-        safe_blue = max(0, min(255, int(round(blue))))
-        return f"#{safe_red:02x}{safe_green:02x}{safe_blue:02x}"
-
-    def _blend_hex_colors(start_color: str, end_color: str, ratio: float):
-        safe_ratio = max(0.0, min(1.0, float(ratio)))
-        start_rgb = _hex_to_rgb(start_color)
-        end_rgb = _hex_to_rgb(end_color)
-        blended_rgb = (
-            start_rgb[0] + (end_rgb[0] - start_rgb[0]) * safe_ratio,
-            start_rgb[1] + (end_rgb[1] - start_rgb[1]) * safe_ratio,
-            start_rgb[2] + (end_rgb[2] - start_rgb[2]) * safe_ratio,
-        )
-        return _rgb_to_hex(blended_rgb)
-
-    def _subject_coverage_donut_palette(coverage_percentage: int):
-        safe_coverage = max(0, min(100, int(coverage_percentage or 0)))
-        color_stops = [
-            (100, "#0d7a47"),
-            (75, "#9aa71c"),
-            (50, "#d08a1d"),
-            (25, "#d4602c"),
-            (0, "#b42318"),
-        ]
-        primary_color = color_stops[-1][1]
-
-        for index in range(len(color_stops) - 1):
-            upper_pct, upper_color = color_stops[index]
-            lower_pct, lower_color = color_stops[index + 1]
-            if safe_coverage < lower_pct:
-                continue
-            pct_span = upper_pct - lower_pct
-            if pct_span <= 0:
-                primary_color = upper_color
-            else:
-                interpolation_ratio = (safe_coverage - lower_pct) / pct_span
-                primary_color = _blend_hex_colors(
-                    lower_color,
-                    upper_color,
-                    interpolation_ratio,
-                )
-            break
-
-        secondary_color = _blend_hex_colors(primary_color, "#e5edf7", 0.78)
-        return primary_color, secondary_color
-
     decorated_rows = []
     priority_subjects_with_gaps = 0
     priority_urgent_subjects = 0
@@ -3140,9 +3078,6 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
         decorated_row = dict(row)
         remaining_hours = int(decorated_row.get("remaining_hours", 0))
         coverage_percentage = int(decorated_row.get("coverage_percentage", 0))
-        donut_primary_color, donut_secondary_color = _subject_coverage_donut_palette(
-            coverage_percentage
-        )
         teacher_blocks = int(
             decorated_row.get(
                 "teacher_requirement_blocks",
@@ -3166,8 +3101,6 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
         decorated_row["priority_staffing_alert"] = priority_alert
         decorated_row["priority_staffing_urgent"] = priority_urgent
         decorated_row["open_gap_sections_count"] = open_gap_sections
-        decorated_row["subject_donut_primary"] = donut_primary_color
-        decorated_row["subject_donut_secondary"] = donut_secondary_color
 
         if priority_alert:
             priority_subjects_with_gaps += 1
