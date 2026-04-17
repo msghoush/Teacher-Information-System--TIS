@@ -3100,14 +3100,15 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
 
     def _subject_coverage_donut_palette(coverage_percentage: int):
         safe_coverage = max(0, min(100, int(coverage_percentage or 0)))
-        theme_red = "#b42318"
+        theme_red = "#8f1116"
         theme_orange = "#d97706"
         theme_amber = "#c79a14"
         theme_green = "#0d7a47"
 
         if safe_coverage <= 25:
             primary_color = theme_red
-            remainder_tint = "#feeceb"
+            remainder_tint = "#f1b7b4"
+            secondary_mix_ratio = 0.50
         elif safe_coverage <= 50:
             interpolation_ratio = (safe_coverage - 25) / 25
             primary_color = _blend_hex_colors(
@@ -3115,7 +3116,8 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
                 theme_orange,
                 interpolation_ratio,
             )
-            remainder_tint = "#fff0eb"
+            remainder_tint = "#f8d1c8"
+            secondary_mix_ratio = 0.60
         elif safe_coverage <= 75:
             interpolation_ratio = (safe_coverage - 50) / 25
             primary_color = _blend_hex_colors(
@@ -3123,7 +3125,8 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
                 theme_amber,
                 interpolation_ratio,
             )
-            remainder_tint = "#fff7e8"
+            remainder_tint = "#f9e1bf"
+            secondary_mix_ratio = 0.68
         else:
             interpolation_ratio = (safe_coverage - 75) / 25
             primary_color = _blend_hex_colors(
@@ -3131,9 +3134,14 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
                 theme_green,
                 interpolation_ratio,
             )
-            remainder_tint = "#e8f7ef"
+            remainder_tint = "#d6ecde"
+            secondary_mix_ratio = 0.74
 
-        secondary_color = _blend_hex_colors(primary_color, remainder_tint, 0.76)
+        secondary_color = _blend_hex_colors(
+            primary_color,
+            remainder_tint,
+            secondary_mix_ratio,
+        )
         return primary_color, secondary_color
 
     decorated_rows = []
@@ -3178,22 +3186,22 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
         decorated_row["subject_accent_surface"] = _blend_hex_colors(
             donut_secondary_color,
             "#ffffff",
-            0.48,
+            0.42,
         )
         decorated_row["subject_status_bg"] = _blend_hex_colors(
             donut_primary_color,
             "#ffffff",
-            0.84,
+            0.79,
         )
         decorated_row["subject_status_border"] = _blend_hex_colors(
             donut_primary_color,
             "#ffffff",
-            0.62,
+            0.50,
         )
         decorated_row["subject_status_text"] = _blend_hex_colors(
             donut_primary_color,
             "#0f172a",
-            0.08,
+            0.06,
         )
 
         if priority_alert:
