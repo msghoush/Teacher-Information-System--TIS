@@ -3100,33 +3100,40 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
 
     def _subject_coverage_donut_palette(coverage_percentage: int):
         safe_coverage = max(0, min(100, int(coverage_percentage or 0)))
-        color_stops = [
-            (100, "#0d7a47"),
-            (75, "#9aa71c"),
-            (50, "#d08a1d"),
-            (25, "#d4602c"),
-            (0, "#b42318"),
-        ]
-        primary_color = color_stops[-1][1]
+        theme_red = "#b42318"
+        theme_orange = "#d97706"
+        theme_amber = "#c79a14"
+        theme_green = "#0d7a47"
 
-        for index in range(len(color_stops) - 1):
-            upper_pct, upper_color = color_stops[index]
-            lower_pct, lower_color = color_stops[index + 1]
-            if safe_coverage < lower_pct:
-                continue
-            pct_span = upper_pct - lower_pct
-            if pct_span <= 0:
-                primary_color = upper_color
-            else:
-                interpolation_ratio = (safe_coverage - lower_pct) / pct_span
-                primary_color = _blend_hex_colors(
-                    lower_color,
-                    upper_color,
-                    interpolation_ratio,
-                )
-            break
+        if safe_coverage <= 25:
+            primary_color = theme_red
+            remainder_tint = "#feeceb"
+        elif safe_coverage <= 50:
+            interpolation_ratio = (safe_coverage - 25) / 25
+            primary_color = _blend_hex_colors(
+                theme_red,
+                theme_orange,
+                interpolation_ratio,
+            )
+            remainder_tint = "#fff0eb"
+        elif safe_coverage <= 75:
+            interpolation_ratio = (safe_coverage - 50) / 25
+            primary_color = _blend_hex_colors(
+                theme_orange,
+                theme_amber,
+                interpolation_ratio,
+            )
+            remainder_tint = "#fff7e8"
+        else:
+            interpolation_ratio = (safe_coverage - 75) / 25
+            primary_color = _blend_hex_colors(
+                theme_amber,
+                theme_green,
+                interpolation_ratio,
+            )
+            remainder_tint = "#e8f7ef"
 
-        secondary_color = _blend_hex_colors(primary_color, "#e5edf7", 0.78)
+        secondary_color = _blend_hex_colors(primary_color, remainder_tint, 0.76)
         return primary_color, secondary_color
 
     decorated_rows = []
