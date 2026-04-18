@@ -157,14 +157,19 @@
         grid-column: 1 / -1;
     }
 
-    .field label {
+    .field label,
+    .branch-cell-label {
         color: #415068;
-        font-size: 13px;
-        font-weight: 700;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
     }
 
     .field input,
-    .field select {
+    .field select,
+    .branch-cell input,
+    .branch-cell select {
         width: 100%;
         min-width: 0;
         padding: 10px 12px;
@@ -176,13 +181,16 @@
     }
 
     .field input:focus,
-    .field select:focus {
+    .field select:focus,
+    .branch-cell input:focus,
+    .branch-cell select:focus {
         outline: none;
         border-color: #0a4ea3;
         box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.14);
     }
 
-    .field-note {
+    .field-note,
+    .record-note {
         color: #61738d;
         font-size: 12px;
         line-height: 1.5;
@@ -239,58 +247,63 @@
         box-shadow: none;
     }
 
-    .branch-list,
-    .year-list,
-    .future-grid,
-    .records-grid {
-        display: grid;
-        gap: 12px;
+    .branch-directory-meta,
+    .branch-usage,
+    .branch-inline-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
     }
 
-    .branch-record,
-    .year-row,
-    .future-card,
-    .records-card {
+    .branch-directory {
+        display: grid;
+        gap: 10px;
+    }
+
+    .branch-table {
+        display: grid;
+        gap: 10px;
+    }
+
+    .branch-table-row {
+        display: grid;
+        grid-template-columns: minmax(190px, 1.25fr) minmax(170px, 1fr) minmax(150px, 0.9fr) minmax(220px, 1.2fr) minmax(180px, 0.95fr);
+        gap: 12px;
         padding: 14px;
         border: 1px solid #d8e5f4;
         border-radius: 16px;
         background: linear-gradient(160deg, #ffffff, #f8fbff);
+        align-items: start;
     }
 
-    .branch-record.is-inactive,
-    .year-row.is-inactive {
+    .branch-table-row.is-inactive {
         background: linear-gradient(160deg, #fbfcfe, #f3f6fb);
     }
 
-    .branch-record-head,
-    .year-row {
+    .branch-cell {
+        display: grid;
+        gap: 8px;
+        align-content: start;
+    }
+
+    .branch-cell--actions {
+        justify-items: stretch;
+    }
+
+    .branch-action-stack {
         display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 12px;
+        align-items: center;
+        gap: 8px;
         flex-wrap: wrap;
     }
 
-    .branch-record-head h4,
-    .year-row strong,
-    .future-card h4,
-    .records-card h4 {
-        margin: 0;
-        color: #17365d;
-        font-size: 18px;
+    .branch-action-stack .btn {
+        flex: 1 1 120px;
     }
 
-    .branch-record-head p,
-    .year-row p,
-    .future-card p,
-    .records-card p {
-        margin: 4px 0 0;
-        color: #60728c;
-        font-size: 12px;
-        line-height: 1.5;
-    }
-
-    .status-pill {
+    .status-pill,
+    .usage-pill {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -298,13 +311,16 @@
         min-height: 30px;
         padding: 6px 10px;
         border-radius: 999px;
-        border: 1px solid #cfe1f6;
-        background: #edf4ff;
-        color: #17365d;
         font-size: 11px;
         font-weight: 800;
         letter-spacing: 0.05em;
         text-transform: uppercase;
+    }
+
+    .status-pill {
+        border: 1px solid #cfe1f6;
+        background: #edf4ff;
+        color: #17365d;
     }
 
     .status-pill.is-success {
@@ -319,24 +335,10 @@
         color: #61738d;
     }
 
-    .branch-usage {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-
     .usage-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 9px;
-        border-radius: 999px;
         border: 1px solid #d7e4f4;
         background: #ffffff;
         color: #4f6480;
-        font-size: 12px;
-        font-weight: 700;
     }
 
     .usage-pill.is-highlight {
@@ -345,20 +347,46 @@
         color: #17365d;
     }
 
-    .branch-record-form {
+    .year-list,
+    .future-grid,
+    .records-grid {
         display: grid;
         gap: 12px;
     }
 
-    .branch-record-actions,
-    .year-row-actions {
+    .year-row,
+    .future-card,
+    .records-card {
+        padding: 14px;
+        border: 1px solid #d8e5f4;
+        border-radius: 16px;
+        background: linear-gradient(160deg, #ffffff, #f8fbff);
+    }
+
+    .year-row.is-inactive {
+        background: linear-gradient(160deg, #fbfcfe, #f3f6fb);
+    }
+
+    .year-row {
         display: flex;
-        align-items: center;
-        gap: 8px;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
         flex-wrap: wrap;
     }
 
-    .record-note {
+    .year-row strong,
+    .future-card h4,
+    .records-card h4 {
+        margin: 0;
+        color: #17365d;
+        font-size: 18px;
+    }
+
+    .year-row p,
+    .future-card p,
+    .records-card p {
+        margin: 4px 0 0;
         color: #60728c;
         font-size: 12px;
         line-height: 1.5;
@@ -369,11 +397,19 @@
         gap: 2px;
     }
 
+    .year-row-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
     .future-grid {
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     }
 
-    .future-card {
+    .future-card,
+    .records-card {
         display: grid;
         gap: 8px;
     }
@@ -393,13 +429,19 @@
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     }
 
-    .records-card {
-        display: grid;
-        gap: 10px;
-    }
-
     .records-card .btn {
         width: fit-content;
+    }
+
+    @media (max-width: 1320px) {
+        .branch-table-row {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .branch-cell--usage,
+        .branch-cell--actions {
+            grid-column: 1 / -1;
+        }
     }
 
     @media (max-width: 1120px) {
@@ -412,8 +454,14 @@
 
     @media (max-width: 720px) {
         .config-stat-grid,
-        .field-grid {
+        .field-grid,
+        .branch-table-row {
             grid-template-columns: 1fr;
+        }
+
+        .branch-cell--usage,
+        .branch-cell--actions {
+            grid-column: auto;
         }
     }
 </style>
@@ -429,7 +477,7 @@
         <div class="config-hero-copy">
             <span class="config-kicker">{{ icon("settings", "icon") }} Developer Only</span>
             <h2>System-level controls now live in one structured workspace.</h2>
-            <p>Use this page to manage branches, control the live academic year, and prepare future configuration modules without mixing those sensitive controls into everyday operational shortcuts. Quick branch switching stays in the main header, while deeper setup actions stay here.</p>
+            <p>Use this page to manage branches, control the live academic year, and prepare future configuration modules without mixing those sensitive controls into everyday operational shortcuts. Quick branch switching stays in the left workspace panel, while deeper setup actions stay here.</p>
         </div>
         <div class="config-stat-grid">
             <article class="config-stat-card">
@@ -449,7 +497,7 @@
         <article class="page-panel config-card">
             <div class="config-card-head">
                 <h3 class="section-heading"><span class="section-heading-icon">{{ icon("branch", "icon") }}</span>Branch Management</h3>
-                <p>Create new branches, update branch details, and control which branches stay available in quick scope switching.</p>
+                <p>Create new branches with a clean regional structure so they are ready for scope switching and future configuration growth.</p>
             </div>
             <form method="post" action="/system-configuration/branches">
                 <div class="field-grid">
@@ -458,11 +506,16 @@
                         <input id="config_branch_name" type="text" name="name" placeholder="Example: Hamadania-Boys" required>
                     </div>
                     <div class="field">
-                        <label for="config_branch_location">Location</label>
-                        <input id="config_branch_location" type="text" name="location" placeholder="Optional branch location">
+                        <label for="config_branch_region">Region</label>
+                        <select id="config_branch_region" name="region" required>
+                            <option value="" selected disabled>Select Saudi Arabia region</option>
+                            {% for region in saudi_regions %}
+                            <option value="{{ region }}">{{ region }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
                     <div class="field field-wide">
-                        <div class="field-note">New branches start as active so they can be selected immediately in the quick branch switcher. If a branch already contains linked users, subjects, teachers, or planning sections, it can be updated or deactivated here, but not deleted.</div>
+                        <div class="field-note">New branches start as active so they appear immediately in the developer-only Change Branch switcher. Branches that already have linked users, subjects, teachers, or planning sections can still be updated or deactivated here, but deletion stays protected.</div>
                     </div>
                 </div>
                 <div class="action-row" style="margin-top: 12px;">
@@ -474,84 +527,107 @@
         <article class="page-panel config-card">
             <div class="config-card-head">
                 <h3 class="section-heading"><span class="section-heading-icon">{{ icon("table", "icon") }}</span>Configured Branches</h3>
-                <p>Each branch can be renamed, updated, activated, or retired from quick switching without changing the overall system design.</p>
+                <p>Manage all branches from one compact directory so updates stay fast and practical even as the branch list grows.</p>
             </div>
-            {% if branch_rows %}
-            <div class="branch-list">
-                {% for row in branch_rows %}
-                <article class="branch-record {% if row.status %}is-active{% else %}is-inactive{% endif %}">
-                    <form class="branch-record-form" method="post" action="/system-configuration/branches/{{ row.id }}">
-                        <div class="branch-record-head">
-                            <div>
-                                <h4>{{ row.name }}</h4>
-                                <p>{% if row.location %}{{ row.location }}{% else %}Location not set yet{% endif %}</p>
-                            </div>
-                            <span class="status-pill {% if row.status %}is-success{% else %}is-muted{% endif %}">
-                                {{ "Active" if row.status else "Inactive" }}
-                            </span>
-                        </div>
-
-                        <div class="branch-usage">
-                            {% if row.is_current_scope %}
-                            <span class="usage-pill is-highlight">{{ icon("branch", "icon") }} Current scope</span>
-                            {% endif %}
-                            <span class="usage-pill">{{ row.usage_counts.users_count }} users</span>
-                            <span class="usage-pill">{{ row.usage_counts.subjects_count }} subjects</span>
-                            <span class="usage-pill">{{ row.usage_counts.teachers_count }} teachers</span>
-                            <span class="usage-pill">{{ row.usage_counts.planning_sections_count }} sections</span>
-                        </div>
-
-                        <div class="field-grid">
-                            <div class="field">
-                                <label for="branch_name_{{ row.id }}">Branch Name</label>
-                                <input id="branch_name_{{ row.id }}" type="text" name="name" value="{{ row.name }}" required>
-                            </div>
-                            <div class="field">
-                                <label for="branch_location_{{ row.id }}">Location</label>
-                                <input id="branch_location_{{ row.id }}" type="text" name="location" value="{{ row.location }}" placeholder="Optional branch location">
-                            </div>
-                            <div class="field">
-                                <label for="branch_status_{{ row.id }}">Availability</label>
-                                <select id="branch_status_{{ row.id }}" name="status">
-                                    <option value="active" {% if row.status %}selected{% endif %}>Active</option>
-                                    <option value="inactive" {% if not row.status %}selected{% endif %}>Inactive</option>
-                                </select>
-                            </div>
-                            <div class="field">
-                                <label>Linked Records</label>
-                                <div class="field-note">{{ row.linked_records_count }} scoped records currently point to this branch.</div>
+            <div class="branch-directory">
+                <div class="branch-directory-meta">
+                    <span class="usage-pill is-highlight">{{ branch_count }} total branches</span>
+                    <span class="usage-pill">{{ active_branch_count }} active</span>
+                    <span class="usage-pill">{{ inactive_branch_count }} inactive</span>
+                </div>
+                {% if branch_rows %}
+                <div class="branch-table">
+                    {% for row in branch_rows %}
+                    <form class="branch-table-row {% if not row.status %}is-inactive{% endif %}" method="post" action="/system-configuration/branches/{{ row.id }}">
+                        <div class="branch-cell">
+                            <label class="branch-cell-label" for="branch_name_{{ row.id }}">Branch</label>
+                            <input id="branch_name_{{ row.id }}" type="text" name="name" value="{{ row.name }}" required>
+                            <div class="branch-inline-meta">
+                                {% if row.is_current_scope %}
+                                <span class="usage-pill is-highlight">{{ icon("branch", "icon") }} Current scope</span>
+                                {% endif %}
+                                <span class="status-pill {% if row.status %}is-success{% else %}is-muted{% endif %}">
+                                    {{ "Active" if row.status else "Inactive" }}
+                                </span>
                             </div>
                         </div>
 
-                        <div class="branch-record-actions">
-                            <button class="btn btn-secondary" type="submit">{{ icon("save", "icon") }} Save Branch</button>
-                            <button
-                                class="btn btn-danger"
-                                type="submit"
-                                formaction="/system-configuration/branches/{{ row.id }}/delete"
-                                onclick="return confirm('Delete branch {{ row.name }}? This only works when no users, subjects, teachers, or planning sections are linked to it.');"
-                                {% if not row.can_delete %}disabled{% endif %}
-                            >
-                                {{ icon("trash", "icon") }} Delete Branch
-                            </button>
-                        </div>
-
-                        {% if not row.can_delete %}
-                        <div class="record-note">
-                            {% if row.linked_records_count > 0 %}
-                            This branch is already in use, so deletion is locked. Update the branch or mark it inactive instead.
+                        <div class="branch-cell">
+                            <label class="branch-cell-label" for="branch_region_{{ row.id }}">Region</label>
+                            <select id="branch_region_{{ row.id }}" name="region" required>
+                                {% if row.region and row.region not in saudi_regions %}
+                                <option value="{{ row.region }}" selected>Legacy value: {{ row.region }}</option>
+                                {% else %}
+                                <option value="" disabled {% if not row.region %}selected{% endif %}>Select region</option>
+                                {% endif %}
+                                {% for region in saudi_regions %}
+                                <option value="{{ region }}" {% if row.region == region %}selected{% endif %}>{{ region }}</option>
+                                {% endfor %}
+                            </select>
+                            {% if row.region and row.region not in saudi_regions %}
+                            <div class="record-note">This saved value is not part of the official Saudi region list. Choose a valid region before saving.</div>
                             {% else %}
-                            This branch cannot be removed because at least one active branch must remain available.
+                            <div class="record-note">Use the official Saudi Arabia region list for consistent reporting.</div>
                             {% endif %}
                         </div>
-                        {% endif %}
+
+                        <div class="branch-cell">
+                            <label class="branch-cell-label" for="branch_status_{{ row.id }}">Availability</label>
+                            <select id="branch_status_{{ row.id }}" name="status">
+                                <option value="active" {% if row.status %}selected{% endif %}>Active</option>
+                                <option value="inactive" {% if not row.status %}selected{% endif %}>Inactive</option>
+                            </select>
+                            <div class="record-note">
+                                {% if row.can_deactivate %}
+                                Active branches appear in the sidebar Change Branch switcher.
+                                {% else %}
+                                At least one active branch must remain available.
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="branch-cell branch-cell--usage">
+                            <span class="branch-cell-label">Linked Records</span>
+                            <div class="branch-usage">
+                                <span class="usage-pill">{{ row.usage_counts.users_count }} users</span>
+                                <span class="usage-pill">{{ row.usage_counts.subjects_count }} subjects</span>
+                                <span class="usage-pill">{{ row.usage_counts.teachers_count }} teachers</span>
+                                <span class="usage-pill">{{ row.usage_counts.planning_sections_count }} sections</span>
+                            </div>
+                            <div class="record-note">{{ row.linked_records_count }} linked records currently point to this branch.</div>
+                        </div>
+
+                        <div class="branch-cell branch-cell--actions">
+                            <span class="branch-cell-label">Actions</span>
+                            <div class="branch-action-stack">
+                                <button class="btn btn-secondary" type="submit">{{ icon("save", "icon") }} Save</button>
+                                <button
+                                    class="btn btn-danger"
+                                    type="submit"
+                                    formaction="/system-configuration/branches/{{ row.id }}/delete"
+                                    onclick="return confirm('Delete branch {{ row.name }}? This only works when no users, subjects, teachers, or planning sections are linked to it.');"
+                                    {% if not row.can_delete %}disabled{% endif %}
+                                >
+                                    {{ icon("trash", "icon") }} Delete
+                                </button>
+                            </div>
+                            {% if not row.can_delete %}
+                            <div class="record-note">
+                                {% if row.linked_records_count > 0 %}
+                                Deletion is locked because this branch is already in use. Update it or mark it inactive instead.
+                                {% else %}
+                                Deletion is locked because at least one active branch must remain available.
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
                     </form>
-                </article>
-                {% endfor %}
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="record-note">No branches are configured yet.</div>
+                {% endif %}
             </div>
-            {% else %}
-            <div class="record-note">No branches are configured yet.</div>
-            {% endif %}
         </article>
     </section>
 

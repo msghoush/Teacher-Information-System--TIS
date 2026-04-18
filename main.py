@@ -263,6 +263,34 @@ def _redirect_with_error(path: str, error: str):
     )
 
 
+SAUDI_REGIONS = (
+    "Riyadh Region",
+    "Makkah Region",
+    "Madinah Region",
+    "Eastern Province",
+    "Al Qassim Region",
+    "Hail Region",
+    "Tabuk Region",
+    "Northern Borders Region",
+    "Al Jawf Region",
+    "Jazan Region",
+    "Najran Region",
+    "Al Bahah Region",
+    "Asir Region",
+)
+SAUDI_REGION_LOOKUP = {
+    region.casefold(): region
+    for region in SAUDI_REGIONS
+}
+
+
+def _normalize_branch_region(value: str) -> str | None:
+    cleaned = " ".join(str(value or "").split())
+    if not cleaned:
+        return None
+    return SAUDI_REGION_LOOKUP.get(cleaned.casefold())
+
+
 def _branch_usage_counts(db: Session, branch_id: int) -> dict[str, int]:
     return {
         "users_count": db.query(models.User).filter(
@@ -299,12 +327,14 @@ def _build_branch_configuration_rows(
             not bool(branch.status) or active_branch_count > 1
         )
         can_deactivate = not bool(branch.status) or active_branch_count > 1
+        saved_region = str(branch.location or "").strip()
+        normalized_region = _normalize_branch_region(saved_region)
 
         branch_rows.append(
             {
                 "id": branch.id,
                 "name": str(branch.name or "").strip(),
-                "location": str(branch.location or "").strip(),
+                "region": normalized_region or saved_region,
                 "status": bool(branch.status),
                 "is_current_scope": scoped_branch_id == branch.id,
                 "usage_counts": usage_counts,
@@ -4317,6 +4347,7 @@ def system_configuration(
             "request": request,
             "user": current_user,
             "error_message": error_message,
+            "saudi_regions": SAUDI_REGIONS,
             "branch_rows": branch_rows,
             "branch_count": len(branch_rows),
             "active_branch_count": active_branch_count,
@@ -4340,7 +4371,7 @@ def system_configuration(
 def create_branch(
     request: Request,
     name: str = Form(...),
-    location: str = Form(""),
+    region: str = Form(""),
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
@@ -4349,12 +4380,18 @@ def create_branch(
 
     safe_return_to = "/system-configuration"
     cleaned_name = " ".join(str(name or "").split())
-    cleaned_location = str(location or "").strip()
+    normalized_region = _normalize_branch_region(region)
 
     if not cleaned_name:
         return _redirect_with_error(
             safe_return_to,
             "Branch name is required.",
+        )
+
+    if not normalized_region:
+        return _redirect_with_error(
+            safe_return_to,
+            "Select a valid Saudi Arabia region for the branch.",
         )
 
     existing_branch = db.query(models.Branch).filter(
@@ -4369,7 +4406,7 @@ def create_branch(
     db.add(
         models.Branch(
             name=cleaned_name,
-            location=cleaned_location or None,
+            location=normalized_region,
             status=True,
         )
     )
@@ -4389,7 +4426,7 @@ def update_branch(
     branch_id: int,
     request: Request,
     name: str = Form(...),
-    location: str = Form(""),
+    region: str = Form(""),
     status: str = Form("active"),
     db: Session = Depends(get_db),
 ):
@@ -4408,7 +4445,7 @@ def update_branch(
         )
 
     cleaned_name = " ".join(str(name or "").split())
-    cleaned_location = str(location or "").strip()
+    normalized_region = _normalize_branch_region(region)
     normalized_status = str(status or "").strip().lower()
     next_status = normalized_status != "inactive"
 
@@ -4416,6 +4453,12 @@ def update_branch(
         return _redirect_with_error(
             safe_return_to,
             "Branch name is required.",
+        )
+
+    if not normalized_region:
+        return _redirect_with_error(
+            safe_return_to,
+            "Select a valid Saudi Arabia region for the branch.",
         )
 
     duplicate_branch = db.query(models.Branch).filter(
@@ -4442,7 +4485,7 @@ def update_branch(
         )
 
     branch_row.name = cleaned_name
-    branch_row.location = cleaned_location or None
+    branch_row.location = normalized_region
     branch_row.status = next_status
     db.commit()
 
@@ -5896,7 +5939,7 @@ def _ensure_gender_branches(db: Session):
             else:
                 boys_row = Branch(
                     name=boys_name,
-                    location="Main Campus",
+                    location="Makkah Region",
                     status=True,
                 )
                 db.add(boys_row)
@@ -5927,7 +5970,7 @@ def _ensure_gender_branches(db: Session):
             else:
                 girls_row = Branch(
                     name=girls_name,
-                    location="Main Campus",
+                    location="Makkah Region",
                     status=True,
                 )
                 db.add(girls_row)
