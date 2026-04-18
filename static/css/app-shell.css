@@ -83,7 +83,9 @@ svg.tab-icon {
     position: sticky;
     top: 16px;
     align-self: start;
-    min-height: calc(100vh - 32px);
+    height: calc(100vh - 32px);
+    max-height: calc(100vh - 32px);
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -95,7 +97,9 @@ svg.tab-icon {
         linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0));
     color: #f4f8ff;
     box-shadow: var(--app-shadow);
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .app-sidebar::before,
@@ -895,7 +899,10 @@ svg.tab-icon {
 
     .app-sidebar {
         position: static;
+        height: auto;
+        max-height: none;
         min-height: auto;
+        overflow: visible;
     }
 
     .header-chip-grid {
