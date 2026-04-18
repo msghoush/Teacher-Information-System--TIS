@@ -57,7 +57,9 @@ textarea {
     font: inherit;
 }
 
-.shell-icon {
+svg.shell-icon,
+svg.icon,
+svg.tab-icon {
     width: 18px;
     height: 18px;
     stroke: currentColor;
