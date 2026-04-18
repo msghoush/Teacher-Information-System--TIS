@@ -1372,8 +1372,9 @@
         .report-coverage-brief {
             margin-top: 16px;
             display: grid;
-            grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
+            grid-template-columns: minmax(0, 1.45fr) minmax(280px, 1fr);
             gap: 16px;
+            align-items: stretch;
             border: 1px solid #d3deed;
             border-radius: 18px;
             padding: 18px;
@@ -1393,8 +1394,42 @@
 
         .report-coverage-copy {
             display: grid;
-            gap: 8px;
+            gap: 12px;
             align-content: start;
+        }
+
+        .report-coverage-status-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .report-coverage-status-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid #cfe0f4;
+            background: #edf4ff;
+            color: #0a4ea3;
+            font-size: 12px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .report-coverage-brief.is-alert .report-coverage-status-pill {
+            border-color: #f0d5a2;
+            background: #fff5e8;
+            color: #9a3412;
+        }
+
+        .report-coverage-brief.is-clear .report-coverage-status-pill {
+            border-color: #b8dec9;
+            background: #eefaf4;
+            color: #0d7a47;
         }
 
         .report-coverage-copy h4 {
@@ -1403,11 +1438,131 @@
             color: #17365d;
         }
 
-        .report-coverage-copy p {
-            margin: 0;
-            font-size: 13px;
-            line-height: 1.55;
+        .report-coverage-visual-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 10px;
+        }
+
+        .report-coverage-highlight-card {
+            border: 1px solid #d7e4f3;
+            border-radius: 14px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.92);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        }
+
+        .report-coverage-highlight-card span {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #5a7394;
+            font-weight: 800;
+        }
+
+        .report-coverage-highlight-card strong {
+            display: block;
+            margin-top: 7px;
+            font-size: 22px;
+            line-height: 1.12;
+            color: #17365d;
+        }
+
+        .report-coverage-highlight-card small {
+            display: block;
+            margin-top: 5px;
+            font-size: 12px;
+            line-height: 1.45;
             color: #556981;
+        }
+
+        .report-coverage-stack-group {
+            display: grid;
+            gap: 10px;
+        }
+
+        .report-coverage-stack-card {
+            border: 1px solid #dbe6f4;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px;
+        }
+
+        .report-coverage-stack-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .report-coverage-stack-head span {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #5a7394;
+            font-weight: 800;
+        }
+
+        .report-coverage-stack-head strong {
+            font-size: 13px;
+            color: #17365d;
+        }
+
+        .report-coverage-stack-track {
+            display: flex;
+            height: 10px;
+            border-radius: 999px;
+            overflow: hidden;
+            background: #e3ebf6;
+            box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
+        }
+
+        .report-coverage-stack-fill {
+            height: 100%;
+            flex-shrink: 0;
+        }
+
+        .report-coverage-stack-fill.is-covered {
+            background: linear-gradient(90deg, #0f7f7a, #2bb3ac);
+        }
+
+        .report-coverage-stack-fill.is-gap {
+            background: linear-gradient(90deg, #d97706, #f59e0b);
+        }
+
+        .report-coverage-stack-fill.is-hireable {
+            background: linear-gradient(90deg, #0a4ea3, #3d8df5);
+        }
+
+        .report-coverage-stack-fill.is-remaining {
+            background: linear-gradient(90deg, #4b5563, #6b7280);
+        }
+
+        .report-coverage-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 14px;
+            margin-top: 8px;
+        }
+
+        .report-coverage-legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #556981;
+        }
+
+        .report-coverage-legend-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 999px;
+            flex-shrink: 0;
         }
 
         .report-visual-summary {
@@ -1676,14 +1831,49 @@
 
         .report-mini-stat-grid {
             display: grid;
-            gap: 8px;
+            gap: 10px;
+            align-content: start;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
         }
 
         .report-mini-stat {
+            position: relative;
+            overflow: hidden;
             border: 1px solid #e0e8f5;
             border-radius: 12px;
             background: #fff;
-            padding: 10px 11px;
+            padding: 11px 11px 12px 14px;
+            transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+        }
+
+        .report-mini-stat:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
+            border-color: #c6d8ef;
+        }
+
+        .report-mini-stat::before {
+            content: "";
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 4px;
+            background: #c6d4e8;
+        }
+
+        .report-mini-stat.is-demand::before {
+            background: #0a4ea3;
+        }
+
+        .report-mini-stat.is-covered::before {
+            background: #0f7f7a;
+        }
+
+        .report-mini-stat.is-gap::before {
+            background: #d97706;
+        }
+
+        .report-mini-stat.is-neutral::before {
+            background: #6b7280;
         }
 
         .report-mini-stat span {
@@ -1701,6 +1891,14 @@
             font-size: 20px;
             color: #17365d;
             line-height: 1.1;
+        }
+
+        .report-mini-stat small {
+            display: block;
+            margin-top: 4px;
+            font-size: 11px;
+            line-height: 1.35;
+            color: #64748b;
         }
 
         .report-card-head {
@@ -3035,17 +3233,25 @@
                     </article>
                 </div>
 
+                {% set coverage_pct = report_summary.coverage_percentage or 0 %}
+                {% set uncovered_pct = 100 - coverage_pct if coverage_pct < 100 else 0 %}
+                {% set uncovered_total = report_summary.total_uncovered_hours or 0 %}
+                {% set hireable_pct = ((report_summary.hireable_covered_hours / uncovered_total) * 100) | round(1) if uncovered_total > 0 else 0 %}
+                {% set remaining_after_hires_pct = 100 - hireable_pct if uncovered_total > 0 else 0 %}
                 <article class="report-coverage-brief {% if report_summary.total_remaining_hours > 0 %}is-alert{% else %}is-clear{% endif %}">
                     <div class="report-coverage-copy">
-                        <span class="report-alert-eyebrow">
-                            {% if report_summary.priority_subjects_with_gaps > 0 %}
-                            Priority coverage alert
-                            {% elif report_summary.total_remaining_hours > 0 %}
-                            Coverage still open
-                            {% else %}
-                            Coverage stable
-                            {% endif %}
-                        </span>
+                        <div class="report-coverage-status-row">
+                            <span class="report-alert-eyebrow">
+                                {% if report_summary.priority_subjects_with_gaps > 0 %}
+                                Priority coverage alert
+                                {% elif report_summary.total_remaining_hours > 0 %}
+                                Coverage still open
+                                {% else %}
+                                Coverage stable
+                                {% endif %}
+                            </span>
+                            <span class="report-coverage-status-pill">{{ coverage_pct }}% covered</span>
+                        </div>
                         <h4>
                             {% if report_summary.priority_subjects_with_gaps > 0 %}
                             Priority subjects still need attention
@@ -3055,35 +3261,85 @@
                             Current teacher pool covers the planned load
                             {% endif %}
                         </h4>
-                        <p>Grade 1 and Grade 2 homeroom teachers automatically cover English, Mathematics, Mental Math, Performing Arts, Science, Social Studies, and Well Being unless a section is manually assigned to someone else.</p>
-                        <p>
-                            {% if report_summary.total_remaining_hours > 0 %}
-                            Total uncovered demand is {{ report_summary.total_uncovered_hours }}h. That translates to {{ report_summary.total_new_teachers_required }} whole teacher{% if report_summary.total_new_teachers_required != 1 %}s{% endif %} covering {{ report_summary.hireable_covered_hours }}h, with {{ report_summary.remaining_uncovered_hours_after_hires }}h still left open after those hires.
-                            {% else %}
-                            No uncovered hours remain in the current planning scope after the default homeroom and compatible-teacher coverage pass.
-                            {% endif %}
-                        </p>
+
+                        <div class="report-coverage-visual-grid">
+                            <div class="report-coverage-highlight-card">
+                                <span>{{ icon("report", "icon") }}Planning Load</span>
+                                <strong>{{ report_summary.total_allocated_hours }}h covered</strong>
+                                <small>Out of {{ report_summary.total_required_hours }}h total weekly demand.</small>
+                            </div>
+                            <div class="report-coverage-highlight-card">
+                                <span>{{ icon("hire", "icon") }}Hire Outlook</span>
+                                <strong>{{ report_summary.total_new_teachers_required }} full hire{% if report_summary.total_new_teachers_required != 1 %}s{% endif %}</strong>
+                                <small>{{ report_summary.hireable_covered_hours }}h fits into 24h blocks{% if report_summary.remaining_uncovered_hours_after_hires > 0 %} • {{ report_summary.remaining_uncovered_hours_after_hires }}h still open{% endif %}.</small>
+                            </div>
+                        </div>
+
+                        <div class="report-coverage-stack-group">
+                            <div class="report-coverage-stack-card">
+                                <div class="report-coverage-stack-head">
+                                    <span>Coverage Mix</span>
+                                    <strong>{{ report_summary.total_allocated_hours }}h covered • {{ report_summary.total_uncovered_hours }}h open</strong>
+                                </div>
+                                <div class="report-coverage-stack-track" aria-label="Coverage mix">
+                                    <span class="report-coverage-stack-fill is-covered" style="width: {{ coverage_pct }}%;"></span>
+                                    {% if uncovered_pct > 0 %}
+                                    <span class="report-coverage-stack-fill is-gap" style="width: {{ uncovered_pct }}%;"></span>
+                                    {% endif %}
+                                </div>
+                                <div class="report-coverage-legend">
+                                    <span><i class="report-coverage-legend-dot" style="background:#0f7f7a;"></i>Covered demand</span>
+                                    <span><i class="report-coverage-legend-dot" style="background:#d97706;"></i>Uncovered demand</span>
+                                </div>
+                            </div>
+
+                            <div class="report-coverage-stack-card">
+                                <div class="report-coverage-stack-head">
+                                    <span>Hiring Split</span>
+                                    <strong>{{ report_summary.total_new_teachers_required }} × 24h blocks{% if report_summary.remaining_uncovered_hours_after_hires > 0 %} + {{ report_summary.remaining_uncovered_hours_after_hires }}h{% endif %}</strong>
+                                </div>
+                                <div class="report-coverage-stack-track" aria-label="Hiring split">
+                                    {% if uncovered_total > 0 %}
+                                    <span class="report-coverage-stack-fill is-hireable" style="width: {{ hireable_pct }}%;"></span>
+                                    {% if remaining_after_hires_pct > 0 %}
+                                    <span class="report-coverage-stack-fill is-remaining" style="width: {{ remaining_after_hires_pct }}%;"></span>
+                                    {% endif %}
+                                    {% else %}
+                                    <span class="report-coverage-stack-fill is-covered" style="width: 100%;"></span>
+                                    {% endif %}
+                                </div>
+                                <div class="report-coverage-legend">
+                                    <span><i class="report-coverage-legend-dot" style="background:#0a4ea3;"></i>Covered by full hires</span>
+                                    <span><i class="report-coverage-legend-dot" style="background:#6b7280;"></i>Still open after hires</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="report-mini-stat-grid">
-                        <div class="report-mini-stat">
+                        <div class="report-mini-stat is-demand">
                             <span>Total Demand</span>
                             <strong>{{ report_summary.total_required_hours }}h</strong>
+                            <small>All planned weekly hours</small>
                         </div>
-                        <div class="report-mini-stat">
+                        <div class="report-mini-stat is-covered">
                             <span>Covered</span>
                             <strong>{{ report_summary.total_allocated_hours }}h</strong>
+                            <small>{{ coverage_pct }}% of the plan</small>
                         </div>
-                        <div class="report-mini-stat">
-                            <span>Total Uncovered</span>
+                        <div class="report-mini-stat is-gap">
+                            <span>Uncovered</span>
                             <strong>{{ report_summary.total_uncovered_hours }}h</strong>
+                            <small>Needs staffing attention</small>
                         </div>
-                        <div class="report-mini-stat">
+                        <div class="report-mini-stat is-covered">
                             <span>Homeroom Default</span>
                             <strong>{{ report_summary.homeroom_default_coverage_hours }}h</strong>
+                            <small>Auto-covered by lower primary rules</small>
                         </div>
-                        <div class="report-mini-stat">
+                        <div class="report-mini-stat is-neutral">
                             <span>Hire Split</span>
-                            <strong>{{ report_summary.total_new_teachers_required }} + {{ report_summary.remaining_uncovered_hours_after_hires }}h</strong>
+                            <strong>{{ report_summary.total_new_teachers_required }} × 24h</strong>
+                            <small>{{ report_summary.remaining_uncovered_hours_after_hires }}h remaining after full hires</small>
                         </div>
                     </div>
                 </article>
