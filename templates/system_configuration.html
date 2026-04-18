@@ -1,0 +1,656 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}System Configuration | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+    .config-layout {
+        display: grid;
+        gap: 12px;
+    }
+
+    .config-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.9fr);
+        gap: 16px;
+        align-items: start;
+    }
+
+    .config-hero-copy {
+        display: grid;
+        gap: 10px;
+        align-content: start;
+    }
+
+    .config-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        width: fit-content;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid #d7e4f4;
+        background: #f3f8ff;
+        color: #17365d;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .config-hero-copy h2 {
+        margin: 0;
+        font-size: clamp(24px, 2.8vw, 32px);
+        color: #17365d;
+        line-height: 1.1;
+    }
+
+    .config-hero-copy p {
+        margin: 0;
+        max-width: 70ch;
+        color: #51667f;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+
+    .config-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .config-stat-card {
+        padding: 14px;
+        border: 1px solid #d8e5f4;
+        border-radius: 16px;
+        background: linear-gradient(160deg, #ffffff, #f7fbff);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    }
+
+    .config-stat-card span {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #5c718b;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .config-stat-card strong {
+        display: block;
+        margin-top: 8px;
+        color: #17365d;
+        font-size: 28px;
+        line-height: 1;
+    }
+
+    .config-stat-card small {
+        display: block;
+        margin-top: 6px;
+        color: #60728c;
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    .config-section-grid {
+        display: grid;
+        grid-template-columns: minmax(300px, 0.95fr) minmax(0, 1.35fr);
+        gap: 12px;
+        align-items: start;
+    }
+
+    .config-section-grid--support {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .config-card {
+        display: grid;
+        gap: 14px;
+    }
+
+    .config-card-head {
+        display: grid;
+        gap: 6px;
+    }
+
+    .config-card-head h3 {
+        margin: 0;
+        font-size: 22px;
+        color: #17365d;
+    }
+
+    .config-card-head p {
+        margin: 0;
+        color: #5a6f88;
+        font-size: 13px;
+        line-height: 1.55;
+    }
+
+    .error-banner {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border: 1px solid #efc5bf;
+        border-radius: 16px;
+        background: #fff5f3;
+        color: #9f2d1f;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .field {
+        display: grid;
+        gap: 6px;
+    }
+
+    .field-wide {
+        grid-column: 1 / -1;
+    }
+
+    .field label {
+        color: #415068;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .field input,
+    .field select {
+        width: 100%;
+        min-width: 0;
+        padding: 10px 12px;
+        border: 1px solid #c8d8ec;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #17365d;
+        font-size: 14px;
+    }
+
+    .field input:focus,
+    .field select:focus {
+        outline: none;
+        border-color: #0a4ea3;
+        box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.14);
+    }
+
+    .field-note {
+        color: #61738d;
+        font-size: 12px;
+        line-height: 1.5;
+    }
+
+    .action-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 42px;
+        padding: 10px 14px;
+        border: 1px solid transparent;
+        border-radius: 12px;
+        font-size: 13px;
+        font-weight: 800;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+    }
+
+    .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+    }
+
+    .btn-primary {
+        color: #ffffff;
+        background: linear-gradient(135deg, #0a4ea3, #073a7d);
+    }
+
+    .btn-secondary {
+        border-color: #cdddef;
+        background: #ffffff;
+        color: #17365d;
+    }
+
+    .btn-danger {
+        color: #ffffff;
+        background: linear-gradient(135deg, #c44735, #9f2d1f);
+    }
+
+    .btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .branch-list,
+    .year-list,
+    .future-grid,
+    .records-grid {
+        display: grid;
+        gap: 12px;
+    }
+
+    .branch-record,
+    .year-row,
+    .future-card,
+    .records-card {
+        padding: 14px;
+        border: 1px solid #d8e5f4;
+        border-radius: 16px;
+        background: linear-gradient(160deg, #ffffff, #f8fbff);
+    }
+
+    .branch-record.is-inactive,
+    .year-row.is-inactive {
+        background: linear-gradient(160deg, #fbfcfe, #f3f6fb);
+    }
+
+    .branch-record-head,
+    .year-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .branch-record-head h4,
+    .year-row strong,
+    .future-card h4,
+    .records-card h4 {
+        margin: 0;
+        color: #17365d;
+        font-size: 18px;
+    }
+
+    .branch-record-head p,
+    .year-row p,
+    .future-card p,
+    .records-card p {
+        margin: 4px 0 0;
+        color: #60728c;
+        font-size: 12px;
+        line-height: 1.5;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 30px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid #cfe1f6;
+        background: #edf4ff;
+        color: #17365d;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .status-pill.is-success {
+        border-color: #b7dec8;
+        background: #effaf4;
+        color: #0b6a63;
+    }
+
+    .status-pill.is-muted {
+        border-color: #d9e1ec;
+        background: #f5f7fb;
+        color: #61738d;
+    }
+
+    .branch-usage {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .usage-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 9px;
+        border-radius: 999px;
+        border: 1px solid #d7e4f4;
+        background: #ffffff;
+        color: #4f6480;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .usage-pill.is-highlight {
+        border-color: #cfe1f6;
+        background: #edf4ff;
+        color: #17365d;
+    }
+
+    .branch-record-form {
+        display: grid;
+        gap: 12px;
+    }
+
+    .branch-record-actions,
+    .year-row-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .record-note {
+        color: #60728c;
+        font-size: 12px;
+        line-height: 1.5;
+    }
+
+    .year-row-copy {
+        display: grid;
+        gap: 2px;
+    }
+
+    .future-grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    .future-card {
+        display: grid;
+        gap: 8px;
+    }
+
+    .future-card span {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #62748d;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .records-grid {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .records-card {
+        display: grid;
+        gap: 10px;
+    }
+
+    .records-card .btn {
+        width: fit-content;
+    }
+
+    @media (max-width: 1120px) {
+        .config-hero,
+        .config-section-grid,
+        .config-section-grid--support {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 720px) {
+        .config-stat-grid,
+        .field-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="config-layout">
+    {% if error_message %}
+    <div class="error-banner">{{ icon("warning", "icon") }} {{ error_message }}</div>
+    {% endif %}
+
+    <section class="page-panel config-hero">
+        <div class="config-hero-copy">
+            <span class="config-kicker">{{ icon("settings", "icon") }} Developer Only</span>
+            <h2>System-level controls now live in one structured workspace.</h2>
+            <p>Use this page to manage branches, control the live academic year, and prepare future configuration modules without mixing those sensitive controls into everyday operational shortcuts. Quick branch switching stays in the main header, while deeper setup actions stay here.</p>
+        </div>
+        <div class="config-stat-grid">
+            <article class="config-stat-card">
+                <span>{{ icon("branch", "icon") }} Branches</span>
+                <strong>{{ branch_count }}</strong>
+                <small>{{ active_branch_count }} active and {{ inactive_branch_count }} inactive branches are currently configured.</small>
+            </article>
+            <article class="config-stat-card">
+                <span>{{ icon("year", "icon") }} Academic Years</span>
+                <strong>{{ academic_year_rows|length }}</strong>
+                <small>{% if active_year %}{{ active_year.year_name }} is the live academic year right now.{% else %}No current academic year is marked live yet.{% endif %}</small>
+            </article>
+        </div>
+    </section>
+
+    <section class="config-section-grid">
+        <article class="page-panel config-card">
+            <div class="config-card-head">
+                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("branch", "icon") }}</span>Branch Management</h3>
+                <p>Create new branches, update branch details, and control which branches stay available in quick scope switching.</p>
+            </div>
+            <form method="post" action="/system-configuration/branches">
+                <div class="field-grid">
+                    <div class="field">
+                        <label for="config_branch_name">Branch Name</label>
+                        <input id="config_branch_name" type="text" name="name" placeholder="Example: Hamadania-Boys" required>
+                    </div>
+                    <div class="field">
+                        <label for="config_branch_location">Location</label>
+                        <input id="config_branch_location" type="text" name="location" placeholder="Optional branch location">
+                    </div>
+                    <div class="field field-wide">
+                        <div class="field-note">New branches start as active so they can be selected immediately in the quick branch switcher. If a branch already contains linked users, subjects, teachers, or planning sections, it can be updated or deactivated here, but not deleted.</div>
+                    </div>
+                </div>
+                <div class="action-row" style="margin-top: 12px;">
+                    <button class="btn btn-primary" type="submit">{{ icon("add", "icon") }} Add New Branch</button>
+                </div>
+            </form>
+        </article>
+
+        <article class="page-panel config-card">
+            <div class="config-card-head">
+                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("table", "icon") }}</span>Configured Branches</h3>
+                <p>Each branch can be renamed, updated, activated, or retired from quick switching without changing the overall system design.</p>
+            </div>
+            {% if branch_rows %}
+            <div class="branch-list">
+                {% for row in branch_rows %}
+                <article class="branch-record {% if row.status %}is-active{% else %}is-inactive{% endif %}">
+                    <form class="branch-record-form" method="post" action="/system-configuration/branches/{{ row.id }}">
+                        <div class="branch-record-head">
+                            <div>
+                                <h4>{{ row.name }}</h4>
+                                <p>{% if row.location %}{{ row.location }}{% else %}Location not set yet{% endif %}</p>
+                            </div>
+                            <span class="status-pill {% if row.status %}is-success{% else %}is-muted{% endif %}">
+                                {{ "Active" if row.status else "Inactive" }}
+                            </span>
+                        </div>
+
+                        <div class="branch-usage">
+                            {% if row.is_current_scope %}
+                            <span class="usage-pill is-highlight">{{ icon("branch", "icon") }} Current scope</span>
+                            {% endif %}
+                            <span class="usage-pill">{{ row.usage_counts.users_count }} users</span>
+                            <span class="usage-pill">{{ row.usage_counts.subjects_count }} subjects</span>
+                            <span class="usage-pill">{{ row.usage_counts.teachers_count }} teachers</span>
+                            <span class="usage-pill">{{ row.usage_counts.planning_sections_count }} sections</span>
+                        </div>
+
+                        <div class="field-grid">
+                            <div class="field">
+                                <label for="branch_name_{{ row.id }}">Branch Name</label>
+                                <input id="branch_name_{{ row.id }}" type="text" name="name" value="{{ row.name }}" required>
+                            </div>
+                            <div class="field">
+                                <label for="branch_location_{{ row.id }}">Location</label>
+                                <input id="branch_location_{{ row.id }}" type="text" name="location" value="{{ row.location }}" placeholder="Optional branch location">
+                            </div>
+                            <div class="field">
+                                <label for="branch_status_{{ row.id }}">Availability</label>
+                                <select id="branch_status_{{ row.id }}" name="status">
+                                    <option value="active" {% if row.status %}selected{% endif %}>Active</option>
+                                    <option value="inactive" {% if not row.status %}selected{% endif %}>Inactive</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label>Linked Records</label>
+                                <div class="field-note">{{ row.linked_records_count }} scoped records currently point to this branch.</div>
+                            </div>
+                        </div>
+
+                        <div class="branch-record-actions">
+                            <button class="btn btn-secondary" type="submit">{{ icon("save", "icon") }} Save Branch</button>
+                            <button
+                                class="btn btn-danger"
+                                type="submit"
+                                formaction="/system-configuration/branches/{{ row.id }}/delete"
+                                onclick="return confirm('Delete branch {{ row.name }}? This only works when no users, subjects, teachers, or planning sections are linked to it.');"
+                                {% if not row.can_delete %}disabled{% endif %}
+                            >
+                                {{ icon("trash", "icon") }} Delete Branch
+                            </button>
+                        </div>
+
+                        {% if not row.can_delete %}
+                        <div class="record-note">
+                            {% if row.linked_records_count > 0 %}
+                            This branch is already in use, so deletion is locked. Update the branch or mark it inactive instead.
+                            {% else %}
+                            This branch cannot be removed because at least one active branch must remain available.
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </form>
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="record-note">No branches are configured yet.</div>
+            {% endif %}
+        </article>
+    </section>
+
+    <section class="config-section-grid">
+        <article class="page-panel config-card">
+            <div class="config-card-head">
+                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("year", "icon") }}</span>Academic Year Management</h3>
+                <p>Open a new academic year in the required format and control which year is currently live across the system.</p>
+            </div>
+            <form method="post" action="/developer/open-academic-year">
+                <input type="hidden" name="return_to" value="/system-configuration">
+                <div class="field-grid">
+                    <div class="field">
+                        <label for="system_year_name">Open New Academic Year</label>
+                        <input id="system_year_name" type="text" name="year_name" placeholder="YYYY-YYYY (example: 2027-2028)" required>
+                    </div>
+                    <div class="field field-wide">
+                        <div class="field-note">Use the `YYYY-YYYY` format. If the year already exists, the system will reactivate it and set it as current instead of creating a duplicate.</div>
+                    </div>
+                </div>
+                <div class="action-row" style="margin-top: 12px;">
+                    <button class="btn btn-primary" type="submit">{{ icon("year", "icon") }} Open Academic Year</button>
+                </div>
+            </form>
+        </article>
+
+        <article class="page-panel config-card">
+            <div class="config-card-head">
+                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("save", "icon") }}</span>Current Academic Year</h3>
+                <p>System-wide year changes stay here so they are handled deliberately rather than as everyday quick settings.</p>
+            </div>
+            <div class="year-list">
+                {% for year in academic_year_rows %}
+                <article class="year-row {% if year.is_active %}is-active{% else %}is-inactive{% endif %}">
+                    <div class="year-row-copy">
+                        <strong>{{ year.year_name }}</strong>
+                        <p>{% if year.is_active %}This is the current live academic year used across the system.{% else %}Available to activate whenever you are ready to switch the system scope.{% endif %}</p>
+                    </div>
+                    <div class="year-row-actions">
+                        <span class="status-pill {% if year.is_active %}is-success{% else %}is-muted{% endif %}">
+                            {{ "Current" if year.is_active else "Inactive" }}
+                        </span>
+                        {% if not year.is_active %}
+                        <form method="post" action="/admin/current-year">
+                            <input type="hidden" name="return_to" value="/system-configuration">
+                            <input type="hidden" name="academic_year_id" value="{{ year.id }}">
+                            <button class="btn btn-secondary" type="submit">{{ icon("save", "icon") }} Set Current Year</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </article>
+    </section>
+
+    <section class="config-section-grid config-section-grid--support">
+        <article class="page-panel config-card">
+            <div class="config-card-head">
+                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("settings", "icon") }}</span>Future Configuration Modules</h3>
+                <p>This page is intentionally structured to grow into the long-term home for all developer-managed system configuration.</p>
+            </div>
+            <div class="future-grid">
+                <article class="future-card">
+                    <span>{{ icon("planning", "icon") }} Academic Structure</span>
+                    <h4>Grades, sections, and defaults</h4>
+                    <p>Reserved for future structure-level setup that should live outside daily operations.</p>
+                </article>
+                <article class="future-card">
+                    <span>{{ icon("subjects", "icon") }} Curriculum Rules</span>
+                    <h4>Subject setup and mappings</h4>
+                    <p>Ready for future subject-level standards, bundles, and validation rules.</p>
+                </article>
+                <article class="future-card">
+                    <span>{{ icon("report", "icon") }} System Preferences</span>
+                    <h4>Policy and behavior controls</h4>
+                    <p>Reserved for future grading rules, reporting preferences, and system-wide defaults.</p>
+                </article>
+            </div>
+        </article>
+
+        <article class="page-panel config-card">
+            <div class="config-card-head">
+                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("audit", "icon") }}</span>Developer Records</h3>
+                <p>Keep sensitive records and exports inside the dedicated developer-only settings area instead of the shared sidebar.</p>
+            </div>
+            <div class="records-grid">
+                <article class="records-card">
+                    <h4>Audit Log</h4>
+                    <p>Download the developer audit log in spreadsheet form for review and traceability.</p>
+                    <a class="btn btn-secondary" href="/admin/audit-log?format=xlsx">{{ icon("audit", "icon") }} Download Audit Log</a>
+                </article>
+                <article class="records-card">
+                    <h4>Allocation Report</h4>
+                    <p>Export the current allocation workbook directly from the same controlled page.</p>
+                    <a class="btn btn-secondary" href="/reports/allocation-plan.xlsx">{{ icon("report", "icon") }} Export Allocation Report</a>
+                </article>
+            </div>
+        </article>
+    </section>
+</section>
+{% endblock %}

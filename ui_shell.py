@@ -38,10 +38,20 @@ PAGE_META = {
         "intro": "Manage accounts, roles, and branch ownership using the same system-wide controls.",
         "icon": "users",
     },
+    "system-configuration": {
+        "eyebrow": "Developer Controls",
+        "title": "System Configuration",
+        "intro": "Manage branches, academic years, and future system-level modules from one controlled workspace.",
+        "icon": "settings",
+    },
 }
 
 
-def _build_nav_items(current_path: str, can_manage_users: bool):
+def _build_nav_items(
+    current_path: str,
+    can_manage_users: bool,
+    can_manage_system_settings: bool,
+):
     def is_active(target: str) -> bool:
         if target == "/dashboard":
             return current_path == "/dashboard"
@@ -81,6 +91,16 @@ def _build_nav_items(current_path: str, can_manage_users: bool):
                 "href": "/users",
                 "icon": "users",
                 "active": is_active("/users"),
+            }
+        )
+
+    if can_manage_system_settings:
+        items.append(
+            {
+                "label": "System Configuration",
+                "href": "/system-configuration",
+                "icon": "settings",
+                "active": is_active("/system-configuration"),
             }
         )
 
@@ -157,7 +177,11 @@ def build_shell_context(
             "page_intro": intro or meta.get("intro", ""),
             "page_icon": icon or meta.get("icon", "dashboard"),
             "current_path": request.url.path,
-            "nav_items": _build_nav_items(request.url.path, can_manage_users),
+            "nav_items": _build_nav_items(
+                request.url.path,
+                can_manage_users,
+                can_manage_system_settings,
+            ),
             "user_name": f"{current_user.first_name} {current_user.last_name}".strip(),
             "role_label": effective_role,
             "user_image_url": profile_image_url,

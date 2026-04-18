@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260409a">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260418a">
     {% block page_styles %}{% endblock %}
 </head>
 <body>
@@ -57,80 +57,6 @@
                     {% endfor %}
                 </nav>
             </section>
-
-            {% if shell.can_manage_system_settings %}
-            <section class="sidebar-section">
-                <h3 class="sidebar-section-title">Configuration</h3>
-                <div class="sidebar-config">
-                    <div class="sidebar-config-card">
-                        <h3>Scope Controls</h3>
-                        <p>Switch branch and year scope without leaving the current screen.</p>
-
-                        <form method="post" action="/scope/branch">
-                            <label for="shell_scope_branch_id">Branch Scope</label>
-                            <div class="sidebar-config-row">
-                                <select id="shell_scope_branch_id" name="branch_id" required>
-                                    {% for branch_item in shell.available_scope_branches %}
-                                    <option value="{{ branch_item.id }}" {% if shell.scoped_branch_id == branch_item.id %}selected{% endif %}>{{ branch_item.name }}</option>
-                                    {% endfor %}
-                                </select>
-                                <button class="sidebar-config-btn" type="submit">{{ icon("branch", "shell-icon") }} Switch Branch</button>
-                            </div>
-                        </form>
-
-                        <form method="post" action="/scope/academic-year" style="margin-top: 10px;">
-                            <label for="shell_scope_academic_year_id">Year Scope</label>
-                            <div class="sidebar-config-row">
-                                <select id="shell_scope_academic_year_id" name="academic_year_id" required>
-                                    {% for year in shell.all_years %}
-                                    <option value="{{ year.id }}" {% if shell.scoped_academic_year_id == year.id %}selected{% endif %}>
-                                        {{ year.year_name }}{% if shell.active_year_id == year.id %} (Current){% endif %}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                                <button class="sidebar-config-btn" type="submit">{{ icon("year", "shell-icon") }} Switch Year</button>
-                            </div>
-                        </form>
-                    </div>
-
-                    <div class="sidebar-config-card">
-                        <h3>Academic Year Setup</h3>
-                        <p>Choose the live year or open a new one directly from the same left-side control area.</p>
-
-                        <form method="post" action="/admin/current-year">
-                            <label for="shell_current_year_id">Current Academic Year</label>
-                            <div class="sidebar-config-row">
-                                <select id="shell_current_year_id" name="academic_year_id" required>
-                                    {% for year in shell.all_years %}
-                                    <option value="{{ year.id }}" {% if shell.active_year_id == year.id %}selected{% endif %}>
-                                        {{ year.year_name }}{% if shell.active_year_id == year.id %} (Current){% endif %}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                                <button class="sidebar-config-btn" type="submit">{{ icon("save", "shell-icon") }} Set Current Year</button>
-                            </div>
-                        </form>
-
-                        <form method="post" action="/developer/open-academic-year" style="margin-top: 10px;">
-                            <label for="shell_year_name">Open New Academic Year</label>
-                            <div class="sidebar-config-row">
-                                <input id="shell_year_name" type="text" name="year_name" placeholder="YYYY-YYYY (example: 2026-2027)" required>
-                                <button class="sidebar-config-btn" type="submit">{{ icon("year", "shell-icon") }} Open New Year</button>
-                            </div>
-                        </form>
-                    </div>
-
-                    <div class="sidebar-config-card">
-                        <h3>Audit & Reports</h3>
-                        <p>Download admin-level history and the current allocation report from the same system panel.</p>
-                        <div class="sidebar-config-row">
-                            <a class="sidebar-config-link" href="/admin/audit-log?format=xlsx">{{ icon("audit", "shell-icon") }} Download Audit Log</a>
-                            <a class="sidebar-config-link" href="/reports/allocation-plan.xlsx">{{ icon("report", "shell-icon") }} Export Allocation Report</a>
-                        </div>
-                    </div>
-                </div>
-            </section>
-            {% endif %}
 
             <div class="sidebar-footer">
                 <div class="sidebar-account">
@@ -191,8 +117,22 @@
                             <strong>{{ shell.role_label or "System User" }}</strong>
                         </div>
                     </div>
-                    {% if header_actions | trim %}
+                    {% if (shell.can_manage_system_settings and shell.available_scope_branches) or header_actions | trim %}
                     <div class="header-actions">
+                        {% if shell.can_manage_system_settings and shell.available_scope_branches %}
+                        <form class="header-branch-switch" method="post" action="/scope/branch">
+                            <input type="hidden" name="return_to" value="{{ request.url.path }}">
+                            <label class="header-branch-switch-label" for="header_scope_branch_id">{{ icon("branch", "shell-icon") }} Quick Branch Switch</label>
+                            <div class="header-branch-switch-row">
+                                <select id="header_scope_branch_id" name="branch_id" required>
+                                    {% for branch_item in shell.available_scope_branches %}
+                                    <option value="{{ branch_item.id }}" {% if shell.scoped_branch_id == branch_item.id %}selected{% endif %}>{{ branch_item.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button class="shell-action" type="submit">{{ icon("branch", "shell-icon") }} Switch Branch</button>
+                            </div>
+                        </form>
+                        {% endif %}
                         {{ header_actions | safe }}
                     </div>
                     {% endif %}

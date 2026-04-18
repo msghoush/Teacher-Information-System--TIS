@@ -106,7 +106,7 @@ def _split_utc_timestamp(timestamp_value: Any) -> tuple[str, str]:
 
 
 def _extract_numeric_id(path: str) -> str:
-    match = re.search(r"/(\d+)$", path)
+    match = re.search(r"/(\d+)(?:/[^/]+)?$", path)
     return match.group(1) if match else ""
 
 
@@ -127,6 +127,14 @@ def _classify_action(method: str, path: str) -> str:
         return "Switch Academic Year Scope"
     if method == "GET" and path == "/admin/audit-log":
         return "Download Audit Log"
+    if method == "GET" and path == "/system-configuration":
+        return "View System Configuration"
+    if method == "POST" and path == "/system-configuration/branches":
+        return "Create Branch"
+    if method == "POST" and path.startswith("/system-configuration/branches/") and path.endswith("/delete"):
+        return "Delete Branch"
+    if method == "POST" and path.startswith("/system-configuration/branches/"):
+        return "Update Branch"
     if method == "GET" and path == "/reports/allocation-plan.xlsx":
         return "Download Allocation Plan"
 
@@ -201,6 +209,8 @@ def _build_action_details(event: Dict[str, Any], action: str) -> str:
         "Delete User",
         "Update User",
         "Open User Edit",
+        "Delete Branch",
+        "Update Branch",
     }:
         details.append(f"Target ID: {target_id}")
 

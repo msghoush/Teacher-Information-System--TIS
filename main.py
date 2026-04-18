@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect, text, func
 from datetime import datetime
 import io
 import math
@@ -252,6 +252,69 @@ def _redirect_with_notice(path: str, notice: str):
         url=f"{safe_path}{separator}notice={quote_plus(str(notice or '').strip())}",
         status_code=302,
     )
+
+
+def _redirect_with_error(path: str, error: str):
+    safe_path = _safe_redirect_path(path)
+    separator = "&" if "?" in safe_path else "?"
+    return RedirectResponse(
+        url=f"{safe_path}{separator}error={quote_plus(str(error or '').strip())}",
+        status_code=302,
+    )
+
+
+def _branch_usage_counts(db: Session, branch_id: int) -> dict[str, int]:
+    return {
+        "users_count": db.query(models.User).filter(
+            models.User.branch_id == branch_id
+        ).count(),
+        "subjects_count": db.query(models.Subject).filter(
+            models.Subject.branch_id == branch_id
+        ).count(),
+        "teachers_count": db.query(models.Teacher).filter(
+            models.Teacher.branch_id == branch_id
+        ).count(),
+        "planning_sections_count": db.query(models.PlanningSection).filter(
+            models.PlanningSection.branch_id == branch_id
+        ).count(),
+    }
+
+
+def _build_branch_configuration_rows(
+    db: Session,
+    *,
+    scoped_branch_id: int | None = None,
+) -> list[dict[str, object]]:
+    branch_rows = []
+    branches = db.query(models.Branch).order_by(
+        models.Branch.status.desc(),
+        models.Branch.name.asc(),
+    ).all()
+    active_branch_count = sum(1 for branch in branches if bool(branch.status))
+
+    for branch in branches:
+        usage_counts = _branch_usage_counts(db, branch.id)
+        linked_records_count = sum(int(value or 0) for value in usage_counts.values())
+        can_delete = linked_records_count == 0 and (
+            not bool(branch.status) or active_branch_count > 1
+        )
+        can_deactivate = not bool(branch.status) or active_branch_count > 1
+
+        branch_rows.append(
+            {
+                "id": branch.id,
+                "name": str(branch.name or "").strip(),
+                "location": str(branch.location or "").strip(),
+                "status": bool(branch.status),
+                "is_current_scope": scoped_branch_id == branch.id,
+                "usage_counts": usage_counts,
+                "linked_records_count": linked_records_count,
+                "can_delete": can_delete,
+                "can_deactivate": can_deactivate,
+            }
+        )
+
+    return branch_rows
 
 
 def _resolve_client_ip(request: Request) -> str:
@@ -4217,12 +4280,235 @@ def download_audit_log(
 
 
 # ---------------------------------------
+# DEVELOPER: SYSTEM CONFIGURATION
+# ---------------------------------------
+@app.get("/system-configuration")
+def system_configuration(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    if not auth.can_manage_system_settings(current_user):
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    scoped_branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    branch_rows = _build_branch_configuration_rows(
+        db,
+        scoped_branch_id=scoped_branch_id,
+    )
+    active_branch_count = sum(1 for row in branch_rows if row["status"])
+    inactive_branch_count = len(branch_rows) - active_branch_count
+    academic_year_rows = db.query(models.AcademicYear).order_by(
+        models.AcademicYear.year_name.desc()
+    ).all()
+    active_year = next(
+        (year for year in academic_year_rows if bool(year.is_active)),
+        None,
+    )
+    error_message = str(request.query_params.get("error", "") or "").strip()
+
+    return templates.TemplateResponse(
+        request,
+        "system_configuration.html",
+        {
+            "request": request,
+            "user": current_user,
+            "error_message": error_message,
+            "branch_rows": branch_rows,
+            "branch_count": len(branch_rows),
+            "active_branch_count": active_branch_count,
+            "inactive_branch_count": inactive_branch_count,
+            "active_year": active_year,
+            "academic_year_rows": academic_year_rows,
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="system-configuration",
+            ),
+        },
+    )
+
+
+# ---------------------------------------
+# DEVELOPER: CREATE BRANCH
+# ---------------------------------------
+@app.post("/system-configuration/branches")
+def create_branch(
+    request: Request,
+    name: str = Form(...),
+    location: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user or not auth.can_manage_system_settings(current_user):
+        return RedirectResponse(url="/", status_code=302)
+
+    safe_return_to = "/system-configuration"
+    cleaned_name = " ".join(str(name or "").split())
+    cleaned_location = str(location or "").strip()
+
+    if not cleaned_name:
+        return _redirect_with_error(
+            safe_return_to,
+            "Branch name is required.",
+        )
+
+    existing_branch = db.query(models.Branch).filter(
+        func.lower(models.Branch.name) == cleaned_name.lower()
+    ).first()
+    if existing_branch:
+        return _redirect_with_error(
+            safe_return_to,
+            "A branch with that name already exists.",
+        )
+
+    db.add(
+        models.Branch(
+            name=cleaned_name,
+            location=cleaned_location or None,
+            status=True,
+        )
+    )
+    db.commit()
+
+    return _redirect_with_notice(
+        safe_return_to,
+        "Branch created successfully.",
+    )
+
+
+# ---------------------------------------
+# DEVELOPER: UPDATE BRANCH
+# ---------------------------------------
+@app.post("/system-configuration/branches/{branch_id}")
+def update_branch(
+    branch_id: int,
+    request: Request,
+    name: str = Form(...),
+    location: str = Form(""),
+    status: str = Form("active"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user or not auth.can_manage_system_settings(current_user):
+        return RedirectResponse(url="/", status_code=302)
+
+    safe_return_to = "/system-configuration"
+    branch_row = db.query(models.Branch).filter(
+        models.Branch.id == branch_id
+    ).first()
+    if not branch_row:
+        return _redirect_with_error(
+            safe_return_to,
+            "Branch record not found.",
+        )
+
+    cleaned_name = " ".join(str(name or "").split())
+    cleaned_location = str(location or "").strip()
+    normalized_status = str(status or "").strip().lower()
+    next_status = normalized_status != "inactive"
+
+    if not cleaned_name:
+        return _redirect_with_error(
+            safe_return_to,
+            "Branch name is required.",
+        )
+
+    duplicate_branch = db.query(models.Branch).filter(
+        func.lower(models.Branch.name) == cleaned_name.lower(),
+        models.Branch.id != branch_id,
+    ).first()
+    if duplicate_branch:
+        return _redirect_with_error(
+            safe_return_to,
+            "Another branch already uses that name.",
+        )
+
+    active_branch_count = db.query(models.Branch).filter(
+        models.Branch.status == True
+    ).count()
+    if (
+        branch_row.status
+        and not next_status
+        and active_branch_count <= 1
+    ):
+        return _redirect_with_error(
+            safe_return_to,
+            "At least one active branch must remain available.",
+        )
+
+    branch_row.name = cleaned_name
+    branch_row.location = cleaned_location or None
+    branch_row.status = next_status
+    db.commit()
+
+    return _redirect_with_notice(
+        safe_return_to,
+        "Branch updated successfully.",
+    )
+
+
+# ---------------------------------------
+# DEVELOPER: DELETE BRANCH
+# ---------------------------------------
+@app.post("/system-configuration/branches/{branch_id}/delete")
+def delete_branch(
+    branch_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user or not auth.can_manage_system_settings(current_user):
+        return RedirectResponse(url="/", status_code=302)
+
+    safe_return_to = "/system-configuration"
+    branch_row = db.query(models.Branch).filter(
+        models.Branch.id == branch_id
+    ).first()
+    if not branch_row:
+        return _redirect_with_error(
+            safe_return_to,
+            "Branch record not found.",
+        )
+
+    usage_counts = _branch_usage_counts(db, branch_id)
+    linked_records_count = sum(int(value or 0) for value in usage_counts.values())
+    if linked_records_count > 0:
+        return _redirect_with_error(
+            safe_return_to,
+            "This branch is already linked to system records. Update or deactivate it instead of deleting it.",
+        )
+
+    active_branch_count = db.query(models.Branch).filter(
+        models.Branch.status == True
+    ).count()
+    if branch_row.status and active_branch_count <= 1:
+        return _redirect_with_error(
+            safe_return_to,
+            "At least one active branch must remain available.",
+        )
+
+    db.delete(branch_row)
+    db.commit()
+
+    return _redirect_with_notice(
+        safe_return_to,
+        "Branch deleted successfully.",
+    )
+
+
+# ---------------------------------------
 # ADMIN: SET CURRENT YEAR
 # ---------------------------------------
 @app.post("/admin/current-year")
 def set_current_year(
     request: Request,
     academic_year_id: int = Form(...),
+    return_to: str = Form("/dashboard"),
     db: Session = Depends(get_db)
 ):
     current_user = auth.get_current_user(request, db)
@@ -4235,7 +4521,10 @@ def set_current_year(
     ).first()
 
     if not target_year:
-        return RedirectResponse(url="/dashboard", status_code=302)
+        return RedirectResponse(
+            url=_safe_redirect_path(return_to),
+            status_code=302,
+        )
 
     db.query(models.AcademicYear).update(
         {models.AcademicYear.is_active: False},
@@ -4244,7 +4533,10 @@ def set_current_year(
     target_year.is_active = True
     db.commit()
 
-    response = RedirectResponse(url="/dashboard", status_code=302)
+    response = _redirect_with_notice(
+        return_to,
+        "Current academic year updated successfully.",
+    )
     response.set_cookie(
         key="academic_year_id",
         value=str(target_year.id),
@@ -4261,6 +4553,7 @@ def set_current_year(
 def open_new_academic_year(
     request: Request,
     year_name: str = Form(...),
+    return_to: str = Form("/dashboard"),
     db: Session = Depends(get_db)
 ):
     current_user = auth.get_current_user(request, db)
@@ -4269,7 +4562,10 @@ def open_new_academic_year(
 
     cleaned_year_name = year_name.strip()
     if not ACADEMIC_YEAR_NAME_PATTERN.match(cleaned_year_name):
-        return RedirectResponse(url="/dashboard", status_code=302)
+        return _redirect_with_error(
+            return_to,
+            "Academic year names must use the YYYY-YYYY format.",
+        )
 
     existing_year = db.query(models.AcademicYear).filter(
         models.AcademicYear.year_name == cleaned_year_name
@@ -4295,7 +4591,15 @@ def open_new_academic_year(
         db.commit()
         db.refresh(target_year)
 
-    response = RedirectResponse(url="/dashboard", status_code=302)
+    notice_message = (
+        "Academic year reactivated and set as current."
+        if existing_year
+        else "Academic year opened successfully."
+    )
+    response = _redirect_with_notice(
+        return_to,
+        notice_message,
+    )
     response.set_cookie(
         key="academic_year_id",
         value=str(target_year.id),
@@ -4312,6 +4616,7 @@ def open_new_academic_year(
 def set_scope_academic_year(
     request: Request,
     academic_year_id: int = Form(...),
+    return_to: str = Form("/dashboard"),
     db: Session = Depends(get_db)
 ):
     current_user = auth.get_current_user(request, db)
@@ -4326,9 +4631,15 @@ def set_scope_academic_year(
         models.AcademicYear.id == academic_year_id
     ).first()
     if not target_year:
-        return RedirectResponse(url="/dashboard", status_code=302)
+        return RedirectResponse(
+            url=_safe_redirect_path(return_to),
+            status_code=302,
+        )
 
-    response = RedirectResponse(url="/dashboard", status_code=302)
+    response = RedirectResponse(
+        url=_safe_redirect_path(return_to),
+        status_code=302,
+    )
     response.set_cookie(
         key="academic_year_id",
         value=str(target_year.id),
@@ -4345,6 +4656,7 @@ def set_scope_academic_year(
 def set_scope_branch(
     request: Request,
     branch_id: int = Form(...),
+    return_to: str = Form("/dashboard"),
     db: Session = Depends(get_db)
 ):
     current_user = auth.get_current_user(request, db)
@@ -4360,9 +4672,15 @@ def set_scope_branch(
         models.Branch.status == True
     ).first()
     if not target_branch:
-        return RedirectResponse(url="/dashboard", status_code=302)
+        return RedirectResponse(
+            url=_safe_redirect_path(return_to),
+            status_code=302,
+        )
 
-    response = RedirectResponse(url="/dashboard", status_code=302)
+    response = RedirectResponse(
+        url=_safe_redirect_path(return_to),
+        status_code=302,
+    )
     response.set_cookie(
         key="branch_id",
         value=str(target_branch.id),
