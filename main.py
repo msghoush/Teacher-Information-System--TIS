@@ -885,13 +885,34 @@ def _build_reporting_context_from_section_assignments(
         subject_contributors = []
         for contributor in actual_teacher_contributors_by_subject.get(subject_key, {}).values():
             contributor_allocated_hours = int(contributor.get("allocated_hours", 0))
-            contributor_share = (
-                min(
-                    round(
-                        (contributor_allocated_hours / REPORT_STANDARD_MAX_HOURS)
-                        * 100
-                    ),
-                    100,
+            contributor_teacher_id = contributor.get("teacher_id")
+            total_teacher_allocated_hours = int(
+                actual_hours_by_teacher.get(
+                    contributor_teacher_id,
+                    contributor_allocated_hours,
+                )
+            )
+            other_subject_hours = max(
+                total_teacher_allocated_hours - contributor_allocated_hours,
+                0,
+            )
+            current_subject_share = (
+                round(
+                    (contributor_allocated_hours / REPORT_STANDARD_MAX_HOURS)
+                    * 100
+                )
+                if REPORT_STANDARD_MAX_HOURS > 0
+                else 0
+            )
+            other_subject_share = (
+                round((other_subject_hours / REPORT_STANDARD_MAX_HOURS) * 100)
+                if REPORT_STANDARD_MAX_HOURS > 0
+                else 0
+            )
+            total_load_share = (
+                round(
+                    (total_teacher_allocated_hours / REPORT_STANDARD_MAX_HOURS)
+                    * 100
                 )
                 if REPORT_STANDARD_MAX_HOURS > 0
                 else 0
@@ -908,13 +929,19 @@ def _build_reporting_context_from_section_assignments(
             ]
             subject_contributors.append(
                 {
-                    "teacher_id": contributor.get("teacher_id"),
+                    "teacher_id": contributor_teacher_id,
                     "teacher_name": contributor.get("teacher_name", "-"),
                     "allocated_hours": contributor_allocated_hours,
-                    "share_percentage": contributor_share,
+                    "current_subject_hours": contributor_allocated_hours,
+                    "other_allocated_hours": other_subject_hours,
+                    "total_allocated_hours": total_teacher_allocated_hours,
+                    "share_percentage": min(total_load_share, 100),
+                    "current_share_percentage": min(current_subject_share, 100),
+                    "other_share_percentage": min(other_subject_share, 100),
+                    "total_share_percentage": total_load_share,
                     "capacity_hours": REPORT_STANDARD_MAX_HOURS,
                     "remaining_capacity_hours": max(
-                        REPORT_STANDARD_MAX_HOURS - contributor_allocated_hours,
+                        REPORT_STANDARD_MAX_HOURS - total_teacher_allocated_hours,
                         0,
                     ),
                     "section_labels": section_details,

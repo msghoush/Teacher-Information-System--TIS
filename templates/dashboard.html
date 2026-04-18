@@ -2031,6 +2031,7 @@
         }
 
         .report-contributor-track {
+            display: flex;
             height: 10px;
             border-radius: 999px;
             background: linear-gradient(90deg, #e6eef8, #d9e5f4);
@@ -2040,10 +2041,17 @@
 
         .report-contributor-fill {
             height: 100%;
-            border-radius: inherit;
-            background: linear-gradient(90deg, #0a4ea3, #3d8df5);
+            flex-shrink: 0;
             transform-origin: left center;
             animation: reportBarReveal 900ms ease both;
+        }
+
+        .report-contributor-fill.is-other {
+            background: linear-gradient(90deg, #7c3aed, #a78bfa);
+        }
+
+        .report-contributor-fill.is-current {
+            background: linear-gradient(90deg, #0a4ea3, #3d8df5);
         }
 
         .report-contributor-capacity {
@@ -3177,13 +3185,25 @@
                                             <div class="report-contributor-chip">
                                                 <div class="report-contributor-meta">
                                                     <span>{{ contributor.teacher_name }}</span>
-                                                    <strong>{{ contributor.allocated_hours }}/{{ contributor.capacity_hours }}h</strong>
+                                                    <strong>{{ contributor.current_subject_hours }}h here • {{ contributor.total_allocated_hours }}/{{ contributor.capacity_hours }}h total</strong>
                                                 </div>
-                                                <div class="report-contributor-track" title="{{ contributor.share_percentage }}% of 24h capacity used">
-                                                    <div class="report-contributor-fill" style="width: {{ contributor.share_percentage }}%;"></div>
+                                                <div class="report-contributor-track" title="{{ contributor.current_subject_hours }}h from {{ row.subject_name }} • {{ contributor.other_allocated_hours }}h from other subjects • {{ contributor.remaining_capacity_hours }}h free">
+                                                    {% if contributor.other_share_percentage > 0 %}
+                                                    <div class="report-contributor-fill is-other" style="width: {{ contributor.other_share_percentage }}%;"></div>
+                                                    {% endif %}
+                                                    {% if contributor.current_share_percentage > 0 %}
+                                                    <div class="report-contributor-fill is-current" style="width: {{ contributor.current_share_percentage }}%;"></div>
+                                                    {% endif %}
                                                 </div>
                                                 <div class="report-contributor-capacity">
-                                                    <span><strong>{{ contributor.share_percentage }}%</strong> of 24h load</span>
+                                                    <span><strong>{{ contributor.total_share_percentage }}%</strong> of 24h load</span>
+                                                    <span>
+                                                        {% if contributor.other_allocated_hours > 0 %}
+                                                        {{ contributor.current_subject_hours }}h here • {{ contributor.other_allocated_hours }}h other
+                                                        {% else %}
+                                                        {{ contributor.current_subject_hours }}h from this subject
+                                                        {% endif %}
+                                                    </span>
                                                     <span>
                                                         {% if contributor.remaining_capacity_hours > 0 %}
                                                         {{ contributor.remaining_capacity_hours }}h free
