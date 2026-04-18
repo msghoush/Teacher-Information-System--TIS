@@ -2098,13 +2098,7 @@
                             {% if can_delete %}
                             <span class="title-actions">
                                 <button id="bulkDeleteTrigger" class="icon-action icon-action-danger" type="submit" form="bulkDeleteForm" aria-label="Delete selected teachers" title="Select teachers from the table to delete">
-                                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                        <path d="M3 6h18"></path>
-                                        <path d="M19 6 18 20H6L5 6"></path>
-                                        <path d="M9 10v6"></path>
-                                        <path d="M15 10v6"></path>
-                                        <path d="M10 6V4h4v2"></path>
-                                    </svg>
+                                    {{ icon("trash", "icon") }}
                                 </button>
                             </span>
                             {% endif %}
@@ -2253,21 +2247,12 @@
                                 <td class="row-actions">
                                     {% if can_edit %}
                                     <a class="icon-action row-action row-action-edit" href="/teachers/edit/{{ teacher.id }}" aria-label="Edit teacher {{ teacher.first_name }} {{ teacher.last_name }}" title="Edit teacher">
-                                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                            <path d="M12 20h9"></path>
-                                            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
-                                        </svg>
+                                        {{ icon("edit", "icon") }}
                                     </a>
                                     {% endif %}
                                     {% if can_delete %}
                                     <a class="icon-action row-action row-action-delete" href="/teachers/delete/{{ teacher.id }}" aria-label="Delete teacher {{ teacher.first_name }} {{ teacher.last_name }}" title="Delete teacher" onclick="return confirm('Delete this teacher record?');">
-                                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                            <path d="M3 6h18"></path>
-                                            <path d="M19 6 18 20H6L5 6"></path>
-                                            <path d="M9 10v6"></path>
-                                            <path d="M15 10v6"></path>
-                                            <path d="M10 6V4h4v2"></path>
-                                        </svg>
+                                        {{ icon("trash", "icon") }}
                                     </a>
                                     {% endif %}
                                 </td>

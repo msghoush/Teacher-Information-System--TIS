@@ -89,8 +89,8 @@
         }
 
         .tab-icon {
-            width: 14px;
-            height: 14px;
+            width: 16px;
+            height: 16px;
             stroke: currentColor;
             fill: none;
             stroke-width: 1.8;
@@ -955,6 +955,32 @@
             letter-spacing: 0.08em;
             background: #f4f8ff;
             border: 1px solid #d6e3f5;
+        }
+
+        .report-heading {
+            margin: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            width: fit-content;
+        }
+
+        .report-heading-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 10px;
+        }
+
+        .report-donut-heading .report-heading-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 8px;
+            box-shadow: none;
+        }
+
+        .report-heading-label {
+            display: inline-block;
+            line-height: 1.2;
         }
 
         .report-chart-list {
@@ -2636,48 +2662,25 @@
         <section class="workspace">
             <div class="tabs">
                 <button class="tab active" type="button" data-panel="subjects">
-                    <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-                        <path d="M6.5 3H20v18H6.5A2.5 2.5 0 0 1 4 18.5v-13A2.5 2.5 0 0 1 6.5 3z"></path>
-                    </svg>
+                    {{ icon("subjects", "tab-icon") }}
                     <span>Subjects</span>
                 </button>
                 <button class="tab" type="button" data-panel="teachers">
-                    <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="9" cy="7" r="4"></circle>
-                        <path d="M20 8v6"></path>
-                        <path d="M23 11h-6"></path>
-                    </svg>
+                    {{ icon("teachers", "tab-icon") }}
                     <span>Teachers</span>
                 </button>
                 {% if is_admin %}
                 <button class="tab" type="button" data-panel="users">
-                    <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="9" cy="7" r="4"></circle>
-                        <path d="M22 21v-2a4 4 0 0 0-3-3.9"></path>
-                        <path d="M16 3.1a4 4 0 0 1 0 7.8"></path>
-                    </svg>
+                    {{ icon("users", "tab-icon") }}
                     <span>Users</span>
                 </button>
                 {% endif %}
                 <button class="tab" type="button" data-panel="planning">
-                    <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M8 6h13"></path>
-                        <path d="M8 12h13"></path>
-                        <path d="M8 18h13"></path>
-                        <path d="M3 6h.01"></path>
-                        <path d="M3 12h.01"></path>
-                        <path d="M3 18h.01"></path>
-                    </svg>
+                    {{ icon("planning", "tab-icon") }}
                     <span>Planning</span>
                 </button>
                 <button class="tab" type="button" data-panel="reports">
-                    <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M3 3v18h18"></path>
-                        <path d="M7 13l3-3 3 2 4-5"></path>
-                    </svg>
+                    {{ icon("report", "tab-icon") }}
                     <span>Reports</span>
                 </button>
             </div>
@@ -2688,14 +2691,7 @@
                         <div class="panel-title">
                             <h3 class="section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Subjects Workspace</h3>
                             <a class="icon-action" href="/subjects" aria-label="Open subjects quick actions" title="Open subjects quick actions">
-                                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M8 6h10"></path>
-                                    <path d="M8 12h10"></path>
-                                    <path d="M8 18h10"></path>
-                                    <path d="M4 6h.01"></path>
-                                    <path d="M4 12h.01"></path>
-                                    <path d="M4 18h.01"></path>
-                                </svg>
+                                {{ icon("open", "icon") }}
                             </a>
                         </div>
                         <p>Manage curriculum subjects for your current branch and academic year.</p>
@@ -2791,12 +2787,7 @@
                         <div class="panel-title">
                             <h3 class="section-heading"><span class="section-heading-icon">{{ icon("teachers", "icon") }}</span>Teachers Workspace</h3>
                             <a class="icon-action" href="/teachers" aria-label="Open teachers quick actions" title="Open teachers quick actions">
-                                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                                    <circle cx="9" cy="7" r="4"></circle>
-                                    <path d="M20 8v6"></path>
-                                    <path d="M23 11h-6"></path>
-                                </svg>
+                                {{ icon("open", "icon") }}
                             </a>
                         </div>
                         <p>Manage teaching staff assigned to this branch and year.</p>
@@ -2837,12 +2828,7 @@
                         <div class="panel-title">
                             <h3 class="section-heading"><span class="section-heading-icon">{{ icon("users", "icon") }}</span>Users Workspace</h3>
                             <a class="icon-action" href="/users" aria-label="Open users quick actions" title="Open users quick actions">
-                                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                                    <circle cx="9" cy="7" r="4"></circle>
-                                    <path d="M22 21v-2a4 4 0 0 0-3-3.9"></path>
-                                    <path d="M16 3.1a4 4 0 0 1 0 7.8"></path>
-                                </svg>
+                                {{ icon("open", "icon") }}
                             </a>
                         </div>
                         <p>Manage non-teacher users, roles, and branch assignments across all academic years.</p>
@@ -2883,14 +2869,7 @@
                         <div class="panel-title">
                             <h3 class="section-heading"><span class="section-heading-icon">{{ icon("planning", "icon") }}</span>Planning Workspace</h3>
                             <a class="icon-action" href="/planning" aria-label="Open planning quick actions" title="Open planning quick actions">
-                                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path d="M8 6h13"></path>
-                                    <path d="M8 12h13"></path>
-                                    <path d="M8 18h13"></path>
-                                    <path d="M3 6h.01"></path>
-                                    <path d="M3 12h.01"></path>
-                                    <path d="M3 18h.01"></path>
-                                </svg>
+                                {{ icon("open", "icon") }}
                             </a>
                         </div>
                         <p>Interactive planning will calculate teacher load and section demand.</p>
@@ -2932,11 +2911,11 @@
                 {% if report_summary.total_required_hours > 0 %}
                 <div class="report-visual-grid">
                     <div class="report-visual-card">
-                        <h4 class="section-heading"><span class="section-heading-icon">{{ icon("sparkles", "icon") }}</span>Executive Coverage Snapshot</h4>
+                        <h4 class="section-heading"><span class="section-heading-icon">{{ icon("insights", "icon") }}</span>Executive Coverage Snapshot</h4>
                         <p>Polished donut views summarize section coverage, section mix, and the hiring plan using whole teachers plus any remaining uncovered hours.</p>
                         <div class="report-donut-grid">
                             <div class="report-donut-card" title="Coverage across all required section-hours in the current planning scope.">
-                                <h5>{{ icon("report", "icon") }} Coverage</h5>
+                                <h5 class="report-donut-heading"><span class="section-heading-icon report-heading-icon">{{ icon("report", "icon") }}</span><span class="report-heading-label">Coverage</span></h5>
                                 <div class="report-donut-wrap">
                                     <div class="report-donut-shell" style="--donut-primary: #0a4ea3; --donut-secondary: #d9e3f1; --donut-target: {{ report_visuals.coverage_pct }};">
                                         <div class="report-donut-center">
@@ -2961,7 +2940,7 @@
                                 </div>
                             </div>
                             <div class="report-donut-card" title="Distribution of current versus new sections in the selected scope.">
-                                <h5>{{ icon("year", "icon") }} Section Mix</h5>
+                                <h5 class="report-donut-heading"><span class="section-heading-icon report-heading-icon">{{ icon("planning", "icon") }}</span><span class="report-heading-label">Section Mix</span></h5>
                                 <div class="report-donut-wrap">
                                     <div class="report-donut-shell" style="--donut-primary: #0f7f7a; --donut-secondary: #c79a14; --donut-target: {{ report_visuals.current_section_pct }};">
                                         <div class="report-donut-center">
@@ -2986,7 +2965,7 @@
                                 </div>
                             </div>
                             <div class="report-donut-card" title="Whole-teacher hiring view: uncovered hours are grouped into 24-hour hires, with any remaining uncovered hours shown separately.">
-                                <h5>{{ icon("teachers", "icon") }} Staffing Plan</h5>
+                                <h5 class="report-donut-heading"><span class="section-heading-icon report-heading-icon">{{ icon("teachers", "icon") }}</span><span class="report-heading-label">Staffing Plan</span></h5>
                                 <div class="report-donut-wrap">
                                     <div class="report-donut-shell" style="--donut-primary: #3158cf; --donut-secondary: #c98a08; --donut-target: {{ report_visuals.existing_teacher_pct }};">
                                         <div class="report-donut-center">
@@ -3013,7 +2992,7 @@
                         </div>
                     </div>
                     <div class="report-visual-card">
-                        <h4>{{ icon("report", "icon") }} Uncovered Hours</h4>
+                        <h4 class="report-heading"><span class="section-heading-icon report-heading-icon">{{ icon("warning", "icon") }}</span><span class="report-heading-label">Uncovered Hours</span></h4>
                         <p>All subjects that still have uncovered hours, based on the current reporting and assignment data.</p>
                         {% if report_visuals.top_subject_gap %}
                         <div class="report-chart-list">
@@ -3113,7 +3092,7 @@
                     <div class="report-card report-card-subjects">
                         <div class="report-card-head">
                             <div class="report-card-head-copy">
-                                <h4>{{ icon("subjects", "icon") }} Subject Sufficiency Breakdown</h4>
+                                <h4 class="report-heading"><span class="section-heading-icon report-heading-icon">{{ icon("subjects", "icon") }}</span><span class="report-heading-label">Subject Sufficiency Breakdown</span></h4>
                                 <p>Each subject is summarized through a quick visual coverage view, compact executive metrics, and a focused open-sections panel.</p>
                             </div>
                             <span class="report-card-tag">{{ report_subject_count or report_subject_rows|length }} subjects</span>

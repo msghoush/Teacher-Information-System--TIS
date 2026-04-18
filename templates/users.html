@@ -586,7 +586,7 @@
 {% block content %}
 <section class="grid">
             <article class="card">
-                <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("add", "icon") }}</span>Add User</span></h2>
+                <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("user-plus", "icon") }}</span>Add User</span></h2>
                 <p>Add Academic Supervisor, Principal, Vice Principal, or Education Excellence staff users.</p>
 
                 {% if success %}
@@ -651,7 +651,7 @@
                             <input id="password" type="password" name="password" autocomplete="new-password" value="" required>
                         </div>
                     </div>
-                    <button class="btn-save" type="submit">{{ icon("add", "icon") }} Create User</button>
+                    <button class="btn-save" type="submit">{{ icon("user-plus", "icon") }} Create User</button>
                 </form>
             </article>
 
@@ -663,13 +663,7 @@
                             {% if can_edit_user_accounts %}
                             <span class="title-actions">
                                 <button id="bulkDeleteTrigger" class="icon-action icon-action-danger" type="submit" form="bulkDeleteForm" aria-label="Delete selected users" title="Select users from the table to delete">
-                                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                        <path d="M3 6h18"></path>
-                                        <path d="M19 6 18 20H6L5 6"></path>
-                                        <path d="M9 10v6"></path>
-                                        <path d="M15 10v6"></path>
-                                        <path d="M10 6V4h4v2"></path>
-                                    </svg>
+                                    {{ icon("trash", "icon") }}
                                 </button>
                             </span>
                             {% endif %}
@@ -721,19 +715,10 @@
                                 <td class="row-actions">
                                     {% if row.id in manageable_user_ids %}
                                     <a class="icon-action row-action row-action-edit" href="/users/edit/{{ row.id }}" aria-label="Edit user {{ row.first_name }} {{ row.last_name }}" title="Edit user">
-                                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                            <path d="M12 20h9"></path>
-                                            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
-                                        </svg>
+                                        {{ icon("edit", "icon") }}
                                     </a>
                                     <a class="icon-action row-action row-action-delete" href="/users/delete/{{ row.id }}" aria-label="Delete user {{ row.first_name }} {{ row.last_name }}" title="Delete user" onclick="return confirm('Delete this user?');">
-                                        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                            <path d="M3 6h18"></path>
-                                            <path d="M19 6 18 20H6L5 6"></path>
-                                            <path d="M9 10v6"></path>
-                                            <path d="M15 10v6"></path>
-                                            <path d="M10 6V4h4v2"></path>
-                                        </svg>
+                                        {{ icon("trash", "icon") }}
                                     </a>
                                     {% else %}
                                     <span class="row-readonly">No actions</span>
@@ -758,11 +743,7 @@
         <div id="bulkDeleteModalCard" class="modal-card" tabindex="-1">
             <div class="modal-head">
                 <span class="warning-icon-wrap" aria-hidden="true">
-                    <svg class="icon" viewBox="0 0 24 24">
-                        <path d="M12 9v4"></path>
-                        <path d="M12 17h.01"></path>
-                        <path d="M10.3 3.9 2.8 18a2 2 0 0 0 1.8 3h14.8a2 2 0 0 0 1.8-3l-7.5-14.1a2 2 0 0 0-3.5 0Z"></path>
-                    </svg>
+                    {{ icon("warning", "icon") }}
                 </span>
                 <h3 id="bulkDeleteModalTitle">Confirm Bulk Delete</h3>
             </div>

@@ -107,7 +107,7 @@
                                     </option>
                                     {% endfor %}
                                 </select>
-                                <button class="sidebar-config-btn" type="submit">{{ icon("settings", "shell-icon") }} Set Current Year</button>
+                                <button class="sidebar-config-btn" type="submit">{{ icon("save", "shell-icon") }} Set Current Year</button>
                             </div>
                         </form>
 
@@ -155,7 +155,7 @@
                                 data-auto-submit-file-input
                             >
                             <label class="sidebar-photo-trigger" for="sidebar_profile_photo">
-                                {{ icon("settings", "shell-icon") }}
+                                {{ icon("camera", "shell-icon") }}
                                 {{ "Change photo" if shell.user_image_url else "Add photo" }}
                             </label>
                             <small class="sidebar-photo-help">PNG, JPG, GIF, or WEBP up to 3 MB</small>
@@ -200,7 +200,7 @@
             </header>
 
             {% if shell.notice %}
-            <div class="shell-notice">{{ icon("settings", "shell-icon") }} {{ shell.notice }}</div>
+            <div class="shell-notice">{{ icon("info", "shell-icon") }} {{ shell.notice }}</div>
             {% endif %}
 
             <main class="page-stage">
