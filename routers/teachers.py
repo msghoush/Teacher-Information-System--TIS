@@ -186,6 +186,7 @@ def _get_subject_choices(db: Session, branch_id: int, academic_year_id: int):
         subject_color = resolve_subject_color(
             subject.subject_code,
             getattr(subject, "color", ""),
+            subject_name=subject.subject_name,
         )
         theme = build_subject_theme(subject_color)
         choices.append(

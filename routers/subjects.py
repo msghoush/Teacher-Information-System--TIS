@@ -111,10 +111,10 @@ def _grade_sheet_name(grade: int) -> str:
     return f"Grade {grade}"
 
 
-def _parse_subject_color(value, subject_code: str) -> str:
+def _parse_subject_color(value, subject_code: str, subject_name: str) -> str:
     cleaned_value = str(value or "").strip()
     if not cleaned_value:
-        return resolve_subject_color(subject_code)
+        return resolve_subject_color(subject_code, subject_name=subject_name)
     normalized_color = normalize_hex_color(cleaned_value)
     if normalized_color:
         return normalized_color
@@ -125,6 +125,7 @@ def _decorate_subject_record(subject):
     display_color = resolve_subject_color(
         getattr(subject, "subject_code", ""),
         getattr(subject, "color", ""),
+        subject_name=getattr(subject, "subject_name", ""),
     )
     theme = build_subject_theme(display_color)
     setattr(subject, "display_color", display_color)
@@ -436,6 +437,7 @@ def copy_subjects_from_year(
                 color=resolve_subject_color(
                     source_subject.subject_code,
                     getattr(source_subject, "color", ""),
+                    subject_name=source_subject.subject_name,
                 ),
                 branch_id=branch_id,
                 academic_year_id=target_academic_year_id,
@@ -482,8 +484,8 @@ def download_subject_template(
 
     headers = ["subject_code", "subject_name", "weekly_hours", "grade", "subject_color"]
     sheet.append(headers)
-    sheet.append(["ENG101", "English", 4, 5, resolve_subject_color("ENG101")])
-    sheet.append(["MAT102", "Mathematics", 5, 6, resolve_subject_color("MAT102")])
+    sheet.append(["ENG101", "English", 4, 5, resolve_subject_color("ENG101", subject_name="English")])
+    sheet.append(["MAT102", "Mathematics", 5, 6, resolve_subject_color("MAT102", subject_name="Mathematics")])
 
     header_fill = PatternFill(start_color="0F766E", end_color="0F766E", fill_type="solid")
     header_font = Font(color="FFFFFF", bold=True)
@@ -604,7 +606,11 @@ def export_subjects_excel(
                         subject.subject_name or "",
                         int(subject.weekly_hours or 0),
                         grade_label,
-                        resolve_subject_color(subject.subject_code or "", getattr(subject, "color", "")),
+                        resolve_subject_color(
+                            subject.subject_code or "",
+                            getattr(subject, "color", ""),
+                            subject_name=subject.subject_name,
+                        ),
                     ]
                 )
             _apply_alternating_rows(
@@ -779,7 +785,7 @@ def import_subjects(
             continue
 
         try:
-            subject_color = _parse_subject_color(raw_color, subject_code)
+            subject_color = _parse_subject_color(raw_color, subject_code, subject_name)
         except ValueError as exc:
             row_errors.append(f"Row {row_number}: {exc}")
             continue
@@ -922,7 +928,7 @@ def add_subject(
     new_subject = models.Subject(
         subject_code=subject_code,
         subject_name=subject_name,
-        color=resolve_subject_color(subject_code),
+        color=resolve_subject_color(subject_code, subject_name=subject_name),
         weekly_hours=weekly_hours,
         grade=grade,
         branch_id=branch_id,
@@ -1095,7 +1101,11 @@ def update_subject(
     previous_subject_code = subject.subject_code
     subject.subject_code = subject_code
     subject.subject_name = subject_name
-    subject.color = resolve_subject_color(subject_code, getattr(subject, "color", ""))
+    subject.color = resolve_subject_color(
+        subject_code,
+        getattr(subject, "color", ""),
+        subject_name=subject_name,
+    )
     subject.weekly_hours = weekly_hours
     subject.grade = grade
 

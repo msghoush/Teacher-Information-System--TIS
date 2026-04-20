@@ -69,13 +69,12 @@ def blend_hex_colors(start_color: str, end_color: str, ratio: float) -> str:
     )
 
 
-def generate_subject_color(subject_code: str) -> str:
-    normalized_code = normalize_subject_code(subject_code)
-    if not normalized_code:
+def _subject_color_from_token(token: str, prefix_seed: str) -> str:
+    if not token:
         return DEFAULT_SUBJECT_COLOR
 
-    prefix = re.sub(r"[^A-Z]", "", normalized_code)[:3]
-    digest = hashlib.sha1(normalized_code.encode("utf-8")).hexdigest()
+    prefix = re.sub(r"[^A-Z]", "", prefix_seed)[:3]
+    digest = hashlib.sha1(token.encode("utf-8")).hexdigest()
 
     hue_seed = int(digest[:8], 16)
     saturation_seed = int(digest[8:16], 16)
@@ -92,8 +91,38 @@ def generate_subject_color(subject_code: str) -> str:
     return _rgb_to_hex(red * 255, green * 255, blue * 255)
 
 
-def resolve_subject_color(subject_code: str, stored_color: str | None = None) -> str:
-    return normalize_hex_color(stored_color) or generate_subject_color(subject_code)
+def _subject_identity_token(subject_code: str, subject_name: str | None = None) -> str:
+    normalized_name = " ".join(str(subject_name or "").strip().upper().split())
+    if normalized_name:
+        return normalized_name
+
+    normalized_code = normalize_subject_code(subject_code)
+    if not normalized_code:
+        return ""
+
+    code_letters = re.sub(r"[^A-Z]", "", normalized_code)
+    return code_letters or normalized_code
+
+
+def generate_subject_color(subject_code: str, subject_name: str | None = None) -> str:
+    identity_token = _subject_identity_token(subject_code, subject_name=subject_name)
+    return _subject_color_from_token(identity_token, identity_token)
+
+
+def generate_subject_color_by_code(subject_code: str) -> str:
+    normalized_code = normalize_subject_code(subject_code)
+    return _subject_color_from_token(normalized_code, normalized_code)
+
+
+def resolve_subject_color(
+    subject_code: str,
+    stored_color: str | None = None,
+    subject_name: str | None = None,
+) -> str:
+    return normalize_hex_color(stored_color) or generate_subject_color(
+        subject_code,
+        subject_name=subject_name,
+    )
 
 
 def build_subject_theme(color_value: str | None) -> dict[str, str]:
