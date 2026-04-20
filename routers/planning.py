@@ -115,6 +115,7 @@ def _get_subject_alignment_map(db: Session, branch_id: int, academic_year_id: in
         subject_color = resolve_subject_color(
             subject.subject_code,
             getattr(subject, "color", ""),
+            subject_name=subject.subject_name,
         )
         theme = build_subject_theme(subject_color)
         alignment_map[grade_label].append(
@@ -355,7 +356,10 @@ def _build_section_assignment_rows(
                 "subject_code": subject_code,
                 "subject_name": subject.get("subject_name") or "Unnamed Subject",
                 "weekly_hours": int(subject.get("weekly_hours", 0) or 0),
-                "subject_color": subject.get("subject_color") or resolve_subject_color(subject_code),
+                "subject_color": subject.get("subject_color") or resolve_subject_color(
+                    subject_code,
+                    subject_name=subject.get("subject_name", ""),
+                ),
                 "subject_color_soft": subject.get("subject_color_soft", "#EDF4FF"),
                 "subject_color_text": subject.get("subject_color_text", "#1F3759"),
                 "teacher_options": subject_teacher_options.get(subject_code, []),

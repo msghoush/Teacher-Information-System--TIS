@@ -43,7 +43,13 @@ from homeroom_defaults import (
     is_homeroom_bundle_subject,
     is_lower_primary_homeroom_grade,
 )
-from subject_colors import build_subject_theme, resolve_subject_color, to_excel_hex
+from subject_colors import (
+    build_subject_theme,
+    generate_subject_color_by_code,
+    normalize_hex_color,
+    resolve_subject_color,
+    to_excel_hex,
+)
 
 # ---------------------------------------
 # Create Tables
@@ -158,11 +164,19 @@ def _backfill_subject_colors(db: Session):
     subjects = db.query(models.Subject).all()
     changes_made = False
     for subject in subjects:
-        resolved_color = resolve_subject_color(
-            getattr(subject, "subject_code", ""),
-            getattr(subject, "color", ""),
+        subject_code = getattr(subject, "subject_code", "")
+        subject_name = getattr(subject, "subject_name", "")
+        stored_color = normalize_hex_color(getattr(subject, "color", ""))
+        expected_color = resolve_subject_color(
+            subject_code,
+            subject_name=subject_name,
         )
-        if getattr(subject, "color", None) != resolved_color:
+        legacy_color = generate_subject_color_by_code(subject_code)
+        normalized_current_color = normalize_hex_color(getattr(subject, "color", ""))
+        resolved_color = stored_color
+        if stored_color is None or stored_color == legacy_color:
+            resolved_color = expected_color
+        if normalized_current_color != resolved_color:
             subject.color = resolved_color
             changes_made = True
 
@@ -725,6 +739,7 @@ def _build_reporting_context_from_section_assignments(
                 "subject_color": resolve_subject_color(
                     subject.subject_code or subject_key,
                     getattr(subject, "color", ""),
+                    subject_name=subject.subject_name,
                 ),
                 "weekly_hours": weekly_hours,
                 "primary_grade_label": grade_label,
@@ -1104,6 +1119,7 @@ def _build_reporting_context_from_section_assignments(
                 "subject_color": resolve_subject_color(
                     demand.get("subject_code", subject_key),
                     demand.get("subject_color", ""),
+                    subject_name=demand.get("subject_name", ""),
                 ),
                 "grades": grades,
                 "required_hours": required_hours,
@@ -1819,6 +1835,7 @@ def _build_reporting_context(
                 "subject_color": resolve_subject_color(
                     subject.subject_code or subject_key,
                     getattr(subject, "color", ""),
+                    subject_name=subject.subject_name,
                 ),
                 "weekly_hours": weekly_hours,
                 "primary_grade_label": grade_label,
@@ -2294,6 +2311,7 @@ def _build_reporting_context(
                 "subject_color": resolve_subject_color(
                     demand.get("subject_code", subject_key),
                     demand.get("subject_color", ""),
+                    subject_name=demand.get("subject_name", ""),
                 ),
                 "grades": grades,
                 "required_hours": required_hours,
@@ -2798,6 +2816,7 @@ def _build_report_subject_catalog(subjects):
         subject_color = resolve_subject_color(
             subject_code or subject_key,
             getattr(subject, "color", ""),
+            subject_name=subject_name,
         )
         theme = build_subject_theme(subject_color)
 
@@ -3336,13 +3355,9 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
         decorated_row = dict(row)
         remaining_hours = int(decorated_row.get("remaining_hours", 0))
         coverage_percentage = int(decorated_row.get("coverage_percentage", 0))
-        subject_color = resolve_subject_color(
-            decorated_row.get("subject_code", decorated_row.get("subject_key", "")),
-            decorated_row.get("subject_color", ""),
+        donut_primary_color, donut_secondary_color = _subject_coverage_donut_palette(
+            coverage_percentage
         )
-        subject_theme = build_subject_theme(subject_color)
-        donut_primary_color = subject_theme["accent"]
-        donut_secondary_color = subject_theme["soft"]
         teacher_blocks = int(
             decorated_row.get(
                 "teacher_requirement_blocks",
@@ -3366,13 +3381,28 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
         decorated_row["priority_staffing_alert"] = priority_alert
         decorated_row["priority_staffing_urgent"] = priority_urgent
         decorated_row["open_gap_sections_count"] = open_gap_sections
-        decorated_row["subject_color"] = subject_color
         decorated_row["subject_donut_primary"] = donut_primary_color
         decorated_row["subject_donut_secondary"] = donut_secondary_color
-        decorated_row["subject_accent_surface"] = subject_theme["surface"]
-        decorated_row["subject_status_bg"] = subject_theme["soft"]
-        decorated_row["subject_status_border"] = subject_theme["border"]
-        decorated_row["subject_status_text"] = subject_theme["strong_text"]
+        decorated_row["subject_accent_surface"] = _blend_hex_colors(
+            donut_secondary_color,
+            "#ffffff",
+            0.42,
+        )
+        decorated_row["subject_status_bg"] = _blend_hex_colors(
+            donut_primary_color,
+            "#ffffff",
+            0.79,
+        )
+        decorated_row["subject_status_border"] = _blend_hex_colors(
+            donut_primary_color,
+            "#ffffff",
+            0.50,
+        )
+        decorated_row["subject_status_text"] = _blend_hex_colors(
+            donut_primary_color,
+            "#0f172a",
+            0.06,
+        )
 
         if priority_alert:
             priority_subjects_with_gaps += 1
