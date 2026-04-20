@@ -5,6 +5,22 @@
 
 {% block page_styles %}
 <style>
+    .app-shell {
+        min-height: auto;
+        align-content: start;
+    }
+
+    .app-sidebar {
+        height: auto;
+        max-height: calc(100vh - 32px);
+    }
+
+    .app-main,
+    .page-stage,
+    .config-layout {
+        min-height: 0;
+    }
+
     .config-layout {
         display: grid;
         gap: 12px;
@@ -314,9 +330,9 @@
     .branch-directory-list {
         display: grid;
         gap: 8px;
-        max-height: clamp(280px, 42vh, 520px);
-        overflow: auto;
-        padding-right: 4px;
+        max-height: none;
+        overflow: visible;
+        padding-right: 0;
     }
 
     .branch-directory-head,
