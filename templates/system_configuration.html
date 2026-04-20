@@ -665,6 +665,104 @@
         </div>
     </section>
 
+    <section class="config-section-grid">
+        <article class="page-panel config-card">
+            <div class="config-card-head">
+                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("year", "icon") }}</span>Academic Year Management</h3>
+                <p>Open a new academic year in the required format and control which year is currently live across the system.</p>
+            </div>
+            <form method="post" action="/developer/open-academic-year">
+                <input type="hidden" name="return_to" value="/system-configuration">
+                <div class="field-grid">
+                    <div class="field">
+                        <label for="system_year_name">Open New Academic Year</label>
+                        <input id="system_year_name" type="text" name="year_name" placeholder="YYYY-YYYY (example: 2027-2028)" required>
+                    </div>
+                    <div class="field field-wide">
+                        <div class="field-note">Use the `YYYY-YYYY` format. If the year already exists, the system will reactivate it and set it as current instead of creating a duplicate.</div>
+                    </div>
+                </div>
+                <div class="action-row" style="margin-top: 12px;">
+                    <button class="btn btn-primary" type="submit">{{ icon("year", "icon") }} Open Academic Year</button>
+                </div>
+            </form>
+        </article>
+
+        <article class="page-panel config-card">
+            <div class="config-card-head">
+                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("save", "icon") }}</span>Current Academic Year</h3>
+                <p>System-wide year changes stay here so they are handled deliberately rather than as everyday quick settings.</p>
+            </div>
+            <div class="year-list">
+                {% for year in academic_year_rows %}
+                <article class="year-row {% if year.is_active %}is-active{% else %}is-inactive{% endif %}">
+                    <div class="year-row-copy">
+                        <strong>{{ year.year_name }}</strong>
+                        <p>{% if year.is_active %}This is the current live academic year used across the system.{% else %}Available to activate whenever you are ready to switch the system scope.{% endif %}</p>
+                    </div>
+                    <div class="year-row-actions">
+                        <span class="status-pill {% if year.is_active %}is-success{% else %}is-muted{% endif %}">
+                            {{ "Current" if year.is_active else "Inactive" }}
+                        </span>
+                        {% if not year.is_active %}
+                        <form method="post" action="/admin/current-year">
+                            <input type="hidden" name="return_to" value="/system-configuration">
+                            <input type="hidden" name="academic_year_id" value="{{ year.id }}">
+                            <button class="btn btn-secondary" type="submit">{{ icon("save", "icon") }} Set Current Year</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+        </article>
+    </section>
+
+    <section class="config-section-grid config-section-grid--support">
+        <article class="page-panel config-card">
+            <div class="config-card-head">
+                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("settings", "icon") }}</span>Future Configuration Modules</h3>
+                <p>This page is intentionally structured to grow into the long-term home for all developer-managed system configuration.</p>
+            </div>
+            <div class="future-grid">
+                <article class="future-card">
+                    <span>{{ icon("planning", "icon") }} Academic Structure</span>
+                    <h4>Grades, sections, and defaults</h4>
+                    <p>Reserved for future structure-level setup that should live outside daily operations.</p>
+                </article>
+                <article class="future-card">
+                    <span>{{ icon("subjects", "icon") }} Curriculum Rules</span>
+                    <h4>Subject setup and mappings</h4>
+                    <p>Ready for future subject-level standards, bundles, and validation rules.</p>
+                </article>
+                <article class="future-card">
+                    <span>{{ icon("report", "icon") }} System Preferences</span>
+                    <h4>Policy and behavior controls</h4>
+                    <p>Reserved for future grading rules, reporting preferences, and system-wide defaults.</p>
+                </article>
+            </div>
+        </article>
+
+        <article class="page-panel config-card">
+            <div class="config-card-head">
+                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("audit", "icon") }}</span>Developer Records</h3>
+                <p>Keep sensitive records and exports inside the dedicated developer-only settings area instead of the shared sidebar.</p>
+            </div>
+            <div class="records-grid">
+                <article class="records-card">
+                    <h4>Audit Log</h4>
+                    <p>Download the developer audit log in spreadsheet form for review and traceability.</p>
+                    <a class="btn btn-secondary" href="/admin/audit-log?format=xlsx">{{ icon("audit", "icon") }} Download Audit Log</a>
+                </article>
+                <article class="records-card">
+                    <h4>Allocation Report</h4>
+                    <p>Export the current allocation workbook directly from the same controlled page.</p>
+                    <a class="btn btn-secondary" href="/reports/allocation-plan.xlsx">{{ icon("report", "icon") }} Export Allocation Report</a>
+                </article>
+            </div>
+        </article>
+    </section>
+
     <section class="page-panel config-card branch-management-shell">
         <div class="config-card-head config-card-head--split">
             <div>
@@ -803,104 +901,6 @@
             <div class="record-note branch-directory-empty">No branches are configured yet.</div>
             {% endif %}
         </div>
-    </section>
-
-    <section class="config-section-grid">
-        <article class="page-panel config-card">
-            <div class="config-card-head">
-                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("year", "icon") }}</span>Academic Year Management</h3>
-                <p>Open a new academic year in the required format and control which year is currently live across the system.</p>
-            </div>
-            <form method="post" action="/developer/open-academic-year">
-                <input type="hidden" name="return_to" value="/system-configuration">
-                <div class="field-grid">
-                    <div class="field">
-                        <label for="system_year_name">Open New Academic Year</label>
-                        <input id="system_year_name" type="text" name="year_name" placeholder="YYYY-YYYY (example: 2027-2028)" required>
-                    </div>
-                    <div class="field field-wide">
-                        <div class="field-note">Use the `YYYY-YYYY` format. If the year already exists, the system will reactivate it and set it as current instead of creating a duplicate.</div>
-                    </div>
-                </div>
-                <div class="action-row" style="margin-top: 12px;">
-                    <button class="btn btn-primary" type="submit">{{ icon("year", "icon") }} Open Academic Year</button>
-                </div>
-            </form>
-        </article>
-
-        <article class="page-panel config-card">
-            <div class="config-card-head">
-                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("save", "icon") }}</span>Current Academic Year</h3>
-                <p>System-wide year changes stay here so they are handled deliberately rather than as everyday quick settings.</p>
-            </div>
-            <div class="year-list">
-                {% for year in academic_year_rows %}
-                <article class="year-row {% if year.is_active %}is-active{% else %}is-inactive{% endif %}">
-                    <div class="year-row-copy">
-                        <strong>{{ year.year_name }}</strong>
-                        <p>{% if year.is_active %}This is the current live academic year used across the system.{% else %}Available to activate whenever you are ready to switch the system scope.{% endif %}</p>
-                    </div>
-                    <div class="year-row-actions">
-                        <span class="status-pill {% if year.is_active %}is-success{% else %}is-muted{% endif %}">
-                            {{ "Current" if year.is_active else "Inactive" }}
-                        </span>
-                        {% if not year.is_active %}
-                        <form method="post" action="/admin/current-year">
-                            <input type="hidden" name="return_to" value="/system-configuration">
-                            <input type="hidden" name="academic_year_id" value="{{ year.id }}">
-                            <button class="btn btn-secondary" type="submit">{{ icon("save", "icon") }} Set Current Year</button>
-                        </form>
-                        {% endif %}
-                    </div>
-                </article>
-                {% endfor %}
-            </div>
-        </article>
-    </section>
-
-    <section class="config-section-grid config-section-grid--support">
-        <article class="page-panel config-card">
-            <div class="config-card-head">
-                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("settings", "icon") }}</span>Future Configuration Modules</h3>
-                <p>This page is intentionally structured to grow into the long-term home for all developer-managed system configuration.</p>
-            </div>
-            <div class="future-grid">
-                <article class="future-card">
-                    <span>{{ icon("planning", "icon") }} Academic Structure</span>
-                    <h4>Grades, sections, and defaults</h4>
-                    <p>Reserved for future structure-level setup that should live outside daily operations.</p>
-                </article>
-                <article class="future-card">
-                    <span>{{ icon("subjects", "icon") }} Curriculum Rules</span>
-                    <h4>Subject setup and mappings</h4>
-                    <p>Ready for future subject-level standards, bundles, and validation rules.</p>
-                </article>
-                <article class="future-card">
-                    <span>{{ icon("report", "icon") }} System Preferences</span>
-                    <h4>Policy and behavior controls</h4>
-                    <p>Reserved for future grading rules, reporting preferences, and system-wide defaults.</p>
-                </article>
-            </div>
-        </article>
-
-        <article class="page-panel config-card">
-            <div class="config-card-head">
-                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("audit", "icon") }}</span>Developer Records</h3>
-                <p>Keep sensitive records and exports inside the dedicated developer-only settings area instead of the shared sidebar.</p>
-            </div>
-            <div class="records-grid">
-                <article class="records-card">
-                    <h4>Audit Log</h4>
-                    <p>Download the developer audit log in spreadsheet form for review and traceability.</p>
-                    <a class="btn btn-secondary" href="/admin/audit-log?format=xlsx">{{ icon("audit", "icon") }} Download Audit Log</a>
-                </article>
-                <article class="records-card">
-                    <h4>Allocation Report</h4>
-                    <p>Export the current allocation workbook directly from the same controlled page.</p>
-                    <a class="btn btn-secondary" href="/reports/allocation-plan.xlsx">{{ icon("report", "icon") }} Export Allocation Report</a>
-                </article>
-            </div>
-        </article>
     </section>
 </section>
 {% endblock %}
