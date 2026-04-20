@@ -585,6 +585,36 @@
             background: #f8fbff;
         }
 
+        .subject-color-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--subject-color-border, #c8daf3);
+            background: var(--subject-color-soft, #edf4ff);
+            color: var(--subject-color-text, #244a7c);
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.03em;
+        }
+
+        .subject-color-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+            background: var(--subject-color, var(--brand));
+            border: 1px solid rgba(15, 23, 42, 0.12);
+            flex-shrink: 0;
+        }
+
+        .subject-form-note {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+
         @media (max-width: 980px) {
             .grid {
                 grid-template-columns: 1fr;
@@ -675,6 +705,7 @@
                 <article class="card">
                     <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Add Subject</span></h2>
                     <p>Create a new subject record in the current scope.</p>
+                    <div class="subject-form-note">A professional color is assigned automatically from the subject code and reused across the dashboard, teacher assignments, reports, and future timetable views.</div>
 
                     {% if success %}
                     <div class="success">{{ success }}</div>
@@ -773,7 +804,7 @@
                 {% if subjects %}
                 <form id="bulkDeleteForm" method="post" action="/subjects/delete-bulk">
                 <div class="table-wrap">
-                    {% set column_count = 4 + (1 if can_delete else 0) + (1 if (can_edit or can_delete) else 0) %}
+                    {% set column_count = 5 + (1 if can_delete else 0) + (1 if (can_edit or can_delete) else 0) %}
                     <table>
                         <thead>
                             <tr>
@@ -783,6 +814,7 @@
                                 </th>
                                 {% endif %}
                                 <th>Code</th>
+                                <th>Color</th>
                                 <th>Name</th>
                                 <th>Weekly Hours</th>
                                 <th>Grade</th>
@@ -824,7 +856,18 @@
                                     <input class="bulk-select bulk-select-item" type="checkbox" name="selected_subject_ids" value="{{ subject.id }}" aria-label="Select subject {{ subject.subject_code }} for bulk delete">
                                 </td>
                                 {% endif %}
-                                <td>{{ subject.subject_code }}</td>
+                                <td>
+                                    <span class="subject-color-chip" style="--subject-color: {{ subject.display_color }}; --subject-color-soft: {{ subject.display_color_soft }}; --subject-color-border: {{ subject.display_color_border }}; --subject-color-text: {{ subject.display_color_text }};">
+                                        <span class="subject-color-swatch"></span>
+                                        {{ subject.subject_code }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="subject-color-chip" style="--subject-color: {{ subject.display_color }}; --subject-color-soft: {{ subject.display_color_soft }}; --subject-color-border: {{ subject.display_color_border }}; --subject-color-text: {{ subject.display_color_text }};">
+                                        <span class="subject-color-swatch"></span>
+                                        {{ subject.display_color }}
+                                    </span>
+                                </td>
                                 <td>
                                     {{ subject.subject_name }}
                                     {% if subject.homeroom_bundle_subject_labels %}

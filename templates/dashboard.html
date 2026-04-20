@@ -330,6 +330,28 @@
             font-weight: 700;
         }
 
+        .subject-color-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(15, 23, 42, 0.12);
+            background: var(--subject-color-soft, #edf4ff);
+            color: var(--subject-color-text, #244a7c);
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .subject-color-dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 999px;
+            background: var(--subject-color, var(--brand));
+            border: 1px solid rgba(15, 23, 42, 0.14);
+            flex-shrink: 0;
+        }
+
         .stat {
             background: var(--card);
             border: 1px solid var(--line);
@@ -2959,7 +2981,12 @@
                             </tr>
                             {% endif %}
                             <tr class="dashboard-subject-row" data-grade="{{ dashboard_grade_key }}" data-hours="{{ subject.weekly_hours or 0 }}" data-subject-count="{{ subject.effective_subject_count or 1 }}">
-                                <td>{{ subject.subject_code }}</td>
+                                <td>
+                                    <span class="subject-color-chip" style="--subject-color: {{ subject.color or '#0A4EA3' }}; --subject-color-soft: {{ subject.color or '#EDF4FF' }}22; --subject-color-text: #17365d;">
+                                        <span class="subject-color-dot"></span>
+                                        {{ subject.subject_code }}
+                                    </span>
+                                </td>
                                 <td>
                                     {{ subject.subject_name }}
                                     {% if subject.homeroom_bundle_subject_labels %}

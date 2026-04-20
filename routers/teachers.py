@@ -38,6 +38,7 @@ from teacher_qualifications import (
 )
 from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
+from subject_colors import build_subject_theme, resolve_subject_color
 
 router = APIRouter(prefix="/teachers", tags=["Teachers"])
 templates = Jinja2Templates(directory="templates")
@@ -178,16 +179,28 @@ def _get_subject_choices(db: Session, branch_id: int, academic_year_id: int):
         models.Subject.branch_id == branch_id,
         models.Subject.academic_year_id == academic_year_id,
     ).order_by(models.Subject.subject_code.asc()).all()
-    return [
-        {
-            "subject_code": subject.subject_code,
-            "subject_name": subject.subject_name or "",
-            "weekly_hours": subject.weekly_hours or 0,
-            "grade": subject.grade,
-        }
-        for subject in subjects
-        if subject.subject_code
-    ]
+    choices = []
+    for subject in subjects:
+        if not subject.subject_code:
+            continue
+        subject_color = resolve_subject_color(
+            subject.subject_code,
+            getattr(subject, "color", ""),
+        )
+        theme = build_subject_theme(subject_color)
+        choices.append(
+            {
+                "subject_code": subject.subject_code,
+                "subject_name": subject.subject_name or "",
+                "weekly_hours": subject.weekly_hours or 0,
+                "grade": subject.grade,
+                "color": subject_color,
+                "color_soft": theme["soft"],
+                "color_text": theme["text"],
+                "color_border": theme["border"],
+            }
+        )
+    return choices
 
 
 def _build_teacher_display_name(teacher) -> str:

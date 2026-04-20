@@ -21,6 +21,7 @@ from teacher_qualifications import (
 from teacher_capacity import get_teacher_international_capacity_hours
 from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
+from subject_colors import build_subject_theme, resolve_subject_color
 
 router = APIRouter(prefix="/planning", tags=["Planning"])
 templates = Jinja2Templates(directory="templates")
@@ -111,11 +112,20 @@ def _get_subject_alignment_map(db: Session, branch_id: int, academic_year_id: in
         grade_label = "KG" if int(subject.grade) == 0 else str(int(subject.grade))
         if grade_label not in alignment_map:
             continue
+        subject_color = resolve_subject_color(
+            subject.subject_code,
+            getattr(subject, "color", ""),
+        )
+        theme = build_subject_theme(subject_color)
         alignment_map[grade_label].append(
             {
                 "subject_code": subject.subject_code,
                 "subject_name": subject.subject_name or "Unnamed Subject",
                 "weekly_hours": int(subject.weekly_hours or 0),
+                "subject_color": subject_color,
+                "subject_color_soft": theme["soft"],
+                "subject_color_text": theme["text"],
+                "subject_color_border": theme["border"],
             }
         )
 
@@ -345,6 +355,9 @@ def _build_section_assignment_rows(
                 "subject_code": subject_code,
                 "subject_name": subject.get("subject_name") or "Unnamed Subject",
                 "weekly_hours": int(subject.get("weekly_hours", 0) or 0),
+                "subject_color": subject.get("subject_color") or resolve_subject_color(subject_code),
+                "subject_color_soft": subject.get("subject_color_soft", "#EDF4FF"),
+                "subject_color_text": subject.get("subject_color_text", "#1F3759"),
                 "teacher_options": subject_teacher_options.get(subject_code, []),
                 "selected_teacher_id": str(
                     selected_teacher_ids_by_subject.get(subject_code, "")

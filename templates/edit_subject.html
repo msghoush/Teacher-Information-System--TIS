@@ -130,6 +130,36 @@
             gap: 8px;
         }
 
+        .subject-color-preview {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid {{ subject.display_color_border if subject.display_color_border else '#c8daf3' }};
+            background: {{ subject.display_color_soft if subject.display_color_soft else '#edf4ff' }};
+            color: {{ subject.display_color_text if subject.display_color_text else '#244a7c' }};
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.03em;
+            width: fit-content;
+        }
+
+        .subject-color-preview-swatch {
+            width: 14px;
+            height: 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(15, 23, 42, 0.12);
+            background: {{ subject.display_color if subject.display_color else '#0A4EA3' }};
+            flex-shrink: 0;
+        }
+
+        .field-note {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+
         .btn {
             text-decoration: none;
             border: none;
@@ -184,6 +214,15 @@
                 <div class="field field-wide">
                     <label for="subject_name">Subject Name</label>
                     <input id="subject_name" type="text" name="subject_name" value="{{ subject.subject_name }}" required>
+                </div>
+
+                <div class="field field-wide">
+                    <label>Assigned Color</label>
+                    <div class="subject-color-preview">
+                        <span class="subject-color-preview-swatch"></span>
+                        {{ subject.display_color or '#0A4EA3' }}
+                    </div>
+                    <div class="field-note">This color is generated from the subject code and stays consistent everywhere the subject appears.</div>
                 </div>
 
                 <div class="field field-wide">

@@ -21,6 +21,12 @@ from homeroom_defaults import (
 )
 from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
+from subject_colors import (
+    build_subject_theme,
+    normalize_hex_color,
+    resolve_subject_color,
+    to_excel_hex,
+)
 
 router = APIRouter(prefix="/subjects", tags=["Subjects"])
 templates = Jinja2Templates(directory="templates")
@@ -103,6 +109,30 @@ def _grade_sheet_name(grade: int) -> str:
     if grade == 0:
         return "KG"
     return f"Grade {grade}"
+
+
+def _parse_subject_color(value, subject_code: str) -> str:
+    cleaned_value = str(value or "").strip()
+    if not cleaned_value:
+        return resolve_subject_color(subject_code)
+    normalized_color = normalize_hex_color(cleaned_value)
+    if normalized_color:
+        return normalized_color
+    raise ValueError("Subject color must be a valid hex code like #0A4EA3.")
+
+
+def _decorate_subject_record(subject):
+    display_color = resolve_subject_color(
+        getattr(subject, "subject_code", ""),
+        getattr(subject, "color", ""),
+    )
+    theme = build_subject_theme(display_color)
+    setattr(subject, "display_color", display_color)
+    setattr(subject, "display_color_soft", theme["soft"])
+    setattr(subject, "display_color_surface", theme["surface"])
+    setattr(subject, "display_color_border", theme["border"])
+    setattr(subject, "display_color_text", theme["text"])
+    return subject
 
 
 def _apply_sheet_header_style(sheet, fill_color: str):
@@ -252,6 +282,7 @@ def _render_subjects_page(
     subject_grade_counts = Counter()
     subject_total_count = 0
     for subject in subjects:
+        _decorate_subject_record(subject)
         effective_subject_count = get_effective_subject_count(
             subject_code=subject.subject_code or "",
             subject_name=subject.subject_name or "",
@@ -402,6 +433,10 @@ def copy_subjects_from_year(
                 subject_name=source_subject.subject_name,
                 weekly_hours=source_subject.weekly_hours,
                 grade=source_subject.grade,
+                color=resolve_subject_color(
+                    source_subject.subject_code,
+                    getattr(source_subject, "color", ""),
+                ),
                 branch_id=branch_id,
                 academic_year_id=target_academic_year_id,
             )
@@ -445,10 +480,10 @@ def download_subject_template(
     sheet = workbook.active
     sheet.title = "Subjects"
 
-    headers = ["subject_code", "subject_name", "weekly_hours", "grade"]
+    headers = ["subject_code", "subject_name", "weekly_hours", "grade", "subject_color"]
     sheet.append(headers)
-    sheet.append(["ENG101", "English", 4, 5])
-    sheet.append(["MAT102", "Mathematics", 5, 6])
+    sheet.append(["ENG101", "English", 4, 5, resolve_subject_color("ENG101")])
+    sheet.append(["MAT102", "Mathematics", 5, 6, resolve_subject_color("MAT102")])
 
     header_fill = PatternFill(start_color="0F766E", end_color="0F766E", fill_type="solid")
     header_font = Font(color="FFFFFF", bold=True)
@@ -462,6 +497,7 @@ def download_subject_template(
     sheet.column_dimensions["B"].width = 30
     sheet.column_dimensions["C"].width = 16
     sheet.column_dimensions["D"].width = 12
+    sheet.column_dimensions["E"].width = 16
     sheet.freeze_panes = "A2"
 
     output = BytesIO()
@@ -544,7 +580,7 @@ def export_subjects_excel(
 
         grade_sheet = workbook.create_sheet(title=sheet_name)
         grade_sheet.append(
-            ["Subject Code", "Subject Name", "Weekly Hours", "Grade Level"]
+            ["Subject Code", "Subject Name", "Weekly Hours", "Grade Level", "Subject Color"]
         )
         grade_border = _apply_sheet_header_style(
             grade_sheet,
@@ -554,7 +590,7 @@ def export_subjects_excel(
         grade_sheet.sheet_properties.tabColor = EXPORT_GRADE_COLORS.get(grade, "FF0F766E")
 
         if grade_subjects_count == 0:
-            grade_sheet.append(["-", "No subjects found for this grade.", "-", grade_label])
+            grade_sheet.append(["-", "No subjects found for this grade.", "-", grade_label, "-"])
             empty_cell = grade_sheet.cell(row=2, column=2)
             empty_cell.font = Font(italic=True, color="667085")
             for cell in grade_sheet[2]:
@@ -568,6 +604,7 @@ def export_subjects_excel(
                         subject.subject_name or "",
                         int(subject.weekly_hours or 0),
                         grade_label,
+                        resolve_subject_color(subject.subject_code or "", getattr(subject, "color", "")),
                     ]
                 )
             _apply_alternating_rows(
@@ -581,7 +618,8 @@ def export_subjects_excel(
         grade_sheet.column_dimensions["B"].width = 34
         grade_sheet.column_dimensions["C"].width = 16
         grade_sheet.column_dimensions["D"].width = 14
-        grade_sheet.auto_filter.ref = f"A1:D{grade_sheet.max_row}"
+        grade_sheet.column_dimensions["E"].width = 16
+        grade_sheet.auto_filter.ref = f"A1:E{grade_sheet.max_row}"
 
         summary_sheet.cell(row=summary_row_index, column=1, value=grade_label)
         summary_sheet.cell(row=summary_row_index, column=2, value=grade_subjects_count)
@@ -686,20 +724,21 @@ def import_subjects(
     expected_headers = ["subject_code", "subject_name", "weekly_hours", "grade"]
     header_cells = [cell.value for cell in sheet[1]]
     actual_headers = []
-    for value in header_cells[:4]:
+    for value in header_cells[:5]:
         if value is None:
             actual_headers.append("")
         else:
             actual_headers.append(_normalize_spaces(str(value).strip().lower()))
 
-    if actual_headers != expected_headers:
+    has_color_column = actual_headers[:4] == expected_headers and actual_headers[4:5] == ["subject_color"]
+    if actual_headers[:4] != expected_headers:
         return _render_subjects_page(
             request=request,
             db=db,
             current_user=current_user,
             error="Invalid template format.",
             detail_errors=[
-                "Expected first row headers: subject_code, subject_name, weekly_hours, grade."
+                "Expected first row headers: subject_code, subject_name, weekly_hours, grade (optional fifth column: subject_color)."
             ]
         )
 
@@ -709,16 +748,17 @@ def import_subjects(
     imported_codes = []
 
     for row_number, row_values in enumerate(
-        sheet.iter_rows(min_row=2, max_col=4, values_only=True),
+        sheet.iter_rows(min_row=2, max_col=5 if has_color_column else 4, values_only=True),
         start=2
     ):
         if not row_values:
             continue
 
-        raw_code, raw_name, raw_weekly_hours, raw_grade = row_values
+        padded_row_values = tuple(row_values) + (None,) * max(0, 5 - len(tuple(row_values)))
+        raw_code, raw_name, raw_weekly_hours, raw_grade, raw_color = padded_row_values[:5]
         if all(
             value is None or str(value).strip() == ""
-            for value in [raw_code, raw_name, raw_weekly_hours, raw_grade]
+            for value in [raw_code, raw_name, raw_weekly_hours, raw_grade, raw_color]
         ):
             continue
 
@@ -738,11 +778,18 @@ def import_subjects(
             row_errors.append(f"Row {row_number}: {' '.join(validation_errors)}")
             continue
 
+        try:
+            subject_color = _parse_subject_color(raw_color, subject_code)
+        except ValueError as exc:
+            row_errors.append(f"Row {row_number}: {exc}")
+            continue
+
         imported_codes.append(subject_code)
         prepared_rows.append(
             {
                 "subject_code": subject_code,
                 "subject_name": subject_name,
+                "color": subject_color,
                 "weekly_hours": weekly_hours,
                 "grade": grade,
                 "branch_id": branch_id,
@@ -875,6 +922,7 @@ def add_subject(
     new_subject = models.Subject(
         subject_code=subject_code,
         subject_name=subject_name,
+        color=resolve_subject_color(subject_code),
         weekly_hours=weekly_hours,
         grade=grade,
         branch_id=branch_id,
@@ -925,6 +973,8 @@ def edit_subject_page(
 
     if not subject:
         return RedirectResponse(url="/subjects")
+
+    _decorate_subject_record(subject)
 
     return templates.TemplateResponse(
         request,
@@ -979,6 +1029,8 @@ def update_subject(
 
     if not subject:
         return RedirectResponse(url="/subjects")
+
+    _decorate_subject_record(subject)
 
     subject_code = _normalize_subject_code(subject_code)
     subject_name = _normalize_subject_name(subject_name)
@@ -1043,6 +1095,7 @@ def update_subject(
     previous_subject_code = subject.subject_code
     subject.subject_code = subject_code
     subject.subject_name = subject_name
+    subject.color = resolve_subject_color(subject_code, getattr(subject, "color", ""))
     subject.weekly_hours = weekly_hours
     subject.grade = grade
 

@@ -43,6 +43,7 @@ from homeroom_defaults import (
     is_homeroom_bundle_subject,
     is_lower_primary_homeroom_grade,
 )
+from subject_colors import build_subject_theme, resolve_subject_color, to_excel_hex
 
 # ---------------------------------------
 # Create Tables
@@ -135,6 +136,38 @@ MAJOR_ALIGNMENT_STOPWORDS = {
 
 def _ensure_profile_photo_upload_dir():
     os.makedirs(PROFILE_PHOTO_UPLOAD_DIR, exist_ok=True)
+
+
+def _ensure_subject_color_schema():
+    inspector = inspect(engine)
+    if "subjects" not in inspector.get_table_names():
+        return
+
+    existing_columns = {
+        column["name"]
+        for column in inspector.get_columns("subjects")
+    }
+    if "color" in existing_columns:
+        return
+
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE subjects ADD COLUMN color VARCHAR(7)"))
+
+
+def _backfill_subject_colors(db: Session):
+    subjects = db.query(models.Subject).all()
+    changes_made = False
+    for subject in subjects:
+        resolved_color = resolve_subject_color(
+            getattr(subject, "subject_code", ""),
+            getattr(subject, "color", ""),
+        )
+        if getattr(subject, "color", None) != resolved_color:
+            subject.color = resolved_color
+            changes_made = True
+
+    if changes_made:
+        db.commit()
 
 
 def _detect_profile_photo_extension(file_bytes: bytes) -> str:
@@ -689,6 +722,10 @@ def _build_reporting_context_from_section_assignments(
             subject_demand_map[subject_key] = {
                 "subject_name": subject_label,
                 "subject_code": subject.subject_code or "",
+                "subject_color": resolve_subject_color(
+                    subject.subject_code or subject_key,
+                    getattr(subject, "color", ""),
+                ),
                 "weekly_hours": weekly_hours,
                 "primary_grade_label": grade_label,
                 "bundle_subject_labels": list(
@@ -1063,6 +1100,11 @@ def _build_reporting_context_from_section_assignments(
             {
                 "subject_key": subject_key,
                 "subject_name": demand["subject_name"],
+                "subject_code": demand.get("subject_code", subject_key),
+                "subject_color": resolve_subject_color(
+                    demand.get("subject_code", subject_key),
+                    demand.get("subject_color", ""),
+                ),
                 "grades": grades,
                 "required_hours": required_hours,
                 "required_current_hours": demand["required_current_hours"],
@@ -1774,6 +1816,10 @@ def _build_reporting_context(
             subject_demand_map[subject_key] = {
                 "subject_name": subject_label,
                 "subject_code": subject.subject_code or "",
+                "subject_color": resolve_subject_color(
+                    subject.subject_code or subject_key,
+                    getattr(subject, "color", ""),
+                ),
                 "weekly_hours": weekly_hours,
                 "primary_grade_label": grade_label,
                 "bundle_subject_labels": list(
@@ -2244,6 +2290,11 @@ def _build_reporting_context(
             {
                 "subject_key": subject_key,
                 "subject_name": demand["subject_name"],
+                "subject_code": demand.get("subject_code", subject_key),
+                "subject_color": resolve_subject_color(
+                    demand.get("subject_code", subject_key),
+                    demand.get("subject_color", ""),
+                ),
                 "grades": grades,
                 "required_hours": required_hours,
                 "required_current_hours": demand["required_current_hours"],
@@ -2744,11 +2795,21 @@ def _build_report_subject_catalog(subjects):
         if subject_key not in subject_name_by_key:
             subject_name_by_key[subject_key] = subject_name
 
+        subject_color = resolve_subject_color(
+            subject_code or subject_key,
+            getattr(subject, "color", ""),
+        )
+        theme = build_subject_theme(subject_color)
+
         subjects_by_grade.setdefault(grade_label, []).append(
             {
                 "subject_key": subject_key,
                 "subject_code": subject_code or subject_name,
                 "subject_name": subject_name,
+                "subject_color": subject_color,
+                "subject_color_soft": theme["soft"],
+                "subject_color_text": theme["text"],
+                "subject_color_border": theme["border"],
                 "weekly_hours": weekly_hours,
             }
         )
@@ -3275,9 +3336,13 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
         decorated_row = dict(row)
         remaining_hours = int(decorated_row.get("remaining_hours", 0))
         coverage_percentage = int(decorated_row.get("coverage_percentage", 0))
-        donut_primary_color, donut_secondary_color = _subject_coverage_donut_palette(
-            coverage_percentage
+        subject_color = resolve_subject_color(
+            decorated_row.get("subject_code", decorated_row.get("subject_key", "")),
+            decorated_row.get("subject_color", ""),
         )
+        subject_theme = build_subject_theme(subject_color)
+        donut_primary_color = subject_theme["accent"]
+        donut_secondary_color = subject_theme["soft"]
         teacher_blocks = int(
             decorated_row.get(
                 "teacher_requirement_blocks",
@@ -3301,28 +3366,13 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
         decorated_row["priority_staffing_alert"] = priority_alert
         decorated_row["priority_staffing_urgent"] = priority_urgent
         decorated_row["open_gap_sections_count"] = open_gap_sections
+        decorated_row["subject_color"] = subject_color
         decorated_row["subject_donut_primary"] = donut_primary_color
         decorated_row["subject_donut_secondary"] = donut_secondary_color
-        decorated_row["subject_accent_surface"] = _blend_hex_colors(
-            donut_secondary_color,
-            "#ffffff",
-            0.42,
-        )
-        decorated_row["subject_status_bg"] = _blend_hex_colors(
-            donut_primary_color,
-            "#ffffff",
-            0.79,
-        )
-        decorated_row["subject_status_border"] = _blend_hex_colors(
-            donut_primary_color,
-            "#ffffff",
-            0.50,
-        )
-        decorated_row["subject_status_text"] = _blend_hex_colors(
-            donut_primary_color,
-            "#0f172a",
-            0.06,
-        )
+        decorated_row["subject_accent_surface"] = subject_theme["surface"]
+        decorated_row["subject_status_bg"] = subject_theme["soft"]
+        decorated_row["subject_status_border"] = subject_theme["border"]
+        decorated_row["subject_status_text"] = subject_theme["strong_text"]
 
         if priority_alert:
             priority_subjects_with_gaps += 1
@@ -3513,10 +3563,7 @@ def _apply_excel_header_style(sheet, header_row: int, total_columns: int):
 def _subject_fill_for_key(subject_key: str):
     if not subject_key:
         return None
-    palette_index = sum(ord(char) for char in subject_key) % len(
-        REPORT_EXPORT_SUBJECT_FILL_PALETTE
-    )
-    color_code = REPORT_EXPORT_SUBJECT_FILL_PALETTE[palette_index]
+    color_code = to_excel_hex(resolve_subject_color(subject_key))
     return PatternFill(start_color=color_code, end_color=color_code, fill_type="solid")
 
 
@@ -6015,10 +6062,12 @@ def setup_initial_data():
     _ensure_teachers_table_columns()
     _ensure_teacher_scope_schema()
     _ensure_subject_scope_schema()
+    _ensure_subject_color_schema()
     _ensure_teacher_subject_allocation_columns()
     _seed_teacher_subject_allocations()
     _ensure_profile_photo_upload_dir()
     db = SessionLocal()
+    _backfill_subject_colors(db)
     _migrate_profile_photos_to_database(db)
     admin_user_id = os.getenv("ADMIN_USER_ID", "2623252018")
     admin_username = os.getenv("ADMIN_USERNAME", "developer")

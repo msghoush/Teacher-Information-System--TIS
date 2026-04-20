@@ -798,7 +798,7 @@
                                             <span class="subject-summary-pill">{{ row.assigned_subject_count }} assigned</span>
                                             <span class="subject-summary-pill subject-summary-pill-muted">{{ row.unassigned_subject_count }} unassigned</span>
                                             {% for subject in row.subject_preview %}
-                                            <span class="subject-preview-pill">{{ subject.display_preview or subject.subject_code }}</span>
+                                            <span class="subject-preview-pill" style="border-color: {{ subject.subject_color_border or '#d9e6f8' }}; background: {{ subject.subject_color_soft or '#f8fbff' }}; color: {{ subject.subject_color_text or '#365275' }}; box-shadow: inset 3px 0 0 {{ subject.subject_color or '#0A4EA3' }};">{{ subject.display_preview or subject.subject_code }}</span>
                                             {% endfor %}
                                             {% if row.subject_hidden_count %}
                                             <span class="subject-preview-pill subject-preview-pill-more">+{{ row.subject_hidden_count }} more</span>
@@ -806,7 +806,7 @@
                                         </summary>
                                         <ul class="aligned-list-table">
                                             {% for subject in row.subject_assignments %}
-                                            <li class="aligned-item-table">
+                                            <li class="aligned-item-table" style="border-color: {{ subject.subject_color_border or '#dbe7f8' }}; background: {{ subject.subject_color_soft or '#f5f9ff' }}; color: {{ subject.subject_color_text or '#2f4361' }}; box-shadow: inset 4px 0 0 {{ subject.subject_color or '#0A4EA3' }};">
                                                 {{ subject.display_label or (subject.subject_code ~ " - " ~ subject.subject_name ~ " (" ~ subject.weekly_hours ~ "h)") }}
                                                 {% if subject.teacher_name %}
                                                 | {{ subject.teacher_name }}{% if subject.assignment_source == "homeroom_default" %} (Homeroom Default){% endif %}
@@ -913,6 +913,10 @@ const gradeSelect = document.getElementById("grade_level");
             alignedSubjects.forEach((subject) => {
                 const row = document.createElement("li");
                 row.className = "aligned-item";
+                row.style.borderColor = String(subject.subject_color_border || "#dbe7f8");
+                row.style.background = String(subject.subject_color_soft || "#f5f9ff");
+                row.style.color = String(subject.subject_color_text || "#2f4361");
+                row.style.boxShadow = `inset 4px 0 0 ${String(subject.subject_color || "#0A4EA3")}`;
                 const homeroomDefaultActive = Boolean(homeroomTeacherSelect?.value)
                     && isHomeroomDefaultSubject(selectedGrade, subject);
                 row.textContent = `${subject.subject_code} - ${subject.subject_name} (${subject.weekly_hours}h)${homeroomDefaultActive ? " - Homeroom default" : ""}`;

@@ -4,6 +4,7 @@ from pydantic import BaseModel
 class SubjectCreate(BaseModel):
     subject_code: str
     subject_name: str
+    color: str | None = None
     weekly_hours: int
     grade: int
     branch_id: int

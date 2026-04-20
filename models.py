@@ -51,6 +51,7 @@ class Subject(Base):
     id = Column(Integer, primary_key=True)
     subject_code = Column(String, index=True)
     subject_name = Column(String)
+    color = Column(String(7))
     weekly_hours = Column(Integer)
     grade = Column(Integer)
     branch_id = Column(Integer, ForeignKey("branches.id"))

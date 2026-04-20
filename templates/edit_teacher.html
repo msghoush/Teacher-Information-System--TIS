@@ -459,6 +459,15 @@
             gap: 6px;
         }
 
+        .subject-color-swatch {
+            width: 12px;
+            height: 12px;
+            border-radius: 999px;
+            background: var(--subject-color, var(--brand));
+            border: 1px solid rgba(15, 23, 42, 0.14);
+            flex-shrink: 0;
+        }
+
         .subject-chip {
             display: inline-flex;
             align-items: center;
@@ -466,10 +475,11 @@
             flex-wrap: wrap;
             max-width: 100%;
             padding: 8px 10px;
-            border: 1px solid #c8daf3;
+            border: 1px solid var(--subject-color-border, #c8daf3);
             border-radius: 16px;
-            background: #edf4ff;
-            color: #244a7c;
+            background: linear-gradient(90deg, var(--subject-color-soft, #edf4ff), #ffffff 96%);
+            color: var(--subject-color-text, #244a7c);
+            box-shadow: inset 4px 0 0 var(--subject-color, var(--brand));
             font-size: 12px;
             font-weight: 700;
             line-height: 1.2;
@@ -773,10 +783,11 @@
             gap: 8px;
             padding: 6px 8px;
             font-size: 13px;
-            color: #324866;
-            border: 1px solid #dbe7f8;
+            color: var(--subject-color-text, #324866);
+            border: 1px solid var(--subject-color-border, #dbe7f8);
+            border-left: 4px solid var(--subject-color, var(--brand));
             border-radius: 6px;
-            background: #f5f9ff;
+            background: linear-gradient(90deg, var(--subject-color-soft, #f5f9ff), #ffffff 82%);
         }
 
         .subject-option.is-selected {
@@ -885,9 +896,10 @@
         }
 
         .subject-assignment-card {
-            border: 1px solid #dbe7f8;
+            border: 1px solid var(--subject-color-border, #dbe7f8);
+            border-left: 4px solid var(--subject-color, var(--brand));
             border-radius: 10px;
-            background: #f5f9ff;
+            background: linear-gradient(180deg, var(--subject-color-soft, #f5f9ff), #ffffff 88%);
             padding: 8px;
             display: grid;
             gap: 8px;
@@ -1750,6 +1762,23 @@ const teacherIdInput = document.getElementById("teacher_id");
             return `${value} ${value === 1 ? singular : plural}`;
         };
 
+        const applySubjectTheme = (element, subject = {}) => {
+            if (!element) {
+                return;
+            }
+            element.style.setProperty("--subject-color", String(subject.color || subject.subject_color || "#0A4EA3"));
+            element.style.setProperty("--subject-color-soft", String(subject.color_soft || subject.subject_color_soft || "#EDF4FF"));
+            element.style.setProperty("--subject-color-border", String(subject.color_border || subject.subject_color_border || "#C8DAF3"));
+            element.style.setProperty("--subject-color-text", String(subject.color_text || subject.subject_color_text || "#244A7C"));
+        };
+
+        const buildSubjectSwatch = (subject = {}) => {
+            const swatch = document.createElement("span");
+            swatch.className = "subject-color-swatch";
+            swatch.style.setProperty("--subject-color", String(subject.color || subject.subject_color || "#0A4EA3"));
+            return swatch;
+        };
+
         const updateSubjectAssignmentCardStates = () => {
             document.querySelectorAll(".subject-assignment-card").forEach((card) => {
                 const weeklyHours = Number(card.dataset.weeklyHours || "0");
@@ -2195,9 +2224,11 @@ const teacherIdInput = document.getElementById("teacher_id");
                 chip.classList.toggle("is-match", alignment.status === "match");
                 chip.classList.toggle("is-review", alignment.status === "review");
                 chip.classList.toggle("is-overridden", isOverrideEnabledForSubject(code));
+                applySubjectTheme(chip, subject);
 
                 const main = document.createElement("span");
                 main.className = "subject-chip-main";
+                main.appendChild(buildSubjectSwatch(subject));
 
                 const label = document.createElement("span");
                 label.className = "subject-chip-label";
@@ -2473,6 +2504,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                         option.classList.toggle("is-major-match", alignment.status === "match");
                         option.classList.toggle("is-major-review", alignment.status === "review");
                         option.setAttribute("for", `subject_code_${gradeKey}_${subjectIndex}`);
+                        applySubjectTheme(option, subject);
 
                         const input = document.createElement("input");
                         input.id = `subject_code_${gradeKey}_${subjectIndex}`;
@@ -2574,6 +2606,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                 card.className = "subject-assignment-card";
                 card.dataset.subjectCode = subjectCode;
                 card.dataset.weeklyHours = String(safeSubjectHours);
+                applySubjectTheme(card, subject);
 
                 const cardHead = document.createElement("div");
                 cardHead.className = "subject-assignment-head";
