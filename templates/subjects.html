@@ -804,7 +804,7 @@
                 {% if subjects %}
                 <form id="bulkDeleteForm" method="post" action="/subjects/delete-bulk">
                 <div class="table-wrap">
-                    {% set column_count = 5 + (1 if can_delete else 0) + (1 if (can_edit or can_delete) else 0) %}
+                    {% set column_count = 4 + (1 if can_delete else 0) + (1 if (can_edit or can_delete) else 0) %}
                     <table>
                         <thead>
                             <tr>
@@ -814,7 +814,6 @@
                                 </th>
                                 {% endif %}
                                 <th>Code</th>
-                                <th>Color</th>
                                 <th>Name</th>
                                 <th>Weekly Hours</th>
                                 <th>Grade</th>
@@ -860,12 +859,6 @@
                                     <span class="subject-color-chip" style="--subject-color: {{ subject.display_color }}; --subject-color-soft: {{ subject.display_color_soft }}; --subject-color-border: {{ subject.display_color_border }}; --subject-color-text: {{ subject.display_color_text }};">
                                         <span class="subject-color-swatch"></span>
                                         {{ subject.subject_code }}
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="subject-color-chip" style="--subject-color: {{ subject.display_color }}; --subject-color-soft: {{ subject.display_color_soft }}; --subject-color-border: {{ subject.display_color_border }}; --subject-color-text: {{ subject.display_color_text }};">
-                                        <span class="subject-color-swatch"></span>
-                                        {{ subject.display_color }}
                                     </span>
                                 </td>
                                 <td>

@@ -1743,6 +1743,14 @@
             color: #9a3412;
         }
 
+        .subject-theme-pill {
+            border-color: var(--subject-color-border, #d9e6f8);
+            background: var(--subject-color-soft, #f8fbff);
+            color: var(--subject-color-text, #365275);
+            box-shadow: inset 3px 0 0 var(--subject-color, #0A4EA3);
+            padding-left: 10px;
+        }
+
         .assigned-item {
             display: block;
             font-size: 12px;
@@ -1752,6 +1760,14 @@
             border: 1px solid #dbe7f8;
             border-radius: 6px;
             padding: 4px 6px;
+        }
+
+        .subject-theme-item {
+            color: var(--subject-color-text, #2f4361);
+            background: var(--subject-color-soft, #f5f9ff);
+            border-color: var(--subject-color-border, #dbe7f8);
+            box-shadow: inset 4px 0 0 var(--subject-color, #0A4EA3);
+            padding: 4px 6px 4px 10px;
         }
 
         .empty {
@@ -2155,20 +2171,20 @@
                                     <div class="coverage-stack">
                                         <div class="coverage-block">
                                             <span class="coverage-label">Subjects</span>
-                                            {% if allocation and allocation.get("subject_labels") %}
+                                            {% if allocation and allocation.get("subject_items") %}
                                             <details class="compact-list-details">
                                                 <summary class="compact-list-summary">
                                                     <span class="compact-pill compact-pill-strong">{{ allocation.get("subject_count", 0) }} subjects</span>
-                                                    {% for label in allocation.get("subject_preview_labels", []) %}
-                                                    <span class="compact-preview-pill">{{ label }}</span>
+                                                    {% for item in allocation.get("subject_preview_items", []) %}
+                                                    <span class="compact-preview-pill subject-theme-pill" style="--subject-color: {{ item.subject_color or '#0A4EA3' }}; --subject-color-soft: {{ item.subject_color_soft or '#f8fbff' }}; --subject-color-border: {{ item.subject_color_border or '#d9e6f8' }}; --subject-color-text: {{ item.subject_color_text or '#365275' }};">{{ item.preview_label }}</span>
                                                     {% endfor %}
                                                     {% if allocation.get("subject_hidden_count", 0) %}
                                                     <span class="compact-preview-pill compact-preview-pill-more">+{{ allocation.get("subject_hidden_count", 0) }} more</span>
                                                     {% endif %}
                                                 </summary>
                                                 <ul class="assigned-list">
-                                                    {% for label in allocation.get("subject_labels") %}
-                                                    <li class="assigned-item">{{ label }}</li>
+                                                    {% for item in allocation.get("subject_items", []) %}
+                                                    <li class="assigned-item subject-theme-item" style="--subject-color: {{ item.subject_color or '#0A4EA3' }}; --subject-color-soft: {{ item.subject_color_soft or '#f5f9ff' }}; --subject-color-border: {{ item.subject_color_border or '#dbe7f8' }}; --subject-color-text: {{ item.subject_color_text or '#2f4361' }};">{{ item.detail_label }}</li>
                                                     {% endfor %}
                                                 </ul>
                                             </details>

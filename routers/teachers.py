@@ -239,13 +239,38 @@ def _normalize_grade_label(value) -> str:
     return "KG" if parsed_grade == 0 else str(parsed_grade)
 
 
+def _build_subject_theme_payload(
+    subject_code: str,
+    subject_name: str = "",
+    stored_color: str | None = None,
+):
+    subject_color = resolve_subject_color(
+        subject_code,
+        stored_color,
+        subject_name=subject_name,
+    )
+    theme = build_subject_theme(subject_color)
+    return {
+        "subject_color": subject_color,
+        "subject_color_soft": theme["soft"],
+        "subject_color_border": theme["border"],
+        "subject_color_text": theme["text"],
+    }
+
+
 def _build_teacher_subject_display_entries(
     subject_code: str,
     subject_name: str,
     subject_grade: str,
     subject_hours: int,
     compatibility_override: bool = False,
+    stored_color: str | None = None,
 ):
+    subject_theme = _build_subject_theme_payload(
+        subject_code,
+        subject_name=subject_name,
+        stored_color=stored_color,
+    )
     bundle_subject_labels = get_homeroom_bundle_subject_labels(
         subject_code=subject_code,
         subject_name=subject_name,
@@ -256,6 +281,7 @@ def _build_teacher_subject_display_entries(
     if bundle_subject_labels:
         return [
             {
+                **subject_theme,
                 "detail_label": (
                     f"{subject_code} - {bundle_subject} "
                     f"(included in {subject_name}, Grade {subject_grade}, "
@@ -268,6 +294,7 @@ def _build_teacher_subject_display_entries(
 
     return [
         {
+            **subject_theme,
             "detail_label": (
                 f"{subject_code} - {subject_name} "
                 f"(Grade {subject_grade}, {subject_hours}h){override_suffix}"
@@ -557,8 +584,8 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
         teacher.id: {
             "subject_codes": [],
             "override_subject_codes": [],
-            "subject_labels": [],
-            "subject_preview_labels": [],
+            "subject_items": [],
+            "subject_preview_items": [],
             "subject_count": 0,
             "subject_hidden_count": 0,
             "allocated_hours": 0,
@@ -609,36 +636,22 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
         if subject and subject.grade is not None:
             subject_grade = str(subject.grade)
         teacher_data["subject_codes"].append(allocation.subject_code)
+        subject_entries = _build_teacher_subject_display_entries(
+            subject_code=allocation.subject_code,
+            subject_name=subject_name,
+            subject_grade=subject_grade,
+            subject_hours=subject_hours,
+            compatibility_override=getattr(
+                allocation,
+                "compatibility_override",
+                False,
+            ),
+            stored_color=getattr(subject, "color", ""),
+        )
         if allocation.compatibility_override:
             teacher_data["override_subject_codes"].append(allocation.subject_code)
-        teacher_data["subject_labels"].extend(
-            entry["detail_label"]
-            for entry in _build_teacher_subject_display_entries(
-                subject_code=allocation.subject_code,
-                subject_name=subject_name,
-                subject_grade=subject_grade,
-                subject_hours=subject_hours,
-                compatibility_override=getattr(
-                    allocation,
-                    "compatibility_override",
-                    False,
-                ),
-            )
-        )
-        teacher_data["subject_preview_labels"].extend(
-            entry["preview_label"]
-            for entry in _build_teacher_subject_display_entries(
-                subject_code=allocation.subject_code,
-                subject_name=subject_name,
-                subject_grade=subject_grade,
-                subject_hours=subject_hours,
-                compatibility_override=getattr(
-                    allocation,
-                    "compatibility_override",
-                    False,
-                ),
-            )
-        )
+        teacher_data["subject_items"].extend(subject_entries)
+        teacher_data["subject_preview_items"].extend(subject_entries)
 
     planning_section_ids = sorted(
         {
@@ -796,10 +809,10 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
         teacher_data = allocation_map.get(teacher.id)
         if not teacher_data:
             continue
-        teacher_data["subject_count"] = len(teacher_data["subject_labels"])
-        teacher_data["subject_preview_labels"] = teacher_data["subject_preview_labels"][:2]
+        teacher_data["subject_count"] = len(teacher_data["subject_items"])
+        teacher_data["subject_preview_items"] = teacher_data["subject_preview_items"][:2]
         teacher_data["subject_hidden_count"] = max(
-            teacher_data["subject_count"] - len(teacher_data["subject_preview_labels"]),
+            teacher_data["subject_count"] - len(teacher_data["subject_preview_items"]),
             0,
         )
         teacher_entries = [
