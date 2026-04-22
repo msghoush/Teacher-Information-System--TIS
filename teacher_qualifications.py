@@ -580,8 +580,16 @@ def get_selected_alignment_keys(qualification_keys) -> list[str]:
     return sorted(alignment_keys)
 
 
+def get_selected_specialization_keys(qualification_keys) -> list[str]:
+    return [
+        key
+        for key in normalize_qualification_keys(qualification_keys)
+        if QUALIFICATION_LOOKUP[key]["kind"] == QUALIFICATION_KIND_SPECIALIZATION
+    ]
+
+
 def has_specialization_qualification(qualification_keys) -> bool:
-    return bool(get_selected_alignment_keys(qualification_keys))
+    return bool(get_selected_specialization_keys(qualification_keys))
 
 
 def get_subject_alignment_group_keys(subject_name: str, fallback_code: str = "") -> list[str]:
