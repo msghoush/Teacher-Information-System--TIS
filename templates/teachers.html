@@ -617,18 +617,20 @@
         }
 
         .subject-selector-chips {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
+            display: grid;
+            gap: 8px;
+            width: 100%;
         }
 
         .subject-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: start;
+            gap: 8px 12px;
+            width: 100%;
             max-width: 100%;
-            padding: 8px 10px;
+            box-sizing: border-box;
+            padding: 10px 12px;
             border: 1px solid #c8daf3;
             border-radius: 16px;
             background: #edf4ff;
@@ -658,7 +660,7 @@
 
         .subject-chip-main {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 8px;
             flex: 1 1 auto;
             min-width: 0;
@@ -667,21 +669,26 @@
         .subject-chip-label {
             display: inline-block;
             max-width: 100%;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
 
         .subject-chip-actions {
-            display: inline-flex;
+            display: flex;
             align-items: center;
-            gap: 10px;
+            justify-content: flex-end;
+            align-self: center;
+            gap: 8px;
             flex-wrap: wrap;
+            min-width: 0;
+            max-width: 100%;
         }
 
         .subject-chip-override {
-            display: inline-flex;
+            display: flex;
             align-items: center;
+            flex-wrap: wrap;
             gap: 6px;
             padding: 4px 8px;
             border-radius: 999px;
@@ -690,11 +697,14 @@
             color: #7d4600;
             font-size: 11px;
             font-weight: 700;
+            line-height: 1.3;
+            max-width: 100%;
         }
 
         .subject-chip-override input[type="checkbox"] {
             margin: 0;
             accent-color: #b26100;
+            flex: 0 0 auto;
         }
 
         .subject-chip-override-note {
@@ -703,6 +713,8 @@
             letter-spacing: 0.05em;
             text-transform: uppercase;
             color: #9a5800;
+            line-height: 1.3;
+            white-space: normal;
         }
 
         .subject-chip-remove {
@@ -714,6 +726,7 @@
             line-height: 1;
             cursor: pointer;
             padding: 0;
+            flex: 0 0 auto;
         }
 
         .subject-chip-empty {
@@ -1844,6 +1857,15 @@
 
             .subject-assignment-stats {
                 justify-content: flex-start;
+            }
+
+            .subject-chip {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .subject-chip-actions {
+                justify-content: flex-start;
+                align-self: stretch;
             }
         }
 </style>
