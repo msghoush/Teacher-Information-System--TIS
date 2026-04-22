@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 
+import models
+
 
 QUALIFICATION_GROUP_DEGREES = "Academic Degrees"
 QUALIFICATION_GROUP_SPECIALIZATIONS = "Majors & Teaching Specializations"
@@ -447,9 +449,119 @@ QUALIFICATION_LOOKUP = {
 _NORMALIZE_PATTERN = re.compile(r"[_\W]+", re.UNICODE)
 
 
+def get_qualification_group_label(kind: str) -> str:
+    normalized_kind = str(kind or "").strip().lower()
+    return (
+        QUALIFICATION_GROUP_DEGREES
+        if normalized_kind == QUALIFICATION_KIND_DEGREE
+        else QUALIFICATION_GROUP_SPECIALIZATIONS
+    )
+
+
 def _normalize_text(value: str) -> str:
     cleaned = _NORMALIZE_PATTERN.sub(" ", str(value or "").lower()).strip()
     return " ".join(cleaned.split())
+
+
+def build_qualification_key(label: str) -> str:
+    return _normalize_text(label).replace(" ", "_")
+
+
+def _normalize_csv_values(value) -> tuple[str, ...]:
+    if isinstance(value, (list, tuple, set)):
+        raw_values = value
+    else:
+        raw_values = str(value or "").split(",")
+
+    normalized_values = []
+    seen_values = set()
+    for raw_value in raw_values:
+        normalized_value = _normalize_text(raw_value)
+        if not normalized_value or normalized_value in seen_values:
+            continue
+        seen_values.add(normalized_value)
+        normalized_values.append(normalized_value)
+    return tuple(normalized_values)
+
+
+def _serialize_qualification_option(
+    *,
+    key: str,
+    label: str,
+    kind: str,
+    alignment_keys,
+    legacy_aliases,
+    sort_order: int = 0,
+):
+    normalized_kind = (
+        QUALIFICATION_KIND_DEGREE
+        if str(kind or "").strip().lower() == QUALIFICATION_KIND_DEGREE
+        else QUALIFICATION_KIND_SPECIALIZATION
+    )
+    normalized_label = " ".join(str(label or "").split()).strip()
+    return {
+        "key": str(key or "").strip(),
+        "label": normalized_label,
+        "group": get_qualification_group_label(normalized_kind),
+        "kind": normalized_kind,
+        "alignment_keys": _normalize_csv_values(alignment_keys),
+        "legacy_aliases": _normalize_csv_values(legacy_aliases),
+        "sort_order": int(sort_order or 0),
+    }
+
+
+def ensure_qualification_options_seeded(db) -> list[dict]:
+    if db is None:
+        return list(QUALIFICATION_OPTIONS)
+
+    existing_count = db.query(models.QualificationOption).count()
+    if existing_count == 0:
+        for sort_order, option in enumerate(QUALIFICATION_OPTIONS, start=1):
+            db.add(
+                models.QualificationOption(
+                    qualification_key=option["key"],
+                    label=option["label"],
+                    kind=option["kind"],
+                    alignment_keys=",".join(option["alignment_keys"]),
+                    legacy_aliases=",".join(option["legacy_aliases"]),
+                    sort_order=sort_order,
+                )
+            )
+        db.commit()
+
+    configured_rows = db.query(models.QualificationOption).order_by(
+        models.QualificationOption.kind.asc(),
+        models.QualificationOption.sort_order.asc(),
+        models.QualificationOption.label.asc(),
+        models.QualificationOption.id.asc(),
+    ).all()
+    return [
+        _serialize_qualification_option(
+            key=row.qualification_key,
+            label=row.label,
+            kind=row.kind,
+            alignment_keys=row.alignment_keys,
+            legacy_aliases=row.legacy_aliases,
+            sort_order=row.sort_order,
+        )
+        for row in configured_rows
+        if str(row.qualification_key or "").strip() and str(row.label or "").strip()
+    ]
+
+
+def get_qualification_options(db=None) -> list[dict]:
+    if db is None:
+        return [dict(option) for option in QUALIFICATION_OPTIONS]
+    return ensure_qualification_options_seeded(db)
+
+
+def get_qualification_lookup(db=None, qualification_options=None) -> dict:
+    options = qualification_options if qualification_options is not None else get_qualification_options(db)
+    return {
+        option["key"]: option
+        for option in options
+        if option.get("key")
+    }
 
 
 def _contains_alias(normalized_text: str, alias: str) -> bool:
@@ -459,38 +571,55 @@ def _contains_alias(normalized_text: str, alias: str) -> bool:
     return f" {normalized_alias} " in f" {normalized_text} "
 
 
-def normalize_qualification_keys(values) -> list[str]:
+def normalize_qualification_keys(values, qualification_lookup=None) -> list[str]:
+    active_lookup = qualification_lookup or QUALIFICATION_LOOKUP
     normalized_keys = []
     seen_keys = set()
     for raw_value in values or []:
         key = str(raw_value or "").strip()
-        if not key or key not in QUALIFICATION_LOOKUP or key in seen_keys:
+        if not key or key not in active_lookup or key in seen_keys:
             continue
         seen_keys.add(key)
         normalized_keys.append(key)
     return normalized_keys
 
 
-def infer_qualification_keys_from_legacy_text(value: str) -> list[str]:
+def infer_qualification_keys_from_legacy_text(
+    value: str,
+    *,
+    qualification_options=None,
+    qualification_lookup=None,
+) -> list[str]:
     normalized_text = _normalize_text(value)
     if not normalized_text:
         return []
 
     inferred_keys = []
-    for option in QUALIFICATION_OPTIONS:
+    active_options = (
+        qualification_options
+        if qualification_options is not None
+        else list((qualification_lookup or QUALIFICATION_LOOKUP).values())
+    )
+    for option in active_options:
         for alias in option["legacy_aliases"]:
             if _contains_alias(normalized_text, alias):
                 inferred_keys.append(option["key"])
                 break
 
-    return normalize_qualification_keys(inferred_keys)
+    return normalize_qualification_keys(
+        inferred_keys,
+        qualification_lookup=qualification_lookup or get_qualification_lookup(
+            qualification_options=active_options
+        ),
+    )
 
 
-def get_qualification_labels(keys) -> list[str]:
+def get_qualification_labels(keys, qualification_lookup=None) -> list[str]:
+    active_lookup = qualification_lookup or QUALIFICATION_LOOKUP
     return [
-        QUALIFICATION_LOOKUP[key]["label"]
-        for key in normalize_qualification_keys(keys)
-        if key in QUALIFICATION_LOOKUP
+        active_lookup[key]["label"]
+        for key in normalize_qualification_keys(keys, qualification_lookup=active_lookup)
+        if key in active_lookup
     ]
 
 
@@ -500,8 +629,9 @@ def build_qualification_summary(
     fallback_text: str = "",
     max_items: int | None = None,
     max_length: int | None = None,
+    qualification_lookup=None,
 ) -> str:
-    labels = get_qualification_labels(keys)
+    labels = get_qualification_labels(keys, qualification_lookup=qualification_lookup)
     if not labels:
         return " ".join(str(fallback_text or "").split()).strip()
 
@@ -516,15 +646,22 @@ def build_qualification_summary(
     return summary
 
 
-def build_legacy_qualification_snapshot(keys, max_length: int = 120) -> str:
+def build_legacy_qualification_snapshot(
+    keys,
+    max_length: int = 120,
+    *,
+    qualification_lookup=None,
+) -> str:
     return build_qualification_summary(
         keys,
         max_items=6,
         max_length=max_length,
+        qualification_lookup=qualification_lookup,
     )
 
 
-def get_qualification_option_groups() -> list[dict]:
+def get_qualification_option_groups(db=None, qualification_options=None) -> list[dict]:
+    active_options = qualification_options if qualification_options is not None else get_qualification_options(db)
     groups = []
     for group_label in (
         QUALIFICATION_GROUP_DEGREES,
@@ -538,13 +675,14 @@ def get_qualification_option_groups() -> list[dict]:
                         "key": option["key"],
                         "label": option["label"],
                         "kind": option["kind"],
+                        "sort_order": option.get("sort_order", 0),
                         "kind_label": (
                             "Degree / award"
                             if option["kind"] == QUALIFICATION_KIND_DEGREE
                             else "Major / specialization"
                         ),
                     }
-                    for option in QUALIFICATION_OPTIONS
+                    for option in active_options
                     if option["group"] == group_label
                 ],
             }
@@ -552,7 +690,8 @@ def get_qualification_option_groups() -> list[dict]:
     return groups
 
 
-def get_qualification_options_for_json() -> list[dict]:
+def get_qualification_options_for_json(db=None, qualification_options=None) -> list[dict]:
+    active_options = qualification_options if qualification_options is not None else get_qualification_options(db)
     return [
         {
             "key": option["key"],
@@ -561,7 +700,7 @@ def get_qualification_options_for_json() -> list[dict]:
             "kind": option["kind"],
             "alignment_keys": list(option["alignment_keys"]),
         }
-        for option in QUALIFICATION_OPTIONS
+        for option in active_options
     ]
 
 
@@ -572,24 +711,31 @@ def get_subject_alignment_keyword_groups_for_json() -> dict:
     }
 
 
-def get_selected_alignment_keys(qualification_keys) -> list[str]:
+def get_selected_alignment_keys(qualification_keys, qualification_lookup=None) -> list[str]:
+    active_lookup = qualification_lookup or QUALIFICATION_LOOKUP
     alignment_keys = set()
-    for key in normalize_qualification_keys(qualification_keys):
-        for alignment_key in QUALIFICATION_LOOKUP[key]["alignment_keys"]:
+    for key in normalize_qualification_keys(qualification_keys, qualification_lookup=active_lookup):
+        for alignment_key in active_lookup[key]["alignment_keys"]:
             alignment_keys.add(alignment_key)
     return sorted(alignment_keys)
 
 
-def get_selected_specialization_keys(qualification_keys) -> list[str]:
+def get_selected_specialization_keys(qualification_keys, qualification_lookup=None) -> list[str]:
+    active_lookup = qualification_lookup or QUALIFICATION_LOOKUP
     return [
         key
-        for key in normalize_qualification_keys(qualification_keys)
-        if QUALIFICATION_LOOKUP[key]["kind"] == QUALIFICATION_KIND_SPECIALIZATION
+        for key in normalize_qualification_keys(qualification_keys, qualification_lookup=active_lookup)
+        if active_lookup[key]["kind"] == QUALIFICATION_KIND_SPECIALIZATION
     ]
 
 
-def has_specialization_qualification(qualification_keys) -> bool:
-    return bool(get_selected_specialization_keys(qualification_keys))
+def has_specialization_qualification(qualification_keys, qualification_lookup=None) -> bool:
+    return bool(
+        get_selected_specialization_keys(
+            qualification_keys,
+            qualification_lookup=qualification_lookup,
+        )
+    )
 
 
 def get_subject_alignment_group_keys(subject_name: str, fallback_code: str = "") -> list[str]:
@@ -614,8 +760,14 @@ def get_subject_qualification_alignment(
     subject_name: str,
     fallback_code: str,
     qualification_keys,
+    *,
+    qualification_lookup=None,
 ) -> dict:
-    normalized_qualification_keys = normalize_qualification_keys(qualification_keys)
+    active_lookup = qualification_lookup or QUALIFICATION_LOOKUP
+    normalized_qualification_keys = normalize_qualification_keys(
+        qualification_keys,
+        qualification_lookup=active_lookup,
+    )
     if not normalized_qualification_keys:
         return {
             "status": "empty",
@@ -628,7 +780,10 @@ def get_subject_qualification_alignment(
         }
 
     selected_alignment_keys = set(
-        get_selected_alignment_keys(normalized_qualification_keys)
+        get_selected_alignment_keys(
+            normalized_qualification_keys,
+            qualification_lookup=active_lookup,
+        )
     )
     if not selected_alignment_keys:
         return {
@@ -657,7 +812,7 @@ def get_subject_qualification_alignment(
 
     matched_keys = []
     for key in normalized_qualification_keys:
-        alignment_keys = set(QUALIFICATION_LOOKUP[key]["alignment_keys"])
+        alignment_keys = set(active_lookup[key]["alignment_keys"])
         if alignment_keys and alignment_keys.intersection(subject_group_keys):
             matched_keys.append(key)
 
@@ -667,7 +822,10 @@ def get_subject_qualification_alignment(
         "status": status,
         "label": label,
         "matched_qualification_keys": matched_keys,
-        "matched_qualification_labels": get_qualification_labels(matched_keys),
+        "matched_qualification_labels": get_qualification_labels(
+            matched_keys,
+            qualification_lookup=active_lookup,
+        ),
         "subject_group_keys": sorted(subject_group_keys),
         "recognized_subject": True,
         "has_specialization": True,

@@ -15,6 +15,7 @@ from homeroom_defaults import (
     is_lower_primary_homeroom_grade,
 )
 from teacher_qualifications import (
+    get_qualification_lookup,
     get_subject_qualification_alignment,
     infer_qualification_keys_from_legacy_text,
 )
@@ -163,6 +164,7 @@ def _build_assignment_alignment_warnings(
     aligned_subjects,
     parsed_assignment_teacher_ids_by_subject,
     scoped_teacher_map,
+    qualification_lookup=None,
 ):
     warnings = []
     for subject in aligned_subjects:
@@ -174,12 +176,14 @@ def _build_assignment_alignment_warnings(
         if not teacher:
             continue
         qualification_keys = infer_qualification_keys_from_legacy_text(
-            getattr(teacher, "degree_major", "") or ""
+            getattr(teacher, "degree_major", "") or "",
+            qualification_lookup=qualification_lookup,
         )
         alignment = get_subject_qualification_alignment(
             subject_name=subject.get("subject_name") or "",
             fallback_code=subject_code or "",
             qualification_keys=qualification_keys,
+            qualification_lookup=qualification_lookup,
         )
         if alignment.get("status") == "match":
             continue
@@ -1452,6 +1456,7 @@ def update_planning_section(
         aligned_subjects=aligned_subjects,
         parsed_assignment_teacher_ids_by_subject=parsed_assignment_teacher_ids_by_subject,
         scoped_teacher_map=scoped_teacher_map,
+        qualification_lookup=get_qualification_lookup(db),
     )
     if qualification_warnings and not _is_override_enabled(qualification_override):
         return _render_edit_planning_page(

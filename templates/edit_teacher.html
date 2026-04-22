@@ -1992,6 +1992,14 @@ const teacherIdInput = document.getElementById("teacher_id");
             return getSelectedQualificationChoices().map((option) => option.label);
         };
 
+        const getSelectedSpecializationChoices = () => {
+            return getSelectedQualificationChoices().filter((option) => option.kind === "specialization");
+        };
+
+        const hasSelectedSpecialization = () => {
+            return getSelectedSpecializationChoices().length > 0;
+        };
+
         const getSelectedAlignmentKeys = () => {
             const alignmentKeys = new Set();
             getSelectedQualificationChoices().forEach((option) => {
@@ -2049,11 +2057,18 @@ const teacherIdInput = document.getElementById("teacher_id");
                 };
             }
 
+            if (!hasSelectedSpecialization()) {
+                return {
+                    status: "review",
+                    label: "Add specialization",
+                };
+            }
+
             const selectedAlignmentKeys = getSelectedAlignmentKeys();
             if (selectedAlignmentKeys.size === 0) {
                 return {
                     status: "review",
-                    label: "Add specialization",
+                    label: "Review fit",
                 };
             }
 
@@ -2091,6 +2106,7 @@ const teacherIdInput = document.getElementById("teacher_id");
             syncOverrideSubjectCodes();
             const selectedQualifications = getSelectedQualificationChoices();
             const qualificationLabels = getSelectedQualificationLabels();
+            const selectedSpecializations = getSelectedSpecializationChoices();
             const selectedAlignmentKeys = getSelectedAlignmentKeys();
             const selectedSubjects = getSortedSelectedSubjects();
             const matchingSubjects = subjectChoices.filter((subject) => {
@@ -2115,10 +2131,14 @@ const teacherIdInput = document.getElementById("teacher_id");
 
             if (selectedQualifications.length === 0) {
                 state = "empty";
-            } else if (selectedAlignmentKeys.size === 0) {
+            } else if (selectedSpecializations.length === 0) {
                 state = "review";
                 badgeText = "Add specialization";
                 message = "Degree levels are selected, but no subject specialization is selected yet. Add at least one major or specialization so subject fit can be validated.";
+            } else if (selectedAlignmentKeys.size === 0) {
+                state = "review";
+                badgeText = "Review subject fit";
+                message = `${selectedSpecializations.map((option) => option.label).join(", ")} selected. These broad specializations do not map to a single subject family, so review the chosen subjects manually and use Admin Override only when needed.`;
             } else if (matchingSubjects.length === 0) {
                 state = "no-match";
                 badgeText = "No direct match";
@@ -2775,6 +2795,7 @@ const teacherIdInput = document.getElementById("teacher_id");
 
             if (teacherForm) {
                 teacherForm.addEventListener("submit", (event) => {
+                    syncSelectedQualifications();
                     const parsedValue = Number(maxHoursInput.value);
                     if (Number.isFinite(parsedValue) && parsedValue > standardMaxHours && (!extraAllowed || !extraAllowed.checked)) {
                         event.preventDefault();
@@ -2798,7 +2819,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                         return;
                     }
 
-                    if (getSelectedAlignmentKeys().size === 0) {
+                    if (!hasSelectedSpecialization()) {
                         event.preventDefault();
                         window.alert("Select at least one major or subject specialization so the system can validate subject compatibility.");
                         qualificationInputs[0]?.focus();

@@ -121,6 +121,24 @@ class TeacherQualificationSelection(Base):
     qualification_key = Column(String(80), nullable=False)
 
 
+class QualificationOption(Base):
+    __tablename__ = "qualification_options"
+    __table_args__ = (
+        UniqueConstraint(
+            "qualification_key",
+            name="uq_qualification_options_key",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    qualification_key = Column(String(80), nullable=False, index=True)
+    label = Column(String(120), nullable=False)
+    kind = Column(String(32), nullable=False)
+    alignment_keys = Column(String(255), nullable=False, default="")
+    legacy_aliases = Column(String(500), nullable=False, default="")
+    sort_order = Column(Integer, nullable=False, default=0)
+
+
 class TeacherSectionAssignment(Base):
     __tablename__ = "teacher_section_assignments"
     __table_args__ = (

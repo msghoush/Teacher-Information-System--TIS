@@ -24,12 +24,12 @@ from teacher_capacity import (
     get_teacher_total_capacity_hours,
 )
 from teacher_qualifications import (
-    QUALIFICATION_LOOKUP,
     build_legacy_qualification_snapshot,
     build_qualification_summary,
     get_qualification_labels,
     get_qualification_option_groups,
     get_qualification_options_for_json,
+    get_qualification_lookup,
     get_subject_alignment_keyword_groups_for_json,
     get_subject_qualification_alignment,
     has_specialization_qualification,
@@ -90,6 +90,7 @@ def _collect_subject_qualification_alignment_issues(
     normalized_subject_codes,
     subject_map,
     qualification_keys,
+    qualification_lookup=None,
 ):
     issues = {
         "errors": [],
@@ -103,7 +104,10 @@ def _collect_subject_qualification_alignment_issues(
         )
         return issues
 
-    if not has_specialization_qualification(qualification_keys):
+    if not has_specialization_qualification(
+        qualification_keys,
+        qualification_lookup=qualification_lookup,
+    ):
         issues["errors"].append(
             "Select at least one major or teaching specialization so subject compatibility can be validated."
         )
@@ -118,6 +122,7 @@ def _collect_subject_qualification_alignment_issues(
             subject_name=subject.subject_name or "",
             fallback_code=subject.subject_code or subject_code,
             qualification_keys=qualification_keys,
+            qualification_lookup=qualification_lookup,
         )
         if alignment["recognized_subject"] and alignment["status"] != "match":
             issues["incompatible_codes"].add(subject_code)
@@ -449,22 +454,37 @@ def _get_teacher_section_assignment_values(db: Session, teacher_id: int):
     ]
 
 
-def _build_teacher_qualification_payload(teacher, qualification_keys):
-    normalized_keys = normalize_qualification_keys(qualification_keys)
+def _build_teacher_qualification_payload(
+    teacher,
+    qualification_keys,
+    qualification_lookup=None,
+):
+    normalized_keys = normalize_qualification_keys(
+        qualification_keys,
+        qualification_lookup=qualification_lookup,
+    )
     if not normalized_keys:
         normalized_keys = infer_qualification_keys_from_legacy_text(
-            getattr(teacher, "degree_major", "") or ""
+            getattr(teacher, "degree_major", "") or "",
+            qualification_lookup=qualification_lookup,
         )
 
     return {
         "keys": normalized_keys,
-        "labels": get_qualification_labels(normalized_keys),
+        "labels": get_qualification_labels(
+            normalized_keys,
+            qualification_lookup=qualification_lookup,
+        ),
         "summary": build_qualification_summary(
             normalized_keys,
             fallback_text=getattr(teacher, "degree_major", "") or "",
             max_items=3,
+            qualification_lookup=qualification_lookup,
         ),
-        "snapshot": build_legacy_qualification_snapshot(normalized_keys),
+        "snapshot": build_legacy_qualification_snapshot(
+            normalized_keys,
+            qualification_lookup=qualification_lookup,
+        ),
     }
 
 
@@ -495,10 +515,12 @@ def _get_teacher_qualification_map(db: Session, teachers):
                 row.qualification_key
             )
 
+    qualification_lookup = get_qualification_lookup(db)
     return {
         teacher.id: _build_teacher_qualification_payload(
             teacher,
             qualification_keys_by_teacher.get(teacher.id, []),
+            qualification_lookup=qualification_lookup,
         )
         for teacher in teachers
         if getattr(teacher, "id", None)
@@ -510,6 +532,7 @@ def _validate_subject_qualification_alignment(
     subject_map,
     qualification_keys,
     override_subject_codes=None,
+    qualification_lookup=None,
 ):
     override_subject_code_set = set(
         _normalize_subject_codes(override_subject_codes or [])
@@ -518,6 +541,7 @@ def _validate_subject_qualification_alignment(
         normalized_subject_codes=normalized_subject_codes,
         subject_map=subject_map,
         qualification_keys=qualification_keys,
+        qualification_lookup=qualification_lookup,
     )
     errors = list(issues["errors"])
     incompatible_codes = set(issues["incompatible_codes"])
@@ -930,6 +954,9 @@ def _render_teachers_page(
     if form_data:
         normalized_form_data.update(form_data)
 
+    qualification_options = get_qualification_options_for_json(db)
+    qualification_option_groups = get_qualification_option_groups(db)
+
     return templates.TemplateResponse(
         request,
         "teachers.html",
@@ -938,8 +965,8 @@ def _render_teachers_page(
             "teachers": teachers,
             "teacher_qualification_map": teacher_qualification_map,
             "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
-            "qualification_option_groups": get_qualification_option_groups(),
-            "qualification_options": get_qualification_options_for_json(),
+            "qualification_option_groups": qualification_option_groups,
+            "qualification_options": qualification_options,
             "subject_alignment_keyword_groups": get_subject_alignment_keyword_groups_for_json(),
             "section_options_by_subject": section_assignment_support["section_options_by_subject"],
             "teacher_allocations": teacher_allocations,
@@ -1017,6 +1044,9 @@ def _render_edit_teacher_page(
             [getattr(teacher, "id", None)],
         ).get(getattr(teacher, "id", None), [])
 
+    qualification_options = get_qualification_options_for_json(db)
+    qualification_option_groups = get_qualification_option_groups(db)
+
     return templates.TemplateResponse(
         request,
         "edit_teacher.html",
@@ -1025,8 +1055,8 @@ def _render_edit_teacher_page(
             "teacher": teacher,
             "teacher_qualification_map": teacher_qualification_map,
             "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
-            "qualification_option_groups": get_qualification_option_groups(),
-            "qualification_options": get_qualification_options_for_json(),
+            "qualification_option_groups": qualification_option_groups,
+            "qualification_options": qualification_options,
             "subject_alignment_keyword_groups": get_subject_alignment_keyword_groups_for_json(),
             "section_options_by_subject": section_assignment_support["section_options_by_subject"],
             "assigned_subject_codes": assigned_subject_codes,
@@ -1327,6 +1357,7 @@ def copy_teachers_from_year(
     skipped_missing_subject_count = 0
     skipped_missing_section_count = 0
     skipped_occupied_section_count = 0
+    qualification_lookup = get_qualification_lookup(db)
 
     for source_teacher in source_teachers:
         normalized_teacher_id = _normalize_teacher_id(source_teacher.teacher_id or "")
@@ -1335,14 +1366,17 @@ def copy_teachers_from_year(
             continue
 
         source_qualification_keys = normalize_qualification_keys(
-            source_qualification_keys_by_teacher.get(source_teacher.id, [])
+            source_qualification_keys_by_teacher.get(source_teacher.id, []),
+            qualification_lookup=qualification_lookup,
         )
         if not source_qualification_keys:
             source_qualification_keys = infer_qualification_keys_from_legacy_text(
-                source_teacher.degree_major or ""
+                source_teacher.degree_major or "",
+                qualification_lookup=qualification_lookup,
             )
         qualification_snapshot = build_legacy_qualification_snapshot(
-            source_qualification_keys
+            source_qualification_keys,
+            qualification_lookup=qualification_lookup,
         )
 
         target_teacher = target_teachers_by_teacher_id.get(normalized_teacher_id)
@@ -1550,9 +1584,13 @@ def create_teacher(
         for value in qualification_keys
         if str(value or "").strip()
     ]
-    normalized_qualification_keys = normalize_qualification_keys(raw_qualification_keys)
+    qualification_lookup = get_qualification_lookup(db)
+    normalized_qualification_keys = normalize_qualification_keys(
+        raw_qualification_keys,
+        qualification_lookup=qualification_lookup,
+    )
     invalid_qualification_keys = sorted({
-        key for key in raw_qualification_keys if key not in QUALIFICATION_LOOKUP
+        key for key in raw_qualification_keys if key not in qualification_lookup
     })
     normalized_subject_codes = _normalize_subject_codes(subject_codes)
     normalized_override_subject_codes = _normalize_subject_codes(
@@ -1643,6 +1681,7 @@ def create_teacher(
             subject_map=subject_map,
             qualification_keys=normalized_qualification_keys,
             override_subject_codes=normalized_override_subject_codes,
+            qualification_lookup=qualification_lookup,
         )
         errors.extend(subject_alignment_errors)
 
@@ -1758,7 +1797,10 @@ def create_teacher(
         first_name=first_name,
         middle_name=middle_name if middle_name else None,
         last_name=last_name,
-        degree_major=build_legacy_qualification_snapshot(normalized_qualification_keys),
+        degree_major=build_legacy_qualification_snapshot(
+            normalized_qualification_keys,
+            qualification_lookup=qualification_lookup,
+        ),
         subject_code=normalized_subject_codes[0] if normalized_subject_codes else None,
         level=None,
         max_hours=parsed_max_hours if parsed_max_hours is not None else STANDARD_MAX_HOURS,
@@ -1915,9 +1957,13 @@ def update_teacher(
         for value in qualification_keys
         if str(value or "").strip()
     ]
-    normalized_qualification_keys = normalize_qualification_keys(raw_qualification_keys)
+    qualification_lookup = get_qualification_lookup(db)
+    normalized_qualification_keys = normalize_qualification_keys(
+        raw_qualification_keys,
+        qualification_lookup=qualification_lookup,
+    )
     invalid_qualification_keys = sorted({
-        key for key in raw_qualification_keys if key not in QUALIFICATION_LOOKUP
+        key for key in raw_qualification_keys if key not in qualification_lookup
     })
     normalized_subject_codes = _normalize_subject_codes(subject_codes)
     normalized_override_subject_codes = _normalize_subject_codes(
@@ -2007,6 +2053,7 @@ def update_teacher(
             subject_map=subject_map,
             qualification_keys=normalized_qualification_keys,
             override_subject_codes=normalized_override_subject_codes,
+            qualification_lookup=qualification_lookup,
         )
         errors.extend(subject_alignment_errors)
 
@@ -2097,7 +2144,10 @@ def update_teacher(
             first_name=first_name,
             middle_name=middle_name if middle_name else None,
             last_name=last_name,
-            degree_major=build_legacy_qualification_snapshot(normalized_qualification_keys),
+            degree_major=build_legacy_qualification_snapshot(
+                normalized_qualification_keys,
+                qualification_lookup=qualification_lookup,
+            ),
             max_hours=(
                 parsed_max_hours
                 if parsed_max_hours is not None
@@ -2133,7 +2183,10 @@ def update_teacher(
     teacher.first_name = first_name
     teacher.middle_name = middle_name if middle_name else None
     teacher.last_name = last_name
-    teacher.degree_major = build_legacy_qualification_snapshot(normalized_qualification_keys)
+    teacher.degree_major = build_legacy_qualification_snapshot(
+        normalized_qualification_keys,
+        qualification_lookup=qualification_lookup,
+    )
     teacher.subject_code = normalized_subject_codes[0] if normalized_subject_codes else None
     teacher.level = None
     teacher.max_hours = parsed_max_hours if parsed_max_hours is not None else STANDARD_MAX_HOURS
@@ -2189,7 +2242,10 @@ def update_teacher(
             first_name=first_name,
             middle_name=middle_name if middle_name else None,
             last_name=last_name,
-            degree_major=build_legacy_qualification_snapshot(normalized_qualification_keys),
+            degree_major=build_legacy_qualification_snapshot(
+                normalized_qualification_keys,
+                qualification_lookup=qualification_lookup,
+            ),
             max_hours=(
                 parsed_max_hours
                 if parsed_max_hours is not None

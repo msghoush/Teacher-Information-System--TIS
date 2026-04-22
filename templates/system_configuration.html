@@ -313,6 +313,65 @@
         margin: 0;
     }
 
+    .qualification-config-shell {
+        display: grid;
+        gap: 12px;
+    }
+
+    .qualification-create-form,
+    .qualification-row {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid #d8e5f4;
+        border-radius: 16px;
+        background: linear-gradient(180deg, #fcfdff, #f6faff);
+    }
+
+    .qualification-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .qualification-row-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .qualification-row-title {
+        display: grid;
+        gap: 6px;
+    }
+
+    .qualification-key-chip {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid #d7e5f5;
+        background: #ffffff;
+        color: #4b627f;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .qualification-row-title strong {
+        color: #17365d;
+        font-size: 15px;
+    }
+
+    .qualification-row-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+    }
+
     .branch-directory-meta,
     .branch-usage,
     .branch-inline-meta {
@@ -597,6 +656,10 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
+        .qualification-row-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
         .branch-directory-head {
             display: none;
         }
@@ -632,7 +695,8 @@
         .config-stat-grid,
         .field-grid,
         .branch-create-form,
-        .branch-table-row {
+        .branch-table-row,
+        .qualification-row-grid {
             grid-template-columns: 1fr;
         }
 
@@ -733,6 +797,152 @@
             </div>
         </article>
     </section>
+
+    <section class="config-section-grid">
+        <article class="page-panel config-card">
+            <div class="config-card-head">
+                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("copy", "icon") }}</span>Degree Management</h3>
+                <p>Add and update the academic degree options used directly in the teacher qualification form.</p>
+            </div>
+            <div class="qualification-config-shell">
+                <form class="qualification-create-form" method="post" action="/system-configuration/qualifications">
+                    <input type="hidden" name="kind" value="degree">
+                    <div class="field-grid">
+                        <div class="field">
+                            <label for="qualification_degree_label">Add Degree</label>
+                            <input id="qualification_degree_label" type="text" name="label" placeholder="Example: Bachelor's Degree" required>
+                        </div>
+                        <div class="field">
+                            <label for="qualification_degree_sort">Sort Order</label>
+                            <input id="qualification_degree_sort" type="number" name="sort_order" value="0">
+                        </div>
+                        <div class="field field-wide">
+                            <label for="qualification_degree_aliases">Legacy Aliases</label>
+                            <input id="qualification_degree_aliases" type="text" name="legacy_aliases" placeholder="bachelor, bachelors, bachelor degree">
+                        </div>
+                    </div>
+                    <div class="action-row">
+                        <button class="btn btn-primary" type="submit">{{ icon("add", "icon") }} Add Degree</button>
+                    </div>
+                    <div class="field-note">Degrees usually leave subject match keys blank. Legacy aliases help the system recognize older saved text.</div>
+                </form>
+
+                <div class="qualification-list">
+                    {% for row in degree_rows %}
+                    <form class="qualification-row" method="post" action="/system-configuration/qualifications/{{ row.key }}">
+                        <div class="qualification-row-head">
+                            <div class="qualification-row-title">
+                                <span class="qualification-key-chip">{{ row.key }}</span>
+                                <strong>{{ row.label }}</strong>
+                            </div>
+                            <span class="usage-pill">{{ row.usage_count }} teacher selections</span>
+                        </div>
+                        <div class="qualification-row-grid">
+                            <div class="field">
+                                <label for="qualification_label_{{ row.key }}">Label</label>
+                                <input id="qualification_label_{{ row.key }}" type="text" name="label" value="{{ row.label }}" required>
+                            </div>
+                            <div class="field">
+                                <label for="qualification_sort_{{ row.key }}">Sort Order</label>
+                                <input id="qualification_sort_{{ row.key }}" type="number" name="sort_order" value="{{ row.sort_order }}">
+                            </div>
+                            <div class="field">
+                                <label for="qualification_usage_{{ row.key }}">Usage</label>
+                                <input id="qualification_usage_{{ row.key }}" type="text" value="{{ row.usage_count }} teacher selections" disabled>
+                            </div>
+                            <div class="field field-wide">
+                                <label for="qualification_aliases_{{ row.key }}">Legacy Aliases</label>
+                                <input id="qualification_aliases_{{ row.key }}" type="text" name="legacy_aliases" value="{{ row.legacy_aliases }}" placeholder="Comma-separated aliases">
+                            </div>
+                        </div>
+                        <div class="action-row">
+                            <button class="btn btn-secondary" type="submit">{{ icon("save", "icon") }} Save Degree</button>
+                        </div>
+                    </form>
+                    {% endfor %}
+                </div>
+            </div>
+        </article>
+
+        <article class="page-panel config-card">
+            <div class="config-card-head">
+                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Majors / Teaching Specializations</h3>
+                <p>Add and update the specialization options used directly in the teacher qualification form and alignment checks.</p>
+            </div>
+            <div class="qualification-config-shell">
+                <form class="qualification-create-form" method="post" action="/system-configuration/qualifications">
+                    <input type="hidden" name="kind" value="specialization">
+                    <div class="field-grid">
+                        <div class="field">
+                            <label for="qualification_specialization_label">Add Specialization</label>
+                            <input id="qualification_specialization_label" type="text" name="label" placeholder="Example: Education" required>
+                        </div>
+                        <div class="field">
+                            <label for="qualification_specialization_sort">Sort Order</label>
+                            <input id="qualification_specialization_sort" type="number" name="sort_order" value="0">
+                        </div>
+                        <div class="field field-wide">
+                            <label for="qualification_specialization_keys">Subject Match Keys</label>
+                            <input id="qualification_specialization_keys" type="text" name="alignment_keys" list="qualificationKeywordChoices" placeholder="english, math, science">
+                        </div>
+                        <div class="field field-wide">
+                            <label for="qualification_specialization_aliases">Legacy Aliases</label>
+                            <input id="qualification_specialization_aliases" type="text" name="legacy_aliases" placeholder="education, teaching, pedagogy">
+                        </div>
+                    </div>
+                    <div class="action-row">
+                        <button class="btn btn-primary" type="submit">{{ icon("add", "icon") }} Add Specialization</button>
+                    </div>
+                    <div class="field-note">Use the same comma-separated subject match keys the system already understands: {{ qualification_keyword_choices|join(", ") }}.</div>
+                </form>
+
+                <div class="qualification-list">
+                    {% for row in specialization_rows %}
+                    <form class="qualification-row" method="post" action="/system-configuration/qualifications/{{ row.key }}">
+                        <div class="qualification-row-head">
+                            <div class="qualification-row-title">
+                                <span class="qualification-key-chip">{{ row.key }}</span>
+                                <strong>{{ row.label }}</strong>
+                            </div>
+                            <span class="usage-pill">{{ row.usage_count }} teacher selections</span>
+                        </div>
+                        <div class="qualification-row-grid">
+                            <div class="field">
+                                <label for="qualification_specialization_label_{{ row.key }}">Label</label>
+                                <input id="qualification_specialization_label_{{ row.key }}" type="text" name="label" value="{{ row.label }}" required>
+                            </div>
+                            <div class="field">
+                                <label for="qualification_specialization_sort_{{ row.key }}">Sort Order</label>
+                                <input id="qualification_specialization_sort_{{ row.key }}" type="number" name="sort_order" value="{{ row.sort_order }}">
+                            </div>
+                            <div class="field">
+                                <label for="qualification_specialization_usage_{{ row.key }}">Usage</label>
+                                <input id="qualification_specialization_usage_{{ row.key }}" type="text" value="{{ row.usage_count }} teacher selections" disabled>
+                            </div>
+                            <div class="field field-wide">
+                                <label for="qualification_specialization_keys_{{ row.key }}">Subject Match Keys</label>
+                                <input id="qualification_specialization_keys_{{ row.key }}" type="text" name="alignment_keys" list="qualificationKeywordChoices" value="{{ row.alignment_keys }}" placeholder="Comma-separated subject family keys">
+                            </div>
+                            <div class="field field-wide">
+                                <label for="qualification_specialization_aliases_{{ row.key }}">Legacy Aliases</label>
+                                <input id="qualification_specialization_aliases_{{ row.key }}" type="text" name="legacy_aliases" value="{{ row.legacy_aliases }}" placeholder="Comma-separated aliases">
+                            </div>
+                        </div>
+                        <div class="action-row">
+                            <button class="btn btn-secondary" type="submit">{{ icon("save", "icon") }} Save Specialization</button>
+                        </div>
+                    </form>
+                    {% endfor %}
+                </div>
+            </div>
+        </article>
+    </section>
+
+    <datalist id="qualificationKeywordChoices">
+        {% for keyword in qualification_keyword_choices %}
+        <option value="{{ keyword }}"></option>
+        {% endfor %}
+    </datalist>
 
     <section class="config-section-grid config-section-grid--support">
         <article class="page-panel config-card">

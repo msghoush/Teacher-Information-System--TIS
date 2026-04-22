@@ -50,6 +50,13 @@ from subject_colors import (
     resolve_subject_color,
     to_excel_hex,
 )
+from teacher_qualifications import (
+    SUBJECT_ALIGNMENT_KEYWORD_GROUPS,
+    QUALIFICATION_KIND_DEGREE,
+    QUALIFICATION_KIND_SPECIALIZATION,
+    build_qualification_key,
+    ensure_qualification_options_seeded,
+)
 
 # ---------------------------------------
 # Create Tables
@@ -392,6 +399,56 @@ def _build_branch_configuration_rows(
         )
 
     return branch_rows
+
+
+def _normalize_qualification_label(value: str) -> str:
+    return " ".join(str(value or "").split()).strip()
+
+
+def _normalize_qualification_kind(value: str) -> str:
+    normalized_value = str(value or "").strip().lower()
+    if normalized_value == QUALIFICATION_KIND_DEGREE:
+        return QUALIFICATION_KIND_DEGREE
+    return QUALIFICATION_KIND_SPECIALIZATION
+
+
+def _normalize_qualification_csv(value: str) -> str:
+    seen_values = set()
+    cleaned_values = []
+    for raw_value in str(value or "").split(","):
+        cleaned_value = " ".join(str(raw_value or "").split()).strip().lower()
+        if not cleaned_value or cleaned_value in seen_values:
+            continue
+        seen_values.add(cleaned_value)
+        cleaned_values.append(cleaned_value)
+    return ", ".join(cleaned_values)
+
+
+def _build_qualification_configuration_rows(
+    db: Session,
+) -> list[dict[str, object]]:
+    qualification_rows = []
+    for option in ensure_qualification_options_seeded(db):
+        usage_count = db.query(models.TeacherQualificationSelection).filter(
+            models.TeacherQualificationSelection.qualification_key == option["key"]
+        ).count()
+        qualification_rows.append(
+            {
+                "key": option["key"],
+                "label": option["label"],
+                "kind": option["kind"],
+                "group_label": (
+                    "Degrees"
+                    if option["kind"] == QUALIFICATION_KIND_DEGREE
+                    else "Majors / Teaching Specializations"
+                ),
+                "alignment_keys": ", ".join(option["alignment_keys"]),
+                "legacy_aliases": ", ".join(option["legacy_aliases"]),
+                "sort_order": int(option.get("sort_order", 0) or 0),
+                "usage_count": usage_count,
+            }
+        )
+    return qualification_rows
 
 
 def _resolve_client_ip(request: Request) -> str:
@@ -4411,6 +4468,15 @@ def system_configuration(
     academic_year_rows = db.query(models.AcademicYear).order_by(
         models.AcademicYear.year_name.desc()
     ).all()
+    qualification_rows = _build_qualification_configuration_rows(db)
+    degree_rows = [
+        row for row in qualification_rows
+        if row["kind"] == QUALIFICATION_KIND_DEGREE
+    ]
+    specialization_rows = [
+        row for row in qualification_rows
+        if row["kind"] == QUALIFICATION_KIND_SPECIALIZATION
+    ]
     active_year = next(
         (year for year in academic_year_rows if bool(year.is_active)),
         None,
@@ -4431,6 +4497,11 @@ def system_configuration(
             "inactive_branch_count": inactive_branch_count,
             "active_year": active_year,
             "academic_year_rows": academic_year_rows,
+            "degree_rows": degree_rows,
+            "specialization_rows": specialization_rows,
+            "qualification_keyword_choices": sorted(
+                SUBJECT_ALIGNMENT_KEYWORD_GROUPS.keys()
+            ),
             **build_shell_context(
                 request,
                 db,
@@ -4569,6 +4640,170 @@ def update_branch(
     return _redirect_with_notice(
         safe_return_to,
         "Branch updated successfully.",
+    )
+
+
+# ---------------------------------------
+# DEVELOPER: CREATE QUALIFICATION OPTION
+# ---------------------------------------
+@app.post("/system-configuration/qualifications")
+def create_qualification_option(
+    request: Request,
+    label: str = Form(...),
+    kind: str = Form(...),
+    alignment_keys: str = Form(""),
+    legacy_aliases: str = Form(""),
+    sort_order: str = Form("0"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user or not auth.can_manage_system_settings(current_user):
+        return RedirectResponse(url="/", status_code=302)
+
+    safe_return_to = "/system-configuration"
+    normalized_kind = _normalize_qualification_kind(kind)
+    cleaned_label = _normalize_qualification_label(label)
+    cleaned_alignment_keys = _normalize_qualification_csv(alignment_keys)
+    cleaned_legacy_aliases = _normalize_qualification_csv(legacy_aliases)
+    parsed_sort_order = _parse_int(sort_order)
+
+    if not cleaned_label:
+        return _redirect_with_error(
+            safe_return_to,
+            "Qualification label is required.",
+        )
+
+    if parsed_sort_order is None:
+        parsed_sort_order = 0
+
+    invalid_alignment_keys = [
+        value
+        for value in [item.strip() for item in cleaned_alignment_keys.split(",")]
+        if value and value not in SUBJECT_ALIGNMENT_KEYWORD_GROUPS
+    ]
+    if invalid_alignment_keys:
+        return _redirect_with_error(
+            safe_return_to,
+            "Unknown subject match keys: " + ", ".join(invalid_alignment_keys),
+        )
+
+    ensure_qualification_options_seeded(db)
+    duplicate_label = db.query(models.QualificationOption).filter(
+        func.lower(models.QualificationOption.label) == cleaned_label.lower(),
+        models.QualificationOption.kind == normalized_kind,
+    ).first()
+    if duplicate_label:
+        return _redirect_with_error(
+            safe_return_to,
+            f"{cleaned_label} already exists in this qualification section.",
+        )
+
+    base_key = build_qualification_key(cleaned_label)
+    if not base_key:
+        return _redirect_with_error(
+            safe_return_to,
+            "Unable to create a qualification key from the provided label.",
+        )
+
+    candidate_key = base_key
+    suffix = 2
+    while db.query(models.QualificationOption).filter(
+        models.QualificationOption.qualification_key == candidate_key
+    ).first():
+        candidate_key = f"{base_key}_{suffix}"
+        suffix += 1
+
+    db.add(
+        models.QualificationOption(
+            qualification_key=candidate_key,
+            label=cleaned_label,
+            kind=normalized_kind,
+            alignment_keys=cleaned_alignment_keys.replace(", ", ","),
+            legacy_aliases=cleaned_legacy_aliases.replace(", ", ","),
+            sort_order=parsed_sort_order,
+        )
+    )
+    db.commit()
+
+    return _redirect_with_notice(
+        safe_return_to,
+        f"{cleaned_label} added to configuration.",
+    )
+
+
+# ---------------------------------------
+# DEVELOPER: UPDATE QUALIFICATION OPTION
+# ---------------------------------------
+@app.post("/system-configuration/qualifications/{qualification_key}")
+def update_qualification_option(
+    qualification_key: str,
+    request: Request,
+    label: str = Form(...),
+    alignment_keys: str = Form(""),
+    legacy_aliases: str = Form(""),
+    sort_order: str = Form("0"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user or not auth.can_manage_system_settings(current_user):
+        return RedirectResponse(url="/", status_code=302)
+
+    safe_return_to = "/system-configuration"
+    ensure_qualification_options_seeded(db)
+    option_row = db.query(models.QualificationOption).filter(
+        models.QualificationOption.qualification_key == qualification_key
+    ).first()
+    if not option_row:
+        return _redirect_with_error(
+            safe_return_to,
+            "Qualification record not found.",
+        )
+
+    cleaned_label = _normalize_qualification_label(label)
+    cleaned_alignment_keys = _normalize_qualification_csv(alignment_keys)
+    cleaned_legacy_aliases = _normalize_qualification_csv(legacy_aliases)
+    parsed_sort_order = _parse_int(sort_order)
+
+    if not cleaned_label:
+        return _redirect_with_error(
+            safe_return_to,
+            "Qualification label is required.",
+        )
+
+    if parsed_sort_order is None:
+        parsed_sort_order = 0
+
+    invalid_alignment_keys = [
+        value
+        for value in [item.strip() for item in cleaned_alignment_keys.split(",")]
+        if value and value not in SUBJECT_ALIGNMENT_KEYWORD_GROUPS
+    ]
+    if invalid_alignment_keys:
+        return _redirect_with_error(
+            safe_return_to,
+            "Unknown subject match keys: " + ", ".join(invalid_alignment_keys),
+        )
+
+    duplicate_label = db.query(models.QualificationOption).filter(
+        func.lower(models.QualificationOption.label) == cleaned_label.lower(),
+        models.QualificationOption.kind == option_row.kind,
+        models.QualificationOption.qualification_key != option_row.qualification_key,
+    ).first()
+    if duplicate_label:
+        return _redirect_with_error(
+            safe_return_to,
+            f"Another {option_row.kind} already uses the label {cleaned_label}.",
+        )
+
+    option_row.label = cleaned_label
+    option_row.alignment_keys = cleaned_alignment_keys.replace(", ", ",")
+    option_row.legacy_aliases = cleaned_legacy_aliases.replace(", ", ",")
+    option_row.sort_order = parsed_sort_order
+    db.commit()
+
+    return _redirect_with_notice(
+        safe_return_to,
+        f"{cleaned_label} updated successfully.",
     )
 
 
