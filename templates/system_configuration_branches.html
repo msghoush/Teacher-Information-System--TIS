@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Branch Management | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+    .config-page {
+        display: grid;
+        gap: 14px;
+    }
+
+    .error-banner {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border: 1px solid #efc5bf;
+        border-radius: 16px;
+        background: #fff5f3;
+        color: #9f2d1f;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .config-nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .config-nav-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 34px;
+        padding: 7px 12px;
+        border: 1px solid #d6e3f3;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #23466f;
+        font-size: 12px;
+        font-weight: 800;
+        text-decoration: none;
+    }
+
+    .config-nav-link.is-active {
+        border-color: #b8d0ec;
+        background: #edf4ff;
+        color: #17365d;
+    }
+
+    .module-shell {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+        border: 1px solid #d8e5f4;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff, #f8fbff);
+    }
+
+    .module-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .module-copy {
+        display: grid;
+        gap: 5px;
+    }
+
+    .module-copy h2 {
+        margin: 0;
+        color: #17365d;
+        font-size: 24px;
+    }
+
+    .module-copy p {
+        margin: 0;
+        color: #60728c;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .usage-pill,
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 28px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .usage-pill {
+        border: 1px solid #d7e4f4;
+        background: #ffffff;
+        color: #4f6480;
+    }
+
+    .usage-pill.is-highlight {
+        border-color: #cfe1f6;
+        background: #edf4ff;
+        color: #17365d;
+    }
+
+    .status-pill {
+        border: 1px solid #cfe1f6;
+        background: #edf4ff;
+        color: #17365d;
+    }
+
+    .status-pill.is-success {
+        border-color: #b7dec8;
+        background: #effaf4;
+        color: #0b6a63;
+    }
+
+    .status-pill.is-muted {
+        border-color: #d9e1ec;
+        background: #f5f7fb;
+        color: #61738d;
+    }
+
+    .field,
+    .create-field {
+        display: grid;
+        gap: 6px;
+    }
+
+    .field label,
+    .create-field label {
+        color: #415068;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .field input,
+    .field select,
+    .create-field input,
+    .create-field select {
+        width: 100%;
+        min-width: 0;
+        padding: 10px 12px;
+        border: 1px solid #c8d8ec;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #17365d;
+        font-size: 14px;
+    }
+
+    .field input:focus,
+    .field select:focus,
+    .create-field input:focus,
+    .create-field select:focus {
+        outline: none;
+        border-color: #0a4ea3;
+        box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.14);
+    }
+
+    .action-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 36px;
+        padding: 8px 12px;
+        border: 1px solid transparent;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 800;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .action-btn-primary {
+        color: #ffffff;
+        background: linear-gradient(135deg, #0a4ea3, #073a7d);
+    }
+
+    .action-btn-secondary {
+        border-color: #cdddef;
+        background: #ffffff;
+        color: #17365d;
+    }
+
+    .action-btn-danger {
+        color: #ffffff;
+        background: linear-gradient(135deg, #c44735, #9f2d1f);
+    }
+
+    .action-btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+
+    .create-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr) auto;
+        gap: 10px;
+        align-items: end;
+        padding: 12px;
+        border: 1px solid #d8e5f4;
+        border-radius: 14px;
+        background: #fbfdff;
+    }
+
+    .table-shell {
+        display: grid;
+        gap: 8px;
+    }
+
+    .table-head,
+    .table-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.85fr) minmax(130px, 0.75fr) auto;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .table-head {
+        padding: 0 12px;
+        color: #62748d;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .table-row {
+        padding: 10px 12px;
+        border: 1px solid #d8e5f4;
+        border-radius: 14px;
+        background: #ffffff;
+    }
+
+    .table-row.is-inactive {
+        background: #f8fafc;
+    }
+
+    .table-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .table-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .record-note {
+        color: #61738d;
+        font-size: 12px;
+        line-height: 1.5;
+    }
+
+    .record-note.is-danger {
+        color: #9f2d1f;
+    }
+
+    @media (max-width: 980px) {
+        .create-row,
+        .table-head,
+        .table-row {
+            grid-template-columns: 1fr;
+        }
+
+        .table-head {
+            display: none;
+        }
+
+        .table-actions {
+            justify-content: flex-start;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="config-page">
+    {% if error_message %}
+    <div class="error-banner">{{ icon("warning", "icon") }} {{ error_message }}</div>
+    {% endif %}
+
+    <nav class="config-nav" aria-label="Configuration modules">
+        {% for module in configuration_modules %}
+        <a class="config-nav-link {% if module.active %}is-active{% endif %}" href="{{ module.href }}">
+            {{ icon(module.icon, "icon") }} {{ module.label }}
+        </a>
+        {% endfor %}
+    </nav>
+
+    <section class="module-shell">
+        <div class="module-head">
+            <div class="module-copy">
+                <h2>Branch Management</h2>
+                <p>Manage branches in one direct table without nested cards or internal scrolling.</p>
+            </div>
+            <div class="table-meta">
+                <span class="usage-pill">{{ branch_count }} total</span>
+                <span class="usage-pill is-highlight">{{ active_branch_count }} active</span>
+                <span class="usage-pill">{{ inactive_branch_count }} inactive</span>
+            </div>
+        </div>
+
+        <form class="create-row" method="post" action="/system-configuration/branches">
+            <input type="hidden" name="return_to" value="/system-configuration/branches">
+            <div class="create-field">
+                <label for="config_branch_name">Branch Name</label>
+                <input id="config_branch_name" type="text" name="name" placeholder="Example: Hamadania-Boys" required>
+            </div>
+            <div class="create-field">
+                <label for="config_branch_region">Region</label>
+                <select id="config_branch_region" name="region" required>
+                    <option value="" selected disabled>Select Saudi Arabia region</option>
+                    {% for region in saudi_regions %}
+                    <option value="{{ region }}">{{ region }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Add</button>
+        </form>
+
+        <div class="table-shell">
+            <div class="table-head">
+                <span>Branch Name</span>
+                <span>Region</span>
+                <span>Status</span>
+                <span>Actions</span>
+            </div>
+
+            {% for row in branch_rows %}
+            <form class="table-row {% if not row.status %}is-inactive{% endif %}" method="post" action="/system-configuration/branches/{{ row.id }}">
+                <input type="hidden" name="return_to" value="/system-configuration/branches">
+                <div class="field">
+                    <input id="branch_name_{{ row.id }}" type="text" name="name" value="{{ row.name }}" required>
+                    <div class="table-meta">
+                        {% if row.is_current_scope %}
+                        <span class="usage-pill is-highlight">{{ icon("branch", "icon") }} Current scope</span>
+                        {% endif %}
+                        <span class="usage-pill">{{ row.usage_counts.users_count }} users</span>
+                        <span class="usage-pill">{{ row.usage_counts.subjects_count }} subjects</span>
+                        <span class="usage-pill">{{ row.usage_counts.teachers_count }} teachers</span>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <select id="branch_region_{{ row.id }}" name="region" required>
+                        {% if row.region and row.region not in saudi_regions %}
+                        <option value="{{ row.region }}" selected>Legacy value: {{ row.region }}</option>
+                        {% else %}
+                        <option value="" disabled {% if not row.region %}selected{% endif %}>Select region</option>
+                        {% endif %}
+                        {% for region in saudi_regions %}
+                        <option value="{{ region }}" {% if row.region == region %}selected{% endif %}>{{ region }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="field">
+                    <select id="branch_status_{{ row.id }}" name="status">
+                        <option value="active" {% if row.status %}selected{% endif %}>Active</option>
+                        <option value="inactive" {% if not row.status %}selected{% endif %}>Inactive</option>
+                    </select>
+                    <span class="status-pill {% if row.status %}is-success{% else %}is-muted{% endif %}">
+                        {{ "Active" if row.status else "Inactive" }}
+                    </span>
+                </div>
+
+                <div class="table-actions">
+                    <button class="action-btn action-btn-secondary" type="button" data-focus-target="branch_name_{{ row.id }}">{{ icon("edit", "icon") }} Edit</button>
+                    <button class="action-btn action-btn-secondary" type="submit">{{ icon("save", "icon") }} Save</button>
+                    <button
+                        class="action-btn action-btn-danger"
+                        type="submit"
+                        formaction="/system-configuration/branches/{{ row.id }}/delete"
+                        onclick="return confirm('Delete branch {{ row.name }}? This only works when no users, subjects, teachers, or planning sections are linked to it.');"
+                        {% if not row.can_delete %}disabled{% endif %}
+                    >
+                        {{ icon("trash", "icon") }} Delete
+                    </button>
+                    {% if not row.can_delete %}
+                    <div class="record-note is-danger">
+                        {% if row.linked_records_count > 0 %}
+                        Delete is locked because this branch is already in use.
+                        {% else %}
+                        Delete is locked because one active branch must remain.
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </form>
+            {% endfor %}
+        </div>
+    </section>
+</section>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+    document.querySelectorAll("[data-focus-target]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const targetId = button.getAttribute("data-focus-target");
+            const target = targetId ? document.getElementById(targetId) : null;
+            if (!target) {
+                return;
+            }
+            target.focus();
+            target.select?.();
+        });
+    });
+</script>
+{% endblock %}

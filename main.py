@@ -440,6 +440,137 @@ def _build_qualification_configuration_rows(
     return qualification_rows
 
 
+CONFIGURATION_MODULES = (
+    {
+        "key": "overview",
+        "label": "Overview",
+        "href": "/system-configuration",
+        "icon": "settings",
+        "description": "Open the configuration hub.",
+    },
+    {
+        "key": "branches",
+        "label": "Branches",
+        "href": "/system-configuration/branches",
+        "icon": "branch",
+        "description": "Manage branch records and status.",
+    },
+    {
+        "key": "degrees",
+        "label": "Degrees",
+        "href": "/system-configuration/degrees",
+        "icon": "copy",
+        "description": "Manage academic degree options.",
+    },
+    {
+        "key": "specializations",
+        "label": "Specializations",
+        "href": "/system-configuration/specializations",
+        "icon": "subjects",
+        "description": "Manage majors and teaching specializations.",
+    },
+    {
+        "key": "academic-years",
+        "label": "Academic Years",
+        "href": "/system-configuration/academic-years",
+        "icon": "year",
+        "description": "Open and switch live academic years.",
+    },
+)
+
+
+def _get_configuration_modules(active_key: str) -> list[dict[str, object]]:
+    return [
+        {
+            **module,
+            "active": module["key"] == active_key,
+        }
+        for module in CONFIGURATION_MODULES
+    ]
+
+
+def _build_configuration_hub_stats(
+    branch_rows,
+    academic_year_rows,
+    degree_rows,
+    specialization_rows,
+    active_year,
+):
+    return [
+        {
+            "label": "Branches",
+            "icon": "branch",
+            "value": len(branch_rows),
+            "note": f"{sum(1 for row in branch_rows if row['status'])} active, {sum(1 for row in branch_rows if not row['status'])} inactive",
+        },
+        {
+            "label": "Academic Years",
+            "icon": "year",
+            "value": len(academic_year_rows),
+            "note": (
+                f"Current: {active_year.year_name}"
+                if active_year
+                else "No live academic year yet"
+            ),
+        },
+        {
+            "label": "Degrees",
+            "icon": "copy",
+            "value": len(degree_rows),
+            "note": "Teacher form options",
+        },
+        {
+            "label": "Specializations",
+            "icon": "subjects",
+            "value": len(specialization_rows),
+            "note": "Teacher form options",
+        },
+    ]
+
+
+def _build_configuration_context(request: Request, db: Session, current_user):
+    scoped_branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    branch_rows = _build_branch_configuration_rows(
+        db,
+        scoped_branch_id=scoped_branch_id,
+    )
+    academic_year_rows = db.query(models.AcademicYear).order_by(
+        models.AcademicYear.year_name.desc()
+    ).all()
+    qualification_rows = _build_qualification_configuration_rows(db)
+    degree_rows = [
+        row for row in qualification_rows
+        if row["kind"] == QUALIFICATION_KIND_DEGREE
+    ]
+    specialization_rows = [
+        row for row in qualification_rows
+        if row["kind"] == QUALIFICATION_KIND_SPECIALIZATION
+    ]
+    active_year = next(
+        (year for year in academic_year_rows if bool(year.is_active)),
+        None,
+    )
+    return {
+        "branch_rows": branch_rows,
+        "branch_count": len(branch_rows),
+        "active_branch_count": sum(1 for row in branch_rows if row["status"]),
+        "inactive_branch_count": sum(1 for row in branch_rows if not row["status"]),
+        "academic_year_rows": academic_year_rows,
+        "active_year": active_year,
+        "degree_rows": degree_rows,
+        "specialization_rows": specialization_rows,
+        "configuration_modules": _get_configuration_modules("overview"),
+        "configuration_stats": _build_configuration_hub_stats(
+            branch_rows,
+            academic_year_rows,
+            degree_rows,
+            specialization_rows,
+            active_year,
+        ),
+        "error_message": str(request.query_params.get("error", "") or "").strip(),
+    }
+
+
 def _resolve_client_ip(request: Request) -> str:
     forwarded_for = request.headers.get("x-forwarded-for", "")
     if forwarded_for:
@@ -4435,66 +4566,168 @@ def download_audit_log(
 # ---------------------------------------
 # DEVELOPER: SYSTEM CONFIGURATION
 # ---------------------------------------
-@app.get("/system-configuration")
-def system_configuration(
-    request: Request,
-    db: Session = Depends(get_db),
-):
+def _get_configuration_access(request: Request, db: Session):
     current_user = auth.get_current_user(request, db)
     if not current_user:
-        return RedirectResponse(url="/", status_code=302)
-
+        return None, RedirectResponse(url="/", status_code=302)
     if not auth.can_manage_system_settings(current_user):
-        return RedirectResponse(url="/dashboard", status_code=302)
+        return None, RedirectResponse(url="/dashboard", status_code=302)
+    return current_user, None
 
-    scoped_branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
-    branch_rows = _build_branch_configuration_rows(
-        db,
-        scoped_branch_id=scoped_branch_id,
-    )
-    active_branch_count = sum(1 for row in branch_rows if row["status"])
-    inactive_branch_count = len(branch_rows) - active_branch_count
-    academic_year_rows = db.query(models.AcademicYear).order_by(
-        models.AcademicYear.year_name.desc()
-    ).all()
-    qualification_rows = _build_qualification_configuration_rows(db)
-    degree_rows = [
-        row for row in qualification_rows
-        if row["kind"] == QUALIFICATION_KIND_DEGREE
-    ]
-    specialization_rows = [
-        row for row in qualification_rows
-        if row["kind"] == QUALIFICATION_KIND_SPECIALIZATION
-    ]
-    active_year = next(
-        (year for year in academic_year_rows if bool(year.is_active)),
-        None,
-    )
-    error_message = str(request.query_params.get("error", "") or "").strip()
 
+def _render_configuration_template(
+    *,
+    request: Request,
+    db: Session,
+    current_user,
+    template_name: str,
+    active_module_key: str,
+    title: str,
+    intro: str,
+    extra_context: dict | None = None,
+):
+    context = _build_configuration_context(request, db, current_user)
+    context["configuration_modules"] = _get_configuration_modules(active_module_key)
+    context.update(extra_context or {})
     return templates.TemplateResponse(
         request,
-        "system_configuration.html",
+        template_name,
         {
             "request": request,
             "user": current_user,
-            "error_message": error_message,
             "saudi_regions": SAUDI_REGIONS,
-            "branch_rows": branch_rows,
-            "branch_count": len(branch_rows),
-            "active_branch_count": active_branch_count,
-            "inactive_branch_count": inactive_branch_count,
-            "active_year": active_year,
-            "academic_year_rows": academic_year_rows,
-            "degree_rows": degree_rows,
-            "specialization_rows": specialization_rows,
+            **context,
             **build_shell_context(
                 request,
                 db,
                 current_user,
                 page_key="system-configuration",
+                title=title,
+                intro=intro,
             ),
         },
+    )
+
+
+@app.get("/system-configuration")
+def system_configuration(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_configuration_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    return _render_configuration_template(
+        request=request,
+        db=db,
+        current_user=current_user,
+        template_name="system_configuration_hub.html",
+        active_module_key="overview",
+        title="Configuration Hub",
+        intro="Open each configuration module from a clean landing page instead of managing everything on one screen.",
+    )
+
+
+@app.get("/system-configuration/branches")
+def system_configuration_branches(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_configuration_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    return _render_configuration_template(
+        request=request,
+        db=db,
+        current_user=current_user,
+        template_name="system_configuration_branches.html",
+        active_module_key="branches",
+        title="Branch Management",
+        intro="Manage branch records in a compact operational table.",
+    )
+
+
+@app.get("/system-configuration/degrees")
+def system_configuration_degrees(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_configuration_access(request, db)
+    if redirect_response:
+        return redirect_response
+    context = _build_configuration_context(request, db, current_user)
+
+    return _render_configuration_template(
+        request=request,
+        db=db,
+        current_user=current_user,
+        template_name="system_configuration_qualifications.html",
+        active_module_key="degrees",
+        title="Degrees Management",
+        intro="Manage academic degree options in a direct editable list.",
+        extra_context={
+            "module_title": "Degrees",
+            "module_description": "These options appear in the teacher qualification form.",
+            "module_icon": "copy",
+            "module_kind": QUALIFICATION_KIND_DEGREE,
+            "module_rows": context["degree_rows"],
+            "create_label": "Add Degree",
+            "name_label": "Degree Name",
+            "empty_message": "No degrees are configured yet.",
+        },
+    )
+
+
+@app.get("/system-configuration/specializations")
+def system_configuration_specializations(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_configuration_access(request, db)
+    if redirect_response:
+        return redirect_response
+    context = _build_configuration_context(request, db, current_user)
+
+    return _render_configuration_template(
+        request=request,
+        db=db,
+        current_user=current_user,
+        template_name="system_configuration_qualifications.html",
+        active_module_key="specializations",
+        title="Majors / Specializations",
+        intro="Manage majors and teaching specializations in a direct editable list.",
+        extra_context={
+            "module_title": "Majors / Teaching Specializations",
+            "module_description": "These options are used directly by the teacher qualification form.",
+            "module_icon": "subjects",
+            "module_kind": QUALIFICATION_KIND_SPECIALIZATION,
+            "module_rows": context["specialization_rows"],
+            "create_label": "Add Specialization",
+            "name_label": "Specialization Name",
+            "empty_message": "No specializations are configured yet.",
+        },
+    )
+
+
+@app.get("/system-configuration/academic-years")
+def system_configuration_academic_years(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_configuration_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    return _render_configuration_template(
+        request=request,
+        db=db,
+        current_user=current_user,
+        template_name="system_configuration_years.html",
+        active_module_key="academic-years",
+        title="Academic Year Management",
+        intro="Open and switch academic years from a dedicated configuration module.",
     )
 
 
@@ -4506,6 +4739,7 @@ def create_branch(
     request: Request,
     name: str = Form(...),
     region: str = Form(""),
+    return_to: str = Form("/system-configuration/branches"),
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
@@ -4562,6 +4796,7 @@ def update_branch(
     name: str = Form(...),
     region: str = Form(""),
     status: str = Form("active"),
+    return_to: str = Form("/system-configuration/branches"),
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
@@ -4637,13 +4872,14 @@ def create_qualification_option(
     request: Request,
     label: str = Form(...),
     kind: str = Form(...),
+    return_to: str = Form("/system-configuration"),
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
     if not current_user or not auth.can_manage_system_settings(current_user):
         return RedirectResponse(url="/", status_code=302)
 
-    safe_return_to = "/system-configuration"
+    safe_return_to = _safe_redirect_path(return_to)
     normalized_kind = _normalize_qualification_kind(kind)
     cleaned_label = _normalize_qualification_label(label)
 
@@ -4709,13 +4945,14 @@ def update_qualification_option(
     qualification_key: str,
     request: Request,
     label: str = Form(...),
+    return_to: str = Form("/system-configuration"),
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
     if not current_user or not auth.can_manage_system_settings(current_user):
         return RedirectResponse(url="/", status_code=302)
 
-    safe_return_to = "/system-configuration"
+    safe_return_to = _safe_redirect_path(return_to)
     ensure_qualification_options_seeded(db)
     option_row = db.query(models.QualificationOption).filter(
         models.QualificationOption.qualification_key == qualification_key
@@ -4776,13 +5013,14 @@ def update_qualification_option(
 def delete_qualification_option(
     qualification_key: str,
     request: Request,
+    return_to: str = Form("/system-configuration"),
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
     if not current_user or not auth.can_manage_system_settings(current_user):
         return RedirectResponse(url="/", status_code=302)
 
-    safe_return_to = "/system-configuration"
+    safe_return_to = _safe_redirect_path(return_to)
     ensure_qualification_options_seeded(db)
     option_row = db.query(models.QualificationOption).filter(
         models.QualificationOption.qualification_key == qualification_key
@@ -4820,13 +5058,14 @@ def delete_qualification_option(
 def delete_branch(
     branch_id: int,
     request: Request,
+    return_to: str = Form("/system-configuration/branches"),
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
     if not current_user or not auth.can_manage_system_settings(current_user):
         return RedirectResponse(url="/", status_code=302)
 
-    safe_return_to = "/system-configuration"
+    safe_return_to = _safe_redirect_path(return_to)
     branch_row = db.query(models.Branch).filter(
         models.Branch.id == branch_id
     ).first()

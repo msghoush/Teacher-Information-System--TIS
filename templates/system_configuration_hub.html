@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Configuration Hub | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+    .config-hub {
+        display: grid;
+        gap: 16px;
+    }
+
+    .config-intro {
+        display: grid;
+        gap: 12px;
+        padding: 18px;
+        border: 1px solid #d7e5f5;
+        border-radius: 20px;
+        background:
+            radial-gradient(circle at top right, rgba(10, 78, 163, 0.12), transparent 34%),
+            linear-gradient(180deg, #ffffff, #f7fbff);
+    }
+
+    .config-intro-copy {
+        display: grid;
+        gap: 8px;
+        max-width: 74ch;
+    }
+
+    .config-intro-copy h2 {
+        margin: 0;
+        color: #17365d;
+        font-size: clamp(24px, 2.8vw, 32px);
+        line-height: 1.08;
+    }
+
+    .config-intro-copy p {
+        margin: 0;
+        color: #556b85;
+        font-size: 14px;
+        line-height: 1.55;
+    }
+
+    .config-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        width: fit-content;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid #d7e4f4;
+        background: #f3f8ff;
+        color: #17365d;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .error-banner {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border: 1px solid #efc5bf;
+        border-radius: 16px;
+        background: #fff5f3;
+        color: #9f2d1f;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .config-stat-grid,
+    .config-module-grid {
+        display: grid;
+        gap: 12px;
+    }
+
+    .config-stat-grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    .config-stat-card,
+    .config-module-card {
+        padding: 16px;
+        border: 1px solid #d8e5f4;
+        border-radius: 18px;
+        background: linear-gradient(160deg, #ffffff, #f8fbff);
+    }
+
+    .config-stat-card {
+        display: grid;
+        gap: 6px;
+    }
+
+    .config-stat-card span {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #5c718b;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .config-stat-card strong {
+        color: #17365d;
+        font-size: 26px;
+        line-height: 1;
+    }
+
+    .config-stat-card small {
+        color: #61748e;
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    .config-module-grid {
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .config-module-card {
+        display: grid;
+        gap: 10px;
+        text-decoration: none;
+        color: inherit;
+        transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+    }
+
+    .config-module-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 16px 28px rgba(15, 23, 42, 0.1);
+        border-color: #bfd3ec;
+    }
+
+    .config-module-card span {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #62748d;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .config-module-card h3 {
+        margin: 0;
+        color: #17365d;
+        font-size: 18px;
+    }
+
+    .config-module-card p {
+        margin: 0;
+        color: #60728c;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="config-hub">
+    {% if error_message %}
+    <div class="error-banner">{{ icon("warning", "icon") }} {{ error_message }}</div>
+    {% endif %}
+
+    <section class="config-intro">
+        <div class="config-intro-copy">
+            <span class="config-kicker">{{ icon("settings", "icon") }} Developer Only</span>
+            <h2>Configuration Hub</h2>
+            <p>Open each configuration domain in its own dedicated workspace. This keeps administration structured today and scalable for future modules.</p>
+        </div>
+
+        <div class="config-stat-grid">
+            {% for stat in configuration_stats %}
+            <article class="config-stat-card">
+                <span>{{ icon(stat.icon, "icon") }} {{ stat.label }}</span>
+                <strong>{{ stat.value }}</strong>
+                <small>{{ stat.note }}</small>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="config-module-grid">
+        {% for module in configuration_modules if module.key != "overview" %}
+        <a class="config-module-card" href="{{ module.href }}">
+            <span>{{ icon(module.icon, "icon") }} Configuration Module</span>
+            <h3>{{ module.label }}</h3>
+            <p>{{ module.description }}</p>
+        </a>
+        {% endfor %}
+    </section>
+</section>
+{% endblock %}
