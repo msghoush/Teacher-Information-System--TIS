@@ -373,42 +373,169 @@
         .qualification-selector-grid {
             display: grid;
             gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         }
 
-        .qualification-group {
+        .qualification-dropdown {
+            position: relative;
+        }
+
+        .qualification-dropdown-trigger {
+            position: relative;
+            list-style: none;
+            display: grid;
+            gap: 10px;
             padding: 12px;
             border: 1px solid #dbe7f8;
             border-radius: 14px;
             background: #ffffff;
+            cursor: pointer;
+            transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+        }
+
+        .qualification-dropdown-trigger::-webkit-details-marker {
+            display: none;
+        }
+
+        .qualification-dropdown-trigger::after {
+            content: "v";
+            position: absolute;
+            top: 13px;
+            right: 14px;
+            color: #60728b;
+            font-size: 13px;
+            font-weight: 800;
+            transition: transform 140ms ease;
+        }
+
+        .qualification-dropdown[open] .qualification-dropdown-trigger {
+            border-color: #9cc6b3;
+            background: linear-gradient(180deg, #ffffff, #f5fbf8);
+            box-shadow: 0 14px 32px rgba(11, 106, 99, 0.08);
+        }
+
+        .qualification-dropdown[open] .qualification-dropdown-trigger::after {
+            transform: rotate(180deg);
+        }
+
+        .qualification-dropdown-trigger:focus-visible {
+            outline: none;
+            border-color: var(--brand);
+            box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.2);
+        }
+
+        .qualification-dropdown-heading {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            padding-right: 18px;
+        }
+
+        .qualification-dropdown-title-block {
+            display: grid;
+            gap: 3px;
+            min-width: 0;
+        }
+
+        .qualification-dropdown-title {
+            font-size: 13px;
+            color: #17365d;
+            font-weight: 800;
+        }
+
+        .qualification-dropdown-help {
+            font-size: 11px;
+            color: #60728b;
+            line-height: 1.35;
+        }
+
+        .qualification-dropdown-count {
+            font-size: 11px;
+            color: #60728b;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            white-space: nowrap;
+        }
+
+        .qualification-dropdown-preview {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            min-height: 28px;
+            align-items: center;
+        }
+
+        .qualification-dropdown-empty {
+            padding: 10px 12px;
+            border: 1px dashed #dbe7f8;
+            border-radius: 10px;
+            background: #f8fbff;
+            color: #5d6b82;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .qualification-dropdown-empty[hidden] {
+            display: none;
+        }
+
+        .qualification-inline-empty {
+            font-size: 12px;
+            color: #5d6b82;
+            line-height: 1.45;
+        }
+
+        .qualification-dropdown-panel {
+            margin-top: 8px;
+            padding: 12px;
+            border: 1px solid #dbe7f8;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 18px 40px rgba(23, 54, 93, 0.08);
             display: grid;
             gap: 10px;
         }
 
-        .qualification-group-head {
+        .qualification-dropdown-toolbar {
             display: flex;
             align-items: center;
-            justify-content: space-between;
             gap: 8px;
-            flex-wrap: wrap;
         }
 
-        .qualification-group-head strong {
-            font-size: 13px;
-            color: #17365d;
+        .qualification-dropdown-search {
+            flex: 1 1 auto;
         }
 
-        .qualification-group-head span {
-            font-size: 11px;
-            color: #60728b;
+        .qualification-dropdown-clear {
+            border: 1px solid #d2e1f4;
+            border-radius: 10px;
+            background: #edf4ff;
+            color: #244a7c;
+            font-size: 12px;
             font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
+            padding: 9px 12px;
+            cursor: pointer;
+            transition: background-color 140ms ease, border-color 140ms ease;
+        }
+
+        .qualification-dropdown-clear:hover {
+            background: #e4efff;
+            border-color: #bfd4ee;
+        }
+
+        .qualification-dropdown-clear[hidden] {
+            display: none;
         }
 
         .qualification-option-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 8px;
+            max-height: 300px;
+            overflow: auto;
+            padding-right: 4px;
         }
 
         .qualification-option {
@@ -432,6 +559,10 @@
             border-color: #9cc6b3;
             background: #effaf4;
             box-shadow: 0 10px 24px rgba(11, 106, 99, 0.08);
+        }
+
+        .qualification-option.is-filtered-out {
+            display: none;
         }
 
         .qualification-option input[type="checkbox"] {
@@ -460,6 +591,17 @@
             font-size: 11px;
             color: #5b6f89;
             line-height: 1.35;
+        }
+
+        @media (max-width: 640px) {
+            .qualification-selector-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .qualification-dropdown-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
         }
 
         .subject-selector-shell {
@@ -2251,23 +2393,37 @@
                                 </div>
                                 <div class="qualification-selector-grid">
                                     {% for group in qualification_option_groups %}
-                                    <div class="qualification-group">
-                                        <div class="qualification-group-head">
-                                            <strong>{{ group.label }}</strong>
-                                            <span>{{ group.options|length }} options</span>
-                                        </div>
-                                        <div class="qualification-option-grid">
-                                            {% for option in group.options %}
-                                            <label class="qualification-option{% if option.key in selected_qualification_keys %} is-selected{% endif %}">
-                                                <input class="qualification-checkbox" type="checkbox" name="qualification_keys" value="{{ option.key }}" {% if option.key in selected_qualification_keys %}checked{% endif %}>
-                                                <span class="qualification-copy">
-                                                    <strong>{{ option.label }}</strong>
-                                                    <small>{{ option.kind_label }}</small>
+                                    {% set search_placeholder = "Search degrees" if group.options and group.options[0].kind == "degree" else "Search majors or specializations" %}
+                                    <details class="qualification-dropdown" data-qualification-dropdown>
+                                        <summary class="qualification-dropdown-trigger">
+                                            <span class="qualification-dropdown-heading">
+                                                <span class="qualification-dropdown-title-block">
+                                                    <span class="qualification-dropdown-title">{{ group.label }}</span>
+                                                    <span class="qualification-dropdown-help">{{ group.options|length }} options. Multiple selections allowed.</span>
                                                 </span>
-                                            </label>
-                                            {% endfor %}
+                                                <span class="qualification-dropdown-count" data-qualification-selected-count>0 selected</span>
+                                            </span>
+                                            <span class="qualification-dropdown-preview" data-qualification-preview></span>
+                                        </summary>
+                                        <div class="qualification-dropdown-panel">
+                                            <div class="qualification-dropdown-toolbar">
+                                                <input class="qualification-dropdown-search" type="text" placeholder="{{ search_placeholder }}" aria-label="{{ search_placeholder }}" data-qualification-search>
+                                                <button class="qualification-dropdown-clear" type="button" data-qualification-clear hidden>Clear</button>
+                                            </div>
+                                            <div class="qualification-option-grid">
+                                                {% for option in group.options %}
+                                                <label class="qualification-option{% if option.key in selected_qualification_keys %} is-selected{% endif %}" data-qualification-option data-qualification-search-value="{{ (option.label ~ ' ' ~ option.kind_label)|lower }}">
+                                                    <input class="qualification-checkbox" type="checkbox" name="qualification_keys" value="{{ option.key }}" data-qualification-label="{{ option.label }}" data-qualification-kind="{{ option.kind }}" {% if option.key in selected_qualification_keys %}checked{% endif %}>
+                                                    <span class="qualification-copy">
+                                                        <strong>{{ option.label }}</strong>
+                                                        <small>{{ option.kind_label }}</small>
+                                                    </span>
+                                                </label>
+                                                {% endfor %}
+                                            </div>
+                                            <div class="qualification-dropdown-empty" data-qualification-empty hidden>No matching options in this list.</div>
                                         </div>
-                                    </div>
+                                    </details>
                                     {% endfor %}
                                 </div>
                                 <div class="field-note">Choose every degree level and subject specialization that applies. The system stores these selections in a structured way and uses them to validate subject compatibility.</div>
@@ -2732,6 +2888,7 @@ const searchInput = document.getElementById("teacherSearch");
         const nationalSectionHoursInput = document.getElementById("national_section_hours");
         const teacherIdInput = document.getElementById("teacher_id");
         const qualificationInputs = Array.from(document.querySelectorAll("input[name='qualification_keys']"));
+        const qualificationDropdowns = Array.from(document.querySelectorAll("[data-qualification-dropdown]"));
         const qualificationSelectionCount = document.getElementById("qualificationSelectionCount");
         const qualificationSelectionChips = document.getElementById("qualificationSelectionChips");
         const maxHoursInput = document.getElementById("max_hours");
@@ -3193,7 +3350,109 @@ const searchInput = document.getElementById("teacherSearch");
             return alignmentKeys;
         };
 
+        const updateQualificationOptionState = (input) => {
+            input.closest(".qualification-option")?.classList.toggle("is-selected", input.checked);
+        };
+
+        const renderQualificationDropdown = (dropdown) => {
+            if (!dropdown) {
+                return;
+            }
+
+            const dropdownInputs = Array.from(dropdown.querySelectorAll("input[name='qualification_keys']"));
+            const selectedOptions = dropdownInputs
+                .filter((input) => input.checked)
+                .map((input) => ({
+                    label: String(input.dataset.qualificationLabel || input.value || "").trim(),
+                    kind: String(input.dataset.qualificationKind || "").trim(),
+                }))
+                .filter((option) => Boolean(option.label));
+
+            const countLabel = dropdown.querySelector("[data-qualification-selected-count]");
+            if (countLabel) {
+                countLabel.textContent = selectedOptions.length === 0
+                    ? "0 selected"
+                    : `${selectedOptions.length} selected`;
+            }
+
+            const preview = dropdown.querySelector("[data-qualification-preview]");
+            if (preview) {
+                preview.innerHTML = "";
+                if (selectedOptions.length === 0) {
+                    const emptyState = document.createElement("span");
+                    emptyState.className = "qualification-inline-empty";
+                    emptyState.textContent = "Use the dropdown to choose from the list.";
+                    preview.appendChild(emptyState);
+                } else {
+                    selectedOptions.slice(0, 2).forEach((option) => {
+                        const chip = document.createElement("span");
+                        chip.className = `qualification-chip${option.kind === "specialization" ? " is-specialization" : ""}`;
+                        chip.textContent = option.label;
+                        preview.appendChild(chip);
+                    });
+
+                    if (selectedOptions.length > 2) {
+                        const overflowChip = document.createElement("span");
+                        overflowChip.className = "qualification-chip";
+                        overflowChip.textContent = `+${selectedOptions.length - 2} more`;
+                        preview.appendChild(overflowChip);
+                    }
+                }
+            }
+
+            const clearButton = dropdown.querySelector("[data-qualification-clear]");
+            if (clearButton) {
+                clearButton.hidden = selectedOptions.length === 0;
+            }
+        };
+
+        const renderQualificationDropdowns = () => {
+            qualificationDropdowns.forEach((dropdown) => {
+                renderQualificationDropdown(dropdown);
+            });
+        };
+
+        const filterQualificationDropdown = (dropdown) => {
+            if (!dropdown) {
+                return;
+            }
+
+            const searchInput = dropdown.querySelector("[data-qualification-search]");
+            const optionCards = Array.from(dropdown.querySelectorAll("[data-qualification-option]"));
+            const normalizedSearch = String(searchInput?.value || "").trim().toLowerCase();
+            let visibleCount = 0;
+
+            optionCards.forEach((optionCard) => {
+                const searchValue = String(optionCard.dataset.qualificationSearchValue || optionCard.textContent || "").toLowerCase();
+                const matches = !normalizedSearch || searchValue.includes(normalizedSearch);
+                optionCard.classList.toggle("is-filtered-out", !matches);
+                if (matches) {
+                    visibleCount += 1;
+                }
+            });
+
+            const emptyState = dropdown.querySelector("[data-qualification-empty]");
+            if (emptyState) {
+                emptyState.hidden = visibleCount > 0;
+            }
+        };
+
+        const openQualificationDropdownForInput = (input) => {
+            const dropdown = input?.closest("[data-qualification-dropdown]");
+            if (!dropdown) {
+                return;
+            }
+            dropdown.open = true;
+            const searchInput = dropdown.querySelector("[data-qualification-search]");
+            window.requestAnimationFrame(() => {
+                searchInput?.focus();
+                input?.focus();
+            });
+        };
+
         const renderQualificationSummary = () => {
+            renderQualificationDropdowns();
+
             if (qualificationSelectionCount) {
                 qualificationSelectionCount.textContent = `${selectedQualificationKeys.size} selected`;
             }
@@ -3996,11 +4255,71 @@ const searchInput = document.getElementById("teacherSearch");
         }
 
         qualificationInputs.forEach((input) => {
+            updateQualificationOptionState(input);
             input.addEventListener("change", () => {
                 syncSelectedQualifications();
-                input.closest(".qualification-option")?.classList.toggle("is-selected", input.checked);
+                updateQualificationOptionState(input);
                 renderSelectedSubjectChips();
                 renderSubjectPicker();
+            });
+        });
+
+        qualificationDropdowns.forEach((dropdown) => {
+            const searchInput = dropdown.querySelector("[data-qualification-search]");
+            const clearButton = dropdown.querySelector("[data-qualification-clear]");
+
+            dropdown.addEventListener("toggle", () => {
+                if (dropdown.open) {
+                    qualificationDropdowns.forEach((otherDropdown) => {
+                        if (otherDropdown !== dropdown) {
+                            otherDropdown.open = false;
+                        }
+                    });
+                    filterQualificationDropdown(dropdown);
+                    window.requestAnimationFrame(() => {
+                        searchInput?.focus();
+                        searchInput?.select();
+                    });
+                } else if (searchInput) {
+                    searchInput.value = "";
+                    filterQualificationDropdown(dropdown);
+                }
+            });
+
+            searchInput?.addEventListener("input", () => {
+                filterQualificationDropdown(dropdown);
+            });
+
+            clearButton?.addEventListener("click", () => {
+                Array.from(dropdown.querySelectorAll("input[name='qualification_keys']")).forEach((input) => {
+                    input.checked = false;
+                    updateQualificationOptionState(input);
+                });
+                syncSelectedQualifications();
+                renderSelectedSubjectChips();
+                renderSubjectPicker();
+                filterQualificationDropdown(dropdown);
+            });
+        });
+
+        document.addEventListener("click", (event) => {
+            qualificationDropdowns.forEach((dropdown) => {
+                if (!dropdown.open) {
+                    return;
+                }
+                if (event.target instanceof Node && dropdown.contains(event.target)) {
+                    return;
+                }
+                dropdown.open = false;
+            });
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key !== "Escape") {
+                return;
+            }
+            qualificationDropdowns.forEach((dropdown) => {
+                dropdown.open = false;
             });
         });
 
@@ -4074,6 +4393,7 @@ const searchInput = document.getElementById("teacherSearch");
                     if (selectedQualificationKeys.size === 0) {
                         event.preventDefault();
                         window.alert("Select at least one degree or specialization for this teacher.");
+                        openQualificationDropdownForInput(qualificationInputs[0]);
                         qualificationInputs[0]?.focus();
                         return;
                     }
@@ -4081,7 +4401,11 @@ const searchInput = document.getElementById("teacherSearch");
                     if (!hasSelectedSpecialization()) {
                         event.preventDefault();
                         window.alert("Select at least one major or subject specialization so the system can validate subject compatibility.");
-                        qualificationInputs[0]?.focus();
+                        const firstSpecializationInput = qualificationInputs.find((input) => {
+                            return String(input.dataset.qualificationKind || "").trim() === "specialization";
+                        }) || qualificationInputs[0];
+                        openQualificationDropdownForInput(firstSpecializationInput);
+                        firstSpecializationInput?.focus();
                         return;
                     }
 
