@@ -1,0 +1,1744 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Timetable | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+    :root {
+        --tt-ink: #17365d;
+        --tt-subtle: #60728c;
+        --tt-border: #d8e5f4;
+        --tt-border-strong: #b9cee8;
+        --tt-surface: #ffffff;
+        --tt-surface-soft: #f7fbff;
+        --tt-surface-tint: linear-gradient(180deg, #ffffff, #f8fbff);
+        --tt-accent: #0a4ea3;
+        --tt-accent-soft: #edf4ff;
+        --tt-shadow: 0 18px 38px rgba(23, 54, 93, 0.08);
+    }
+
+    .timetable-page {
+        display: grid;
+        gap: 16px;
+    }
+
+    .banner {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .banner.is-warning {
+        border: 1px solid #f0d6a9;
+        background: #fff7ea;
+        color: #8a4f00;
+    }
+
+    .banner.is-info {
+        border: 1px solid #d5e4f4;
+        background: #f4f8ff;
+        color: #17365d;
+    }
+
+    .hero-shell,
+    .workspace-shell,
+    .lane-shell,
+    .board-shell,
+    .inspector-shell {
+        border: 1px solid var(--tt-border);
+        border-radius: 22px;
+        background: var(--tt-surface-tint);
+        box-shadow: var(--tt-shadow);
+    }
+
+    .hero-shell {
+        display: grid;
+        gap: 16px;
+        padding: 20px;
+        background:
+            radial-gradient(circle at top right, rgba(10, 78, 163, 0.11), transparent 28%),
+            linear-gradient(180deg, #ffffff, #f7fbff);
+    }
+
+    .hero-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+
+    .hero-copy {
+        display: grid;
+        gap: 8px;
+        max-width: 74ch;
+    }
+
+    .hero-copy h2 {
+        margin: 0;
+        color: var(--tt-ink);
+        font-size: clamp(26px, 3vw, 34px);
+        line-height: 1.05;
+    }
+
+    .hero-copy p {
+        margin: 0;
+        color: var(--tt-subtle);
+        font-size: 14px;
+        line-height: 1.6;
+    }
+
+    .hero-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        width: fit-content;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid #d7e4f4;
+        background: #f3f8ff;
+        color: #17365d;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .hero-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .hero-btn,
+    .view-chip,
+    .lane-chip,
+    .option-btn,
+    .inspector-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        border-radius: 12px;
+        font-weight: 800;
+        text-decoration: none;
+        cursor: pointer;
+        transition: transform 140ms ease, border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    .hero-btn,
+    .inspector-btn {
+        min-height: 38px;
+        padding: 8px 12px;
+        border: 1px solid transparent;
+        font-size: 13px;
+    }
+
+    .hero-btn.is-primary,
+    .inspector-btn.is-primary {
+        color: #ffffff;
+        background: linear-gradient(135deg, #0a4ea3, #073a7d);
+    }
+
+    .hero-btn.is-secondary,
+    .inspector-btn.is-secondary,
+    .option-btn {
+        border: 1px solid #cdddef;
+        background: #ffffff;
+        color: var(--tt-ink);
+    }
+
+    .hero-btn:hover,
+    .view-chip:hover,
+    .lane-chip:hover,
+    .option-btn:hover,
+    .inspector-btn:hover {
+        transform: translateY(-1px);
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+    }
+
+    .summary-card {
+        display: grid;
+        gap: 8px;
+        padding: 16px;
+        border: 1px solid #d8e5f4;
+        border-radius: 18px;
+        background: #ffffff;
+    }
+
+    .summary-card span {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #5c718b;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .summary-card strong {
+        color: var(--tt-ink);
+        font-size: 28px;
+        line-height: 1;
+    }
+
+    .summary-card small {
+        color: var(--tt-subtle);
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    .toolbar-shell {
+        display: grid;
+        gap: 12px;
+        padding: 16px 18px;
+        border: 1px solid var(--tt-border);
+        border-radius: 20px;
+        background: #ffffff;
+    }
+
+    .toolbar-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .view-toggle,
+    .selection-row,
+    .legend-row,
+    .warning-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .view-chip,
+    .lane-chip {
+        min-height: 36px;
+        padding: 7px 12px;
+        border: 1px solid #d6e3f3;
+        background: #ffffff;
+        color: #23466f;
+        font-size: 12px;
+    }
+
+    .view-chip.is-active,
+    .lane-chip.is-active {
+        border-color: #b8d0ec;
+        background: #edf4ff;
+        color: #17365d;
+        box-shadow: 0 10px 18px rgba(10, 78, 163, 0.08);
+    }
+
+    .toolbar-label {
+        color: #5c718b;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .toolbar-select {
+        min-width: 240px;
+        padding: 10px 12px;
+        border: 1px solid #c8d8ec;
+        border-radius: 12px;
+        background: #ffffff;
+        color: var(--tt-ink);
+        font-size: 14px;
+    }
+
+    .toolbar-select:focus {
+        outline: none;
+        border-color: var(--tt-accent);
+        box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.14);
+    }
+
+    .legend-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 28px;
+        padding: 5px 10px;
+        border: 1px solid #d7e4f4;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #4f6480;
+        font-size: 11px;
+        font-weight: 800;
+    }
+
+    .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: #d7e4f4;
+        flex-shrink: 0;
+    }
+
+    .flash-note {
+        display: none;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .flash-note.is-visible {
+        display: inline-flex;
+    }
+
+    .flash-note.is-success {
+        border: 1px solid #b7dec8;
+        background: #effaf4;
+        color: #0b6a63;
+    }
+
+    .flash-note.is-error {
+        border: 1px solid #efc5bf;
+        background: #fff5f3;
+        color: #9f2d1f;
+    }
+
+    .warning-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 30px;
+        padding: 6px 10px;
+        border: 1px solid #f0d6a9;
+        border-radius: 999px;
+        background: #fff7ea;
+        color: #8a4f00;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .workspace-shell {
+        display: grid;
+        grid-template-columns: minmax(250px, 0.9fr) minmax(0, 2fr) minmax(290px, 1fr);
+        gap: 14px;
+        padding: 14px;
+        align-items: start;
+    }
+
+    .lane-shell,
+    .board-shell,
+    .inspector-shell {
+        padding: 14px;
+        background: #ffffff;
+    }
+
+    .panel-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .panel-copy {
+        display: grid;
+        gap: 5px;
+    }
+
+    .panel-copy h3 {
+        margin: 0;
+        color: var(--tt-ink);
+        font-size: 18px;
+    }
+
+    .panel-copy p {
+        margin: 0;
+        color: var(--tt-subtle);
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    .lane-list,
+    .requirement-list,
+    .teacher-commitment-list,
+    .assignment-option-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .lane-card,
+    .requirement-card,
+    .teacher-commitment-card,
+    .slot-card,
+    .option-btn {
+        border: 1px solid var(--tt-border);
+        border-radius: 16px;
+        background: #ffffff;
+    }
+
+    .lane-card,
+    .requirement-card,
+    .teacher-commitment-card,
+    .slot-card {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+    }
+
+    .lane-card {
+        cursor: pointer;
+        transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+    }
+
+    .lane-card.is-active {
+        border-color: #b8d0ec;
+        background: #edf4ff;
+        box-shadow: 0 14px 28px rgba(10, 78, 163, 0.08);
+    }
+
+    .lane-card-head,
+    .requirement-head,
+    .teacher-commitment-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .lane-card strong,
+    .requirement-card strong,
+    .teacher-commitment-card strong,
+    .slot-card strong {
+        color: var(--tt-ink);
+        font-size: 14px;
+    }
+
+    .lane-card small,
+    .requirement-card small,
+    .teacher-commitment-card small,
+    .slot-card small,
+    .empty-state,
+    .inspector-note {
+        color: var(--tt-subtle);
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    .mini-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 24px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid #d7e4f4;
+        background: #ffffff;
+        color: #4f6480;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .progress-track {
+        position: relative;
+        height: 8px;
+        border-radius: 999px;
+        background: #edf3fb;
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 0%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #0a4ea3, #2e77d0);
+    }
+
+    .progress-bar.is-overflow {
+        background: linear-gradient(90deg, #c44735, #9f2d1f);
+    }
+
+    .progress-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        color: var(--tt-subtle);
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .board-shell {
+        display: grid;
+        gap: 12px;
+    }
+
+    .board-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .board-title {
+        display: grid;
+        gap: 4px;
+    }
+
+    .board-title h3 {
+        margin: 0;
+        color: var(--tt-ink);
+        font-size: 20px;
+    }
+
+    .board-title p {
+        margin: 0;
+        color: var(--tt-subtle);
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    .board-badges {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .board-grid-wrap {
+        border: 1px solid var(--tt-border);
+        border-radius: 18px;
+        overflow: auto;
+        background: #ffffff;
+    }
+
+    .board-grid {
+        width: 100%;
+        min-width: 760px;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .board-grid th,
+    .board-grid td {
+        border-right: 1px solid #ecf2f9;
+        border-bottom: 1px solid #ecf2f9;
+        vertical-align: top;
+    }
+
+    .board-grid th:last-child,
+    .board-grid td:last-child {
+        border-right: 0;
+    }
+
+    .board-grid tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .board-grid thead th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background: #f7fbff;
+        color: #62748d;
+        padding: 12px 10px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        text-align: left;
+    }
+
+    .board-grid thead th:first-child {
+        left: 0;
+        z-index: 4;
+    }
+
+    .period-cell {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        width: 132px;
+        min-width: 132px;
+        background: #fbfdff;
+        padding: 12px 10px;
+    }
+
+    .period-cell strong {
+        display: block;
+        color: var(--tt-ink);
+        font-size: 13px;
+    }
+
+    .period-cell span {
+        display: block;
+        margin-top: 4px;
+        color: var(--tt-subtle);
+        font-size: 11px;
+        line-height: 1.4;
+    }
+
+    .grid-cell {
+        padding: 6px;
+        min-width: 150px;
+        background: #ffffff;
+    }
+
+    .grid-button {
+        width: 100%;
+        min-height: 88px;
+        display: grid;
+        gap: 8px;
+        align-content: start;
+        padding: 10px;
+        border: 1px solid transparent;
+        border-radius: 14px;
+        background: #ffffff;
+        color: var(--tt-ink);
+        text-align: left;
+        cursor: pointer;
+        transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    .grid-button:hover {
+        border-color: #bfd3ec;
+        background: #fbfdff;
+    }
+
+    .grid-button.is-selected {
+        border-color: #9cbce4;
+        background: #edf4ff;
+        box-shadow: 0 12px 24px rgba(10, 78, 163, 0.08);
+    }
+
+    .grid-button.is-empty {
+        border-style: dashed;
+        border-color: #d6e3f3;
+        background: #fbfdff;
+    }
+
+    .grid-button.is-blocked {
+        cursor: default;
+        background: var(--cell-soft, #f4f8ff);
+        border-color: var(--cell-border, #d8e5f4);
+        color: var(--cell-text, #17365d);
+        box-shadow: inset 4px 0 0 var(--cell-accent, #0a4ea3);
+    }
+
+    .grid-button.is-stale {
+        border-color: #f0d6a9;
+        background: #fff7ea;
+        color: #8a4f00;
+        box-shadow: inset 4px 0 0 #c77d19;
+    }
+
+    .grid-button.is-assigned {
+        background: var(--cell-soft, #f4f8ff);
+        border-color: var(--cell-border, #d8e5f4);
+        color: var(--cell-text, #17365d);
+        box-shadow: inset 4px 0 0 var(--cell-accent, #0a4ea3);
+    }
+
+    .cell-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .cell-code {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 24px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.45);
+        background: rgba(255, 255, 255, 0.72);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .cell-title {
+        color: inherit;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.35;
+    }
+
+    .cell-subtitle {
+        color: inherit;
+        font-size: 11px;
+        line-height: 1.45;
+        opacity: 0.92;
+    }
+
+    .cell-empty-text {
+        color: var(--tt-subtle);
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .inspector-shell {
+        display: grid;
+        gap: 12px;
+    }
+
+    .slot-card-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .slot-meta {
+        display: grid;
+        gap: 5px;
+    }
+
+    .slot-meta h4,
+    .inspector-card h4 {
+        margin: 0;
+        color: var(--tt-ink);
+        font-size: 15px;
+    }
+
+    .inspector-card {
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid var(--tt-border);
+        border-radius: 16px;
+        background: #ffffff;
+    }
+
+    .assignment-option-list {
+        max-height: 420px;
+        overflow: auto;
+        padding-right: 2px;
+    }
+
+    .option-btn {
+        width: 100%;
+        display: grid;
+        gap: 8px;
+        padding: 11px 12px;
+        text-align: left;
+        font-size: 13px;
+    }
+
+    .option-btn[disabled] {
+        opacity: 0.58;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .option-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .option-copy {
+        display: grid;
+        gap: 4px;
+    }
+
+    .option-copy strong {
+        color: var(--tt-ink);
+        font-size: 14px;
+    }
+
+    .option-copy span {
+        color: var(--tt-subtle);
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    .empty-state {
+        padding: 14px;
+        border: 1px dashed var(--tt-border-strong);
+        border-radius: 16px;
+        background: var(--tt-surface-soft);
+    }
+
+    .loading-mask {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 12px;
+        border-radius: 16px;
+        border: 1px solid #d5e4f4;
+        background: #f4f8ff;
+        color: #17365d;
+        font-size: 13px;
+        font-weight: 800;
+    }
+
+    .loading-mask.is-visible {
+        display: inline-flex;
+    }
+
+    @media (max-width: 1280px) {
+        .workspace-shell {
+            grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.7fr);
+        }
+
+        .inspector-shell {
+            grid-column: 1 / -1;
+        }
+    }
+
+    @media (max-width: 940px) {
+        .workspace-shell {
+            grid-template-columns: 1fr;
+        }
+
+        .toolbar-select {
+            min-width: 0;
+            width: 100%;
+        }
+
+        .hero-head,
+        .toolbar-row,
+        .board-meta {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .selection-row {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="timetable-page">
+    {% if timetable_payload.warnings %}
+    <div class="banner is-warning">
+        {{ icon("warning", "icon") }}
+        {{ timetable_payload.warnings[0] }}
+    </div>
+    {% endif %}
+
+    <section class="hero-shell">
+        <div class="hero-head">
+            <div class="hero-copy">
+                <span class="hero-kicker">{{ icon("timetable", "icon") }} Weekly Scheduling Workspace</span>
+                <h2>Build the weekly timetable from live TIS planning data.</h2>
+                <p>The grid below reads the active branch and academic year, then combines planning sections, subject weekly hours, assigned teachers, teacher workload, subject color themes, and timetable settings into one manual scheduling workspace.</p>
+            </div>
+            <div class="hero-actions">
+                {% if can_manage_system_settings %}
+                <a class="hero-btn is-secondary" href="/system-configuration/timetable-settings">{{ icon("settings", "icon") }} Timetable Settings</a>
+                {% endif %}
+                <a class="hero-btn is-secondary" href="/planning/">{{ icon("planning", "icon") }} Planning</a>
+                <a class="hero-btn is-secondary" href="/teachers/">{{ icon("teachers", "icon") }} Teachers</a>
+            </div>
+        </div>
+
+        <div class="summary-grid">
+            <article class="summary-card">
+                <span>{{ icon("planning", "icon") }} Sections</span>
+                <strong id="summarySectionCount">0</strong>
+                <small>Planning sections available in the current scope.</small>
+            </article>
+            <article class="summary-card">
+                <span>{{ icon("teachers", "icon") }} Teachers</span>
+                <strong id="summaryTeacherCount">0</strong>
+                <small>Teachers linked to the active branch and year.</small>
+            </article>
+            <article class="summary-card">
+                <span>{{ icon("table", "icon") }} Scheduled</span>
+                <strong id="summaryScheduledHours">0</strong>
+                <small>Periods already placed on the timetable.</small>
+            </article>
+            <article class="summary-card">
+                <span>{{ icon("report", "icon") }} Remaining</span>
+                <strong id="summaryRemainingHours">0</strong>
+                <small>Required periods still waiting for a timetable slot.</small>
+            </article>
+        </div>
+    </section>
+
+    <section class="toolbar-shell">
+        <div class="toolbar-row">
+            <div class="view-toggle">
+                <span class="toolbar-label">View</span>
+                <button id="sectionViewBtn" class="view-chip is-active" type="button">{{ icon("planning", "icon") }} By Section</button>
+                <button id="teacherViewBtn" class="view-chip" type="button">{{ icon("teachers", "icon") }} By Teacher</button>
+            </div>
+            <div id="flashNote" class="flash-note" aria-live="polite"></div>
+        </div>
+
+        <div class="toolbar-row">
+            <div class="selection-row">
+                <span class="toolbar-label">Section</span>
+                <select id="sectionSelector" class="toolbar-select"></select>
+            </div>
+            <div class="selection-row">
+                <span class="toolbar-label">Teacher</span>
+                <select id="teacherSelector" class="toolbar-select"></select>
+            </div>
+            <div class="selection-row">
+                <span class="toolbar-label">School Week</span>
+                <div class="legend-row" id="weekLegend"></div>
+            </div>
+        </div>
+
+        <div class="toolbar-row">
+            <div class="legend-row">
+                <span class="legend-pill"><span class="legend-dot" style="background:#d6e3f3;"></span> Empty teaching slot</span>
+                <span class="legend-pill"><span class="legend-dot" style="background:#0a4ea3;"></span> Scheduled lesson</span>
+                <span class="legend-pill"><span class="legend-dot" style="background:#c77d19;"></span> Break / prayer / blocked slot</span>
+                <span class="legend-pill"><span class="legend-dot" style="background:#9f2d1f;"></span> Needs review</span>
+            </div>
+            <div class="warning-row" id="warningRow"></div>
+        </div>
+    </section>
+
+    <div class="loading-mask" id="loadingMask">{{ icon("sparkles", "icon") }} Updating timetable...</div>
+
+    <section class="workspace-shell">
+        <aside class="lane-shell">
+            <div class="panel-head">
+                <div class="panel-copy">
+                    <h3 id="laneTitle">Sections</h3>
+                    <p id="laneSubtitle">Choose the section you want to place into the weekly grid.</p>
+                </div>
+                <span class="mini-pill" id="laneCountPill">0 items</span>
+            </div>
+            <div id="laneList" class="lane-list"></div>
+        </aside>
+
+        <section class="board-shell">
+            <div class="board-meta">
+                <div class="board-title">
+                    <h3 id="boardTitle">Timetable Grid</h3>
+                    <p id="boardSubtitle">Click any teaching slot to assign a subject manually.</p>
+                </div>
+                <div class="board-badges" id="boardBadges"></div>
+            </div>
+            <div class="board-grid-wrap">
+                <table class="board-grid" id="boardGrid"></table>
+            </div>
+        </section>
+
+        <aside class="inspector-shell">
+            <div class="panel-head">
+                <div class="panel-copy">
+                    <h3 id="inspectorTitle">Slot Inspector</h3>
+                    <p id="inspectorSubtitle">Select a cell to review details and assign a lesson.</p>
+                </div>
+            </div>
+            <div id="inspectorContent"></div>
+        </aside>
+    </section>
+</section>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+    (function () {
+        const canEdit = {{ can_edit_timetable | tojson }};
+        const canManageSettings = {{ can_manage_system_settings | tojson }};
+        const state = {
+            payload: {{ timetable_payload | tojson }},
+            activeView: "section",
+            activeSectionId: null,
+            activeTeacherId: null,
+            selectedSlot: null,
+            busy: false,
+        };
+
+        const sectionViewBtn = document.getElementById("sectionViewBtn");
+        const teacherViewBtn = document.getElementById("teacherViewBtn");
+        const sectionSelector = document.getElementById("sectionSelector");
+        const teacherSelector = document.getElementById("teacherSelector");
+        const weekLegend = document.getElementById("weekLegend");
+        const warningRow = document.getElementById("warningRow");
+        const flashNote = document.getElementById("flashNote");
+        const loadingMask = document.getElementById("loadingMask");
+        const laneTitle = document.getElementById("laneTitle");
+        const laneSubtitle = document.getElementById("laneSubtitle");
+        const laneCountPill = document.getElementById("laneCountPill");
+        const laneList = document.getElementById("laneList");
+        const boardTitle = document.getElementById("boardTitle");
+        const boardSubtitle = document.getElementById("boardSubtitle");
+        const boardBadges = document.getElementById("boardBadges");
+        const boardGrid = document.getElementById("boardGrid");
+        const inspectorTitle = document.getElementById("inspectorTitle");
+        const inspectorSubtitle = document.getElementById("inspectorSubtitle");
+        const inspectorContent = document.getElementById("inspectorContent");
+        const summarySectionCount = document.getElementById("summarySectionCount");
+        const summaryTeacherCount = document.getElementById("summaryTeacherCount");
+        const summaryScheduledHours = document.getElementById("summaryScheduledHours");
+        const summaryRemainingHours = document.getElementById("summaryRemainingHours");
+
+        const normalizeInt = (value) => {
+            const parsedValue = Number.parseInt(String(value ?? "").trim(), 10);
+            return Number.isFinite(parsedValue) ? parsedValue : 0;
+        };
+
+        const getSections = () => Array.isArray(state.payload.sections) ? state.payload.sections : [];
+        const getTeachers = () => Array.isArray(state.payload.teachers) ? state.payload.teachers : [];
+        const getEntries = () => Array.isArray(state.payload.entries) ? state.payload.entries : [];
+        const getDays = () => Array.isArray(state.payload.days) ? state.payload.days : [];
+        const getTimeSlots = () => Array.isArray(state.payload.time_slots) ? state.payload.time_slots : [];
+        const getWarnings = () => Array.isArray(state.payload.warnings) ? state.payload.warnings : [];
+        const getBlockedSlots = () => Array.isArray(state.payload.blocked_slots) ? state.payload.blocked_slots : [];
+
+        const getSectionById = (sectionId) => {
+            return getSections().find((section) => normalizeInt(section.id) === normalizeInt(sectionId)) || null;
+        };
+
+        const getTeacherById = (teacherId) => {
+            return getTeachers().find((teacher) => normalizeInt(teacher.id) === normalizeInt(teacherId)) || null;
+        };
+
+        const getBlockedSlot = (dayKey, periodIndex) => {
+            return getBlockedSlots().find((slot) => {
+                return String(slot.day_key || "") === String(dayKey || "")
+                    && normalizeInt(slot.period_index) === normalizeInt(periodIndex);
+            }) || null;
+        };
+
+        const getEntryForSectionSlot = (sectionId, dayKey, periodIndex) => {
+            return getEntries().find((entry) => {
+                return normalizeInt(entry.section_id) === normalizeInt(sectionId)
+                    && String(entry.day_key || "") === String(dayKey || "")
+                    && normalizeInt(entry.period_index) === normalizeInt(periodIndex);
+            }) || null;
+        };
+
+        const getEntryForTeacherSlot = (teacherId, dayKey, periodIndex) => {
+            return getEntries().find((entry) => {
+                return normalizeInt(entry.teacher_id) === normalizeInt(teacherId)
+                    && String(entry.day_key || "") === String(dayKey || "")
+                    && normalizeInt(entry.period_index) === normalizeInt(periodIndex);
+            }) || null;
+        };
+
+        const getTeacherConflict = (teacherId, dayKey, periodIndex, ignoreEntryId = null) => {
+            return getEntries().find((entry) => {
+                return normalizeInt(entry.teacher_id) === normalizeInt(teacherId)
+                    && String(entry.day_key || "") === String(dayKey || "")
+                    && normalizeInt(entry.period_index) === normalizeInt(periodIndex)
+                    && normalizeInt(entry.id) !== normalizeInt(ignoreEntryId);
+            }) || null;
+        };
+
+        const getScheduledCountForSectionSubject = (sectionId, subjectCode, ignoreEntryId = null) => {
+            return getEntries().filter((entry) => {
+                return normalizeInt(entry.section_id) === normalizeInt(sectionId)
+                    && String(entry.subject_code || "").toUpperCase() === String(subjectCode || "").toUpperCase()
+                    && String(entry.status || "") === "scheduled"
+                    && normalizeInt(entry.id) !== normalizeInt(ignoreEntryId);
+            }).length;
+        };
+
+        const ensureSelection = () => {
+            const sections = getSections();
+            const teachers = getTeachers();
+
+            if (!getSectionById(state.activeSectionId) && sections.length > 0) {
+                state.activeSectionId = normalizeInt(sections[0].id);
+            }
+            if (!getTeacherById(state.activeTeacherId) && teachers.length > 0) {
+                state.activeTeacherId = normalizeInt(teachers[0].id);
+            }
+            if (sections.length === 0) {
+                state.activeSectionId = null;
+            }
+            if (teachers.length === 0) {
+                state.activeTeacherId = null;
+            }
+
+            if (!state.selectedSlot && getDays().length > 0 && getTimeSlots().length > 0) {
+                state.selectedSlot = {
+                    dayKey: String(getDays()[0].key || ""),
+                    periodIndex: normalizeInt(getTimeSlots()[0].period_index),
+                };
+            }
+        };
+
+        const setFlash = (message, tone) => {
+            if (!message) {
+                flashNote.className = "flash-note";
+                flashNote.textContent = "";
+                return;
+            }
+            flashNote.className = `flash-note is-visible ${tone === "error" ? "is-error" : "is-success"}`;
+            flashNote.textContent = message;
+        };
+
+        const setBusy = (busy) => {
+            state.busy = busy;
+            loadingMask.classList.toggle("is-visible", busy);
+        };
+
+        const renderSummary = () => {
+            const summary = state.payload.summary || {};
+            summarySectionCount.textContent = String(normalizeInt(summary.section_count));
+            summaryTeacherCount.textContent = String(normalizeInt(summary.teacher_count));
+            summaryScheduledHours.textContent = String(normalizeInt(summary.scheduled_hours));
+            summaryRemainingHours.textContent = String(normalizeInt(summary.remaining_hours));
+        };
+
+        const renderWeekLegend = () => {
+            weekLegend.innerHTML = "";
+            getDays().forEach((day) => {
+                const pill = document.createElement("span");
+                pill.className = "legend-pill";
+                pill.innerHTML = `<span class="legend-dot" style="background:#0a4ea3;"></span>${day.label}`;
+                weekLegend.appendChild(pill);
+            });
+        };
+
+        const renderWarningRow = () => {
+            warningRow.innerHTML = "";
+            getWarnings().slice(0, 3).forEach((warning) => {
+                const pill = document.createElement("span");
+                pill.className = "warning-pill";
+                pill.innerHTML = `{{ icon("warning", "icon") | replace("\n", "") | replace('"', '&quot;') | safe }}<span>${warning}</span>`;
+                warningRow.appendChild(pill);
+            });
+        };
+
+        const renderSelectors = () => {
+            const sections = getSections();
+            const teachers = getTeachers();
+
+            sectionSelector.innerHTML = "";
+            if (sections.length === 0) {
+                const emptyOption = document.createElement("option");
+                emptyOption.value = "";
+                emptyOption.textContent = "No sections available";
+                sectionSelector.appendChild(emptyOption);
+            } else {
+                sections.forEach((section) => {
+                    const option = document.createElement("option");
+                    option.value = String(section.id);
+                    option.textContent = `${section.section_label} (${section.class_status})`;
+                    option.selected = normalizeInt(section.id) === normalizeInt(state.activeSectionId);
+                    sectionSelector.appendChild(option);
+                });
+            }
+
+            teacherSelector.innerHTML = "";
+            if (teachers.length === 0) {
+                const emptyOption = document.createElement("option");
+                emptyOption.value = "";
+                emptyOption.textContent = "No teachers available";
+                teacherSelector.appendChild(emptyOption);
+            } else {
+                teachers.forEach((teacher) => {
+                    const option = document.createElement("option");
+                    option.value = String(teacher.id);
+                    option.textContent = teacher.label || teacher.teacher_name || `Teacher #${teacher.id}`;
+                    option.selected = normalizeInt(teacher.id) === normalizeInt(state.activeTeacherId);
+                    teacherSelector.appendChild(option);
+                });
+            }
+
+            sectionSelector.disabled = state.activeView !== "section";
+            teacherSelector.disabled = state.activeView !== "teacher";
+            sectionViewBtn.classList.toggle("is-active", state.activeView === "section");
+            teacherViewBtn.classList.toggle("is-active", state.activeView === "teacher");
+        };
+
+        const renderLane = () => {
+            const isSectionView = state.activeView === "section";
+            const items = isSectionView ? getSections() : getTeachers();
+            laneTitle.textContent = isSectionView ? "Sections" : "Teachers";
+            laneSubtitle.textContent = isSectionView
+                ? "Choose the section you want to place into the weekly grid."
+                : "Review the timetable through each teacher's weekly teaching load.";
+            laneCountPill.textContent = `${items.length} item${items.length === 1 ? "" : "s"}`;
+            laneList.innerHTML = "";
+
+            if (items.length === 0) {
+                const emptyState = document.createElement("div");
+                emptyState.className = "empty-state";
+                emptyState.textContent = isSectionView
+                    ? "No planning sections are available yet."
+                    : "No teachers are available in the active branch and academic year.";
+                laneList.appendChild(emptyState);
+                return;
+            }
+
+            items.forEach((item) => {
+                const isActive = isSectionView
+                    ? normalizeInt(item.id) === normalizeInt(state.activeSectionId)
+                    : normalizeInt(item.id) === normalizeInt(state.activeTeacherId);
+                const card = document.createElement("button");
+                card.type = "button";
+                card.className = `lane-card${isActive ? " is-active" : ""}`;
+                const scheduledHours = normalizeInt(item.scheduled_hours);
+                const requiredHours = normalizeInt(isSectionView ? item.total_required_hours : item.required_hours);
+                const remainingHours = normalizeInt(item.remaining_hours);
+                const progress = requiredHours > 0 ? Math.min((scheduledHours / requiredHours) * 100, 100) : 0;
+
+                card.innerHTML = `
+                    <div class="lane-card-head">
+                        <div>
+                            <strong>${isSectionView ? item.section_label : item.teacher_name}</strong>
+                            <small>${isSectionView ? `${item.class_status} class` : `${item.teacher_id || "No ID"}${item.capacity_hours ? ` • Capacity ${item.capacity_hours}h` : ""}`}</small>
+                        </div>
+                        <span class="mini-pill">${scheduledHours}/${requiredHours || 0}h</span>
+                    </div>
+                    <div class="progress-track"><span class="progress-bar${!isSectionView && requiredHours > normalizeInt(item.capacity_hours) ? " is-overflow" : ""}" style="width:${progress}%;"></span></div>
+                    <div class="progress-meta">
+                        <span>${remainingHours}h remaining</span>
+                        <span>${requiredHours > 0 ? Math.round(progress) : 0}% placed</span>
+                    </div>
+                `;
+                card.addEventListener("click", () => {
+                    if (isSectionView) {
+                        state.activeSectionId = normalizeInt(item.id);
+                    } else {
+                        state.activeTeacherId = normalizeInt(item.id);
+                    }
+                    renderAll();
+                });
+                laneList.appendChild(card);
+            });
+        };
+
+        const getCurrentBoardEntity = () => {
+            return state.activeView === "section"
+                ? getSectionById(state.activeSectionId)
+                : getTeacherById(state.activeTeacherId);
+        };
+
+        const renderBoard = () => {
+            const isSectionView = state.activeView === "section";
+            const entity = getCurrentBoardEntity();
+            const days = getDays();
+            const timeSlots = getTimeSlots();
+            boardBadges.innerHTML = "";
+
+            if (!entity) {
+                boardTitle.textContent = "Timetable Grid";
+                boardSubtitle.textContent = isSectionView
+                    ? "Select a section to start scheduling."
+                    : "Select a teacher to review the timetable.";
+                boardGrid.innerHTML = `
+                    <tbody>
+                        <tr>
+                            <td class="empty-state">No timetable data is available for the current selection.</td>
+                        </tr>
+                    </tbody>
+                `;
+                return;
+            }
+
+            if (isSectionView) {
+                boardTitle.textContent = entity.section_label;
+                boardSubtitle.textContent = `Class status: ${entity.class_status}. Click a slot to assign one of the planned subjects.`;
+                boardBadges.innerHTML = `
+                    <span class="mini-pill">${normalizeInt(entity.scheduled_hours)}/${normalizeInt(entity.total_required_hours)}h scheduled</span>
+                    <span class="mini-pill">${normalizeInt(entity.ready_to_schedule_hours)}h ready to place</span>
+                    <span class="mini-pill">${normalizeInt(entity.missing_teacher_subjects)} subject gaps</span>
+                `;
+            } else {
+                boardTitle.textContent = entity.teacher_name;
+                boardSubtitle.textContent = `Required load ${normalizeInt(entity.required_hours)}h of ${normalizeInt(entity.capacity_hours)}h capacity in the current scope.`;
+                boardBadges.innerHTML = `
+                    <span class="mini-pill">${normalizeInt(entity.scheduled_hours)}h scheduled</span>
+                    <span class="mini-pill">${normalizeInt(entity.required_hours)}h required</span>
+                    <span class="mini-pill">${normalizeInt(entity.capacity_hours)}h capacity</span>
+                `;
+            }
+
+            const thead = document.createElement("thead");
+            const headRow = document.createElement("tr");
+            headRow.innerHTML = `<th>Period</th>${days.map((day) => `<th>${day.label}</th>`).join("")}`;
+            thead.appendChild(headRow);
+
+            const tbody = document.createElement("tbody");
+            timeSlots.forEach((slot) => {
+                const row = document.createElement("tr");
+
+                const periodCell = document.createElement("td");
+                periodCell.className = "period-cell";
+                periodCell.innerHTML = `<strong>${slot.short_label}</strong><span>${slot.time_range}</span>`;
+                row.appendChild(periodCell);
+
+                days.forEach((day) => {
+                    const gridCell = document.createElement("td");
+                    gridCell.className = "grid-cell";
+                    const blockedSlot = getBlockedSlot(day.key, slot.period_index);
+                    const entry = isSectionView
+                        ? getEntryForSectionSlot(entity.id, day.key, slot.period_index)
+                        : getEntryForTeacherSlot(entity.id, day.key, slot.period_index);
+
+                    const button = document.createElement("button");
+                    button.type = "button";
+                    button.className = "grid-button";
+
+                    const isSelected = state.selectedSlot
+                        && String(state.selectedSlot.dayKey || "") === String(day.key || "")
+                        && normalizeInt(state.selectedSlot.periodIndex) === normalizeInt(slot.period_index);
+                    if (isSelected) {
+                        button.classList.add("is-selected");
+                    }
+
+                    if (blockedSlot) {
+                        button.classList.add("is-blocked");
+                        button.style.setProperty("--cell-accent", blockedSlot.accent || "#0a4ea3");
+                        button.style.setProperty("--cell-soft", blockedSlot.soft || "#f4f8ff");
+                        button.style.setProperty("--cell-border", blockedSlot.border || "#d8e5f4");
+                        button.style.setProperty("--cell-text", blockedSlot.text || "#17365d");
+                        button.innerHTML = `
+                            <div class="cell-top"><span class="cell-code">${blockedSlot.block_type_label}</span></div>
+                            <div class="cell-title">${blockedSlot.label}</div>
+                            <div class="cell-subtitle">${day.label} • ${slot.short_label}</div>
+                        `;
+                        button.addEventListener("click", () => {
+                            state.selectedSlot = {
+                                dayKey: day.key,
+                                periodIndex: slot.period_index,
+                            };
+                            renderInspector();
+                            renderBoard();
+                        });
+                    } else if (entry) {
+                        if (entry.status === "stale") {
+                            button.classList.add("is-stale");
+                        } else {
+                            button.classList.add("is-assigned");
+                            button.style.setProperty("--cell-accent", entry.subject_color || "#0a4ea3");
+                            button.style.setProperty("--cell-soft", entry.subject_color_soft || "#f4f8ff");
+                            button.style.setProperty("--cell-border", entry.subject_color_border || "#d8e5f4");
+                            button.style.setProperty("--cell-text", entry.subject_color_text || "#17365d");
+                        }
+                        button.innerHTML = `
+                            <div class="cell-top">
+                                <span class="cell-code">${entry.subject_code}</span>
+                                <span class="mini-pill">${slot.short_label}</span>
+                            </div>
+                            <div class="cell-title">${entry.subject_name}</div>
+                            <div class="cell-subtitle">${isSectionView ? entry.teacher_name : entry.section_label}</div>
+                        `;
+                        button.addEventListener("click", () => {
+                            state.selectedSlot = {
+                                dayKey: day.key,
+                                periodIndex: slot.period_index,
+                            };
+                            renderInspector();
+                            renderBoard();
+                        });
+                    } else {
+                        button.classList.add("is-empty");
+                        button.innerHTML = `
+                            <div class="cell-top"><span class="cell-code">${slot.short_label}</span></div>
+                            <div class="cell-empty-text">${isSectionView && canEdit ? "Click to assign" : "Open slot"}</div>
+                            <div class="cell-subtitle">${day.label}</div>
+                        `;
+                        button.addEventListener("click", () => {
+                            state.selectedSlot = {
+                                dayKey: day.key,
+                                periodIndex: slot.period_index,
+                            };
+                            renderInspector();
+                            renderBoard();
+                        });
+                    }
+
+                    gridCell.appendChild(button);
+                    row.appendChild(gridCell);
+                });
+                tbody.appendChild(row);
+            });
+
+            boardGrid.innerHTML = "";
+            boardGrid.appendChild(thead);
+            boardGrid.appendChild(tbody);
+        };
+
+        const buildAssignmentOptions = (section, selectedSlot, existingEntry) => {
+            const options = Array.isArray(section.options) ? section.options : [];
+            return options.map((option) => {
+                const ignoreEntryId = existingEntry ? existingEntry.id : null;
+                const scheduledCount = getScheduledCountForSectionSubject(section.id, option.subject_code, ignoreEntryId);
+                const remainingHours = Math.max(normalizeInt(option.weekly_hours) - scheduledCount, 0);
+                const teacherConflict = option.teacher_id
+                    ? getTeacherConflict(option.teacher_id, selectedSlot.dayKey, selectedSlot.periodIndex, ignoreEntryId)
+                    : null;
+                const disabled = !option.is_schedulable
+                    || remainingHours <= 0
+                    || Boolean(teacherConflict)
+                    || state.busy;
+                return {
+                    ...option,
+                    remainingHours,
+                    teacherConflict,
+                    disabled,
+                };
+            }).sort((left, right) => {
+                if (left.disabled !== right.disabled) {
+                    return left.disabled ? 1 : -1;
+                }
+                if (right.remainingHours !== left.remainingHours) {
+                    return right.remainingHours - left.remainingHours;
+                }
+                return String(left.subject_name || "").localeCompare(String(right.subject_name || ""));
+            });
+        };
+
+        const assignSlot = async (sectionId, selectedSlot, subjectCode) => {
+            setBusy(true);
+            try {
+                const response = await fetch("/timetable/api/assign", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        section_id: sectionId,
+                        day_key: selectedSlot.dayKey,
+                        period_index: selectedSlot.periodIndex,
+                        subject_code: subjectCode || "",
+                    }),
+                });
+                const result = await response.json();
+                if (!response.ok || !result.ok) {
+                    setFlash(result.message || "Unable to update the timetable slot.", "error");
+                    return;
+                }
+                state.payload = result.payload;
+                ensureSelection();
+                setFlash(result.message || "Timetable updated successfully.", "success");
+                renderAll();
+            } catch (error) {
+                setFlash("Unable to reach the timetable service right now.", "error");
+            } finally {
+                setBusy(false);
+            }
+        };
+
+        const renderInspector = () => {
+            const isSectionView = state.activeView === "section";
+            const selectedSlot = state.selectedSlot;
+            const entity = getCurrentBoardEntity();
+            inspectorContent.innerHTML = "";
+
+            if (!entity) {
+                inspectorTitle.textContent = "Slot Inspector";
+                inspectorSubtitle.textContent = "Choose a section or teacher to inspect the timetable.";
+                inspectorContent.innerHTML = `<div class="empty-state">No entity is selected yet.</div>`;
+                return;
+            }
+
+            if (!selectedSlot) {
+                inspectorTitle.textContent = "Slot Inspector";
+                inspectorSubtitle.textContent = "Select a timetable cell to inspect it.";
+                inspectorContent.innerHTML = `<div class="empty-state">Pick a day and period from the timetable grid.</div>`;
+                return;
+            }
+
+            const timeSlot = getTimeSlots().find((slot) => normalizeInt(slot.period_index) === normalizeInt(selectedSlot.periodIndex));
+            const day = getDays().find((item) => String(item.key || "") === String(selectedSlot.dayKey || ""));
+            const blockedSlot = getBlockedSlot(selectedSlot.dayKey, selectedSlot.periodIndex);
+
+            if (isSectionView) {
+                const section = entity;
+                const existingEntry = getEntryForSectionSlot(section.id, selectedSlot.dayKey, selectedSlot.periodIndex);
+                inspectorTitle.textContent = section.section_label;
+                inspectorSubtitle.textContent = "Review progress, then assign or clear the selected timetable slot.";
+
+                const summaryCard = document.createElement("section");
+                summaryCard.className = "inspector-card";
+                const sectionProgress = normalizeInt(section.total_required_hours) > 0
+                    ? Math.min((normalizeInt(section.scheduled_hours) / normalizeInt(section.total_required_hours)) * 100, 100)
+                    : 0;
+                summaryCard.innerHTML = `
+                    <div class="slot-card-head">
+                        <div class="slot-meta">
+                            <h4>${section.section_label}</h4>
+                            <small>${section.class_status} class • Homeroom: ${section.homeroom_teacher_name}</small>
+                        </div>
+                        <span class="mini-pill">${normalizeInt(section.scheduled_hours)}/${normalizeInt(section.total_required_hours)}h</span>
+                    </div>
+                    <div class="progress-track"><span class="progress-bar" style="width:${sectionProgress}%;"></span></div>
+                    <div class="progress-meta">
+                        <span>${normalizeInt(section.remaining_hours)}h remaining</span>
+                        <span>${normalizeInt(section.missing_teacher_subjects)} subject gaps</span>
+                    </div>
+                `;
+                inspectorContent.appendChild(summaryCard);
+
+                const slotCard = document.createElement("section");
+                slotCard.className = "slot-card";
+                slotCard.innerHTML = `
+                    <div class="slot-card-head">
+                        <div class="slot-meta">
+                            <h4>${day ? day.label : selectedSlot.dayKey} • ${timeSlot ? timeSlot.short_label : `P${selectedSlot.periodIndex}`}</h4>
+                            <small>${timeSlot ? timeSlot.time_range : "Selected slot"}</small>
+                        </div>
+                        <span class="mini-pill">${blockedSlot ? blockedSlot.block_type_label : "Teaching Slot"}</span>
+                    </div>
+                `;
+
+                if (blockedSlot) {
+                    slotCard.innerHTML += `<div class="inspector-note">${blockedSlot.label} is configured as a blocked slot, so lessons cannot be assigned here.</div>`;
+                    inspectorContent.appendChild(slotCard);
+                } else {
+                    if (existingEntry) {
+                        slotCard.innerHTML += `
+                            <div class="inspector-note">
+                                ${existingEntry.status === "stale"
+                                    ? `This slot needs review: ${existingEntry.stale_reason}`
+                                    : `Currently scheduled: ${existingEntry.subject_code} - ${existingEntry.subject_name} with ${existingEntry.teacher_name}.`}
+                            </div>
+                        `;
+                    } else {
+                        slotCard.innerHTML += `<div class="inspector-note">This teaching slot is empty and ready for manual assignment.</div>`;
+                    }
+
+                    if (!canEdit) {
+                        slotCard.innerHTML += `<div class="empty-state">Your role can review timetable placements, but only editing roles can assign or clear slots.</div>`;
+                        inspectorContent.appendChild(slotCard);
+                    } else {
+                        const actions = document.createElement("div");
+                        actions.className = "action-row";
+                        if (existingEntry) {
+                            const clearButton = document.createElement("button");
+                            clearButton.type = "button";
+                            clearButton.className = "inspector-btn is-secondary";
+                            clearButton.innerHTML = `{{ icon("clear", "icon") | replace("\n", "") | replace('"', '&quot;') | safe }} Clear Slot`;
+                            clearButton.disabled = state.busy;
+                            clearButton.addEventListener("click", () => {
+                                assignSlot(section.id, selectedSlot, "");
+                            });
+                            actions.appendChild(clearButton);
+                        }
+                        slotCard.appendChild(actions);
+
+                        const optionsCard = document.createElement("section");
+                        optionsCard.className = "inspector-card";
+                        optionsCard.innerHTML = `
+                            <div class="slot-meta">
+                                <h4>Available Assignments</h4>
+                                <small>Only subjects with an assigned teacher and remaining weekly hours can be placed.</small>
+                            </div>
+                        `;
+
+                        const optionList = document.createElement("div");
+                        optionList.className = "assignment-option-list";
+                        const assignmentOptions = buildAssignmentOptions(section, selectedSlot, existingEntry);
+                        if (assignmentOptions.length === 0) {
+                            optionList.innerHTML = `<div class="empty-state">No subjects are available for this section yet. Assign teachers in Planning first.</div>`;
+                        } else {
+                            assignmentOptions.forEach((option) => {
+                                const optionButton = document.createElement("button");
+                                optionButton.type = "button";
+                                optionButton.className = "option-btn";
+                                optionButton.disabled = option.disabled;
+                                optionButton.style.setProperty("--cell-accent", option.subject_color || "#0a4ea3");
+                                optionButton.style.setProperty("--cell-soft", option.subject_color_soft || "#f4f8ff");
+                                optionButton.style.setProperty("--cell-border", option.subject_color_border || "#d8e5f4");
+                                optionButton.style.setProperty("--cell-text", option.subject_color_text || "#17365d");
+                                optionButton.innerHTML = `
+                                    <div class="option-head">
+                                        <div class="option-copy">
+                                            <strong>${option.subject_code} - ${option.subject_name}</strong>
+                                            <span>${option.teacher_name || "No teacher assigned yet"}</span>
+                                        </div>
+                                        <span class="mini-pill">${option.remainingHours}h left</span>
+                                    </div>
+                                    <div class="option-copy">
+                                        <span>${normalizeInt(option.weekly_hours)}h weekly requirement • ${normalizeInt(option.scheduled_count)}h already scheduled</span>
+                                        <span>${option.teacherConflict ? `${option.teacher_name} is already busy with ${option.teacherConflict.section_label}.` : option.is_schedulable ? "Ready to assign in this slot." : "Planning assignment required before scheduling."}</span>
+                                    </div>
+                                `;
+                                optionButton.addEventListener("click", () => {
+                                    assignSlot(section.id, selectedSlot, option.subject_code);
+                                });
+                                optionList.appendChild(optionButton);
+                            });
+                        }
+                        optionsCard.appendChild(optionList);
+                        inspectorContent.appendChild(slotCard);
+                        inspectorContent.appendChild(optionsCard);
+                    }
+                }
+
+                const requirementsCard = document.createElement("section");
+                requirementsCard.className = "inspector-card";
+                requirementsCard.innerHTML = `
+                    <div class="slot-meta">
+                        <h4>Section Requirements</h4>
+                        <small>Track which subjects still need periods on the timetable.</small>
+                    </div>
+                `;
+                const requirementList = document.createElement("div");
+                requirementList.className = "requirement-list";
+                (section.options || []).forEach((option) => {
+                    const progress = normalizeInt(option.weekly_hours) > 0
+                        ? Math.min((normalizeInt(option.scheduled_count) / normalizeInt(option.weekly_hours)) * 100, 100)
+                        : 0;
+                    const card = document.createElement("article");
+                    card.className = "requirement-card";
+                    card.innerHTML = `
+                        <div class="requirement-head">
+                            <div>
+                                <strong>${option.subject_code} - ${option.subject_name}</strong>
+                                <small>${option.teacher_name || "Teacher not assigned yet"}</small>
+                            </div>
+                            <span class="mini-pill">${normalizeInt(option.scheduled_count)}/${normalizeInt(option.weekly_hours)}h</span>
+                        </div>
+                        <div class="progress-track"><span class="progress-bar" style="width:${progress}%;"></span></div>
+                        <div class="progress-meta">
+                            <span>${normalizeInt(option.remaining_hours)}h remaining</span>
+                            <span>${option.assignment_source === "homeroom_default" ? "Homeroom default" : "Planning assigned"}</span>
+                        </div>
+                    `;
+                    requirementList.appendChild(card);
+                });
+                requirementsCard.appendChild(requirementList);
+                inspectorContent.appendChild(requirementsCard);
+            } else {
+                const teacher = entity;
+                const entry = getEntryForTeacherSlot(teacher.id, selectedSlot.dayKey, selectedSlot.periodIndex);
+                inspectorTitle.textContent = teacher.teacher_name;
+                inspectorSubtitle.textContent = "Teacher view reflects placements across all linked sections. Edit assignments from the Section view.";
+
+                const teacherCard = document.createElement("section");
+                teacherCard.className = "inspector-card";
+                const teacherProgress = normalizeInt(teacher.required_hours) > 0
+                    ? Math.min((normalizeInt(teacher.scheduled_hours) / normalizeInt(teacher.required_hours)) * 100, 100)
+                    : 0;
+                teacherCard.innerHTML = `
+                    <div class="slot-card-head">
+                        <div class="slot-meta">
+                            <h4>${teacher.teacher_name}</h4>
+                            <small>${teacher.teacher_id || "No teacher ID"} • Capacity ${normalizeInt(teacher.capacity_hours)}h</small>
+                        </div>
+                        <span class="mini-pill">${normalizeInt(teacher.scheduled_hours)}/${normalizeInt(teacher.required_hours)}h</span>
+                    </div>
+                    <div class="progress-track"><span class="progress-bar${normalizeInt(teacher.required_hours) > normalizeInt(teacher.capacity_hours) ? " is-overflow" : ""}" style="width:${teacherProgress}%;"></span></div>
+                    <div class="progress-meta">
+                        <span>${normalizeInt(teacher.remaining_hours)}h remaining to place</span>
+                        <span>${Math.max(normalizeInt(teacher.capacity_hours) - normalizeInt(teacher.required_hours), 0)}h free capacity</span>
+                    </div>
+                `;
+                inspectorContent.appendChild(teacherCard);
+
+                const slotCard = document.createElement("section");
+                slotCard.className = "slot-card";
+                slotCard.innerHTML = `
+                    <div class="slot-card-head">
+                        <div class="slot-meta">
+                            <h4>${day ? day.label : selectedSlot.dayKey} • ${timeSlot ? timeSlot.short_label : `P${selectedSlot.periodIndex}`}</h4>
+                            <small>${timeSlot ? timeSlot.time_range : "Selected slot"}</small>
+                        </div>
+                    </div>
+                `;
+                if (blockedSlot) {
+                    slotCard.innerHTML += `<div class="inspector-note">${blockedSlot.label} is blocked in the school timetable.</div>`;
+                } else if (entry) {
+                    slotCard.innerHTML += `<div class="inspector-note">${entry.subject_code} - ${entry.subject_name} with ${entry.section_label}${entry.status === "stale" ? `. Review needed: ${entry.stale_reason}` : ""}.</div>`;
+                } else {
+                    slotCard.innerHTML += `<div class="inspector-note">This teacher is free in the selected slot. Switch to Section view to place a lesson here.</div>`;
+                }
+                inspectorContent.appendChild(slotCard);
+
+                const commitmentsCard = document.createElement("section");
+                commitmentsCard.className = "inspector-card";
+                commitmentsCard.innerHTML = `
+                    <div class="slot-meta">
+                        <h4>Teaching Commitments</h4>
+                        <small>Section-subject combinations linked to this teacher from planning.</small>
+                    </div>
+                `;
+                const commitmentList = document.createElement("div");
+                commitmentList.className = "teacher-commitment-list";
+                (teacher.commitments || []).forEach((commitment) => {
+                    const scheduledCount = getScheduledCountForSectionSubject(commitment.section_id, commitment.subject_code);
+                    const progress = normalizeInt(commitment.weekly_hours) > 0
+                        ? Math.min((scheduledCount / normalizeInt(commitment.weekly_hours)) * 100, 100)
+                        : 0;
+                    const card = document.createElement("article");
+                    card.className = "teacher-commitment-card";
+                    card.innerHTML = `
+                        <div class="teacher-commitment-head">
+                            <div>
+                                <strong>${commitment.subject_code} - ${commitment.subject_name}</strong>
+                                <small>${commitment.section_label}</small>
+                            </div>
+                            <span class="mini-pill">${scheduledCount}/${normalizeInt(commitment.weekly_hours)}h</span>
+                        </div>
+                        <div class="progress-track"><span class="progress-bar" style="width:${progress}%;"></span></div>
+                    `;
+                    commitmentList.appendChild(card);
+                });
+                if ((teacher.commitments || []).length === 0) {
+                    commitmentList.innerHTML = `<div class="empty-state">No section commitments are linked to this teacher yet.</div>`;
+                }
+                commitmentsCard.appendChild(commitmentList);
+                inspectorContent.appendChild(commitmentsCard);
+            }
+        };
+
+        const renderAll = () => {
+            ensureSelection();
+            renderSummary();
+            renderWeekLegend();
+            renderWarningRow();
+            renderSelectors();
+            renderLane();
+            renderBoard();
+            renderInspector();
+        };
+
+        sectionViewBtn.addEventListener("click", () => {
+            state.activeView = "section";
+            renderAll();
+        });
+
+        teacherViewBtn.addEventListener("click", () => {
+            state.activeView = "teacher";
+            renderAll();
+        });
+
+        sectionSelector.addEventListener("change", () => {
+            state.activeSectionId = normalizeInt(sectionSelector.value);
+            renderAll();
+        });
+
+        teacherSelector.addEventListener("change", () => {
+            state.activeTeacherId = normalizeInt(teacherSelector.value);
+            renderAll();
+        });
+
+        ensureSelection();
+        renderAll();
+    })();
+</script>
+{% endblock %}

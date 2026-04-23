@@ -20,7 +20,7 @@ from database import engine, SessionLocal
 import models
 import auth
 from dependencies import get_db
-from routers import subjects, users, teachers, planning
+from routers import subjects, users, teachers, planning, timetable
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
 from teacher_capacity import (
@@ -56,6 +56,16 @@ from teacher_qualifications import (
     build_qualification_key,
     ensure_qualification_options_seeded,
     get_subject_alignment_group_keys,
+)
+from timetable_logic import (
+    ALL_DAY_KEY,
+    BLOCK_TYPE_OPTIONS,
+    WORKING_DAY_OPTIONS,
+    get_timetable_setting_row,
+    get_timetable_settings_payload,
+    normalize_non_teaching_block_values,
+    normalize_timetable_settings_values,
+    validate_non_teaching_block_overlap,
 )
 
 # ---------------------------------------
@@ -476,6 +486,13 @@ CONFIGURATION_MODULES = (
         "icon": "year",
         "description": "Open and switch live academic years.",
     },
+    {
+        "key": "timetable-settings",
+        "label": "Timetable Settings",
+        "href": "/system-configuration/timetable-settings",
+        "icon": "timetable",
+        "description": "Define the school week, periods, and non-teaching timetable blocks.",
+    },
 )
 
 
@@ -495,6 +512,7 @@ def _build_configuration_hub_stats(
     degree_rows,
     specialization_rows,
     active_year,
+    timetable_settings_count,
 ):
     return [
         {
@@ -525,11 +543,22 @@ def _build_configuration_hub_stats(
             "value": len(specialization_rows),
             "note": "Teacher form options",
         },
+        {
+            "label": "Timetable Settings",
+            "icon": "timetable",
+            "value": timetable_settings_count,
+            "note": "Saved scope-based school day profiles",
+        },
     ]
 
 
 def _build_configuration_context(request: Request, db: Session, current_user):
     scoped_branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    scoped_academic_year_id = getattr(
+        current_user,
+        "scope_academic_year_id",
+        current_user.academic_year_id,
+    )
     branch_rows = _build_branch_configuration_rows(
         db,
         scoped_branch_id=scoped_branch_id,
@@ -550,6 +579,7 @@ def _build_configuration_context(request: Request, db: Session, current_user):
         (year for year in academic_year_rows if bool(year.is_active)),
         None,
     )
+    timetable_settings_count = db.query(models.TimetableSetting).count()
     return {
         "branch_rows": branch_rows,
         "branch_count": len(branch_rows),
@@ -559,6 +589,7 @@ def _build_configuration_context(request: Request, db: Session, current_user):
         "active_year": active_year,
         "degree_rows": degree_rows,
         "specialization_rows": specialization_rows,
+        "timetable_settings_count": timetable_settings_count,
         "configuration_modules": _get_configuration_modules("overview"),
         "configuration_stats": _build_configuration_hub_stats(
             branch_rows,
@@ -566,8 +597,10 @@ def _build_configuration_context(request: Request, db: Session, current_user):
             degree_rows,
             specialization_rows,
             active_year,
+            timetable_settings_count,
         ),
         "error_message": str(request.query_params.get("error", "") or "").strip(),
+        "scoped_academic_year_id": scoped_academic_year_id,
     }
 
 
@@ -4232,6 +4265,7 @@ app.include_router(subjects.router)
 app.include_router(users.router)
 app.include_router(teachers.router)
 app.include_router(planning.router)
+app.include_router(timetable.router)
 
 # ---------------------------------------
 # ROOT (Login Page)
@@ -4609,6 +4643,66 @@ def _render_configuration_template(
     )
 
 
+def _build_timetable_settings_module_context(
+    request: Request,
+    db: Session,
+    current_user,
+):
+    scoped_branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    scoped_academic_year_id = getattr(
+        current_user,
+        "scope_academic_year_id",
+        current_user.academic_year_id,
+    )
+    timetable_settings = get_timetable_settings_payload(
+        db,
+        scoped_branch_id,
+        scoped_academic_year_id,
+    )
+    return {
+        "timetable_settings": timetable_settings,
+        "working_day_options": list(WORKING_DAY_OPTIONS),
+        "block_type_options": list(BLOCK_TYPE_OPTIONS),
+        "all_day_key": ALL_DAY_KEY,
+        "timetable_settings_notice": str(
+            request.query_params.get("notice", "") or ""
+        ).strip(),
+    }
+
+
+def _ensure_timetable_setting_scope_row(
+    db: Session,
+    branch_id: int,
+    academic_year_id: int,
+):
+    timetable_setting_row = get_timetable_setting_row(
+        db,
+        branch_id,
+        academic_year_id,
+    )
+    if timetable_setting_row:
+        return timetable_setting_row
+
+    default_settings = get_timetable_settings_payload(
+        db,
+        branch_id,
+        academic_year_id,
+    )
+    timetable_setting_row = models.TimetableSetting(
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+        working_days_csv=",".join(default_settings["working_day_keys"]),
+        periods_per_day=default_settings["periods_per_day"],
+        period_duration_minutes=default_settings["period_duration_minutes"],
+        school_start_time=default_settings["school_start_time"],
+        school_end_time=default_settings["school_end_time"],
+    )
+    db.add(timetable_setting_row)
+    db.commit()
+    db.refresh(timetable_setting_row)
+    return timetable_setting_row
+
+
 @app.get("/system-configuration")
 def system_configuration(
     request: Request,
@@ -4728,6 +4822,313 @@ def system_configuration_academic_years(
         active_module_key="academic-years",
         title="Academic Year Management",
         intro="Open and switch academic years from a dedicated configuration module.",
+    )
+
+
+@app.get("/system-configuration/timetable-settings")
+def system_configuration_timetable_settings(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_configuration_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    return _render_configuration_template(
+        request=request,
+        db=db,
+        current_user=current_user,
+        template_name="system_configuration_timetable.html",
+        active_module_key="timetable-settings",
+        title="Timetable Settings",
+        intro="Define the school week, period structure, and non-teaching timetable blocks for the active branch and academic year.",
+        extra_context=_build_timetable_settings_module_context(
+            request,
+            db,
+            current_user,
+        ),
+    )
+
+
+@app.post("/system-configuration/timetable-settings")
+def save_timetable_settings(
+    request: Request,
+    working_days: list[str] = Form([]),
+    periods_per_day: str = Form("8"),
+    period_duration_minutes: str = Form("45"),
+    school_start_time: str = Form("07:00"),
+    school_end_time: str = Form("13:00"),
+    return_to: str = Form("/system-configuration/timetable-settings"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user or not auth.can_manage_system_settings(current_user):
+        return RedirectResponse(url="/", status_code=302)
+
+    safe_return_to = _safe_redirect_path(return_to)
+    branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    academic_year_id = getattr(
+        current_user,
+        "scope_academic_year_id",
+        current_user.academic_year_id,
+    )
+    normalized_settings = normalize_timetable_settings_values(
+        working_days,
+        periods_per_day,
+        period_duration_minutes,
+        school_start_time,
+        school_end_time,
+    )
+    if normalized_settings["errors"]:
+        return _redirect_with_error(
+            safe_return_to,
+            " ".join(normalized_settings["errors"]),
+        )
+
+    existing_settings = get_timetable_settings_payload(
+        db,
+        branch_id,
+        academic_year_id,
+    )
+    invalid_existing_blocks = []
+    for block in existing_settings.get("blocks", []):
+        if (
+            block["day_key"] != ALL_DAY_KEY
+            and block["day_key"] not in normalized_settings["working_day_keys"]
+        ):
+            invalid_existing_blocks.append(
+                f"{block['label']} uses {block['day_label']}, which is no longer part of the working week."
+            )
+        if int(block.get("end_period") or 0) > int(normalized_settings["periods_per_day"] or 0):
+            invalid_existing_blocks.append(
+                f"{block['label']} extends beyond the updated periods-per-day value."
+            )
+
+    if invalid_existing_blocks:
+        return _redirect_with_error(
+            safe_return_to,
+            "Update or delete the affected non-teaching blocks first: "
+            + " ".join(invalid_existing_blocks),
+        )
+
+    timetable_setting_row = get_timetable_setting_row(
+        db,
+        branch_id,
+        academic_year_id,
+    )
+    if not timetable_setting_row:
+        timetable_setting_row = models.TimetableSetting(
+            branch_id=branch_id,
+            academic_year_id=academic_year_id,
+        )
+        db.add(timetable_setting_row)
+
+    timetable_setting_row.working_days_csv = ",".join(
+        normalized_settings["working_day_keys"]
+    )
+    timetable_setting_row.periods_per_day = normalized_settings["periods_per_day"]
+    timetable_setting_row.period_duration_minutes = normalized_settings["period_duration_minutes"]
+    timetable_setting_row.school_start_time = normalized_settings["school_start_time"]
+    timetable_setting_row.school_end_time = normalized_settings["school_end_time"]
+    db.commit()
+
+    return _redirect_with_notice(
+        safe_return_to,
+        "Timetable settings saved for the current branch and academic year.",
+    )
+
+
+@app.post("/system-configuration/timetable-settings/blocks")
+def create_timetable_block(
+    request: Request,
+    block_type: str = Form(...),
+    label: str = Form(...),
+    day_key: str = Form(ALL_DAY_KEY),
+    start_period: str = Form(...),
+    end_period: str = Form(...),
+    return_to: str = Form("/system-configuration/timetable-settings"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user or not auth.can_manage_system_settings(current_user):
+        return RedirectResponse(url="/", status_code=302)
+
+    safe_return_to = _safe_redirect_path(return_to)
+    branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    academic_year_id = getattr(
+        current_user,
+        "scope_academic_year_id",
+        current_user.academic_year_id,
+    )
+    timetable_setting_row = _ensure_timetable_setting_scope_row(
+        db,
+        branch_id,
+        academic_year_id,
+    )
+    timetable_settings = get_timetable_settings_payload(
+        db,
+        branch_id,
+        academic_year_id,
+    )
+    normalized_block = normalize_non_teaching_block_values(
+        block_type=block_type,
+        label=label,
+        day_key=day_key,
+        start_period=start_period,
+        end_period=end_period,
+        periods_per_day=timetable_settings["periods_per_day"],
+        working_day_keys=timetable_settings["working_day_keys"],
+    )
+    block_errors = list(normalized_block["errors"])
+    block_errors.extend(
+        validate_non_teaching_block_overlap(
+            timetable_settings.get("blocks", []),
+            normalized_block,
+        )
+    )
+    if block_errors:
+        return _redirect_with_error(
+            safe_return_to,
+            " ".join(block_errors),
+        )
+
+    db.add(
+        models.TimetableNonTeachingBlock(
+            timetable_setting_id=timetable_setting_row.id,
+            block_type=normalized_block["block_type"],
+            label=normalized_block["label"],
+            day_key=normalized_block["day_key"],
+            start_period=normalized_block["start_period"],
+            end_period=normalized_block["end_period"],
+        )
+    )
+    db.commit()
+
+    return _redirect_with_notice(
+        safe_return_to,
+        f"{normalized_block['label']} added to timetable settings.",
+    )
+
+
+@app.post("/system-configuration/timetable-settings/blocks/{block_id}")
+def update_timetable_block(
+    block_id: int,
+    request: Request,
+    block_type: str = Form(...),
+    label: str = Form(...),
+    day_key: str = Form(ALL_DAY_KEY),
+    start_period: str = Form(...),
+    end_period: str = Form(...),
+    return_to: str = Form("/system-configuration/timetable-settings"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user or not auth.can_manage_system_settings(current_user):
+        return RedirectResponse(url="/", status_code=302)
+
+    safe_return_to = _safe_redirect_path(return_to)
+    branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    academic_year_id = getattr(
+        current_user,
+        "scope_academic_year_id",
+        current_user.academic_year_id,
+    )
+    timetable_setting_row = _ensure_timetable_setting_scope_row(
+        db,
+        branch_id,
+        academic_year_id,
+    )
+    block_row = db.query(models.TimetableNonTeachingBlock).filter(
+        models.TimetableNonTeachingBlock.id == block_id,
+        models.TimetableNonTeachingBlock.timetable_setting_id == timetable_setting_row.id,
+    ).first()
+    if not block_row:
+        return _redirect_with_error(
+            safe_return_to,
+            "Timetable block record not found for the active branch/year scope.",
+        )
+
+    timetable_settings = get_timetable_settings_payload(
+        db,
+        branch_id,
+        academic_year_id,
+    )
+    normalized_block = normalize_non_teaching_block_values(
+        block_type=block_type,
+        label=label,
+        day_key=day_key,
+        start_period=start_period,
+        end_period=end_period,
+        periods_per_day=timetable_settings["periods_per_day"],
+        working_day_keys=timetable_settings["working_day_keys"],
+    )
+    block_errors = list(normalized_block["errors"])
+    block_errors.extend(
+        validate_non_teaching_block_overlap(
+            timetable_settings.get("blocks", []),
+            normalized_block,
+            ignore_block_id=block_id,
+        )
+    )
+    if block_errors:
+        return _redirect_with_error(
+            safe_return_to,
+            " ".join(block_errors),
+        )
+
+    block_row.block_type = normalized_block["block_type"]
+    block_row.label = normalized_block["label"]
+    block_row.day_key = normalized_block["day_key"]
+    block_row.start_period = normalized_block["start_period"]
+    block_row.end_period = normalized_block["end_period"]
+    db.commit()
+
+    return _redirect_with_notice(
+        safe_return_to,
+        f"{normalized_block['label']} updated successfully.",
+    )
+
+
+@app.post("/system-configuration/timetable-settings/blocks/{block_id}/delete")
+def delete_timetable_block(
+    block_id: int,
+    request: Request,
+    return_to: str = Form("/system-configuration/timetable-settings"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user or not auth.can_manage_system_settings(current_user):
+        return RedirectResponse(url="/", status_code=302)
+
+    safe_return_to = _safe_redirect_path(return_to)
+    branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    academic_year_id = getattr(
+        current_user,
+        "scope_academic_year_id",
+        current_user.academic_year_id,
+    )
+    timetable_setting_row = _ensure_timetable_setting_scope_row(
+        db,
+        branch_id,
+        academic_year_id,
+    )
+    block_row = db.query(models.TimetableNonTeachingBlock).filter(
+        models.TimetableNonTeachingBlock.id == block_id,
+        models.TimetableNonTeachingBlock.timetable_setting_id == timetable_setting_row.id,
+    ).first()
+    if not block_row:
+        return _redirect_with_error(
+            safe_return_to,
+            "Timetable block record not found for the active branch/year scope.",
+        )
+
+    block_label = str(block_row.label or "Timetable block").strip() or "Timetable block"
+    db.delete(block_row)
+    db.commit()
+
+    return _redirect_with_notice(
+        safe_return_to,
+        f"{block_label} deleted successfully.",
     )
 
 

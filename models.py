@@ -186,3 +186,101 @@ class PlanningSection(Base):
     homeroom_teacher_id = Column(Integer, nullable=True)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
+
+
+class TimetableSetting(Base):
+    __tablename__ = "timetable_settings"
+    __table_args__ = (
+        UniqueConstraint(
+            "branch_id",
+            "academic_year_id",
+            name="uq_timetable_settings_scope",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
+    academic_year_id = Column(
+        Integer,
+        ForeignKey("academic_years.id"),
+        nullable=False,
+        index=True,
+    )
+    working_days_csv = Column(String(120), nullable=False, default="")
+    periods_per_day = Column(Integer, nullable=False, default=8)
+    period_duration_minutes = Column(Integer, nullable=False, default=45)
+    school_start_time = Column(String(5), nullable=False, default="07:00")
+    school_end_time = Column(String(5), nullable=False, default="13:00")
+
+
+class TimetableNonTeachingBlock(Base):
+    __tablename__ = "timetable_non_teaching_blocks"
+    __table_args__ = (
+        Index(
+            "ix_timetable_non_teaching_blocks_setting_id",
+            "timetable_setting_id",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    timetable_setting_id = Column(
+        Integer,
+        ForeignKey("timetable_settings.id"),
+        nullable=False,
+    )
+    block_type = Column(String(32), nullable=False)
+    label = Column(String(80), nullable=False)
+    day_key = Column(String(16), nullable=False, default="all")
+    start_period = Column(Integer, nullable=False)
+    end_period = Column(Integer, nullable=False)
+
+
+class TimetableEntry(Base):
+    __tablename__ = "timetable_entries"
+    __table_args__ = (
+        UniqueConstraint(
+            "branch_id",
+            "academic_year_id",
+            "planning_section_id",
+            "day_key",
+            "period_index",
+            name="uq_timetable_entries_section_slot",
+        ),
+        UniqueConstraint(
+            "branch_id",
+            "academic_year_id",
+            "teacher_id",
+            "day_key",
+            "period_index",
+            name="uq_timetable_entries_teacher_slot",
+        ),
+        Index(
+            "ix_timetable_entries_scope_section",
+            "branch_id",
+            "academic_year_id",
+            "planning_section_id",
+        ),
+        Index(
+            "ix_timetable_entries_scope_teacher",
+            "branch_id",
+            "academic_year_id",
+            "teacher_id",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    academic_year_id = Column(
+        Integer,
+        ForeignKey("academic_years.id"),
+        nullable=False,
+    )
+    planning_section_id = Column(
+        Integer,
+        ForeignKey("planning_sections.id"),
+        nullable=False,
+    )
+    subject_code = Column(String, nullable=False)
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
+    day_key = Column(String(16), nullable=False)
+    period_index = Column(Integer, nullable=False)

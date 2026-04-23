@@ -1,0 +1,828 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Timetable Settings | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+    .config-page {
+        display: grid;
+        gap: 14px;
+    }
+
+    .error-banner,
+    .notice-banner {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .error-banner {
+        border: 1px solid #efc5bf;
+        background: #fff5f3;
+        color: #9f2d1f;
+    }
+
+    .notice-banner {
+        border: 1px solid #d5e4f4;
+        background: #f4f8ff;
+        color: #17365d;
+    }
+
+    .config-nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .config-nav-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 34px;
+        padding: 7px 12px;
+        border: 1px solid #d6e3f3;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #23466f;
+        font-size: 12px;
+        font-weight: 800;
+        text-decoration: none;
+    }
+
+    .config-nav-link.is-active {
+        border-color: #b8d0ec;
+        background: #edf4ff;
+        color: #17365d;
+    }
+
+    .module-shell,
+    .preview-shell,
+    .block-shell {
+        display: grid;
+        gap: 14px;
+        padding: 16px;
+        border: 1px solid #d8e5f4;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff, #f8fbff);
+    }
+
+    .module-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .module-copy {
+        display: grid;
+        gap: 5px;
+        max-width: 72ch;
+    }
+
+    .module-copy h2 {
+        margin: 0;
+        color: #17365d;
+        font-size: 24px;
+    }
+
+    .module-copy p {
+        margin: 0;
+        color: #60728c;
+        font-size: 13px;
+        line-height: 1.55;
+    }
+
+    .pill-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .usage-pill,
+    .status-pill,
+    .block-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 26px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .usage-pill {
+        border: 1px solid #d7e4f4;
+        background: #ffffff;
+        color: #4f6480;
+    }
+
+    .usage-pill.is-highlight,
+    .status-pill {
+        border: 1px solid #cfe1f6;
+        background: #edf4ff;
+        color: #17365d;
+    }
+
+    .status-pill.is-warning {
+        border-color: #f0d6a9;
+        background: #fff7ea;
+        color: #8a4f00;
+    }
+
+    .settings-grid,
+    .preview-grid {
+        display: grid;
+        gap: 12px;
+    }
+
+    .settings-grid {
+        grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.95fr);
+    }
+
+    .settings-card,
+    .preview-card {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
+        border: 1px solid #d8e5f4;
+        border-radius: 16px;
+        background: #ffffff;
+    }
+
+    .settings-card h3,
+    .preview-card h3 {
+        margin: 0;
+        color: #17365d;
+        font-size: 17px;
+    }
+
+    .settings-card p,
+    .preview-card p {
+        margin: 0;
+        color: #60728c;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .field {
+        display: grid;
+        gap: 6px;
+    }
+
+    .field label {
+        color: #415068;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .field input,
+    .field select,
+    .block-edit input,
+    .block-edit select {
+        width: 100%;
+        min-width: 0;
+        padding: 10px 12px;
+        border: 1px solid #c8d8ec;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #17365d;
+        font-size: 14px;
+    }
+
+    .field input:focus,
+    .field select:focus,
+    .block-edit input:focus,
+    .block-edit select:focus {
+        outline: none;
+        border-color: #0a4ea3;
+        box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.14);
+    }
+
+    .field-note {
+        color: #61738d;
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
+    .day-pill-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .day-pill {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border: 1px solid #d6e3f3;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #23466f;
+        cursor: pointer;
+        transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+    }
+
+    .day-pill input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .day-pill.is-active {
+        border-color: #b8d0ec;
+        background: #edf4ff;
+        color: #17365d;
+    }
+
+    .day-pill strong {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .action-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .action-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 36px;
+        padding: 8px 12px;
+        border: 1px solid transparent;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 800;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .action-btn-primary {
+        color: #ffffff;
+        background: linear-gradient(135deg, #0a4ea3, #073a7d);
+    }
+
+    .action-btn-secondary {
+        border-color: #cdddef;
+        background: #ffffff;
+        color: #17365d;
+    }
+
+    .action-btn-danger {
+        color: #ffffff;
+        background: linear-gradient(135deg, #c44735, #9f2d1f);
+    }
+
+    .timeline-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .timeline-row {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 10px;
+        padding: 10px 12px;
+        border: 1px solid #d8e5f4;
+        border-radius: 14px;
+        background: #fbfdff;
+    }
+
+    .timeline-meta {
+        min-width: 122px;
+        display: grid;
+        gap: 3px;
+    }
+
+    .timeline-meta strong {
+        color: #17365d;
+        font-size: 13px;
+    }
+
+    .timeline-meta span {
+        color: #60728c;
+        font-size: 12px;
+    }
+
+    .timeline-days {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .timeline-day-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 30px;
+        padding: 6px 9px;
+        border-radius: 12px;
+        border: 1px solid #d8e5f4;
+        background: #ffffff;
+        color: #17365d;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .timeline-day-chip.is-blocked {
+        background: var(--block-soft, #f4f8ff);
+        border-color: var(--block-border, #d8e5f4);
+        color: var(--block-text, #17365d);
+        box-shadow: inset 4px 0 0 var(--block-accent, #0a4ea3);
+    }
+
+    .block-pill {
+        border: 1px solid var(--block-border, #d8e5f4);
+        background: var(--block-soft, #f4f8ff);
+        color: var(--block-text, #17365d);
+    }
+
+    .block-form {
+        display: grid;
+        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 0.65fr) minmax(0, 0.65fr) auto;
+        gap: 8px;
+        align-items: end;
+    }
+
+    .table-wrap {
+        border: 1px solid #d8e5f4;
+        border-radius: 14px;
+        overflow: hidden;
+        background: #ffffff;
+    }
+
+    .block-table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 860px;
+    }
+
+    .block-table th {
+        padding: 10px 12px;
+        border-bottom: 1px solid #d8e5f4;
+        background: #f7fbff;
+        color: #62748d;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        text-align: left;
+    }
+
+    .block-table td {
+        padding: 9px 12px;
+        border-bottom: 1px solid #ecf2f9;
+        vertical-align: middle;
+        color: #17365d;
+        font-size: 13px;
+    }
+
+    .block-table tbody tr:last-child td {
+        border-bottom: 0;
+    }
+
+    .block-row.is-editing {
+        background: #f2f8ff;
+    }
+
+    .block-read {
+        display: block;
+    }
+
+    .block-edit {
+        display: none;
+    }
+
+    .block-row.is-editing .block-read {
+        display: none;
+    }
+
+    .block-row.is-editing .block-edit {
+        display: block;
+    }
+
+    .table-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .block-row .actions-editing {
+        display: none;
+    }
+
+    .block-row.is-editing .actions-default {
+        display: none;
+    }
+
+    .block-row.is-editing .actions-editing {
+        display: flex;
+    }
+
+    .empty-note {
+        color: #61738d;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    @media (max-width: 1100px) {
+        .settings-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .block-form {
+            grid-template-columns: 1fr;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        .table-actions {
+            justify-content: flex-start;
+        }
+    }
+
+    @media (max-width: 760px) {
+        .field-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .timeline-row {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="config-page">
+    {% if error_message %}
+    <div class="error-banner">{{ icon("warning", "icon") }} {{ error_message }}</div>
+    {% endif %}
+
+    <nav class="config-nav" aria-label="Configuration modules">
+        {% for module in configuration_modules %}
+        <a class="config-nav-link {% if module.active %}is-active{% endif %}" href="{{ module.href }}">
+            {{ icon(module.icon, "icon") }} {{ module.label }}
+        </a>
+        {% endfor %}
+    </nav>
+
+    <section class="module-shell">
+        <div class="module-head">
+            <div class="module-copy">
+                <h2>Timetable Settings</h2>
+                <p>Define the school week structure for the current branch and academic year. These rules drive the Timetable module grid, blocked slots, and manual scheduling behavior.</p>
+            </div>
+            <div class="pill-row">
+                <span class="status-pill {% if timetable_settings.is_saved %}{% else %}is-warning{% endif %}">
+                    {{ "Saved profile" if timetable_settings.is_saved else "Using fallback defaults" }}
+                </span>
+                <span class="usage-pill">{{ timetable_settings.working_day_keys|length }} day{{ "" if timetable_settings.working_day_keys|length == 1 else "s" }}</span>
+                <span class="usage-pill is-highlight">{{ timetable_settings.teaching_slot_count }} teaching slots</span>
+                <span class="usage-pill">{{ timetable_settings.blocks|length }} block{{ "" if timetable_settings.blocks|length == 1 else "s" }}</span>
+            </div>
+        </div>
+
+        <div class="settings-grid">
+            <form class="settings-card" method="post" action="/system-configuration/timetable-settings">
+                <input type="hidden" name="return_to" value="/system-configuration/timetable-settings">
+                <div class="module-copy">
+                    <h3>School Week Structure</h3>
+                    <p>These values define the weekly grid used by the main Timetable page.</p>
+                </div>
+
+                <div class="field">
+                    <label>Working Days</label>
+                    <div class="day-pill-grid">
+                        {% for day in working_day_options %}
+                        <label class="day-pill {% if day.key in timetable_settings.working_day_keys %}is-active{% endif %}" data-working-day-pill>
+                            <input type="checkbox" name="working_days" value="{{ day.key }}" {% if day.key in timetable_settings.working_day_keys %}checked{% endif %}>
+                            <strong>{{ day.label }}</strong>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    <div class="field-note">Select the teaching days that should appear as timetable columns.</div>
+                </div>
+
+                <div class="field-grid">
+                    <div class="field">
+                        <label for="periods_per_day">Periods Per Day</label>
+                        <input id="periods_per_day" type="number" name="periods_per_day" min="1" max="16" value="{{ timetable_settings.periods_per_day }}" required>
+                    </div>
+                    <div class="field">
+                        <label for="period_duration_minutes">Period Duration</label>
+                        <input id="period_duration_minutes" type="number" name="period_duration_minutes" min="20" max="120" value="{{ timetable_settings.period_duration_minutes }}" required>
+                    </div>
+                    <div class="field">
+                        <label for="school_start_time">School Start Time</label>
+                        <input id="school_start_time" type="time" name="school_start_time" value="{{ timetable_settings.school_start_time }}" required>
+                    </div>
+                    <div class="field">
+                        <label for="school_end_time">School End Time</label>
+                        <input id="school_end_time" type="time" name="school_end_time" value="{{ timetable_settings.school_end_time }}" required>
+                    </div>
+                </div>
+
+                <div class="field-note">The end time must match the start time plus the full configured school-day slot count. Breaks and prayer slots still occupy periods in the timetable grid.</div>
+
+                <div class="action-row">
+                    <button class="action-btn action-btn-primary" type="submit">{{ icon("save", "icon") }} Save Timetable Settings</button>
+                    <a class="action-btn action-btn-secondary" href="/timetable/">{{ icon("timetable", "icon") }} Open Timetable Page</a>
+                </div>
+            </form>
+
+            <section class="preview-shell">
+                <div class="module-copy">
+                    <h3>Weekly Grid Preview</h3>
+                    <p>This is the period structure the Timetable page will use for the active scope.</p>
+                </div>
+
+                <div class="preview-grid">
+                    <div class="preview-card">
+                        <h3>Configured Days</h3>
+                        <div class="pill-row">
+                            {% for day in timetable_settings.working_days %}
+                            <span class="usage-pill is-highlight">{{ day.label }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="preview-card">
+                        <h3>Period Timeline</h3>
+                        {% if timetable_settings.time_slots %}
+                        <div class="timeline-list">
+                            {% for slot in timetable_settings.time_slots %}
+                            <div class="timeline-row">
+                                <div class="timeline-meta">
+                                    <strong>{{ slot.short_label }}</strong>
+                                    <span>{{ slot.time_range }}</span>
+                                </div>
+                                <div class="timeline-days">
+                                    {% for day in timetable_settings.working_days %}
+                                    {% set block = timetable_settings.block_slot_map.get((day.key, slot.period_index)) %}
+                                    <span
+                                        class="timeline-day-chip {% if block %}is-blocked{% endif %}"
+                                        {% if block %}
+                                        style="--block-accent: {{ block.accent }}; --block-soft: {{ block.soft }}; --block-border: {{ block.border }}; --block-text: {{ block.text }};"
+                                        {% endif %}
+                                    >
+                                        <strong>{{ day.short_label }}</strong>
+                                        <span>{{ block.label if block else "Teaching" }}</span>
+                                    </span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="empty-note">Save at least one valid period to preview the timetable structure.</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </section>
+        </div>
+    </section>
+
+    <section class="block-shell">
+        <div class="module-head">
+            <div class="module-copy">
+                <h2>Non-Teaching Blocks</h2>
+                <p>Add breaks, prayer periods, or any other blocked slots that should appear on the timetable and stay unavailable for lesson placement.</p>
+            </div>
+            <div class="pill-row">
+                <span class="usage-pill">{{ timetable_settings.blocks|length }} configured</span>
+                <span class="usage-pill is-highlight">{{ timetable_settings.blocked_slot_count }} blocked slot{{ "" if timetable_settings.blocked_slot_count == 1 else "s" }}</span>
+            </div>
+        </div>
+
+        <form class="block-form" method="post" action="/system-configuration/timetable-settings/blocks">
+            <input type="hidden" name="return_to" value="/system-configuration/timetable-settings">
+            <div class="field">
+                <label for="block_type">Type</label>
+                <select id="block_type" name="block_type" required>
+                    {% for block_type in block_type_options %}
+                    <option value="{{ block_type.key }}">{{ block_type.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="block_label">Label</label>
+                <input id="block_label" type="text" name="label" placeholder="Example: Morning Break" required>
+            </div>
+            <div class="field">
+                <label for="block_day_key">Day</label>
+                <select id="block_day_key" name="day_key" required>
+                    <option value="{{ all_day_key }}">All Working Days</option>
+                    {% for day in timetable_settings.working_days %}
+                    <option value="{{ day.key }}">{{ day.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="block_start_period">Start Period</label>
+                <select id="block_start_period" name="start_period" required>
+                    {% for slot in timetable_settings.time_slots %}
+                    <option value="{{ slot.period_index }}">{{ slot.short_label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="block_end_period">End Period</label>
+                <select id="block_end_period" name="end_period" required>
+                    {% for slot in timetable_settings.time_slots %}
+                    <option value="{{ slot.period_index }}">{{ slot.short_label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Add Block</button>
+        </form>
+
+        {% if timetable_settings.blocks %}
+        <div class="table-wrap">
+            <table class="block-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Label</th>
+                        <th>Day</th>
+                        <th>Period Range</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for block in timetable_settings.blocks %}
+                    <tr class="block-row" data-block-row-id="{{ block.id }}">
+                        <td>
+                            <div class="block-read">
+                                <span class="block-pill" style="--block-accent: {{ block.accent }}; --block-soft: {{ block.soft }}; --block-border: {{ block.border }}; --block-text: {{ block.text }};">{{ block.block_type_label }}</span>
+                            </div>
+                            <div class="block-edit">
+                                <label class="sr-only" for="block_type_{{ block.id }}">Type</label>
+                                <select id="block_type_{{ block.id }}" name="block_type" form="block_update_form_{{ block.id }}" data-initial="{{ block.block_type }}">
+                                    {% for block_type in block_type_options %}
+                                    <option value="{{ block_type.key }}" {% if block.block_type == block_type.key %}selected{% endif %}>{{ block_type.label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="block-read">
+                                <strong>{{ block.label }}</strong>
+                            </div>
+                            <div class="block-edit">
+                                <label class="sr-only" for="block_label_{{ block.id }}">Label</label>
+                                <input id="block_label_{{ block.id }}" type="text" name="label" value="{{ block.label }}" form="block_update_form_{{ block.id }}" data-initial="{{ block.label }}" required>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="block-read">{{ block.day_label }}</div>
+                            <div class="block-edit">
+                                <label class="sr-only" for="block_day_{{ block.id }}">Day</label>
+                                <select id="block_day_{{ block.id }}" name="day_key" form="block_update_form_{{ block.id }}" data-initial="{{ block.day_key }}">
+                                    <option value="{{ all_day_key }}" {% if block.day_key == all_day_key %}selected{% endif %}>All Working Days</option>
+                                    {% for day in timetable_settings.working_days %}
+                                    <option value="{{ day.key }}" {% if block.day_key == day.key %}selected{% endif %}>{{ day.label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="block-read">{{ "P" ~ block.start_period }}{% if block.end_period != block.start_period %} to {{ "P" ~ block.end_period }}{% endif %}</div>
+                            <div class="block-edit" style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;">
+                                <div>
+                                    <label class="sr-only" for="block_start_{{ block.id }}">Start Period</label>
+                                    <select id="block_start_{{ block.id }}" name="start_period" form="block_update_form_{{ block.id }}" data-initial="{{ block.start_period }}">
+                                        {% for slot in timetable_settings.time_slots %}
+                                        <option value="{{ slot.period_index }}" {% if block.start_period == slot.period_index %}selected{% endif %}>{{ slot.short_label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="sr-only" for="block_end_{{ block.id }}">End Period</label>
+                                    <select id="block_end_{{ block.id }}" name="end_period" form="block_update_form_{{ block.id }}" data-initial="{{ block.end_period }}">
+                                        {% for slot in timetable_settings.time_slots %}
+                                        <option value="{{ slot.period_index }}" {% if block.end_period == slot.period_index %}selected{% endif %}>{{ slot.short_label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <form id="block_update_form_{{ block.id }}" method="post" action="/system-configuration/timetable-settings/blocks/{{ block.id }}">
+                                <input type="hidden" name="return_to" value="/system-configuration/timetable-settings">
+                            </form>
+                            <div class="table-actions actions-default">
+                                <button class="action-btn action-btn-secondary" type="button" data-block-edit="{{ block.id }}">{{ icon("edit", "icon") }} Edit</button>
+                                <button class="action-btn action-btn-danger" type="submit" formaction="/system-configuration/timetable-settings/blocks/{{ block.id }}/delete" onclick="return confirm('Delete {{ block.label }}?');">{{ icon("trash", "icon") }} Delete</button>
+                            </div>
+                            <div class="table-actions actions-editing">
+                                <button class="action-btn action-btn-primary" type="submit" form="block_update_form_{{ block.id }}">{{ icon("save", "icon") }} Save</button>
+                                <button class="action-btn action-btn-secondary" type="button" data-block-cancel="{{ block.id }}">{{ icon("close", "icon") }} Cancel</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-note">No non-teaching blocks are configured yet. Add breaks, prayer slots, or any other blocked periods above.</div>
+        {% endif %}
+    </section>
+</section>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+    (function () {
+        document.querySelectorAll("[data-working-day-pill]").forEach(function (pill) {
+            var input = pill.querySelector("input[type='checkbox']");
+            if (!input) {
+                return;
+            }
+            var syncState = function () {
+                pill.classList.toggle("is-active", input.checked);
+            };
+            input.addEventListener("change", syncState);
+            syncState();
+        });
+
+        var blockRows = Array.prototype.slice.call(document.querySelectorAll("[data-block-row-id]"));
+
+        function setBlockEditState(targetRowId) {
+            blockRows.forEach(function (row) {
+                var isTarget = row.getAttribute("data-block-row-id") === String(targetRowId);
+                row.classList.toggle("is-editing", isTarget);
+            });
+        }
+
+        function clearBlockEditState(targetRowId) {
+            var row = document.querySelector('[data-block-row-id="' + targetRowId + '"]');
+            if (!row) {
+                return;
+            }
+            row.querySelectorAll(".block-edit [data-initial]").forEach(function (field) {
+                field.value = field.getAttribute("data-initial") || "";
+            });
+            row.classList.remove("is-editing");
+        }
+
+        document.querySelectorAll("[data-block-edit]").forEach(function (button) {
+            button.addEventListener("click", function () {
+                setBlockEditState(button.getAttribute("data-block-edit"));
+            });
+        });
+
+        document.querySelectorAll("[data-block-cancel]").forEach(function (button) {
+            button.addEventListener("click", function () {
+                clearBlockEditState(button.getAttribute("data-block-cancel"));
+            });
+        });
+    })();
+</script>
+{% endblock %}

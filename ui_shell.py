@@ -32,6 +32,12 @@ PAGE_META = {
         "intro": "Shape section structure, homeroom ownership, and aligned teaching hours for the active scope.",
         "icon": "planning",
     },
+    "timetable": {
+        "eyebrow": "Weekly Scheduling",
+        "title": "Timetable",
+        "intro": "Place section lessons into the weekly school grid using the current planning and timetable settings.",
+        "icon": "timetable",
+    },
     "users": {
         "eyebrow": "Access Control",
         "title": "Users",
@@ -81,6 +87,12 @@ def _build_nav_items(
             "href": "/planning/",
             "icon": "planning",
             "active": is_active("/planning"),
+        },
+        {
+            "label": "Timetable",
+            "href": "/timetable/",
+            "icon": "timetable",
+            "active": is_active("/timetable"),
         },
     ]
 
