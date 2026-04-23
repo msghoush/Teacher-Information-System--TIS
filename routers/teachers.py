@@ -614,6 +614,7 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
             "subject_hidden_count": 0,
             "allocated_hours": 0,
             "teaching_load_labels": [],
+            "teaching_load_items": [],
             "teaching_load_preview_labels": [],
             "teaching_load_count": 0,
             "teaching_load_hidden_count": 0,
@@ -722,6 +723,11 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
                 "subject_code": assignment.subject_code,
                 "subject_name": subject.subject_name or "Unnamed Subject",
                 "grade_label": _subject_grade_label(subject.grade),
+                "subject_theme": _build_subject_theme_payload(
+                    assignment.subject_code,
+                    subject_name=subject.subject_name or "",
+                    stored_color=getattr(subject, "color", ""),
+                ),
                 "hours": 0,
                 "sections": [],
             },
@@ -848,6 +854,7 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
             key=lambda item: (item["subject_code"], item["subject_name"])
         )
         teacher_data["teaching_load_labels"] = []
+        teacher_data["teaching_load_items"] = []
         for entry in teacher_entries:
             bundle_subject_labels = list(
                 get_homeroom_bundle_subject_labels(
@@ -866,6 +873,20 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
                 f"{entry['subject_code']} - {entry['subject_name']} | "
                 f"{bundle_prefix}Sections: {', '.join(entry['sections'])} | "
                 f"{entry['hours']}h"
+            )
+            sections = [str(label or "").strip() for label in entry.get("sections", [])]
+            sections = [label for label in sections if label]
+            teacher_data["teaching_load_items"].append(
+                {
+                    "subject_code": entry["subject_code"],
+                    "subject_name": entry["subject_name"],
+                    "grade_label": entry.get("grade_label") or "-",
+                    "hours": int(entry.get("hours", 0) or 0),
+                    "sections": sections,
+                    "section_count": len(sections),
+                    "bundle_subject_labels": bundle_subject_labels,
+                    **dict(entry.get("subject_theme") or {}),
+                }
             )
         teacher_data["teaching_load_preview_labels"] = [
             f"{entry['subject_code']} x{len(entry['sections'])}"
