@@ -1786,41 +1786,25 @@
         .teacher-load-panel {
             margin-top: 6px;
             display: grid;
-            grid-template-columns: minmax(220px, 0.95fr) minmax(220px, 0.9fr) minmax(320px, 1.35fr);
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 8px;
             align-items: start;
             padding: 8px;
             border: 1px solid #d4e3f7;
             border-radius: 10px;
             background: linear-gradient(180deg, #fbfdff, #f3f8ff);
+            overflow: hidden;
         }
 
         .teacher-load-topbar {
             grid-column: 1;
             grid-row: 1 / span 2;
             align-content: start;
-        }
-
-        .teacher-load-progress-card {
-            grid-column: 2;
-            grid-row: 1;
-        }
-
-        .teacher-load-segment-card {
-            grid-column: 3;
-            grid-row: 1 / span 2;
-            align-content: start;
-        }
-
-        .teacher-load-distribution-card {
-            grid-column: 2;
-            grid-row: 2;
-        }
-
-        .teacher-load-topbar {
+            min-width: 0;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            grid-template-columns: 1fr;
             gap: 6px;
+            overflow: hidden;
         }
 
         .teacher-load-metric-card {
@@ -1830,6 +1814,8 @@
             border: 1px solid #d9e6f8;
             border-radius: 8px;
             background: #ffffff;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .teacher-load-metric-card span {
@@ -1844,12 +1830,14 @@
             font-size: 16px;
             color: #17365d;
             line-height: 1;
+            word-break: break-word;
         }
 
         .teacher-load-metric-card small {
             font-size: 10px;
             color: #60728b;
             line-height: 1.2;
+            word-break: break-word;
         }
 
         .teacher-load-metric-card.is-primary {
@@ -1872,15 +1860,44 @@
             color: #9f2d1f;
         }
 
-        .teacher-load-progress-card,
-        .teacher-load-segment-card,
-        .teacher-load-distribution-card {
+        .teacher-load-progress-card {
+            grid-column: 2;
+            grid-row: 1;
             display: grid;
             gap: 6px;
             padding: 8px;
             border: 1px solid #d9e6f8;
             border-radius: 8px;
             background: #ffffff;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .teacher-load-segment-card {
+            grid-column: 3;
+            grid-row: 1 / span 2;
+            align-content: start;
+            display: grid;
+            gap: 6px;
+            padding: 8px;
+            border: 1px solid #d9e6f8;
+            border-radius: 8px;
+            background: #ffffff;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .teacher-load-distribution-card {
+            grid-column: 2;
+            grid-row: 2;
+            display: grid;
+            gap: 6px;
+            padding: 8px;
+            border: 1px solid #d9e6f8;
+            border-radius: 8px;
+            background: #ffffff;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .teacher-load-progress-meta,
@@ -1958,35 +1975,47 @@
             flex-wrap: wrap;
             align-content: flex-start;
             gap: 6px;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .teacher-load-chip {
             display: grid;
             gap: 5px;
-            flex: 1 1 190px;
-            min-width: 170px;
+            flex: 0 1 auto;
+            min-width: 160px;
+            max-width: 100%;
             padding: 7px 8px;
             border: 1px solid var(--subject-color-border, #dbe7f8);
             border-radius: 8px;
             background: var(--subject-color-soft, #f8fbff);
             color: var(--subject-color-text, #2f4361);
             box-shadow: inset 3px 0 0 var(--subject-color, #0A4EA3);
+            overflow: hidden;
         }
 
         .teacher-load-chip-main {
             display: grid;
             gap: 1px;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .teacher-load-chip-main strong {
             font-size: 11px;
             line-height: 1.1;
             color: #17365d;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .teacher-load-chip-main span {
             font-size: 10px;
             line-height: 1.2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .teacher-load-chip-meta {
@@ -2013,8 +2042,10 @@
 
         .teacher-load-distribution-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             gap: 6px;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .teacher-load-distribution-item {
@@ -2024,6 +2055,8 @@
             background: #f8fbff;
             display: grid;
             gap: 4px;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .teacher-load-section-chip-row {
