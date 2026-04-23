@@ -1505,7 +1505,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 720px;
+            min-width: 1180px;
         }
 
         th, td {
@@ -1592,12 +1592,20 @@
         .coverage-stack {
             display: grid;
             gap: 8px;
-            min-width: 240px;
+            width: 100%;
+            min-width: 0;
         }
 
         .coverage-block {
             display: grid;
             gap: 5px;
+            min-width: 0;
+        }
+
+        .coverage-column,
+        .coverage-cell {
+            width: 56%;
+            min-width: 760px;
         }
 
         .coverage-label {
@@ -1691,6 +1699,8 @@
         .compact-list-details {
             display: grid;
             gap: 8px;
+            width: 100%;
+            min-width: 0;
         }
 
         .compact-list-summary {
@@ -1786,14 +1796,16 @@
         .teacher-load-panel {
             margin-top: 8px;
             display: grid;
-            grid-template-columns: minmax(0, 0.7fr) minmax(0, 0.92fr) minmax(0, 1.95fr);
-            gap: 8px;
+            grid-template-columns: minmax(170px, 0.8fr) minmax(220px, 1fr) minmax(300px, 1.45fr);
+            gap: 10px;
             align-items: stretch;
             width: 100%;
-            padding: 8px;
+            max-width: 100%;
+            padding: 10px;
             border: 1px solid #d4e3f7;
             border-radius: 12px;
             background: linear-gradient(180deg, #fbfdff, #f3f8ff);
+            container-type: inline-size;
         }
 
         .teacher-load-summary-column,
@@ -1801,7 +1813,7 @@
         .teacher-load-contribution-column {
             min-width: 0;
             display: grid;
-            gap: 8px;
+            gap: 10px;
             align-content: start;
         }
 
@@ -1883,10 +1895,10 @@
         .teacher-load-segment-card,
         .teacher-load-distribution-card {
             display: grid;
-            gap: 7px;
+            gap: 8px;
             min-width: 0;
             min-height: 0;
-            padding: 9px;
+            padding: 10px;
             border: 1px solid #d9e6f8;
             border-radius: 10px;
             background: #ffffff;
@@ -1974,8 +1986,8 @@
 
         .teacher-load-chip-grid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
+            gap: 10px;
             align-items: stretch;
             align-content: start;
             min-width: 0;
@@ -1983,13 +1995,11 @@
 
         .teacher-load-chip {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            align-items: start;
-            gap: 7px 8px;
+            gap: 6px;
             width: 100%;
             min-width: 0;
-            max-width: none;
-            padding: 8px 9px;
+            max-width: 100%;
+            padding: 10px 11px;
             border: 1px solid var(--subject-color-border, #dbe7f8);
             border-radius: 10px;
             background: var(--subject-color-soft, #f8fbff);
@@ -1997,29 +2007,34 @@
             box-shadow: inset 3px 0 0 var(--subject-color, #0A4EA3);
         }
 
-        .teacher-load-chip-main {
-            display: grid;
-            gap: 3px;
+        .teacher-load-chip-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
             min-width: 0;
         }
 
-        .teacher-load-chip-main strong {
-            font-size: 12px;
+        .teacher-load-chip-code {
+            font-size: 13px;
+            font-weight: 800;
             line-height: 1.2;
             color: #17365d;
-            overflow-wrap: anywhere;
+            white-space: nowrap;
         }
 
-        .teacher-load-chip-main span {
-            font-size: 10px;
-            line-height: 1.3;
+        .teacher-load-chip-name {
+            font-size: 11px;
+            line-height: 1.35;
             color: var(--subject-color-text, #2f4361);
-            overflow-wrap: anywhere;
+            overflow-wrap: break-word;
+            word-break: normal;
         }
 
         .teacher-load-chip-meta {
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             justify-content: flex-end;
             align-content: flex-start;
             gap: 6px;
@@ -2030,12 +2045,12 @@
         .teacher-load-chip-pill {
             display: inline-flex;
             align-items: center;
-            padding: 3px 6px;
+            padding: 4px 7px;
             border-radius: 999px;
             border: 1px solid rgba(66, 93, 128, 0.24);
             background: rgba(255, 255, 255, 0.86);
             color: #365275;
-            font-size: 9px;
+            font-size: 10px;
             font-weight: 700;
             letter-spacing: 0.02em;
             text-transform: uppercase;
@@ -2086,7 +2101,7 @@
             color: #9a5c1a;
         }
 
-        @media (max-width: 1200px) {
+        @container (max-width: 980px) {
             .teacher-load-panel {
                 grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             }
@@ -2104,7 +2119,27 @@
             }
 
             .teacher-load-chip-grid {
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+            }
+        }
+
+        @container (max-width: 640px) {
+            .teacher-load-panel {
+                grid-template-columns: 1fr;
+            }
+
+            .teacher-load-summary-column,
+            .teacher-load-insights-column,
+            .teacher-load-contribution-column {
+                grid-column: auto;
+            }
+
+            .teacher-load-chip-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .teacher-load-chip-meta {
+                justify-content: flex-start;
             }
         }
 
@@ -2201,10 +2236,6 @@
             .teacher-load-insights-column,
             .teacher-load-contribution-column {
                 grid-column: auto;
-            }
-
-            .teacher-load-chip {
-                grid-template-columns: minmax(0, 1fr);
             }
 
             .teacher-load-chip-meta {
@@ -2505,7 +2536,7 @@
                                 </th>
                                 {% endif %}
                                 <th>Teacher</th>
-                                <th>Coverage</th>
+                                <th class="coverage-column">Coverage</th>
                                 <th>Capacity Snapshot</th>
                                 <th>Status</th>
                                 {% if can_edit or can_delete %}
@@ -2536,7 +2567,7 @@
                                         <span>Qualifications {{ qualification_data.get("summary") or "Not set" }}</span>
                                     </div>
                                 </td>
-                                <td>
+                                <td class="coverage-cell">
                                     <div class="coverage-stack">
                                         <div class="coverage-block">
                                             <span class="coverage-label">Subjects</span>
@@ -2656,14 +2687,14 @@
                                                             <div class="teacher-load-chip-grid">
                                                                 {% for item in allocation.get("teaching_load_items", []) %}
                                                                 <div class="teacher-load-chip" style="--subject-color: {{ item.subject_color or '#0A4EA3' }}; --subject-color-soft: {{ item.subject_color_soft or '#f5f9ff' }}; --subject-color-border: {{ item.subject_color_border or '#dbe7f8' }}; --subject-color-text: {{ item.subject_color_text or '#2f4361' }};">
-                                                                    <div class="teacher-load-chip-main">
-                                                                        <strong>{{ item.subject_code }}</strong>
-                                                                        <span>{{ item.subject_name }}</span>
+                                                                    <div class="teacher-load-chip-head">
+                                                                        <strong class="teacher-load-chip-code">{{ item.subject_code }}</strong>
+                                                                        <div class="teacher-load-chip-meta">
+                                                                            <span class="teacher-load-chip-pill">{{ item.hours }}h</span>
+                                                                            <span class="teacher-load-chip-pill">{{ item.section_count }} sections</span>
+                                                                        </div>
                                                                     </div>
-                                                                    <div class="teacher-load-chip-meta">
-                                                                        <span class="teacher-load-chip-pill">{{ item.hours }}h</span>
-                                                                        <span class="teacher-load-chip-pill">{{ item.section_count }} sections</span>
-                                                                    </div>
+                                                                    <span class="teacher-load-chip-name">{{ item.subject_name }}</span>
                                                                 </div>
                                                                 {% endfor %}
                                                             </div>
