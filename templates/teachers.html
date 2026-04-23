@@ -1786,8 +1786,9 @@
         .teacher-load-panel {
             margin-top: 8px;
             display: grid;
-            grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
-            gap: 10px 12px;
+            grid-template-columns: minmax(250px, 0.95fr) minmax(240px, 0.9fr) minmax(340px, 1.35fr);
+            gap: 10px;
+            align-items: start;
             padding: 10px;
             border: 1px solid #d4e3f7;
             border-radius: 12px;
@@ -1795,20 +1796,25 @@
         }
 
         .teacher-load-topbar {
-            grid-column: 1 / -1;
+            grid-column: 1;
+            grid-row: 1 / span 2;
+            align-content: start;
         }
 
         .teacher-load-progress-card {
-            grid-column: 1;
+            grid-column: 2;
+            grid-row: 1;
         }
 
         .teacher-load-segment-card {
-            grid-column: 2;
-            grid-row: 2 / span 2;
+            grid-column: 3;
+            grid-row: 1 / span 2;
+            align-content: start;
         }
 
         .teacher-load-distribution-card {
-            grid-column: 1;
+            grid-column: 2;
+            grid-row: 2;
         }
 
         .teacher-load-topbar {
@@ -1946,14 +1952,17 @@
         }
 
         .teacher-load-chip-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            display: flex;
+            flex-wrap: wrap;
+            align-content: flex-start;
             gap: 7px;
         }
 
         .teacher-load-chip {
             display: grid;
             gap: 7px;
+            flex: 1 1 210px;
+            min-width: 190px;
             padding: 9px;
             border: 1px solid var(--subject-color-border, #dbe7f8);
             border-radius: 10px;
@@ -2002,7 +2011,7 @@
 
         .teacher-load-distribution-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 7px;
         }
 
@@ -2038,6 +2047,32 @@
             border-color: #e5ccab;
             background: #fff7ed;
             color: #9a5c1a;
+        }
+
+        @media (max-width: 1280px) {
+            .teacher-load-panel {
+                grid-template-columns: repeat(2, minmax(240px, 1fr));
+            }
+
+            .teacher-load-topbar {
+                grid-column: 1;
+                grid-row: 1;
+            }
+
+            .teacher-load-progress-card {
+                grid-column: 2;
+                grid-row: 1;
+            }
+
+            .teacher-load-segment-card {
+                grid-column: 1 / -1;
+                grid-row: 2;
+            }
+
+            .teacher-load-distribution-card {
+                grid-column: 1 / -1;
+                grid-row: 3;
+            }
         }
 
         .empty {
