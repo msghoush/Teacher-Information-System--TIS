@@ -65,9 +65,9 @@
             display: block;
         }
 
-        h1 {
+        .panel-title {
             margin: 0;
-            font-size: 24px;
+            font-size: 20px;
         }
 
         .sub {
@@ -1470,7 +1470,7 @@
 
 {% block content %}
 <main class="panel">
-<h1 class="section-heading"><span class="section-heading-icon">{{ icon("teachers", "icon") }}</span>Edit Teacher</h1>
+<h2 class="panel-title section-heading"><span class="section-heading-icon">{{ icon("teachers", "icon") }}</span>Teacher Profile and Workload Details</h2>
         <p class="sub">Update teacher details, workload rules, eligible subjects, and section assignments through a cleaner, more professional review screen.</p>
 
         {% if error %}

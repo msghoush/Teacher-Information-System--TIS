@@ -66,9 +66,9 @@
             display: block;
         }
 
-        h1 {
+        .panel-title {
             margin: 0;
-            font-size: 24px;
+            font-size: 20px;
         }
 
         .sub {
@@ -183,7 +183,7 @@
 
 {% block content %}
 <main class="panel">
-<h1 class="section-heading"><span class="section-heading-icon">{{ icon("users", "icon") }}</span>Edit User</h1>
+<h2 class="panel-title section-heading"><span class="section-heading-icon">{{ icon("users", "icon") }}</span>User Account Details</h2>
         <p class="sub">Update user details and account status with a cleaner, more consistent management view.</p>
 
         {% if error %}

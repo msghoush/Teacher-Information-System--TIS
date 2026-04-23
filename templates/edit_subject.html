@@ -65,9 +65,9 @@
             display: block;
         }
 
-        h1 {
+        .panel-title {
             margin: 0;
-            font-size: 24px;
+            font-size: 20px;
         }
 
         .sub {
@@ -193,7 +193,7 @@
 
 {% block content %}
 <main class="panel">
-<h1 class="section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Edit Subject</h1>
+<h2 class="panel-title section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Subject Details</h2>
         <p class="sub">Update subject details in your current branch and academic year scope with the same theme and structure.</p>
 
         {% if error %}

@@ -66,9 +66,9 @@
             display: block;
         }
 
-        .panel h1 {
+        .panel-title {
             margin: 0;
-            font-size: 24px;
+            font-size: 20px;
             letter-spacing: 0.2px;
         }
 
@@ -292,7 +292,7 @@
 
 {% block content %}
 <main class="panel">
-<h1 class="section-heading"><span class="section-heading-icon">{{ icon("planning", "icon") }}</span>Edit Planning Section</h1>
+<h2 class="panel-title section-heading"><span class="section-heading-icon">{{ icon("planning", "icon") }}</span>Planning Section Details</h2>
         <p>Update the selected class setup with the same structured workflow, including automatic subject alignment and cleaner teacher assignment controls.</p>
 
         {% if error %}
