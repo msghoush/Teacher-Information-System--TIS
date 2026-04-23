@@ -1505,7 +1505,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 1180px;
+            min-width: 720px;
         }
 
         th, td {
@@ -1592,20 +1592,12 @@
         .coverage-stack {
             display: grid;
             gap: 8px;
-            width: 100%;
-            min-width: 0;
+            min-width: 240px;
         }
 
         .coverage-block {
             display: grid;
             gap: 5px;
-            min-width: 0;
-        }
-
-        .coverage-column,
-        .coverage-cell {
-            width: 56%;
-            min-width: 760px;
         }
 
         .coverage-label {
@@ -1796,60 +1788,78 @@
         .teacher-load-panel {
             margin-top: 8px;
             display: grid;
-            grid-template-columns: minmax(170px, 0.8fr) minmax(220px, 1fr) minmax(300px, 1.45fr);
             gap: 10px;
-            align-items: stretch;
+            align-items: start;
             width: 100%;
-            max-width: 100%;
             padding: 10px;
             border: 1px solid #d4e3f7;
             border-radius: 12px;
             background: linear-gradient(180deg, #fbfdff, #f3f8ff);
-            container-type: inline-size;
         }
 
-        .teacher-load-summary-column,
-        .teacher-load-insights-column,
-        .teacher-load-contribution-column {
+        .teacher-load-overview-card,
+        .teacher-load-segment-card,
+        .teacher-load-distribution-card {
             min-width: 0;
             display: grid;
-            gap: 10px;
-            align-content: start;
-        }
-
-        .teacher-load-summary-column {
-            grid-column: 1;
-        }
-
-        .teacher-load-insights-column {
-            grid-column: 2;
-        }
-
-        .teacher-load-contribution-column {
-            grid-column: 3;
-            align-self: stretch;
-        }
-
-        .teacher-load-topbar {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 8px;
-            min-width: 0;
-        }
-
-        .teacher-load-metric-card {
-            display: grid;
-            grid-template-rows: auto auto 1fr;
-            gap: 4px;
-            min-width: 0;
-            min-height: 0;
             padding: 10px;
             border: 1px solid #d9e6f8;
             border-radius: 10px;
             background: #ffffff;
         }
 
-        .teacher-load-metric-card span {
+        .teacher-load-overview-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .teacher-load-overview-copy {
+            display: grid;
+            gap: 3px;
+            min-width: 0;
+        }
+
+        .teacher-load-overview-copy strong {
+            font-size: 18px;
+            line-height: 1.1;
+            color: #17365d;
+            overflow-wrap: anywhere;
+        }
+
+        .teacher-load-overview-copy span {
+            font-size: 12px;
+            color: #5e728e;
+            line-height: 1.35;
+        }
+
+        .teacher-load-progress-block {
+            display: grid;
+            gap: 6px;
+            padding-top: 8px;
+            border-top: 1px solid #e4edf9;
+        }
+
+        .teacher-load-overview-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
+        }
+
+        .teacher-load-stat-card {
+            display: grid;
+            gap: 4px;
+            min-width: 0;
+            padding: 9px 10px;
+            border: 1px solid #d9e6f8;
+            border-radius: 10px;
+            background: #f8fbff;
+        }
+
+        .teacher-load-stat-card span {
             font-size: 10px;
             font-weight: 800;
             letter-spacing: 0.05em;
@@ -1857,65 +1867,41 @@
             color: #5e728e;
         }
 
-        .teacher-load-metric-card strong {
-            font-size: 18px;
+        .teacher-load-stat-card strong {
+            font-size: 16px;
             color: #17365d;
-            line-height: 1.05;
+            line-height: 1.1;
             overflow-wrap: anywhere;
         }
 
-        .teacher-load-metric-card small {
+        .teacher-load-stat-card small {
             font-size: 11px;
             color: #60728b;
             line-height: 1.35;
             overflow-wrap: anywhere;
         }
 
-        .teacher-load-metric-card.is-primary {
+        .teacher-load-stat-card.is-primary {
             border-color: #bfd6f3;
             background: #edf4ff;
         }
 
-        .teacher-load-metric-card.is-success {
+        .teacher-load-stat-card.is-success {
             border-color: #b8dec9;
             background: #effaf4;
         }
 
-        .teacher-load-metric-card.is-danger {
+        .teacher-load-stat-card.is-danger {
             border-color: #f0c0bb;
             background: #fff2f1;
         }
 
-        .teacher-load-metric-card.is-danger strong,
-        .teacher-load-metric-card.is-danger small {
+        .teacher-load-stat-card.is-danger strong,
+        .teacher-load-stat-card.is-danger small {
             color: #9f2d1f;
         }
 
-        .teacher-load-progress-card,
-        .teacher-load-segment-card,
-        .teacher-load-distribution-card {
-            display: grid;
-            gap: 8px;
-            min-width: 0;
-            min-height: 0;
-            padding: 10px;
-            border: 1px solid #d9e6f8;
-            border-radius: 10px;
-            background: #ffffff;
-        }
-
-        .teacher-load-segment-card {
-            grid-template-rows: auto auto 1fr;
-            align-content: start;
-        }
-
-        .teacher-load-contribution-column .teacher-load-segment-card {
-            height: 100%;
-        }
-
-        .teacher-load-progress-meta,
-        .teacher-load-segment-head,
-        .teacher-load-distribution-head {
+        .teacher-load-head-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -1984,22 +1970,21 @@
             border-right: 0;
         }
 
-        .teacher-load-chip-grid {
+        .teacher-load-subject-list,
+        .teacher-load-distribution-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
-            gap: 10px;
-            align-items: stretch;
-            align-content: start;
+            gap: 8px;
             min-width: 0;
         }
 
-        .teacher-load-chip {
+        .teacher-load-subject-row {
             display: grid;
-            gap: 6px;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 8px 12px;
             width: 100%;
             min-width: 0;
-            max-width: 100%;
-            padding: 10px 11px;
+            padding: 9px 10px;
             border: 1px solid var(--subject-color-border, #dbe7f8);
             border-radius: 10px;
             background: var(--subject-color-soft, #f8fbff);
@@ -2007,32 +1992,28 @@
             box-shadow: inset 3px 0 0 var(--subject-color, #0A4EA3);
         }
 
-        .teacher-load-chip-head {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 8px;
-            flex-wrap: wrap;
+        .teacher-load-subject-copy {
+            display: grid;
+            gap: 3px;
             min-width: 0;
         }
 
-        .teacher-load-chip-code {
+        .teacher-load-subject-copy strong {
             font-size: 13px;
             font-weight: 800;
             line-height: 1.2;
             color: #17365d;
-            white-space: nowrap;
+            overflow-wrap: anywhere;
         }
 
-        .teacher-load-chip-name {
+        .teacher-load-subject-copy span {
             font-size: 11px;
             line-height: 1.35;
             color: var(--subject-color-text, #2f4361);
-            overflow-wrap: break-word;
-            word-break: normal;
+            overflow-wrap: anywhere;
         }
 
-        .teacher-load-chip-meta {
+        .teacher-load-subject-meta {
             display: flex;
             align-items: center;
             justify-content: flex-end;
@@ -2058,21 +2039,13 @@
             white-space: nowrap;
         }
 
-        .teacher-load-distribution-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
-            gap: 6px;
-            min-width: 0;
-        }
-
         .teacher-load-distribution-item {
-            padding: 7px 8px;
+            padding: 9px 10px;
             border: 1px solid #dbe7f8;
             border-radius: 10px;
             background: #f8fbff;
             display: grid;
-            gap: 4px;
-            height: 100%;
+            gap: 6px;
             min-width: 0;
         }
 
@@ -2099,48 +2072,6 @@
             border-color: #e5ccab;
             background: #fff7ed;
             color: #9a5c1a;
-        }
-
-        @container (max-width: 980px) {
-            .teacher-load-panel {
-                grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-            }
-
-            .teacher-load-summary-column {
-                grid-column: 1;
-            }
-
-            .teacher-load-insights-column {
-                grid-column: 2;
-            }
-
-            .teacher-load-contribution-column {
-                grid-column: 1 / -1;
-            }
-
-            .teacher-load-chip-grid {
-                grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
-            }
-        }
-
-        @container (max-width: 640px) {
-            .teacher-load-panel {
-                grid-template-columns: 1fr;
-            }
-
-            .teacher-load-summary-column,
-            .teacher-load-insights-column,
-            .teacher-load-contribution-column {
-                grid-column: auto;
-            }
-
-            .teacher-load-chip-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .teacher-load-chip-meta {
-                justify-content: flex-start;
-            }
         }
 
         .empty {
@@ -2228,22 +2159,18 @@
                 align-self: stretch;
             }
 
-            .teacher-load-panel {
+            .teacher-load-overview-head,
+            .teacher-load-head-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .teacher-load-subject-row {
                 grid-template-columns: 1fr;
             }
 
-            .teacher-load-summary-column,
-            .teacher-load-insights-column,
-            .teacher-load-contribution-column {
-                grid-column: auto;
-            }
-
-            .teacher-load-chip-meta {
+            .teacher-load-subject-meta {
                 justify-content: flex-start;
-            }
-
-            .teacher-load-chip-grid {
-                grid-template-columns: 1fr;
             }
         }
 </style>
@@ -2536,7 +2463,7 @@
                                 </th>
                                 {% endif %}
                                 <th>Teacher</th>
-                                <th class="coverage-column">Coverage</th>
+                                <th>Coverage</th>
                                 <th>Capacity Snapshot</th>
                                 <th>Status</th>
                                 {% if can_edit or can_delete %}
@@ -2567,7 +2494,7 @@
                                         <span>Qualifications {{ qualification_data.get("summary") or "Not set" }}</span>
                                     </div>
                                 </td>
-                                <td class="coverage-cell">
+                                <td>
                                     <div class="coverage-stack">
                                         <div class="coverage-block">
                                             <span class="coverage-label">Subjects</span>
@@ -2614,29 +2541,19 @@
                                                     {% endif %}
                                                 </summary>
                                                 <div class="teacher-load-panel">
-                                                    <div class="teacher-load-summary-column">
-                                                        <div class="teacher-load-topbar">
-                                                            <div class="teacher-load-metric-card is-primary">
-                                                                <span>Total allocated</span>
-                                                                <strong>{{ allocated_hours }}h / {{ baseline_max_hours }}h</strong>
-                                                                <small>Baseline teaching load target</small>
+                                                    <div class="teacher-load-overview-card">
+                                                        <div class="teacher-load-overview-head">
+                                                            <div class="teacher-load-overview-copy">
+                                                                <strong>{{ allocated_hours }}h / {{ baseline_max_hours }}h allocated</strong>
+                                                                <span>{{ allocation.get("section_assignment_count", 0) }} sections across {{ allocation.get("teaching_load_count", 0) }} subjects</span>
                                                             </div>
-                                                            <div class="teacher-load-metric-card {% if baseline_remaining < 0 %}is-danger{% else %}is-success{% endif %}">
-                                                                <span>Remaining baseline</span>
-                                                                <strong>{{ baseline_remaining }}h</strong>
-                                                                <small>{% if baseline_remaining < 0 %}Over by {{ baseline_remaining | abs }}h{% else %}Available before 24h baseline{% endif %}</small>
-                                                            </div>
-                                                            <div class="teacher-load-metric-card {% if within_capacity %}is-success{% else %}is-danger{% endif %}">
-                                                                <span>Capacity status</span>
-                                                                <strong>{{ international_capacity }}h cap</strong>
-                                                                <small>{% if within_capacity %}{{ international_capacity - allocated_hours }}h spare capacity{% else %}{{ allocated_hours - international_capacity }}h over international capacity{% endif %}</small>
-                                                            </div>
+                                                            <span class="hours-status-chip {% if within_capacity %}is-good{% else %}is-danger{% endif %}">
+                                                                {{ "Within Capacity" if within_capacity else "Over Capacity" }}
+                                                            </span>
                                                         </div>
-                                                    </div>
 
-                                                    <div class="teacher-load-insights-column">
-                                                        <div class="teacher-load-progress-card">
-                                                            <div class="teacher-load-progress-meta">
+                                                        <div class="teacher-load-progress-block">
+                                                            <div class="teacher-load-progress-meta teacher-load-head-row">
                                                                 <strong>Allocated Hours Progress</strong>
                                                                 <span>{{ baseline_ratio | round(0, 'floor') | int }}%</span>
                                                             </div>
@@ -2646,58 +2563,79 @@
                                                             <div class="teacher-load-progress-caption">Total capacity: {{ total_capacity }}h | National reserve: {{ national_hours }}h</div>
                                                         </div>
 
-                                                        <div class="teacher-load-distribution-card">
-                                                            <div class="teacher-load-segment-head">
-                                                                <strong>Section Distribution</strong>
-                                                                <span>{{ allocation.get("section_assignment_count", 0) }} assignments</span>
+                                                        <div class="teacher-load-overview-stats">
+                                                            <div class="teacher-load-stat-card is-primary">
+                                                                <span>Total capacity</span>
+                                                                <strong>{{ total_capacity }}h</strong>
+                                                                <small>Maximum hours before deductions</small>
                                                             </div>
-                                                            <div class="teacher-load-distribution-grid">
-                                                                {% for item in allocation.get("teaching_load_items", []) %}
-                                                                <div class="teacher-load-distribution-item">
-                                                                    <div class="teacher-load-distribution-head">
-                                                                        <strong>{{ item.subject_code }}</strong>
-                                                                        <span>{{ item.section_count }} sections</span>
-                                                                    </div>
-                                                                    <div class="teacher-load-section-chip-row">
-                                                                        {% for section_label in item.sections[:3] %}
-                                                                        <span class="teacher-load-section-chip">{{ section_label }}</span>
-                                                                        {% endfor %}
-                                                                        {% if item.section_count > 3 %}
-                                                                        <span class="teacher-load-section-chip is-muted">+{{ item.section_count - 3 }} more</span>
-                                                                        {% endif %}
-                                                                    </div>
-                                                                </div>
-                                                                {% endfor %}
+                                                            <div class="teacher-load-stat-card {% if baseline_remaining < 0 %}is-danger{% else %}is-success{% endif %}">
+                                                                <span>Remaining baseline</span>
+                                                                <strong>{{ baseline_remaining }}h</strong>
+                                                                <small>{% if baseline_remaining < 0 %}Over by {{ baseline_remaining | abs }}h{% else %}Available before 24h baseline{% endif %}</small>
+                                                            </div>
+                                                            <div class="teacher-load-stat-card {% if within_capacity %}is-success{% else %}is-danger{% endif %}">
+                                                                <span>International cap</span>
+                                                                <strong>{{ international_capacity }}h</strong>
+                                                                <small>{% if within_capacity %}{{ international_capacity - allocated_hours }}h spare capacity{% else %}{{ allocated_hours - international_capacity }}h over capacity{% endif %}</small>
+                                                            </div>
+                                                            <div class="teacher-load-stat-card">
+                                                                <span>National reserve</span>
+                                                                <strong>{{ national_hours }}h</strong>
+                                                                <small>Reserved outside international load</small>
                                                             </div>
                                                         </div>
                                                     </div>
 
-                                                    <div class="teacher-load-contribution-column">
-                                                        <div class="teacher-load-segment-card">
-                                                            <div class="teacher-load-segment-head">
-                                                                <strong>Subject Contribution Mix</strong>
-                                                                <span>{{ allocation.get("teaching_load_count", 0) }} subjects</span>
-                                                            </div>
-                                                            <div class="teacher-load-segment-track">
-                                                                {% set segment_total = allocated_hours if allocated_hours > 0 else 1 %}
-                                                                {% for item in allocation.get("teaching_load_items", []) %}
-                                                                <span class="teacher-load-segment" style="width: {{ (item.hours / segment_total * 100) if segment_total > 0 else 0 }}%; --subject-color: {{ item.subject_color or '#0A4EA3' }};" title="{{ item.subject_code }} {{ item.hours }}h"></span>
-                                                                {% endfor %}
-                                                            </div>
-                                                            <div class="teacher-load-chip-grid">
-                                                                {% for item in allocation.get("teaching_load_items", []) %}
-                                                                <div class="teacher-load-chip" style="--subject-color: {{ item.subject_color or '#0A4EA3' }}; --subject-color-soft: {{ item.subject_color_soft or '#f5f9ff' }}; --subject-color-border: {{ item.subject_color_border or '#dbe7f8' }}; --subject-color-text: {{ item.subject_color_text or '#2f4361' }};">
-                                                                    <div class="teacher-load-chip-head">
-                                                                        <strong class="teacher-load-chip-code">{{ item.subject_code }}</strong>
-                                                                        <div class="teacher-load-chip-meta">
-                                                                            <span class="teacher-load-chip-pill">{{ item.hours }}h</span>
-                                                                            <span class="teacher-load-chip-pill">{{ item.section_count }} sections</span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <span class="teacher-load-chip-name">{{ item.subject_name }}</span>
+                                                    <div class="teacher-load-segment-card">
+                                                        <div class="teacher-load-segment-head teacher-load-head-row">
+                                                            <strong>Subject Contribution Mix</strong>
+                                                            <span>{{ allocation.get("teaching_load_count", 0) }} subjects</span>
+                                                        </div>
+                                                        <div class="teacher-load-segment-track">
+                                                            {% set segment_total = allocated_hours if allocated_hours > 0 else 1 %}
+                                                            {% for item in allocation.get("teaching_load_items", []) %}
+                                                            <span class="teacher-load-segment" style="width: {{ (item.hours / segment_total * 100) if segment_total > 0 else 0 }}%; --subject-color: {{ item.subject_color or '#0A4EA3' }};" title="{{ item.subject_code }} {{ item.hours }}h"></span>
+                                                            {% endfor %}
+                                                        </div>
+                                                        <div class="teacher-load-subject-list">
+                                                            {% for item in allocation.get("teaching_load_items", []) %}
+                                                            <div class="teacher-load-subject-row" style="--subject-color: {{ item.subject_color or '#0A4EA3' }}; --subject-color-soft: {{ item.subject_color_soft or '#f5f9ff' }}; --subject-color-border: {{ item.subject_color_border or '#dbe7f8' }}; --subject-color-text: {{ item.subject_color_text or '#2f4361' }};">
+                                                                <div class="teacher-load-subject-copy">
+                                                                    <strong>{{ item.subject_code }}</strong>
+                                                                    <span>{{ item.subject_name }}</span>
                                                                 </div>
-                                                                {% endfor %}
+                                                                <div class="teacher-load-subject-meta">
+                                                                    <span class="teacher-load-chip-pill">{{ item.hours }}h</span>
+                                                                    <span class="teacher-load-chip-pill">{{ item.section_count }} sections</span>
+                                                                </div>
                                                             </div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="teacher-load-distribution-card">
+                                                        <div class="teacher-load-distribution-head teacher-load-head-row">
+                                                            <strong>Section Distribution</strong>
+                                                            <span>{{ allocation.get("section_assignment_count", 0) }} assignments</span>
+                                                        </div>
+                                                        <div class="teacher-load-distribution-grid">
+                                                            {% for item in allocation.get("teaching_load_items", []) %}
+                                                            <div class="teacher-load-distribution-item">
+                                                                <div class="teacher-load-distribution-head teacher-load-head-row">
+                                                                    <strong>{{ item.subject_code }}</strong>
+                                                                    <span>{{ item.section_count }} sections</span>
+                                                                </div>
+                                                                <div class="teacher-load-section-chip-row">
+                                                                    {% for section_label in item.sections[:3] %}
+                                                                    <span class="teacher-load-section-chip">{{ section_label }}</span>
+                                                                    {% endfor %}
+                                                                    {% if item.section_count > 3 %}
+                                                                    <span class="teacher-load-section-chip is-muted">+{{ item.section_count - 3 }} more</span>
+                                                                    {% endif %}
+                                                                </div>
+                                                            </div>
+                                                            {% endfor %}
                                                         </div>
                                                     </div>
                                                 </div>
