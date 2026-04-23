@@ -334,6 +334,43 @@
         display: flex;
     }
 
+    .region-group-header td {
+        padding: 7px 12px 6px;
+        border-bottom: 1px solid #d8e5f4;
+        background: #f3f8ff;
+    }
+
+    .region-group-header + .branch-row td {
+        border-top: 0;
+    }
+
+    .region-group-label {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: #3a5a80;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .region-group-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 18px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        border: 1px solid #c8d9ef;
+        background: #ffffff;
+        color: #4f6480;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
     @media (max-width: 980px) {
         .create-row {
             grid-template-columns: 1fr;
@@ -406,12 +443,21 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for row in branch_rows %}
+                    {% for region_key, group_rows in branch_rows | groupby("region") %}
+                    <tr class="region-group-header">
+                        <td colspan="4">
+                            <div class="region-group-label">
+                                {{ icon("branch", "icon") }}
+                                {{ region_key if region_key else "Unassigned Region" }}
+                                <span class="region-group-count">{{ group_rows | list | length }} branch{{ "es" if group_rows | list | length != 1 else "" }}</span>
+                            </div>
+                        </td>
+                    </tr>
+                    {% for row in group_rows %}
                     <tr class="branch-row {% if not row.status %}is-inactive{% endif %}" data-branch-row-id="{{ row.id }}">
                         <td>
                             <div class="branch-read branch-name">
                                 <strong>{{ row.name }}</strong>
-                                <span class="branch-subtle">{{ row.region if row.region else "No region selected" }}</span>
                             </div>
                             <div class="branch-edit">
                                 <label class="sr-only" for="branch_name_{{ row.id }}">Branch name</label>
@@ -472,6 +518,7 @@
                             </div>
                         </td>
                     </tr>
+                    {% endfor %}
                     {% endfor %}
                 </tbody>
             </table>
