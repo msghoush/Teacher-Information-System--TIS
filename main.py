@@ -4746,7 +4746,7 @@ def create_branch(
     if not current_user or not auth.can_manage_system_settings(current_user):
         return RedirectResponse(url="/", status_code=302)
 
-    safe_return_to = "/system-configuration"
+    safe_return_to = _safe_redirect_path(return_to)
     cleaned_name = " ".join(str(name or "").split())
     normalized_region = _normalize_branch_region(region)
 
@@ -4803,7 +4803,7 @@ def update_branch(
     if not current_user or not auth.can_manage_system_settings(current_user):
         return RedirectResponse(url="/", status_code=302)
 
-    safe_return_to = "/system-configuration"
+    safe_return_to = _safe_redirect_path(return_to)
     branch_row = db.query(models.Branch).filter(
         models.Branch.id == branch_id
     ).first()
