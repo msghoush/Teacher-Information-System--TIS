@@ -146,15 +146,56 @@
 
         .auto-panel {
             border: 1px solid #cedcf0;
-            border-radius: 10px;
-            background: #f8fbff;
-            padding: 10px;
+            border-radius: 12px;
+            background: linear-gradient(180deg, #fbfdff, #f4f8ff);
+            padding: 12px;
         }
 
         .auto-panel h3 {
-            margin: 0 0 8px;
+            margin: 0;
             font-size: 14px;
             color: #27456d;
+        }
+
+        .auto-panel-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .auto-panel-head p {
+            margin: 4px 0 0;
+            color: #4b5f7d;
+            font-size: 12px;
+        }
+
+        .auto-panel-meta {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .auto-summary-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            border: 1px solid #d7e4f6;
+            border-radius: 999px;
+            background: #ffffff;
+            color: #365275;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .auto-summary-pill-strong {
+            border-color: #bfd5f2;
+            background: #edf4ff;
+            color: #194d8d;
         }
 
         .aligned-list {
@@ -162,28 +203,92 @@
             padding: 0;
             list-style: none;
             display: grid;
-            gap: 5px;
+            gap: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
             max-height: 220px;
             overflow: auto;
         }
 
         .aligned-item {
-            font-size: 12px;
-            line-height: 1.35;
-            color: #2f4361;
-            background: #f5f9ff;
+            display: grid;
+            gap: 8px;
+            padding: 8px;
             border: 1px solid #dbe7f8;
-            border-radius: 6px;
-            padding: 4px 6px;
+            border-radius: 10px;
+            background: #f7faff;
+            box-shadow: inset 4px 0 0 var(--subject-accent, #0A4EA3);
+        }
+
+        .aligned-item-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .aligned-item-code {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            border-radius: 999px;
+            border: 1px solid #c8daf3;
+            background: #edf4ff;
+            color: #244a7c;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+        }
+
+        .aligned-item-hours {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            border-radius: 999px;
+            border: 1px solid #d9e6f8;
+            background: #ffffff;
+            color: #365275;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .aligned-item-title {
+            margin: 0;
+            color: #1f3759;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
+        .aligned-item-foot {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .aligned-item-state {
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 8px;
+            border-radius: 999px;
+            border: 1px solid #cfe7da;
+            background: #effaf4;
+            color: #0b6a63;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
         }
 
         .auto-empty {
             font-size: 13px;
             color: #8f1d18;
+            border: 1px dashed #d5e2f4;
+            border-radius: 10px;
+            padding: 10px;
+            background: #ffffff;
         }
 
         .auto-hours {
-            margin-top: 8px;
             font-size: 12px;
             color: #334f73;
             font-weight: 700;
@@ -349,14 +454,28 @@
                 </div>
                 <div class="field field-wide">
                     <div class="auto-panel">
-                        <h3 class="section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Subjects Aligned (Automatic)</h3>
+                        <div class="auto-panel-head">
+                            <div>
+                                <h3 class="section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Subjects Aligned (Automatic)</h3>
+                                <p>These subjects are pulled automatically from the selected grade in Subjects.</p>
+                            </div>
+                            <div class="auto-panel-meta">
+                                <span id="alignedSubjectsCount" class="auto-summary-pill">{{ aligned_subjects|length }} {{ "subject" if aligned_subjects|length == 1 else "subjects" }}</span>
+                                <span id="allocationSummary" class="auto-summary-pill auto-summary-pill-strong auto-hours">Hours Allocated: {{ allocated_hours }}</span>
+                            </div>
+                        </div>
                         <ul id="alignedSubjectsPreview" class="aligned-list">
                             {% for subject in aligned_subjects %}
-                            <li class="aligned-item">{{ subject.subject_code }} - {{ subject.subject_name }} ({{ subject.weekly_hours }}h)</li>
+                            <li class="aligned-item" style="--subject-accent: {{ subject.subject_color or '#0A4EA3' }}; border-color: {{ subject.subject_color_border or '#dbe7f8' }}; background: {{ subject.subject_color_soft or '#f5f9ff' }}; color: {{ subject.subject_color_text or '#2f4361' }};">
+                                <div class="aligned-item-head">
+                                    <span class="aligned-item-code">{{ subject.subject_code }}</span>
+                                    <span class="aligned-item-hours">{{ subject.weekly_hours }}h/week</span>
+                                </div>
+                                <p class="aligned-item-title">{{ subject.subject_name }}</p>
+                            </li>
                             {% endfor %}
                         </ul>
                         <div id="alignedSubjectsEmpty" class="auto-empty" {% if aligned_subjects %}style="display:none;"{% endif %}>No subjects found for the selected grade in the current branch/year scope.</div>
-                        <div id="allocationSummary" class="auto-hours">Hours Allocated: {{ allocated_hours }}</div>
                     </div>
                 </div>
                 <div class="field field-wide">
@@ -414,6 +533,7 @@ const gradeSelect = document.getElementById("grade_level");
         const homeroomTeacherSelect = document.getElementById("homeroom_teacher_id");
         const alignedSubjectsPreview = document.getElementById("alignedSubjectsPreview");
         const alignedSubjectsEmpty = document.getElementById("alignedSubjectsEmpty");
+        const alignedSubjectsCount = document.getElementById("alignedSubjectsCount");
         const allocationSummary = document.getElementById("allocationSummary");
         const assignmentRows = document.getElementById("assignmentRows");
         const assignmentEmpty = document.getElementById("assignmentEmpty");
@@ -477,13 +597,50 @@ const gradeSelect = document.getElementById("grade_level");
             alignedSubjects.forEach((subject) => {
                 const row = document.createElement("li");
                 row.className = "aligned-item";
+                row.style.setProperty("--subject-accent", String(subject.subject_color || "#0A4EA3"));
+                row.style.borderColor = String(subject.subject_color_border || "#dbe7f8");
+                row.style.background = String(subject.subject_color_soft || "#f5f9ff");
+                row.style.color = String(subject.subject_color_text || "#2f4361");
+
+                const head = document.createElement("div");
+                head.className = "aligned-item-head";
+
+                const code = document.createElement("span");
+                code.className = "aligned-item-code";
+                code.textContent = String(subject.subject_code || "-");
+                head.appendChild(code);
+
+                const hours = document.createElement("span");
+                hours.className = "aligned-item-hours";
+                hours.textContent = `${Number(subject.weekly_hours || 0)}h/week`;
+                head.appendChild(hours);
+                row.appendChild(head);
+
+                const title = document.createElement("p");
+                title.className = "aligned-item-title";
+                title.textContent = String(subject.subject_name || "Unnamed Subject");
+                row.appendChild(title);
+
                 const homeroomDefaultActive = Boolean(homeroomTeacherSelect?.value)
                     && isHomeroomDefaultSubject(selectedGrade, subject);
-                row.textContent = `${subject.subject_code} - ${subject.subject_name} (${subject.weekly_hours}h)${homeroomDefaultActive ? " - Homeroom default" : ""}`;
+
+                if (homeroomDefaultActive) {
+                    const foot = document.createElement("div");
+                    foot.className = "aligned-item-foot";
+                    const state = document.createElement("span");
+                    state.className = "aligned-item-state";
+                    state.textContent = "Homeroom Default";
+                    foot.appendChild(state);
+                    row.appendChild(foot);
+                }
+
                 alignedSubjectsPreview.appendChild(row);
                 totalHours += Number(subject.weekly_hours || 0);
             });
 
+            if (alignedSubjectsCount) {
+                alignedSubjectsCount.textContent = `${alignedSubjects.length} ${alignedSubjects.length === 1 ? "subject" : "subjects"}`;
+            }
             allocationSummary.textContent = `Hours Allocated: ${totalHours}`;
             if (alignedSubjectsEmpty) {
                 alignedSubjectsEmpty.style.display = alignedSubjects.length === 0 ? "block" : "none";
