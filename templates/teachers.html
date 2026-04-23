@@ -1786,11 +1786,29 @@
         .teacher-load-panel {
             margin-top: 8px;
             display: grid;
-            gap: 10px;
+            grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+            gap: 10px 12px;
             padding: 10px;
             border: 1px solid #d4e3f7;
             border-radius: 12px;
             background: linear-gradient(180deg, #fbfdff, #f3f8ff);
+        }
+
+        .teacher-load-topbar {
+            grid-column: 1 / -1;
+        }
+
+        .teacher-load-progress-card {
+            grid-column: 1;
+        }
+
+        .teacher-load-segment-card {
+            grid-column: 2;
+            grid-row: 2 / span 2;
+        }
+
+        .teacher-load-distribution-card {
+            grid-column: 1;
         }
 
         .teacher-load-topbar {
@@ -2105,6 +2123,18 @@
             .subject-chip-actions {
                 justify-content: flex-start;
                 align-self: stretch;
+            }
+
+            .teacher-load-panel {
+                grid-template-columns: 1fr;
+            }
+
+            .teacher-load-topbar,
+            .teacher-load-progress-card,
+            .teacher-load-segment-card,
+            .teacher-load-distribution-card {
+                grid-column: auto;
+                grid-row: auto;
             }
         }
 </style>
