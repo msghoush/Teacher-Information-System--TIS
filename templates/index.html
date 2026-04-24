@@ -380,7 +380,7 @@
                 </div>
                 <p class="modal-hint">Enter your User ID and the system administrator will be notified to reset your password.</p>
                 <div id="forgotNotice" class="modal-notice"></div>
-                <form id="forgotForm" onsubmit="submitForgotPassword(event)">
+                <form id="forgotForm" method="post" action="/forgot-password" onsubmit="submitForgotPassword(event)">
                     <div class="field">
                         <label for="forgotUserId">User ID</label>
                         <input id="forgotUserId" type="text" name="user_id" autocomplete="off" required placeholder="Enter your User ID">
@@ -432,18 +432,27 @@
                 notice.textContent = '';
 
                 // Abort the request automatically after 20 s to prevent infinite loading
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 20000);
+                let controller = null;
+                let timeoutId = null;
+                if (typeof AbortController !== 'undefined') {
+                    controller = new AbortController();
+                    timeoutId = setTimeout(() => controller.abort(), 20000);
+                }
 
                 try {
                     const response = await fetch('/forgot-password', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ user_id: userId }),
-                        signal: controller.signal,
+                        signal: controller ? controller.signal : undefined,
                     });
-                    clearTimeout(timeoutId);
-                    const data = await response.json();
+                    if (timeoutId) clearTimeout(timeoutId);
+                    let data = null;
+                    try {
+                        data = await response.json();
+                    } catch (jsonErr) {
+                        data = { ok: false, message: 'Server returned an invalid response.' };
+                    }
                     if (data.ok) {
                         notice.className = 'modal-notice is-success';
                         notice.textContent = data.message;
@@ -453,8 +462,9 @@
                         notice.textContent = data.message || 'Something went wrong. Please try again.';
                     }
                 } catch (err) {
-                    clearTimeout(timeoutId);
-                    if (err.name === 'AbortError') {
+                    if (timeoutId) clearTimeout(timeoutId);
+                    console.error('Forgot Password request failed:', err);
+                    if (err && err.name === 'AbortError') {
                         notice.className = 'modal-notice is-error';
                         notice.textContent = 'The request took too long. Please try again.';
                     } else {

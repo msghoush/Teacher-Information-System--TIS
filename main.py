@@ -4473,9 +4473,26 @@ async def forgot_password(
     import asyncio
     import functools
 
+    logging.info(
+        "TIS forgot-password: request received from ip=%s",
+        getattr(getattr(request, "client", None), "host", "unknown"),
+    )
+
+    payload = None
     try:
         payload = await request.json()
     except Exception:
+        payload = None
+
+    if payload is None:
+        try:
+            form_data = await request.form()
+            payload = dict(form_data)
+        except Exception:
+            payload = None
+
+    if payload is None:
+        logging.error("TIS forgot-password: request payload could not be parsed")
         return JSONResponse(
             status_code=400,
             content={"ok": False, "message": "Invalid request format."},
@@ -4483,10 +4500,13 @@ async def forgot_password(
 
     user_id = str(payload.get("user_id") or "").strip()
     if not user_id:
+        logging.warning("TIS forgot-password: request missing user_id")
         return JSONResponse(
             status_code=400,
             content={"ok": False, "message": "Please enter your User ID."},
         )
+
+    logging.info("TIS forgot-password: processing request for user_id=%s", user_id)
 
     user = db.query(models.User).filter(
         models.User.user_id == user_id
