@@ -4333,6 +4333,17 @@ def _get_required_env_value(name: str) -> str:
     return str(os.environ.get(name) or "").strip()
 
 
+def _normalize_smtp_password(raw_password: str) -> tuple[str, dict]:
+    # Gmail app passwords are often copied with spaces. Remove all whitespace.
+    normalized = re.sub(r"\s+", "", str(raw_password or ""))
+    diagnostics = {
+        "raw_length": len(str(raw_password or "")),
+        "normalized_length": len(normalized),
+        "had_whitespace": normalized != str(raw_password or ""),
+    }
+    return normalized, diagnostics
+
+
 def _get_smtp_env_status() -> dict:
     status = {}
     for name in SMTP_ENV_KEYS:
@@ -4360,13 +4371,18 @@ def _get_smtp_config() -> dict:
     if not 1 <= smtp_port <= 65535:
         raise ValueError("SMTP_PORT must be between 1 and 65535")
 
+    normalized_password, password_diagnostics = _normalize_smtp_password(
+        config["SMTP_PASS"]
+    )
+
     return {
         "host": config["SMTP_HOST"],
         "port": smtp_port,
         "user": config["SMTP_USER"],
-        "password": config["SMTP_PASS"],
+        "password": normalized_password,
         "from_addr": config["SMTP_FROM"],
         "admin_email": config["TIS_ADMIN_EMAIL"],
+        "password_diagnostics": password_diagnostics,
     }
 
 
@@ -4425,14 +4441,24 @@ def _send_forgot_password_notification(user_id: str, user_display: str):
 
     try:
         FORGOT_PASSWORD_LOGGER.info(
-            "SMTP send attempt starting for user_id=%s host=%s port=%s from=%s to=%s user=%s",
+            "SMTP send attempt starting for user_id=%s host=%s port=%s from=%s to=%s user=%s password_length=%s normalized_password_length=%s had_whitespace=%s",
             user_id,
             smtp_config["host"],
             smtp_config["port"],
             smtp_config["from_addr"],
             smtp_config["admin_email"],
             smtp_config["user"],
+            smtp_config["password_diagnostics"]["raw_length"],
+            smtp_config["password_diagnostics"]["normalized_length"],
+            smtp_config["password_diagnostics"]["had_whitespace"],
         )
+        if smtp_config["user"].strip().lower() != smtp_config["from_addr"].strip().lower():
+            FORGOT_PASSWORD_LOGGER.warning(
+                "SMTP user/from mismatch for user_id=%s smtp_user=%s smtp_from=%s",
+                user_id,
+                smtp_config["user"],
+                smtp_config["from_addr"],
+            )
         tls_context = ssl.create_default_context()
         with smtplib.SMTP(
             smtp_config["host"],
@@ -4440,8 +4466,19 @@ def _send_forgot_password_notification(user_id: str, user_display: str):
             timeout=SMTP_TIMEOUT_SECONDS,
         ) as server:
             server.ehlo()
+            FORGOT_PASSWORD_LOGGER.info(
+                "SMTP STARTTLS begin for user_id=%s host=%s port=%s",
+                user_id,
+                smtp_config["host"],
+                smtp_config["port"],
+            )
             server.starttls(context=tls_context)
             server.ehlo()
+            FORGOT_PASSWORD_LOGGER.info(
+                "SMTP STARTTLS succeeded for user_id=%s; attempting AUTH LOGIN with smtp_user=%s",
+                user_id,
+                smtp_config["user"],
+            )
             server.login(smtp_config["user"], smtp_config["password"])
             server.sendmail(
                 smtp_config["from_addr"],
@@ -4454,6 +4491,30 @@ def _send_forgot_password_notification(user_id: str, user_display: str):
             smtp_config["admin_email"],
         )
         return _smtp_send_result(True, "sent")
+    except smtplib.SMTPAuthenticationError as exc:
+        smtp_error_text = ""
+        try:
+            smtp_error_text = (exc.smtp_error or b"").decode("utf-8", errors="replace")
+        except Exception:
+            smtp_error_text = repr(getattr(exc, "smtp_error", ""))
+
+        error = (
+            f"SMTPAuthenticationError code={getattr(exc, 'smtp_code', 'unknown')} "
+            f"message={smtp_error_text or repr(exc)}"
+        )
+        FORGOT_PASSWORD_LOGGER.error(
+            "SMTP authentication failed for user_id=%s host=%s port=%s user=%s password_length=%s normalized_password_length=%s had_whitespace=%s error=%s",
+            user_id,
+            smtp_config["host"],
+            smtp_config["port"],
+            smtp_config["user"],
+            smtp_config["password_diagnostics"]["raw_length"],
+            smtp_config["password_diagnostics"]["normalized_length"],
+            smtp_config["password_diagnostics"]["had_whitespace"],
+            error,
+            exc_info=True,
+        )
+        return _smtp_send_result(False, "auth", error)
     except smtplib.SMTPException as exc:
         error = repr(exc)
         FORGOT_PASSWORD_LOGGER.error(
