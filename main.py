@@ -4316,10 +4316,32 @@ SMTP_ENV_KEYS = (
 )
 SMTP_TIMEOUT_SECONDS = 10
 EMAIL_DISPATCH_TIMEOUT_SECONDS = 15.0
+FORGOT_PASSWORD_LOGGER = logging.getLogger("tis.forgot_password")
+FORGOT_PASSWORD_LOGGER.setLevel(logging.INFO)
+FORGOT_PASSWORD_LOGGER.propagate = False
+if not any(getattr(handler, "_tis_forgot_password_handler", False) for handler in FORGOT_PASSWORD_LOGGER.handlers):
+    forgot_password_handler = logging.StreamHandler()
+    forgot_password_handler._tis_forgot_password_handler = True
+    forgot_password_handler.setLevel(logging.INFO)
+    forgot_password_handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
+    )
+    FORGOT_PASSWORD_LOGGER.addHandler(forgot_password_handler)
 
 
 def _get_required_env_value(name: str) -> str:
     return str(os.environ.get(name) or "").strip()
+
+
+def _get_smtp_env_status() -> dict:
+    status = {}
+    for name in SMTP_ENV_KEYS:
+        value = _get_required_env_value(name)
+        if name == "SMTP_PASS":
+            status[name] = "SET" if value else "MISSING"
+        else:
+            status[name] = value if value else "MISSING"
+    return status
 
 
 def _get_smtp_config() -> dict:
@@ -4356,22 +4378,38 @@ def _format_forgot_password_user_display(user_id: str, user=None) -> str:
     return f"{full_name} (ID: {user_id})" if full_name else f"ID: {user_id}"
 
 
+def _smtp_send_result(ok: bool, stage: str, error: str = "") -> dict:
+    return {
+        "ok": ok,
+        "stage": stage,
+        "error": error,
+    }
+
+
 def _send_forgot_password_notification(user_id: str, user_display: str):
     """
     Blocking SMTP send — must be called via run_in_executor to avoid
     blocking the async event loop.
     """
-    logging.info("TIS forgot-password: email sending started for user_id=%s", user_id)
+    FORGOT_PASSWORD_LOGGER.info(
+        "SMTP send function entered for user_id=%s", user_id
+    )
+    FORGOT_PASSWORD_LOGGER.info(
+        "SMTP environment status for user_id=%s: %s",
+        user_id,
+        _get_smtp_env_status(),
+    )
 
     try:
         smtp_config = _get_smtp_config()
     except ValueError as exc:
-        logging.error(
-            "TIS forgot-password: email sending failed for user_id=%s; %s",
+        error = str(exc)
+        FORGOT_PASSWORD_LOGGER.error(
+            "SMTP configuration failed for user_id=%s: %s",
             user_id,
-            exc,
+            error,
         )
-        return False
+        return _smtp_send_result(False, "config", error)
 
     body = (
         "A password reset request was submitted on the Teacher Information System.\n\n"
@@ -4386,8 +4424,9 @@ def _send_forgot_password_notification(user_id: str, user_display: str):
     msg.attach(MIMEText(body, "plain"))
 
     try:
-        logging.info(
-            "TIS forgot-password: connecting to SMTP host=%s port=%s from=%s to=%s user=%s",
+        FORGOT_PASSWORD_LOGGER.info(
+            "SMTP send attempt starting for user_id=%s host=%s port=%s from=%s to=%s user=%s",
+            user_id,
             smtp_config["host"],
             smtp_config["port"],
             smtp_config["from_addr"],
@@ -4409,36 +4448,39 @@ def _send_forgot_password_notification(user_id: str, user_display: str):
                 [smtp_config["admin_email"]],
                 msg.as_string(),
             )
-        logging.info(
-            "TIS forgot-password: email sent successfully to %s for user_id=%s",
+        FORGOT_PASSWORD_LOGGER.info(
+            "SMTP send succeeded for user_id=%s recipient=%s",
+            user_id,
             smtp_config["admin_email"],
-            user_id,
         )
-        return True
+        return _smtp_send_result(True, "sent")
     except smtplib.SMTPException as exc:
-        logging.error(
-            "TIS forgot-password: SMTP error for user_id=%s: %s",
+        error = repr(exc)
+        FORGOT_PASSWORD_LOGGER.error(
+            "SMTP send failed for user_id=%s stage=smtp error=%s",
             user_id,
-            exc,
+            error,
             exc_info=True,
         )
+        return _smtp_send_result(False, "smtp", error)
     except OSError as exc:
-        logging.error(
-            "TIS forgot-password: SMTP connection error for user_id=%s: %s",
+        error = repr(exc)
+        FORGOT_PASSWORD_LOGGER.error(
+            "SMTP send failed for user_id=%s stage=connection error=%s",
             user_id,
-            exc,
+            error,
             exc_info=True,
         )
+        return _smtp_send_result(False, "connection", error)
     except Exception as exc:
-        logging.error(
-            "TIS forgot-password: unexpected email sending failure for user_id=%s: %s",
+        error = repr(exc)
+        FORGOT_PASSWORD_LOGGER.error(
+            "SMTP send failed for user_id=%s stage=unexpected error=%s",
             user_id,
-            exc,
+            error,
             exc_info=True,
         )
-
-    logging.error("TIS forgot-password: email sending failed for user_id=%s", user_id)
-    return False
+        return _smtp_send_result(False, "unexpected", error)
 
 
 @app.post("/login")
@@ -4555,9 +4597,18 @@ async def forgot_password(
     import asyncio
     import functools
 
-    logging.info(
-        "TIS forgot-password: request received from ip=%s",
+    FORGOT_PASSWORD_LOGGER.info(
+        "Forgot Password endpoint entered route=/forgot-password method=%s ip=%s",
+        request.method,
         getattr(getattr(request, "client", None), "host", "unknown"),
+    )
+    FORGOT_PASSWORD_LOGGER.info(
+        "Forgot Password endpoint confirms frontend target=/forgot-password and email function=%s",
+        _send_forgot_password_notification.__name__,
+    )
+    FORGOT_PASSWORD_LOGGER.info(
+        "SMTP environment status at request start: %s",
+        _get_smtp_env_status(),
     )
 
     payload = None
@@ -4574,7 +4625,7 @@ async def forgot_password(
             payload = None
 
     if payload is None or not isinstance(payload, dict):
-        logging.error("TIS forgot-password: request payload could not be parsed")
+        FORGOT_PASSWORD_LOGGER.error("Forgot Password request payload could not be parsed")
         return JSONResponse(
             status_code=400,
             content={"ok": False, "message": "Invalid request format."},
@@ -4582,21 +4633,21 @@ async def forgot_password(
 
     user_id = str(payload.get("user_id") or "").strip()
     if not user_id:
-        logging.warning("TIS forgot-password: request missing user_id")
+        FORGOT_PASSWORD_LOGGER.warning("Forgot Password request missing user_id")
         return JSONResponse(
             status_code=400,
             content={"ok": False, "message": "Please enter your User ID."},
         )
 
-    logging.info("TIS forgot-password: processing request for user_id=%s", user_id)
+    FORGOT_PASSWORD_LOGGER.info("Forgot Password processing user_id=%s", user_id)
 
     try:
         user = db.query(models.User).filter(
             models.User.user_id == user_id
         ).first()
     except Exception as exc:
-        logging.error(
-            "TIS forgot-password: user lookup failed for user_id=%s: %s",
+        FORGOT_PASSWORD_LOGGER.error(
+            "Forgot Password user lookup failed for user_id=%s: %s",
             user_id,
             exc,
             exc_info=True,
@@ -4604,12 +4655,24 @@ async def forgot_password(
         user = None
 
     user_display = _format_forgot_password_user_display(user_id, user)
+    FORGOT_PASSWORD_LOGGER.info(
+        "Forgot Password user lookup complete for user_id=%s found=%s display=%s",
+        user_id,
+        bool(user),
+        user_display,
+    )
+    email_result = _smtp_send_result(False, "not-attempted", "SMTP send was not attempted")
+    FORGOT_PASSWORD_LOGGER.info(
+        "Forgot Password calling SMTP send function=%s for user_id=%s",
+        _send_forgot_password_notification.__name__,
+        user_id,
+    )
 
     # Run the blocking SMTP call in a thread pool so the event loop is never blocked.
     # Cap the wait at 15 s — if SMTP hangs beyond that, we still return immediately.
     try:
         loop = asyncio.get_running_loop()
-        await asyncio.wait_for(
+        email_result = await asyncio.wait_for(
             loop.run_in_executor(
                 None,
                 functools.partial(
@@ -4621,16 +4684,30 @@ async def forgot_password(
             timeout=EMAIL_DISPATCH_TIMEOUT_SECONDS,
         )
     except asyncio.TimeoutError:
-        logging.error(
-            "TIS forgot-password: email sending failed; timed out for user_id=%s",
+        email_result = _smtp_send_result(False, "timeout", "SMTP send timed out")
+        FORGOT_PASSWORD_LOGGER.error(
+            "Forgot Password SMTP send timed out for user_id=%s",
             user_id,
         )
     except Exception as exc:
-        logging.error(
-            "TIS forgot-password: unexpected error during email dispatch for user_id=%s: %s",
+        email_result = _smtp_send_result(False, "dispatch", repr(exc))
+        FORGOT_PASSWORD_LOGGER.error(
+            "Forgot Password unexpected dispatch error for user_id=%s: %s",
             user_id,
             exc,
             exc_info=True,
+        )
+    finally:
+        FORGOT_PASSWORD_LOGGER.info(
+            "Forgot Password real email result for user_id=%s ok=%s stage=%s error=%s",
+            user_id,
+            email_result.get("ok"),
+            email_result.get("stage"),
+            email_result.get("error") or "none",
+        )
+        FORGOT_PASSWORD_LOGGER.info(
+            "Forgot Password returning HTTP 200 generic browser response for user_id=%s after logging real email result",
+            user_id,
         )
 
     # Always return the same success message to avoid revealing whether the ID exists,
