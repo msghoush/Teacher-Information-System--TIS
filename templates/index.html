@@ -192,8 +192,117 @@
             color: var(--muted);
             font-size: 12px;
         }
+            .forgot-row {
+                margin-top: 10px;
+                text-align: center;
+            }
 
-        @keyframes rise {
+            .forgot-btn {
+                width: auto;
+                background: none;
+                border: none;
+                color: var(--brand);
+                font-size: 13px;
+                font-weight: 600;
+                cursor: pointer;
+                padding: 4px 0;
+                text-decoration: underline;
+                text-underline-offset: 2px;
+                transition: color 120ms ease;
+            }
+
+            .forgot-btn:hover {
+                color: var(--brand-dark);
+                transform: none;
+                filter: none;
+            }
+
+            /* Modal */
+            .modal-overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(10, 24, 48, 0.45);
+                backdrop-filter: blur(3px);
+                z-index: 999;
+                place-items: center;
+            }
+
+            .modal-overlay.is-open {
+                display: grid;
+            }
+
+            .modal-card {
+                background: #fff;
+                border: 1px solid var(--line);
+                border-radius: 18px;
+                box-shadow: 0 24px 56px rgba(10, 24, 48, 0.18);
+                padding: 28px 28px 22px;
+                width: min(94vw, 360px);
+                animation: rise 220ms ease-out;
+            }
+
+            .modal-head {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 10px;
+                margin-bottom: 6px;
+            }
+
+            .modal-head h3 {
+                margin: 0;
+                font-size: 17px;
+                color: var(--brand-dark);
+            }
+
+            .modal-close {
+                width: auto;
+                background: none;
+                border: none;
+                font-size: 20px;
+                line-height: 1;
+                color: var(--muted);
+                cursor: pointer;
+                padding: 0 4px;
+                transition: color 120ms ease;
+            }
+
+            .modal-close:hover {
+                color: var(--ink);
+                transform: none;
+                filter: none;
+            }
+
+            .modal-hint {
+                margin: 0 0 16px;
+                font-size: 13px;
+                color: var(--muted);
+            }
+
+            .modal-notice {
+                font-size: 13px;
+                padding: 9px 12px;
+                border-radius: 7px;
+                margin-bottom: 12px;
+                display: none;
+            }
+
+            .modal-notice.is-success {
+                background: #e8f5e9;
+                border: 1px solid #a5d6a7;
+                color: #1b5e20;
+                display: block;
+            }
+
+            .modal-notice.is-error {
+                background: var(--danger-bg);
+                border-left: 4px solid var(--danger-border);
+                color: #7f1d1d;
+                display: block;
+            }
+
+            @keyframes rise {
             from {
                 opacity: 0;
                 transform: translateY(12px);
@@ -233,7 +342,7 @@
 
         <section class="form-area">
             <div class="form-card">
-                <h2>Login</h2>
+                 <h2>Login to TIS</h2>
                 <p class="hint">Use your assigned User ID and password.</p>
 
                 {% if error %}
@@ -253,10 +362,100 @@
                     <button type="submit">Login</button>
                 </form>
 
+                    <div class="forgot-row">
+                        <button type="button" class="forgot-btn" onclick="openForgotModal()">Forgot Password?</button>
+                    </div>
+
                 <footer>Developed by Mohamad El Ghoche</footer>
             </div>
         </section>
     </main>
+
+        <!-- Forgot Password Modal -->
+        <div class="modal-overlay" id="forgotOverlay" onclick="handleOverlayClick(event)">
+            <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="forgotTitle">
+                <div class="modal-head">
+                    <h3 id="forgotTitle">Forgot Password</h3>
+                    <button type="button" class="modal-close" onclick="closeForgotModal()" aria-label="Close">&times;</button>
+                </div>
+                <p class="modal-hint">Enter your User ID and the system administrator will be notified to reset your password.</p>
+                <div id="forgotNotice" class="modal-notice"></div>
+                <form id="forgotForm" onsubmit="submitForgotPassword(event)">
+                    <div class="field">
+                        <label for="forgotUserId">User ID</label>
+                        <input id="forgotUserId" type="text" name="user_id" autocomplete="off" required placeholder="Enter your User ID">
+                    </div>
+                    <button type="submit" id="forgotSubmitBtn">Send Request</button>
+                </form>
+            </div>
+        </div>
+
+        <script>
+            function openForgotModal() {
+                document.getElementById('forgotOverlay').classList.add('is-open');
+                document.getElementById('forgotUserId').focus();
+                document.getElementById('forgotNotice').className = 'modal-notice';
+                document.getElementById('forgotNotice').textContent = '';
+                document.getElementById('forgotForm').style.display = '';
+            }
+
+            function closeForgotModal() {
+                document.getElementById('forgotOverlay').classList.remove('is-open');
+                document.getElementById('forgotUserId').value = '';
+            }
+
+            function handleOverlayClick(event) {
+                if (event.target === document.getElementById('forgotOverlay')) {
+                    closeForgotModal();
+                }
+            }
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') closeForgotModal();
+            });
+
+            async function submitForgotPassword(event) {
+                event.preventDefault();
+                const userId = document.getElementById('forgotUserId').value.trim();
+                const notice = document.getElementById('forgotNotice');
+                const submitBtn = document.getElementById('forgotSubmitBtn');
+
+                if (!userId) {
+                    notice.className = 'modal-notice is-error';
+                    notice.textContent = 'Please enter your User ID.';
+                    return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Sending...';
+                notice.className = 'modal-notice';
+                notice.textContent = '';
+
+                try {
+                    const response = await fetch('/forgot-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ user_id: userId }),
+                    });
+                    const data = await response.json();
+                    if (data.ok) {
+                        notice.className = 'modal-notice is-success';
+                        notice.textContent = data.message;
+                        document.getElementById('forgotForm').style.display = 'none';
+                    } else {
+                        notice.className = 'modal-notice is-error';
+                        notice.textContent = data.message || 'Something went wrong. Please try again.';
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Send Request';
+                    }
+                } catch (err) {
+                    notice.className = 'modal-notice is-error';
+                    notice.textContent = 'Network error. Please try again.';
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Send Request';
+                }
+            }
+        </script>
 </body>
 </html>
 

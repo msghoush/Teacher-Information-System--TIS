@@ -1,14 +1,19 @@
 from fastapi import FastAPI, Request, Form, Depends, Query, File, UploadFile
 from fastapi.responses import RedirectResponse, HTMLResponse, PlainTextResponse, StreamingResponse, FileResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text, func
 from datetime import datetime
 import io
+import logging
 import math
 import os
 import re
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 import time
 from typing import Optional
 from urllib.parse import quote_plus
@@ -4299,6 +4304,52 @@ def favicon():
 # ---------------------------------------
 # LOGIN
 # ---------------------------------------
+
+_DEVELOPER_EMAIL = os.environ.get("TIS_ADMIN_EMAIL", "mno@as.edu.sa")
+
+
+def _send_forgot_password_notification(user_id: str, user=None):
+    smtp_host = os.environ.get("SMTP_HOST", "")
+    smtp_port_raw = os.environ.get("SMTP_PORT", "587")
+    smtp_user = os.environ.get("SMTP_USER", "")
+    smtp_pass = os.environ.get("SMTP_PASS", "")
+    smtp_from = os.environ.get("SMTP_FROM", smtp_user)
+
+    if not smtp_host or not smtp_user or not smtp_pass:
+        logging.warning(
+            "TIS forgot-password: SMTP not configured — email not sent for user_id=%s",
+            user_id,
+        )
+        return
+
+    if user:
+        full_name = f"{getattr(user, 'first_name', '') or ''} {getattr(user, 'last_name', '') or ''}".strip()
+        user_display = f"{full_name} (ID: {user_id})" if full_name else f"ID: {user_id}"
+    else:
+        user_display = f"ID: {user_id} (not found in system)"
+
+    body = (
+        "A password reset request was submitted on the Teacher Information System.\n\n"
+        f"User: {user_display}\n\n"
+        "Please log in to TIS and reset this user's password manually.\n"
+    )
+
+    msg = MIMEMultipart()
+    msg["From"] = smtp_from
+    msg["To"] = _DEVELOPER_EMAIL
+    msg["Subject"] = "TIS \u2014 Password Reset Request"
+    msg.attach(MIMEText(body, "plain"))
+
+    try:
+        smtp_port = int(smtp_port_raw)
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_from, [_DEVELOPER_EMAIL], msg.as_string())
+    except Exception as exc:
+        logging.error("TIS forgot-password: failed to send email — %s", exc)
+
+
 @app.post("/login")
 def login(
     request: Request,
@@ -4401,6 +4452,48 @@ def login(
 # ---------------------------------------
 # LOGOUT
 # ---------------------------------------
+
+# ---------------------------------------
+# FORGOT PASSWORD
+# ---------------------------------------
+@app.post("/forgot-password")
+async def forgot_password(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "message": "Invalid request format."},
+        )
+
+    user_id = str(payload.get("user_id") or "").strip()
+    if not user_id:
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "message": "Please enter your User ID."},
+        )
+
+    user = db.query(models.User).filter(
+        models.User.user_id == user_id
+    ).first()
+
+    _send_forgot_password_notification(user_id, user)
+
+    # Always return the same success message to avoid revealing whether the ID exists
+    return JSONResponse(
+        content={
+            "ok": True,
+            "message": (
+                "Your request has been sent to the system administrator. "
+                "They will reset your password and contact you shortly."
+            ),
+        }
+    )
+
+
 @app.get("/logout")
 def logout():
     response = RedirectResponse(url="/", status_code=302)
