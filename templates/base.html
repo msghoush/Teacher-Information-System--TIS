@@ -51,6 +51,9 @@
                                 <strong>{{ item.label }}</strong>
                                 <span>{{ "Current workspace" if item.active else "Open module" }}</span>
                             </span>
+                            {% if item.badge_count %}
+                            <span class="sidebar-nav-badge" aria-label="{{ item.badge_count }} new notifications">{{ item.badge_count }}</span>
+                            {% endif %}
                         </span>
                         <span class="sidebar-chevron">{{ icon("chevron-right", "shell-icon") }}</span>
                     </a>
@@ -140,6 +143,12 @@
                             <span>{{ icon("shield", "shell-icon") }} Role</span>
                             <strong>{{ shell.role_label or "System User" }}</strong>
                         </div>
+                        {% if shell.new_notification_count %}
+                        <a class="header-chip header-notification-chip" href="/notifications">
+                            <span>{{ icon("notifications", "shell-icon") }} New Requests</span>
+                            <strong>{{ shell.new_notification_count }}</strong>
+                        </a>
+                        {% endif %}
                     </div>
                     {% if header_actions | trim %}
                     <div class="header-actions">

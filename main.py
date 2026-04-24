@@ -11,10 +11,6 @@ import logging
 import math
 import os
 import re
-import smtplib
-import ssl
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 import time
 from typing import Optional
 from urllib.parse import quote_plus
@@ -4306,242 +4302,96 @@ def favicon():
 # LOGIN
 # ---------------------------------------
 
-SMTP_ENV_KEYS = (
-    "SMTP_HOST",
-    "SMTP_PORT",
-    "SMTP_USER",
-    "SMTP_PASS",
-    "SMTP_FROM",
-    "TIS_ADMIN_EMAIL",
-)
-SMTP_TIMEOUT_SECONDS = 10
-EMAIL_DISPATCH_TIMEOUT_SECONDS = 15.0
-FORGOT_PASSWORD_LOGGER = logging.getLogger("tis.forgot_password")
-FORGOT_PASSWORD_LOGGER.setLevel(logging.INFO)
-FORGOT_PASSWORD_LOGGER.propagate = False
-if not any(getattr(handler, "_tis_forgot_password_handler", False) for handler in FORGOT_PASSWORD_LOGGER.handlers):
-    forgot_password_handler = logging.StreamHandler()
-    forgot_password_handler._tis_forgot_password_handler = True
-    forgot_password_handler.setLevel(logging.INFO)
-    forgot_password_handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s")
-    )
-    FORGOT_PASSWORD_LOGGER.addHandler(forgot_password_handler)
+DEVELOPER_USER_ID = "2623252018"
+NOTIFICATION_STATUS_NEW = "New"
+NOTIFICATION_STATUS_SEEN = "Seen"
+NOTIFICATION_STATUS_RESOLVED = "Resolved"
+NOTIFICATION_TYPE_FORGOT_PASSWORD = "Forgot Password"
 
 
-def _get_required_env_value(name: str) -> str:
-    return str(os.environ.get(name) or "").strip()
-
-
-def _normalize_smtp_password(raw_password: str) -> tuple[str, dict]:
-    # Gmail app passwords are often copied with spaces. Remove all whitespace.
-    normalized = re.sub(r"\s+", "", str(raw_password or ""))
-    diagnostics = {
-        "raw_length": len(str(raw_password or "")),
-        "normalized_length": len(normalized),
-        "had_whitespace": normalized != str(raw_password or ""),
-    }
-    return normalized, diagnostics
-
-
-def _get_smtp_env_status() -> dict:
-    status = {}
-    for name in SMTP_ENV_KEYS:
-        value = _get_required_env_value(name)
-        if name == "SMTP_PASS":
-            status[name] = "SET" if value else "MISSING"
-        else:
-            status[name] = value if value else "MISSING"
-    return status
-
-
-def _get_smtp_config() -> dict:
-    config = {name: _get_required_env_value(name) for name in SMTP_ENV_KEYS}
-    missing = [name for name, value in config.items() if not value]
-    if missing:
-        raise ValueError(
-            "missing required environment variable(s): " + ", ".join(missing)
-        )
-
-    try:
-        smtp_port = int(config["SMTP_PORT"])
-    except ValueError as exc:
-        raise ValueError("SMTP_PORT must be a valid integer") from exc
-
-    if not 1 <= smtp_port <= 65535:
-        raise ValueError("SMTP_PORT must be between 1 and 65535")
-
-    normalized_password, password_diagnostics = _normalize_smtp_password(
-        config["SMTP_PASS"]
-    )
-
-    return {
-        "host": config["SMTP_HOST"],
-        "port": smtp_port,
-        "user": config["SMTP_USER"],
-        "password": normalized_password,
-        "from_addr": config["SMTP_FROM"],
-        "admin_email": config["TIS_ADMIN_EMAIL"],
-        "password_diagnostics": password_diagnostics,
-    }
-
-
-def _format_forgot_password_user_display(user_id: str, user=None) -> str:
+def _build_user_display(user_id: str, user=None) -> str:
     if not user:
-        return f"ID: {user_id} (not found in system)"
+        return f"User ID {user_id} (not found in system)"
 
     full_name = f"{getattr(user, 'first_name', '') or ''} {getattr(user, 'last_name', '') or ''}".strip()
-    return f"{full_name} (ID: {user_id})" if full_name else f"ID: {user_id}"
+    return f"{full_name} (User ID {user_id})" if full_name else f"User ID {user_id}"
 
 
-def _smtp_send_result(ok: bool, stage: str, error: str = "") -> dict:
-    return {
-        "ok": ok,
-        "stage": stage,
-        "error": error,
+def _create_system_notification(
+    db: Session,
+    *,
+    recipient_user_id: str,
+    requesting_user_id: str,
+    request_type: str,
+    title: str,
+    message: str = "",
+    details: str = "",
+):
+    notification = models.SystemNotification(
+        recipient_user_id=str(recipient_user_id).strip(),
+        requesting_user_id=str(requesting_user_id or "").strip(),
+        request_type=str(request_type).strip(),
+        title=str(title).strip(),
+        message=str(message or "").strip(),
+        details=str(details or "").strip(),
+        status=NOTIFICATION_STATUS_NEW,
+        created_at=datetime.utcnow(),
+    )
+    db.add(notification)
+    db.commit()
+    db.refresh(notification)
+    logging.info(
+        "TIS notification: created id=%s type=%s recipient_user_id=%s requesting_user_id=%s",
+        notification.id,
+        notification.request_type,
+        notification.recipient_user_id,
+        notification.requesting_user_id,
+    )
+    return notification
+
+
+def _get_notification_counts(db: Session, user_id: str) -> dict:
+    counts = {
+        NOTIFICATION_STATUS_NEW: 0,
+        NOTIFICATION_STATUS_SEEN: 0,
+        NOTIFICATION_STATUS_RESOLVED: 0,
     }
-
-
-def _send_forgot_password_notification(user_id: str, user_display: str):
-    """
-    Blocking SMTP send — must be called via run_in_executor to avoid
-    blocking the async event loop.
-    """
-    FORGOT_PASSWORD_LOGGER.info(
-        "SMTP send function entered for user_id=%s", user_id
+    rows = db.query(
+        models.SystemNotification.status,
+        func.count(models.SystemNotification.id),
+    ).filter(
+        models.SystemNotification.recipient_user_id == user_id
+    ).group_by(
+        models.SystemNotification.status
+    ).all()
+    for status, count in rows:
+        counts[str(status or "")] = count
+    counts["All"] = sum(
+        counts.get(status, 0)
+        for status in (
+            NOTIFICATION_STATUS_NEW,
+            NOTIFICATION_STATUS_SEEN,
+            NOTIFICATION_STATUS_RESOLVED,
+        )
     )
-    FORGOT_PASSWORD_LOGGER.info(
-        "SMTP environment status for user_id=%s: %s",
-        user_id,
-        _get_smtp_env_status(),
-    )
+    return counts
 
-    try:
-        smtp_config = _get_smtp_config()
-    except ValueError as exc:
-        error = str(exc)
-        FORGOT_PASSWORD_LOGGER.error(
-            "SMTP configuration failed for user_id=%s: %s",
-            user_id,
-            error,
-        )
-        return _smtp_send_result(False, "config", error)
 
-    body = (
-        "A password reset request was submitted on the Teacher Information System.\n\n"
-        f"User: {user_display}\n\n"
-        "Please log in to TIS and reset this user's password manually.\n"
-    )
-
-    msg = MIMEMultipart()
-    msg["From"] = smtp_config["from_addr"]
-    msg["To"] = smtp_config["admin_email"]
-    msg["Subject"] = "TIS \u2014 Password Reset Request"
-    msg.attach(MIMEText(body, "plain"))
-
-    try:
-        FORGOT_PASSWORD_LOGGER.info(
-            "SMTP send attempt starting for user_id=%s host=%s port=%s from=%s to=%s user=%s password_length=%s normalized_password_length=%s had_whitespace=%s",
-            user_id,
-            smtp_config["host"],
-            smtp_config["port"],
-            smtp_config["from_addr"],
-            smtp_config["admin_email"],
-            smtp_config["user"],
-            smtp_config["password_diagnostics"]["raw_length"],
-            smtp_config["password_diagnostics"]["normalized_length"],
-            smtp_config["password_diagnostics"]["had_whitespace"],
+def _get_user_notification_or_redirect(
+    db: Session,
+    current_user,
+    notification_id: int,
+):
+    notification = db.query(models.SystemNotification).filter(
+        models.SystemNotification.id == notification_id,
+        models.SystemNotification.recipient_user_id == current_user.user_id,
+    ).first()
+    if not notification:
+        return None, RedirectResponse(
+            url="/notifications?notice=Notification%20not%20found.",
+            status_code=302,
         )
-        if smtp_config["user"].strip().lower() != smtp_config["from_addr"].strip().lower():
-            FORGOT_PASSWORD_LOGGER.warning(
-                "SMTP user/from mismatch for user_id=%s smtp_user=%s smtp_from=%s",
-                user_id,
-                smtp_config["user"],
-                smtp_config["from_addr"],
-            )
-        tls_context = ssl.create_default_context()
-        with smtplib.SMTP(
-            smtp_config["host"],
-            smtp_config["port"],
-            timeout=SMTP_TIMEOUT_SECONDS,
-        ) as server:
-            server.ehlo()
-            FORGOT_PASSWORD_LOGGER.info(
-                "SMTP STARTTLS begin for user_id=%s host=%s port=%s",
-                user_id,
-                smtp_config["host"],
-                smtp_config["port"],
-            )
-            server.starttls(context=tls_context)
-            server.ehlo()
-            FORGOT_PASSWORD_LOGGER.info(
-                "SMTP STARTTLS succeeded for user_id=%s; attempting AUTH LOGIN with smtp_user=%s",
-                user_id,
-                smtp_config["user"],
-            )
-            server.login(smtp_config["user"], smtp_config["password"])
-            server.sendmail(
-                smtp_config["from_addr"],
-                [smtp_config["admin_email"]],
-                msg.as_string(),
-            )
-        FORGOT_PASSWORD_LOGGER.info(
-            "SMTP send succeeded for user_id=%s recipient=%s",
-            user_id,
-            smtp_config["admin_email"],
-        )
-        return _smtp_send_result(True, "sent")
-    except smtplib.SMTPAuthenticationError as exc:
-        smtp_error_text = ""
-        try:
-            smtp_error_text = (exc.smtp_error or b"").decode("utf-8", errors="replace")
-        except Exception:
-            smtp_error_text = repr(getattr(exc, "smtp_error", ""))
-
-        error = (
-            f"SMTPAuthenticationError code={getattr(exc, 'smtp_code', 'unknown')} "
-            f"message={smtp_error_text or repr(exc)}"
-        )
-        FORGOT_PASSWORD_LOGGER.error(
-            "SMTP authentication failed for user_id=%s host=%s port=%s user=%s password_length=%s normalized_password_length=%s had_whitespace=%s error=%s",
-            user_id,
-            smtp_config["host"],
-            smtp_config["port"],
-            smtp_config["user"],
-            smtp_config["password_diagnostics"]["raw_length"],
-            smtp_config["password_diagnostics"]["normalized_length"],
-            smtp_config["password_diagnostics"]["had_whitespace"],
-            error,
-            exc_info=True,
-        )
-        return _smtp_send_result(False, "auth", error)
-    except smtplib.SMTPException as exc:
-        error = repr(exc)
-        FORGOT_PASSWORD_LOGGER.error(
-            "SMTP send failed for user_id=%s stage=smtp error=%s",
-            user_id,
-            error,
-            exc_info=True,
-        )
-        return _smtp_send_result(False, "smtp", error)
-    except OSError as exc:
-        error = repr(exc)
-        FORGOT_PASSWORD_LOGGER.error(
-            "SMTP send failed for user_id=%s stage=connection error=%s",
-            user_id,
-            error,
-            exc_info=True,
-        )
-        return _smtp_send_result(False, "connection", error)
-    except Exception as exc:
-        error = repr(exc)
-        FORGOT_PASSWORD_LOGGER.error(
-            "SMTP send failed for user_id=%s stage=unexpected error=%s",
-            user_id,
-            error,
-            exc_info=True,
-        )
-        return _smtp_send_result(False, "unexpected", error)
+    return notification, None
 
 
 @app.post("/login")
@@ -4655,21 +4505,10 @@ async def forgot_password(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    import asyncio
-    import functools
-
-    FORGOT_PASSWORD_LOGGER.info(
-        "Forgot Password endpoint entered route=/forgot-password method=%s ip=%s",
+    logging.info(
+        "TIS notification: forgot-password request received route=/forgot-password method=%s ip=%s",
         request.method,
         getattr(getattr(request, "client", None), "host", "unknown"),
-    )
-    FORGOT_PASSWORD_LOGGER.info(
-        "Forgot Password endpoint confirms frontend target=/forgot-password and email function=%s",
-        _send_forgot_password_notification.__name__,
-    )
-    FORGOT_PASSWORD_LOGGER.info(
-        "SMTP environment status at request start: %s",
-        _get_smtp_env_status(),
     )
 
     payload = None
@@ -4686,7 +4525,7 @@ async def forgot_password(
             payload = None
 
     if payload is None or not isinstance(payload, dict):
-        FORGOT_PASSWORD_LOGGER.error("Forgot Password request payload could not be parsed")
+        logging.error("TIS notification: forgot-password payload could not be parsed")
         return JSONResponse(
             status_code=400,
             content={"ok": False, "message": "Invalid request format."},
@@ -4694,93 +4533,239 @@ async def forgot_password(
 
     user_id = str(payload.get("user_id") or "").strip()
     if not user_id:
-        FORGOT_PASSWORD_LOGGER.warning("Forgot Password request missing user_id")
+        logging.warning("TIS notification: forgot-password request missing user_id")
         return JSONResponse(
             status_code=400,
             content={"ok": False, "message": "Please enter your User ID."},
         )
 
-    FORGOT_PASSWORD_LOGGER.info("Forgot Password processing user_id=%s", user_id)
+    logging.info("TIS notification: forgot-password processing user_id=%s", user_id)
 
     try:
         user = db.query(models.User).filter(
             models.User.user_id == user_id
         ).first()
     except Exception as exc:
-        FORGOT_PASSWORD_LOGGER.error(
-            "Forgot Password user lookup failed for user_id=%s: %s",
+        logging.error(
+            "TIS notification: forgot-password user lookup failed for user_id=%s: %s",
             user_id,
             exc,
             exc_info=True,
         )
         user = None
 
-    user_display = _format_forgot_password_user_display(user_id, user)
-    FORGOT_PASSWORD_LOGGER.info(
-        "Forgot Password user lookup complete for user_id=%s found=%s display=%s",
+    user_display = _build_user_display(user_id, user)
+    logging.info(
+        "TIS notification: forgot-password user lookup complete user_id=%s found=%s recipient_user_id=%s",
         user_id,
         bool(user),
-        user_display,
-    )
-    email_result = _smtp_send_result(False, "not-attempted", "SMTP send was not attempted")
-    FORGOT_PASSWORD_LOGGER.info(
-        "Forgot Password calling SMTP send function=%s for user_id=%s",
-        _send_forgot_password_notification.__name__,
-        user_id,
+        DEVELOPER_USER_ID,
     )
 
-    # Run the blocking SMTP call in a thread pool so the event loop is never blocked.
-    # Cap the wait at 15 s — if SMTP hangs beyond that, we still return immediately.
     try:
-        loop = asyncio.get_running_loop()
-        email_result = await asyncio.wait_for(
-            loop.run_in_executor(
-                None,
-                functools.partial(
-                    _send_forgot_password_notification,
-                    user_id,
-                    user_display,
-                ),
+        notification = _create_system_notification(
+            db,
+            recipient_user_id=DEVELOPER_USER_ID,
+            requesting_user_id=user_id,
+            request_type=NOTIFICATION_TYPE_FORGOT_PASSWORD,
+            title="Forgot Password Request",
+            message=f"{user_display} requested a password reset.",
+            details=(
+                "Password reset requested from the login page. "
+                "Review the user account and reset the password manually."
             ),
-            timeout=EMAIL_DISPATCH_TIMEOUT_SECONDS,
-        )
-    except asyncio.TimeoutError:
-        email_result = _smtp_send_result(False, "timeout", "SMTP send timed out")
-        FORGOT_PASSWORD_LOGGER.error(
-            "Forgot Password SMTP send timed out for user_id=%s",
-            user_id,
         )
     except Exception as exc:
-        email_result = _smtp_send_result(False, "dispatch", repr(exc))
-        FORGOT_PASSWORD_LOGGER.error(
-            "Forgot Password unexpected dispatch error for user_id=%s: %s",
+        db.rollback()
+        logging.error(
+            "TIS notification: failed to create forgot-password notification for user_id=%s recipient_user_id=%s: %s",
             user_id,
+            DEVELOPER_USER_ID,
             exc,
             exc_info=True,
         )
-    finally:
-        FORGOT_PASSWORD_LOGGER.info(
-            "Forgot Password real email result for user_id=%s ok=%s stage=%s error=%s",
-            user_id,
-            email_result.get("ok"),
-            email_result.get("stage"),
-            email_result.get("error") or "none",
-        )
-        FORGOT_PASSWORD_LOGGER.info(
-            "Forgot Password returning HTTP 200 generic browser response for user_id=%s after logging real email result",
-            user_id,
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "message": "The request could not be saved. Please contact the system administrator.",
+            },
         )
 
-    # Always return the same success message to avoid revealing whether the ID exists,
-    # and so that email failures never surface as a stuck or error state to the user.
+    logging.info(
+        "TIS notification: forgot-password notification saved id=%s recipient_user_id=%s requesting_user_id=%s status=%s",
+        notification.id,
+        notification.recipient_user_id,
+        notification.requesting_user_id,
+        notification.status,
+    )
     return JSONResponse(
         content={
             "ok": True,
             "message": (
-                "Your request has been sent to the system administrator. "
-                "They will reset your password and contact you shortly."
+                "Your request has been sent to the system administrator inside TIS. "
+                "They will review it and reset your password manually."
             ),
         }
+    )
+
+
+@app.get("/notifications")
+def notification_center(
+    request: Request,
+    status: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    allowed_statuses = {
+        NOTIFICATION_STATUS_NEW,
+        NOTIFICATION_STATUS_SEEN,
+        NOTIFICATION_STATUS_RESOLVED,
+    }
+    selected_status = str(status or "").strip()
+    if selected_status not in allowed_statuses:
+        selected_status = ""
+
+    query = db.query(models.SystemNotification).filter(
+        models.SystemNotification.recipient_user_id == current_user.user_id
+    )
+    if selected_status:
+        query = query.filter(models.SystemNotification.status == selected_status)
+
+    notifications = query.order_by(
+        models.SystemNotification.created_at.desc(),
+        models.SystemNotification.id.desc(),
+    ).all()
+    counts = _get_notification_counts(db, current_user.user_id)
+
+    return templates.TemplateResponse(
+        "notifications.html",
+        {
+            "request": request,
+            "current_user": current_user,
+            "notifications": notifications,
+            "selected_status": selected_status,
+            "notification_counts": counts,
+            "status_options": [
+                NOTIFICATION_STATUS_NEW,
+                NOTIFICATION_STATUS_SEEN,
+                NOTIFICATION_STATUS_RESOLVED,
+            ],
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="notifications",
+            ),
+        },
+    )
+
+
+@app.get("/notifications/{notification_id}")
+def notification_detail(
+    notification_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    notification, redirect_response = _get_user_notification_or_redirect(
+        db,
+        current_user,
+        notification_id,
+    )
+    if redirect_response:
+        return redirect_response
+
+    return templates.TemplateResponse(
+        "notification_detail.html",
+        {
+            "request": request,
+            "current_user": current_user,
+            "notification": notification,
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="notifications",
+            ),
+        },
+    )
+
+
+@app.post("/notifications/{notification_id}/seen")
+def mark_notification_seen(
+    notification_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    notification, redirect_response = _get_user_notification_or_redirect(
+        db,
+        current_user,
+        notification_id,
+    )
+    if redirect_response:
+        return redirect_response
+
+    if notification.status == NOTIFICATION_STATUS_NEW:
+        notification.status = NOTIFICATION_STATUS_SEEN
+        notification.seen_at = datetime.utcnow()
+        db.commit()
+        logging.info(
+            "TIS notification: marked seen id=%s user_id=%s",
+            notification.id,
+            current_user.user_id,
+        )
+
+    return RedirectResponse(
+        url=f"/notifications/{notification.id}?notice=Notification%20marked%20seen.",
+        status_code=302,
+    )
+
+
+@app.post("/notifications/{notification_id}/resolved")
+def mark_notification_resolved(
+    notification_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    notification, redirect_response = _get_user_notification_or_redirect(
+        db,
+        current_user,
+        notification_id,
+    )
+    if redirect_response:
+        return redirect_response
+
+    now = datetime.utcnow()
+    notification.status = NOTIFICATION_STATUS_RESOLVED
+    if not notification.seen_at:
+        notification.seen_at = now
+    notification.resolved_at = now
+    notification.resolved_by_user_id = current_user.user_id
+    db.commit()
+    logging.info(
+        "TIS notification: marked resolved id=%s user_id=%s",
+        notification.id,
+        current_user.user_id,
+    )
+
+    return RedirectResponse(
+        url=f"/notifications/{notification.id}?notice=Notification%20marked%20resolved.",
+        status_code=302,
     )
 
 

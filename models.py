@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint, Index, LargeBinary
+from datetime import datetime
+
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint, Index, LargeBinary, DateTime, Text
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -34,6 +36,27 @@ class User(Base):
     branch_id = Column(Integer, ForeignKey("branches.id"))
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
     is_active = Column(Boolean, default=True)
+
+
+class SystemNotification(Base):
+    __tablename__ = "system_notifications"
+    __table_args__ = (
+        Index("ix_system_notifications_recipient_status", "recipient_user_id", "status"),
+        Index("ix_system_notifications_created_at", "created_at"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    recipient_user_id = Column(String(10), index=True, nullable=False)
+    requesting_user_id = Column(String(10), index=True)
+    request_type = Column(String(80), nullable=False)
+    title = Column(String(160), nullable=False)
+    message = Column(Text)
+    details = Column(Text)
+    status = Column(String(20), nullable=False, default="New", index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    seen_at = Column(DateTime)
+    resolved_at = Column(DateTime)
+    resolved_by_user_id = Column(String(10))
 
 
 class Subject(Base):

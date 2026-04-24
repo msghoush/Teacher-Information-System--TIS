@@ -271,6 +271,21 @@ svg.tab-icon {
     min-width: 0;
 }
 
+.sidebar-nav-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: #c79a14;
+    color: #10233f;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+}
+
 .sidebar-link-copy {
     min-width: 0;
 }
@@ -630,6 +645,13 @@ svg.tab-icon {
     border: 1px solid var(--app-line);
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.78);
+}
+
+.header-notification-chip {
+    color: var(--app-brand-deep);
+    text-decoration: none;
+    background: #fff8e6;
+    border-color: rgba(199, 154, 20, 0.55);
 }
 
 .header-chip span,

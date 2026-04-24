@@ -44,6 +44,12 @@ PAGE_META = {
         "intro": "Manage accounts, roles, and branch ownership using the same system-wide controls.",
         "icon": "users",
     },
+    "notifications": {
+        "eyebrow": "Notification Center",
+        "title": "Notification Center",
+        "intro": "Review system requests, access issues, and support alerts assigned to your account.",
+        "icon": "notifications",
+    },
     "system-configuration": {
         "eyebrow": "Developer Controls",
         "title": "System Configuration",
@@ -57,6 +63,7 @@ def _build_nav_items(
     current_path: str,
     can_manage_users: bool,
     can_manage_system_settings: bool,
+    new_notification_count: int = 0,
 ):
     def is_active(target: str) -> bool:
         if target == "/dashboard":
@@ -93,6 +100,13 @@ def _build_nav_items(
             "href": "/timetable/",
             "icon": "timetable",
             "active": is_active("/timetable"),
+        },
+        {
+            "label": "Notification Center",
+            "href": "/notifications",
+            "icon": "notifications",
+            "active": is_active("/notifications"),
+            "badge_count": new_notification_count,
         },
     ]
 
@@ -180,6 +194,10 @@ def build_shell_context(
                 request.url_for("static", path=normalized_profile_image_path)
             )
     resolved_notice = notice or str(request.query_params.get("notice", "")).strip()
+    new_notification_count = db.query(models.SystemNotification).filter(
+        models.SystemNotification.recipient_user_id == current_user.user_id,
+        models.SystemNotification.status == "New",
+    ).count()
 
     return {
         "shell": {
@@ -193,6 +211,7 @@ def build_shell_context(
                 request.url.path,
                 can_manage_users,
                 can_manage_system_settings,
+                new_notification_count,
             ),
             "user_name": f"{current_user.first_name} {current_user.last_name}".strip(),
             "role_label": effective_role,
@@ -207,5 +226,6 @@ def build_shell_context(
             "scoped_academic_year_id": scoped_academic_year_id,
             "active_year_id": active_year_id,
             "notice": resolved_notice,
+            "new_notification_count": new_notification_count,
         }
     }
