@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text, func
-from datetime import datetime
+from datetime import datetime, timezone
 import io
 import logging
 import math
@@ -4302,11 +4302,15 @@ def favicon():
 # LOGIN
 # ---------------------------------------
 
-DEVELOPER_USER_ID = "2623252018"
+DEVELOPER_USER_ID = os.getenv("TIS_DEVELOPER_USER_ID", "2623252018")
 NOTIFICATION_STATUS_NEW = "New"
 NOTIFICATION_STATUS_SEEN = "Seen"
 NOTIFICATION_STATUS_RESOLVED = "Resolved"
 NOTIFICATION_TYPE_FORGOT_PASSWORD = "Forgot Password"
+NOTIFICATION_TYPE_MESSAGE = "Message"
+NOTIFICATION_SCOPE_USER = "User"
+NOTIFICATION_SCOPE_ALL = "All"
+MESSAGE_PAGE_SIZE = 50
 
 
 def _build_user_display(user_id: str, user=None) -> str:
@@ -4326,6 +4330,7 @@ def _create_system_notification(
     title: str,
     message: str = "",
     details: str = "",
+    recipient_scope: str = NOTIFICATION_SCOPE_USER,
 ):
     notification = models.SystemNotification(
         recipient_user_id=str(recipient_user_id).strip(),
@@ -4335,17 +4340,19 @@ def _create_system_notification(
         message=str(message or "").strip(),
         details=str(details or "").strip(),
         status=NOTIFICATION_STATUS_NEW,
-        created_at=datetime.utcnow(),
+        recipient_scope=str(recipient_scope).strip(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     db.add(notification)
     db.commit()
     db.refresh(notification)
     logging.info(
-        "TIS notification: created id=%s type=%s recipient_user_id=%s requesting_user_id=%s",
+        "TIS notification: created id=%s type=%s recipient_user_id=%s requesting_user_id=%s scope=%s",
         notification.id,
         notification.request_type,
         notification.recipient_user_id,
         notification.requesting_user_id,
+        notification.recipient_scope,
     )
     return notification
 
@@ -4388,7 +4395,7 @@ def _get_user_notification_or_redirect(
     ).first()
     if not notification:
         return None, RedirectResponse(
-            url="/notifications?notice=Notification%20not%20found.",
+            url="/notifications?notice=Message%20not%20found.",
             status_code=302,
         )
     return notification, None
@@ -4635,18 +4642,27 @@ def notification_center(
     if selected_status:
         query = query.filter(models.SystemNotification.status == selected_status)
 
-    notifications = query.order_by(
+    messages = query.order_by(
         models.SystemNotification.created_at.desc(),
         models.SystemNotification.id.desc(),
-    ).all()
+    ).limit(MESSAGE_PAGE_SIZE).all()
     counts = _get_notification_counts(db, current_user.user_id)
+
+    can_compose = auth.is_developer(current_user) or (
+        auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_ADMINISTRATOR
+    )
+    all_users = []
+    if can_compose:
+        all_users = db.query(models.User).filter(
+            models.User.is_active == True
+        ).order_by(models.User.first_name.asc(), models.User.last_name.asc()).all()
 
     return templates.TemplateResponse(
         "notifications.html",
         {
             "request": request,
             "current_user": current_user,
-            "notifications": notifications,
+            "messages": messages,
             "selected_status": selected_status,
             "notification_counts": counts,
             "status_options": [
@@ -4654,6 +4670,8 @@ def notification_center(
                 NOTIFICATION_STATUS_SEEN,
                 NOTIFICATION_STATUS_RESOLVED,
             ],
+            "can_compose": can_compose,
+            "all_users": all_users,
             **build_shell_context(
                 request,
                 db,
@@ -4661,6 +4679,141 @@ def notification_center(
                 page_key="notifications",
             ),
         },
+    )
+
+
+@app.get("/notifications/compose")
+def compose_message_form(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    can_compose = auth.is_developer(current_user) or (
+        auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_ADMINISTRATOR
+    )
+    if not can_compose:
+        return RedirectResponse(
+            url="/notifications?notice=You%20do%20not%20have%20permission%20to%20send%20messages.",
+            status_code=302,
+        )
+
+    all_users = db.query(models.User).filter(
+        models.User.is_active == True
+    ).order_by(models.User.first_name.asc(), models.User.last_name.asc()).all()
+
+    return templates.TemplateResponse(
+        "compose_message.html",
+        {
+            "request": request,
+            "current_user": current_user,
+            "all_users": all_users,
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="notifications",
+                eyebrow="Message Center",
+                title="Compose Message",
+            ),
+        },
+    )
+
+
+@app.post("/notifications/compose")
+def send_message(
+    request: Request,
+    title: str = Form(...),
+    recipient: str = Form(...),
+    message: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    can_compose = auth.is_developer(current_user) or (
+        auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_ADMINISTRATOR
+    )
+    if not can_compose:
+        return RedirectResponse(
+            url="/notifications?notice=You%20do%20not%20have%20permission%20to%20send%20messages.",
+            status_code=302,
+        )
+
+    title = str(title or "").strip()
+    recipient = str(recipient or "").strip()
+    message = str(message or "").strip()
+
+    if not title or not recipient or not message:
+        return RedirectResponse(
+            url="/notifications/compose?notice=Title%2C%20recipient%2C%20and%20message%20are%20required.",
+            status_code=302,
+        )
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    if recipient == "ALL":
+        active_users = db.query(models.User).filter(
+            models.User.is_active == True
+        ).all()
+        count = 0
+        for user in active_users:
+            n = models.SystemNotification(
+                recipient_user_id=user.user_id,
+                requesting_user_id=current_user.user_id,
+                request_type=NOTIFICATION_TYPE_MESSAGE,
+                title=title,
+                message=message,
+                details="",
+                status=NOTIFICATION_STATUS_NEW,
+                recipient_scope=NOTIFICATION_SCOPE_ALL,
+                created_at=now,
+            )
+            db.add(n)
+            count += 1
+        db.commit()
+        logging.info(
+            "TIS message: broadcast sent by user_id=%s to %d users title=%s",
+            current_user.user_id,
+            count,
+            title,
+        )
+    else:
+        target_user = db.query(models.User).filter(
+            models.User.user_id == recipient,
+            models.User.is_active == True,
+        ).first()
+        if not target_user:
+            return RedirectResponse(
+                url="/notifications/compose?notice=Selected%20user%20not%20found.",
+                status_code=302,
+            )
+        n = models.SystemNotification(
+            recipient_user_id=target_user.user_id,
+            requesting_user_id=current_user.user_id,
+            request_type=NOTIFICATION_TYPE_MESSAGE,
+            title=title,
+            message=message,
+            details="",
+            status=NOTIFICATION_STATUS_NEW,
+            recipient_scope=NOTIFICATION_SCOPE_USER,
+            created_at=now,
+        )
+        db.add(n)
+        db.commit()
+        logging.info(
+            "TIS message: sent by user_id=%s to user_id=%s title=%s",
+            current_user.user_id,
+            target_user.user_id,
+            title,
+        )
+
+    return RedirectResponse(
+        url="/notifications?notice=Message%20sent%20successfully.",
+        status_code=302,
     )
 
 
@@ -4682,12 +4835,32 @@ def notification_detail(
     if redirect_response:
         return redirect_response
 
+    # Auto-mark as seen when opened
+    if notification.status == NOTIFICATION_STATUS_NEW:
+        notification.status = NOTIFICATION_STATUS_SEEN
+        notification.seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        db.commit()
+
+    resolved_by_user = None
+    if notification.resolved_by_user_id:
+        resolved_by_user = db.query(models.User).filter(
+            models.User.user_id == notification.resolved_by_user_id
+        ).first()
+
+    sender_user = None
+    if notification.requesting_user_id:
+        sender_user = db.query(models.User).filter(
+            models.User.user_id == notification.requesting_user_id
+        ).first()
+
     return templates.TemplateResponse(
         "notification_detail.html",
         {
             "request": request,
             "current_user": current_user,
             "notification": notification,
+            "resolved_by_user": resolved_by_user,
+            "sender_user": sender_user,
             **build_shell_context(
                 request,
                 db,
@@ -4695,40 +4868,6 @@ def notification_detail(
                 page_key="notifications",
             ),
         },
-    )
-
-
-@app.post("/notifications/{notification_id}/seen")
-def mark_notification_seen(
-    notification_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    current_user = auth.get_current_user(request, db)
-    if not current_user:
-        return RedirectResponse(url="/", status_code=302)
-
-    notification, redirect_response = _get_user_notification_or_redirect(
-        db,
-        current_user,
-        notification_id,
-    )
-    if redirect_response:
-        return redirect_response
-
-    if notification.status == NOTIFICATION_STATUS_NEW:
-        notification.status = NOTIFICATION_STATUS_SEEN
-        notification.seen_at = datetime.utcnow()
-        db.commit()
-        logging.info(
-            "TIS notification: marked seen id=%s user_id=%s",
-            notification.id,
-            current_user.user_id,
-        )
-
-    return RedirectResponse(
-        url=f"/notifications/{notification.id}?notice=Notification%20marked%20seen.",
-        status_code=302,
     )
 
 
@@ -4750,7 +4889,7 @@ def mark_notification_resolved(
     if redirect_response:
         return redirect_response
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     notification.status = NOTIFICATION_STATUS_RESOLVED
     if not notification.seen_at:
         notification.seen_at = now
@@ -4764,7 +4903,7 @@ def mark_notification_resolved(
     )
 
     return RedirectResponse(
-        url=f"/notifications/{notification.id}?notice=Notification%20marked%20resolved.",
+        url=f"/notifications/{notification.id}?notice=Message%20marked%20resolved.",
         status_code=302,
     )
 

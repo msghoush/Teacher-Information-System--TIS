@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% from "_app_icons.html" import icon %}
 
-{% block title %}Notification | TIS{% endblock %}
+{% block title %}{{ notification.title }} | TIS{% endblock %}
 
 {% block page_header_actions %}
-<a class="shell-action" href="/notifications">{{ icon("notifications", "shell-icon") }} Notification Center</a>
+<a class="shell-action" href="/notifications">{{ icon("notifications", "shell-icon") }} Message Center</a>
 {% endblock %}
 
 {% block page_styles %}
@@ -100,8 +100,22 @@
     border-radius: 8px;
     background: #fff;
     padding: 13px;
-    color: var(--app-muted);
     line-height: 1.6;
+}
+
+.notification-note-label {
+    margin: 0 0 8px;
+    color: var(--app-muted);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.notification-note-content {
+    color: var(--app-ink);
+    font-size: 14px;
+    line-height: 1.65;
 }
 
 .notification-actions {
@@ -150,46 +164,65 @@
 
         <div class="notification-fields">
             <div class="notification-field">
-                <span>Request Type</span>
+                <span>Type</span>
                 <strong>{{ notification.request_type }}</strong>
             </div>
             <div class="notification-field">
-                <span>Requesting User ID</span>
-                <strong>{{ notification.requesting_user_id or "Unknown" }}</strong>
+                <span>Sent By</span>
+                <strong>
+                    {% if sender_user %}
+                        {{ sender_user.first_name }} {{ sender_user.last_name }} ({{ sender_user.user_id }})
+                    {% elif notification.requesting_user_id %}
+                        User ID {{ notification.requesting_user_id }}
+                    {% else %}
+                        System
+                    {% endif %}
+                </strong>
             </div>
             <div class="notification-field">
-                <span>Created</span>
-                <strong>{{ notification.created_at.strftime("%Y-%m-%d %H:%M") if notification.created_at else "Unknown" }}</strong>
-            </div>
-            <div class="notification-field">
-                <span>Recipient User ID</span>
-                <strong>{{ notification.recipient_user_id }}</strong>
+                <span>Received</span>
+                <strong>{{ notification.created_at.strftime("%d %b %Y %H:%M") if notification.created_at else "Unknown" }}</strong>
             </div>
             <div class="notification-field">
                 <span>Seen</span>
-                <strong>{{ notification.seen_at.strftime("%Y-%m-%d %H:%M") if notification.seen_at else "Not yet" }}</strong>
+                <strong>{{ notification.seen_at.strftime("%d %b %Y %H:%M") if notification.seen_at else "Not yet" }}</strong>
             </div>
+            {% if notification.resolved_at %}
             <div class="notification-field">
                 <span>Resolved</span>
-                <strong>{{ notification.resolved_at.strftime("%Y-%m-%d %H:%M") if notification.resolved_at else "Not yet" }}</strong>
+                <strong>{{ notification.resolved_at.strftime("%d %b %Y %H:%M") }}</strong>
             </div>
+            <div class="notification-field">
+                <span>Resolved By</span>
+                <strong>
+                    {% if resolved_by_user %}
+                        {{ resolved_by_user.first_name }} {{ resolved_by_user.last_name }} ({{ resolved_by_user.user_id }})
+                    {% elif notification.resolved_by_user_id %}
+                        User ID {{ notification.resolved_by_user_id }}
+                    {% else %}
+                        &mdash;
+                    {% endif %}
+                </strong>
+            </div>
+            {% endif %}
         </div>
 
         <div class="notification-body">
             {% if notification.message %}
-            <div class="notification-note">{{ notification.message }}</div>
+            <div class="notification-note">
+                <p class="notification-note-label">Message</p>
+                <div class="notification-note-content">{{ notification.message | safe }}</div>
+            </div>
             {% endif %}
             {% if notification.details %}
-            <div class="notification-note">{{ notification.details }}</div>
+            <div class="notification-note">
+                <p class="notification-note-label">Details</p>
+                <div class="notification-note-content">{{ notification.details }}</div>
+            </div>
             {% endif %}
         </div>
 
         <div class="notification-actions">
-            {% if notification.status == "New" %}
-            <form method="post" action="/notifications/{{ notification.id }}/seen">
-                <button class="notification-action" type="submit">{{ icon("info", "icon") }} Mark Seen</button>
-            </form>
-            {% endif %}
             {% if notification.status != "Resolved" %}
             <form method="post" action="/notifications/{{ notification.id }}/resolved">
                 <button class="notification-action is-resolve" type="submit">{{ icon("save", "icon") }} Mark Resolved</button>

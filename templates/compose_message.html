@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Compose Message | TIS{% endblock %}
+
+{% block page_header_actions %}
+<a class="shell-action" href="/notifications">{{ icon("notifications", "shell-icon") }} Message Center</a>
+{% endblock %}
+
+{% block page_styles %}
+<!-- Quill rich text editor -->
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+<style>
+.compose-page {
+    max-width: 820px;
+    margin: 0 auto;
+    display: grid;
+    gap: 14px;
+}
+
+.compose-card {
+    border: 1px solid var(--app-line);
+    border-radius: 8px;
+    background: #fff;
+    padding: 20px;
+    display: grid;
+    gap: 14px;
+}
+
+.compose-field {
+    display: grid;
+    gap: 6px;
+}
+
+.compose-field label {
+    color: var(--app-muted);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.compose-field input,
+.compose-field select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--app-line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--app-ink);
+    font-size: 14px;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+
+.compose-field input:focus,
+.compose-field select:focus {
+    outline: none;
+    border-color: var(--app-brand);
+    box-shadow: 0 0 0 3px rgba(var(--app-brand-rgb, 59,130,246), 0.12);
+}
+
+.compose-editor-wrap {
+    border: 1px solid var(--app-line);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Override Quill toolbar to match app style */
+.ql-toolbar.ql-snow {
+    border: none;
+    border-bottom: 1px solid var(--app-line);
+    background: var(--app-surface-strong);
+    padding: 8px 10px;
+    flex-shrink: 0;
+}
+
+.ql-container.ql-snow {
+    border: none;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.ql-editor {
+    min-height: 200px;
+    color: var(--app-ink);
+    line-height: 1.65;
+    padding: 14px;
+}
+
+.ql-editor.ql-blank::before {
+    color: var(--app-muted);
+    font-style: normal;
+}
+
+.compose-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.compose-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 8px;
+    background: var(--app-brand);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.compose-btn:hover {
+    opacity: 0.9;
+}
+
+.compose-btn-cancel {
+    background: transparent;
+    border: 1px solid var(--app-line);
+    color: var(--app-ink);
+    text-decoration: none;
+}
+
+.recipient-hint {
+    color: var(--app-muted);
+    font-size: 12px;
+    margin: 4px 0 0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="compose-page">
+    <form class="compose-card" method="post" action="/notifications/compose" id="compose-form">
+        <div class="compose-field">
+            <label for="compose-title">Message Title</label>
+            <input
+                id="compose-title"
+                name="title"
+                type="text"
+                maxlength="160"
+                placeholder="Enter a clear, concise title…"
+                required
+                autocomplete="off"
+            >
+        </div>
+
+        <div class="compose-field">
+            <label for="compose-recipient">Send To</label>
+            <select id="compose-recipient" name="recipient" required>
+                <option value="" disabled selected>Select recipient…</option>
+                <option value="ALL">All Active Users (Broadcast)</option>
+                <optgroup label="Specific User">
+                    {% for u in all_users %}
+                    <option value="{{ u.user_id }}">
+                        {{ u.first_name }} {{ u.last_name }} — ID {{ u.user_id }}{% if u.role %} ({{ u.role }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </optgroup>
+            </select>
+            <span class="recipient-hint">Choosing "All Active Users" will send a copy to every active account.</span>
+        </div>
+
+        <div class="compose-field">
+            <label>Message</label>
+            <div class="compose-editor-wrap">
+                <div id="quill-editor"></div>
+            </div>
+            <!-- hidden field that stores the rich-text HTML -->
+            <input type="hidden" name="message" id="compose-message-hidden">
+        </div>
+
+        <div class="compose-actions">
+            <a class="compose-btn compose-btn-cancel" href="/notifications">Cancel</a>
+            <button class="compose-btn" type="submit">{{ icon("save", "icon") }} Send Message</button>
+        </div>
+    </form>
+</section>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<script>
+(function () {
+    const quill = new Quill('#quill-editor', {
+        theme: 'snow',
+        placeholder: 'Write your message here…',
+        modules: {
+            toolbar: [
+                [{ 'header': [1, 2, 3, false] }],
+                ['bold', 'italic', 'underline', 'strike'],
+                [{ 'color': [] }, { 'background': [] }],
+                [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                [{ 'indent': '-1' }, { 'indent': '+1' }],
+                ['link'],
+                ['clean'],
+            ]
+        }
+    });
+
+    document.getElementById('compose-form').addEventListener('submit', function (e) {
+        const html = quill.getSemanticHTML();
+        if (!html || quill.getText().trim() === '') {
+            e.preventDefault();
+            quill.root.style.border = '1px solid #e53e3e';
+            quill.root.focus();
+            return;
+        }
+        document.getElementById('compose-message-hidden').value = html;
+    });
+})();
+</script>
+{% endblock %}
