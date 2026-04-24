@@ -4309,6 +4309,10 @@ _DEVELOPER_EMAIL = os.environ.get("TIS_ADMIN_EMAIL", "mno@as.edu.sa")
 
 
 def _send_forgot_password_notification(user_id: str, user=None):
+    """
+    Blocking SMTP send — must be called via run_in_executor to avoid
+    blocking the async event loop.
+    """
     smtp_host = os.environ.get("SMTP_HOST", "")
     smtp_port_raw = os.environ.get("SMTP_PORT", "587")
     smtp_user = os.environ.get("SMTP_USER", "")
@@ -4346,6 +4350,11 @@ def _send_forgot_password_notification(user_id: str, user=None):
             server.starttls()
             server.login(smtp_user, smtp_pass)
             server.sendmail(smtp_from, [_DEVELOPER_EMAIL], msg.as_string())
+        logging.info(
+            "TIS forgot-password: email sent successfully to %s for user_id=%s",
+            _DEVELOPER_EMAIL,
+            user_id,
+        )
     except Exception as exc:
         logging.error("TIS forgot-password: failed to send email — %s", exc)
 
@@ -4461,6 +4470,9 @@ async def forgot_password(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    import asyncio
+    import functools
+
     try:
         payload = await request.json()
     except Exception:
@@ -4480,9 +4492,28 @@ async def forgot_password(
         models.User.user_id == user_id
     ).first()
 
-    _send_forgot_password_notification(user_id, user)
+    # Run the blocking SMTP call in a thread pool so the event loop is never blocked.
+    # Cap the wait at 15 s — if SMTP hangs beyond that, we still return immediately.
+    try:
+        loop = asyncio.get_event_loop()
+        await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                functools.partial(_send_forgot_password_notification, user_id, user),
+            ),
+            timeout=15.0,
+        )
+    except asyncio.TimeoutError:
+        logging.error(
+            "TIS forgot-password: email send timed out for user_id=%s", user_id
+        )
+    except Exception as exc:
+        logging.error(
+            "TIS forgot-password: unexpected error during email dispatch — %s", exc
+        )
 
-    # Always return the same success message to avoid revealing whether the ID exists
+    # Always return the same success message to avoid revealing whether the ID exists,
+    # and so that email failures never surface as a stuck or error state to the user.
     return JSONResponse(
         content={
             "ok": True,

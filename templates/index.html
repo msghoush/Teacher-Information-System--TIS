@@ -431,12 +431,18 @@
                 notice.className = 'modal-notice';
                 notice.textContent = '';
 
+                // Abort the request automatically after 20 s to prevent infinite loading
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 20000);
+
                 try {
                     const response = await fetch('/forgot-password', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ user_id: userId }),
+                        signal: controller.signal,
                     });
+                    clearTimeout(timeoutId);
                     const data = await response.json();
                     if (data.ok) {
                         notice.className = 'modal-notice is-success';
@@ -445,12 +451,18 @@
                     } else {
                         notice.className = 'modal-notice is-error';
                         notice.textContent = data.message || 'Something went wrong. Please try again.';
-                        submitBtn.disabled = false;
-                        submitBtn.textContent = 'Send Request';
                     }
                 } catch (err) {
-                    notice.className = 'modal-notice is-error';
-                    notice.textContent = 'Network error. Please try again.';
+                    clearTimeout(timeoutId);
+                    if (err.name === 'AbortError') {
+                        notice.className = 'modal-notice is-error';
+                        notice.textContent = 'The request took too long. Please try again.';
+                    } else {
+                        notice.className = 'modal-notice is-error';
+                        notice.textContent = 'Network error. Please check your connection and try again.';
+                    }
+                } finally {
+                    // Always restore the button regardless of outcome
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Send Request';
                 }
