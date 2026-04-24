@@ -12,6 +12,7 @@ import math
 import os
 import re
 import smtplib
+import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import time
@@ -4305,32 +4306,72 @@ def favicon():
 # LOGIN
 # ---------------------------------------
 
-_DEVELOPER_EMAIL = os.environ.get("TIS_ADMIN_EMAIL", "mno@as.edu.sa")
+SMTP_ENV_KEYS = (
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_USER",
+    "SMTP_PASS",
+    "SMTP_FROM",
+    "TIS_ADMIN_EMAIL",
+)
+SMTP_TIMEOUT_SECONDS = 10
+EMAIL_DISPATCH_TIMEOUT_SECONDS = 15.0
 
 
-def _send_forgot_password_notification(user_id: str, user=None):
+def _get_required_env_value(name: str) -> str:
+    return str(os.environ.get(name) or "").strip()
+
+
+def _get_smtp_config() -> dict:
+    config = {name: _get_required_env_value(name) for name in SMTP_ENV_KEYS}
+    missing = [name for name, value in config.items() if not value]
+    if missing:
+        raise ValueError(
+            "missing required environment variable(s): " + ", ".join(missing)
+        )
+
+    try:
+        smtp_port = int(config["SMTP_PORT"])
+    except ValueError as exc:
+        raise ValueError("SMTP_PORT must be a valid integer") from exc
+
+    if not 1 <= smtp_port <= 65535:
+        raise ValueError("SMTP_PORT must be between 1 and 65535")
+
+    return {
+        "host": config["SMTP_HOST"],
+        "port": smtp_port,
+        "user": config["SMTP_USER"],
+        "password": config["SMTP_PASS"],
+        "from_addr": config["SMTP_FROM"],
+        "admin_email": config["TIS_ADMIN_EMAIL"],
+    }
+
+
+def _format_forgot_password_user_display(user_id: str, user=None) -> str:
+    if not user:
+        return f"ID: {user_id} (not found in system)"
+
+    full_name = f"{getattr(user, 'first_name', '') or ''} {getattr(user, 'last_name', '') or ''}".strip()
+    return f"{full_name} (ID: {user_id})" if full_name else f"ID: {user_id}"
+
+
+def _send_forgot_password_notification(user_id: str, user_display: str):
     """
     Blocking SMTP send — must be called via run_in_executor to avoid
     blocking the async event loop.
     """
-    smtp_host = os.environ.get("SMTP_HOST", "")
-    smtp_port_raw = os.environ.get("SMTP_PORT", "587")
-    smtp_user = os.environ.get("SMTP_USER", "")
-    smtp_pass = os.environ.get("SMTP_PASS", "")
-    smtp_from = os.environ.get("SMTP_FROM", smtp_user)
+    logging.info("TIS forgot-password: email sending started for user_id=%s", user_id)
 
-    if not smtp_host or not smtp_user or not smtp_pass:
-        logging.warning(
-            "TIS forgot-password: SMTP not configured — email not sent for user_id=%s",
+    try:
+        smtp_config = _get_smtp_config()
+    except ValueError as exc:
+        logging.error(
+            "TIS forgot-password: email sending failed for user_id=%s; %s",
             user_id,
+            exc,
         )
-        return
-
-    if user:
-        full_name = f"{getattr(user, 'first_name', '') or ''} {getattr(user, 'last_name', '') or ''}".strip()
-        user_display = f"{full_name} (ID: {user_id})" if full_name else f"ID: {user_id}"
-    else:
-        user_display = f"ID: {user_id} (not found in system)"
+        return False
 
     body = (
         "A password reset request was submitted on the Teacher Information System.\n\n"
@@ -4339,24 +4380,65 @@ def _send_forgot_password_notification(user_id: str, user=None):
     )
 
     msg = MIMEMultipart()
-    msg["From"] = smtp_from
-    msg["To"] = _DEVELOPER_EMAIL
+    msg["From"] = smtp_config["from_addr"]
+    msg["To"] = smtp_config["admin_email"]
     msg["Subject"] = "TIS \u2014 Password Reset Request"
     msg.attach(MIMEText(body, "plain"))
 
     try:
-        smtp_port = int(smtp_port_raw)
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(smtp_from, [_DEVELOPER_EMAIL], msg.as_string())
+        logging.info(
+            "TIS forgot-password: connecting to SMTP host=%s port=%s from=%s to=%s user=%s",
+            smtp_config["host"],
+            smtp_config["port"],
+            smtp_config["from_addr"],
+            smtp_config["admin_email"],
+            smtp_config["user"],
+        )
+        tls_context = ssl.create_default_context()
+        with smtplib.SMTP(
+            smtp_config["host"],
+            smtp_config["port"],
+            timeout=SMTP_TIMEOUT_SECONDS,
+        ) as server:
+            server.ehlo()
+            server.starttls(context=tls_context)
+            server.ehlo()
+            server.login(smtp_config["user"], smtp_config["password"])
+            server.sendmail(
+                smtp_config["from_addr"],
+                [smtp_config["admin_email"]],
+                msg.as_string(),
+            )
         logging.info(
             "TIS forgot-password: email sent successfully to %s for user_id=%s",
-            _DEVELOPER_EMAIL,
+            smtp_config["admin_email"],
             user_id,
         )
+        return True
+    except smtplib.SMTPException as exc:
+        logging.error(
+            "TIS forgot-password: SMTP error for user_id=%s: %s",
+            user_id,
+            exc,
+            exc_info=True,
+        )
+    except OSError as exc:
+        logging.error(
+            "TIS forgot-password: SMTP connection error for user_id=%s: %s",
+            user_id,
+            exc,
+            exc_info=True,
+        )
     except Exception as exc:
-        logging.error("TIS forgot-password: failed to send email — %s", exc)
+        logging.error(
+            "TIS forgot-password: unexpected email sending failure for user_id=%s: %s",
+            user_id,
+            exc,
+            exc_info=True,
+        )
+
+    logging.error("TIS forgot-password: email sending failed for user_id=%s", user_id)
+    return False
 
 
 @app.post("/login")
@@ -4484,14 +4566,14 @@ async def forgot_password(
     except Exception:
         payload = None
 
-    if payload is None:
+    if payload is None or not isinstance(payload, dict):
         try:
             form_data = await request.form()
             payload = dict(form_data)
         except Exception:
             payload = None
 
-    if payload is None:
+    if payload is None or not isinstance(payload, dict):
         logging.error("TIS forgot-password: request payload could not be parsed")
         return JSONResponse(
             status_code=400,
@@ -4508,28 +4590,47 @@ async def forgot_password(
 
     logging.info("TIS forgot-password: processing request for user_id=%s", user_id)
 
-    user = db.query(models.User).filter(
-        models.User.user_id == user_id
-    ).first()
+    try:
+        user = db.query(models.User).filter(
+            models.User.user_id == user_id
+        ).first()
+    except Exception as exc:
+        logging.error(
+            "TIS forgot-password: user lookup failed for user_id=%s: %s",
+            user_id,
+            exc,
+            exc_info=True,
+        )
+        user = None
+
+    user_display = _format_forgot_password_user_display(user_id, user)
 
     # Run the blocking SMTP call in a thread pool so the event loop is never blocked.
     # Cap the wait at 15 s — if SMTP hangs beyond that, we still return immediately.
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await asyncio.wait_for(
             loop.run_in_executor(
                 None,
-                functools.partial(_send_forgot_password_notification, user_id, user),
+                functools.partial(
+                    _send_forgot_password_notification,
+                    user_id,
+                    user_display,
+                ),
             ),
-            timeout=15.0,
+            timeout=EMAIL_DISPATCH_TIMEOUT_SECONDS,
         )
     except asyncio.TimeoutError:
         logging.error(
-            "TIS forgot-password: email send timed out for user_id=%s", user_id
+            "TIS forgot-password: email sending failed; timed out for user_id=%s",
+            user_id,
         )
     except Exception as exc:
         logging.error(
-            "TIS forgot-password: unexpected error during email dispatch — %s", exc
+            "TIS forgot-password: unexpected error during email dispatch for user_id=%s: %s",
+            user_id,
+            exc,
+            exc_info=True,
         )
 
     # Always return the same success message to avoid revealing whether the ID exists,

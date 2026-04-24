@@ -431,40 +431,55 @@
                 notice.className = 'modal-notice';
                 notice.textContent = '';
 
-                // Abort the request automatically after 20 s to prevent infinite loading
+                // Stop waiting after 20 s so the button never remains stuck.
+                const requestTimeoutMs = 20000;
                 let controller = null;
                 let timeoutId = null;
                 if (typeof AbortController !== 'undefined') {
                     controller = new AbortController();
-                    timeoutId = setTimeout(() => controller.abort(), 20000);
                 }
 
                 try {
-                    const response = await fetch('/forgot-password', {
+                    const timeoutPromise = new Promise((_, reject) => {
+                        timeoutId = setTimeout(() => {
+                            if (controller) controller.abort();
+                            const timeoutError = new Error('Forgot Password request timed out.');
+                            timeoutError.name = 'TimeoutError';
+                            reject(timeoutError);
+                        }, requestTimeoutMs);
+                    });
+
+                    const requestPromise = fetch('/forgot-password', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ user_id: userId }),
                         signal: controller ? controller.signal : undefined,
+                    }).then(async (response) => {
+                        let data = null;
+                        try {
+                            data = await response.json();
+                        } catch (jsonErr) {
+                            data = { ok: false, message: 'Server returned an invalid response.' };
+                        }
+                        if (!response.ok && (!data || !data.message)) {
+                            return { ok: false, message: 'Server error. Please try again.' };
+                        }
+                        return data;
                     });
-                    if (timeoutId) clearTimeout(timeoutId);
-                    let data = null;
-                    try {
-                        data = await response.json();
-                    } catch (jsonErr) {
-                        data = { ok: false, message: 'Server returned an invalid response.' };
-                    }
-                    if (data.ok) {
+
+                    const data = await Promise.race([requestPromise, timeoutPromise]);
+                    if (data && data.ok) {
                         notice.className = 'modal-notice is-success';
                         notice.textContent = data.message;
                         document.getElementById('forgotForm').style.display = 'none';
                     } else {
                         notice.className = 'modal-notice is-error';
-                        notice.textContent = data.message || 'Something went wrong. Please try again.';
+                        notice.textContent = (data && data.message) || 'Something went wrong. Please try again.';
                     }
                 } catch (err) {
                     if (timeoutId) clearTimeout(timeoutId);
                     console.error('Forgot Password request failed:', err);
-                    if (err && err.name === 'AbortError') {
+                    if (err && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
                         notice.className = 'modal-notice is-error';
                         notice.textContent = 'The request took too long. Please try again.';
                     } else {
@@ -472,7 +487,11 @@
                         notice.textContent = 'Network error. Please check your connection and try again.';
                     }
                 } finally {
-                    // Always restore the button regardless of outcome
+                    if (timeoutId) clearTimeout(timeoutId);
+                    if (!notice.textContent) {
+                        notice.className = 'modal-notice is-error';
+                        notice.textContent = 'Something went wrong. Please try again.';
+                    }
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Send Request';
                 }
