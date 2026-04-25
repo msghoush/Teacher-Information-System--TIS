@@ -1,6 +1,7 @@
 import os
 from urllib.parse import quote_plus
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import auth
@@ -194,10 +195,16 @@ def build_shell_context(
                 request.url_for("static", path=normalized_profile_image_path)
             )
     resolved_notice = notice or str(request.query_params.get("notice", "")).strip()
-    new_notification_count = db.query(models.SystemNotification).filter(
-        models.SystemNotification.recipient_user_id == current_user.user_id,
-        models.SystemNotification.status == "New",
-    ).count()
+    try:
+        # Use an explicit COUNT(id) query to avoid selecting all columns.
+        new_notification_count = db.query(
+            func.count(models.SystemNotification.id)
+        ).filter(
+            models.SystemNotification.recipient_user_id == current_user.user_id,
+            models.SystemNotification.status == "New",
+        ).scalar() or 0
+    except Exception:
+        new_notification_count = 0
 
     return {
         "shell": {

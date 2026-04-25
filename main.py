@@ -6735,6 +6735,33 @@ def _ensure_teacher_subject_allocation_columns():
         )
 
 
+def _ensure_system_notifications_table_columns():
+    inspector = inspect(engine)
+    if "system_notifications" not in inspector.get_table_names():
+        return
+
+    existing_columns = {
+        col["name"] for col in inspector.get_columns("system_notifications")
+    }
+
+    with engine.begin() as connection:
+        if "recipient_scope" not in existing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE system_notifications "
+                    "ADD COLUMN recipient_scope VARCHAR(10) NOT NULL DEFAULT 'User'"
+                )
+            )
+
+        connection.execute(
+            text(
+                "UPDATE system_notifications "
+                "SET recipient_scope = 'User' "
+                "WHERE recipient_scope IS NULL OR recipient_scope = ''"
+            )
+        )
+
+
 def _is_scope_teacher_unique_definition(columns) -> bool:
     return tuple(columns or []) == ("branch_id", "academic_year_id", "teacher_id")
 
@@ -7482,6 +7509,7 @@ def setup_initial_data():
     _ensure_subject_scope_schema()
     _ensure_subject_color_schema()
     _ensure_teacher_subject_allocation_columns()
+    _ensure_system_notifications_table_columns()
     _seed_teacher_subject_allocations()
     _ensure_profile_photo_upload_dir()
     db = SessionLocal()
