@@ -6,7 +6,9 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text, func
 from datetime import datetime, timezone
+import html
 import io
+import json
 import logging
 import math
 import os
@@ -4317,6 +4319,161 @@ def _notification_logger():
     return logging.getLogger("uvicorn.error")
 
 
+def _is_notification_diagnostic_mode_enabled() -> bool:
+    raw_value = str(os.getenv("TIS_NOTIFICATION_DIAGNOSTIC", "") or "").strip().lower()
+    if raw_value in {"1", "true", "yes", "on"}:
+        return True
+    if raw_value in {"0", "false", "no", "off"}:
+        return False
+
+    # Default to enabled for local/development diagnostics.
+    env_value = str(
+        os.getenv("TIS_ENV")
+        or os.getenv("ENV")
+        or os.getenv("FASTAPI_ENV")
+        or ""
+    ).strip().lower()
+    return env_value in {"", "dev", "development", "local", "debug", "test", "testing"}
+
+
+def _collect_system_notification_schema_snapshot() -> dict:
+    snapshot = {
+        "table_name": "system_notifications",
+        "table_exists": False,
+        "expected_columns": [
+            col.name for col in models.SystemNotification.__table__.columns
+        ],
+        "actual_columns": [],
+        "missing_columns": [],
+        "expected_indexes": sorted(
+            index.name for index in models.SystemNotification.__table__.indexes
+        ),
+        "actual_indexes": [],
+        "missing_indexes": [],
+    }
+
+    try:
+        inspector = inspect(engine)
+        table_names = set(inspector.get_table_names())
+        if "system_notifications" not in table_names:
+            snapshot["missing_columns"] = list(snapshot["expected_columns"])
+            snapshot["missing_indexes"] = list(snapshot["expected_indexes"])
+            return snapshot
+
+        snapshot["table_exists"] = True
+        snapshot["actual_columns"] = [
+            col["name"] for col in inspector.get_columns("system_notifications")
+        ]
+        snapshot["actual_indexes"] = sorted(
+            idx.get("name") for idx in inspector.get_indexes("system_notifications")
+        )
+        snapshot["missing_columns"] = [
+            col for col in snapshot["expected_columns"] if col not in snapshot["actual_columns"]
+        ]
+        snapshot["missing_indexes"] = [
+            idx for idx in snapshot["expected_indexes"] if idx not in snapshot["actual_indexes"]
+        ]
+    except Exception as exc:
+        snapshot["schema_introspection_error"] = f"{exc.__class__.__name__}: {exc}"
+
+    return snapshot
+
+
+def _ensure_system_notifications_indexes() -> None:
+    inspector = inspect(engine)
+    if "system_notifications" not in inspector.get_table_names():
+        return
+
+    existing_index_names = {
+        idx.get("name")
+        for idx in inspector.get_indexes("system_notifications")
+        if idx.get("name")
+    }
+    required_indexes = [
+        ("ix_system_notifications_recipient_status", "recipient_user_id, status"),
+        ("ix_system_notifications_created_at", "created_at"),
+        ("ix_system_notifications_recipient_user_id", "recipient_user_id"),
+        ("ix_system_notifications_requesting_user_id", "requesting_user_id"),
+    ]
+
+    for index_name, index_columns_sql in required_indexes:
+        if index_name in existing_index_names:
+            continue
+        try:
+            with engine.begin() as connection:
+                connection.execute(
+                    text(
+                        f"CREATE INDEX {index_name} "
+                        f"ON system_notifications ({index_columns_sql})"
+                    )
+                )
+            existing_index_names.add(index_name)
+        except Exception as exc:
+            _notification_logger().warning(
+                "TIS notification schema: failed to create index=%s reason=%s",
+                index_name,
+                exc,
+                exc_info=True,
+            )
+
+
+def _get_notification_total_count_safe(db: Session, user_id: Optional[str]) -> Optional[int]:
+    if not user_id:
+        return None
+    try:
+        return db.query(func.count(models.SystemNotification.id)).filter(
+            models.SystemNotification.recipient_user_id == str(user_id)
+        ).scalar()
+    except Exception:
+        return None
+
+
+def _render_notification_error_fallback(
+    request: Request,
+    *,
+    route_name: str,
+    error_message: str,
+    diagnostic_payload: Optional[dict] = None,
+):
+    diagnostic_enabled = _is_notification_diagnostic_mode_enabled()
+    heading = "Notification Center Error"
+    safe_error = html.escape(str(error_message or "Unknown error"))
+    safe_path = html.escape(str(getattr(request, "url", "") or ""))
+
+    body_html = (
+        "<p style='margin:0 0 12px 0;'>The notification page could not be rendered.</p>"
+        "<p style='margin:0 0 16px 0;'>"
+        "Please check server logs for full diagnostics and refresh after fixing the issue."
+        "</p>"
+    )
+    if diagnostic_enabled:
+        payload_block = ""
+        if diagnostic_payload:
+            payload_block = (
+                "<h2 style='font-size:16px;margin:20px 0 8px 0;'>Captured diagnostics</h2>"
+                f"<pre style='background:#f4f4f4;border:1px solid #ddd;padding:12px;overflow:auto;'>{html.escape(json.dumps(diagnostic_payload, indent=2, default=str))}</pre>"
+            )
+        body_html += (
+            "<h2 style='font-size:16px;margin:0 0 8px 0;'>Exception message</h2>"
+            f"<pre style='background:#fff7f7;border:1px solid #f5c2c7;padding:12px;overflow:auto;'>{safe_error}</pre>"
+            f"<p style='margin:12px 0 0 0;color:#555;'>Route: {safe_path}</p>"
+            f"<p style='margin:4px 0 0 0;color:#555;'>Handler: {html.escape(route_name)}</p>"
+            f"{payload_block}"
+        )
+
+    html_content = (
+        "<!doctype html>"
+        "<html><head><meta charset='utf-8'><title>Notification Error</title></head>"
+        "<body style='font-family:Segoe UI,Arial,sans-serif;background:#fafafa;padding:24px;'>"
+        "<main style='max-width:860px;margin:0 auto;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:24px;'>"
+        f"<h1 style='margin-top:0;'>{heading}</h1>"
+        f"{body_html}"
+        "<p style='margin-top:20px;'><a href='/notifications'>Back to Notification Center</a></p>"
+        "</main></body></html>"
+    )
+    return HTMLResponse(content=html_content, status_code=500)
+
+
 def _format_notification_timestamp(value, fallback: str = "Unknown") -> str:
     if not value:
         return fallback
@@ -4647,59 +4804,63 @@ def notification_center(
     status: str = Query(""),
     db: Session = Depends(get_db),
 ):
-    _ensure_system_notifications_table_columns()
-    current_user = auth.get_current_user(request, db)
-    if not current_user:
-        _notification_logger().info(
-            "TIS notification center opened without authenticated user path=%s",
-            request.url.path,
+    current_user = None
+    messages = []
+    counts = {}
+    selected_status = ""
+    template_context = None
+    try:
+        _ensure_system_notifications_table_columns()
+        current_user = auth.get_current_user(request, db)
+        if not current_user:
+            _notification_logger().info(
+                "TIS notification center opened without authenticated user path=%s",
+                request.url.path,
+            )
+            return RedirectResponse(url="/", status_code=302)
+
+        allowed_statuses = {
+            NOTIFICATION_STATUS_NEW,
+            NOTIFICATION_STATUS_SEEN,
+            NOTIFICATION_STATUS_RESOLVED,
+        }
+        selected_status = str(status or "").strip()
+        if selected_status not in allowed_statuses:
+            selected_status = ""
+
+        query = db.query(models.SystemNotification).filter(
+            models.SystemNotification.recipient_user_id == current_user.user_id
         )
-        return RedirectResponse(url="/", status_code=302)
+        if selected_status:
+            query = query.filter(models.SystemNotification.status == selected_status)
 
-    allowed_statuses = {
-        NOTIFICATION_STATUS_NEW,
-        NOTIFICATION_STATUS_SEEN,
-        NOTIFICATION_STATUS_RESOLVED,
-    }
-    selected_status = str(status or "").strip()
-    if selected_status not in allowed_statuses:
-        selected_status = ""
+        messages = query.order_by(
+            models.SystemNotification.created_at.desc(),
+            models.SystemNotification.id.desc(),
+        ).limit(MESSAGE_PAGE_SIZE).all()
+        counts = _get_notification_counts(db, current_user.user_id)
+        _notification_logger().info(
+            (
+                "TIS notification center opened user_id=%s selected_status=%s "
+                "message_count=%s counts=%s recipient_filter=%s"
+            ),
+            current_user.user_id,
+            selected_status or "All",
+            len(messages),
+            counts,
+            current_user.user_id,
+        )
 
-    query = db.query(models.SystemNotification).filter(
-        models.SystemNotification.recipient_user_id == current_user.user_id
-    )
-    if selected_status:
-        query = query.filter(models.SystemNotification.status == selected_status)
+        can_compose = auth.is_developer(current_user) or (
+            auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_ADMINISTRATOR
+        )
+        all_users = []
+        if can_compose:
+            all_users = db.query(models.User).filter(
+                models.User.is_active == True
+            ).order_by(models.User.first_name.asc(), models.User.last_name.asc()).all()
 
-    messages = query.order_by(
-        models.SystemNotification.created_at.desc(),
-        models.SystemNotification.id.desc(),
-    ).limit(MESSAGE_PAGE_SIZE).all()
-    counts = _get_notification_counts(db, current_user.user_id)
-    _notification_logger().info(
-        (
-            "TIS notification center opened user_id=%s selected_status=%s "
-            "message_count=%s counts=%s recipient_filter=%s"
-        ),
-        current_user.user_id,
-        selected_status or "All",
-        len(messages),
-        counts,
-        current_user.user_id,
-    )
-
-    can_compose = auth.is_developer(current_user) or (
-        auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_ADMINISTRATOR
-    )
-    all_users = []
-    if can_compose:
-        all_users = db.query(models.User).filter(
-            models.User.is_active == True
-        ).order_by(models.User.first_name.asc(), models.User.last_name.asc()).all()
-
-    return templates.TemplateResponse(
-        "notifications.html",
-        {
+        template_context = {
             "request": request,
             "current_user": current_user,
             "messages": messages,
@@ -4719,8 +4880,51 @@ def notification_center(
                 current_user,
                 page_key="notifications",
             ),
-        },
-    )
+        }
+        return templates.TemplateResponse(
+            "notifications.html",
+            template_context,
+        )
+    except Exception as exc:
+        user_id = getattr(current_user, "user_id", None)
+        safe_total_count = _get_notification_total_count_safe(db, user_id)
+        schema_snapshot = _collect_system_notification_schema_snapshot()
+        context_keys = sorted(template_context.keys()) if isinstance(template_context, dict) else []
+        diagnostic_payload = {
+            "route": request.url.path,
+            "handler": "notification_center",
+            "user_id": user_id,
+            "selected_status": selected_status or "All",
+            "messages_count": len(messages),
+            "notification_total_count": safe_total_count,
+            "template_context_keys": context_keys,
+            "schema": schema_snapshot,
+        }
+        _notification_logger().error(
+            (
+                "TIS notification diagnostic failure route=%s handler=%s user_id=%s "
+                "messages_count=%s notification_total_count=%s schema_table=%s "
+                "schema_actual_columns=%s schema_missing_columns=%s template_context_keys=%s "
+                "exception=%s"
+            ),
+            request.url.path,
+            "notification_center",
+            user_id,
+            len(messages),
+            safe_total_count,
+            schema_snapshot.get("table_name"),
+            schema_snapshot.get("actual_columns"),
+            schema_snapshot.get("missing_columns"),
+            context_keys,
+            f"{exc.__class__.__name__}: {exc}",
+            exc_info=True,
+        )
+        return _render_notification_error_fallback(
+            request,
+            route_name="notification_center",
+            error_message=f"{exc.__class__.__name__}: {exc}",
+            diagnostic_payload=diagnostic_payload,
+        )
 
 
 @app.get("/notifications/compose")
@@ -4864,61 +5068,64 @@ def notification_detail(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    current_user = auth.get_current_user(request, db)
-    if not current_user:
-        _notification_logger().info(
-            "TIS notification detail opened without authenticated user notification_id=%s",
+    current_user = None
+    notification = None
+    template_context = None
+    try:
+        _ensure_system_notifications_table_columns()
+        current_user = auth.get_current_user(request, db)
+        if not current_user:
+            _notification_logger().info(
+                "TIS notification detail opened without authenticated user notification_id=%s",
+                notification_id,
+            )
+            return RedirectResponse(url="/", status_code=302)
+
+        notification, redirect_response = _get_user_notification_or_redirect(
+            db,
+            current_user,
             notification_id,
         )
-        return RedirectResponse(url="/", status_code=302)
+        if redirect_response:
+            _notification_logger().info(
+                "TIS notification detail not found user_id=%s notification_id=%s",
+                current_user.user_id,
+                notification_id,
+            )
+            return redirect_response
 
-    notification, redirect_response = _get_user_notification_or_redirect(
-        db,
-        current_user,
-        notification_id,
-    )
-    if redirect_response:
-        _notification_logger().info(
-            "TIS notification detail not found user_id=%s notification_id=%s",
-            current_user.user_id,
-            notification_id,
-        )
-        return redirect_response
+        # Auto-mark as seen when opened
+        if notification.status == NOTIFICATION_STATUS_NEW:
+            notification.status = NOTIFICATION_STATUS_SEEN
+            notification.seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            db.commit()
+            _notification_logger().info(
+                "TIS notification detail auto-marked seen user_id=%s notification_id=%s",
+                current_user.user_id,
+                notification.id,
+            )
 
-    # Auto-mark as seen when opened
-    if notification.status == NOTIFICATION_STATUS_NEW:
-        notification.status = NOTIFICATION_STATUS_SEEN
-        notification.seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
-        db.commit()
+        resolved_by_user = None
+        if notification.resolved_by_user_id:
+            resolved_by_user = db.query(models.User).filter(
+                models.User.user_id == notification.resolved_by_user_id
+            ).first()
+
+        sender_user = None
+        if notification.requesting_user_id:
+            sender_user = db.query(models.User).filter(
+                models.User.user_id == notification.requesting_user_id
+            ).first()
+
         _notification_logger().info(
-            "TIS notification detail auto-marked seen user_id=%s notification_id=%s",
+            "TIS notification detail opened user_id=%s notification_id=%s status=%s request_type=%s",
             current_user.user_id,
             notification.id,
+            notification.status,
+            notification.request_type,
         )
 
-    resolved_by_user = None
-    if notification.resolved_by_user_id:
-        resolved_by_user = db.query(models.User).filter(
-            models.User.user_id == notification.resolved_by_user_id
-        ).first()
-
-    sender_user = None
-    if notification.requesting_user_id:
-        sender_user = db.query(models.User).filter(
-            models.User.user_id == notification.requesting_user_id
-        ).first()
-
-    _notification_logger().info(
-        "TIS notification detail opened user_id=%s notification_id=%s status=%s request_type=%s",
-        current_user.user_id,
-        notification.id,
-        notification.status,
-        notification.request_type,
-    )
-
-    return templates.TemplateResponse(
-        "notification_detail.html",
-        {
+        template_context = {
             "request": request,
             "current_user": current_user,
             "notification": notification,
@@ -4931,8 +5138,52 @@ def notification_detail(
                 current_user,
                 page_key="notifications",
             ),
-        },
-    )
+        }
+        return templates.TemplateResponse(
+            "notification_detail.html",
+            template_context,
+        )
+    except Exception as exc:
+        user_id = getattr(current_user, "user_id", None)
+        safe_total_count = _get_notification_total_count_safe(db, user_id)
+        schema_snapshot = _collect_system_notification_schema_snapshot()
+        context_keys = sorted(template_context.keys()) if isinstance(template_context, dict) else []
+        diagnostic_payload = {
+            "route": request.url.path,
+            "handler": "notification_detail",
+            "notification_id": notification_id,
+            "loaded_notification_id": getattr(notification, "id", None),
+            "user_id": user_id,
+            "notification_total_count": safe_total_count,
+            "template_context_keys": context_keys,
+            "schema": schema_snapshot,
+        }
+        _notification_logger().error(
+            (
+                "TIS notification diagnostic failure route=%s handler=%s notification_id=%s "
+                "loaded_notification_id=%s user_id=%s notification_total_count=%s "
+                "schema_table=%s schema_actual_columns=%s schema_missing_columns=%s "
+                "template_context_keys=%s exception=%s"
+            ),
+            request.url.path,
+            "notification_detail",
+            notification_id,
+            getattr(notification, "id", None),
+            user_id,
+            safe_total_count,
+            schema_snapshot.get("table_name"),
+            schema_snapshot.get("actual_columns"),
+            schema_snapshot.get("missing_columns"),
+            context_keys,
+            f"{exc.__class__.__name__}: {exc}",
+            exc_info=True,
+        )
+        return _render_notification_error_fallback(
+            request,
+            route_name="notification_detail",
+            error_message=f"{exc.__class__.__name__}: {exc}",
+            diagnostic_payload=diagnostic_payload,
+        )
 
 
 @app.post("/notifications/{notification_id}/resolved")
@@ -6932,6 +7183,27 @@ def _ensure_system_notifications_table_columns():
                 )
             )
 
+    _ensure_system_notifications_indexes()
+
+
+def _log_notification_schema_compatibility(source: str):
+    snapshot = _collect_system_notification_schema_snapshot()
+    _notification_logger().info(
+        (
+            "TIS notification schema compatibility source=%s table_exists=%s "
+            "expected_columns=%s actual_columns=%s missing_columns=%s "
+            "expected_indexes=%s actual_indexes=%s missing_indexes=%s"
+        ),
+        source,
+        snapshot.get("table_exists"),
+        snapshot.get("expected_columns"),
+        snapshot.get("actual_columns"),
+        snapshot.get("missing_columns"),
+        snapshot.get("expected_indexes"),
+        snapshot.get("actual_indexes"),
+        snapshot.get("missing_indexes"),
+    )
+
 
 def _is_scope_teacher_unique_definition(columns) -> bool:
     return tuple(columns or []) == ("branch_id", "academic_year_id", "teacher_id")
@@ -7681,6 +7953,7 @@ def setup_initial_data():
     _ensure_subject_color_schema()
     _ensure_teacher_subject_allocation_columns()
     _ensure_system_notifications_table_columns()
+    _log_notification_schema_compatibility("startup")
     _seed_teacher_subject_allocations()
     _ensure_profile_photo_upload_dir()
     db = SessionLocal()
