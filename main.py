@@ -65,6 +65,7 @@ from timetable_logic import (
     ALL_DAY_KEY,
     BLOCK_TYPE_OPTIONS,
     WORKING_DAY_OPTIONS,
+    build_time_slots,
     get_timetable_setting_row,
     get_timetable_settings_payload,
     normalize_non_teaching_block_values,
@@ -5715,6 +5716,11 @@ def save_timetable_settings(
         branch_id,
         academic_year_id,
     )
+    updated_time_slots = build_time_slots(
+        normalized_settings["periods_per_day"],
+        normalized_settings["period_duration_minutes"],
+        normalized_settings["school_start_time"],
+    )
     invalid_existing_blocks = []
     for block in existing_settings.get("blocks", []):
         if (
@@ -5724,9 +5730,21 @@ def save_timetable_settings(
             invalid_existing_blocks.append(
                 f"{block['label']} uses {block['day_label']}, which is no longer part of the working week."
             )
-        if int(block.get("end_period") or 0) > int(normalized_settings["periods_per_day"] or 0):
+        normalized_existing_block = normalize_non_teaching_block_values(
+            block_type=block.get("block_type"),
+            label=block.get("label"),
+            day_key=block.get("day_key"),
+            start_time=block.get("start_time"),
+            end_time=block.get("end_time"),
+            start_period=block.get("start_period"),
+            end_period=block.get("end_period"),
+            periods_per_day=normalized_settings["periods_per_day"],
+            working_day_keys=normalized_settings["working_day_keys"],
+            time_slots=updated_time_slots,
+        )
+        if normalized_existing_block.get("errors"):
             invalid_existing_blocks.append(
-                f"{block['label']} extends beyond the updated periods-per-day value."
+                f"{block['label']} no longer fits the updated timetable period structure."
             )
 
     if invalid_existing_blocks:
@@ -5769,8 +5787,8 @@ def create_timetable_block(
     block_type: str = Form(...),
     label: str = Form(...),
     day_key: str = Form(ALL_DAY_KEY),
-    start_period: str = Form(...),
-    end_period: str = Form(...),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
     return_to: str = Form("/system-configuration/timetable-settings"),
     db: Session = Depends(get_db),
 ):
@@ -5799,10 +5817,13 @@ def create_timetable_block(
         block_type=block_type,
         label=label,
         day_key=day_key,
-        start_period=start_period,
-        end_period=end_period,
+        start_time=start_time,
+        end_time=end_time,
+        start_period=None,
+        end_period=None,
         periods_per_day=timetable_settings["periods_per_day"],
         working_day_keys=timetable_settings["working_day_keys"],
+        time_slots=timetable_settings["time_slots"],
     )
     block_errors = list(normalized_block["errors"])
     block_errors.extend(
@@ -5823,6 +5844,8 @@ def create_timetable_block(
             block_type=normalized_block["block_type"],
             label=normalized_block["label"],
             day_key=normalized_block["day_key"],
+            start_time=normalized_block["start_time"],
+            end_time=normalized_block["end_time"],
             start_period=normalized_block["start_period"],
             end_period=normalized_block["end_period"],
         )
@@ -5842,8 +5865,8 @@ def update_timetable_block(
     block_type: str = Form(...),
     label: str = Form(...),
     day_key: str = Form(ALL_DAY_KEY),
-    start_period: str = Form(...),
-    end_period: str = Form(...),
+    start_time: str = Form(...),
+    end_time: str = Form(...),
     return_to: str = Form("/system-configuration/timetable-settings"),
     db: Session = Depends(get_db),
 ):
@@ -5882,10 +5905,13 @@ def update_timetable_block(
         block_type=block_type,
         label=label,
         day_key=day_key,
-        start_period=start_period,
-        end_period=end_period,
+        start_time=start_time,
+        end_time=end_time,
+        start_period=None,
+        end_period=None,
         periods_per_day=timetable_settings["periods_per_day"],
         working_day_keys=timetable_settings["working_day_keys"],
+        time_slots=timetable_settings["time_slots"],
     )
     block_errors = list(normalized_block["errors"])
     block_errors.extend(
@@ -5904,6 +5930,8 @@ def update_timetable_block(
     block_row.block_type = normalized_block["block_type"]
     block_row.label = normalized_block["label"]
     block_row.day_key = normalized_block["day_key"]
+    block_row.start_time = normalized_block["start_time"]
+    block_row.end_time = normalized_block["end_time"]
     block_row.start_period = normalized_block["start_period"]
     block_row.end_period = normalized_block["end_period"]
     db.commit()
@@ -7053,6 +7081,26 @@ def _ensure_teacher_subject_allocation_columns():
         )
 
 
+def _ensure_timetable_non_teaching_block_columns():
+    inspector = inspect(engine)
+    if "timetable_non_teaching_blocks" not in inspector.get_table_names():
+        return
+
+    existing_columns = {
+        col["name"] for col in inspector.get_columns("timetable_non_teaching_blocks")
+    }
+
+    with engine.begin() as connection:
+        if "start_time" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE timetable_non_teaching_blocks ADD COLUMN start_time VARCHAR(5)")
+            )
+        if "end_time" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE timetable_non_teaching_blocks ADD COLUMN end_time VARCHAR(5)")
+            )
+
+
 def _ensure_system_notifications_table_columns():
     inspector = inspect(engine)
     if "system_notifications" not in inspector.get_table_names():
@@ -7955,6 +8003,7 @@ def setup_initial_data():
     _ensure_subject_scope_schema()
     _ensure_subject_color_schema()
     _ensure_teacher_subject_allocation_columns()
+    _ensure_timetable_non_teaching_block_columns()
     _ensure_system_notifications_table_columns()
     _log_notification_schema_compatibility("startup")
     _seed_teacher_subject_allocations()

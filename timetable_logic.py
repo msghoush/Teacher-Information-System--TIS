@@ -243,7 +243,15 @@ def get_timetable_block_rows(db, timetable_setting_id: int | None):
     ).all()
 
 
-def serialize_timetable_block(block_row, working_day_keys) -> dict:
+def _time_slots_by_period(time_slots: list[dict]) -> dict[int, dict]:
+    return {
+        int(slot.get("period_index") or 0): slot
+        for slot in time_slots or []
+        if int(slot.get("period_index") or 0) > 0
+    }
+
+
+def serialize_timetable_block(block_row, working_day_keys, time_slots: list[dict]) -> dict:
     block_type = normalize_block_type(getattr(block_row, "block_type", ""))
     day_key = normalize_day_key(getattr(block_row, "day_key", ""))
     expanded_day_keys = (
@@ -251,6 +259,21 @@ def serialize_timetable_block(block_row, working_day_keys) -> dict:
         if day_key == ALL_DAY_KEY
         else [day_key]
     )
+    period_lookup = _time_slots_by_period(time_slots)
+    start_period = int(getattr(block_row, "start_period", 0) or 0)
+    end_period = int(getattr(block_row, "end_period", 0) or 0)
+    start_slot = period_lookup.get(start_period)
+    end_slot = period_lookup.get(end_period)
+    start_time = str(getattr(block_row, "start_time", "") or "").strip()
+    end_time = str(getattr(block_row, "end_time", "") or "").strip()
+    if not start_time and start_slot:
+        start_time = str(start_slot.get("start_time") or "").strip()
+    if not end_time and end_slot:
+        end_time = str(end_slot.get("end_time") or "").strip()
+    if not end_time and start_slot:
+        end_time = str(start_slot.get("end_time") or "").strip()
+    start_minutes = parse_time_value(start_time)
+    end_minutes = parse_time_value(end_time)
     theme = BLOCK_TYPE_THEMES.get(block_type, BLOCK_TYPE_THEMES["non_teaching"])
     return {
         "id": getattr(block_row, "id", None),
@@ -263,8 +286,17 @@ def serialize_timetable_block(block_row, working_day_keys) -> dict:
             key for key in expanded_day_keys
             if key in working_day_keys
         ],
-        "start_period": int(getattr(block_row, "start_period", 0) or 0),
-        "end_period": int(getattr(block_row, "end_period", 0) or 0),
+        "start_period": start_period,
+        "end_period": end_period,
+        "start_time": start_time,
+        "end_time": end_time,
+        "start_minutes": start_minutes,
+        "end_minutes": end_minutes,
+        "time_range": (
+            f"{start_time} - {end_time}"
+            if start_time and end_time
+            else ""
+        ),
         "accent": theme["accent"],
         "soft": theme["soft"],
         "border": theme["border"],
@@ -275,17 +307,39 @@ def serialize_timetable_block(block_row, working_day_keys) -> dict:
 def build_non_teaching_slot_map(
     blocks: list[dict],
     working_day_keys: list[str],
+    time_slots: list[dict],
 ) -> dict[tuple[str, int], dict]:
     slot_map = {}
+    parsed_time_slots = []
+    for slot in time_slots or []:
+        slot_start = parse_time_value(slot.get("start_time"))
+        slot_end = parse_time_value(slot.get("end_time"))
+        if slot_start is None or slot_end is None or slot_start >= slot_end:
+            continue
+        parsed_time_slots.append(
+            {
+                **slot,
+                "slot_start": slot_start,
+                "slot_end": slot_end,
+            }
+        )
+
     for block in blocks:
+        block_start = parse_time_value(block.get("start_time"))
+        block_end = parse_time_value(block.get("end_time"))
+        if block_start is None or block_end is None or block_start >= block_end:
+            continue
         expanded_day_keys = block.get("expanded_day_keys") or []
         for day_key in expanded_day_keys:
             if day_key not in working_day_keys:
                 continue
-            for period_index in range(
-                int(block.get("start_period", 0) or 0),
-                int(block.get("end_period", 0) or 0) + 1,
-            ):
+            for slot in parsed_time_slots:
+                period_index = int(slot.get("period_index") or 0)
+                if period_index <= 0:
+                    continue
+                overlaps_slot = block_start < int(slot["slot_end"]) and int(slot["slot_start"]) < block_end
+                if not overlaps_slot:
+                    continue
                 slot_map[(day_key, period_index)] = {
                     "id": block.get("id"),
                     "block_type": block.get("block_type", "non_teaching"),
@@ -297,6 +351,9 @@ def build_non_teaching_slot_map(
                     "day_key": day_key,
                     "start_period": int(block.get("start_period", 0) or 0),
                     "end_period": int(block.get("end_period", 0) or 0),
+                    "start_time": str(block.get("start_time") or "").strip(),
+                    "end_time": str(block.get("end_time") or "").strip(),
+                    "time_range": str(block.get("time_range") or "").strip(),
                     "accent": block.get("accent", BLOCK_TYPE_THEMES["non_teaching"]["accent"]),
                     "soft": block.get("soft", BLOCK_TYPE_THEMES["non_teaching"]["soft"]),
                     "border": block.get("border", BLOCK_TYPE_THEMES["non_teaching"]["border"]),
@@ -345,8 +402,13 @@ def build_timetable_settings_payload(setting_row=None, block_rows=None) -> dict:
         )
         setting_id = getattr(setting_row, "id", None)
         is_saved = True
+        time_slots = build_time_slots(
+            periods_per_day,
+            period_duration_minutes,
+            school_start_time,
+        )
         blocks = [
-            serialize_timetable_block(block_row, working_day_keys)
+            serialize_timetable_block(block_row, working_day_keys, time_slots)
             for block_row in block_rows or []
         ]
 
@@ -358,6 +420,7 @@ def build_timetable_settings_payload(setting_row=None, block_rows=None) -> dict:
     block_slot_map = build_non_teaching_slot_map(
         blocks,
         working_day_keys,
+        time_slots,
     )
     blocked_slot_count = len(block_slot_map)
     total_slot_count = len(working_day_keys) * len(time_slots)
@@ -462,10 +525,13 @@ def normalize_non_teaching_block_values(
     block_type,
     label,
     day_key,
+    start_time,
+    end_time,
     start_period,
     end_period,
     periods_per_day,
     working_day_keys,
+    time_slots,
 ):
     errors = []
     normalized_block_type = normalize_block_type(block_type)
@@ -482,20 +548,52 @@ def normalize_non_teaching_block_values(
     elif normalized_day_key != ALL_DAY_KEY and normalized_day_key not in working_day_keys:
         errors.append("Selected day is not part of the configured working week.")
 
+    normalized_start_time = str(start_time or "").strip()
+    normalized_end_time = str(end_time or "").strip()
+    parsed_start_minutes = parse_time_value(normalized_start_time)
+    parsed_end_minutes = parse_time_value(normalized_end_time)
+
     parsed_start_period = _parse_int(start_period)
     parsed_end_period = _parse_int(end_period)
     safe_periods_per_day = int(periods_per_day or 0)
-    if (
-        parsed_start_period is None
-        or parsed_end_period is None
-        or parsed_start_period <= 0
-        or parsed_end_period <= 0
-    ):
-        errors.append("Block period range must use whole-number period values.")
-    elif parsed_start_period > safe_periods_per_day or parsed_end_period > safe_periods_per_day:
-        errors.append("Block periods must stay within the configured periods per day.")
-    elif parsed_start_period > parsed_end_period:
-        errors.append("Block end period must be the same as or after the start period.")
+    period_lookup = _time_slots_by_period(time_slots)
+
+    # Backward compatibility for rows created before explicit block times were introduced.
+    if parsed_start_minutes is None and parsed_start_period in period_lookup:
+        parsed_start_minutes = parse_time_value(period_lookup[parsed_start_period].get("start_time"))
+        normalized_start_time = str(period_lookup[parsed_start_period].get("start_time") or "").strip()
+    if parsed_end_minutes is None and parsed_end_period in period_lookup:
+        parsed_end_minutes = parse_time_value(period_lookup[parsed_end_period].get("end_time"))
+        normalized_end_time = str(period_lookup[parsed_end_period].get("end_time") or "").strip()
+
+    if parsed_start_minutes is None or parsed_end_minutes is None:
+        errors.append("Block start and end times must use HH:MM format.")
+    elif parsed_start_minutes >= parsed_end_minutes:
+        errors.append("Block end time must be after the block start time.")
+
+    overlapping_period_indexes = []
+    if not errors:
+        for slot in time_slots or []:
+            period_index = int(slot.get("period_index") or 0)
+            slot_start = parse_time_value(slot.get("start_time"))
+            slot_end = parse_time_value(slot.get("end_time"))
+            if period_index <= 0 or slot_start is None or slot_end is None or slot_start >= slot_end:
+                continue
+            if parsed_start_minutes < slot_end and slot_start < parsed_end_minutes:
+                overlapping_period_indexes.append(period_index)
+
+        if not overlapping_period_indexes:
+            errors.append("Block time range must overlap at least one configured teaching period.")
+
+    if not overlapping_period_indexes and parsed_start_period and parsed_end_period:
+        if (
+            parsed_start_period > 0
+            and parsed_end_period > 0
+            and parsed_start_period <= safe_periods_per_day
+            and parsed_end_period <= safe_periods_per_day
+            and parsed_start_period <= parsed_end_period
+        ):
+            overlapping_period_indexes = list(range(parsed_start_period, parsed_end_period + 1))
 
     expanded_day_keys = (
         list(working_day_keys)
@@ -514,8 +612,25 @@ def normalize_non_teaching_block_values(
             key for key in expanded_day_keys
             if key in working_day_keys
         ],
-        "start_period": parsed_start_period,
-        "end_period": parsed_end_period,
+        "start_time": normalized_start_time,
+        "end_time": normalized_end_time,
+        "start_minutes": parsed_start_minutes,
+        "end_minutes": parsed_end_minutes,
+        "time_range": (
+            f"{normalized_start_time} - {normalized_end_time}"
+            if normalized_start_time and normalized_end_time
+            else ""
+        ),
+        "start_period": (
+            min(overlapping_period_indexes)
+            if overlapping_period_indexes
+            else parsed_start_period
+        ),
+        "end_period": (
+            max(overlapping_period_indexes)
+            if overlapping_period_indexes
+            else parsed_end_period
+        ),
         "accent": theme["accent"],
         "soft": theme["soft"],
         "border": theme["border"],
@@ -545,11 +660,13 @@ def validate_non_teaching_block_overlap(
         if not shared_days:
             continue
 
-        left_start = int(block.get("start_period", 0) or 0)
-        left_end = int(block.get("end_period", 0) or 0)
-        right_start = int(candidate_block.get("start_period", 0) or 0)
-        right_end = int(candidate_block.get("end_period", 0) or 0)
-        if left_start <= right_end and right_start <= left_end:
+        left_start = parse_time_value(block.get("start_time"))
+        left_end = parse_time_value(block.get("end_time"))
+        right_start = parse_time_value(candidate_block.get("start_time"))
+        right_end = parse_time_value(candidate_block.get("end_time"))
+        if None in {left_start, left_end, right_start, right_end}:
+            continue
+        if left_start < right_end and right_start < left_end:
             shared_day_labels = ", ".join(get_day_short_label(day_key) for day_key in sorted(shared_days))
             errors.append(
                 f"{candidate_block.get('label', 'This block')} overlaps with "

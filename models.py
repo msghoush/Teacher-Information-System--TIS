@@ -255,6 +255,8 @@ class TimetableNonTeachingBlock(Base):
     block_type = Column(String(32), nullable=False)
     label = Column(String(80), nullable=False)
     day_key = Column(String(16), nullable=False, default="all")
+    start_time = Column(String(5), nullable=True)
+    end_time = Column(String(5), nullable=True)
     start_period = Column(Integer, nullable=False)
     end_period = Column(Integer, nullable=False)
 

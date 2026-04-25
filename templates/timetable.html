@@ -21,6 +21,7 @@
     .timetable-page {
         display: grid;
         gap: 16px;
+        width: 100%;
     }
 
     .banner {
@@ -333,10 +334,25 @@
 
     .workspace-shell {
         display: grid;
-        grid-template-columns: minmax(250px, 0.9fr) minmax(0, 2fr) minmax(290px, 1fr);
+        grid-template-columns: minmax(0, 1fr) minmax(300px, 0.42fr);
+        grid-template-areas:
+            "board board"
+            "lane inspector";
         gap: 14px;
         padding: 14px;
         align-items: start;
+    }
+
+    .board-shell {
+        grid-area: board;
+    }
+
+    .lane-shell {
+        grid-area: lane;
+    }
+
+    .inspector-shell {
+        grid-area: inspector;
     }
 
     .lane-shell,
@@ -533,7 +549,7 @@
 
     .board-grid {
         width: 100%;
-        min-width: 760px;
+        min-width: 980px;
         border-collapse: separate;
         border-spacing: 0;
     }
@@ -597,9 +613,14 @@
         line-height: 1.4;
     }
 
+    .period-cell.is-non-teaching-row {
+        background: #f7fafc;
+        border-left: 3px solid #c77d19;
+    }
+
     .grid-cell {
         padding: 6px;
-        min-width: 150px;
+        min-width: 170px;
         background: #ffffff;
     }
 
@@ -637,7 +658,7 @@
     }
 
     .grid-button.is-blocked {
-        cursor: default;
+        cursor: pointer;
         background: var(--cell-soft, #f4f8ff);
         border-color: var(--cell-border, #d8e5f4);
         color: var(--cell-text, #17365d);
@@ -658,6 +679,21 @@
         box-shadow: inset 4px 0 0 var(--cell-accent, #0a4ea3);
     }
 
+    .grid-button.is-static {
+        cursor: default;
+    }
+
+    .grid-button.is-non-teaching-row {
+        min-height: 74px;
+    }
+
+    .grid-button.is-non-teaching-row.is-empty {
+        border-style: solid;
+        border-color: #e3ecf7;
+        background: #f9fbff;
+        color: #60728c;
+    }
+
     .cell-top {
         display: flex;
         align-items: center;
@@ -674,6 +710,23 @@
         border-radius: 999px;
         border: 1px solid rgba(255, 255, 255, 0.45);
         background: rgba(255, 255, 255, 0.72);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .subject-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        width: fit-content;
+        min-height: 22px;
+        padding: 4px 9px;
+        border-radius: 999px;
+        border: 1px solid var(--cell-border, rgba(255, 255, 255, 0.45));
+        background: var(--cell-soft, rgba(255, 255, 255, 0.72));
+        color: var(--cell-text, #17365d);
         font-size: 10px;
         font-weight: 800;
         letter-spacing: 0.04em;
@@ -742,10 +795,14 @@
     .option-btn {
         width: 100%;
         display: grid;
-        gap: 8px;
-        padding: 11px 12px;
+        gap: 6px;
+        padding: 10px 11px;
         text-align: left;
         font-size: 13px;
+        border-color: var(--cell-border, #d8e5f4);
+        background: var(--cell-soft, #f4f8ff);
+        color: var(--cell-text, #17365d);
+        box-shadow: inset 4px 0 0 var(--cell-accent, #0a4ea3);
     }
 
     .option-btn[disabled] {
@@ -804,7 +861,11 @@
 
     @media (max-width: 1280px) {
         .workspace-shell {
-            grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.7fr);
+            grid-template-columns: minmax(0, 1fr);
+            grid-template-areas:
+                "board"
+                "lane"
+                "inspector";
         }
 
         .inspector-shell {
@@ -897,7 +958,11 @@
 
         <div class="toolbar-row">
             <div class="selection-row">
-                <span class="toolbar-label">Section</span>
+                <span class="toolbar-label">Grade</span>
+                <select id="gradeSelector" class="toolbar-select"></select>
+            </div>
+            <div class="selection-row">
+                <span class="toolbar-label">Section / Class</span>
                 <select id="sectionSelector" class="toolbar-select"></select>
             </div>
             <div class="selection-row">
@@ -969,6 +1034,7 @@
         const state = {
             payload: {{ timetable_payload | tojson }},
             activeView: "section",
+            activeGrade: "all",
             activeSectionId: null,
             activeTeacherId: null,
             selectedSlot: null,
@@ -977,6 +1043,7 @@
 
         const sectionViewBtn = document.getElementById("sectionViewBtn");
         const teacherViewBtn = document.getElementById("teacherViewBtn");
+        const gradeSelector = document.getElementById("gradeSelector");
         const sectionSelector = document.getElementById("sectionSelector");
         const teacherSelector = document.getElementById("teacherSelector");
         const weekLegend = document.getElementById("weekLegend");
@@ -1011,9 +1078,48 @@
         const getTimeSlots = () => Array.isArray(state.payload.time_slots) ? state.payload.time_slots : [];
         const getWarnings = () => Array.isArray(state.payload.warnings) ? state.payload.warnings : [];
         const getBlockedSlots = () => Array.isArray(state.payload.blocked_slots) ? state.payload.blocked_slots : [];
+        const getBlocks = () => Array.isArray(state.payload?.settings?.blocks) ? state.payload.settings.blocks : [];
+
+        const parseTimeMinutes = (value) => {
+            const text = String(value || "").trim();
+            if (!/^\d{2}:\d{2}$/.test(text)) {
+                return null;
+            }
+            const [hours, minutes] = text.split(":").map((part) => Number.parseInt(part, 10));
+            if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+                return null;
+            }
+            return (hours * 60) + minutes;
+        };
 
         const getSectionById = (sectionId) => {
             return getSections().find((section) => normalizeInt(section.id) === normalizeInt(sectionId)) || null;
+        };
+
+        const getUniqueGrades = () => {
+            const grades = new Set();
+            getSections().forEach((section) => {
+                grades.add(String(section.grade_label || "").trim() || "Unknown");
+            });
+            return Array.from(grades).sort((left, right) => {
+                if (left === "KG") {
+                    return -1;
+                }
+                if (right === "KG") {
+                    return 1;
+                }
+                return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
+            });
+        };
+
+        const getFilteredSections = () => {
+            const sections = getSections();
+            if (state.activeGrade === "all") {
+                return sections;
+            }
+            return sections.filter((section) => {
+                return String(section.grade_label || "").trim() === String(state.activeGrade || "").trim();
+            });
         };
 
         const getTeacherById = (teacherId) => {
@@ -1062,16 +1168,29 @@
         };
 
         const ensureSelection = () => {
-            const sections = getSections();
+            const allSections = getSections();
+            const sections = getFilteredSections();
             const teachers = getTeachers();
 
+            const availableGrades = getUniqueGrades();
+            if (state.activeGrade !== "all" && !availableGrades.includes(state.activeGrade)) {
+                state.activeGrade = "all";
+            }
+
             if (!getSectionById(state.activeSectionId) && sections.length > 0) {
+                state.activeSectionId = normalizeInt(sections[0].id);
+            }
+            if (
+                getSectionById(state.activeSectionId)
+                && sections.length > 0
+                && !sections.some((section) => normalizeInt(section.id) === normalizeInt(state.activeSectionId))
+            ) {
                 state.activeSectionId = normalizeInt(sections[0].id);
             }
             if (!getTeacherById(state.activeTeacherId) && teachers.length > 0) {
                 state.activeTeacherId = normalizeInt(teachers[0].id);
             }
-            if (sections.length === 0) {
+            if (allSections.length === 0 || sections.length === 0) {
                 state.activeSectionId = null;
             }
             if (teachers.length === 0) {
@@ -1130,14 +1249,28 @@
         };
 
         const renderSelectors = () => {
-            const sections = getSections();
+            const grades = getUniqueGrades();
+            const sections = getFilteredSections();
             const teachers = getTeachers();
+
+            gradeSelector.innerHTML = "";
+            const allGradesOption = document.createElement("option");
+            allGradesOption.value = "all";
+            allGradesOption.textContent = "All grades";
+            gradeSelector.appendChild(allGradesOption);
+            grades.forEach((grade) => {
+                const option = document.createElement("option");
+                option.value = grade;
+                option.textContent = grade === "KG" ? "KG" : `Grade ${grade}`;
+                gradeSelector.appendChild(option);
+            });
+            gradeSelector.value = state.activeGrade;
 
             sectionSelector.innerHTML = "";
             if (sections.length === 0) {
                 const emptyOption = document.createElement("option");
                 emptyOption.value = "";
-                emptyOption.textContent = "No sections available";
+                emptyOption.textContent = "No sections available for this grade";
                 sectionSelector.appendChild(emptyOption);
             } else {
                 sections.forEach((section) => {
@@ -1166,6 +1299,7 @@
             }
 
             sectionSelector.disabled = state.activeView !== "section";
+            gradeSelector.disabled = state.activeView !== "section";
             teacherSelector.disabled = state.activeView !== "teacher";
             sectionViewBtn.classList.toggle("is-active", state.activeView === "section");
             teacherViewBtn.classList.toggle("is-active", state.activeView === "teacher");
@@ -1173,10 +1307,10 @@
 
         const renderLane = () => {
             const isSectionView = state.activeView === "section";
-            const items = isSectionView ? getSections() : getTeachers();
+            const items = isSectionView ? getFilteredSections() : getTeachers();
             laneTitle.textContent = isSectionView ? "Sections" : "Teachers";
             laneSubtitle.textContent = isSectionView
-                ? "Choose the section you want to place into the weekly grid."
+                ? "Choose a class, then schedule lessons in the weekly board."
                 : "Review the timetable through each teacher's weekly teaching load.";
             laneCountPill.textContent = `${items.length} item${items.length === 1 ? "" : "s"}`;
             laneList.innerHTML = "";
@@ -1235,11 +1369,38 @@
                 : getTeacherById(state.activeTeacherId);
         };
 
+        const getBoardRows = () => {
+            const periodRows = getTimeSlots().map((slot) => ({
+                rowType: "period",
+                sortTime: parseTimeMinutes(slot.start_time) ?? (normalizeInt(slot.period_index) * 1000),
+                sortTie: normalizeInt(slot.period_index),
+                slot,
+                key: `period-${slot.period_index}`,
+            }));
+            const blockRows = getBlocks().map((block, index) => ({
+                rowType: "block",
+                sortTime: parseTimeMinutes(block.start_time) ?? (900000 + index),
+                sortTie: index,
+                block,
+                key: `block-${block.id || index}`,
+            }));
+            return [...periodRows, ...blockRows].sort((left, right) => {
+                if (left.sortTime !== right.sortTime) {
+                    return left.sortTime - right.sortTime;
+                }
+                if (left.rowType !== right.rowType) {
+                    return left.rowType === "period" ? -1 : 1;
+                }
+                return left.sortTie - right.sortTie;
+            });
+        };
+
         const renderBoard = () => {
             const isSectionView = state.activeView === "section";
             const entity = getCurrentBoardEntity();
             const days = getDays();
             const timeSlots = getTimeSlots();
+            const boardRows = getBoardRows();
             boardBadges.innerHTML = "";
 
             if (!entity) {
@@ -1281,8 +1442,54 @@
             thead.appendChild(headRow);
 
             const tbody = document.createElement("tbody");
-            timeSlots.forEach((slot) => {
+            boardRows.forEach((rowItem) => {
                 const row = document.createElement("tr");
+
+                if (rowItem.rowType === "block") {
+                    const block = rowItem.block || {};
+                    const periodCell = document.createElement("td");
+                    periodCell.className = "period-cell is-non-teaching-row";
+                    periodCell.innerHTML = `<strong>${block.label || "Non-Teaching Block"}</strong><span>${block.time_range || `${block.start_time || ""} - ${block.end_time || ""}`}</span>`;
+                    row.appendChild(periodCell);
+
+                    days.forEach((day) => {
+                        const appliesToDay = Array.isArray(block.expanded_day_keys)
+                            ? block.expanded_day_keys.includes(day.key)
+                            : String(block.day_key || "") === String(day.key || "");
+                        const gridCell = document.createElement("td");
+                        gridCell.className = "grid-cell";
+                        const button = document.createElement("button");
+                        button.type = "button";
+                        button.className = "grid-button is-static is-non-teaching-row";
+
+                        if (appliesToDay) {
+                            button.classList.add("is-blocked");
+                            button.style.setProperty("--cell-accent", block.accent || "#475569");
+                            button.style.setProperty("--cell-soft", block.soft || "#f3f6f9");
+                            button.style.setProperty("--cell-border", block.border || "#d6e0ea");
+                            button.style.setProperty("--cell-text", block.text || "#334155");
+                            button.innerHTML = `
+                                <div class="cell-top"><span class="cell-code">${block.block_type_label || "Non-Teaching"}</span></div>
+                                <div class="cell-title">${block.label || "Blocked"}</div>
+                                <div class="cell-subtitle">${block.time_range || ""}</div>
+                            `;
+                        } else {
+                            button.classList.add("is-empty");
+                            button.innerHTML = `
+                                <div class="cell-top"><span class="cell-code">${day.short_label || day.label}</span></div>
+                                <div class="cell-empty-text">Teaching continues</div>
+                                <div class="cell-subtitle">${block.time_range || ""}</div>
+                            `;
+                        }
+
+                        gridCell.appendChild(button);
+                        row.appendChild(gridCell);
+                    });
+                    tbody.appendChild(row);
+                    return;
+                }
+
+                const slot = rowItem.slot;
 
                 const periodCell = document.createElement("td");
                 periodCell.className = "period-cell";
@@ -1317,7 +1524,7 @@
                         button.innerHTML = `
                             <div class="cell-top"><span class="cell-code">${blockedSlot.block_type_label}</span></div>
                             <div class="cell-title">${blockedSlot.label}</div>
-                            <div class="cell-subtitle">${day.label} • ${slot.short_label}</div>
+                            <div class="cell-subtitle">${blockedSlot.time_range || slot.time_range}</div>
                         `;
                         button.addEventListener("click", () => {
                             state.selectedSlot = {
@@ -1339,7 +1546,7 @@
                         }
                         button.innerHTML = `
                             <div class="cell-top">
-                                <span class="cell-code">${entry.subject_code}</span>
+                                <span class="subject-chip">${entry.subject_code}</span>
                                 <span class="mini-pill">${slot.short_label}</span>
                             </div>
                             <div class="cell-title">${entry.subject_name}</div>
@@ -1358,7 +1565,7 @@
                         button.innerHTML = `
                             <div class="cell-top"><span class="cell-code">${slot.short_label}</span></div>
                             <div class="cell-empty-text">${isSectionView && canEdit ? "Click to assign" : "Open slot"}</div>
-                            <div class="cell-subtitle">${day.label}</div>
+                            <div class="cell-subtitle">${slot.time_range}</div>
                         `;
                         button.addEventListener("click", () => {
                             state.selectedSlot = {
@@ -1567,7 +1774,7 @@
                                 optionButton.innerHTML = `
                                     <div class="option-head">
                                         <div class="option-copy">
-                                            <strong>${option.subject_code} - ${option.subject_name}</strong>
+                                            <strong><span class="subject-chip" style="--cell-accent:${option.subject_color || "#0a4ea3"};--cell-soft:${option.subject_color_soft || "#f4f8ff"};--cell-border:${option.subject_color_border || "#d8e5f4"};--cell-text:${option.subject_color_text || "#17365d"};">${option.subject_code}</span> ${option.subject_name}</strong>
                                             <span>${option.teacher_name || "No teacher assigned yet"}</span>
                                         </div>
                                         <span class="mini-pill">${option.remainingHours}h left</span>
@@ -1729,6 +1936,12 @@
 
         sectionSelector.addEventListener("change", () => {
             state.activeSectionId = normalizeInt(sectionSelector.value);
+            renderAll();
+        });
+
+        gradeSelector.addEventListener("change", () => {
+            state.activeGrade = String(gradeSelector.value || "all");
+            state.activeSectionId = null;
             renderAll();
         });
 

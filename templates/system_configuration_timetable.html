@@ -368,7 +368,7 @@
 
     .block-form {
         display: grid;
-        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 0.65fr) minmax(0, 0.65fr) auto;
+        grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 0.85fr) minmax(0, 0.85fr) auto;
         gap: 8px;
         align-items: end;
     }
@@ -568,7 +568,7 @@
                     </div>
                 </div>
 
-                <div class="field-note">The end time must match the start time plus the full configured school-day slot count. Breaks and prayer slots still occupy periods in the timetable grid.</div>
+                <div class="field-note">The end time must match the start time plus the full configured school-day slot count. Non-teaching blocks are defined independently by time and then mapped into overlapping teaching slots.</div>
 
                 <div class="action-row">
                     <button class="action-btn action-btn-primary" type="submit">{{ icon("save", "icon") }} Save Timetable Settings</button>
@@ -632,7 +632,7 @@
         <div class="module-head">
             <div class="module-copy">
                 <h2>Non-Teaching Blocks</h2>
-                <p>Add breaks, prayer periods, or any other blocked slots that should appear on the timetable and stay unavailable for lesson placement.</p>
+                <p>Add breaks, prayer periods, or any other blocked windows as standalone time ranges. Blocks can begin/end between periods and are automatically applied to overlapping teaching slots.</p>
             </div>
             <div class="pill-row">
                 <span class="usage-pill">{{ timetable_settings.blocks|length }} configured</span>
@@ -664,20 +664,12 @@
                 </select>
             </div>
             <div class="field">
-                <label for="block_start_period">Start Period</label>
-                <select id="block_start_period" name="start_period" required>
-                    {% for slot in timetable_settings.time_slots %}
-                    <option value="{{ slot.period_index }}">{{ slot.short_label }}</option>
-                    {% endfor %}
-                </select>
+                <label for="block_start_time">Start Time</label>
+                <input id="block_start_time" type="time" name="start_time" required>
             </div>
             <div class="field">
-                <label for="block_end_period">End Period</label>
-                <select id="block_end_period" name="end_period" required>
-                    {% for slot in timetable_settings.time_slots %}
-                    <option value="{{ slot.period_index }}">{{ slot.short_label }}</option>
-                    {% endfor %}
-                </select>
+                <label for="block_end_time">End Time</label>
+                <input id="block_end_time" type="time" name="end_time" required>
             </div>
             <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Add Block</button>
         </form>
@@ -690,7 +682,7 @@
                         <th>Type</th>
                         <th>Label</th>
                         <th>Day</th>
-                        <th>Period Range</th>
+                        <th>Time Range</th>
                         <th style="text-align: right;">Actions</th>
                     </tr>
                 </thead>
@@ -732,23 +724,15 @@
                             </div>
                         </td>
                         <td>
-                            <div class="block-read">{{ "P" ~ block.start_period }}{% if block.end_period != block.start_period %} to {{ "P" ~ block.end_period }}{% endif %}</div>
+                            <div class="block-read">{{ block.time_range }}</div>
                             <div class="block-edit" style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;">
                                 <div>
-                                    <label class="sr-only" for="block_start_{{ block.id }}">Start Period</label>
-                                    <select id="block_start_{{ block.id }}" name="start_period" form="block_update_form_{{ block.id }}" data-initial="{{ block.start_period }}">
-                                        {% for slot in timetable_settings.time_slots %}
-                                        <option value="{{ slot.period_index }}" {% if block.start_period == slot.period_index %}selected{% endif %}>{{ slot.short_label }}</option>
-                                        {% endfor %}
-                                    </select>
+                                    <label class="sr-only" for="block_start_{{ block.id }}">Start Time</label>
+                                    <input id="block_start_{{ block.id }}" type="time" name="start_time" value="{{ block.start_time }}" form="block_update_form_{{ block.id }}" data-initial="{{ block.start_time }}" required>
                                 </div>
                                 <div>
-                                    <label class="sr-only" for="block_end_{{ block.id }}">End Period</label>
-                                    <select id="block_end_{{ block.id }}" name="end_period" form="block_update_form_{{ block.id }}" data-initial="{{ block.end_period }}">
-                                        {% for slot in timetable_settings.time_slots %}
-                                        <option value="{{ slot.period_index }}" {% if block.end_period == slot.period_index %}selected{% endif %}>{{ slot.short_label }}</option>
-                                        {% endfor %}
-                                    </select>
+                                    <label class="sr-only" for="block_end_{{ block.id }}">End Time</label>
+                                    <input id="block_end_{{ block.id }}" type="time" name="end_time" value="{{ block.end_time }}" form="block_update_form_{{ block.id }}" data-initial="{{ block.end_time }}" required>
                                 </div>
                             </div>
                         </td>
