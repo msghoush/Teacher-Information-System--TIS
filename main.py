@@ -4962,7 +4962,7 @@ def compose_message_form(
                 db,
                 current_user,
                 page_key="notifications",
-                eyebrow="Message Center",
+                eyebrow="Notification Center",
                 title="Compose Message",
             ),
         },

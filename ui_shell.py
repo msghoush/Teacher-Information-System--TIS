@@ -46,7 +46,7 @@ PAGE_META = {
         "icon": "users",
     },
     "notifications": {
-        "eyebrow": "Message Center",
+        "eyebrow": "Notification Center",
         "title": "Messages",
         "intro": "View messages sent to your account by administrators and system alerts.",
         "icon": "notifications",
@@ -103,7 +103,7 @@ def _build_nav_items(
             "active": is_active("/timetable"),
         },
         {
-            "label": "Message Center",
+            "label": "Notification Center",
             "href": "/notifications",
             "icon": "notifications",
             "active": is_active("/notifications"),
