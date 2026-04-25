@@ -490,9 +490,31 @@ def normalize_timetable_settings_values(
     if parsed_end_minutes is None:
         errors.append("School end time must use HH:MM format.")
 
+    if (
+        parsed_start_minutes is not None
+        and parsed_end_minutes is not None
+        and parsed_periods_per_day is not None
+        and parsed_periods_per_day > 0
+    ):
+        total_minutes = parsed_end_minutes - parsed_start_minutes
+        if total_minutes <= 0:
+            errors.append("School end time must be after school start time.")
+        elif total_minutes % parsed_periods_per_day != 0:
+            errors.append(
+                "School start/end time must divide evenly across periods per day. "
+                "Adjust times or periods per day so all periods have equal duration."
+            )
+        else:
+            derived_period_duration = total_minutes // parsed_periods_per_day
+            if derived_period_duration < 20 or derived_period_duration > 120:
+                errors.append("Derived period duration must stay between 20 and 120 minutes.")
+            else:
+                parsed_period_duration = derived_period_duration
+
     computed_school_end_time = ""
     if (
         parsed_start_minutes is not None
+        and parsed_end_minutes is not None
         and parsed_periods_per_day is not None
         and parsed_period_duration is not None
         and parsed_periods_per_day > 0
@@ -503,18 +525,13 @@ def normalize_timetable_settings_values(
             parsed_periods_per_day,
             parsed_period_duration,
         )
-        if normalized_school_end_time and computed_school_end_time != normalized_school_end_time:
-            errors.append(
-                "School end time must match the configured start time plus periods per day "
-                f"({computed_school_end_time} based on the current values)."
-            )
 
     return {
         "working_day_keys": normalized_working_day_keys,
         "periods_per_day": parsed_periods_per_day,
         "period_duration_minutes": parsed_period_duration,
         "school_start_time": normalized_school_start_time,
-        "school_end_time": normalized_school_end_time or computed_school_end_time,
+        "school_end_time": normalized_school_end_time,
         "computed_school_end_time": computed_school_end_time,
         "errors": errors,
     }
