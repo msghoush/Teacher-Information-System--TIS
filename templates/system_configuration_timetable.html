@@ -500,6 +500,10 @@
 
 {% block content %}
 <section class="config-page">
+    {% if timetable_settings_notice %}
+    <div class="notice-banner">{{ icon("info", "icon") }} {{ timetable_settings_notice }}</div>
+    {% endif %}
+
     {% if error_message %}
     <div class="error-banner">{{ icon("warning", "icon") }} {{ error_message }}</div>
     {% endif %}
@@ -568,10 +572,11 @@
                     </div>
                 </div>
 
-                <div class="field-note">Set start and end time for the school day. Period duration is derived automatically from start/end and periods per day. Non-teaching blocks are defined independently by time and then mapped into overlapping teaching slots.</div>
+                <div class="field-note">Set school start time, periods per day, and period duration. End time is recalculated automatically. Non-teaching blocks are defined independently by time and then mapped into overlapping teaching slots.</div>
 
                 <div class="action-row">
                     <button class="action-btn action-btn-primary" type="submit">{{ icon("save", "icon") }} Save Timetable Settings</button>
+                    <button class="action-btn action-btn-secondary" type="submit" formaction="/system-configuration/timetable-settings/recalculate">{{ icon("sparkles", "icon") }} Recalculate Timeline</button>
                     <a class="action-btn action-btn-secondary" href="/timetable/">{{ icon("timetable", "icon") }} Open Timetable Page</a>
                 </div>
             </form>
@@ -764,6 +769,51 @@
 {% block page_scripts %}
 <script>
     (function () {
+        var periodsPerDayInput = document.getElementById("periods_per_day");
+        var periodDurationInput = document.getElementById("period_duration_minutes");
+        var schoolStartInput = document.getElementById("school_start_time");
+        var schoolEndInput = document.getElementById("school_end_time");
+
+        function parseMinutes(value) {
+            if (!value || !/^\d{2}:\d{2}$/.test(value)) {
+                return null;
+            }
+            var parts = value.split(":");
+            var hours = Number.parseInt(parts[0], 10);
+            var minutes = Number.parseInt(parts[1], 10);
+            if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+                return null;
+            }
+            return (hours * 60) + minutes;
+        }
+
+        function formatMinutes(totalMinutes) {
+            var safeMinutes = Math.max(0, Number(totalMinutes) || 0);
+            var hours = Math.floor(safeMinutes / 60) % 24;
+            var minutes = safeMinutes % 60;
+            return String(hours).padStart(2, "0") + ":" + String(minutes).padStart(2, "0");
+        }
+
+        function recalcEndTimeFromDuration() {
+            if (!periodsPerDayInput || !periodDurationInput || !schoolStartInput || !schoolEndInput) {
+                return;
+            }
+            var periods = Number.parseInt(periodsPerDayInput.value, 10);
+            var duration = Number.parseInt(periodDurationInput.value, 10);
+            var startMinutes = parseMinutes(schoolStartInput.value);
+            if (!Number.isFinite(periods) || periods <= 0 || !Number.isFinite(duration) || duration <= 0 || startMinutes === null) {
+                return;
+            }
+            var endMinutes = startMinutes + (periods * duration);
+            schoolEndInput.value = formatMinutes(endMinutes);
+        }
+
+        if (periodsPerDayInput && periodDurationInput && schoolStartInput && schoolEndInput) {
+            periodsPerDayInput.addEventListener("input", recalcEndTimeFromDuration);
+            periodDurationInput.addEventListener("input", recalcEndTimeFromDuration);
+            schoolStartInput.addEventListener("input", recalcEndTimeFromDuration);
+        }
+
         document.querySelectorAll("[data-working-day-pill]").forEach(function (pill) {
             var input = pill.querySelector("input[type='checkbox']");
             if (!input) {

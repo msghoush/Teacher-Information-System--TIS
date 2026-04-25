@@ -5781,6 +5781,42 @@ def save_timetable_settings(
     )
 
 
+@app.post("/system-configuration/timetable-settings/recalculate")
+def recalculate_timetable_settings_structure(
+    request: Request,
+    return_to: str = Form("/system-configuration/timetable-settings"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user or not auth.can_manage_system_settings(current_user):
+        return RedirectResponse(url="/", status_code=302)
+
+    safe_return_to = _safe_redirect_path(return_to)
+    branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    academic_year_id = getattr(
+        current_user,
+        "scope_academic_year_id",
+        current_user.academic_year_id,
+    )
+    timetable_setting_row = _ensure_timetable_setting_scope_row(
+        db,
+        branch_id,
+        academic_year_id,
+    )
+    refreshed_settings = get_timetable_settings_payload(
+        db,
+        branch_id,
+        academic_year_id,
+    )
+    timetable_setting_row.school_end_time = refreshed_settings.get("school_end_time") or timetable_setting_row.school_end_time
+    db.commit()
+
+    return _redirect_with_notice(
+        safe_return_to,
+        "Timetable timeline recalculated from the latest period duration and non-teaching blocks.",
+    )
+
+
 @app.post("/system-configuration/timetable-settings/blocks")
 def create_timetable_block(
     request: Request,

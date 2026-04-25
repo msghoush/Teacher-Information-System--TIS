@@ -178,6 +178,7 @@ def build_time_slots(
     periods_per_day: int,
     period_duration_minutes: int,
     school_start_time: str,
+    non_teaching_blocks: list[dict] | None = None,
 ) -> list[dict]:
     safe_periods = max(int(periods_per_day or 0), 0)
     safe_duration = max(int(period_duration_minutes or 0), 0)
@@ -185,10 +186,82 @@ def build_time_slots(
     if start_minutes is None:
         start_minutes = 7 * 60
 
+    def merge_intervals(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
+        if not intervals:
+            return []
+        sorted_intervals = sorted(intervals, key=lambda item: (item[0], item[1]))
+        merged = [sorted_intervals[0]]
+        for interval_start, interval_end in sorted_intervals[1:]:
+            prev_start, prev_end = merged[-1]
+            if interval_start <= prev_end:
+                merged[-1] = (prev_start, max(prev_end, interval_end))
+            else:
+                merged.append((interval_start, interval_end))
+        return merged
+
+    # All-day blocks alter the shared period timeline and shift following periods.
+    block_intervals = []
+    for block in non_teaching_blocks or []:
+        if normalize_day_key(block.get("day_key")) != ALL_DAY_KEY:
+            continue
+        block_start = parse_time_value(block.get("start_time"))
+        block_end = parse_time_value(block.get("end_time"))
+        if block_start is None or block_end is None or block_start >= block_end:
+            continue
+        block_intervals.append((block_start, block_end))
+    merged_block_intervals = merge_intervals(block_intervals)
+
     slots = []
     current_minutes = start_minutes
     for period_index in range(1, safe_periods + 1):
-        end_minutes = current_minutes + safe_duration
+        # If a period starts inside a non-teaching block, push it to the block end.
+        while True:
+            overlapping_block = next(
+                (
+                    (block_start, block_end)
+                    for block_start, block_end in merged_block_intervals
+                    if block_start <= current_minutes < block_end
+                ),
+                None,
+            )
+            if not overlapping_block:
+                break
+            current_minutes = overlapping_block[1]
+
+        # Keep full teaching duration by skipping over any non-teaching windows.
+        teaching_remaining = safe_duration
+        timeline_cursor = current_minutes
+        while teaching_remaining > 0:
+            upcoming_block = next(
+                (
+                    (block_start, block_end)
+                    for block_start, block_end in merged_block_intervals
+                    if block_end > timeline_cursor
+                ),
+                None,
+            )
+
+            if not upcoming_block:
+                timeline_cursor += teaching_remaining
+                teaching_remaining = 0
+                break
+
+            block_start, block_end = upcoming_block
+            if block_start >= timeline_cursor + teaching_remaining:
+                timeline_cursor += teaching_remaining
+                teaching_remaining = 0
+                break
+
+            if block_start > timeline_cursor:
+                teach_chunk = min(block_start - timeline_cursor, teaching_remaining)
+                timeline_cursor += teach_chunk
+                teaching_remaining -= teach_chunk
+                if teaching_remaining <= 0:
+                    break
+
+            timeline_cursor = max(timeline_cursor, block_end)
+
+        end_minutes = timeline_cursor
         slots.append(
             {
                 "period_index": period_index,
@@ -416,12 +489,16 @@ def build_timetable_settings_payload(setting_row=None, block_rows=None) -> dict:
         periods_per_day,
         period_duration_minutes,
         school_start_time,
+        non_teaching_blocks=blocks,
     )
     block_slot_map = build_non_teaching_slot_map(
         blocks,
         working_day_keys,
         time_slots,
     )
+
+    if time_slots:
+        school_end_time = str(time_slots[-1].get("end_time") or school_end_time).strip()
     blocked_slot_count = len(block_slot_map)
     total_slot_count = len(working_day_keys) * len(time_slots)
 
@@ -487,34 +564,12 @@ def normalize_timetable_settings_values(
 
     if parsed_start_minutes is None:
         errors.append("School start time must use HH:MM format.")
-    if parsed_end_minutes is None:
+    if normalized_school_end_time and parsed_end_minutes is None:
         errors.append("School end time must use HH:MM format.")
-
-    if (
-        parsed_start_minutes is not None
-        and parsed_end_minutes is not None
-        and parsed_periods_per_day is not None
-        and parsed_periods_per_day > 0
-    ):
-        total_minutes = parsed_end_minutes - parsed_start_minutes
-        if total_minutes <= 0:
-            errors.append("School end time must be after school start time.")
-        elif total_minutes % parsed_periods_per_day != 0:
-            errors.append(
-                "School start/end time must divide evenly across periods per day. "
-                "Adjust times or periods per day so all periods have equal duration."
-            )
-        else:
-            derived_period_duration = total_minutes // parsed_periods_per_day
-            if derived_period_duration < 20 or derived_period_duration > 120:
-                errors.append("Derived period duration must stay between 20 and 120 minutes.")
-            else:
-                parsed_period_duration = derived_period_duration
 
     computed_school_end_time = ""
     if (
         parsed_start_minutes is not None
-        and parsed_end_minutes is not None
         and parsed_periods_per_day is not None
         and parsed_period_duration is not None
         and parsed_periods_per_day > 0
@@ -531,7 +586,7 @@ def normalize_timetable_settings_values(
         "periods_per_day": parsed_periods_per_day,
         "period_duration_minutes": parsed_period_duration,
         "school_start_time": normalized_school_start_time,
-        "school_end_time": normalized_school_end_time,
+        "school_end_time": computed_school_end_time or normalized_school_end_time,
         "computed_school_end_time": computed_school_end_time,
         "errors": errors,
     }
