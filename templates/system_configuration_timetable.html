@@ -742,7 +742,7 @@
                             </form>
                             <div class="table-actions actions-default">
                                 <button class="action-btn action-btn-secondary" type="button" data-block-edit="{{ block.id }}">{{ icon("edit", "icon") }} Edit</button>
-                                <button class="action-btn action-btn-danger" type="submit" formaction="/system-configuration/timetable-settings/blocks/{{ block.id }}/delete" onclick="return confirm('Delete {{ block.label }}?');">{{ icon("trash", "icon") }} Delete</button>
+                                <button class="action-btn action-btn-danger" type="submit" form="block_update_form_{{ block.id }}" formaction="/system-configuration/timetable-settings/blocks/{{ block.id }}/delete" onclick="return confirm('Delete {{ block.label }}?');">{{ icon("trash", "icon") }} Delete</button>
                             </div>
                             <div class="table-actions actions-editing">
                                 <button class="action-btn action-btn-primary" type="submit" form="block_update_form_{{ block.id }}">{{ icon("save", "icon") }} Save</button>
