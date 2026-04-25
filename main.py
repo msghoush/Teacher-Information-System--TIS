@@ -4882,6 +4882,7 @@ def notification_center(
             ),
         }
         return templates.TemplateResponse(
+            request,
             "notifications.html",
             template_context,
         )
@@ -4950,6 +4951,7 @@ def compose_message_form(
     ).order_by(models.User.first_name.asc(), models.User.last_name.asc()).all()
 
     return templates.TemplateResponse(
+        request,
         "compose_message.html",
         {
             "request": request,
@@ -5140,6 +5142,7 @@ def notification_detail(
             ),
         }
         return templates.TemplateResponse(
+            request,
             "notification_detail.html",
             template_context,
         )
