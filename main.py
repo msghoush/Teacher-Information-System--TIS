@@ -4313,6 +4313,10 @@ NOTIFICATION_SCOPE_ALL = "All"
 MESSAGE_PAGE_SIZE = 50
 
 
+def _notification_logger():
+    return logging.getLogger("uvicorn.error")
+
+
 def _format_notification_timestamp(value, fallback: str = "Unknown") -> str:
     if not value:
         return fallback
@@ -4646,6 +4650,10 @@ def notification_center(
     _ensure_system_notifications_table_columns()
     current_user = auth.get_current_user(request, db)
     if not current_user:
+        _notification_logger().info(
+            "TIS notification center opened without authenticated user path=%s",
+            request.url.path,
+        )
         return RedirectResponse(url="/", status_code=302)
 
     allowed_statuses = {
@@ -4668,6 +4676,17 @@ def notification_center(
         models.SystemNotification.id.desc(),
     ).limit(MESSAGE_PAGE_SIZE).all()
     counts = _get_notification_counts(db, current_user.user_id)
+    _notification_logger().info(
+        (
+            "TIS notification center opened user_id=%s selected_status=%s "
+            "message_count=%s counts=%s recipient_filter=%s"
+        ),
+        current_user.user_id,
+        selected_status or "All",
+        len(messages),
+        counts,
+        current_user.user_id,
+    )
 
     can_compose = auth.is_developer(current_user) or (
         auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_ADMINISTRATOR
@@ -4847,6 +4866,10 @@ def notification_detail(
 ):
     current_user = auth.get_current_user(request, db)
     if not current_user:
+        _notification_logger().info(
+            "TIS notification detail opened without authenticated user notification_id=%s",
+            notification_id,
+        )
         return RedirectResponse(url="/", status_code=302)
 
     notification, redirect_response = _get_user_notification_or_redirect(
@@ -4855,6 +4878,11 @@ def notification_detail(
         notification_id,
     )
     if redirect_response:
+        _notification_logger().info(
+            "TIS notification detail not found user_id=%s notification_id=%s",
+            current_user.user_id,
+            notification_id,
+        )
         return redirect_response
 
     # Auto-mark as seen when opened
@@ -4862,6 +4890,11 @@ def notification_detail(
         notification.status = NOTIFICATION_STATUS_SEEN
         notification.seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
         db.commit()
+        _notification_logger().info(
+            "TIS notification detail auto-marked seen user_id=%s notification_id=%s",
+            current_user.user_id,
+            notification.id,
+        )
 
     resolved_by_user = None
     if notification.resolved_by_user_id:
@@ -4874,6 +4907,14 @@ def notification_detail(
         sender_user = db.query(models.User).filter(
             models.User.user_id == notification.requesting_user_id
         ).first()
+
+    _notification_logger().info(
+        "TIS notification detail opened user_id=%s notification_id=%s status=%s request_type=%s",
+        current_user.user_id,
+        notification.id,
+        notification.status,
+        notification.request_type,
+    )
 
     return templates.TemplateResponse(
         "notification_detail.html",
