@@ -6744,20 +6744,107 @@ def _ensure_system_notifications_table_columns():
         col["name"] for col in inspector.get_columns("system_notifications")
     }
 
-    with engine.begin() as connection:
-        if "recipient_scope" not in existing_columns:
-            connection.execute(
-                text(
-                    "ALTER TABLE system_notifications "
-                    "ADD COLUMN recipient_scope VARCHAR(10) NOT NULL DEFAULT 'User'"
-                )
-            )
+    datetime_type = "TIMESTAMP" if engine.dialect.name == "postgresql" else "DATETIME"
 
+    def add_column_if_missing(column_name: str, column_sql: str):
+        nonlocal existing_columns
+        if column_name in existing_columns:
+            return
+        with engine.begin() as connection:
+            connection.execute(
+                text(f"ALTER TABLE system_notifications ADD COLUMN {column_sql}")
+            )
+        existing_columns.add(column_name)
+
+    add_column_if_missing(
+        "recipient_user_id",
+        "recipient_user_id VARCHAR(10) NOT NULL DEFAULT ''",
+    )
+    add_column_if_missing(
+        "requesting_user_id",
+        "requesting_user_id VARCHAR(10)",
+    )
+    add_column_if_missing(
+        "request_type",
+        "request_type VARCHAR(80) NOT NULL DEFAULT 'Message'",
+    )
+    add_column_if_missing(
+        "title",
+        "title VARCHAR(160) NOT NULL DEFAULT 'System Notification'",
+    )
+    add_column_if_missing(
+        "message",
+        "message TEXT",
+    )
+    add_column_if_missing(
+        "details",
+        "details TEXT",
+    )
+    add_column_if_missing(
+        "status",
+        "status VARCHAR(20) NOT NULL DEFAULT 'New'",
+    )
+    add_column_if_missing(
+        "recipient_scope",
+        "recipient_scope VARCHAR(10) NOT NULL DEFAULT 'User'",
+    )
+    add_column_if_missing(
+        "created_at",
+        f"created_at {datetime_type}",
+    )
+    add_column_if_missing(
+        "seen_at",
+        f"seen_at {datetime_type}",
+    )
+    add_column_if_missing(
+        "resolved_at",
+        f"resolved_at {datetime_type}",
+    )
+    add_column_if_missing(
+        "resolved_by_user_id",
+        "resolved_by_user_id VARCHAR(10)",
+    )
+
+    created_at_missing_predicate = (
+        "created_at IS NULL"
+        if engine.dialect.name == "postgresql"
+        else "created_at IS NULL OR created_at = ''"
+    )
+
+    with engine.begin() as connection:
         connection.execute(
             text(
                 "UPDATE system_notifications "
                 "SET recipient_scope = 'User' "
                 "WHERE recipient_scope IS NULL OR recipient_scope = ''"
+            )
+        )
+        connection.execute(
+            text(
+                "UPDATE system_notifications "
+                "SET status = 'New' "
+                "WHERE status IS NULL OR status = ''"
+            )
+        )
+        connection.execute(
+            text(
+                "UPDATE system_notifications "
+                "SET request_type = 'Message' "
+                "WHERE request_type IS NULL OR request_type = ''"
+            )
+        )
+        connection.execute(
+            text(
+                "UPDATE system_notifications "
+                "SET title = 'System Notification' "
+                "WHERE title IS NULL OR title = ''"
+            )
+        )
+        connection.execute(
+            text(
+                "UPDATE system_notifications "
+                "SET created_at = CURRENT_TIMESTAMP "
+                f"WHERE {created_at_missing_predicate}"
             )
         )
 
