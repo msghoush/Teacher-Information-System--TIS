@@ -228,40 +228,10 @@ def build_time_slots(
                 break
             current_minutes = overlapping_block[1]
 
-        # Keep full teaching duration by skipping over any non-teaching windows.
-        teaching_remaining = safe_duration
-        timeline_cursor = current_minutes
-        while teaching_remaining > 0:
-            upcoming_block = next(
-                (
-                    (block_start, block_end)
-                    for block_start, block_end in merged_block_intervals
-                    if block_end > timeline_cursor
-                ),
-                None,
-            )
-
-            if not upcoming_block:
-                timeline_cursor += teaching_remaining
-                teaching_remaining = 0
-                break
-
-            block_start, block_end = upcoming_block
-            if block_start >= timeline_cursor + teaching_remaining:
-                timeline_cursor += teaching_remaining
-                teaching_remaining = 0
-                break
-
-            if block_start > timeline_cursor:
-                teach_chunk = min(block_start - timeline_cursor, teaching_remaining)
-                timeline_cursor += teach_chunk
-                teaching_remaining -= teach_chunk
-                if teaching_remaining <= 0:
-                    break
-
-            timeline_cursor = max(timeline_cursor, block_end)
-
-        end_minutes = timeline_cursor
+        # Teaching period runs for exactly its configured duration from the
+        # (possibly shifted) start.  Non-teaching blocks are independent rows in
+        # the grid – they are NOT merged into or stretched across period windows.
+        end_minutes = current_minutes + safe_duration
         slots.append(
             {
                 "period_index": period_index,
@@ -654,8 +624,9 @@ def normalize_non_teaching_block_values(
             if parsed_start_minutes < slot_end and slot_start < parsed_end_minutes:
                 overlapping_period_indexes.append(period_index)
 
-        if not overlapping_period_indexes:
-            errors.append("Block time range must overlap at least one configured teaching period.")
+        # Non-teaching blocks are independent rows and may sit exactly between
+        # two consecutive periods (touching boundaries) without overlapping any
+        # period.  Do NOT reject a block just because it falls in a gap.
 
     if not overlapping_period_indexes and parsed_start_period and parsed_end_period:
         if (
