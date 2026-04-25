@@ -352,57 +352,10 @@ def build_non_teaching_slot_map(
     working_day_keys: list[str],
     time_slots: list[dict],
 ) -> dict[tuple[str, int], dict]:
-    slot_map = {}
-    parsed_time_slots = []
-    for slot in time_slots or []:
-        slot_start = parse_time_value(slot.get("start_time"))
-        slot_end = parse_time_value(slot.get("end_time"))
-        if slot_start is None or slot_end is None or slot_start >= slot_end:
-            continue
-        parsed_time_slots.append(
-            {
-                **slot,
-                "slot_start": slot_start,
-                "slot_end": slot_end,
-            }
-        )
-
-    for block in blocks:
-        block_start = parse_time_value(block.get("start_time"))
-        block_end = parse_time_value(block.get("end_time"))
-        if block_start is None or block_end is None or block_start >= block_end:
-            continue
-        expanded_day_keys = block.get("expanded_day_keys") or []
-        for day_key in expanded_day_keys:
-            if day_key not in working_day_keys:
-                continue
-            for slot in parsed_time_slots:
-                period_index = int(slot.get("period_index") or 0)
-                if period_index <= 0:
-                    continue
-                overlaps_slot = block_start < int(slot["slot_end"]) and int(slot["slot_start"]) < block_end
-                if not overlaps_slot:
-                    continue
-                slot_map[(day_key, period_index)] = {
-                    "id": block.get("id"),
-                    "block_type": block.get("block_type", "non_teaching"),
-                    "block_type_label": block.get(
-                        "block_type_label",
-                        "Non-Teaching",
-                    ),
-                    "label": block.get("label", "Blocked"),
-                    "day_key": day_key,
-                    "start_period": int(block.get("start_period", 0) or 0),
-                    "end_period": int(block.get("end_period", 0) or 0),
-                    "start_time": str(block.get("start_time") or "").strip(),
-                    "end_time": str(block.get("end_time") or "").strip(),
-                    "time_range": str(block.get("time_range") or "").strip(),
-                    "accent": block.get("accent", BLOCK_TYPE_THEMES["non_teaching"]["accent"]),
-                    "soft": block.get("soft", BLOCK_TYPE_THEMES["non_teaching"]["soft"]),
-                    "border": block.get("border", BLOCK_TYPE_THEMES["non_teaching"]["border"]),
-                    "text": block.get("text", BLOCK_TYPE_THEMES["non_teaching"]["text"]),
-                }
-    return slot_map
+    # Non-teaching blocks are independent grid rows — they are never mapped onto
+    # teaching period slots.  Returning an empty dict ensures no period cell is
+    # rendered as a blocked slot and blocks appear only once, as their own rows.
+    return {}
 
 
 def build_timetable_settings_payload(setting_row=None, block_rows=None) -> dict:
