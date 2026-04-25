@@ -4313,6 +4313,23 @@ NOTIFICATION_SCOPE_ALL = "All"
 MESSAGE_PAGE_SIZE = 50
 
 
+def _format_notification_timestamp(value, fallback: str = "Unknown") -> str:
+    if not value:
+        return fallback
+
+    parsed_value = value
+    if not isinstance(parsed_value, datetime):
+        cleaned = str(value or "").strip()
+        if not cleaned:
+            return fallback
+        try:
+            parsed_value = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+        except ValueError:
+            return cleaned
+
+    return parsed_value.strftime("%d %b %Y %H:%M")
+
+
 def _build_user_display(user_id: str, user=None) -> str:
     if not user:
         return f"User ID {user_id} (not found in system)"
@@ -4332,6 +4349,7 @@ def _create_system_notification(
     details: str = "",
     recipient_scope: str = NOTIFICATION_SCOPE_USER,
 ):
+    _ensure_system_notifications_table_columns()
     notification = models.SystemNotification(
         recipient_user_id=str(recipient_user_id).strip(),
         requesting_user_id=str(requesting_user_id or "").strip(),
@@ -4358,6 +4376,7 @@ def _create_system_notification(
 
 
 def _get_notification_counts(db: Session, user_id: str) -> dict:
+    _ensure_system_notifications_table_columns()
     counts = {
         NOTIFICATION_STATUS_NEW: 0,
         NOTIFICATION_STATUS_SEEN: 0,
@@ -4389,6 +4408,7 @@ def _get_user_notification_or_redirect(
     current_user,
     notification_id: int,
 ):
+    _ensure_system_notifications_table_columns()
     notification = db.query(models.SystemNotification).filter(
         models.SystemNotification.id == notification_id,
         models.SystemNotification.recipient_user_id == current_user.user_id,
@@ -4623,6 +4643,7 @@ def notification_center(
     status: str = Query(""),
     db: Session = Depends(get_db),
 ):
+    _ensure_system_notifications_table_columns()
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
@@ -4665,6 +4686,7 @@ def notification_center(
             "messages": messages,
             "selected_status": selected_status,
             "notification_counts": counts,
+            "format_notification_timestamp": _format_notification_timestamp,
             "status_options": [
                 NOTIFICATION_STATUS_NEW,
                 NOTIFICATION_STATUS_SEEN,
@@ -4861,6 +4883,7 @@ def notification_detail(
             "notification": notification,
             "resolved_by_user": resolved_by_user,
             "sender_user": sender_user,
+            "format_notification_timestamp": _format_notification_timestamp,
             **build_shell_context(
                 request,
                 db,
@@ -6808,8 +6831,20 @@ def _ensure_system_notifications_table_columns():
     created_at_missing_predicate = (
         "created_at IS NULL"
         if engine.dialect.name == "postgresql"
-        else "created_at IS NULL OR created_at = ''"
+        else "created_at IS NULL OR created_at = '' OR datetime(created_at) IS NULL"
     )
+    invalid_optional_datetime_updates = []
+    if engine.dialect.name != "postgresql":
+        invalid_optional_datetime_updates = [
+            (
+                "seen_at",
+                "seen_at = '' OR (seen_at IS NOT NULL AND datetime(seen_at) IS NULL)",
+            ),
+            (
+                "resolved_at",
+                "resolved_at = '' OR (resolved_at IS NOT NULL AND datetime(resolved_at) IS NULL)",
+            ),
+        ]
 
     with engine.begin() as connection:
         connection.execute(
@@ -6847,6 +6882,14 @@ def _ensure_system_notifications_table_columns():
                 f"WHERE {created_at_missing_predicate}"
             )
         )
+        for column_name, invalid_predicate in invalid_optional_datetime_updates:
+            connection.execute(
+                text(
+                    "UPDATE system_notifications "
+                    f"SET {column_name} = NULL "
+                    f"WHERE {invalid_predicate}"
+                )
+            )
 
 
 def _is_scope_teacher_unique_definition(columns) -> bool:

@@ -207,7 +207,7 @@
                     <p class="msg-meta">
                         {{ msg.request_type }}
                         {% if msg.requesting_user_id %} &middot; From User ID {{ msg.requesting_user_id }}{% endif %}
-                        &middot; {{ msg.created_at.strftime("%d %b %Y %H:%M") if msg.created_at else "Unknown time" }}
+                        &middot; {{ format_notification_timestamp(msg.created_at, "Unknown time") }}
                     </p>
                     {% if msg.message %}
                     <p class="msg-preview">{{ msg.message | striptags }}</p>

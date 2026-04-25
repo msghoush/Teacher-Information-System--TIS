@@ -181,16 +181,16 @@
             </div>
             <div class="notification-field">
                 <span>Received</span>
-                <strong>{{ notification.created_at.strftime("%d %b %Y %H:%M") if notification.created_at else "Unknown" }}</strong>
+                <strong>{{ format_notification_timestamp(notification.created_at, "Unknown") }}</strong>
             </div>
             <div class="notification-field">
                 <span>Seen</span>
-                <strong>{{ notification.seen_at.strftime("%d %b %Y %H:%M") if notification.seen_at else "Not yet" }}</strong>
+                <strong>{{ format_notification_timestamp(notification.seen_at, "Not yet") }}</strong>
             </div>
             {% if notification.resolved_at %}
             <div class="notification-field">
                 <span>Resolved</span>
-                <strong>{{ notification.resolved_at.strftime("%d %b %Y %H:%M") }}</strong>
+                <strong>{{ format_notification_timestamp(notification.resolved_at, "Unknown") }}</strong>
             </div>
             <div class="notification-field">
                 <span>Resolved By</span>
