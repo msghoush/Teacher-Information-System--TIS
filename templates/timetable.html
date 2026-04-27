@@ -701,6 +701,12 @@
         gap: 8px;
     }
 
+    .cell-top-right {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
     .cell-code {
         display: inline-flex;
         align-items: center;
@@ -731,6 +737,50 @@
         font-weight: 800;
         letter-spacing: 0.04em;
         text-transform: uppercase;
+    }
+
+    .subject-icon {
+        width: 13px;
+        height: 13px;
+        stroke: currentColor;
+        stroke-width: 2;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+        opacity: 0.95;
+    }
+
+    .mini-icon-btn {
+        width: 26px;
+        height: 26px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(255, 255, 255, 0.65);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.88);
+        color: var(--cell-text, #17365d);
+        cursor: pointer;
+        transition: transform 140ms ease, border-color 140ms ease, background-color 140ms ease;
+    }
+
+    .mini-icon-btn .icon,
+    .mini-icon-btn .subject-icon {
+        width: 12px;
+        height: 12px;
+    }
+
+    .mini-icon-btn:hover {
+        transform: translateY(-1px);
+        border-color: rgba(255, 255, 255, 0.9);
+        background: #ffffff;
+    }
+
+    .mini-icon-btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
     }
 
     .cell-title {
@@ -786,6 +836,14 @@
         background: #ffffff;
     }
 
+    .action-row {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
     .assignment-option-list {
         max-height: 420px;
         overflow: auto;
@@ -834,6 +892,151 @@
         line-height: 1.45;
     }
 
+    .assignment-panel-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 80;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(18, 37, 60, 0.5);
+        backdrop-filter: blur(2px);
+    }
+
+    .assignment-panel-backdrop.is-open {
+        display: flex;
+    }
+
+    .assignment-panel {
+        width: min(900px, 100%);
+        max-height: min(86vh, 900px);
+        overflow: hidden;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        border: 1px solid var(--tt-border);
+        border-radius: 20px;
+        background: #ffffff;
+        box-shadow: 0 24px 54px rgba(18, 37, 60, 0.22);
+    }
+
+    .assignment-panel-header,
+    .assignment-panel-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 12px 14px;
+        border-bottom: 1px solid #e6eef8;
+    }
+
+    .assignment-panel-footer {
+        border-bottom: 0;
+        border-top: 1px solid #e6eef8;
+    }
+
+    .assignment-panel-title {
+        display: grid;
+        gap: 4px;
+    }
+
+    .assignment-panel-title h4 {
+        margin: 0;
+        color: var(--tt-ink);
+        font-size: 16px;
+    }
+
+    .assignment-panel-title p {
+        margin: 0;
+        color: var(--tt-subtle);
+        font-size: 12px;
+        line-height: 1.4;
+    }
+
+    .assignment-panel-body {
+        overflow: auto;
+        padding: 12px 14px 14px;
+        display: grid;
+        gap: 12px;
+        background: linear-gradient(180deg, #ffffff, #f8fbff);
+    }
+
+    .panel-current-assignment {
+        border: 1px solid var(--tt-border);
+        border-radius: 14px;
+        background: #ffffff;
+        padding: 10px 11px;
+        display: grid;
+        gap: 8px;
+    }
+
+    .panel-current-assignment strong {
+        color: var(--tt-ink);
+        font-size: 14px;
+    }
+
+    .panel-current-assignment small {
+        color: var(--tt-subtle);
+        font-size: 12px;
+    }
+
+    .assignment-option-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 10px;
+    }
+
+    .assignment-option-card {
+        width: 100%;
+        display: grid;
+        gap: 7px;
+        padding: 11px;
+        text-align: left;
+        border: 1px solid var(--cell-border, #d8e5f4);
+        border-radius: 14px;
+        background: var(--cell-soft, #f4f8ff);
+        color: var(--cell-text, #17365d);
+        box-shadow: inset 4px 0 0 var(--cell-accent, #0a4ea3);
+        cursor: pointer;
+        transition: transform 140ms ease, box-shadow 140ms ease;
+    }
+
+    .assignment-option-card:hover {
+        transform: translateY(-1px);
+        box-shadow: inset 4px 0 0 var(--cell-accent, #0a4ea3), 0 12px 24px rgba(10, 78, 163, 0.08);
+    }
+
+    .assignment-option-card:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: inset 4px 0 0 var(--cell-accent, #0a4ea3);
+    }
+
+    .assignment-option-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .assignment-option-copy {
+        display: grid;
+        gap: 4px;
+    }
+
+    .assignment-option-copy strong {
+        color: var(--tt-ink);
+        font-size: 14px;
+        line-height: 1.35;
+    }
+
+    .assignment-option-copy span {
+        color: var(--tt-subtle);
+        font-size: 11px;
+        line-height: 1.42;
+    }
+
     .empty-state {
         padding: 14px;
         border: 1px dashed var(--tt-border-strong);
@@ -875,6 +1078,21 @@
 
     @media (max-width: 940px) {
         .workspace-shell {
+            grid-template-columns: 1fr;
+        }
+
+        .assignment-panel-backdrop {
+            padding: 0;
+        }
+
+        .assignment-panel {
+            width: 100%;
+            max-height: 100vh;
+            min-height: 100vh;
+            border-radius: 0;
+        }
+
+        .assignment-option-grid {
             grid-template-columns: 1fr;
         }
 
@@ -1023,6 +1241,23 @@
             <div id="inspectorContent"></div>
         </aside>
     </section>
+
+    <div id="assignmentPanelBackdrop" class="assignment-panel-backdrop" aria-hidden="true">
+        <section class="assignment-panel" role="dialog" aria-modal="true" aria-labelledby="assignmentPanelTitle">
+            <header class="assignment-panel-header">
+                <div class="assignment-panel-title">
+                    <h4 id="assignmentPanelTitle">Assign Teaching Period</h4>
+                    <p id="assignmentPanelSubtitle">Choose a planned subject for this section slot.</p>
+                </div>
+                <button id="assignmentPanelCloseBtn" type="button" class="inspector-btn is-secondary">{{ icon("close", "icon") }} Close</button>
+            </header>
+            <div id="assignmentPanelBody" class="assignment-panel-body"></div>
+            <footer class="assignment-panel-footer">
+                <small class="inspector-note">Only teaching slots can be assigned. Break and prayer blocks stay locked.</small>
+                <button id="assignmentPanelDoneBtn" type="button" class="inspector-btn is-primary">Done</button>
+            </footer>
+        </section>
+    </div>
 </section>
 {% endblock %}
 
@@ -1038,6 +1273,12 @@
             activeSectionId: null,
             activeTeacherId: null,
             selectedSlot: null,
+            assignmentPanel: {
+                isOpen: false,
+                sectionId: null,
+                dayKey: "",
+                periodIndex: 0,
+            },
             busy: false,
         };
 
@@ -1061,6 +1302,12 @@
         const inspectorTitle = document.getElementById("inspectorTitle");
         const inspectorSubtitle = document.getElementById("inspectorSubtitle");
         const inspectorContent = document.getElementById("inspectorContent");
+        const assignmentPanelBackdrop = document.getElementById("assignmentPanelBackdrop");
+        const assignmentPanelBody = document.getElementById("assignmentPanelBody");
+        const assignmentPanelCloseBtn = document.getElementById("assignmentPanelCloseBtn");
+        const assignmentPanelDoneBtn = document.getElementById("assignmentPanelDoneBtn");
+        const assignmentPanelTitle = document.getElementById("assignmentPanelTitle");
+        const assignmentPanelSubtitle = document.getElementById("assignmentPanelSubtitle");
         const summarySectionCount = document.getElementById("summarySectionCount");
         const summaryTeacherCount = document.getElementById("summaryTeacherCount");
         const summaryScheduledHours = document.getElementById("summaryScheduledHours");
@@ -1090,6 +1337,75 @@
                 return null;
             }
             return (hours * 60) + minutes;
+        };
+
+        const iconLibrary = {
+            subjects: `{{ icon("subjects", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
+            report: `{{ icon("report", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
+            timetable: `{{ icon("timetable", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
+            planning: `{{ icon("planning", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
+            insights: `{{ icon("insights", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
+            teachers: `{{ icon("teachers", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
+            sparkles: `{{ icon("sparkles", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
+            warning: `{{ icon("warning", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
+            clear: `{{ icon("clear", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
+        };
+
+        const resolveSubjectIconKey = (subjectCode, subjectName = "") => {
+            const upperCode = String(subjectCode || "").toUpperCase();
+            const upperName = String(subjectName || "").toUpperCase();
+            if (/MAT|MATH|ALG|GEO/.test(upperCode) || /MATH|ALGEBRA|GEOMETRY|CALCULUS/.test(upperName)) {
+                return "report";
+            }
+            if (/SCI|BIO|CHE|PHY/.test(upperCode) || /SCIENCE|BIOLOGY|CHEMISTRY|PHYSICS/.test(upperName)) {
+                return "sparkles";
+            }
+            if (/ICT|COM|CS|TECH/.test(upperCode) || /COMPUT|TECHNOLOGY|INFORMATION/.test(upperName)) {
+                return "insights";
+            }
+            if (/HIS|SOC|GEO/.test(upperCode) || /HISTORY|SOCIAL|GEOGRAPHY|CIVIC/.test(upperName)) {
+                return "planning";
+            }
+            if (/PE|SPORT/.test(upperCode) || /SPORT|PHYSICAL/.test(upperName)) {
+                return "teachers";
+            }
+            if (/ART|MUS/.test(upperCode) || /ART|MUSIC/.test(upperName)) {
+                return "timetable";
+            }
+            return "subjects";
+        };
+
+        const getSubjectIconSvg = (subjectCode, subjectName = "") => {
+            const iconKey = resolveSubjectIconKey(subjectCode, subjectName);
+            return iconLibrary[iconKey] || iconLibrary.subjects;
+        };
+
+        const renderSubjectChip = (subjectCode, subjectName = "") => {
+            return `<span class="subject-chip">${getSubjectIconSvg(subjectCode, subjectName)}${subjectCode}</span>`;
+        };
+
+        const closeAssignmentPanel = () => {
+            state.assignmentPanel = {
+                isOpen: false,
+                sectionId: null,
+                dayKey: "",
+                periodIndex: 0,
+            };
+            assignmentPanelBackdrop.classList.remove("is-open");
+            assignmentPanelBackdrop.setAttribute("aria-hidden", "true");
+            assignmentPanelBody.innerHTML = "";
+        };
+
+        const openAssignmentPanel = (sectionId, dayKey, periodIndex) => {
+            state.assignmentPanel = {
+                isOpen: true,
+                sectionId: normalizeInt(sectionId),
+                dayKey: String(dayKey || ""),
+                periodIndex: normalizeInt(periodIndex),
+            };
+            assignmentPanelBackdrop.classList.add("is-open");
+            assignmentPanelBackdrop.setAttribute("aria-hidden", "false");
+            renderAssignmentPanel();
         };
 
         const getSectionById = (sectionId) => {
@@ -1203,6 +1519,18 @@
                     periodIndex: normalizeInt(getTimeSlots()[0].period_index),
                 };
             }
+
+            if (state.activeView !== "section" && state.assignmentPanel.isOpen) {
+                closeAssignmentPanel();
+            }
+            if (state.assignmentPanel.isOpen) {
+                const panelSection = getSectionById(state.assignmentPanel.sectionId);
+                const panelSlotExists = getTimeSlots().some((slot) => normalizeInt(slot.period_index) === normalizeInt(state.assignmentPanel.periodIndex));
+                const panelDayExists = getDays().some((day) => String(day.key || "") === String(state.assignmentPanel.dayKey || ""));
+                if (!panelSection || !panelSlotExists || !panelDayExists) {
+                    closeAssignmentPanel();
+                }
+            }
         };
 
         const setFlash = (message, tone) => {
@@ -1218,6 +1546,9 @@
         const setBusy = (busy) => {
             state.busy = busy;
             loadingMask.classList.toggle("is-visible", busy);
+            if (state.assignmentPanel.isOpen) {
+                renderAssignmentPanel();
+            }
         };
 
         const renderSummary = () => {
@@ -1420,7 +1751,7 @@
 
             if (isSectionView) {
                 boardTitle.textContent = entity.section_label;
-                boardSubtitle.textContent = `Class status: ${entity.class_status}. Click a slot to assign one of the planned subjects.`;
+                boardSubtitle.textContent = `Class status: ${entity.class_status}. Click a teaching slot to open the assignment panel.`;
                 boardBadges.innerHTML = `
                     <span class="mini-pill">${normalizeInt(entity.scheduled_hours)}/${normalizeInt(entity.total_required_hours)}h scheduled</span>
                     <span class="mini-pill">${normalizeInt(entity.ready_to_schedule_hours)}h ready to place</span>
@@ -1515,6 +1846,20 @@
                         button.classList.add("is-selected");
                     }
 
+                    const handleCellSelection = () => {
+                        state.selectedSlot = {
+                            dayKey: day.key,
+                            periodIndex: slot.period_index,
+                        };
+                        if (isSectionView && canEdit && !blockedSlot) {
+                            openAssignmentPanel(entity.id, day.key, slot.period_index);
+                        } else {
+                            closeAssignmentPanel();
+                        }
+                        renderInspector();
+                        renderBoard();
+                    };
+
                     if (blockedSlot) {
                         button.classList.add("is-blocked");
                         button.style.setProperty("--cell-accent", blockedSlot.accent || "#0a4ea3");
@@ -1526,14 +1871,7 @@
                             <div class="cell-title">${blockedSlot.label}</div>
                             <div class="cell-subtitle">${blockedSlot.time_range || slot.time_range}</div>
                         `;
-                        button.addEventListener("click", () => {
-                            state.selectedSlot = {
-                                dayKey: day.key,
-                                periodIndex: slot.period_index,
-                            };
-                            renderInspector();
-                            renderBoard();
-                        });
+                        button.addEventListener("click", handleCellSelection);
                     } else if (entry) {
                         if (entry.status === "stale") {
                             button.classList.add("is-stale");
@@ -1546,20 +1884,19 @@
                         }
                         button.innerHTML = `
                             <div class="cell-top">
-                                <span class="subject-chip">${entry.subject_code}</span>
-                                <span class="mini-pill">${slot.short_label}</span>
+                                ${renderSubjectChip(entry.subject_code, entry.subject_name)}
+                                <span class="cell-top-right">
+                                    <span class="mini-pill">${slot.short_label}</span>
+                                    ${isSectionView && canEdit && entry.status !== "stale"
+                                        ? `<button type="button" class="mini-icon-btn" data-cell-clear="true" title="Remove assignment">${iconLibrary.clear}</button>`
+                                        : ""
+                                    }
+                                </span>
                             </div>
                             <div class="cell-title">${entry.subject_name}</div>
-                            <div class="cell-subtitle">${isSectionView ? entry.teacher_name : entry.section_label}</div>
+                            <div class="cell-subtitle">${isSectionView ? entry.teacher_name : entry.section_label} • ${slot.time_range}</div>
                         `;
-                        button.addEventListener("click", () => {
-                            state.selectedSlot = {
-                                dayKey: day.key,
-                                periodIndex: slot.period_index,
-                            };
-                            renderInspector();
-                            renderBoard();
-                        });
+                        button.addEventListener("click", handleCellSelection);
                     } else {
                         button.classList.add("is-empty");
                         button.innerHTML = `
@@ -1567,13 +1904,15 @@
                             <div class="cell-empty-text">${isSectionView && canEdit ? "Click to assign" : "Open slot"}</div>
                             <div class="cell-subtitle">${slot.time_range}</div>
                         `;
-                        button.addEventListener("click", () => {
-                            state.selectedSlot = {
-                                dayKey: day.key,
-                                periodIndex: slot.period_index,
-                            };
-                            renderInspector();
-                            renderBoard();
+                        button.addEventListener("click", handleCellSelection);
+                    }
+
+                    const clearBtn = button.querySelector("[data-cell-clear='true']");
+                    if (clearBtn) {
+                        clearBtn.addEventListener("click", (event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            assignSlot(entity.id, { dayKey: day.key, periodIndex: slot.period_index }, "", { closePanelOnSuccess: false });
                         });
                     }
 
@@ -1618,7 +1957,8 @@
             });
         };
 
-        const assignSlot = async (sectionId, selectedSlot, subjectCode) => {
+        const assignSlot = async (sectionId, selectedSlot, subjectCode, options = {}) => {
+            const { closePanelOnSuccess = true } = options;
             setBusy(true);
             try {
                 const response = await fetch("/timetable/api/assign", {
@@ -1640,6 +1980,9 @@
                 }
                 state.payload = result.payload;
                 ensureSelection();
+                if (closePanelOnSuccess) {
+                    closeAssignmentPanel();
+                }
                 setFlash(result.message || "Timetable updated successfully.", "success");
                 renderAll();
             } catch (error) {
@@ -1647,6 +1990,117 @@
             } finally {
                 setBusy(false);
             }
+        };
+
+        const getOptionStateLabel = (option) => {
+            if (option.teacherConflict) {
+                return `${option.teacher_name} already teaches ${option.teacherConflict.section_label} in this slot.`;
+            }
+            if (!option.is_schedulable) {
+                return "Teacher assignment is missing in planning.";
+            }
+            if (option.remainingHours <= 0) {
+                return "Weekly hours already completed.";
+            }
+            return "Ready to assign now.";
+        };
+
+        const renderAssignmentPanel = () => {
+            if (!state.assignmentPanel.isOpen) {
+                return;
+            }
+
+            const section = getSectionById(state.assignmentPanel.sectionId);
+            const day = getDays().find((item) => String(item.key || "") === String(state.assignmentPanel.dayKey || ""));
+            const timeSlot = getTimeSlots().find((slot) => normalizeInt(slot.period_index) === normalizeInt(state.assignmentPanel.periodIndex));
+            if (!section || !day || !timeSlot) {
+                closeAssignmentPanel();
+                return;
+            }
+
+            const selectedSlot = {
+                dayKey: state.assignmentPanel.dayKey,
+                periodIndex: state.assignmentPanel.periodIndex,
+            };
+            const blockedSlot = getBlockedSlot(selectedSlot.dayKey, selectedSlot.periodIndex);
+            const existingEntry = getEntryForSectionSlot(section.id, selectedSlot.dayKey, selectedSlot.periodIndex);
+            const assignmentOptions = blockedSlot
+                ? []
+                : buildAssignmentOptions(section, selectedSlot, existingEntry);
+
+            assignmentPanelTitle.textContent = `Assign ${section.section_label}`;
+            assignmentPanelSubtitle.textContent = `${day.label} • ${timeSlot.short_label} • ${timeSlot.time_range}`;
+
+            if (blockedSlot) {
+                assignmentPanelBody.innerHTML = `
+                    <div class="empty-state">${blockedSlot.label} is a ${blockedSlot.block_type_label.toLowerCase()} block, so this slot cannot receive teaching assignments.</div>
+                `;
+                return;
+            }
+
+            const currentAssignmentHtml = existingEntry
+                ? `
+                    <section class="panel-current-assignment" style="--cell-accent:${existingEntry.subject_color || "#0a4ea3"};--cell-soft:${existingEntry.subject_color_soft || "#f4f8ff"};--cell-border:${existingEntry.subject_color_border || "#d8e5f4"};--cell-text:${existingEntry.subject_color_text || "#17365d"};">
+                        <div class="slot-card-head">
+                            <div class="slot-meta">
+                                <h4>Current Assignment</h4>
+                                <small>${timeSlot.time_range}</small>
+                            </div>
+                            <button id="panelUnassignBtn" type="button" class="mini-icon-btn" title="Remove assignment">${iconLibrary.clear}</button>
+                        </div>
+                        <div>${renderSubjectChip(existingEntry.subject_code, existingEntry.subject_name)} <strong>${existingEntry.subject_name}</strong></div>
+                        <small>${existingEntry.teacher_name}</small>
+                    </section>
+                `
+                : `
+                    <section class="panel-current-assignment">
+                        <strong>This teaching slot is empty.</strong>
+                        <small>Choose one of the valid section subjects below.</small>
+                    </section>
+                `;
+
+            const optionCards = assignmentOptions.length === 0
+                ? `<div class="empty-state">No planned subjects are available yet for this section. Assign teachers in Planning first.</div>`
+                : `<div class="assignment-option-grid">${assignmentOptions.map((option) => `
+                    <button
+                        type="button"
+                        class="assignment-option-card"
+                        data-subject-code="${option.subject_code}"
+                        ${option.disabled ? "disabled" : ""}
+                        style="--cell-accent:${option.subject_color || "#0a4ea3"};--cell-soft:${option.subject_color_soft || "#f4f8ff"};--cell-border:${option.subject_color_border || "#d8e5f4"};--cell-text:${option.subject_color_text || "#17365d"};"
+                    >
+                        <div class="assignment-option-top">
+                            <div class="assignment-option-copy">
+                                <strong>${renderSubjectChip(option.subject_code, option.subject_name)} ${option.subject_name}</strong>
+                                <span>${option.teacher_name || "No teacher assigned"}</span>
+                            </div>
+                            <span class="mini-pill">${option.remainingHours}h left</span>
+                        </div>
+                        <div class="assignment-option-copy">
+                            <span>${normalizeInt(option.scheduled_count)}/${normalizeInt(option.weekly_hours)}h scheduled</span>
+                            <span>${getOptionStateLabel(option)}</span>
+                        </div>
+                    </button>
+                `).join("")}</div>`;
+
+            assignmentPanelBody.innerHTML = `${currentAssignmentHtml}${optionCards}`;
+
+            if (existingEntry) {
+                const panelUnassignBtn = document.getElementById("panelUnassignBtn");
+                if (panelUnassignBtn) {
+                    panelUnassignBtn.disabled = state.busy;
+                    panelUnassignBtn.addEventListener("click", () => {
+                        assignSlot(section.id, selectedSlot, "", { closePanelOnSuccess: false });
+                    });
+                }
+            }
+
+            assignmentPanelBody.querySelectorAll(".assignment-option-card[data-subject-code]").forEach((button) => {
+                button.addEventListener("click", () => {
+                    const subjectCode = button.getAttribute("data-subject-code") || "";
+                    assignSlot(section.id, selectedSlot, subjectCode);
+                });
+            });
         };
 
         const renderInspector = () => {
@@ -1774,7 +2228,7 @@
                                 optionButton.innerHTML = `
                                     <div class="option-head">
                                         <div class="option-copy">
-                                            <strong><span class="subject-chip" style="--cell-accent:${option.subject_color || "#0a4ea3"};--cell-soft:${option.subject_color_soft || "#f4f8ff"};--cell-border:${option.subject_color_border || "#d8e5f4"};--cell-text:${option.subject_color_text || "#17365d"};">${option.subject_code}</span> ${option.subject_name}</strong>
+                                            <strong>${renderSubjectChip(option.subject_code, option.subject_name)} ${option.subject_name}</strong>
                                             <span>${option.teacher_name || "No teacher assigned yet"}</span>
                                         </div>
                                         <span class="mini-pill">${option.remainingHours}h left</span>
@@ -1815,7 +2269,7 @@
                     card.innerHTML = `
                         <div class="requirement-head">
                             <div>
-                                <strong>${option.subject_code} - ${option.subject_name}</strong>
+                                <strong>${renderSubjectChip(option.subject_code, option.subject_name)} ${option.subject_name}</strong>
                                 <small>${option.teacher_name || "Teacher not assigned yet"}</small>
                             </div>
                             <span class="mini-pill">${normalizeInt(option.scheduled_count)}/${normalizeInt(option.weekly_hours)}h</span>
@@ -1896,7 +2350,7 @@
                     card.innerHTML = `
                         <div class="teacher-commitment-head">
                             <div>
-                                <strong>${commitment.subject_code} - ${commitment.subject_name}</strong>
+                                <strong>${renderSubjectChip(commitment.subject_code, commitment.subject_name)} ${commitment.subject_name}</strong>
                                 <small>${commitment.section_label}</small>
                             </div>
                             <span class="mini-pill">${scheduledCount}/${normalizeInt(commitment.weekly_hours)}h</span>
@@ -1922,7 +2376,30 @@
             renderLane();
             renderBoard();
             renderInspector();
+            if (state.assignmentPanel.isOpen) {
+                renderAssignmentPanel();
+            }
         };
+
+        assignmentPanelCloseBtn.addEventListener("click", () => {
+            closeAssignmentPanel();
+        });
+
+        assignmentPanelDoneBtn.addEventListener("click", () => {
+            closeAssignmentPanel();
+        });
+
+        assignmentPanelBackdrop.addEventListener("click", (event) => {
+            if (event.target === assignmentPanelBackdrop) {
+                closeAssignmentPanel();
+            }
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && state.assignmentPanel.isOpen) {
+                closeAssignmentPanel();
+            }
+        });
 
         sectionViewBtn.addEventListener("click", () => {
             state.activeView = "section";
