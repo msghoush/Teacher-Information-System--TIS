@@ -4570,6 +4570,7 @@ const tabs = document.querySelectorAll(".tab");
         const hiringStudioState = {
             loaded: false,
             dragging: null,
+            dragHandlersBound: false,
             plan: {
                 profiles: [],
                 unassigned_items: [],
@@ -4743,6 +4744,92 @@ const tabs = document.querySelectorAll(".tab");
             return findAndDetachChip(dragMeta.chipId);
         };
 
+        const clearDropHighlights = () => {
+            document.querySelectorAll(".hiring-chip-dropzone.is-over").forEach((zone) => {
+                zone.classList.remove("is-over");
+            });
+        };
+
+        const resolveDropTargetFromElement = (element) => {
+            const zone = element?.closest?.(".hiring-chip-dropzone");
+            if (!zone) {
+                return null;
+            }
+            if (zone.id === "hiringStudioUnassigned") {
+                return { targetType: "unassigned", targetId: "unassigned", zone };
+            }
+            const profileId = zone.dataset.profileId || "";
+            if (!profileId) {
+                return null;
+            }
+            return { targetType: "profile", targetId: profileId, zone };
+        };
+
+        const moveDraggedChipToTarget = (dragMeta, targetType, targetId) => {
+            if (!dragMeta) {
+                return;
+            }
+            const detached = detachChipFromMeta(dragMeta);
+            if (!detached || !detached.chip) {
+                return;
+            }
+            if (detached.sourceType === targetType && detached.sourceId === targetId) {
+                putChipBack(detached.sourceType, detached.sourceId, detached.chip);
+                hiringStudioState.dragging = null;
+                renderHiringStudio();
+                return;
+            }
+            const placed = placeChipInTarget(targetType, targetId, detached.chip);
+            if (!placed) {
+                putChipBack(detached.sourceType, detached.sourceId, detached.chip);
+            }
+            hiringStudioState.dragging = null;
+            document.body.classList.remove("hiring-is-dragging");
+            renderHiringStudio();
+        };
+
+        const ensureDragHandlersBound = () => {
+            if (hiringStudioState.dragHandlersBound) {
+                return;
+            }
+
+            document.addEventListener("dragover", (event) => {
+                if (!isEditable()) {
+                    return;
+                }
+                const resolved = resolveDropTargetFromElement(event.target);
+                if (!resolved) {
+                    return;
+                }
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                clearDropHighlights();
+                resolved.zone.classList.add("is-over");
+            }, true);
+
+            document.addEventListener("drop", (event) => {
+                if (!isEditable()) {
+                    return;
+                }
+                const resolved = resolveDropTargetFromElement(event.target);
+                if (!resolved) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                clearDropHighlights();
+                const dragMeta = parseDragMeta(event);
+                moveDraggedChipToTarget(dragMeta, resolved.targetType, resolved.targetId);
+            }, true);
+
+            document.addEventListener("dragend", () => {
+                clearDropHighlights();
+                document.body.classList.remove("hiring-is-dragging");
+            }, true);
+
+            hiringStudioState.dragHandlersBound = true;
+        };
+
         const placeChipInTarget = (targetType, targetId, chip) => {
             if (targetType === "unassigned") {
                 hiringStudioState.plan.unassigned_items.push(chip);
@@ -4808,16 +4895,19 @@ const tabs = document.querySelectorAll(".tab");
                     event.preventDefault();
                     return;
                 }
-                hiringStudioState.dragging = {
+                const dragMeta = {
                     chipId: chip.id,
                     sourceType,
                     sourceId,
                 };
+                hiringStudioState.dragging = dragMeta;
                 chipEl.classList.add("is-dragging");
                 document.body.classList.add("hiring-is-dragging");
-                event.dataTransfer.setData("text/plain", chip.id);
-                event.dataTransfer.setData("application/json", JSON.stringify(hiringStudioState.dragging));
-                event.dataTransfer.effectAllowed = "move";
+                if (event.dataTransfer) {
+                    event.dataTransfer.setData("text/plain", chip.id);
+                    event.dataTransfer.setData("application/json", JSON.stringify(dragMeta));
+                    event.dataTransfer.effectAllowed = "move";
+                }
             });
 
             chipEl.addEventListener("dragend", () => {
@@ -4845,48 +4935,14 @@ const tabs = document.querySelectorAll(".tab");
         };
 
         const attachDropBehavior = (dropZone, targetType, targetId) => {
-            dropZone.addEventListener("dragover", (event) => {
-                if (!isEditable()) {
-                    return;
-                }
-                event.preventDefault();
-                dropZone.classList.add("is-over");
-                event.dataTransfer.dropEffect = "move";
-            }, true);
-
-            dropZone.addEventListener("dragleave", () => {
-                dropZone.classList.remove("is-over");
-            });
-
-            dropZone.addEventListener("drop", (event) => {
-                if (!isEditable()) {
-                    return;
-                }
-                event.preventDefault();
-                event.stopPropagation();
-                dropZone.classList.remove("is-over");
-                const dragMeta = parseDragMeta(event);
-                if (!dragMeta) {
-                    return;
-                }
-                const detached = detachChipFromMeta(dragMeta);
-                if (!detached || !detached.chip) {
-                    return;
-                }
-                if (detached.sourceType === targetType && detached.sourceId === targetId) {
-                    putChipBack(detached.sourceType, detached.sourceId, detached.chip);
-                    hiringStudioState.dragging = null;
-                    renderHiringStudio();
-                    return;
-                }
-                const placed = placeChipInTarget(targetType, targetId, detached.chip);
-                if (!placed) {
-                    putChipBack(detached.sourceType, detached.sourceId, detached.chip);
-                }
-                hiringStudioState.dragging = null;
-                document.body.classList.remove("hiring-is-dragging");
-                renderHiringStudio();
-            }, true);
+            if (!dropZone) {
+                return;
+            }
+            dropZone.dataset.dropTargetType = targetType;
+            dropZone.dataset.dropTargetId = targetId;
+            if (targetType === "profile") {
+                dropZone.dataset.profileId = targetId;
+            }
         };
 
         const renderHiringStudio = () => {
@@ -4919,6 +4975,7 @@ const tabs = document.querySelectorAll(".tab");
 
                 const card = document.createElement("article");
                 card.className = "report-hiring-profile is-editable";
+                card.dataset.profileId = profile.id;
                 card.style.setProperty("--studio-accent", profile.accent_color || "#0A4EA3");
                 card.style.setProperty("--plan-accent", profile.accent_color || "#0A4EA3");
                 card.innerHTML = `
@@ -5117,6 +5174,7 @@ const tabs = document.querySelectorAll(".tab");
             if (!hiringStudioProfiles) {
                 return;
             }
+            ensureDragHandlersBound();
             hiringStudioStatus.textContent = "Loading recommended hiring plan...";
             try {
                 const response = await fetch("/dashboard/api/hiring-plan", {
