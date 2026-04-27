@@ -2870,6 +2870,185 @@
             padding: 6px 8px;
         }
 
+        .hiring-studio {
+            border: 1px solid #d7e4fa;
+            border-radius: 12px;
+            background: #fff;
+            padding: 10px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .hiring-studio-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .hiring-studio-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .hiring-btn {
+            border: 1px solid #c8d9f5;
+            border-radius: 8px;
+            background: #f3f8ff;
+            color: #17365d;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+
+        .hiring-btn.is-primary {
+            background: #0a4ea3;
+            border-color: #0a4ea3;
+            color: #fff;
+        }
+
+        .hiring-studio-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+            gap: 10px;
+        }
+
+        .hiring-profile-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 10px;
+        }
+
+        .hiring-profile-editor {
+            border: 1px solid #dce8fa;
+            border-radius: 10px;
+            background: #fbfdff;
+            padding: 8px;
+            display: grid;
+            gap: 8px;
+            border-left: 5px solid var(--studio-accent, #0a4ea3);
+        }
+
+        .hiring-profile-name {
+            width: 100%;
+            border: 1px solid #cfddf3;
+            border-radius: 7px;
+            padding: 6px 8px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #17365d;
+            background: #fff;
+        }
+
+        .hiring-profile-headline {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .hiring-capacity-bar {
+            height: 8px;
+            border-radius: 999px;
+            background: #e7eefb;
+            overflow: hidden;
+        }
+
+        .hiring-capacity-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--studio-accent, #0a4ea3), #7ea6ea);
+            width: var(--capacity-pct, 0%);
+            border-radius: inherit;
+        }
+
+        .hiring-chip-dropzone {
+            min-height: 46px;
+            border: 1px dashed #cddcf4;
+            border-radius: 8px;
+            background: #fff;
+            padding: 6px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+        .hiring-chip-dropzone.is-over {
+            border-color: #0a4ea3;
+            background: #edf4ff;
+        }
+
+        .hiring-hour-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            border: 1px solid #d7e5fa;
+            background: #f6faff;
+            color: #17365d;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 8px;
+            cursor: grab;
+            user-select: none;
+        }
+
+        .hiring-hour-chip button {
+            border: none;
+            background: transparent;
+            color: #7b8ba3;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .hiring-unassigned-panel {
+            border: 1px solid #dce8fa;
+            border-radius: 10px;
+            background: #f9fbff;
+            padding: 8px;
+            display: grid;
+            gap: 8px;
+            align-content: start;
+        }
+
+        .hiring-mini-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 11px;
+            color: #4e6582;
+        }
+
+        .hiring-warning-list {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            gap: 4px;
+        }
+
+        .hiring-warning-item {
+            border: 1px solid #f3d2b8;
+            border-radius: 8px;
+            background: #fff7ee;
+            color: #8a4b12;
+            font-size: 11px;
+            padding: 6px 8px;
+        }
+
+        @media (max-width: 1000px) {
+            .hiring-studio-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
         @keyframes rise {
             from {
                 opacity: 0;
@@ -3531,6 +3710,31 @@
                         <p>All currently reported subject demand is covered, so no specialization-based hiring recommendation is generated.</p>
                     </div>
                     {% endif %}
+
+                    <div class="hiring-studio" aria-label="Interactive Hiring Planner">
+                        <div class="hiring-studio-toolbar">
+                            <div>
+                                <h5 class="report-donut-heading"><span class="section-heading-icon report-heading-icon">{{ icon("planning", "icon") }}</span><span class="report-heading-label">Hiring Plan Studio</span></h5>
+                                <div class="report-inline-note">Drag subject-hour chips between profiles, rename cards, and save your adjusted staffing plan.</div>
+                            </div>
+                            <div class="hiring-studio-actions">
+                                <button id="hiringStudioAddProfileBtn" type="button" class="hiring-btn">+ New Profile</button>
+                                <button id="hiringStudioSaveBtn" type="button" class="hiring-btn is-primary">Save Plan</button>
+                            </div>
+                        </div>
+                        <div id="hiringStudioStatus" class="report-inline-note">Loading hiring planner...</div>
+                        <ul id="hiringStudioWarnings" class="hiring-warning-list" aria-live="polite"></ul>
+                        <div class="hiring-studio-layout">
+                            <div id="hiringStudioProfiles" class="hiring-profile-grid"></div>
+                            <aside class="hiring-unassigned-panel">
+                                <div class="hiring-mini-row">
+                                    <strong>Unassigned Remaining Hours</strong>
+                                    <span id="hiringStudioUnassignedTotal">0h</span>
+                                </div>
+                                <div id="hiringStudioUnassigned" class="hiring-chip-dropzone" data-drop-target="unassigned"></div>
+                            </aside>
+                        </div>
+                    </div>
                 </section>
 
                 {% set coverage_pct = report_summary.coverage_percentage or 0 %}
@@ -4340,6 +4544,386 @@ const tabs = document.querySelectorAll(".tab");
                 }
             });
         });
+
+        const hiringStudioAutoPayload = {{ hiring_plan_editor_auto_payload | tojson }};
+        const hiringStudioProfiles = document.getElementById("hiringStudioProfiles");
+        const hiringStudioUnassigned = document.getElementById("hiringStudioUnassigned");
+        const hiringStudioWarnings = document.getElementById("hiringStudioWarnings");
+        const hiringStudioStatus = document.getElementById("hiringStudioStatus");
+        const hiringStudioAddProfileBtn = document.getElementById("hiringStudioAddProfileBtn");
+        const hiringStudioSaveBtn = document.getElementById("hiringStudioSaveBtn");
+        const hiringStudioUnassignedTotal = document.getElementById("hiringStudioUnassignedTotal");
+
+        const hiringCompatibilityByFamily = {
+            english: "english_humanities",
+            social_english: "english_humanities",
+            arabic: "arabic_related",
+            islamic: "arabic_related",
+            quran: "arabic_related",
+            social_arabic: "arabic_related",
+            science: "science_ict",
+            ict: "science_ict",
+            math: "math",
+            mental_math: "math",
+            pe: "student_life",
+            wellbeing: "student_life",
+            art: "student_life",
+            performing_arts: "student_life",
+            reflection: "student_life",
+            social: "social_humanities",
+        };
+
+        const hiringStudioState = {
+            loaded: false,
+            dragging: null,
+            plan: {
+                profiles: [],
+                unassigned_items: [],
+                summary: {},
+            },
+        };
+
+        const cloneJson = (value) => JSON.parse(JSON.stringify(value));
+
+        const profileTotalHours = (profile) => {
+            return (profile.items || []).reduce((sum, item) => sum + Number(item.hours || 0), 0);
+        };
+
+        const normalizePlan = (rawPlan) => {
+            const source = rawPlan || {};
+            const profiles = Array.isArray(source.profiles) ? source.profiles : [];
+            const unassigned = Array.isArray(source.unassigned_items) ? source.unassigned_items : [];
+            return {
+                profiles: profiles.map((profile, profileIndex) => ({
+                    id: String(profile.id || `profile-${profileIndex + 1}`),
+                    name: String(profile.name || "Proposed Teacher Profile"),
+                    group_key: String(profile.group_key || ""),
+                    assignment_note: String(profile.assignment_note || "Compatible pool grouping"),
+                    accent_color: String(profile.accent_color || "#0A4EA3"),
+                    max_hours: Number(profile.max_hours || 24),
+                    allow_over_capacity: Boolean(profile.allow_over_capacity),
+                    override_compatibility: Boolean(profile.override_compatibility),
+                    items: (Array.isArray(profile.items) ? profile.items : []).map((item, itemIndex) => ({
+                        id: String(item.id || `${profile.id || profileIndex}-item-${itemIndex + 1}`),
+                        subject_key: String(item.subject_key || ""),
+                        subject_name: String(item.subject_name || "Subject"),
+                        subject_code: String(item.subject_code || ""),
+                        family: String(item.family || ""),
+                        subject_color: String(item.subject_color || "#0A4EA3"),
+                        hours: Number(item.hours || 0),
+                    })).filter((item) => item.hours > 0),
+                })),
+                unassigned_items: unassigned.map((item, itemIndex) => ({
+                    id: String(item.id || `unassigned-${itemIndex + 1}`),
+                    subject_key: String(item.subject_key || ""),
+                    subject_name: String(item.subject_name || "Subject"),
+                    subject_code: String(item.subject_code || ""),
+                    family: String(item.family || ""),
+                    subject_color: String(item.subject_color || "#0A4EA3"),
+                    hours: Number(item.hours || 0),
+                })).filter((item) => item.hours > 0),
+                summary: source.summary || {},
+            };
+        };
+
+        const collectLocalWarnings = () => {
+            const warnings = [];
+            hiringStudioState.plan.profiles.forEach((profile) => {
+                const totalHours = profileTotalHours(profile);
+                if (totalHours > profile.max_hours && !profile.allow_over_capacity) {
+                    warnings.push(`${profile.name} exceeds ${profile.max_hours}h capacity (${totalHours}h).`);
+                }
+                const groups = new Set();
+                (profile.items || []).forEach((item) => {
+                    const group = hiringCompatibilityByFamily[item.family || ""];
+                    if (group) {
+                        groups.add(group);
+                    }
+                });
+                if (groups.size > 1 && !profile.override_compatibility) {
+                    warnings.push(`${profile.name} mixes incompatible groups (${Array.from(groups).join(", ")}).`);
+                }
+            });
+            return warnings;
+        };
+
+        const removeChipFromSource = (sourceType, sourceId, chipId) => {
+            if (sourceType === "unassigned") {
+                const index = hiringStudioState.plan.unassigned_items.findIndex((item) => item.id === chipId);
+                if (index >= 0) {
+                    return hiringStudioState.plan.unassigned_items.splice(index, 1)[0];
+                }
+                return null;
+            }
+            const profile = hiringStudioState.plan.profiles.find((item) => item.id === sourceId);
+            if (!profile) {
+                return null;
+            }
+            const index = profile.items.findIndex((item) => item.id === chipId);
+            if (index >= 0) {
+                return profile.items.splice(index, 1)[0];
+            }
+            return null;
+        };
+
+        const placeChipInTarget = (targetType, targetId, chip) => {
+            if (targetType === "unassigned") {
+                hiringStudioState.plan.unassigned_items.push(chip);
+                return true;
+            }
+            const profile = hiringStudioState.plan.profiles.find((item) => item.id === targetId);
+            if (!profile) {
+                return false;
+            }
+            const nextHours = profileTotalHours(profile) + Number(chip.hours || 0);
+            if (nextHours > profile.max_hours && !profile.allow_over_capacity) {
+                hiringStudioStatus.textContent = `Cannot place ${chip.subject_name} in ${profile.name}: over ${profile.max_hours}h capacity.`;
+                return false;
+            }
+            profile.items.push(chip);
+            return true;
+        };
+
+        const renderWarnings = () => {
+            if (!hiringStudioWarnings) {
+                return;
+            }
+            hiringStudioWarnings.innerHTML = "";
+            const warnings = collectLocalWarnings();
+            warnings.forEach((warning) => {
+                const item = document.createElement("li");
+                item.className = "hiring-warning-item";
+                item.textContent = warning;
+                hiringStudioWarnings.appendChild(item);
+            });
+        };
+
+        const buildChip = (chip, sourceType, sourceId) => {
+            const chipEl = document.createElement("span");
+            chipEl.className = "hiring-hour-chip";
+            chipEl.draggable = true;
+            chipEl.dataset.chipId = chip.id;
+            chipEl.style.borderColor = `${chip.subject_color}55`;
+            chipEl.style.background = `${chip.subject_color}22`;
+            chipEl.innerHTML = `<span>${chip.subject_name} ${chip.hours}h</span><button type="button" title="Send to unassigned">×</button>`;
+
+            chipEl.addEventListener("dragstart", (event) => {
+                hiringStudioState.dragging = {
+                    chipId: chip.id,
+                    sourceType,
+                    sourceId,
+                };
+                event.dataTransfer.effectAllowed = "move";
+            });
+
+            chipEl.querySelector("button")?.addEventListener("click", () => {
+                const movedChip = removeChipFromSource(sourceType, sourceId, chip.id);
+                if (movedChip) {
+                    hiringStudioState.plan.unassigned_items.push(movedChip);
+                    renderHiringStudio();
+                }
+            });
+
+            return chipEl;
+        };
+
+        const attachDropBehavior = (dropZone, targetType, targetId) => {
+            dropZone.addEventListener("dragover", (event) => {
+                event.preventDefault();
+                dropZone.classList.add("is-over");
+                event.dataTransfer.dropEffect = "move";
+            });
+
+            dropZone.addEventListener("dragleave", () => {
+                dropZone.classList.remove("is-over");
+            });
+
+            dropZone.addEventListener("drop", (event) => {
+                event.preventDefault();
+                dropZone.classList.remove("is-over");
+                const dragMeta = hiringStudioState.dragging;
+                if (!dragMeta) {
+                    return;
+                }
+                const chip = removeChipFromSource(dragMeta.sourceType, dragMeta.sourceId, dragMeta.chipId);
+                if (!chip) {
+                    return;
+                }
+                const placed = placeChipInTarget(targetType, targetId, chip);
+                if (!placed) {
+                    placeChipInTarget(dragMeta.sourceType, dragMeta.sourceId, chip);
+                }
+                hiringStudioState.dragging = null;
+                renderHiringStudio();
+            });
+        };
+
+        const renderHiringStudio = () => {
+            if (!hiringStudioProfiles || !hiringStudioUnassigned) {
+                return;
+            }
+
+            hiringStudioProfiles.innerHTML = "";
+            const profiles = hiringStudioState.plan.profiles || [];
+
+            profiles.forEach((profile) => {
+                const totalHours = profileTotalHours(profile);
+                const remaining = profile.max_hours - totalHours;
+                const status = totalHours === profile.max_hours
+                    ? "Complete"
+                    : totalHours < profile.max_hours
+                        ? "Underfilled"
+                        : "Over Capacity";
+                const capPct = Math.max(0, Math.min(100, (totalHours / profile.max_hours) * 100));
+
+                const card = document.createElement("article");
+                card.className = "hiring-profile-editor";
+                card.style.setProperty("--studio-accent", profile.accent_color || "#0A4EA3");
+                card.innerHTML = `
+                    <div class="hiring-profile-headline">
+                        <input class="hiring-profile-name" value="${profile.name.replace(/"/g, '&quot;')}" />
+                        <span class="report-hiring-chip ${totalHours > profile.max_hours ? 'is-gap' : 'is-full'}">${status}</span>
+                    </div>
+                    <div class="hiring-mini-row">
+                        <span>${totalHours}h planned</span>
+                        <span>${remaining >= 0 ? `${remaining}h remaining` : `${Math.abs(remaining)}h over`}</span>
+                    </div>
+                    <div class="hiring-capacity-bar"><div class="hiring-capacity-fill" style="--capacity-pct:${capPct}%;"></div></div>
+                    <div class="hiring-mini-row">
+                        <label><input type="checkbox" class="hiring-allow-over" ${profile.allow_over_capacity ? "checked" : ""}/> Allow > ${profile.max_hours}h</label>
+                        <label><input type="checkbox" class="hiring-override-compat" ${profile.override_compatibility ? "checked" : ""}/> Override compatibility</label>
+                    </div>
+                    <div class="report-hiring-reason">${profile.assignment_note || "Compatible pool grouping"}</div>
+                    <div class="hiring-chip-dropzone" data-drop-target="profile"></div>
+                `;
+
+                const nameInput = card.querySelector(".hiring-profile-name");
+                nameInput?.addEventListener("input", () => {
+                    profile.name = nameInput.value || "Proposed Teacher Profile";
+                });
+
+                const allowOver = card.querySelector(".hiring-allow-over");
+                allowOver?.addEventListener("change", () => {
+                    profile.allow_over_capacity = allowOver.checked;
+                    renderWarnings();
+                });
+
+                const overrideCompat = card.querySelector(".hiring-override-compat");
+                overrideCompat?.addEventListener("change", () => {
+                    profile.override_compatibility = overrideCompat.checked;
+                    renderWarnings();
+                });
+
+                const dropZone = card.querySelector(".hiring-chip-dropzone");
+                attachDropBehavior(dropZone, "profile", profile.id);
+                (profile.items || []).forEach((chip) => {
+                    dropZone.appendChild(buildChip(chip, "profile", profile.id));
+                });
+
+                hiringStudioProfiles.appendChild(card);
+            });
+
+            hiringStudioUnassigned.innerHTML = "";
+            attachDropBehavior(hiringStudioUnassigned, "unassigned", "unassigned");
+            (hiringStudioState.plan.unassigned_items || []).forEach((chip) => {
+                hiringStudioUnassigned.appendChild(buildChip(chip, "unassigned", "unassigned"));
+            });
+
+            const unassignedTotal = (hiringStudioState.plan.unassigned_items || []).reduce((sum, item) => sum + Number(item.hours || 0), 0);
+            if (hiringStudioUnassignedTotal) {
+                hiringStudioUnassignedTotal.textContent = `${unassignedTotal}h`;
+            }
+            renderWarnings();
+        };
+
+        const saveHiringStudio = async () => {
+            if (!hiringStudioSaveBtn) {
+                return;
+            }
+            hiringStudioSaveBtn.disabled = true;
+            hiringStudioStatus.textContent = "Saving hiring plan...";
+            try {
+                const response = await fetch("/dashboard/api/hiring-plan/save", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ plan: hiringStudioState.plan }),
+                });
+                const payload = await response.json();
+                if (!response.ok || !payload.ok) {
+                    hiringStudioStatus.textContent = payload.error || "Could not save hiring plan.";
+                    return;
+                }
+
+                hiringStudioStatus.textContent = payload.warnings && payload.warnings.length
+                    ? `Saved with ${payload.warnings.length} warning(s).`
+                    : "Hiring plan saved.";
+
+                if (hiringStudioWarnings) {
+                    hiringStudioWarnings.innerHTML = "";
+                    (payload.warnings || []).forEach((warning) => {
+                        const item = document.createElement("li");
+                        item.className = "hiring-warning-item";
+                        item.textContent = warning;
+                        hiringStudioWarnings.appendChild(item);
+                    });
+                }
+            } catch (error) {
+                hiringStudioStatus.textContent = "Could not save hiring plan.";
+            } finally {
+                hiringStudioSaveBtn.disabled = false;
+            }
+        };
+
+        const addHiringProfile = () => {
+            const profileId = `profile-manual-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            hiringStudioState.plan.profiles.push({
+                id: profileId,
+                name: "Manual Profile",
+                group_key: "",
+                assignment_note: "Standalone profile required",
+                accent_color: "#0A4EA3",
+                max_hours: 24,
+                allow_over_capacity: false,
+                override_compatibility: false,
+                items: [],
+            });
+            renderHiringStudio();
+        };
+
+        const loadHiringStudio = async () => {
+            if (!hiringStudioProfiles) {
+                return;
+            }
+            hiringStudioStatus.textContent = "Loading hiring planner...";
+            try {
+                const response = await fetch("/dashboard/api/hiring-plan", {
+                    method: "GET",
+                    headers: {
+                        "Accept": "application/json",
+                    },
+                });
+                const payload = await response.json();
+                if (response.ok && payload.ok && payload.plan) {
+                    hiringStudioState.plan = normalizePlan(payload.plan);
+                    hiringStudioStatus.textContent = "Loaded saved hiring plan.";
+                } else {
+                    hiringStudioState.plan = normalizePlan(cloneJson(hiringStudioAutoPayload));
+                    hiringStudioStatus.textContent = "Loaded automatic recommended plan.";
+                }
+            } catch (error) {
+                hiringStudioState.plan = normalizePlan(cloneJson(hiringStudioAutoPayload));
+                hiringStudioStatus.textContent = "Loaded automatic recommended plan.";
+            }
+
+            hiringStudioState.loaded = true;
+            renderHiringStudio();
+        };
+
+        hiringStudioAddProfileBtn?.addEventListener("click", addHiringProfile);
+        hiringStudioSaveBtn?.addEventListener("click", saveHiringStudio);
+        loadHiringStudio();
 
         const activeSubjectsPanel = document.getElementById("panel-subjects");
         if (activeSubjectsPanel && activeSubjectsPanel.classList.contains("active")) {

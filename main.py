@@ -14,7 +14,7 @@ import math
 import os
 import re
 import time
-from typing import Optional
+from typing import Optional, Any
 from urllib.parse import quote_plus
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -3546,6 +3546,188 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         "hiring_plan_equivalent_full_teacher_count": equivalent_full_teacher_count,
         "hiring_plan_equivalent_remaining_hours": equivalent_remaining_hours,
     }
+
+
+def _build_hiring_plan_editor_payload(report_summary: dict, report_subject_rows: list[dict]) -> dict:
+    profiles_source = list((report_summary or {}).get("hiring_plan_profiles", []) or [])
+    subject_remaining: dict[str, dict[str, Any]] = {}
+
+    for row in report_subject_rows or []:
+        remaining_hours = int(row.get("remaining_hours", 0) or 0)
+        if remaining_hours <= 0:
+            continue
+        subject_key = str(row.get("subject_key", "") or "")
+        if not subject_key:
+            continue
+        subject_remaining[subject_key] = {
+            "subject_key": subject_key,
+            "subject_name": str(row.get("subject_name", "Subject") or "Subject"),
+            "subject_code": str(row.get("subject_code", "") or ""),
+            "family": _detect_hiring_subject_family(row),
+            "subject_color": str(row.get("subject_color", "#0A4EA3") or "#0A4EA3"),
+            "hours": remaining_hours,
+        }
+
+    profile_items = []
+    for profile in profiles_source:
+        items = []
+        for item in profile.get("coverage_items", []) or []:
+            subject_key = str(item.get("subject_key", "") or "")
+            item_hours = int(item.get("hours", 0) or 0)
+            if item_hours <= 0:
+                continue
+            subject_name = str(item.get("subject_name", "Subject") or "Subject")
+            if subject_key and subject_key in subject_remaining:
+                available = int(subject_remaining[subject_key]["hours"])
+                take = min(available, item_hours)
+                if take <= 0:
+                    continue
+                subject_remaining[subject_key]["hours"] = max(available - take, 0)
+                item_hours = take
+
+            item_family = str(item.get("family", "") or "")
+            if not item_family:
+                item_family = _detect_hiring_subject_family(item)
+
+            items.append(
+                {
+                    "id": f"chip-{len(items)+1}-{subject_key or subject_name.lower().replace(' ', '-')}",
+                    "subject_key": subject_key,
+                    "subject_name": subject_name,
+                    "subject_code": str(item.get("subject_code", "") or ""),
+                    "family": item_family,
+                    "subject_color": str(item.get("subject_color", profile.get("accent_color", "#0A4EA3")) or "#0A4EA3"),
+                    "hours": item_hours,
+                }
+            )
+
+        profile_items.append(
+            {
+                "id": str(profile.get("id", f"profile-{len(profile_items)+1}")),
+                "name": str(profile.get("profile_label", "Proposed Teacher Profile") or "Proposed Teacher Profile"),
+                "group_key": str(profile.get("group_key", "") or ""),
+                "assignment_note": str(profile.get("assignment_note", "Compatible pool grouping") or "Compatible pool grouping"),
+                "accent_color": str(profile.get("accent_color", "#0A4EA3") or "#0A4EA3"),
+                "max_hours": REPORT_STANDARD_MAX_HOURS,
+                "allow_over_capacity": False,
+                "override_compatibility": False,
+                "items": items,
+            }
+        )
+
+    unassigned_items = []
+    for remaining in subject_remaining.values():
+        remaining_hours = int(remaining.get("hours", 0) or 0)
+        if remaining_hours <= 0:
+            continue
+        unassigned_items.append(
+            {
+                "id": f"chip-unassigned-{len(unassigned_items)+1}-{remaining['subject_key']}",
+                "subject_key": remaining["subject_key"],
+                "subject_name": remaining["subject_name"],
+                "subject_code": remaining["subject_code"],
+                "family": remaining["family"],
+                "subject_color": remaining["subject_color"],
+                "hours": remaining_hours,
+            }
+        )
+
+    return {
+        "profiles": profile_items,
+        "unassigned_items": unassigned_items,
+        "summary": {
+            "total_uncovered_hours": int((report_summary or {}).get("total_uncovered_hours", 0) or 0),
+            "total_new_teachers_required": int((report_summary or {}).get("total_new_teachers_required", 0) or 0),
+            "remaining_uncovered_hours_after_hires": int((report_summary or {}).get("remaining_uncovered_hours_after_hires", 0) or 0),
+        },
+    }
+
+
+def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
+    payload = dict(raw_payload or {})
+    profiles = []
+    for raw_profile in payload.get("profiles", []) or []:
+        items = []
+        for raw_item in raw_profile.get("items", []) or []:
+            hours = int(raw_item.get("hours", 0) or 0)
+            if hours <= 0:
+                continue
+            items.append(
+                {
+                    "id": str(raw_item.get("id", "") or ""),
+                    "subject_key": str(raw_item.get("subject_key", "") or ""),
+                    "subject_name": str(raw_item.get("subject_name", "Subject") or "Subject"),
+                    "subject_code": str(raw_item.get("subject_code", "") or ""),
+                    "family": str(raw_item.get("family", "") or ""),
+                    "subject_color": str(raw_item.get("subject_color", "#0A4EA3") or "#0A4EA3"),
+                    "hours": hours,
+                }
+            )
+
+        profiles.append(
+            {
+                "id": str(raw_profile.get("id", "") or ""),
+                "name": str(raw_profile.get("name", "Proposed Teacher Profile") or "Proposed Teacher Profile"),
+                "group_key": str(raw_profile.get("group_key", "") or ""),
+                "assignment_note": str(raw_profile.get("assignment_note", "") or ""),
+                "accent_color": str(raw_profile.get("accent_color", "#0A4EA3") or "#0A4EA3"),
+                "max_hours": int(raw_profile.get("max_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS),
+                "allow_over_capacity": bool(raw_profile.get("allow_over_capacity", False)),
+                "override_compatibility": bool(raw_profile.get("override_compatibility", False)),
+                "items": items,
+            }
+        )
+
+    unassigned_items = []
+    for raw_item in payload.get("unassigned_items", []) or []:
+        hours = int(raw_item.get("hours", 0) or 0)
+        if hours <= 0:
+            continue
+        unassigned_items.append(
+            {
+                "id": str(raw_item.get("id", "") or ""),
+                "subject_key": str(raw_item.get("subject_key", "") or ""),
+                "subject_name": str(raw_item.get("subject_name", "Subject") or "Subject"),
+                "subject_code": str(raw_item.get("subject_code", "") or ""),
+                "family": str(raw_item.get("family", "") or ""),
+                "subject_color": str(raw_item.get("subject_color", "#0A4EA3") or "#0A4EA3"),
+                "hours": hours,
+            }
+        )
+
+    return {
+        "profiles": profiles,
+        "unassigned_items": unassigned_items,
+        "summary": dict(payload.get("summary", {}) or {}),
+    }
+
+
+def _collect_hiring_plan_warnings(plan_payload: dict) -> list[str]:
+    warnings = []
+    for profile in plan_payload.get("profiles", []) or []:
+        profile_name = str(profile.get("name", "Proposed profile") or "Proposed profile")
+        max_hours = int(profile.get("max_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS)
+        profile_hours = sum(int(item.get("hours", 0) or 0) for item in profile.get("items", []) or [])
+
+        if profile_hours > max_hours and not profile.get("allow_over_capacity", False):
+            warnings.append(
+                f"{profile_name} is over capacity ({profile_hours}h / {max_hours}h). Enable override to allow this."
+            )
+
+        group_keys = set()
+        for item in profile.get("items", []) or []:
+            family = str(item.get("family", "") or "")
+            if not family:
+                family = _detect_hiring_subject_family(item)
+            group_keys.add(HIRING_COMPATIBILITY_GROUPS.get(family, f"single_{family}"))
+
+        mixed_groups = {key for key in group_keys if key}
+        if len(mixed_groups) > 1 and not profile.get("override_compatibility", False):
+            warnings.append(
+                f"{profile_name} mixes normally incompatible subject groups ({', '.join(sorted(mixed_groups))})."
+            )
+
+    return warnings
 
 
 def _build_report_class_rows(planning_sections):
@@ -7396,6 +7578,10 @@ def dashboard(
         planning_current_sections_count=planning_current_sections_count,
         planning_new_sections_count=planning_new_sections_count,
     )
+    hiring_plan_editor_auto_payload = _build_hiring_plan_editor_payload(
+        report_summary=report_summary,
+        report_subject_rows=report_subject_rows,
+    )
     all_years = db.query(models.AcademicYear).order_by(
         models.AcademicYear.year_name.desc()
     ).all()
@@ -7447,6 +7633,7 @@ def dashboard(
             ),
             "report_grade_rows": reporting_context["grade_rows"],
             "report_visuals": report_visuals,
+            "hiring_plan_editor_auto_payload": hiring_plan_editor_auto_payload,
             "all_years": all_years,
             "year_map": year_map,
             "branch_map": branch_map,
@@ -7466,6 +7653,91 @@ def dashboard(
             ),
         }
     )
+
+
+@app.get("/dashboard/api/hiring-plan")
+def load_dashboard_hiring_plan(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = auth.get_current_user(request, db)
+    if not user:
+        return JSONResponse(status_code=401, content={"ok": False, "error": "Authentication required."})
+
+    scoped_branch_id = getattr(user, "scope_branch_id", user.branch_id)
+    scoped_academic_year_id = getattr(user, "scope_academic_year_id", user.academic_year_id)
+    if not scoped_branch_id or not scoped_academic_year_id:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "Scope is not configured."})
+
+    draft = db.query(models.HiringPlanDraft).filter(
+        models.HiringPlanDraft.branch_id == int(scoped_branch_id),
+        models.HiringPlanDraft.academic_year_id == int(scoped_academic_year_id),
+        models.HiringPlanDraft.user_id == int(user.id),
+    ).first()
+    if not draft:
+        return {"ok": True, "source": "none", "plan": None}
+
+    try:
+        plan_payload = json.loads(str(draft.plan_json or "{}"))
+    except json.JSONDecodeError:
+        plan_payload = {}
+    return {
+        "ok": True,
+        "source": "saved",
+        "plan": _normalize_hiring_plan_payload(plan_payload),
+        "updated_at": draft.updated_at.isoformat() if getattr(draft, "updated_at", None) else None,
+    }
+
+
+@app.post("/dashboard/api/hiring-plan/save")
+async def save_dashboard_hiring_plan(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = auth.get_current_user(request, db)
+    if not user:
+        return JSONResponse(status_code=401, content={"ok": False, "error": "Authentication required."})
+
+    scoped_branch_id = getattr(user, "scope_branch_id", user.branch_id)
+    scoped_academic_year_id = getattr(user, "scope_academic_year_id", user.academic_year_id)
+    if not scoped_branch_id or not scoped_academic_year_id:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "Scope is not configured."})
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "Invalid JSON payload."})
+
+    normalized_plan = _normalize_hiring_plan_payload(body.get("plan", {}))
+    warnings = _collect_hiring_plan_warnings(normalized_plan)
+    now_utc = datetime.utcnow()
+
+    draft = db.query(models.HiringPlanDraft).filter(
+        models.HiringPlanDraft.branch_id == int(scoped_branch_id),
+        models.HiringPlanDraft.academic_year_id == int(scoped_academic_year_id),
+        models.HiringPlanDraft.user_id == int(user.id),
+    ).first()
+
+    if not draft:
+        draft = models.HiringPlanDraft(
+            branch_id=int(scoped_branch_id),
+            academic_year_id=int(scoped_academic_year_id),
+            user_id=int(user.id),
+            plan_json=json.dumps(normalized_plan, ensure_ascii=False),
+            updated_at=now_utc,
+        )
+        db.add(draft)
+    else:
+        draft.plan_json = json.dumps(normalized_plan, ensure_ascii=False)
+        draft.updated_at = now_utc
+
+    db.commit()
+
+    return {
+        "ok": True,
+        "warnings": warnings,
+        "updated_at": now_utc.isoformat(),
+    }
 
 
 # ---------------------------------------

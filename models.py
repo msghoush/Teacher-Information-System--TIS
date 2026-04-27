@@ -310,3 +310,28 @@ class TimetableEntry(Base):
     teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
     day_key = Column(String(16), nullable=False)
     period_index = Column(Integer, nullable=False)
+
+
+class HiringPlanDraft(Base):
+    __tablename__ = "hiring_plan_drafts"
+    __table_args__ = (
+        Index(
+            "uq_hiring_plan_drafts_scope_user",
+            "branch_id",
+            "academic_year_id",
+            "user_id",
+            unique=True,
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
+    academic_year_id = Column(
+        Integer,
+        ForeignKey("academic_years.id"),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    plan_json = Column(Text, nullable=False, default="{}")
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
