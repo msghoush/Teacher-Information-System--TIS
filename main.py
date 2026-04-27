@@ -3040,6 +3040,31 @@ def _detect_hiring_subject_family(subject_row: dict) -> str:
 
     if re.search(r"\b(qur|quran|qur an|qno|qaad|qaadah|noraniah|noorani)\b", normalized_text):
         return "quran"
+    if re.search(r"\b(reflection|reflective|advisory|character education)\b", normalized_text):
+        return "reflection"
+    if re.search(r"\b(english|ela|phonics|reading|writing|literacy|language arts)\b", normalized_text):
+        return "english"
+    if re.search(r"\b(arabic|arbic|lang ar|arab)\b", normalized_text):
+        return "arabic"
+    if re.search(r"\b(social studies english|social english|sse)\b", normalized_text):
+        return "social_english"
+    if re.search(r"\b(social studies arabic|social arabic|ksa social|ssa)\b", normalized_text):
+        return "social_arabic"
+    if re.search(r"\b(math|maths|mathematics|algebra|geometry|calculus)\b", normalized_text):
+        return "math"
+    if re.search(r"\b(science|biology|chemistry|physics|steam)\b", normalized_text):
+        return "science"
+    if re.search(r"\b(ict|computer|computing|technology|coding|robotics|cs)\b", normalized_text):
+        return "ict"
+    if re.search(r"\b(pe|physical education|sport|fitness)\b", normalized_text):
+        return "pe"
+    if re.search(r"\b(well being|wellbeing|health|sel|life skills)\b", normalized_text):
+        return "wellbeing"
+    if re.search(r"\b(performing|performance|drama|theatre|theater|dance|music)\b", normalized_text):
+        return "performing_arts"
+    if re.search(r"\b(art|drawing|painting|visual art)\b", normalized_text):
+        return "art"
+
     if "islamic" in alignment_groups or re.search(
         r"\b(islamic|hadith|fiqh|tawheed|religion)\b",
         normalized_text,
@@ -3065,10 +3090,6 @@ def _detect_hiring_subject_family(subject_row: dict) -> str:
         return "social"
     if "pe" in alignment_groups:
         return "pe"
-    if re.search(r"\b(well being|wellbeing|health|sel|life skills)\b", normalized_text):
-        return "wellbeing"
-    if re.search(r"\b(reflection|reflective|advisory|character education)\b", normalized_text):
-        return "reflection"
     if "music" in alignment_groups or re.search(
         r"\b(performing|performance|drama|theatre|theater|dance|music)\b",
         normalized_text,
@@ -3226,6 +3247,7 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         )
 
     uncovered_items.sort(key=_get_hiring_subject_sort_key)
+    total_uncovered_hours = sum(int(item.get("remaining_hours", 0) or 0) for item in uncovered_items)
     profiles = []
     profile_counter = 1
     family_buckets = {}
@@ -3462,6 +3484,25 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
     )
     equivalent_full_teacher_count = covered_hours // REPORT_STANDARD_MAX_HOURS
     equivalent_remaining_hours = covered_hours % REPORT_STANDARD_MAX_HOURS
+
+    pool_debug_parts = [
+        (
+            f"{profile.get('profile_label', 'Profile')}:"
+            f"{int(profile.get('total_hours', 0) or 0)}h="
+            f"{int(profile.get('full_teacher_count', 0) or 0)}x24+"
+            f"{int(profile.get('remaining_hours', 0) or 0)}"
+        )
+        for profile in profiles
+    ]
+    logging.info(
+        "Hiring plan debug: pools=%s total_uncovered=%s covered_in_pools=%s equivalent=%sx24+%s details=%s",
+        len(profiles),
+        total_uncovered_hours,
+        covered_hours,
+        equivalent_full_teacher_count,
+        equivalent_remaining_hours,
+        " | ".join(pool_debug_parts),
+    )
 
     return {
         "hiring_plan_profiles": profiles,
