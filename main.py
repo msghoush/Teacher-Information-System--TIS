@@ -3277,7 +3277,10 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         if not pool_items:
             return None
 
-        total_hours = sum(int(item.get("remaining_hours", 0) or 0) for item in pool_items)
+        total_hours = sum(
+            int(item.get("hours", item.get("remaining_hours", 0)) or 0)
+            for item in pool_items
+        )
         if total_hours <= 0:
             return None
 
@@ -3292,7 +3295,7 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         coverage_items = [
             {
                 **item,
-                "hours": int(item.get("remaining_hours", 0) or 0),
+                "hours": int(item.get("hours", item.get("remaining_hours", 0)) or 0),
             }
             for item in pool_items
         ]
