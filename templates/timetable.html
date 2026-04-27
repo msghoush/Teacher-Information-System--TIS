@@ -1592,64 +1592,66 @@
 
         const iconLibrary = {
             subjects: subjectIcon('<path d="M3 6.5a2.5 2.5 0 0 1 2.5-2.5H11v15H5.5A2.5 2.5 0 0 0 3 21V6.5Z"></path><path d="M21 6.5A2.5 2.5 0 0 0 18.5 4H13v15h5.5A2.5 2.5 0 0 1 21 21V6.5Z"></path>'),
-            english: subjectIcon('<rect x="5" y="3.5" width="14" height="17" rx="2"></rect><path d="M8 8h8"></path><path d="M8 11.5h6"></path><path d="M8 15h8"></path>'),
-            arabic: subjectIcon('<path d="M6 3.5h10a2 2 0 0 1 2 2v15"></path><path d="M6 3.5v17"></path><path d="M9 8h6"></path><path d="M9 11.5h5"></path><path d="M9 15h6"></path><path d="M18 5.5 20.5 8"></path><path d="M20.5 8 16.5 12"></path>'),
-            mathematics: subjectIcon('<rect x="4" y="3.5" width="16" height="17" rx="2"></rect><path d="M8 8h3"></path><path d="M9.5 6.5v3"></path><path d="M14 7h2"></path><path d="M8 12.5h3"></path><path d="M14 11l2 3"></path><path d="M16 11l-2 3"></path><path d="M8 17h3"></path><path d="M14 17h2"></path>'),
-            mentalMath: subjectIcon('<path d="M12 3.5c-3.6 0-6.5 2.9-6.5 6.5 0 1.7.7 3.3 1.9 4.5V18a2.5 2.5 0 0 0 2.5 2.5h4.2A2.9 2.9 0 0 0 17 17.6v-2.1c1.3-1.2 2-3 2-4.9 0-3.9-3.1-7.1-7-7.1Z"></path><path d="M10 11h4"></path><path d="M12 9v4"></path>'),
-            science: subjectIcon('<path d="M10 3.5v4.8l-4.7 8.1a2.2 2.2 0 0 0 1.9 3.3h9.6a2.2 2.2 0 0 0 1.9-3.3L14 8.3V3.5"></path><path d="M8 3.5h8"></path><path d="M8 14h8"></path>'),
-            ict: subjectIcon('<rect x="3" y="5" width="18" height="12" rx="2"></rect><path d="M9 21h6"></path><path d="M12 17v4"></path><path d="M7 10h10"></path><path d="M7 13h6"></path>'),
-            quran: subjectIcon('<path d="M3 6.5a2.5 2.5 0 0 1 2.5-2.5H11v15H5.5A2.5 2.5 0 0 0 3 21V6.5Z"></path><path d="M21 6.5A2.5 2.5 0 0 0 18.5 4H13v15h5.5A2.5 2.5 0 0 1 21 21V6.5Z"></path><path d="M12 9.2a2.2 2.2 0 1 0 0 4.4 2.2 2.2 0 1 1 0 4.4"></path>'),
-            islamic: subjectIcon('<path d="M4 20.5h16"></path><path d="M6.5 20.5v-6.8L12 9l5.5 4.7v6.8"></path><path d="M10 20.5v-3.2a2 2 0 0 1 4 0v3.2"></path><path d="M15.5 6.5a2.3 2.3 0 1 1-2.4-2.4 2 2 0 1 0 2.4 2.4Z"></path>'),
-            art: subjectIcon('<path d="M12 4a8 8 0 1 0 0 16h1.5a2 2 0 0 0 1.4-3.4 1.9 1.9 0 0 1 1.3-3.2h.7A3.1 3.1 0 0 0 20 10.9 6.9 6.9 0 0 0 12 4Z"></path><circle cx="8" cy="11" r=".8"></circle><circle cx="10.5" cy="8.5" r=".8"></circle><circle cx="14" cy="8.8" r=".8"></circle><circle cx="7.8" cy="15" r=".8"></circle>'),
-            pe: subjectIcon('<circle cx="12" cy="12" r="7"></circle><path d="M12 5a10 10 0 0 1 3 7"></path><path d="M12 5a10 10 0 0 0-3 7"></path><path d="M5.8 9.5 9.6 12l-3.8 2.5"></path><path d="M18.2 9.5 14.4 12l3.8 2.5"></path>'),
-            social: subjectIcon('<circle cx="12" cy="12" r="8"></circle><path d="M4 12h16"></path><path d="M12 4a12 12 0 0 1 0 16"></path><path d="M12 4a12 12 0 0 0 0 16"></path>'),
-            performingArts: subjectIcon('<path d="M9 5v9.5a2.5 2.5 0 1 1-1.5-2.3V7.2l8-1.7V13a2.5 2.5 0 1 1-1.5-2.3V4.6L9 5Z"></path>'),
-            wellbeing: subjectIcon('<path d="M19.5 8.8c0 4.8-7.5 9.7-7.5 9.7s-7.5-4.9-7.5-9.7a4.3 4.3 0 0 1 7.5-2.9 4.3 4.3 0 0 1 7.5 2.9Z"></path><path d="M8 12h2.2l1.1-2.6 1.7 4.2 1.1-1.9H16"></path>'),
+            english: subjectIcon('<rect x="5" y="4" width="14" height="16" rx="2"></rect><path d="M8 8h8"></path><path d="M8 12h6"></path><path d="M8 16h8"></path>'),
+            arabic: subjectIcon('<path d="M6 4h9.5a2.5 2.5 0 0 1 2.5 2.5V20"></path><path d="M6 4v16"></path><path d="M9 9.2c1.2-1 2.9-1.3 4.4-.6 1.4.6 2 2.2 1.3 3.4-.6 1-1.8 1.6-3 1.5"></path><path d="M10.2 15.2h.01"></path><path d="M12.1 15.2h.01"></path>'),
+            mathematics: subjectIcon('<rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M8 8h4"></path><path d="M10 6v4"></path><path d="M15 8h2"></path><path d="M8 12h4"></path><path d="M15 11l2 2"></path><path d="M17 11l-2 2"></path><path d="M8 16h4"></path><path d="M15 16h2"></path>'),
+            mentalMath: subjectIcon('<path d="M12 4a6.5 6.5 0 0 0-6.5 6.5c0 1.8.8 3.5 2.1 4.7v2a2.3 2.3 0 0 0 2.3 2.3h4.2a2.9 2.9 0 0 0 2.9-2.9V15a6.5 6.5 0 0 0-5-11Z"></path><path d="M10.5 11h3"></path><path d="M12 9.5v3"></path>'),
+            science: subjectIcon('<path d="M10 4v4.5l-4.6 7.8a2.3 2.3 0 0 0 2 3.5h9.2a2.3 2.3 0 0 0 2-3.5L14 8.5V4"></path><path d="M8 4h8"></path><path d="M8 13.8h8"></path>'),
+            ict: subjectIcon('<rect x="3" y="5" width="18" height="12" rx="2"></rect><path d="M9 21h6"></path><path d="M12 17v4"></path><path d="M7 10h10"></path><path d="M7 13h5"></path>'),
+            quran: subjectIcon('<path d="M3 6.5a2.5 2.5 0 0 1 2.5-2.5H11v15H5.5A2.5 2.5 0 0 0 3 21V6.5Z"></path><path d="M21 6.5A2.5 2.5 0 0 0 18.5 4H13v15h5.5A2.5 2.5 0 0 1 21 21V6.5Z"></path><path d="M14.8 7.2a2.4 2.4 0 1 1-2.5-2.5 2.1 2.1 0 1 0 2.5 2.5Z"></path><path d="M12.1 9.4v2.8"></path>'),
+            islamic: subjectIcon('<path d="M4 20h16"></path><path d="M6.2 20v-6.6L12 9l5.8 4.4V20"></path><path d="M10 20v-3.2a2 2 0 0 1 4 0V20"></path><path d="M15.2 6.8a2.3 2.3 0 1 1-2.4-2.4 2 2 0 1 0 2.4 2.4Z"></path>'),
+            art: subjectIcon('<path d="M12 4a8 8 0 1 0 0 16h1.4a2 2 0 0 0 1.4-3.4 1.9 1.9 0 0 1 1.3-3.2h.8A3.1 3.1 0 0 0 20 10.8 7 7 0 0 0 12 4Z"></path><circle cx="8" cy="11" r=".8"></circle><circle cx="10.5" cy="8.7" r=".8"></circle><circle cx="14" cy="8.9" r=".8"></circle><circle cx="7.8" cy="15" r=".8"></circle>'),
+            pe: subjectIcon('<circle cx="12" cy="12" r="7"></circle><path d="M12 5a10 10 0 0 1 3 7"></path><path d="M12 5a10 10 0 0 0-3 7"></path><path d="M5.8 9.5 9.5 12l-3.7 2.5"></path><path d="M18.2 9.5 14.5 12l3.7 2.5"></path>'),
+            social: subjectIcon('<circle cx="12" cy="12" r="8"></circle><path d="M4 12h16"></path><path d="M12 4c2.1 2.2 3.2 4.8 3.2 8S14.1 17.8 12 20"></path><path d="M12 4c-2.1 2.2-3.2 4.8-3.2 8S9.9 17.8 12 20"></path>'),
+            performingArts: subjectIcon('<path d="M9 5v9.2a2.4 2.4 0 1 1-1.5-2.2V7.2l8-1.6v7.2a2.4 2.4 0 1 1-1.5-2.2V4.7L9 5Z"></path>'),
+            wellbeing: subjectIcon('<path d="M19.5 8.7c0 4.8-7.5 9.8-7.5 9.8s-7.5-5-7.5-9.8a4.3 4.3 0 0 1 7.5-2.9 4.3 4.3 0 0 1 7.5 2.9Z"></path><path d="M8 12h2.1l1.2-2.6 1.7 4.2 1.1-1.8H16"></path>'),
             warning: {{ icon("warning", "subject-icon") | trim | tojson }},
             clear: {{ icon("clear", "subject-icon") | trim | tojson }},
         };
 
         const resolveSubjectIconKey = (subjectCode, subjectName = "") => {
-            const upperCode = String(subjectCode || "").toUpperCase();
-            const upperName = String(subjectName || "").toUpperCase();
-            const identity = `${upperCode} ${upperName}`;
-            if (/QUR|QNO|NOR|QAAD|QAA|QURAN|QUR'AN|NORANIAH|NOORANI/.test(identity)) {
+            const codeText = String(subjectCode || "");
+            const nameText = String(subjectName || "");
+            const upperIdentity = `${codeText} ${nameText}`.toUpperCase();
+            const rawIdentity = `${codeText} ${nameText}`;
+
+            if (/QUR|QNO|NOR|QAAD|QAA|QURAN|QUR'AN|NORANIAH|NOORANI/.test(upperIdentity) || /قران|قرآن|قاعدة|نورانية/.test(rawIdentity)) {
                 return "quran";
             }
-            if (/ISL|ISLAM|RELIGION|TAWHEED|FIQH|HADITH/.test(identity)) {
+            if (/ISL|ISLAM|RELIGION|TAWHEED|FIQH|HADITH/.test(upperIdentity) || /اسلام|إسلام|دينية|توحيد|فقه|حديث|شريعة/.test(rawIdentity)) {
                 return "islamic";
             }
-            if (/MMT|MENTAL\s*MATH|ABACUS/.test(identity)) {
+            if (/MMT|MENTAL\s*MATH|ABACUS/.test(upperIdentity) || /حساب\s*ذهني|أباكس|اباكس|سوروبان/.test(rawIdentity)) {
                 return "mentalMath";
             }
-            if (/MAT|MATH|ALG|ARITH|CALCULUS|GEOMETRY/.test(identity)) {
+            if (/MAT|MATH|ALG|ARITH|CALCULUS|GEOMETRY/.test(upperIdentity) || /رياض|حساب|جبر|هندس/.test(rawIdentity)) {
                 return "mathematics";
             }
-            if (/SCI|SCE|BIO|CHE|PHY|SCIENCE|BIOLOGY|CHEMISTRY|PHYSICS|STEAM/.test(identity)) {
+            if (/SCI|SCE|BIO|CHE|PHY|SCIENCE|BIOLOGY|CHEMISTRY|PHYSICS|STEAM/.test(upperIdentity) || /علوم|فيزياء|كيمياء|أحياء|احياء/.test(rawIdentity)) {
                 return "science";
             }
-            if (/ICT|COM|CS|TECH|COD|ROBOT|COMPUT|TECHNOLOGY|INFORMATION/.test(identity)) {
+            if (/ICT|COM|CS|TECH|COD|ROBOT|COMPUT|TECHNOLOGY|INFORMATION/.test(upperIdentity) || /حاسب|كمبيوتر|تقنية|تقني|برمج|معلومات/.test(rawIdentity)) {
                 return "ict";
             }
-            if (/ARA|ARB|ARABIC/.test(identity)) {
+            if (/ARA|ARB|ARABIC/.test(upperIdentity) || /عربي|اللغة\s*العربية|إملاء|املاء|نحو/.test(rawIdentity)) {
                 return "arabic";
             }
-            if (/ENG|ELA|LIT|LANG|ENGLISH|PHONICS|READING|WRITING/.test(identity)) {
+            if (/ENG|ELA|LIT|LANG|ENGLISH|PHONICS|READING|WRITING/.test(upperIdentity) || /انجليزي|إنجليزي|اللغة\s*الانجليزية|اللغة\s*الإنجليزية/.test(rawIdentity)) {
                 return "english";
             }
-            if (/SSE|SOC|HIS|GEO|CIVIC|SOCIAL|HISTORY|GEOGRAPHY|GLOBAL/.test(identity)) {
+            if (/SSE|SOC|HIS|GEO|CIVIC|SOCIAL|HISTORY|GEOGRAPHY|GLOBAL/.test(upperIdentity) || /اجتماع|تاريخ|جغرافيا|مدنية|دراسات/.test(rawIdentity)) {
                 return "social";
             }
-            if (/PEH|PHE|PE\b|SPORT|PHYSICAL|FITNESS/.test(identity)) {
+            if (/PEH|PHE|PE\b|SPORT|PHYSICAL|FITNESS/.test(upperIdentity) || /رياضة|بدنية|تربية\s*بدنية|لياقة/.test(rawIdentity)) {
                 return "pe";
             }
-            if (/PAR|DRAMA|THEATER|THEATRE|PERFORM|MUSIC|DANCE/.test(identity)) {
+            if (/PAR|DRAMA|THEATER|THEATRE|PERFORM|MUSIC|DANCE/.test(upperIdentity) || /موسيقى|مسرح|رقص|انشاد|إنشاد/.test(rawIdentity)) {
                 return "performingArts";
             }
-            if (/ART|DRAW|PAINT|VISUAL/.test(identity)) {
+            if (/ART|DRAW|PAINT|VISUAL/.test(upperIdentity) || /فن|رسم|تلوين|تشكيلي/.test(rawIdentity)) {
                 return "art";
             }
-            if (/WLB|WELL\s*BEING|WELLBEING|HEALTH|LIFE\s*SKILLS|SEL/.test(identity)) {
+            if (/WLB|WELL\s*BEING|WELLBEING|HEALTH|LIFE\s*SKILLS|SEL/.test(upperIdentity) || /مهارات\s*حياتية|صحة|رفاه|رفاهية|سلوك/.test(rawIdentity)) {
                 return "wellbeing";
             }
             return "subjects";
