@@ -1006,6 +1006,11 @@
         box-shadow: inset 4px 0 0 var(--cell-accent, #0a4ea3), 0 12px 24px rgba(10, 78, 163, 0.08);
     }
 
+    .assignment-option-card.is-focused {
+        border-color: #8fb2df;
+        box-shadow: inset 4px 0 0 var(--cell-accent, #0a4ea3), 0 0 0 3px rgba(10, 78, 163, 0.18);
+    }
+
     .assignment-option-card:disabled {
         opacity: 0.55;
         cursor: not-allowed;
@@ -1253,7 +1258,7 @@
             </header>
             <div id="assignmentPanelBody" class="assignment-panel-body"></div>
             <footer class="assignment-panel-footer">
-                <small class="inspector-note">Only teaching slots can be assigned. Break and prayer blocks stay locked.</small>
+                <small class="inspector-note">Shortcuts: Arrows navigate, Enter assigns, Delete unassigns, Esc closes. Break and prayer blocks stay locked.</small>
                 <button id="assignmentPanelDoneBtn" type="button" class="inspector-btn is-primary">Done</button>
             </footer>
         </section>
@@ -1278,6 +1283,7 @@
                 sectionId: null,
                 dayKey: "",
                 periodIndex: 0,
+                focusedOptionIndex: -1,
             },
             busy: false,
         };
@@ -1384,12 +1390,81 @@
             return `<span class="subject-chip">${getSubjectIconSvg(subjectCode, subjectName)}${subjectCode}</span>`;
         };
 
+        const getPanelOptionButtons = () => {
+            return Array.from(
+                assignmentPanelBody.querySelectorAll(".assignment-option-card[data-subject-code]:not([disabled])")
+            );
+        };
+
+        const getPanelOptionColumnCount = () => {
+            const optionGrid = assignmentPanelBody.querySelector(".assignment-option-grid");
+            if (!optionGrid) {
+                return 1;
+            }
+            const firstCard = optionGrid.querySelector(".assignment-option-card");
+            if (!firstCard) {
+                return 1;
+            }
+            const gridWidth = optionGrid.clientWidth || 0;
+            const cardWidth = firstCard.getBoundingClientRect().width || 0;
+            if (gridWidth <= 0 || cardWidth <= 0) {
+                return 1;
+            }
+            return Math.max(1, Math.round(gridWidth / cardWidth));
+        };
+
+        const syncPanelOptionFocus = (options = {}) => {
+            const { focusDom = false } = options;
+            const optionButtons = getPanelOptionButtons();
+            if (optionButtons.length === 0) {
+                state.assignmentPanel.focusedOptionIndex = -1;
+                return;
+            }
+
+            if (
+                state.assignmentPanel.focusedOptionIndex < 0
+                || state.assignmentPanel.focusedOptionIndex >= optionButtons.length
+            ) {
+                state.assignmentPanel.focusedOptionIndex = 0;
+            }
+
+            optionButtons.forEach((button, index) => {
+                const isFocused = index === state.assignmentPanel.focusedOptionIndex;
+                button.classList.toggle("is-focused", isFocused);
+                button.setAttribute("aria-selected", isFocused ? "true" : "false");
+                button.tabIndex = isFocused ? 0 : -1;
+            });
+
+            if (focusDom) {
+                const targetButton = optionButtons[state.assignmentPanel.focusedOptionIndex];
+                if (targetButton) {
+                    targetButton.focus({ preventScroll: false });
+                }
+            }
+        };
+
+        const movePanelOptionFocus = (delta) => {
+            const optionButtons = getPanelOptionButtons();
+            if (optionButtons.length === 0) {
+                state.assignmentPanel.focusedOptionIndex = -1;
+                return;
+            }
+            if (state.assignmentPanel.focusedOptionIndex < 0) {
+                state.assignmentPanel.focusedOptionIndex = 0;
+            } else {
+                const nextIndex = state.assignmentPanel.focusedOptionIndex + delta;
+                state.assignmentPanel.focusedOptionIndex = Math.max(0, Math.min(optionButtons.length - 1, nextIndex));
+            }
+            syncPanelOptionFocus({ focusDom: true });
+        };
+
         const closeAssignmentPanel = () => {
             state.assignmentPanel = {
                 isOpen: false,
                 sectionId: null,
                 dayKey: "",
                 periodIndex: 0,
+                focusedOptionIndex: -1,
             };
             assignmentPanelBackdrop.classList.remove("is-open");
             assignmentPanelBackdrop.setAttribute("aria-hidden", "true");
@@ -1402,10 +1477,14 @@
                 sectionId: normalizeInt(sectionId),
                 dayKey: String(dayKey || ""),
                 periodIndex: normalizeInt(periodIndex),
+                focusedOptionIndex: 0,
             };
             assignmentPanelBackdrop.classList.add("is-open");
             assignmentPanelBackdrop.setAttribute("aria-hidden", "false");
             renderAssignmentPanel();
+            requestAnimationFrame(() => {
+                syncPanelOptionFocus({ focusDom: true });
+            });
         };
 
         const getSectionById = (sectionId) => {
@@ -2032,6 +2111,7 @@
             assignmentPanelSubtitle.textContent = `${day.label} • ${timeSlot.short_label} • ${timeSlot.time_range}`;
 
             if (blockedSlot) {
+                state.assignmentPanel.focusedOptionIndex = -1;
                 assignmentPanelBody.innerHTML = `
                     <div class="empty-state">${blockedSlot.label} is a ${blockedSlot.block_type_label.toLowerCase()} block, so this slot cannot receive teaching assignments.</div>
                 `;
@@ -2096,11 +2176,29 @@
             }
 
             assignmentPanelBody.querySelectorAll(".assignment-option-card[data-subject-code]").forEach((button) => {
+                button.addEventListener("mouseenter", () => {
+                    const optionButtons = getPanelOptionButtons();
+                    const hoveredIndex = optionButtons.indexOf(button);
+                    if (hoveredIndex >= 0) {
+                        state.assignmentPanel.focusedOptionIndex = hoveredIndex;
+                        syncPanelOptionFocus();
+                    }
+                });
+                button.addEventListener("focus", () => {
+                    const optionButtons = getPanelOptionButtons();
+                    const focusIndex = optionButtons.indexOf(button);
+                    if (focusIndex >= 0) {
+                        state.assignmentPanel.focusedOptionIndex = focusIndex;
+                        syncPanelOptionFocus();
+                    }
+                });
                 button.addEventListener("click", () => {
                     const subjectCode = button.getAttribute("data-subject-code") || "";
                     assignSlot(section.id, selectedSlot, subjectCode);
                 });
             });
+
+            syncPanelOptionFocus();
         };
 
         const renderInspector = () => {
@@ -2396,8 +2494,66 @@
         });
 
         document.addEventListener("keydown", (event) => {
-            if (event.key === "Escape" && state.assignmentPanel.isOpen) {
+            if (!state.assignmentPanel.isOpen) {
+                return;
+            }
+
+            if (event.key === "Escape") {
+                event.preventDefault();
                 closeAssignmentPanel();
+                return;
+            }
+
+            const targetTagName = String(event.target?.tagName || "").toUpperCase();
+            if (["INPUT", "TEXTAREA", "SELECT"].includes(targetTagName)) {
+                return;
+            }
+
+            const optionButtons = getPanelOptionButtons();
+            const columnCount = getPanelOptionColumnCount();
+            if (event.key === "ArrowDown") {
+                event.preventDefault();
+                movePanelOptionFocus(columnCount);
+                return;
+            }
+            if (event.key === "ArrowUp") {
+                event.preventDefault();
+                movePanelOptionFocus(-columnCount);
+                return;
+            }
+            if (event.key === "ArrowRight") {
+                event.preventDefault();
+                movePanelOptionFocus(1);
+                return;
+            }
+            if (event.key === "ArrowLeft") {
+                event.preventDefault();
+                movePanelOptionFocus(-1);
+                return;
+            }
+
+            const selectedSlot = {
+                dayKey: state.assignmentPanel.dayKey,
+                periodIndex: state.assignmentPanel.periodIndex,
+            };
+            const section = getSectionById(state.assignmentPanel.sectionId);
+
+            if ((event.key === "Delete" || event.key === "Backspace") && !state.busy && section) {
+                const existingEntry = getEntryForSectionSlot(section.id, selectedSlot.dayKey, selectedSlot.periodIndex);
+                if (existingEntry) {
+                    event.preventDefault();
+                    assignSlot(section.id, selectedSlot, "", { closePanelOnSuccess: false });
+                }
+                return;
+            }
+
+            if (event.key === "Enter" && !state.busy && optionButtons.length > 0) {
+                const targetIndex = Math.max(0, Math.min(optionButtons.length - 1, state.assignmentPanel.focusedOptionIndex));
+                const targetButton = optionButtons[targetIndex];
+                if (targetButton) {
+                    event.preventDefault();
+                    targetButton.click();
+                }
             }
         });
 
