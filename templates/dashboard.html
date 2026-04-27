@@ -2919,6 +2919,12 @@
             color: #fff;
         }
 
+        .hiring-btn.is-muted {
+            background: #eef2f7;
+            border-color: #d4deeb;
+            color: #355276;
+        }
+
         .hiring-studio-layout {
             display: grid;
             grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
@@ -2999,6 +3005,12 @@
             background: #edf4ff;
         }
 
+        .hiring-chip-dropzone.is-locked {
+            background: #f4f7fb;
+            border-style: solid;
+            border-color: #d8e3f4;
+        }
+
         .hiring-hour-chip {
             display: inline-flex;
             align-items: center;
@@ -3027,6 +3039,14 @@
             cursor: pointer;
             padding: 0;
             line-height: 1;
+        }
+
+        .hiring-hour-chip.is-locked {
+            cursor: default;
+        }
+
+        .hiring-hour-chip.is-locked button {
+            display: none;
         }
 
         .hiring-unassigned-panel {
@@ -3075,6 +3095,11 @@
             padding: 4px 8px;
             cursor: pointer;
             white-space: nowrap;
+        }
+
+        .hiring-card-remove:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
         }
 
         @media (max-width: 1000px) {
@@ -3681,6 +3706,7 @@
                         <div class="hiring-card-toolbar">
                             <div class="report-inline-note">Adjust the suggested cards directly: drag subject-hour chips, rename profiles, add manual profiles, then save.</div>
                             <div class="hiring-studio-actions">
+                                <button id="hiringStudioLockBtn" type="button" class="hiring-btn is-muted">Lock Plan</button>
                                 <button id="hiringStudioAddProfileBtn" type="button" class="hiring-btn">+ New Profile</button>
                                 <button id="hiringStudioSaveBtn" type="button" class="hiring-btn is-primary">Save Plan</button>
                             </div>
@@ -4513,6 +4539,7 @@ const tabs = document.querySelectorAll(".tab");
         const hiringStudioUnassigned = document.getElementById("hiringStudioUnassigned");
         const hiringStudioWarnings = document.getElementById("hiringStudioWarnings");
         const hiringStudioStatus = document.getElementById("hiringStudioStatus");
+        const hiringStudioLockBtn = document.getElementById("hiringStudioLockBtn");
         const hiringStudioAddProfileBtn = document.getElementById("hiringStudioAddProfileBtn");
         const hiringStudioSaveBtn = document.getElementById("hiringStudioSaveBtn");
         const hiringStudioUnassignedTotal = document.getElementById("hiringStudioUnassignedTotal");
@@ -4542,6 +4569,7 @@ const tabs = document.querySelectorAll(".tab");
             plan: {
                 profiles: [],
                 unassigned_items: [],
+                locked: false,
                 summary: {},
             },
         };
@@ -4556,6 +4584,22 @@ const tabs = document.querySelectorAll(".tab");
             const source = rawPlan || {};
             const profiles = Array.isArray(source.profiles) ? source.profiles : [];
             const unassigned = Array.isArray(source.unassigned_items) ? source.unassigned_items : [];
+            const usedChipIds = new Set();
+            const makeUniqueChipId = (baseId, fallbackPrefix, idx) => {
+                const base = String(baseId || `${fallbackPrefix}-${idx + 1}`);
+                if (!usedChipIds.has(base)) {
+                    usedChipIds.add(base);
+                    return base;
+                }
+                let suffix = 2;
+                let candidate = `${base}-${suffix}`;
+                while (usedChipIds.has(candidate)) {
+                    suffix += 1;
+                    candidate = `${base}-${suffix}`;
+                }
+                usedChipIds.add(candidate);
+                return candidate;
+            };
             return {
                 profiles: profiles.map((profile, profileIndex) => ({
                     id: String(profile.id || `profile-${profileIndex + 1}`),
@@ -4568,7 +4612,7 @@ const tabs = document.querySelectorAll(".tab");
                     allow_over_capacity: Boolean(profile.allow_over_capacity),
                     override_compatibility: Boolean(profile.override_compatibility),
                     items: (Array.isArray(profile.items) ? profile.items : []).map((item, itemIndex) => ({
-                        id: String(item.id || `${profile.id || profileIndex}-item-${itemIndex + 1}`),
+                        id: makeUniqueChipId(item.id, `chip-${profileIndex + 1}`, itemIndex),
                         subject_key: String(item.subject_key || ""),
                         subject_name: String(item.subject_name || "Subject"),
                         subject_code: String(item.subject_code || ""),
@@ -4578,7 +4622,7 @@ const tabs = document.querySelectorAll(".tab");
                     })).filter((item) => item.hours > 0),
                 })),
                 unassigned_items: unassigned.map((item, itemIndex) => ({
-                    id: String(item.id || `unassigned-${itemIndex + 1}`),
+                    id: makeUniqueChipId(item.id, "chip-unassigned", itemIndex),
                     subject_key: String(item.subject_key || ""),
                     subject_name: String(item.subject_name || "Subject"),
                     subject_code: String(item.subject_code || ""),
@@ -4586,6 +4630,7 @@ const tabs = document.querySelectorAll(".tab");
                     subject_color: String(item.subject_color || "#0A4EA3"),
                     hours: Number(item.hours || 0),
                 })).filter((item) => item.hours > 0),
+                locked: Boolean(source.locked),
                 summary: source.summary || {},
             };
         };
@@ -4609,6 +4654,33 @@ const tabs = document.querySelectorAll(".tab");
                 }
             });
             return warnings;
+        };
+
+        const isPlanLocked = () => Boolean(hiringStudioState.plan.locked);
+
+        const isEditable = () => !isPlanLocked();
+
+        const parseDragMeta = (event) => {
+            const payload = event?.dataTransfer?.getData("application/json") || "";
+            if (payload) {
+                try {
+                    const parsed = JSON.parse(payload);
+                    if (parsed && parsed.chipId) {
+                        return parsed;
+                    }
+                } catch (error) {
+                    // Ignore malformed data and fall back to in-memory state.
+                }
+            }
+            const plainChipId = event?.dataTransfer?.getData("text/plain") || "";
+            if (plainChipId) {
+                return {
+                    chipId: plainChipId,
+                    sourceType: hiringStudioState.dragging?.sourceType || "",
+                    sourceId: hiringStudioState.dragging?.sourceId || "",
+                };
+            }
+            return hiringStudioState.dragging;
         };
 
         const removeChipFromSource = (sourceType, sourceId, chipId) => {
@@ -4650,6 +4722,21 @@ const tabs = document.querySelectorAll(".tab");
                 }
             }
             return null;
+        };
+
+        const detachChipFromMeta = (dragMeta) => {
+            if (!dragMeta || !dragMeta.chipId) {
+                return null;
+            }
+            const direct = removeChipFromSource(dragMeta.sourceType, dragMeta.sourceId, dragMeta.chipId);
+            if (direct) {
+                return {
+                    chip: direct,
+                    sourceType: dragMeta.sourceType,
+                    sourceId: dragMeta.sourceId,
+                };
+            }
+            return findAndDetachChip(dragMeta.chipId);
         };
 
         const placeChipInTarget = (targetType, targetId, chip) => {
@@ -4703,13 +4790,20 @@ const tabs = document.querySelectorAll(".tab");
         const buildChip = (chip, sourceType, sourceId) => {
             const chipEl = document.createElement("span");
             chipEl.className = "hiring-hour-chip";
-            chipEl.draggable = true;
+            chipEl.draggable = isEditable();
             chipEl.dataset.chipId = chip.id;
             chipEl.style.borderColor = `${chip.subject_color}55`;
             chipEl.style.background = `${chip.subject_color}22`;
+            if (!isEditable()) {
+                chipEl.classList.add("is-locked");
+            }
             chipEl.innerHTML = `<span>${chip.subject_name} ${chip.hours}h</span><button type="button" title="Send to unassigned">×</button>`;
 
             chipEl.addEventListener("dragstart", (event) => {
+                if (!isEditable()) {
+                    event.preventDefault();
+                    return;
+                }
                 hiringStudioState.dragging = {
                     chipId: chip.id,
                     sourceType,
@@ -4717,6 +4811,7 @@ const tabs = document.querySelectorAll(".tab");
                 };
                 chipEl.classList.add("is-dragging");
                 event.dataTransfer.setData("text/plain", chip.id);
+                event.dataTransfer.setData("application/json", JSON.stringify(hiringStudioState.dragging));
                 event.dataTransfer.effectAllowed = "move";
             });
 
@@ -4726,6 +4821,9 @@ const tabs = document.querySelectorAll(".tab");
             });
 
             chipEl.querySelector("button")?.addEventListener("click", () => {
+                if (!isEditable()) {
+                    return;
+                }
                 const movedChip = removeChipFromSource(sourceType, sourceId, chip.id);
                 if (movedChip) {
                     hiringStudioState.plan.unassigned_items.push(movedChip);
@@ -4738,6 +4836,9 @@ const tabs = document.querySelectorAll(".tab");
 
         const attachDropBehavior = (dropZone, targetType, targetId) => {
             dropZone.addEventListener("dragover", (event) => {
+                if (!isEditable()) {
+                    return;
+                }
                 event.preventDefault();
                 dropZone.classList.add("is-over");
                 event.dataTransfer.dropEffect = "move";
@@ -4748,14 +4849,23 @@ const tabs = document.querySelectorAll(".tab");
             });
 
             dropZone.addEventListener("drop", (event) => {
+                if (!isEditable()) {
+                    return;
+                }
                 event.preventDefault();
                 dropZone.classList.remove("is-over");
-                const dragMeta = hiringStudioState.dragging;
+                const dragMeta = parseDragMeta(event);
                 if (!dragMeta) {
                     return;
                 }
-                const detached = findAndDetachChip(dragMeta.chipId);
+                const detached = detachChipFromMeta(dragMeta);
                 if (!detached || !detached.chip) {
+                    return;
+                }
+                if (detached.sourceType === targetType && detached.sourceId === targetId) {
+                    putChipBack(detached.sourceType, detached.sourceId, detached.chip);
+                    hiringStudioState.dragging = null;
+                    renderHiringStudio();
                     return;
                 }
                 const placed = placeChipInTarget(targetType, targetId, detached.chip);
@@ -4774,6 +4884,16 @@ const tabs = document.querySelectorAll(".tab");
 
             hiringStudioProfiles.innerHTML = "";
             const profiles = hiringStudioState.plan.profiles || [];
+            const locked = isPlanLocked();
+
+            if (hiringStudioLockBtn) {
+                hiringStudioLockBtn.textContent = locked ? "Unlock Plan" : "Lock Plan";
+                hiringStudioLockBtn.classList.toggle("is-primary", locked);
+                hiringStudioLockBtn.classList.toggle("is-muted", !locked);
+            }
+            if (hiringStudioAddProfileBtn) {
+                hiringStudioAddProfileBtn.disabled = locked;
+            }
 
             profiles.forEach((profile) => {
                 const totalHours = profileTotalHours(profile);
@@ -4796,7 +4916,7 @@ const tabs = document.querySelectorAll(".tab");
                             <div class="report-hiring-profile-meta">
                                 <span class="report-hiring-chip ${totalHours > profile.max_hours ? 'is-gap' : 'is-full'}">${status}</span>
                                 <span class="report-hiring-chip">${(profile.items || []).length} subject${(profile.items || []).length === 1 ? "" : "s"}</span>
-                                ${profile.is_manual ? '<button type="button" class="hiring-card-remove">Remove</button>' : ''}
+                                ${profile.is_manual ? '<button type="button" class="hiring-card-remove">Delete Profile</button>' : ''}
                             </div>
                         </div>
                     </div>
@@ -4832,12 +4952,24 @@ const tabs = document.querySelectorAll(".tab");
                 `;
 
                 const nameInput = card.querySelector(".hiring-profile-name");
+                if (nameInput) {
+                    nameInput.disabled = locked;
+                }
                 nameInput?.addEventListener("input", () => {
+                    if (locked) {
+                        return;
+                    }
                     profile.name = nameInput.value || "Proposed Teacher Profile";
                 });
 
                 const removeBtn = card.querySelector(".hiring-card-remove");
+                if (removeBtn) {
+                    removeBtn.disabled = locked;
+                }
                 removeBtn?.addEventListener("click", () => {
+                    if (locked) {
+                        return;
+                    }
                     if (!profile.is_manual) {
                         return;
                     }
@@ -4849,18 +4981,31 @@ const tabs = document.querySelectorAll(".tab");
                 });
 
                 const allowOver = card.querySelector(".hiring-allow-over");
+                if (allowOver) {
+                    allowOver.disabled = locked;
+                }
                 allowOver?.addEventListener("change", () => {
+                    if (locked) {
+                        return;
+                    }
                     profile.allow_over_capacity = allowOver.checked;
                     renderWarnings();
                 });
 
                 const overrideCompat = card.querySelector(".hiring-override-compat");
+                if (overrideCompat) {
+                    overrideCompat.disabled = locked;
+                }
                 overrideCompat?.addEventListener("change", () => {
+                    if (locked) {
+                        return;
+                    }
                     profile.override_compatibility = overrideCompat.checked;
                     renderWarnings();
                 });
 
                 const dropZone = card.querySelector(".hiring-chip-dropzone");
+                dropZone?.classList.toggle("is-locked", locked);
                 attachDropBehavior(dropZone, "profile", profile.id);
                 (profile.items || []).forEach((chip) => {
                     dropZone.appendChild(buildChip(chip, "profile", profile.id));
@@ -4870,6 +5015,7 @@ const tabs = document.querySelectorAll(".tab");
             });
 
             hiringStudioUnassigned.innerHTML = "";
+            hiringStudioUnassigned.classList.toggle("is-locked", locked);
             attachDropBehavior(hiringStudioUnassigned, "unassigned", "unassigned");
             (hiringStudioState.plan.unassigned_items || []).forEach((chip) => {
                 hiringStudioUnassigned.appendChild(buildChip(chip, "unassigned", "unassigned"));
@@ -4878,6 +5024,9 @@ const tabs = document.querySelectorAll(".tab");
             const unassignedTotal = (hiringStudioState.plan.unassigned_items || []).reduce((sum, item) => sum + Number(item.hours || 0), 0);
             if (hiringStudioUnassignedTotal) {
                 hiringStudioUnassignedTotal.textContent = `${unassignedTotal}h`;
+            }
+            if (hiringStudioStatus && locked) {
+                hiringStudioStatus.textContent = "Plan locked. Unlock to edit drag/drop, profile settings, and manual profiles.";
             }
             renderWarnings();
         };
@@ -4923,6 +5072,9 @@ const tabs = document.querySelectorAll(".tab");
         };
 
         const addHiringProfile = () => {
+            if (!isEditable()) {
+                return;
+            }
             const profileId = `profile-manual-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
             hiringStudioState.plan.profiles.push({
                 id: profileId,
@@ -4937,6 +5089,14 @@ const tabs = document.querySelectorAll(".tab");
                 items: [],
             });
             renderHiringStudio();
+        };
+
+        const togglePlanLock = async () => {
+            hiringStudioState.plan.locked = !isPlanLocked();
+            renderHiringStudio();
+            const lockText = hiringStudioState.plan.locked ? "Locking approved plan..." : "Unlocking plan for edits...";
+            hiringStudioStatus.textContent = lockText;
+            await saveHiringStudio();
         };
 
         const loadHiringStudio = async () => {
@@ -4970,6 +5130,7 @@ const tabs = document.querySelectorAll(".tab");
 
         hiringStudioAddProfileBtn?.addEventListener("click", addHiringProfile);
         hiringStudioSaveBtn?.addEventListener("click", saveHiringStudio);
+        hiringStudioLockBtn?.addEventListener("click", togglePlanLock);
         loadHiringStudio();
 
         const activeSubjectsPanel = document.getElementById("panel-subjects");
