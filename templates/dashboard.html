@@ -2675,6 +2675,138 @@
             line-height: 1.4;
         }
 
+        .report-hiring-plan {
+            border: 1px solid #d5e4fb;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #f8fbff 0%, #f3f7ff 100%);
+            padding: 14px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .report-hiring-plan-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .report-hiring-plan-head p {
+            margin: 4px 0 0;
+            color: #4e6582;
+            font-size: 12px;
+        }
+
+        .report-hiring-plan-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid #c9daf8;
+            background: #edf3ff;
+            color: #17365d;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+        }
+
+        .report-hiring-plan-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+            gap: 10px;
+        }
+
+        .report-hiring-profile {
+            border: 1px solid #d7e4fa;
+            border-radius: 12px;
+            background: #ffffff;
+            padding: 10px;
+            display: grid;
+            gap: 8px;
+            border-left: 5px solid var(--plan-accent, #0a4ea3);
+        }
+
+        .report-hiring-profile-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .report-hiring-profile-title {
+            color: #17365d;
+            font-weight: 800;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        .report-hiring-profile-meta {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .report-hiring-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            padding: 4px 8px;
+            font-size: 10px;
+            font-weight: 700;
+            background: #eff4fb;
+            color: #355276;
+            border: 1px solid #d8e4f5;
+            white-space: nowrap;
+        }
+
+        .report-hiring-chip.is-full {
+            background: #eaf8f1;
+            color: #14643d;
+            border-color: #bfe7cf;
+        }
+
+        .report-hiring-chip.is-gap {
+            background: #fff1f1;
+            color: #9f2d1f;
+            border-color: #f1cbc7;
+        }
+
+        .report-hiring-coverage-list {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            gap: 6px;
+        }
+
+        .report-hiring-coverage-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 12px;
+            color: #355276;
+            border: 1px solid #e8effb;
+            border-radius: 8px;
+            padding: 6px 8px;
+            background: #f9fbff;
+        }
+
+        .report-hiring-coverage-item strong {
+            color: #17365d;
+        }
+
+        .report-hiring-reason {
+            margin: 0;
+            font-size: 12px;
+            color: #4e6582;
+            line-height: 1.45;
+        }
+
         @keyframes rise {
             from {
                 opacity: 0;
@@ -3259,6 +3391,54 @@
                         <p>Raw uncovered weekly hours from all unassigned subject-section demand in planning.</p>
                     </article>
                 </div>
+
+                <section class="report-hiring-plan" aria-label="Recommended Hiring Plan">
+                    <div class="report-hiring-plan-head">
+                        <div>
+                            <h4 class="report-heading"><span class="section-heading-icon report-heading-icon">{{ icon("hire", "icon") }}</span><span class="report-heading-label">Recommended Hiring Plan</span></h4>
+                            <p>Specialization-based hiring profiles built from uncovered subject hours and compatibility rules.</p>
+                        </div>
+                        <span class="report-hiring-plan-pill">{{ report_summary.hiring_plan_full_teacher_count or 0 }} full hires • {{ report_summary.remaining_uncovered_hours_after_hires or 0 }}h uncovered remainder</span>
+                    </div>
+
+                    {% if report_summary.hiring_plan_profiles %}
+                    <div class="report-hiring-plan-grid">
+                        {% for plan in report_summary.hiring_plan_profiles %}
+                        <article class="report-hiring-profile" style="--plan-accent: {{ plan.accent_color or '#0A4EA3' }};">
+                            <div class="report-hiring-profile-head">
+                                <div>
+                                    <div class="report-hiring-profile-title">{{ plan.profile_label }}</div>
+                                    <div class="report-hiring-profile-meta">
+                                        <span class="report-hiring-chip {% if plan.is_full_load %}is-full{% else %}is-gap{% endif %}">{{ plan.total_hours }}h planned</span>
+                                        <span class="report-hiring-chip">{{ plan.teacher_count }} teacher{% if plan.teacher_count != 1 %}s{% endif %}</span>
+                                        {% if plan.remaining_capacity_hours > 0 %}
+                                        <span class="report-hiring-chip is-gap">{{ plan.remaining_capacity_hours }}h short of 24h</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <span class="report-hiring-chip">{{ plan.status_label }}</span>
+                            </div>
+
+                            <ul class="report-hiring-coverage-list">
+                                {% for item in plan.coverage_items %}
+                                <li class="report-hiring-coverage-item">
+                                    <span>{{ item.subject_name }}</span>
+                                    <strong>{{ item.hours }}h</strong>
+                                </li>
+                                {% endfor %}
+                            </ul>
+
+                            <p class="report-hiring-reason">{{ plan.reason }}</p>
+                        </article>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="report-recommendation-box">
+                        <strong>No immediate hiring profile is required.</strong>
+                        <p>All currently reported subject demand is covered, so no specialization-based hiring recommendation is generated.</p>
+                    </div>
+                    {% endif %}
+                </section>
 
                 {% set coverage_pct = report_summary.coverage_percentage or 0 %}
                 {% set uncovered_pct = 100 - coverage_pct if coverage_pct < 100 else 0 %}

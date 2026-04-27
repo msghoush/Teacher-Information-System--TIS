@@ -112,6 +112,67 @@ PRIORITY_STAFFING_SUBJECT_PREFIXES = {
     "science": ("science", "general science", "biology", "chemistry", "physics"),
     "islamic": ("islamic studies", "islamic", "quran", "holy quran"),
 }
+HIRING_FAMILY_PRIORITY = {
+    "english": 0,
+    "arabic": 1,
+    "math": 2,
+    "mental_math": 2,
+    "science": 3,
+    "ict": 4,
+    "islamic": 5,
+    "quran": 5,
+    "social_arabic": 6,
+    "social_english": 6,
+    "social": 7,
+    "pe": 8,
+    "wellbeing": 8,
+    "art": 9,
+    "performing_arts": 9,
+}
+HIRING_COMPATIBILITY_GROUPS = {
+    "english": "english_humanities",
+    "social_english": "english_humanities",
+    "arabic": "arabic_humanities",
+    "social_arabic": "arabic_humanities",
+    "math": "math",
+    "mental_math": "math",
+    "science": "science_ict",
+    "ict": "science_ict",
+    "islamic": "islamic_quran",
+    "quran": "islamic_quran",
+    "social": "social_humanities",
+    "pe": "pe_wellbeing",
+    "wellbeing": "pe_wellbeing",
+    "art": "creative_arts",
+    "performing_arts": "creative_arts",
+}
+HIRING_GROUP_LABELS = {
+    "english_humanities": "English / Social Studies English",
+    "arabic_humanities": "Arabic / Social Studies Arabic",
+    "math": "Mathematics / Mental Math",
+    "science_ict": "Science / ICT",
+    "islamic_quran": "Islamic / Quran",
+    "social_humanities": "Social Studies",
+    "pe_wellbeing": "Physical Education / Well Being",
+    "creative_arts": "Art / Performing Arts",
+}
+HIRING_FAMILY_LABELS = {
+    "english": "English",
+    "arabic": "Arabic",
+    "math": "Mathematics",
+    "mental_math": "Mental Math",
+    "science": "Science",
+    "ict": "ICT",
+    "islamic": "Islamic",
+    "quran": "Quran",
+    "social_arabic": "Social Studies Arabic",
+    "social_english": "Social Studies English",
+    "social": "Social Studies",
+    "pe": "Physical Education",
+    "wellbeing": "Well Being",
+    "art": "Art",
+    "performing_arts": "Performing Arts",
+}
 REPORT_EXPORT_SUBJECT_FILL_PALETTE = [
     "E8F1FF",
     "EAF8F4",
@@ -2938,9 +2999,13 @@ def _build_dashboard_report_visuals(
 def _enrich_report_summary_hiring_metrics(report_summary):
     summary = dict(report_summary or {})
     uncovered_hours = int(summary.get("total_remaining_hours", 0) or 0)
-    whole_new_hires = uncovered_hours // REPORT_STANDARD_MAX_HOURS
+    plan_full_teacher_count = int(summary.get("hiring_plan_full_teacher_count", 0) or 0)
+    if plan_full_teacher_count > 0 or int(summary.get("hiring_plan_profile_count", 0) or 0) > 0:
+        whole_new_hires = max(plan_full_teacher_count, 0)
+    else:
+        whole_new_hires = uncovered_hours // REPORT_STANDARD_MAX_HOURS
     remaining_uncovered_hours_after_hires = (
-        uncovered_hours % REPORT_STANDARD_MAX_HOURS
+        max(uncovered_hours - (whole_new_hires * REPORT_STANDARD_MAX_HOURS), 0)
         if uncovered_hours > 0
         else 0
     )
@@ -2958,6 +3023,301 @@ def _enrich_report_summary_hiring_metrics(report_summary):
     summary["new_hire_capacity_hours"] = whole_new_hires * REPORT_STANDARD_MAX_HOURS
     summary["staffing_remainder_has_gap"] = remaining_uncovered_hours_after_hires > 0
     return summary
+
+
+def _detect_hiring_subject_family(subject_row: dict) -> str:
+    subject_name = str(subject_row.get("subject_name", "") or "")
+    subject_code = str(subject_row.get("subject_code", "") or "")
+    subject_key = str(subject_row.get("subject_key", "") or "")
+    normalized_text = _normalize_subject_family_key(
+        f"{subject_code} {subject_name} {subject_key}"
+    )
+    alignment_groups = set(
+        get_subject_alignment_group_keys(subject_name, subject_code)
+    )
+
+    if re.search(r"\b(qur|quran|qur an|qno|qaad|qaadah|noraniah|noorani)\b", normalized_text):
+        return "quran"
+    if "islamic" in alignment_groups or re.search(
+        r"\b(islamic|hadith|fiqh|tawheed|religion)\b",
+        normalized_text,
+    ):
+        return "islamic"
+    if re.search(r"\b(mental math|mental|abacus|mmt)\b", normalized_text):
+        return "mental_math"
+    if "math" in alignment_groups:
+        return "math"
+    if alignment_groups.intersection({"science", "biology", "chemistry", "physics"}):
+        return "science"
+    if "computer" in alignment_groups:
+        return "ict"
+    if "arabic" in alignment_groups:
+        return "arabic"
+    if "english" in alignment_groups:
+        return "english"
+    if alignment_groups.intersection({"social", "history", "geography"}):
+        if re.search(r"\b(ar|arabic|ksa|saudi)\b", normalized_text):
+            return "social_arabic"
+        if re.search(r"\b(en|english|global|world)\b", normalized_text):
+            return "social_english"
+        return "social"
+    if "pe" in alignment_groups:
+        return "pe"
+    if re.search(r"\b(well being|wellbeing|health|sel|life skills)\b", normalized_text):
+        return "wellbeing"
+    if "music" in alignment_groups or re.search(
+        r"\b(performing|performance|drama|theatre|theater|dance|music)\b",
+        normalized_text,
+    ):
+        return "performing_arts"
+    if "art" in alignment_groups:
+        return "art"
+    return "other"
+
+
+def _get_hiring_subject_sort_key(item: dict):
+    return (
+        HIRING_FAMILY_PRIORITY.get(item.get("family"), 99),
+        -int(item.get("remaining_hours", 0) or 0),
+        str(item.get("subject_name", "") or "").lower(),
+    )
+
+
+def _build_hiring_coverage_label(coverage_items: list[dict]) -> str:
+    return " + ".join(
+        f"{int(item.get('hours', 0) or 0)}h {item.get('subject_name', 'Subject')}"
+        for item in coverage_items
+        if int(item.get("hours", 0) or 0) > 0
+    )
+
+
+def _build_hiring_profile_label(
+    coverage_items: list[dict],
+    *,
+    group_key: str = "",
+    dedicated: bool = False,
+) -> str:
+    if dedicated and len(coverage_items) == 1:
+        return f"{coverage_items[0].get('subject_name', 'Subject')} Teacher"
+
+    family_labels = []
+    for item in coverage_items:
+        family = item.get("family", "")
+        label = HIRING_FAMILY_LABELS.get(family)
+        if label and label not in family_labels:
+            family_labels.append(label)
+
+    if len(family_labels) == 1:
+        return f"{family_labels[0]} Teacher"
+    if group_key and group_key in HIRING_GROUP_LABELS:
+        return f"{HIRING_GROUP_LABELS[group_key]} Teacher"
+    if family_labels:
+        return f"{' / '.join(family_labels[:3])} Teacher"
+    return "Specialist Teacher"
+
+
+def _build_hiring_profile_reason(
+    profile_type: str,
+    coverage_items: list[dict],
+    total_hours: int,
+    *,
+    group_key: str = "",
+    teacher_count: int = 1,
+) -> str:
+    if profile_type == "dedicated":
+        subject_name = coverage_items[0].get("subject_name", "this subject")
+        return (
+            f"{total_hours}h in {subject_name} creates "
+            f"{teacher_count} full 24h specialist load"
+            f"{'s' if teacher_count != 1 else ''}, so dedicated hiring is recommended."
+        )
+
+    coverage_label = _build_hiring_coverage_label(coverage_items)
+    group_label = HIRING_GROUP_LABELS.get(group_key, "the same specialization")
+    if total_hours >= REPORT_STANDARD_MAX_HOURS:
+        return (
+            f"{coverage_label} forms one full 24h load. These subjects are grouped "
+            f"because they belong to {group_label} compatibility."
+        )
+
+    if len(coverage_items) > 1:
+        return (
+            f"{coverage_label} is compatible under {group_label}, but totals "
+            f"{total_hours}h, below a full 24h teacher load."
+        )
+
+    subject_name = coverage_items[0].get("subject_name", "this subject")
+    return (
+        f"{subject_name} has {total_hours}h uncovered and no compatible uncovered "
+        "subject remains to complete a full 24h load."
+    )
+
+
+def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> dict:
+    uncovered_items = []
+    for row in report_subject_rows or []:
+        remaining_hours = int(row.get("remaining_hours", 0) or 0)
+        if remaining_hours <= 0:
+            continue
+        family = _detect_hiring_subject_family(row)
+        group_key = HIRING_COMPATIBILITY_GROUPS.get(family, f"single_{family}")
+        uncovered_items.append(
+            {
+                "subject_key": row.get("subject_key", ""),
+                "subject_name": row.get("subject_name", "Subject"),
+                "subject_code": row.get("subject_code", ""),
+                "subject_color": row.get("subject_color", "#0A4EA3"),
+                "remaining_hours": remaining_hours,
+                "family": family,
+                "group_key": group_key,
+                "priority_staffing_subject": bool(
+                    row.get("priority_staffing_subject")
+                ),
+            }
+        )
+
+    uncovered_items.sort(key=_get_hiring_subject_sort_key)
+    profiles = []
+    profile_counter = 1
+    remainder_items = []
+
+    for item in uncovered_items:
+        full_blocks = int(item["remaining_hours"] // REPORT_STANDARD_MAX_HOURS)
+        remainder_hours = int(item["remaining_hours"] % REPORT_STANDARD_MAX_HOURS)
+        if full_blocks > 0:
+            covered_hours = full_blocks * REPORT_STANDARD_MAX_HOURS
+            coverage_items = [
+                {
+                    **item,
+                    "hours": covered_hours,
+                    "remaining_hours": covered_hours,
+                }
+            ]
+            profiles.append(
+                {
+                    "id": f"hire-plan-{profile_counter}",
+                    "profile_label": _build_hiring_profile_label(
+                        coverage_items,
+                        dedicated=True,
+                    ),
+                    "teacher_count": full_blocks,
+                    "full_teacher_count": full_blocks,
+                    "profile_type": "dedicated",
+                    "status_label": "Dedicated full load",
+                    "total_hours": covered_hours,
+                    "capacity_hours": full_blocks * REPORT_STANDARD_MAX_HOURS,
+                    "remaining_capacity_hours": 0,
+                    "is_full_load": True,
+                    "coverage_items": coverage_items,
+                    "coverage_label": _build_hiring_coverage_label(coverage_items),
+                    "reason": _build_hiring_profile_reason(
+                        "dedicated",
+                        coverage_items,
+                        covered_hours,
+                        teacher_count=full_blocks,
+                    ),
+                    "accent_color": item.get("subject_color", "#0A4EA3"),
+                }
+            )
+            profile_counter += 1
+        if remainder_hours > 0:
+            remainder_items.append({**item, "remaining_hours": remainder_hours})
+
+    grouped_remainders = {}
+    for item in remainder_items:
+        grouped_remainders.setdefault(item["group_key"], []).append(dict(item))
+
+    sorted_group_keys = sorted(
+        grouped_remainders.keys(),
+        key=lambda group_key: min(
+            _get_hiring_subject_sort_key(item)
+            for item in grouped_remainders[group_key]
+        ),
+    )
+
+    for group_key in sorted_group_keys:
+        group_items = grouped_remainders[group_key]
+        group_items.sort(key=_get_hiring_subject_sort_key)
+        while any(int(item.get("remaining_hours", 0) or 0) > 0 for item in group_items):
+            available_capacity = REPORT_STANDARD_MAX_HOURS
+            coverage_items = []
+            for item in group_items:
+                open_hours = int(item.get("remaining_hours", 0) or 0)
+                if open_hours <= 0 or available_capacity <= 0:
+                    continue
+                covered_hours = min(open_hours, available_capacity)
+                item["remaining_hours"] = open_hours - covered_hours
+                available_capacity -= covered_hours
+                coverage_items.append(
+                    {
+                        **item,
+                        "hours": covered_hours,
+                    }
+                )
+            if not coverage_items:
+                break
+
+            total_hours = sum(int(item.get("hours", 0) or 0) for item in coverage_items)
+            is_full_load = total_hours >= REPORT_STANDARD_MAX_HOURS
+            profile_type = "combined" if len(coverage_items) > 1 else "remainder"
+            status_label = (
+                "Combined full load"
+                if is_full_load and len(coverage_items) > 1
+                else "Partial compatible load"
+                if len(coverage_items) > 1
+                else "Remaining specialist gap"
+            )
+            profiles.append(
+                {
+                    "id": f"hire-plan-{profile_counter}",
+                    "profile_label": _build_hiring_profile_label(
+                        coverage_items,
+                        group_key=group_key,
+                    ),
+                    "teacher_count": 1,
+                    "full_teacher_count": 1 if is_full_load else 0,
+                    "profile_type": profile_type,
+                    "status_label": status_label,
+                    "total_hours": total_hours,
+                    "capacity_hours": REPORT_STANDARD_MAX_HOURS,
+                    "remaining_capacity_hours": max(
+                        REPORT_STANDARD_MAX_HOURS - total_hours,
+                        0,
+                    ),
+                    "is_full_load": is_full_load,
+                    "coverage_items": coverage_items,
+                    "coverage_label": _build_hiring_coverage_label(coverage_items),
+                    "reason": _build_hiring_profile_reason(
+                        profile_type,
+                        coverage_items,
+                        total_hours,
+                        group_key=group_key,
+                    ),
+                    "accent_color": coverage_items[0].get(
+                        "subject_color",
+                        "#0A4EA3",
+                    ),
+                }
+            )
+            profile_counter += 1
+
+    full_teacher_count = sum(int(profile.get("full_teacher_count", 0)) for profile in profiles)
+    partial_profile_count = sum(1 for profile in profiles if not profile.get("is_full_load"))
+    covered_hours = sum(int(profile.get("total_hours", 0) or 0) for profile in profiles)
+    remaining_capacity_hours = sum(
+        int(profile.get("remaining_capacity_hours", 0) or 0)
+        for profile in profiles
+        if not profile.get("is_full_load")
+    )
+
+    return {
+        "hiring_plan_profiles": profiles,
+        "hiring_plan_profile_count": len(profiles),
+        "hiring_plan_full_teacher_count": full_teacher_count,
+        "hiring_plan_partial_profile_count": partial_profile_count,
+        "hiring_plan_covered_hours": covered_hours,
+        "hiring_plan_remaining_capacity_hours": remaining_capacity_hours,
+    }
 
 
 def _build_report_class_rows(planning_sections):
@@ -3790,6 +4150,9 @@ def _decorate_staffing_report_rows(report_subject_rows, report_summary):
                 else 0
             ),
         }
+    )
+    report_summary.update(
+        _build_hiring_coverage_recommendation(decorated_rows)
     )
     report_summary = _enrich_report_summary_hiring_metrics(report_summary)
     return decorated_rows, report_summary
