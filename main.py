@@ -3636,7 +3636,7 @@ def _build_hiring_plan_editor_payload(report_summary: dict, report_subject_rows:
     return {
         "profiles": profile_items,
         "unassigned_items": unassigned_items,
-        "locked": False,
+        "locked": True,
         "summary": {
             "total_uncovered_hours": int((report_summary or {}).get("total_uncovered_hours", 0) or 0),
             "total_new_teachers_required": int((report_summary or {}).get("total_new_teachers_required", 0) or 0),
@@ -3701,7 +3701,7 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
     return {
         "profiles": profiles,
         "unassigned_items": unassigned_items,
-        "locked": bool(payload.get("locked", False)),
+        "locked": bool(payload["locked"]) if "locked" in payload else True,
         "summary": dict(payload.get("summary", {}) or {}),
     }
 

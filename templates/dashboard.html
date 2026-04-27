@@ -4681,7 +4681,7 @@ const tabs = document.querySelectorAll(".tab");
                     subject_color: String(item.subject_color || "#0A4EA3"),
                     hours: Number(item.hours || 0),
                 })).filter((item) => item.hours > 0),
-                locked: Boolean(source.locked),
+                locked: Object.prototype.hasOwnProperty.call(source, "locked") ? Boolean(source.locked) : true,
                 summary: source.summary || {},
             };
         };
