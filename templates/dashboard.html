@@ -2887,6 +2887,14 @@
             flex-wrap: wrap;
         }
 
+        .hiring-card-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
         .hiring-studio-actions {
             display: inline-flex;
             align-items: center;
@@ -2931,6 +2939,15 @@
             display: grid;
             gap: 8px;
             border-left: 5px solid var(--studio-accent, #0a4ea3);
+        }
+
+        .report-hiring-profile.is-editable {
+            gap: 10px;
+        }
+
+        .report-hiring-profile-head .hiring-profile-name {
+            min-width: 190px;
+            max-width: 100%;
         }
 
         .hiring-profile-name {
@@ -2997,6 +3014,11 @@
             user-select: none;
         }
 
+        .hiring-hour-chip.is-dragging {
+            opacity: 0.65;
+            cursor: grabbing;
+        }
+
         .hiring-hour-chip button {
             border: none;
             background: transparent;
@@ -3041,6 +3063,18 @@
             color: #8a4b12;
             font-size: 11px;
             padding: 6px 8px;
+        }
+
+        .hiring-card-remove {
+            border: 1px solid #f1cbc7;
+            border-radius: 999px;
+            background: #fff6f5;
+            color: #9f2d1f;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 8px;
+            cursor: pointer;
+            white-space: nowrap;
         }
 
         @media (max-width: 1000px) {
@@ -3643,89 +3677,18 @@
                         <span class="report-hiring-plan-pill">{{ report_summary.total_new_teachers_required or 0 }} full hires required • {{ report_summary.remaining_uncovered_hours_after_hires or 0 }}h uncovered remainder</span>
                     </div>
 
-                    {% if report_summary.hiring_plan_profiles %}
-                    <div class="report-hiring-plan-grid">
-                        {% for plan in report_summary.hiring_plan_profiles %}
-                        <article class="report-hiring-profile" style="--plan-accent: {{ plan.accent_color or '#0A4EA3' }};">
-                            <div class="report-hiring-profile-head">
-                                <div>
-                                    <div class="report-hiring-profile-title">{{ plan.profile_label }}</div>
-                                    <div class="report-hiring-profile-meta">
-                                        <span class="report-hiring-chip {% if plan.full_teacher_count > 0 %}is-full{% else %}is-gap{% endif %}">{{ plan.status_label }}</span>
-                                        {% if plan.full_teacher_count > 0 %}
-                                        <span class="report-hiring-chip">{{ plan.full_teacher_count }} full 24h block{% if plan.full_teacher_count != 1 %}s{% endif %}</span>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                <span class="report-hiring-chip">{{ plan.coverage_items | length }} subject{% if plan.coverage_items|length != 1 %}s{% endif %}</span>
-                            </div>
-
-                            <div class="report-hiring-summary-grid">
-                                <div class="report-hiring-stat">
-                                    <span>Total In Pool</span>
-                                    <strong>{{ plan.total_hours }}h</strong>
-                                </div>
-                                <div class="report-hiring-stat">
-                                    <span>Full 24h Blocks</span>
-                                    <strong>{{ plan.full_teacher_count }}</strong>
-                                </div>
-                                <div class="report-hiring-stat">
-                                    <span>Remaining Hours</span>
-                                    <strong>{{ plan.remaining_hours }}h</strong>
-                                </div>
-                            </div>
-
-                            <div class="report-hiring-progress">
-                                <div class="report-hiring-progress-head">
-                                    <span>Progress toward next 24h block</span>
-                                    <strong>{% if plan.remaining_hours > 0 %}{{ plan.remaining_hours }} / 24h{% else %}Exact 24h multiple{% endif %}</strong>
-                                </div>
-                                <div class="report-hiring-progress-track" aria-label="24-hour block progress">
-                                    <div class="report-hiring-progress-fill" style="--progress-width: {{ plan.progress_width_pct }}%;"></div>
-                                </div>
-                                {% if plan.remaining_hours > 0 %}
-                                <div class="report-hiring-progress-head">
-                                    <span>{{ plan.remaining_hours }}h assigned to this proposed profile beyond completed full blocks</span>
-                                    <span>{{ plan.remaining_capacity_hours }}h remaining capacity before reaching 24h</span>
-                                </div>
-                                {% endif %}
-                            </div>
-
-                            <ul class="report-hiring-coverage-list">
-                                {% for item in plan.coverage_items %}
-                                <li class="report-hiring-coverage-item">
-                                    <span>{{ item.subject_name }}</span>
-                                    <strong>{{ item.hours }}h</strong>
-                                </li>
-                                {% endfor %}
-                            </ul>
-
-                            <p class="report-hiring-reason">{{ plan.assignment_note or "Compatible pool grouping" }}</p>
-                        </article>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <div class="report-recommendation-box">
-                        <strong>No immediate hiring profile is required.</strong>
-                        <p>All currently reported subject demand is covered, so no specialization-based hiring recommendation is generated.</p>
-                    </div>
-                    {% endif %}
-
-                    <div class="hiring-studio" aria-label="Interactive Hiring Planner">
-                        <div class="hiring-studio-toolbar">
-                            <div>
-                                <h5 class="report-donut-heading"><span class="section-heading-icon report-heading-icon">{{ icon("planning", "icon") }}</span><span class="report-heading-label">Hiring Plan Studio</span></h5>
-                                <div class="report-inline-note">Drag subject-hour chips between profiles, rename cards, and save your adjusted staffing plan.</div>
-                            </div>
+                    <div class="hiring-studio" aria-label="Recommended Hiring Plan Editor">
+                        <div class="hiring-card-toolbar">
+                            <div class="report-inline-note">Adjust the suggested cards directly: drag subject-hour chips, rename profiles, add manual profiles, then save.</div>
                             <div class="hiring-studio-actions">
                                 <button id="hiringStudioAddProfileBtn" type="button" class="hiring-btn">+ New Profile</button>
                                 <button id="hiringStudioSaveBtn" type="button" class="hiring-btn is-primary">Save Plan</button>
                             </div>
                         </div>
-                        <div id="hiringStudioStatus" class="report-inline-note">Loading hiring planner...</div>
+                        <div id="hiringStudioStatus" class="report-inline-note">Loading recommended hiring plan...</div>
                         <ul id="hiringStudioWarnings" class="hiring-warning-list" aria-live="polite"></ul>
                         <div class="hiring-studio-layout">
-                            <div id="hiringStudioProfiles" class="hiring-profile-grid"></div>
+                            <div id="hiringStudioProfiles" class="report-hiring-plan-grid"></div>
                             <aside class="hiring-unassigned-panel">
                                 <div class="hiring-mini-row">
                                     <strong>Unassigned Remaining Hours</strong>
@@ -4601,6 +4564,7 @@ const tabs = document.querySelectorAll(".tab");
                     assignment_note: String(profile.assignment_note || "Compatible pool grouping"),
                     accent_color: String(profile.accent_color || "#0A4EA3"),
                     max_hours: Number(profile.max_hours || 24),
+                    is_manual: Boolean(profile.is_manual),
                     allow_over_capacity: Boolean(profile.allow_over_capacity),
                     override_compatibility: Boolean(profile.override_compatibility),
                     items: (Array.isArray(profile.items) ? profile.items : []).map((item, itemIndex) => ({
@@ -4666,6 +4630,28 @@ const tabs = document.querySelectorAll(".tab");
             return null;
         };
 
+        const findAndDetachChip = (chipId) => {
+            const unassignedIndex = hiringStudioState.plan.unassigned_items.findIndex((item) => item.id === chipId);
+            if (unassignedIndex >= 0) {
+                return {
+                    chip: hiringStudioState.plan.unassigned_items.splice(unassignedIndex, 1)[0],
+                    sourceType: "unassigned",
+                    sourceId: "unassigned",
+                };
+            }
+            for (const profile of hiringStudioState.plan.profiles) {
+                const profileIndex = (profile.items || []).findIndex((item) => item.id === chipId);
+                if (profileIndex >= 0) {
+                    return {
+                        chip: profile.items.splice(profileIndex, 1)[0],
+                        sourceType: "profile",
+                        sourceId: profile.id,
+                    };
+                }
+            }
+            return null;
+        };
+
         const placeChipInTarget = (targetType, targetId, chip) => {
             if (targetType === "unassigned") {
                 hiringStudioState.plan.unassigned_items.push(chip);
@@ -4682,6 +4668,22 @@ const tabs = document.querySelectorAll(".tab");
             }
             profile.items.push(chip);
             return true;
+        };
+
+        const putChipBack = (sourceType, sourceId, chip) => {
+            if (!chip) {
+                return;
+            }
+            if (sourceType === "unassigned") {
+                hiringStudioState.plan.unassigned_items.push(chip);
+                return;
+            }
+            const sourceProfile = hiringStudioState.plan.profiles.find((item) => item.id === sourceId);
+            if (sourceProfile) {
+                sourceProfile.items.push(chip);
+            } else {
+                hiringStudioState.plan.unassigned_items.push(chip);
+            }
         };
 
         const renderWarnings = () => {
@@ -4713,7 +4715,14 @@ const tabs = document.querySelectorAll(".tab");
                     sourceType,
                     sourceId,
                 };
+                chipEl.classList.add("is-dragging");
+                event.dataTransfer.setData("text/plain", chip.id);
                 event.dataTransfer.effectAllowed = "move";
+            });
+
+            chipEl.addEventListener("dragend", () => {
+                chipEl.classList.remove("is-dragging");
+                hiringStudioState.dragging = null;
             });
 
             chipEl.querySelector("button")?.addEventListener("click", () => {
@@ -4745,13 +4754,13 @@ const tabs = document.querySelectorAll(".tab");
                 if (!dragMeta) {
                     return;
                 }
-                const chip = removeChipFromSource(dragMeta.sourceType, dragMeta.sourceId, dragMeta.chipId);
-                if (!chip) {
+                const detached = findAndDetachChip(dragMeta.chipId);
+                if (!detached || !detached.chip) {
                     return;
                 }
-                const placed = placeChipInTarget(targetType, targetId, chip);
+                const placed = placeChipInTarget(targetType, targetId, detached.chip);
                 if (!placed) {
-                    placeChipInTarget(dragMeta.sourceType, dragMeta.sourceId, chip);
+                    putChipBack(detached.sourceType, detached.sourceId, detached.chip);
                 }
                 hiringStudioState.dragging = null;
                 renderHiringStudio();
@@ -4777,18 +4786,43 @@ const tabs = document.querySelectorAll(".tab");
                 const capPct = Math.max(0, Math.min(100, (totalHours / profile.max_hours) * 100));
 
                 const card = document.createElement("article");
-                card.className = "hiring-profile-editor";
+                card.className = "report-hiring-profile is-editable";
                 card.style.setProperty("--studio-accent", profile.accent_color || "#0A4EA3");
+                card.style.setProperty("--plan-accent", profile.accent_color || "#0A4EA3");
                 card.innerHTML = `
                     <div class="hiring-profile-headline">
-                        <input class="hiring-profile-name" value="${profile.name.replace(/"/g, '&quot;')}" />
-                        <span class="report-hiring-chip ${totalHours > profile.max_hours ? 'is-gap' : 'is-full'}">${status}</span>
+                        <div class="report-hiring-profile-head" style="width:100%;">
+                            <input class="hiring-profile-name" value="${profile.name.replace(/"/g, '&quot;')}" />
+                            <div class="report-hiring-profile-meta">
+                                <span class="report-hiring-chip ${totalHours > profile.max_hours ? 'is-gap' : 'is-full'}">${status}</span>
+                                <span class="report-hiring-chip">${(profile.items || []).length} subject${(profile.items || []).length === 1 ? "" : "s"}</span>
+                                ${profile.is_manual ? '<button type="button" class="hiring-card-remove">Remove</button>' : ''}
+                            </div>
+                        </div>
                     </div>
-                    <div class="hiring-mini-row">
-                        <span>${totalHours}h planned</span>
-                        <span>${remaining >= 0 ? `${remaining}h remaining` : `${Math.abs(remaining)}h over`}</span>
+                    <div class="report-hiring-summary-grid">
+                        <div class="report-hiring-stat">
+                            <span>Total In Profile</span>
+                            <strong>${totalHours}h</strong>
+                        </div>
+                        <div class="report-hiring-stat">
+                            <span>Full 24h Blocks</span>
+                            <strong>${Math.floor(totalHours / profile.max_hours)}</strong>
+                        </div>
+                        <div class="report-hiring-stat">
+                            <span>Remaining Capacity</span>
+                            <strong>${remaining >= 0 ? `${remaining}h` : `${Math.abs(remaining)}h over`}</strong>
+                        </div>
                     </div>
-                    <div class="hiring-capacity-bar"><div class="hiring-capacity-fill" style="--capacity-pct:${capPct}%;"></div></div>
+                    <div class="report-hiring-progress">
+                        <div class="report-hiring-progress-head">
+                            <span>Progress toward next 24h block</span>
+                            <strong>${totalHours % profile.max_hours} / ${profile.max_hours}h</strong>
+                        </div>
+                        <div class="report-hiring-progress-track" aria-label="24-hour block progress">
+                            <div class="report-hiring-progress-fill" style="--progress-width:${capPct}%;"></div>
+                        </div>
+                    </div>
                     <div class="hiring-mini-row">
                         <label><input type="checkbox" class="hiring-allow-over" ${profile.allow_over_capacity ? "checked" : ""}/> Allow > ${profile.max_hours}h</label>
                         <label><input type="checkbox" class="hiring-override-compat" ${profile.override_compatibility ? "checked" : ""}/> Override compatibility</label>
@@ -4800,6 +4834,18 @@ const tabs = document.querySelectorAll(".tab");
                 const nameInput = card.querySelector(".hiring-profile-name");
                 nameInput?.addEventListener("input", () => {
                     profile.name = nameInput.value || "Proposed Teacher Profile";
+                });
+
+                const removeBtn = card.querySelector(".hiring-card-remove");
+                removeBtn?.addEventListener("click", () => {
+                    if (!profile.is_manual) {
+                        return;
+                    }
+                    (profile.items || []).forEach((item) => {
+                        hiringStudioState.plan.unassigned_items.push(item);
+                    });
+                    hiringStudioState.plan.profiles = hiringStudioState.plan.profiles.filter((entry) => entry.id !== profile.id);
+                    renderHiringStudio();
                 });
 
                 const allowOver = card.querySelector(".hiring-allow-over");
@@ -4885,6 +4931,7 @@ const tabs = document.querySelectorAll(".tab");
                 assignment_note: "Standalone profile required",
                 accent_color: "#0A4EA3",
                 max_hours: 24,
+                is_manual: true,
                 allow_over_capacity: false,
                 override_compatibility: false,
                 items: [],
@@ -4896,7 +4943,7 @@ const tabs = document.querySelectorAll(".tab");
             if (!hiringStudioProfiles) {
                 return;
             }
-            hiringStudioStatus.textContent = "Loading hiring planner...";
+            hiringStudioStatus.textContent = "Loading recommended hiring plan...";
             try {
                 const response = await fetch("/dashboard/api/hiring-plan", {
                     method: "GET",
@@ -4910,11 +4957,11 @@ const tabs = document.querySelectorAll(".tab");
                     hiringStudioStatus.textContent = "Loaded saved hiring plan.";
                 } else {
                     hiringStudioState.plan = normalizePlan(cloneJson(hiringStudioAutoPayload));
-                    hiringStudioStatus.textContent = "Loaded automatic recommended plan.";
+                    hiringStudioStatus.textContent = "Loaded system-suggested recommended plan.";
                 }
             } catch (error) {
                 hiringStudioState.plan = normalizePlan(cloneJson(hiringStudioAutoPayload));
-                hiringStudioStatus.textContent = "Loaded automatic recommended plan.";
+                hiringStudioStatus.textContent = "Loaded system-suggested recommended plan.";
             }
 
             hiringStudioState.loaded = true;
