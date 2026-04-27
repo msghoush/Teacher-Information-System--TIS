@@ -725,13 +725,13 @@
     .subject-chip {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 5px;
         width: fit-content;
-        min-height: 22px;
-        padding: 4px 9px;
+        min-height: 21px;
+        padding: 3px 8px;
         border-radius: 999px;
         border: 1px solid var(--cell-border, rgba(255, 255, 255, 0.45));
-        background: var(--cell-soft, rgba(255, 255, 255, 0.72));
+        background: rgba(255, 255, 255, 0.7);
         color: var(--cell-text, #17365d);
         font-size: 10px;
         font-weight: 800;
@@ -742,6 +742,7 @@
     .subject-icon {
         width: 13px;
         height: 13px;
+        display: block;
         stroke: currentColor;
         stroke-width: 2;
         fill: none;
@@ -749,6 +750,30 @@
         stroke-linejoin: round;
         flex-shrink: 0;
         opacity: 0.95;
+    }
+
+    .subject-chip svg {
+        width: 12px;
+        height: 12px;
+        flex-shrink: 0;
+    }
+
+    .subject-tile-icon {
+        width: 28px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        border-radius: 8px;
+        border: 1px solid var(--cell-border, #d8e5f4);
+        background: #ffffff;
+        color: var(--cell-accent, #0a4ea3);
+    }
+
+    .subject-tile-icon svg {
+        width: 15px;
+        height: 15px;
     }
 
     .mini-icon-btn {
@@ -803,47 +828,49 @@
         font-weight: 700;
     }
 
-    /* ── Compact lesson tile (assigned cells) ── */
+    /* Compact lesson tile (assigned cells) */
     .lesson-tile {
         display: grid;
-        gap: 3px;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 7px;
         width: 100%;
-        min-width: 0;
-    }
-
-    .lesson-tile-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 4px;
-    }
-
-    .lesson-id {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        flex: 1;
         min-width: 0;
     }
 
     .lesson-icon-wrap {
         flex-shrink: 0;
-        width: 20px;
-        height: 20px;
+        width: 24px;
+        height: 24px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 5px;
-        background: rgba(255, 255, 255, 0.72);
-        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.78);
+        border: 1px solid var(--cell-border, rgba(255, 255, 255, 0.55));
+        color: var(--cell-accent, #0a4ea3);
     }
 
-    .lesson-icon-wrap .subject-icon {
-        width: 11px;
-        height: 11px;
+    .lesson-icon-wrap svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .lesson-content {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .lesson-title-line {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        min-width: 0;
     }
 
     .lesson-code-label {
+        flex-shrink: 0;
         font-size: 10px;
         font-weight: 800;
         letter-spacing: 0.05em;
@@ -856,42 +883,30 @@
 
     .lesson-remove-btn {
         flex-shrink: 0;
-        width: 20px;
-        height: 20px;
+        width: 24px;
+        height: 24px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         padding: 0;
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 5px;
-        background: rgba(255, 255, 255, 0.82);
-        color: var(--cell-text, #17365d);
+        border: 1px solid #f0b6ae;
+        border-radius: 7px;
+        background: #fff6f4;
+        color: #9f2d1f;
         cursor: pointer;
-        opacity: 0.55;
         transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease, border-color 120ms ease;
     }
 
     .lesson-remove-btn svg {
-        width: 11px;
-        height: 11px;
-        stroke: currentColor;
-        stroke-width: 2.2;
-        fill: none;
-        stroke-linecap: round;
-        stroke-linejoin: round;
+        width: 13px;
+        height: 13px;
         pointer-events: none;
     }
 
-    .grid-button:hover .lesson-remove-btn,
-    .grid-button:focus-within .lesson-remove-btn {
-        opacity: 1;
-    }
-
     .lesson-remove-btn:hover {
-        background: #fff0ee;
+        background: #ffe9e5;
         color: #9f2d1f;
-        border-color: #f5c0ba;
-        opacity: 1;
+        border-color: #e99d93;
     }
 
     .lesson-remove-btn:disabled {
@@ -900,8 +915,9 @@
     }
 
     .lesson-name {
+        min-width: 0;
         font-size: 12px;
-        font-weight: 700;
+        font-weight: 800;
         line-height: 1.3;
         color: var(--cell-text, #17365d);
         overflow: hidden;
@@ -1078,12 +1094,13 @@
     }
 
     .panel-current-assignment {
-        border: 1px solid var(--tt-border);
-        border-radius: 14px;
-        background: #ffffff;
+        border: 1px solid var(--cell-border, var(--tt-border));
+        border-radius: 12px;
+        background: linear-gradient(180deg, #ffffff, var(--cell-surface, #f8fbff));
         padding: 10px 11px;
         display: grid;
         gap: 8px;
+        box-shadow: inset 3px 0 0 var(--cell-accent, #0a4ea3);
     }
 
     .panel-current-assignment strong {
@@ -1096,49 +1113,103 @@
         font-size: 12px;
     }
 
+    .current-assignment-row,
+    .assignment-option-main {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 9px;
+        min-width: 0;
+    }
+
+    .current-assignment-copy,
+    .assignment-option-title {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .current-assignment-copy strong,
+    .assignment-option-title strong {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .current-assignment-copy span,
+    .assignment-option-title span {
+        color: var(--tt-subtle);
+        font-size: 11px;
+        line-height: 1.35;
+    }
+
     .assignment-option-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-        gap: 10px;
+        grid-template-columns: repeat(auto-fill, minmax(235px, 1fr));
+        gap: 8px;
     }
 
     .assignment-option-card {
         width: 100%;
         display: grid;
-        gap: 7px;
-        padding: 11px;
+        gap: 8px;
+        padding: 9px 10px;
         text-align: left;
         border: 1px solid var(--cell-border, #d8e5f4);
-        border-radius: 14px;
-        background: var(--cell-soft, #f4f8ff);
+        border-radius: 10px;
+        background: #ffffff;
         color: var(--cell-text, #17365d);
-        box-shadow: inset 4px 0 0 var(--cell-accent, #0a4ea3);
+        box-shadow: inset 3px 0 0 var(--cell-accent, #0a4ea3);
         cursor: pointer;
-        transition: transform 140ms ease, box-shadow 140ms ease;
+        transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background-color 140ms ease;
     }
 
     .assignment-option-card:hover {
         transform: translateY(-1px);
-        box-shadow: inset 4px 0 0 var(--cell-accent, #0a4ea3), 0 12px 24px rgba(10, 78, 163, 0.08);
+        background: var(--cell-surface, #f8fbff);
+        box-shadow: inset 3px 0 0 var(--cell-accent, #0a4ea3), 0 10px 20px rgba(10, 78, 163, 0.08);
     }
 
     .assignment-option-card.is-focused {
         border-color: #8fb2df;
-        box-shadow: inset 4px 0 0 var(--cell-accent, #0a4ea3), 0 0 0 3px rgba(10, 78, 163, 0.18);
+        box-shadow: inset 3px 0 0 var(--cell-accent, #0a4ea3), 0 0 0 3px rgba(10, 78, 163, 0.18);
     }
 
     .assignment-option-card:disabled {
-        opacity: 0.55;
+        opacity: 0.62;
         cursor: not-allowed;
         transform: none;
-        box-shadow: inset 4px 0 0 var(--cell-accent, #0a4ea3);
+        box-shadow: inset 3px 0 0 var(--cell-accent, #0a4ea3);
     }
 
-    .assignment-option-top {
+    .assignment-option-card:disabled .subject-tile-icon {
+        opacity: 0.65;
+    }
+
+    .assignment-option-meta {
         display: flex;
-        align-items: flex-start;
+        align-items: center;
         justify-content: space-between;
-        gap: 8px;
+        gap: 6px;
+        flex-wrap: wrap;
+        color: var(--tt-subtle);
+        font-size: 11px;
+        line-height: 1.35;
+    }
+
+    .assignment-option-status {
+        color: var(--cell-text, #17365d);
+        font-size: 11px;
+        line-height: 1.35;
+        opacity: 0.86;
+    }
+
+    .assignment-option-card .mini-pill.is-hours {
+        border-color: var(--cell-border, #d7e4f4);
+        background: var(--cell-surface, #f8fbff);
+        color: var(--cell-text, #17365d);
+        white-space: nowrap;
     }
 
     .assignment-option-copy {
@@ -1461,16 +1532,24 @@
             return (hours * 60) + minutes;
         };
 
+        const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            "\"": "&quot;",
+            "'": "&#39;",
+        }[character]));
+
         const iconLibrary = {
-            subjects: `{{ icon("subjects", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
-            report: `{{ icon("report", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
-            timetable: `{{ icon("timetable", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
-            planning: `{{ icon("planning", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
-            insights: `{{ icon("insights", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
-            teachers: `{{ icon("teachers", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
-            sparkles: `{{ icon("sparkles", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
-            warning: `{{ icon("warning", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
-            clear: `{{ icon("clear", "subject-icon") | replace("\n", "") | replace('"', '&quot;') | safe }}`,
+            subjects: {{ icon("subjects", "subject-icon") | trim | tojson }},
+            report: {{ icon("report", "subject-icon") | trim | tojson }},
+            timetable: {{ icon("timetable", "subject-icon") | trim | tojson }},
+            planning: {{ icon("planning", "subject-icon") | trim | tojson }},
+            insights: {{ icon("insights", "subject-icon") | trim | tojson }},
+            teachers: {{ icon("teachers", "subject-icon") | trim | tojson }},
+            sparkles: {{ icon("sparkles", "subject-icon") | trim | tojson }},
+            warning: {{ icon("warning", "subject-icon") | trim | tojson }},
+            clear: {{ icon("clear", "subject-icon") | trim | tojson }},
         };
 
         const resolveSubjectIconKey = (subjectCode, subjectName = "") => {
@@ -1503,7 +1582,12 @@
         };
 
         const renderSubjectChip = (subjectCode, subjectName = "") => {
-            return `<span class="subject-chip">${getSubjectIconSvg(subjectCode, subjectName)}${subjectCode}</span>`;
+            const safeCode = escapeHtml(subjectCode || "SUBJECT");
+            return `<span class="subject-chip">${getSubjectIconSvg(subjectCode, subjectName)}<span>${safeCode}</span></span>`;
+        };
+
+        const renderSubjectTileIcon = (subjectCode, subjectName = "") => {
+            return `<span class="subject-tile-icon" aria-hidden="true">${getSubjectIconSvg(subjectCode, subjectName)}</span>`;
         };
 
         const getPanelOptionButtons = () => {
@@ -1769,7 +1853,7 @@
             getWarnings().slice(0, 3).forEach((warning) => {
                 const pill = document.createElement("span");
                 pill.className = "warning-pill";
-                pill.innerHTML = `{{ icon("warning", "icon") | replace("\n", "") | replace('"', '&quot;') | safe }}<span>${warning}</span>`;
+                pill.innerHTML = `${iconLibrary.warning}<span>${escapeHtml(warning)}</span>`;
                 warningRow.appendChild(pill);
             });
         };
@@ -2074,23 +2158,24 @@
                             button.classList.add("is-assigned");
                             button.style.setProperty("--cell-accent", entry.subject_color || "#0a4ea3");
                             button.style.setProperty("--cell-soft", entry.subject_color_soft || "#f4f8ff");
+                            button.style.setProperty("--cell-surface", entry.subject_color_surface || "#f8fbff");
                             button.style.setProperty("--cell-border", entry.subject_color_border || "#d8e5f4");
                             button.style.setProperty("--cell-text", entry.subject_color_text || "#17365d");
                         }
                         button.innerHTML = `
                             <div class="lesson-tile">
-                                <div class="lesson-tile-head">
-                                    <span class="lesson-id">
-                                        <span class="lesson-icon-wrap">${getSubjectIconSvg(entry.subject_code, entry.subject_name)}</span>
-                                        <span class="lesson-code-label">${entry.subject_code}</span>
+                                <span class="lesson-icon-wrap">${getSubjectIconSvg(entry.subject_code, entry.subject_name)}</span>
+                                <span class="lesson-content">
+                                    <span class="lesson-title-line">
+                                        <span class="lesson-name">${escapeHtml(entry.subject_name)}</span>
+                                        <span class="lesson-code-label">${escapeHtml(entry.subject_code)}</span>
                                     </span>
-                                    ${isSectionView && canEdit && entry.status !== "stale"
-                                        ? `<button type="button" class="lesson-remove-btn" data-cell-clear="true" title="Remove lesson"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6 18 20H6L5 6"/><path d="M10 6V4h4v2"/></svg></button>`
-                                        : ""
-                                    }
-                                </div>
-                                <div class="lesson-name">${entry.subject_name}</div>
-                                <div class="lesson-meta">${isSectionView ? entry.teacher_name : entry.section_label} · ${slot.time_range}</div>
+                                    <span class="lesson-meta">${escapeHtml(isSectionView ? entry.teacher_name : entry.section_label)} &middot; ${escapeHtml(slot.time_range)}</span>
+                                </span>
+                                ${isSectionView && canEdit && entry.status !== "stale"
+                                    ? `<span role="button" tabindex="0" class="lesson-remove-btn" data-cell-clear="true" title="Remove lesson" aria-label="Remove lesson">${iconLibrary.clear}</span>`
+                                    : ""
+                                }
                             </div>
                         `;
                         button.addEventListener("click", handleCellSelection);
@@ -2110,6 +2195,13 @@
                             event.preventDefault();
                             event.stopPropagation();
                             assignSlot(entity.id, { dayKey: day.key, periodIndex: slot.period_index }, "", { closePanelOnSuccess: false });
+                        });
+                        clearBtn.addEventListener("keydown", (event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                clearBtn.click();
+                            }
                         });
                     }
 
@@ -2238,16 +2330,22 @@
 
             const currentAssignmentHtml = existingEntry
                 ? `
-                    <section class="panel-current-assignment" style="--cell-accent:${existingEntry.subject_color || "#0a4ea3"};--cell-soft:${existingEntry.subject_color_soft || "#f4f8ff"};--cell-border:${existingEntry.subject_color_border || "#d8e5f4"};--cell-text:${existingEntry.subject_color_text || "#17365d"};">
+                    <section class="panel-current-assignment" style="--cell-accent:${existingEntry.subject_color || "#0a4ea3"};--cell-soft:${existingEntry.subject_color_soft || "#f4f8ff"};--cell-surface:${existingEntry.subject_color_surface || "#f8fbff"};--cell-border:${existingEntry.subject_color_border || "#d8e5f4"};--cell-text:${existingEntry.subject_color_text || "#17365d"};">
                         <div class="slot-card-head">
                             <div class="slot-meta">
                                 <h4>Current Assignment</h4>
                                 <small>${timeSlot.time_range}</small>
                             </div>
-                            <button id="panelUnassignBtn" type="button" class="mini-icon-btn" title="Remove assignment">${iconLibrary.clear}</button>
+                            <button id="panelUnassignBtn" type="button" class="mini-icon-btn" title="Remove assignment" aria-label="Remove assignment">${iconLibrary.clear}</button>
                         </div>
-                        <div>${renderSubjectChip(existingEntry.subject_code, existingEntry.subject_name)} <strong>${existingEntry.subject_name}</strong></div>
-                        <small>${existingEntry.teacher_name}</small>
+                        <div class="current-assignment-row">
+                            ${renderSubjectTileIcon(existingEntry.subject_code, existingEntry.subject_name)}
+                            <div class="current-assignment-copy">
+                                <strong>${escapeHtml(existingEntry.subject_name)}</strong>
+                                <span>${escapeHtml(existingEntry.subject_code)} &middot; ${escapeHtml(existingEntry.teacher_name)}</span>
+                            </div>
+                            <span class="mini-pill">${escapeHtml(timeSlot.short_label)}</span>
+                        </div>
                     </section>
                 `
                 : `
@@ -2263,21 +2361,23 @@
                     <button
                         type="button"
                         class="assignment-option-card"
-                        data-subject-code="${option.subject_code}"
+                        data-subject-code="${escapeHtml(option.subject_code)}"
                         ${option.disabled ? "disabled" : ""}
-                        style="--cell-accent:${option.subject_color || "#0a4ea3"};--cell-soft:${option.subject_color_soft || "#f4f8ff"};--cell-border:${option.subject_color_border || "#d8e5f4"};--cell-text:${option.subject_color_text || "#17365d"};"
+                        style="--cell-accent:${option.subject_color || "#0a4ea3"};--cell-soft:${option.subject_color_soft || "#f4f8ff"};--cell-surface:${option.subject_color_surface || "#f8fbff"};--cell-border:${option.subject_color_border || "#d8e5f4"};--cell-text:${option.subject_color_text || "#17365d"};"
                     >
-                        <div class="assignment-option-top">
-                            <div class="assignment-option-copy">
-                                <strong>${renderSubjectChip(option.subject_code, option.subject_name)} ${option.subject_name}</strong>
-                                <span>${option.teacher_name || "No teacher assigned"}</span>
+                        <div class="assignment-option-main">
+                            ${renderSubjectTileIcon(option.subject_code, option.subject_name)}
+                            <div class="assignment-option-title">
+                                <strong>${escapeHtml(option.subject_name || "Unnamed Subject")}</strong>
+                                <span>${escapeHtml(option.subject_code)}</span>
                             </div>
-                            <span class="mini-pill">${option.remainingHours}h left</span>
+                            <span class="mini-pill is-hours">${option.remainingHours}h left</span>
                         </div>
-                        <div class="assignment-option-copy">
+                        <div class="assignment-option-meta">
+                            <span>${escapeHtml(option.teacher_name || "No teacher assigned")}</span>
                             <span>${normalizeInt(option.scheduled_count)}/${normalizeInt(option.weekly_hours)}h scheduled</span>
-                            <span>${getOptionStateLabel(option)}</span>
                         </div>
+                        <div class="assignment-option-status">${escapeHtml(getOptionStateLabel(option))}</div>
                     </button>
                 `).join("")}</div>`;
 
@@ -2408,7 +2508,7 @@
                             const clearButton = document.createElement("button");
                             clearButton.type = "button";
                             clearButton.className = "inspector-btn is-secondary";
-                            clearButton.innerHTML = `{{ icon("clear", "icon") | replace("\n", "") | replace('"', '&quot;') | safe }} Clear Slot`;
+                            clearButton.innerHTML = `${iconLibrary.clear} Clear Slot`;
                             clearButton.disabled = state.busy;
                             clearButton.addEventListener("click", () => {
                                 assignSlot(section.id, selectedSlot, "");
