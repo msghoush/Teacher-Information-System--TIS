@@ -550,6 +550,7 @@
     .board-grid {
         width: 100%;
         min-width: 980px;
+        table-layout: fixed;
         border-collapse: separate;
         border-spacing: 0;
     }
@@ -587,6 +588,7 @@
     .board-grid thead th:first-child {
         left: 0;
         z-index: 4;
+        width: 132px;
     }
 
     .period-cell {
@@ -620,16 +622,19 @@
 
     .grid-cell {
         padding: 6px;
-        min-width: 170px;
+        width: 170px;
         background: #ffffff;
     }
 
     .grid-button {
         width: 100%;
+        height: 72px;
         min-height: 72px;
+        max-height: 72px;
         display: grid;
         gap: 4px;
         align-content: start;
+        overflow: hidden;
         padding: 7px 8px 7px 10px;
         border: 1px solid transparent;
         border-radius: 10px;
@@ -684,7 +689,9 @@
     }
 
     .grid-button.is-non-teaching-row {
+        height: 60px;
         min-height: 60px;
+        max-height: 60px;
     }
 
     .grid-button.is-non-teaching-row.is-empty {
@@ -813,6 +820,9 @@
         font-size: 13px;
         font-weight: 800;
         line-height: 1.35;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .cell-subtitle {
@@ -820,6 +830,9 @@
         font-size: 11px;
         line-height: 1.45;
         opacity: 0.92;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .cell-empty-text {
@@ -1540,14 +1553,25 @@
             "'": "&#39;",
         }[character]));
 
+        const subjectIcon = (body) => (
+            `<svg class="subject-icon" viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`
+        );
+
         const iconLibrary = {
-            subjects: {{ icon("subjects", "subject-icon") | trim | tojson }},
-            report: {{ icon("report", "subject-icon") | trim | tojson }},
-            timetable: {{ icon("timetable", "subject-icon") | trim | tojson }},
-            planning: {{ icon("planning", "subject-icon") | trim | tojson }},
-            insights: {{ icon("insights", "subject-icon") | trim | tojson }},
-            teachers: {{ icon("teachers", "subject-icon") | trim | tojson }},
-            sparkles: {{ icon("sparkles", "subject-icon") | trim | tojson }},
+            subjects: subjectIcon('<path d="M12 6.5C10.7 5.5 8.8 5 7 5H5a2 2 0 0 0-2 2v11a2 2 0 0 1 2-2h2c1.8 0 3.7.5 5 1.5"></path><path d="M12 6.5C13.3 5.5 15.2 5 17 5h2a2 2 0 0 1 2 2v11a2 2 0 0 0-2-2h-2c-1.8 0-3.7.5-5 1.5"></path><path d="M12 6.5v13"></path>'),
+            english: subjectIcon('<path d="M5 19V5h9a4 4 0 0 1 4 4v10"></path><path d="M8 8h6"></path><path d="M8 12h5"></path><path d="M8 16h7"></path>'),
+            arabic: subjectIcon('<path d="M6 15.5c2.8 1.8 7.1 1.7 10.1-.4 1.6-1.1 1.8-3.2 0-4-2.2-1-4.8.5-5 3-.2 2.1 2.5 3.6 5.6 2.5"></path><path d="M17.5 5.5 19 7l-4.2 4.2"></path><path d="M7.3 8.2h.01"></path><path d="M9.6 8.2h.01"></path>'),
+            mathematics: subjectIcon('<rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M8 8h8"></path><path d="M8 12h2"></path><path d="M14 12h2"></path><path d="M8 16h2"></path><path d="M14 16h2"></path>'),
+            mentalMath: subjectIcon('<path d="M10 3h6l-2.4 6H18l-8 12 1.6-8H7l3-10Z"></path><path d="M5 7h2"></path><path d="M4 11h2"></path><path d="M5 15h2"></path>'),
+            science: subjectIcon('<path d="M10 3v5l-5.2 9A3 3 0 0 0 7.4 21h9.2a3 3 0 0 0 2.6-4L14 8V3"></path><path d="M8 3h8"></path><path d="M7.8 15h8.4"></path><path d="M10 18h4"></path>'),
+            ict: subjectIcon('<rect x="3" y="5" width="18" height="12" rx="2"></rect><path d="M8 21h8"></path><path d="M12 17v4"></path><path d="M8 9h.01"></path><path d="M12 9h.01"></path><path d="M16 9h.01"></path><path d="M8 13h8"></path>'),
+            quran: subjectIcon('<path d="M12 6.5C10.7 5.5 8.8 5 7 5H5a2 2 0 0 0-2 2v11a2 2 0 0 1 2-2h2c1.8 0 3.7.5 5 1.5"></path><path d="M12 6.5C13.3 5.5 15.2 5 17 5h2a2 2 0 0 1 2 2v11a2 2 0 0 0-2-2h-2c-1.8 0-3.7.5-5 1.5"></path><path d="m12 9 1 2 2 .3-1.5 1.4.4 2.1-1.9-1-1.9 1 .4-2.1L9 11.3l2-.3 1-2Z"></path>'),
+            islamic: subjectIcon('<path d="M4 21h16"></path><path d="M6 21v-7l6-5 6 5v7"></path><path d="M10 21v-4a2 2 0 0 1 4 0v4"></path><path d="M12 9V4"></path><path d="M10.5 6.5h3"></path>'),
+            art: subjectIcon('<path d="M12 4a8 8 0 0 0 0 16h1.7a1.7 1.7 0 0 0 1.2-2.9 1.6 1.6 0 0 1 1.1-2.7h1A3 3 0 0 0 20 11.3 8 8 0 0 0 12 4Z"></path><path d="M8 11h.01"></path><path d="M10 8h.01"></path><path d="M14 8.5h.01"></path><path d="M7.5 15h.01"></path>'),
+            pe: subjectIcon('<circle cx="12" cy="5" r="2"></circle><path d="M12 7v5l-4 3"></path><path d="M12 12l4 2"></path><path d="M9 21l3-6 4 6"></path><path d="M7 10h10"></path>'),
+            social: subjectIcon('<circle cx="12" cy="12" r="8"></circle><path d="M4 12h16"></path><path d="M12 4c2.1 2.2 3.2 4.8 3.2 8S14.1 17.8 12 20"></path><path d="M12 4c-2.1 2.2-3.2 4.8-3.2 8S9.9 17.8 12 20"></path>'),
+            performingArts: subjectIcon('<path d="M6 5c3 0 5 1.4 5 4.2 0 3.4-2.1 5.8-5 6.8-2.9-1-5-3.4-5-6.8C1 6.4 3 5 6 5Z"></path><path d="M18 5c3 0 5 1.4 5 4.2 0 3.4-2.1 5.8-5 6.8-2.9-1-5-3.4-5-6.8C13 6.4 15 5 18 5Z"></path><path d="M4.5 9.5h.01"></path><path d="M7.5 9.5h.01"></path><path d="M16.5 9.5h.01"></path><path d="M19.5 9.5h.01"></path><path d="M4 13c1.2.8 2.8.8 4 0"></path><path d="M16 13c1.2-.8 2.8-.8 4 0"></path>'),
+            wellbeing: subjectIcon('<path d="M20.8 8.6c0 5-8.8 10.4-8.8 10.4S3.2 13.6 3.2 8.6A4.4 4.4 0 0 1 12 6a4.4 4.4 0 0 1 8.8 2.6Z"></path><path d="M8 13h2.2l1.2-3 2 5 1.2-2H17"></path>'),
             warning: {{ icon("warning", "subject-icon") | trim | tojson }},
             clear: {{ icon("clear", "subject-icon") | trim | tojson }},
         };
@@ -1555,23 +1579,45 @@
         const resolveSubjectIconKey = (subjectCode, subjectName = "") => {
             const upperCode = String(subjectCode || "").toUpperCase();
             const upperName = String(subjectName || "").toUpperCase();
-            if (/MAT|MATH|ALG|GEO/.test(upperCode) || /MATH|ALGEBRA|GEOMETRY|CALCULUS/.test(upperName)) {
-                return "report";
+            const identity = `${upperCode} ${upperName}`;
+            if (/QUR|QNO|NOR|QAAD|QAA|QURAN|QUR'AN|NORANIAH|NOORANI/.test(identity)) {
+                return "quran";
             }
-            if (/SCI|BIO|CHE|PHY/.test(upperCode) || /SCIENCE|BIOLOGY|CHEMISTRY|PHYSICS/.test(upperName)) {
-                return "sparkles";
+            if (/ISL|ISLAM|RELIGION|TAWHEED|FIQH|HADITH/.test(identity)) {
+                return "islamic";
             }
-            if (/ICT|COM|CS|TECH/.test(upperCode) || /COMPUT|TECHNOLOGY|INFORMATION/.test(upperName)) {
-                return "insights";
+            if (/MMT|MENTAL\s*MATH|ABACUS/.test(identity)) {
+                return "mentalMath";
             }
-            if (/HIS|SOC|GEO/.test(upperCode) || /HISTORY|SOCIAL|GEOGRAPHY|CIVIC/.test(upperName)) {
-                return "planning";
+            if (/MAT|MATH|ALG|ARITH|CALCULUS|GEOMETRY/.test(identity)) {
+                return "mathematics";
             }
-            if (/PE|SPORT/.test(upperCode) || /SPORT|PHYSICAL/.test(upperName)) {
-                return "teachers";
+            if (/SCI|SCE|BIO|CHE|PHY|SCIENCE|BIOLOGY|CHEMISTRY|PHYSICS|STEAM/.test(identity)) {
+                return "science";
             }
-            if (/ART|MUS/.test(upperCode) || /ART|MUSIC/.test(upperName)) {
-                return "timetable";
+            if (/ICT|COM|CS|TECH|COD|ROBOT|COMPUT|TECHNOLOGY|INFORMATION/.test(identity)) {
+                return "ict";
+            }
+            if (/ARA|ARB|ARABIC/.test(identity)) {
+                return "arabic";
+            }
+            if (/ENG|ELA|LIT|LANG|ENGLISH|PHONICS|READING|WRITING/.test(identity)) {
+                return "english";
+            }
+            if (/SSE|SOC|HIS|GEO|CIVIC|SOCIAL|HISTORY|GEOGRAPHY|GLOBAL/.test(identity)) {
+                return "social";
+            }
+            if (/PEH|PHE|PE\b|SPORT|PHYSICAL|FITNESS/.test(identity)) {
+                return "pe";
+            }
+            if (/PAR|DRAMA|THEATER|THEATRE|PERFORM|MUSIC|DANCE/.test(identity)) {
+                return "performingArts";
+            }
+            if (/ART|DRAW|PAINT|VISUAL/.test(identity)) {
+                return "art";
+            }
+            if (/WLB|WELL\s*BEING|WELLBEING|HEALTH|LIFE\s*SKILLS|SEL/.test(identity)) {
+                return "wellbeing";
             }
             return "subjects";
         };
