@@ -2861,9 +2861,13 @@
 
         .report-hiring-reason {
             margin: 0;
-            font-size: 12px;
+            font-size: 11px;
             color: #4e6582;
-            line-height: 1.45;
+            line-height: 1.35;
+            border: 1px solid #e6eefb;
+            border-radius: 8px;
+            background: #f8fbff;
+            padding: 6px 8px;
         }
 
         @keyframes rise {
@@ -3455,7 +3459,7 @@
                     <div class="report-hiring-plan-head">
                         <div>
                             <h4 class="report-heading"><span class="section-heading-icon report-heading-icon">{{ icon("hire", "icon") }}</span><span class="report-heading-label">Recommended Hiring Plan</span></h4>
-                            <p>Specialization-based hiring pools built from uncovered subject hours, grouped by compatible teacher profiles.</p>
+                            <p>Visual staffing pools by specialization and 24-hour teacher blocks.</p>
                         </div>
                         <span class="report-hiring-plan-pill">{{ report_summary.total_new_teachers_required or 0 }} full hires required • {{ report_summary.remaining_uncovered_hours_after_hires or 0 }}h uncovered remainder</span>
                     </div>
@@ -3517,7 +3521,7 @@
                                 {% endfor %}
                             </ul>
 
-                            <p class="report-hiring-reason">{{ plan.reason }}</p>
+                            <p class="report-hiring-reason">{{ plan.assignment_note or "Compatible pool grouping" }}</p>
                         </article>
                         {% endfor %}
                     </div>

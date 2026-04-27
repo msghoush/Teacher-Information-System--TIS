@@ -3286,6 +3286,21 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
             )
         return consumed
 
+    def consume_social_hours(limit: int | None = None) -> list[dict]:
+        """Consume Social Studies hours in priority: Social Studies English, then generic Social Studies."""
+        consumed = []
+        remaining_limit = None if limit is None else max(int(limit), 0)
+        for family in ["social_english", "social"]:
+            if remaining_limit is not None and remaining_limit <= 0:
+                break
+            before = sum(int(item.get("hours", 0) or 0) for item in consumed)
+            family_consumed = consume_family_hours(family, remaining_limit)
+            consumed.extend(family_consumed)
+            if remaining_limit is not None:
+                after = sum(int(item.get("hours", 0) or 0) for item in consumed)
+                remaining_limit -= max(after - before, 0)
+        return consumed
+
     def get_next_block_capacity(total_hours: int, *, allow_empty: bool = False) -> int:
         if total_hours <= 0:
             return REPORT_STANDARD_MAX_HOURS if allow_empty else 0
@@ -3367,6 +3382,22 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
             "accent_color": coverage_items[0].get("subject_color", "#0A4EA3"),
             "progress_width_pct": progress_width_pct,
         }
+
+        coverage_families = {item.get("family", "") for item in coverage_items}
+        if group_key == "english_humanities" and coverage_families.intersection({"social_english", "social"}):
+            if "english" in coverage_families:
+                profile["assignment_note"] = "Social Studies absorbed by English profile"
+            else:
+                profile["assignment_note"] = "Standalone profile required"
+        elif group_key == "science_ict" and coverage_families.intersection({"social_english", "social"}):
+            profile["assignment_note"] = "Absorbed by Science / ICT"
+        elif group_key == "math" and coverage_families.intersection({"social_english", "social"}):
+            profile["assignment_note"] = "Absorbed by Math profile"
+        elif group_key == "social_humanities":
+            profile["assignment_note"] = "Standalone profile required"
+        else:
+            profile["assignment_note"] = "Compatible pool grouping"
+
         profile_counter += 1
         return profile
 
@@ -3380,9 +3411,10 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
     english_pool = []
     english_pool.extend(consume_family_hours("english"))
     english_pool_hours = sum(int(item.get("hours", 0) or 0) for item in english_pool)
-    english_capacity_for_social = get_next_block_capacity(english_pool_hours, allow_empty=True)
-    if english_capacity_for_social > 0:
-        english_pool.extend(consume_family_hours("social_english", english_capacity_for_social))
+    # Social Studies should only flow into English when an English profile already exists.
+    english_capacity_for_social = get_next_block_capacity(english_pool_hours)
+    if english_pool_hours > 0 and english_capacity_for_social > 0:
+        english_pool.extend(consume_social_hours(english_capacity_for_social))
     profile = build_pool_profile("english_humanities", english_pool)
     if profile:
         profiles.append(profile)
@@ -3395,8 +3427,8 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         science_pool.extend(consume_family_hours("ict", science_capacity))
         science_pool_hours = sum(int(item.get("hours", 0) or 0) for item in science_pool)
         science_capacity = get_next_block_capacity(science_pool_hours)
-    if science_capacity > 0 and get_family_hours("social_english") > 0:
-        science_pool.extend(consume_family_hours("social_english", science_capacity))
+    if science_pool_hours > 0 and science_capacity > 0 and (get_family_hours("social_english") > 0 or get_family_hours("social") > 0):
+        science_pool.extend(consume_social_hours(science_capacity))
     profile = build_pool_profile("science_ict", science_pool)
     if profile:
         profiles.append(profile)
@@ -3406,8 +3438,8 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         math_pool.extend(consume_family_hours(family))
     math_pool_hours = sum(int(item.get("hours", 0) or 0) for item in math_pool)
     math_capacity = get_next_block_capacity(math_pool_hours)
-    if math_capacity > 0 and get_family_hours("social_english") > 0:
-        math_pool.extend(consume_family_hours("social_english", math_capacity))
+    if math_pool_hours > 0 and math_capacity > 0 and (get_family_hours("social_english") > 0 or get_family_hours("social") > 0):
+        math_pool.extend(consume_social_hours(math_capacity))
     profile = build_pool_profile("math", math_pool)
     if profile:
         profiles.append(profile)
