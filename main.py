@@ -132,28 +132,27 @@ HIRING_FAMILY_PRIORITY = {
 HIRING_COMPATIBILITY_GROUPS = {
     "english": "english_humanities",
     "social_english": "english_humanities",
-    "arabic": "arabic_humanities",
-    "social_arabic": "arabic_humanities",
+    "arabic": "arabic_related",
+    "social_arabic": "arabic_related",
     "math": "math",
     "mental_math": "math",
     "science": "science_ict",
     "ict": "science_ict",
-    "islamic": "islamic_quran",
-    "quran": "islamic_quran",
+    "islamic": "arabic_related",
+    "quran": "arabic_related",
     "social": "social_humanities",
-    "pe": "pe_wellbeing",
-    "wellbeing": "pe_wellbeing",
-    "art": "creative_arts",
+    "pe": "student_life",
+    "wellbeing": "student_life",
+    "art": "student_life",
     "performing_arts": "creative_arts",
 }
 HIRING_GROUP_LABELS = {
     "english_humanities": "English / Social Studies English",
-    "arabic_humanities": "Arabic / Social Studies Arabic",
+    "arabic_related": "Arabic / Islamic / Quran / Social Studies Arabic",
     "math": "Mathematics / Mental Math",
     "science_ict": "Science / ICT",
-    "islamic_quran": "Islamic / Quran",
     "social_humanities": "Social Studies",
-    "pe_wellbeing": "Physical Education / Well Being",
+    "student_life": "Physical Education / Well Being / Art",
     "creative_arts": "Art / Performing Arts",
 }
 HIRING_FAMILY_LABELS = {
@@ -2999,13 +2998,9 @@ def _build_dashboard_report_visuals(
 def _enrich_report_summary_hiring_metrics(report_summary):
     summary = dict(report_summary or {})
     uncovered_hours = int(summary.get("total_remaining_hours", 0) or 0)
-    plan_full_teacher_count = int(summary.get("hiring_plan_full_teacher_count", 0) or 0)
-    if plan_full_teacher_count > 0 or int(summary.get("hiring_plan_profile_count", 0) or 0) > 0:
-        whole_new_hires = max(plan_full_teacher_count, 0)
-    else:
-        whole_new_hires = uncovered_hours // REPORT_STANDARD_MAX_HOURS
+    whole_new_hires = uncovered_hours // REPORT_STANDARD_MAX_HOURS
     remaining_uncovered_hours_after_hires = (
-        max(uncovered_hours - (whole_new_hires * REPORT_STANDARD_MAX_HOURS), 0)
+        uncovered_hours % REPORT_STANDARD_MAX_HOURS
         if uncovered_hours > 0
         else 0
     )
@@ -3018,6 +3013,10 @@ def _enrich_report_summary_hiring_metrics(report_summary):
     )
     summary["hireable_covered_hours"] = (
         whole_new_hires * REPORT_STANDARD_MAX_HOURS
+    )
+    summary["hiring_plan_equivalent_full_teacher_count"] = whole_new_hires
+    summary["hiring_plan_equivalent_remaining_hours"] = (
+        remaining_uncovered_hours_after_hires
     )
     summary["total_teachers_needed_branch"] = total_teachers_needed_branch
     summary["new_hire_capacity_hours"] = whole_new_hires * REPORT_STANDARD_MAX_HOURS

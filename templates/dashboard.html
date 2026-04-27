@@ -3398,7 +3398,7 @@
                             <h4 class="report-heading"><span class="section-heading-icon report-heading-icon">{{ icon("hire", "icon") }}</span><span class="report-heading-label">Recommended Hiring Plan</span></h4>
                             <p>Specialization-based hiring profiles built from uncovered subject hours and compatibility rules.</p>
                         </div>
-                        <span class="report-hiring-plan-pill">{{ report_summary.hiring_plan_full_teacher_count or 0 }} full hires • {{ report_summary.remaining_uncovered_hours_after_hires or 0 }}h uncovered remainder</span>
+                        <span class="report-hiring-plan-pill">{{ report_summary.total_new_teachers_required or 0 }} full hires required • {{ report_summary.remaining_uncovered_hours_after_hires or 0 }}h uncovered remainder</span>
                     </div>
 
                     {% if report_summary.hiring_plan_profiles %}
@@ -3410,7 +3410,11 @@
                                     <div class="report-hiring-profile-title">{{ plan.profile_label }}</div>
                                     <div class="report-hiring-profile-meta">
                                         <span class="report-hiring-chip {% if plan.is_full_load %}is-full{% else %}is-gap{% endif %}">{{ plan.total_hours }}h planned</span>
+                                        {% if plan.is_full_load %}
                                         <span class="report-hiring-chip">{{ plan.teacher_count }} teacher{% if plan.teacher_count != 1 %}s{% endif %}</span>
+                                        {% else %}
+                                        <span class="report-hiring-chip">Proposed specialist profile</span>
+                                        {% endif %}
                                         {% if plan.remaining_capacity_hours > 0 %}
                                         <span class="report-hiring-chip is-gap">{{ plan.remaining_capacity_hours }}h short of 24h</span>
                                         {% endif %}
