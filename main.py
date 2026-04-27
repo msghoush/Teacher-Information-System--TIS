@@ -7685,10 +7685,12 @@ def load_dashboard_hiring_plan(
         plan_payload = json.loads(str(draft.plan_json or "{}"))
     except json.JSONDecodeError:
         plan_payload = {}
+    normalized_plan = _normalize_hiring_plan_payload(plan_payload)
+    normalized_plan["locked"] = True
     return {
         "ok": True,
         "source": "saved",
-        "plan": _normalize_hiring_plan_payload(plan_payload),
+        "plan": normalized_plan,
         "updated_at": draft.updated_at.isoformat() if getattr(draft, "updated_at", None) else None,
     }
 

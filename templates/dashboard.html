@@ -5464,13 +5464,16 @@ const tabs = document.querySelectorAll(".tab");
                 const payload = await response.json();
                 if (response.ok && payload.ok && payload.plan) {
                     hiringStudioState.plan = normalizePlan(payload.plan);
+                    hiringStudioState.plan.locked = true;
                     hiringStudioStatus.textContent = "Loaded saved hiring plan.";
                 } else {
                     hiringStudioState.plan = normalizePlan(cloneJson(hiringStudioAutoPayload));
+                    hiringStudioState.plan.locked = true;
                     hiringStudioStatus.textContent = "Loaded system-suggested recommended plan.";
                 }
             } catch (error) {
                 hiringStudioState.plan = normalizePlan(cloneJson(hiringStudioAutoPayload));
+                hiringStudioState.plan.locked = true;
                 hiringStudioStatus.textContent = "Loaded system-suggested recommended plan.";
             }
 
