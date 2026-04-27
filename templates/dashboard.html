@@ -3031,6 +3031,10 @@
             cursor: grabbing;
         }
 
+        body.hiring-is-dragging .hiring-chip-dropzone .hiring-hour-chip {
+            pointer-events: none;
+        }
+
         .hiring-hour-chip button {
             border: none;
             background: transparent;
@@ -4810,6 +4814,7 @@ const tabs = document.querySelectorAll(".tab");
                     sourceId,
                 };
                 chipEl.classList.add("is-dragging");
+                document.body.classList.add("hiring-is-dragging");
                 event.dataTransfer.setData("text/plain", chip.id);
                 event.dataTransfer.setData("application/json", JSON.stringify(hiringStudioState.dragging));
                 event.dataTransfer.effectAllowed = "move";
@@ -4817,7 +4822,12 @@ const tabs = document.querySelectorAll(".tab");
 
             chipEl.addEventListener("dragend", () => {
                 chipEl.classList.remove("is-dragging");
-                hiringStudioState.dragging = null;
+                document.body.classList.remove("hiring-is-dragging");
+                setTimeout(() => {
+                    if (hiringStudioState.dragging && hiringStudioState.dragging.chipId === chip.id) {
+                        hiringStudioState.dragging = null;
+                    }
+                }, 0);
             });
 
             chipEl.querySelector("button")?.addEventListener("click", () => {
@@ -4842,7 +4852,7 @@ const tabs = document.querySelectorAll(".tab");
                 event.preventDefault();
                 dropZone.classList.add("is-over");
                 event.dataTransfer.dropEffect = "move";
-            });
+            }, true);
 
             dropZone.addEventListener("dragleave", () => {
                 dropZone.classList.remove("is-over");
@@ -4853,6 +4863,7 @@ const tabs = document.querySelectorAll(".tab");
                     return;
                 }
                 event.preventDefault();
+                event.stopPropagation();
                 dropZone.classList.remove("is-over");
                 const dragMeta = parseDragMeta(event);
                 if (!dragMeta) {
@@ -4873,8 +4884,9 @@ const tabs = document.querySelectorAll(".tab");
                     putChipBack(detached.sourceType, detached.sourceId, detached.chip);
                 }
                 hiringStudioState.dragging = null;
+                document.body.classList.remove("hiring-is-dragging");
                 renderHiringStudio();
-            });
+            }, true);
         };
 
         const renderHiringStudio = () => {
@@ -5027,6 +5039,8 @@ const tabs = document.querySelectorAll(".tab");
             }
             if (hiringStudioStatus && locked) {
                 hiringStudioStatus.textContent = "Plan locked. Unlock to edit drag/drop, profile settings, and manual profiles.";
+            } else if (hiringStudioStatus && !locked) {
+                hiringStudioStatus.textContent = "Plan unlocked. Drag chips between pools to adjust the recommendation.";
             }
             renderWarnings();
         };
