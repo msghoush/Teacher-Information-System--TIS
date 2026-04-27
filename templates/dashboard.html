@@ -2749,6 +2749,36 @@
             flex-wrap: wrap;
         }
 
+        .report-hiring-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .report-hiring-stat {
+            border: 1px solid #e4ecfa;
+            border-radius: 10px;
+            background: #f8fbff;
+            padding: 8px;
+            display: grid;
+            gap: 3px;
+        }
+
+        .report-hiring-stat span {
+            font-size: 10px;
+            line-height: 1.3;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #64748b;
+            font-weight: 700;
+        }
+
+        .report-hiring-stat strong {
+            color: #17365d;
+            font-size: 15px;
+            line-height: 1.2;
+        }
+
         .report-hiring-chip {
             display: inline-flex;
             align-items: center;
@@ -2798,6 +2828,35 @@
 
         .report-hiring-coverage-item strong {
             color: #17365d;
+        }
+
+        .report-hiring-progress {
+            display: grid;
+            gap: 5px;
+        }
+
+        .report-hiring-progress-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 11px;
+            color: #4e6582;
+        }
+
+        .report-hiring-progress-track {
+            width: 100%;
+            height: 8px;
+            border-radius: 999px;
+            background: #e6eefb;
+            overflow: hidden;
+        }
+
+        .report-hiring-progress-fill {
+            height: 100%;
+            width: var(--progress-width, 0%);
+            background: linear-gradient(90deg, var(--plan-accent, #0a4ea3), #7fa6e8);
+            border-radius: inherit;
         }
 
         .report-hiring-reason {
@@ -3396,7 +3455,7 @@
                     <div class="report-hiring-plan-head">
                         <div>
                             <h4 class="report-heading"><span class="section-heading-icon report-heading-icon">{{ icon("hire", "icon") }}</span><span class="report-heading-label">Recommended Hiring Plan</span></h4>
-                            <p>Specialization-based hiring profiles built from uncovered subject hours and compatibility rules.</p>
+                            <p>Specialization-based hiring pools built from uncovered subject hours, grouped by compatible teacher profiles.</p>
                         </div>
                         <span class="report-hiring-plan-pill">{{ report_summary.total_new_teachers_required or 0 }} full hires required • {{ report_summary.remaining_uncovered_hours_after_hires or 0 }}h uncovered remainder</span>
                     </div>
@@ -3409,18 +3468,44 @@
                                 <div>
                                     <div class="report-hiring-profile-title">{{ plan.profile_label }}</div>
                                     <div class="report-hiring-profile-meta">
-                                        <span class="report-hiring-chip {% if plan.is_full_load %}is-full{% else %}is-gap{% endif %}">{{ plan.total_hours }}h planned</span>
-                                        {% if plan.is_full_load %}
-                                        <span class="report-hiring-chip">{{ plan.teacher_count }} teacher{% if plan.teacher_count != 1 %}s{% endif %}</span>
-                                        {% else %}
-                                        <span class="report-hiring-chip">Proposed specialist profile</span>
-                                        {% endif %}
-                                        {% if plan.remaining_capacity_hours > 0 %}
-                                        <span class="report-hiring-chip is-gap">{{ plan.remaining_capacity_hours }}h short of 24h</span>
+                                        <span class="report-hiring-chip {% if plan.full_teacher_count > 0 %}is-full{% else %}is-gap{% endif %}">{{ plan.status_label }}</span>
+                                        {% if plan.full_teacher_count > 0 %}
+                                        <span class="report-hiring-chip">{{ plan.full_teacher_count }} full 24h block{% if plan.full_teacher_count != 1 %}s{% endif %}</span>
                                         {% endif %}
                                     </div>
                                 </div>
-                                <span class="report-hiring-chip">{{ plan.status_label }}</span>
+                                <span class="report-hiring-chip">{{ plan.coverage_items | length }} subject{% if plan.coverage_items|length != 1 %}s{% endif %}</span>
+                            </div>
+
+                            <div class="report-hiring-summary-grid">
+                                <div class="report-hiring-stat">
+                                    <span>Total In Pool</span>
+                                    <strong>{{ plan.total_hours }}h</strong>
+                                </div>
+                                <div class="report-hiring-stat">
+                                    <span>Full 24h Blocks</span>
+                                    <strong>{{ plan.full_teacher_count }}</strong>
+                                </div>
+                                <div class="report-hiring-stat">
+                                    <span>Remaining Hours</span>
+                                    <strong>{{ plan.remaining_hours }}h</strong>
+                                </div>
+                            </div>
+
+                            <div class="report-hiring-progress">
+                                <div class="report-hiring-progress-head">
+                                    <span>Progress toward next 24h block</span>
+                                    <strong>{% if plan.remaining_hours > 0 %}{{ plan.remaining_hours }} / 24h{% else %}Exact 24h multiple{% endif %}</strong>
+                                </div>
+                                <div class="report-hiring-progress-track" aria-label="24-hour block progress">
+                                    <div class="report-hiring-progress-fill" style="--progress-width: {{ plan.progress_width_pct }}%;"></div>
+                                </div>
+                                {% if plan.remaining_hours > 0 %}
+                                <div class="report-hiring-progress-head">
+                                    <span>{{ plan.remaining_hours }}h assigned to this proposed profile beyond completed full blocks</span>
+                                    <span>{{ plan.remaining_capacity_hours }}h remaining capacity before reaching 24h</span>
+                                </div>
+                                {% endif %}
                             </div>
 
                             <ul class="report-hiring-coverage-list">

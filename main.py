@@ -3152,7 +3152,85 @@ def _build_hiring_profile_reason(
     )
 
 
+def _build_hiring_pool_reason(
+    group_key: str,
+    coverage_items: list[dict],
+    total_hours: int,
+    full_teacher_count: int,
+    remaining_hours: int,
+) -> str:
+    group_label = HIRING_GROUP_LABELS.get(group_key, "this specialization")
+    if group_key == "arabic_related":
+        base_reason = (
+            "Arabic, Islamic, Quran, and Social Studies Arabic are treated as one combined hiring pool "
+            "because the same teacher profile can reasonably cover these related subjects."
+        )
+    elif group_key == "english_humanities":
+        base_reason = (
+            "English is treated as the primary hiring need, with Social Studies English used as the first "
+            "secondary subject inside the same compatible profile when there is remaining capacity."
+        )
+    elif group_key == "science_ict":
+        base_reason = (
+            "Science remains the main specialization in this pool, and ICT is used only as the secondary "
+            "compatible subject where remaining capacity exists."
+        )
+    elif group_key == "math":
+        base_reason = (
+            "Mathematics remains a priority specialist area and is only combined with closely related math subjects."
+        )
+    elif group_key == "student_life":
+        base_reason = (
+            "Physical Education, Well Being, and Art are shown together as a compatible student-life pool where shared coverage is appropriate."
+        )
+    else:
+        base_reason = f"These subjects are grouped under the {group_label} specialization."
+
+    if full_teacher_count > 0:
+        return (
+            f"{base_reason} This pool contains {total_hours}h uncovered, which converts to "
+            f"{full_teacher_count} full 24h teacher block{'s' if full_teacher_count != 1 else ''}"
+            f"{f' with {remaining_hours}h still remaining in the pool.' if remaining_hours > 0 else '.'}"
+        )
+
+    return (
+        f"{base_reason} This pool currently contains {total_hours}h uncovered, which is below one full 24h teacher block"
+        f" and leaves {remaining_hours}h waiting for either compatible absorption or the next full hire threshold."
+    )
+
+
 def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> dict:
+    pool_specs = [
+        {
+            "group_key": "arabic_related",
+            "families": ["arabic", "islamic", "quran", "social_arabic"],
+        },
+        {
+            "group_key": "english_humanities",
+            "families": ["english", "social_english"],
+        },
+        {
+            "group_key": "math",
+            "families": ["math", "mental_math"],
+        },
+        {
+            "group_key": "science_ict",
+            "families": ["science", "ict"],
+        },
+        {
+            "group_key": "student_life",
+            "families": ["pe", "wellbeing", "art"],
+        },
+        {
+            "group_key": "creative_arts",
+            "families": ["performing_arts"],
+        },
+        {
+            "group_key": "social_humanities",
+            "families": ["social"],
+        },
+    ]
+
     uncovered_items = []
     for row in report_subject_rows or []:
         remaining_hours = int(row.get("remaining_hours", 0) or 0)
@@ -3169,145 +3247,137 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
                 "remaining_hours": remaining_hours,
                 "family": family,
                 "group_key": group_key,
-                "priority_staffing_subject": bool(
-                    row.get("priority_staffing_subject")
-                ),
+                "priority_staffing_subject": bool(row.get("priority_staffing_subject")),
             }
         )
 
     uncovered_items.sort(key=_get_hiring_subject_sort_key)
     profiles = []
     profile_counter = 1
-    remainder_items = []
+    used_subject_keys = set()
+
+    def build_pool_profile(group_key: str, pool_items: list[dict]):
+        nonlocal profile_counter
+        if not pool_items:
+            return None
+
+        total_hours = sum(int(item.get("remaining_hours", 0) or 0) for item in pool_items)
+        if total_hours <= 0:
+            return None
+
+        full_teacher_count = total_hours // REPORT_STANDARD_MAX_HOURS
+        remaining_hours = total_hours % REPORT_STANDARD_MAX_HOURS
+        unique_families = []
+        for item in pool_items:
+            family = item.get("family", "")
+            if family and family not in unique_families:
+                unique_families.append(family)
+
+        coverage_items = [
+            {
+                **item,
+                "hours": int(item.get("remaining_hours", 0) or 0),
+            }
+            for item in pool_items
+        ]
+        capacity_to_next_block = (
+            REPORT_STANDARD_MAX_HOURS - remaining_hours
+            if remaining_hours > 0
+            else 0
+        )
+        progress_width_pct = (
+            round((remaining_hours / REPORT_STANDARD_MAX_HOURS) * 100, 1)
+            if remaining_hours > 0
+            else 100.0
+        )
+        is_multi_subject_pool = len(unique_families) > 1 or len(coverage_items) > 1
+
+        profile = {
+            "id": f"hire-plan-{profile_counter}",
+            "profile_label": _build_hiring_profile_label(
+                coverage_items,
+                group_key=group_key,
+                dedicated=not is_multi_subject_pool,
+            ),
+            "teacher_count": full_teacher_count,
+            "full_teacher_count": full_teacher_count,
+            "profile_type": "combined_pool" if is_multi_subject_pool else "specialist_pool",
+            "status_label": (
+                "Combined specialization pool"
+                if is_multi_subject_pool
+                else "Specialist priority pool"
+            ),
+            "total_hours": total_hours,
+            "group_total_hours": total_hours,
+            "capacity_hours": REPORT_STANDARD_MAX_HOURS,
+            "remaining_hours": remaining_hours,
+            "remaining_capacity_hours": capacity_to_next_block,
+            "hours_to_next_block": capacity_to_next_block,
+            "is_full_load": full_teacher_count > 0,
+            "coverage_items": coverage_items,
+            "coverage_label": _build_hiring_coverage_label(coverage_items),
+            "reason": _build_hiring_pool_reason(
+                group_key,
+                coverage_items,
+                total_hours,
+                full_teacher_count,
+                remaining_hours,
+            ),
+            "accent_color": coverage_items[0].get("subject_color", "#0A4EA3"),
+            "progress_width_pct": progress_width_pct,
+        }
+        profile_counter += 1
+        return profile
+
+    for pool_spec in pool_specs:
+        pool_families = set(pool_spec["families"])
+        pool_items = [
+            item
+            for item in uncovered_items
+            if item.get("family") in pool_families
+            and item.get("subject_key") not in used_subject_keys
+        ]
+        if not pool_items:
+            continue
+        family_order = {
+            family: index for index, family in enumerate(pool_spec["families"])
+        }
+        pool_items.sort(
+            key=lambda item: (
+                family_order.get(item.get("family", ""), 99),
+                -int(item.get("remaining_hours", 0) or 0),
+                str(item.get("subject_name", "") or "").lower(),
+            )
+        )
+        profile = build_pool_profile(pool_spec["group_key"], pool_items)
+        if profile:
+            profiles.append(profile)
+            used_subject_keys.update(
+                item.get("subject_key")
+                for item in pool_items
+                if item.get("subject_key")
+            )
 
     for item in uncovered_items:
-        full_blocks = int(item["remaining_hours"] // REPORT_STANDARD_MAX_HOURS)
-        remainder_hours = int(item["remaining_hours"] % REPORT_STANDARD_MAX_HOURS)
-        if full_blocks > 0:
-            covered_hours = full_blocks * REPORT_STANDARD_MAX_HOURS
-            coverage_items = [
-                {
-                    **item,
-                    "hours": covered_hours,
-                    "remaining_hours": covered_hours,
-                }
-            ]
-            profiles.append(
-                {
-                    "id": f"hire-plan-{profile_counter}",
-                    "profile_label": _build_hiring_profile_label(
-                        coverage_items,
-                        dedicated=True,
-                    ),
-                    "teacher_count": full_blocks,
-                    "full_teacher_count": full_blocks,
-                    "profile_type": "dedicated",
-                    "status_label": "Dedicated full load",
-                    "total_hours": covered_hours,
-                    "capacity_hours": full_blocks * REPORT_STANDARD_MAX_HOURS,
-                    "remaining_capacity_hours": 0,
-                    "is_full_load": True,
-                    "coverage_items": coverage_items,
-                    "coverage_label": _build_hiring_coverage_label(coverage_items),
-                    "reason": _build_hiring_profile_reason(
-                        "dedicated",
-                        coverage_items,
-                        covered_hours,
-                        teacher_count=full_blocks,
-                    ),
-                    "accent_color": item.get("subject_color", "#0A4EA3"),
-                }
-            )
-            profile_counter += 1
-        if remainder_hours > 0:
-            remainder_items.append({**item, "remaining_hours": remainder_hours})
+        subject_key = item.get("subject_key")
+        if subject_key and subject_key in used_subject_keys:
+            continue
+        profile = build_pool_profile(item.get("group_key", f"single_{item.get('family', 'other')}"), [item])
+        if profile:
+            profiles.append(profile)
+            if subject_key:
+                used_subject_keys.add(subject_key)
 
-    grouped_remainders = {}
-    for item in remainder_items:
-        grouped_remainders.setdefault(item["group_key"], []).append(dict(item))
-
-    sorted_group_keys = sorted(
-        grouped_remainders.keys(),
-        key=lambda group_key: min(
-            _get_hiring_subject_sort_key(item)
-            for item in grouped_remainders[group_key]
-        ),
-    )
-
-    for group_key in sorted_group_keys:
-        group_items = grouped_remainders[group_key]
-        group_items.sort(key=_get_hiring_subject_sort_key)
-        while any(int(item.get("remaining_hours", 0) or 0) > 0 for item in group_items):
-            available_capacity = REPORT_STANDARD_MAX_HOURS
-            coverage_items = []
-            for item in group_items:
-                open_hours = int(item.get("remaining_hours", 0) or 0)
-                if open_hours <= 0 or available_capacity <= 0:
-                    continue
-                covered_hours = min(open_hours, available_capacity)
-                item["remaining_hours"] = open_hours - covered_hours
-                available_capacity -= covered_hours
-                coverage_items.append(
-                    {
-                        **item,
-                        "hours": covered_hours,
-                    }
-                )
-            if not coverage_items:
-                break
-
-            total_hours = sum(int(item.get("hours", 0) or 0) for item in coverage_items)
-            is_full_load = total_hours >= REPORT_STANDARD_MAX_HOURS
-            profile_type = "combined" if len(coverage_items) > 1 else "remainder"
-            status_label = (
-                "Combined full load"
-                if is_full_load and len(coverage_items) > 1
-                else "Partial compatible load"
-                if len(coverage_items) > 1
-                else "Remaining specialist gap"
-            )
-            profiles.append(
-                {
-                    "id": f"hire-plan-{profile_counter}",
-                    "profile_label": _build_hiring_profile_label(
-                        coverage_items,
-                        group_key=group_key,
-                    ),
-                    "teacher_count": 1,
-                    "full_teacher_count": 1 if is_full_load else 0,
-                    "profile_type": profile_type,
-                    "status_label": status_label,
-                    "total_hours": total_hours,
-                    "capacity_hours": REPORT_STANDARD_MAX_HOURS,
-                    "remaining_capacity_hours": max(
-                        REPORT_STANDARD_MAX_HOURS - total_hours,
-                        0,
-                    ),
-                    "is_full_load": is_full_load,
-                    "coverage_items": coverage_items,
-                    "coverage_label": _build_hiring_coverage_label(coverage_items),
-                    "reason": _build_hiring_profile_reason(
-                        profile_type,
-                        coverage_items,
-                        total_hours,
-                        group_key=group_key,
-                    ),
-                    "accent_color": coverage_items[0].get(
-                        "subject_color",
-                        "#0A4EA3",
-                    ),
-                }
-            )
-            profile_counter += 1
-
-    full_teacher_count = sum(int(profile.get("full_teacher_count", 0)) for profile in profiles)
-    partial_profile_count = sum(1 for profile in profiles if not profile.get("is_full_load"))
+    full_teacher_count = sum(int(profile.get("full_teacher_count", 0) or 0) for profile in profiles)
+    partial_profile_count = sum(1 for profile in profiles if int(profile.get("remaining_hours", 0) or 0) > 0)
     covered_hours = sum(int(profile.get("total_hours", 0) or 0) for profile in profiles)
     remaining_capacity_hours = sum(
         int(profile.get("remaining_capacity_hours", 0) or 0)
         for profile in profiles
-        if not profile.get("is_full_load")
+        if int(profile.get("remaining_hours", 0) or 0) > 0
     )
+    equivalent_full_teacher_count = covered_hours // REPORT_STANDARD_MAX_HOURS
+    equivalent_remaining_hours = covered_hours % REPORT_STANDARD_MAX_HOURS
 
     return {
         "hiring_plan_profiles": profiles,
@@ -3316,6 +3386,8 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         "hiring_plan_partial_profile_count": partial_profile_count,
         "hiring_plan_covered_hours": covered_hours,
         "hiring_plan_remaining_capacity_hours": remaining_capacity_hours,
+        "hiring_plan_equivalent_full_teacher_count": equivalent_full_teacher_count,
+        "hiring_plan_equivalent_remaining_hours": equivalent_remaining_hours,
     }
 
 
