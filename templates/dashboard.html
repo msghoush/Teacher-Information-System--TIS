@@ -3024,11 +3024,22 @@
             padding: 4px 8px;
             cursor: grab;
             user-select: none;
+            touch-action: none;
         }
 
         .hiring-hour-chip.is-dragging {
             opacity: 0.65;
             cursor: grabbing;
+        }
+
+        .hiring-hour-chip.is-pointer-ghost {
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0.92;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.18);
         }
 
         body.hiring-is-dragging .hiring-chip-dropzone .hiring-hour-chip {
@@ -4547,6 +4558,7 @@ const tabs = document.querySelectorAll(".tab");
         const hiringStudioAddProfileBtn = document.getElementById("hiringStudioAddProfileBtn");
         const hiringStudioSaveBtn = document.getElementById("hiringStudioSaveBtn");
         const hiringStudioUnassignedTotal = document.getElementById("hiringStudioUnassignedTotal");
+        const hiringStudioPlanPill = document.querySelector(".report-hiring-plan-pill");
 
         const hiringCompatibilityByFamily = {
             english: "english_humanities",
@@ -4570,6 +4582,7 @@ const tabs = document.querySelectorAll(".tab");
         const hiringStudioState = {
             loaded: false,
             dragging: null,
+            pointerDrag: null,
             dragHandlersBound: false,
             plan: {
                 profiles: [],
@@ -4578,11 +4591,44 @@ const tabs = document.querySelectorAll(".tab");
                 summary: {},
             },
         };
+        let hiringStudioAutoSaveTimer = null;
+        let hiringStudioAutoSaveInFlight = false;
 
         const cloneJson = (value) => JSON.parse(JSON.stringify(value));
 
         const profileTotalHours = (profile) => {
             return (profile.items || []).reduce((sum, item) => sum + Number(item.hours || 0), 0);
+        };
+
+        const summarizeHiringStudioPlan = () => {
+            const profiles = hiringStudioState.plan.profiles || [];
+            const unassignedItems = hiringStudioState.plan.unassigned_items || [];
+            const profileHours = profiles.reduce((sum, profile) => sum + profileTotalHours(profile), 0);
+            const unassignedHours = unassignedItems.reduce((sum, item) => sum + Number(item.hours || 0), 0);
+            const totalHours = profileHours + unassignedHours;
+            const fullHires = Math.floor(totalHours / 24);
+            const remainderHours = totalHours % 24;
+            return {
+                profile_hours: profileHours,
+                unassigned_hours: unassignedHours,
+                total_hours: totalHours,
+                total_new_teachers_required: fullHires,
+                remaining_uncovered_hours_after_hires: remainderHours,
+                profile_count: profiles.length,
+                subject_count: profiles.reduce((sum, profile) => sum + (profile.items || []).length, 0) + unassignedItems.length,
+            };
+        };
+
+        const updateHiringStudioDerivedSummary = () => {
+            const summary = summarizeHiringStudioPlan();
+            hiringStudioState.plan.summary = {
+                ...(hiringStudioState.plan.summary || {}),
+                ...summary,
+            };
+            if (hiringStudioPlanPill) {
+                hiringStudioPlanPill.textContent = `${summary.total_new_teachers_required} full hires required - ${summary.remaining_uncovered_hours_after_hires}h uncovered remainder`;
+            }
+            return summary;
         };
 
         const normalizePlan = (rawPlan) => {
@@ -4659,6 +4705,63 @@ const tabs = document.querySelectorAll(".tab");
                 }
             });
             return warnings;
+        };
+
+        const renderWarningItems = (warnings) => {
+            if (!hiringStudioWarnings) {
+                return;
+            }
+            hiringStudioWarnings.innerHTML = "";
+            (warnings || []).forEach((warning) => {
+                const item = document.createElement("li");
+                item.className = "hiring-warning-item";
+                item.textContent = warning;
+                hiringStudioWarnings.appendChild(item);
+            });
+        };
+
+        const scheduleHiringStudioAutoSave = (message = "Hiring plan adjusted.") => {
+            if (!hiringStudioState.loaded || isPlanLocked()) {
+                return;
+            }
+            updateHiringStudioDerivedSummary();
+            if (hiringStudioStatus) {
+                hiringStudioStatus.textContent = `${message} Saving automatically...`;
+            }
+            if (hiringStudioAutoSaveTimer) {
+                clearTimeout(hiringStudioAutoSaveTimer);
+            }
+            hiringStudioAutoSaveTimer = window.setTimeout(async () => {
+                if (hiringStudioAutoSaveInFlight) {
+                    scheduleHiringStudioAutoSave(message);
+                    return;
+                }
+                hiringStudioAutoSaveInFlight = true;
+                try {
+                    const response = await fetch("/dashboard/api/hiring-plan/save", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ plan: hiringStudioState.plan }),
+                    });
+                    const payload = await response.json();
+                    if (!response.ok || !payload.ok) {
+                        throw new Error(payload.error || "Could not save hiring plan.");
+                    }
+                    renderWarningItems(payload.warnings || collectLocalWarnings());
+                    if (hiringStudioStatus) {
+                        hiringStudioStatus.textContent = `${message} Saved automatically.`;
+                    }
+                } catch (error) {
+                    renderWarningItems(collectLocalWarnings());
+                    if (hiringStudioStatus) {
+                        hiringStudioStatus.textContent = `${message} Could not auto-save; use Save Plan.`;
+                    }
+                } finally {
+                    hiringStudioAutoSaveInFlight = false;
+                }
+            }, 650);
         };
 
         const isPlanLocked = () => Boolean(hiringStudioState.plan.locked);
@@ -4751,8 +4854,30 @@ const tabs = document.querySelectorAll(".tab");
         };
 
         const resolveDropTargetFromElement = (element) => {
-            const zone = element?.closest?.(".hiring-chip-dropzone");
+            if (!element || !element.closest) {
+                return null;
+            }
+            const zone = element.closest(".hiring-chip-dropzone");
             if (!zone) {
+                const profileCard = element.closest(".report-hiring-profile[data-profile-id]");
+                if (profileCard) {
+                    const profileZone = profileCard.querySelector(".hiring-chip-dropzone");
+                    if (profileZone) {
+                        return {
+                            targetType: "profile",
+                            targetId: profileCard.dataset.profileId || "",
+                            zone: profileZone,
+                        };
+                    }
+                }
+                const unassignedPanel = element.closest(".hiring-unassigned-panel");
+                if (unassignedPanel && hiringStudioUnassigned) {
+                    return {
+                        targetType: "unassigned",
+                        targetId: "unassigned",
+                        zone: hiringStudioUnassigned,
+                    };
+                }
                 return null;
             }
             if (zone.id === "hiringStudioUnassigned") {
@@ -4764,6 +4889,19 @@ const tabs = document.querySelectorAll(".tab");
             }
             return { targetType: "profile", targetId: profileId, zone };
         };
+
+        const resolveDropTargetFromPoint = (clientX, clientY) => {
+            if (!Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+                return null;
+            }
+            const element = document.elementFromPoint(clientX, clientY);
+            return resolveDropTargetFromElement(element);
+        };
+
+        const resolveDropTargetFromEvent = (event) => (
+            resolveDropTargetFromElement(event.target)
+            || resolveDropTargetFromPoint(event.clientX, event.clientY)
+        );
 
         const moveDraggedChipToTarget = (dragMeta, targetType, targetId) => {
             if (!dragMeta) {
@@ -4777,6 +4915,9 @@ const tabs = document.querySelectorAll(".tab");
                 putChipBack(detached.sourceType, detached.sourceId, detached.chip);
                 hiringStudioState.dragging = null;
                 renderHiringStudio();
+                if (hiringStudioStatus) {
+                    hiringStudioStatus.textContent = "No change. Drop a subject on another pool to move it.";
+                }
                 return;
             }
             const placed = placeChipInTarget(targetType, targetId, detached.chip);
@@ -4786,6 +4927,9 @@ const tabs = document.querySelectorAll(".tab");
             hiringStudioState.dragging = null;
             document.body.classList.remove("hiring-is-dragging");
             renderHiringStudio();
+            if (placed) {
+                scheduleHiringStudioAutoSave(`Moved ${detached.chip.subject_name}.`);
+            }
         };
 
         const ensureDragHandlersBound = () => {
@@ -4797,7 +4941,7 @@ const tabs = document.querySelectorAll(".tab");
                 if (!isEditable()) {
                     return;
                 }
-                const resolved = resolveDropTargetFromElement(event.target);
+                const resolved = resolveDropTargetFromEvent(event);
                 if (!resolved) {
                     return;
                 }
@@ -4811,7 +4955,7 @@ const tabs = document.querySelectorAll(".tab");
                 if (!isEditable()) {
                     return;
                 }
-                const resolved = resolveDropTargetFromElement(event.target);
+                const resolved = resolveDropTargetFromEvent(event);
                 if (!resolved) {
                     return;
                 }
@@ -4840,11 +4984,10 @@ const tabs = document.querySelectorAll(".tab");
                 return false;
             }
             const nextHours = profileTotalHours(profile) + Number(chip.hours || 0);
-            if (nextHours > profile.max_hours && !profile.allow_over_capacity) {
-                hiringStudioStatus.textContent = `Cannot place ${chip.subject_name} in ${profile.name}: over ${profile.max_hours}h capacity.`;
-                return false;
-            }
             profile.items.push(chip);
+            if (nextHours > profile.max_hours && !profile.allow_over_capacity && hiringStudioStatus) {
+                hiringStudioStatus.textContent = `${profile.name} is now over ${profile.max_hours}h; review the warning or enable the override.`;
+            }
             return true;
         };
 
@@ -4865,30 +5008,160 @@ const tabs = document.querySelectorAll(".tab");
         };
 
         const renderWarnings = () => {
-            if (!hiringStudioWarnings) {
+            renderWarningItems(collectLocalWarnings());
+        };
+
+        const removeHiringPointerListeners = () => {
+            window.removeEventListener("pointermove", handleHiringPointerMove);
+            window.removeEventListener("pointerup", handleHiringPointerUp);
+            window.removeEventListener("pointercancel", cancelHiringPointerDrag);
+        };
+
+        const cleanupHiringPointerDrag = () => {
+            const drag = hiringStudioState.pointerDrag;
+            if (drag?.ghost) {
+                drag.ghost.remove();
+            }
+            if (drag?.chipEl) {
+                drag.chipEl.classList.remove("is-dragging");
+                if (drag.pointerId !== undefined) {
+                    try {
+                        drag.chipEl.releasePointerCapture?.(drag.pointerId);
+                    } catch (error) {
+                        // Pointer capture may already be released by the browser.
+                    }
+                }
+            }
+            clearDropHighlights();
+            document.body.classList.remove("hiring-is-dragging");
+            hiringStudioState.pointerDrag = null;
+            hiringStudioState.dragging = null;
+            removeHiringPointerListeners();
+        };
+
+        const beginHiringPointerMove = (drag, event) => {
+            const rect = drag.chipEl.getBoundingClientRect();
+            const ghost = drag.chipEl.cloneNode(true);
+            ghost.classList.add("is-pointer-ghost", "is-dragging");
+            ghost.style.width = `${rect.width}px`;
+            ghost.style.height = `${rect.height}px`;
+            document.body.appendChild(ghost);
+
+            drag.ghost = ghost;
+            drag.offsetX = event.clientX - rect.left;
+            drag.offsetY = event.clientY - rect.top;
+            drag.started = true;
+            drag.chipEl.classList.add("is-dragging");
+            document.body.classList.add("hiring-is-dragging");
+        };
+
+        const updateHiringPointerGhost = (drag, event) => {
+            if (!drag?.ghost) {
                 return;
             }
-            hiringStudioWarnings.innerHTML = "";
-            const warnings = collectLocalWarnings();
-            warnings.forEach((warning) => {
-                const item = document.createElement("li");
-                item.className = "hiring-warning-item";
-                item.textContent = warning;
-                hiringStudioWarnings.appendChild(item);
-            });
+            const left = event.clientX - drag.offsetX;
+            const top = event.clientY - drag.offsetY;
+            drag.ghost.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+        };
+
+        function handleHiringPointerMove(event) {
+            const drag = hiringStudioState.pointerDrag;
+            if (!drag || !isEditable()) {
+                cleanupHiringPointerDrag();
+                return;
+            }
+
+            const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+            if (!drag.started && distance < 5) {
+                return;
+            }
+            if (!drag.started) {
+                beginHiringPointerMove(drag, event);
+            }
+
+            event.preventDefault();
+            updateHiringPointerGhost(drag, event);
+            clearDropHighlights();
+            const resolved = resolveDropTargetFromPoint(event.clientX, event.clientY);
+            if (resolved?.zone) {
+                resolved.zone.classList.add("is-over");
+            }
+        }
+
+        function handleHiringPointerUp(event) {
+            const drag = hiringStudioState.pointerDrag;
+            if (!drag) {
+                return;
+            }
+
+            const wasDragging = Boolean(drag.started);
+            const dragMeta = drag.dragMeta;
+            const resolved = wasDragging
+                ? resolveDropTargetFromPoint(event.clientX, event.clientY)
+                : null;
+            if (wasDragging) {
+                event.preventDefault();
+            }
+            cleanupHiringPointerDrag();
+            if (wasDragging && resolved) {
+                moveDraggedChipToTarget(dragMeta, resolved.targetType, resolved.targetId);
+            }
+        }
+
+        function cancelHiringPointerDrag() {
+            cleanupHiringPointerDrag();
+        }
+
+        const startHiringPointerDrag = (event, chipEl, chip, sourceType, sourceId) => {
+            if (!isEditable() || event.target?.closest?.("button")) {
+                return;
+            }
+            if (event.button !== undefined && event.button !== 0) {
+                return;
+            }
+            if (hiringStudioState.pointerDrag) {
+                cleanupHiringPointerDrag();
+            }
+
+            const dragMeta = {
+                chipId: chip.id,
+                sourceType,
+                sourceId,
+            };
+            hiringStudioState.pointerDrag = {
+                chipEl,
+                dragMeta,
+                pointerId: event.pointerId,
+                startX: event.clientX,
+                startY: event.clientY,
+                offsetX: 0,
+                offsetY: 0,
+                ghost: null,
+                started: false,
+            };
+            hiringStudioState.dragging = dragMeta;
+            event.preventDefault();
+            chipEl.setPointerCapture?.(event.pointerId);
+            window.addEventListener("pointermove", handleHiringPointerMove, { passive: false });
+            window.addEventListener("pointerup", handleHiringPointerUp, { passive: false });
+            window.addEventListener("pointercancel", cancelHiringPointerDrag, { passive: false });
         };
 
         const buildChip = (chip, sourceType, sourceId) => {
             const chipEl = document.createElement("span");
             chipEl.className = "hiring-hour-chip";
-            chipEl.draggable = isEditable();
+            chipEl.draggable = false;
             chipEl.dataset.chipId = chip.id;
             chipEl.style.borderColor = `${chip.subject_color}55`;
             chipEl.style.background = `${chip.subject_color}22`;
             if (!isEditable()) {
                 chipEl.classList.add("is-locked");
             }
-            chipEl.innerHTML = `<span>${chip.subject_name} ${chip.hours}h</span><button type="button" title="Send to unassigned">×</button>`;
+            chipEl.innerHTML = `<span>${chip.subject_name} ${chip.hours}h</span><button type="button" title="Send to unassigned">&times;</button>`;
+
+            chipEl.addEventListener("pointerdown", (event) => {
+                startHiringPointerDrag(event, chipEl, chip, sourceType, sourceId);
+            });
 
             chipEl.addEventListener("dragstart", (event) => {
                 if (!isEditable()) {
@@ -4928,6 +5201,7 @@ const tabs = document.querySelectorAll(".tab");
                 if (movedChip) {
                     hiringStudioState.plan.unassigned_items.push(movedChip);
                     renderHiringStudio();
+                    scheduleHiringStudioAutoSave(`Moved ${movedChip.subject_name} to unassigned.`);
                 }
             });
 
@@ -5029,6 +5303,8 @@ const tabs = document.querySelectorAll(".tab");
                         return;
                     }
                     profile.name = nameInput.value || "Proposed Teacher Profile";
+                    renderWarnings();
+                    scheduleHiringStudioAutoSave("Profile name updated.");
                 });
 
                 const removeBtn = card.querySelector(".hiring-card-remove");
@@ -5047,6 +5323,7 @@ const tabs = document.querySelectorAll(".tab");
                     });
                     hiringStudioState.plan.profiles = hiringStudioState.plan.profiles.filter((entry) => entry.id !== profile.id);
                     renderHiringStudio();
+                    scheduleHiringStudioAutoSave(`Deleted ${profile.name}.`);
                 });
 
                 const allowOver = card.querySelector(".hiring-allow-over");
@@ -5059,6 +5336,7 @@ const tabs = document.querySelectorAll(".tab");
                     }
                     profile.allow_over_capacity = allowOver.checked;
                     renderWarnings();
+                    scheduleHiringStudioAutoSave("Capacity override updated.");
                 });
 
                 const overrideCompat = card.querySelector(".hiring-override-compat");
@@ -5071,6 +5349,7 @@ const tabs = document.querySelectorAll(".tab");
                     }
                     profile.override_compatibility = overrideCompat.checked;
                     renderWarnings();
+                    scheduleHiringStudioAutoSave("Compatibility override updated.");
                 });
 
                 const dropZone = card.querySelector(".hiring-chip-dropzone");
@@ -5094,6 +5373,7 @@ const tabs = document.querySelectorAll(".tab");
             if (hiringStudioUnassignedTotal) {
                 hiringStudioUnassignedTotal.textContent = `${unassignedTotal}h`;
             }
+            updateHiringStudioDerivedSummary();
             if (hiringStudioStatus && locked) {
                 hiringStudioStatus.textContent = "Plan locked. Unlock to edit drag/drop, profile settings, and manual profiles.";
             } else if (hiringStudioStatus && !locked) {
@@ -5106,6 +5386,11 @@ const tabs = document.querySelectorAll(".tab");
             if (!hiringStudioSaveBtn) {
                 return;
             }
+            if (hiringStudioAutoSaveTimer) {
+                clearTimeout(hiringStudioAutoSaveTimer);
+                hiringStudioAutoSaveTimer = null;
+            }
+            updateHiringStudioDerivedSummary();
             hiringStudioSaveBtn.disabled = true;
             hiringStudioStatus.textContent = "Saving hiring plan...";
             try {
@@ -5126,15 +5411,7 @@ const tabs = document.querySelectorAll(".tab");
                     ? `Saved with ${payload.warnings.length} warning(s).`
                     : "Hiring plan saved.";
 
-                if (hiringStudioWarnings) {
-                    hiringStudioWarnings.innerHTML = "";
-                    (payload.warnings || []).forEach((warning) => {
-                        const item = document.createElement("li");
-                        item.className = "hiring-warning-item";
-                        item.textContent = warning;
-                        hiringStudioWarnings.appendChild(item);
-                    });
-                }
+                renderWarningItems(payload.warnings || []);
             } catch (error) {
                 hiringStudioStatus.textContent = "Could not save hiring plan.";
             } finally {
@@ -5160,6 +5437,7 @@ const tabs = document.querySelectorAll(".tab");
                 items: [],
             });
             renderHiringStudio();
+            scheduleHiringStudioAutoSave("Added manual profile.");
         };
 
         const togglePlanLock = async () => {
