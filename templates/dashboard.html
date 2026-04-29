@@ -4569,22 +4569,59 @@ const tabs = document.querySelectorAll(".tab");
         const hiringStudioPlanPill = document.querySelector(".report-hiring-plan-pill");
 
         const hiringCompatibilityByFamily = {
-            english: "english_humanities",
-            social_english: "english_humanities",
-            arabic: "arabic_related",
-            islamic: "arabic_related",
-            quran: "arabic_related",
-            social_arabic: "arabic_related",
-            science: "science_ict",
-            ict: "science_ict",
-            math: "math",
-            mental_math: "math",
-            pe: "student_life",
-            wellbeing: "student_life",
-            art: "student_life",
-            performing_arts: "student_life",
-            reflection: "student_life",
+            english: "english_pool",
+            social_english: "english_pool",
+            wellbeing: "english_pool",
+            reflection: "english_pool",
+            performing_arts: "english_pool",
+            art: "english_pool",
+            science: "general_science_pool",
+            ict: "general_science_pool",
+            math: "math_pool",
+            mental_math: "math_pool",
+            physics: "math_pool",
+            arabic: "arabic_pool",
+            islamic: "arabic_pool",
+            quran: "arabic_pool",
+            social_arabic: "arabic_pool",
+            pe: "physical_education",
             social: "social_humanities",
+        };
+        const hiringAllowedFamiliesByGroup = {
+            english_pool: new Set(["english", "social_english", "wellbeing", "reflection", "performing_arts", "art"]),
+            english_humanities: new Set(["english", "social_english", "wellbeing", "reflection", "performing_arts", "art"]),
+            english_remainder: new Set(["social_english", "wellbeing", "reflection"]),
+            general_science_pool: new Set(["science", "ict", "art"]),
+            science_ict: new Set(["science", "ict", "art"]),
+            ict_remainder: new Set(["ict"]),
+            math_pool: new Set(["math", "mental_math", "physics", "art"]),
+            math: new Set(["math", "mental_math", "physics", "art"]),
+            arabic_pool: new Set(["arabic", "islamic", "quran", "social_arabic"]),
+            arabic_related: new Set(["arabic", "islamic", "quran", "social_arabic"]),
+            physical_education: new Set(["pe"]),
+            social_humanities: new Set(["social"]),
+            wellbeing_reflection: new Set(["wellbeing", "reflection"]),
+            creative_arts: new Set(["performing_arts", "art"]),
+            student_life: new Set(["wellbeing", "reflection", "performing_arts", "art"]),
+        };
+        const hiringFamilyLabels = {
+            english: "English",
+            social_english: "Social Studies English",
+            wellbeing: "Well Being",
+            reflection: "Reflection",
+            performing_arts: "Performing Arts",
+            art: "Art",
+            science: "Science",
+            ict: "ICT",
+            math: "Math",
+            mental_math: "Mental Math",
+            physics: "Physics",
+            arabic: "Arabic",
+            islamic: "Islamic",
+            quran: "Quran",
+            social_arabic: "Social Studies Arabic",
+            pe: "Physical Education",
+            social: "Social Studies",
         };
 
         const hiringStudioState = {
@@ -4667,6 +4704,7 @@ const tabs = document.querySelectorAll(".tab");
                     assignment_note: String(profile.assignment_note || "Compatible pool grouping"),
                     accent_color: String(profile.accent_color || "#0A4EA3"),
                     max_hours: Number(profile.max_hours || 24),
+                    block_size_hours: Number(profile.block_size_hours || 24),
                     is_manual: Boolean(profile.is_manual),
                     allow_over_capacity: Boolean(profile.allow_over_capacity),
                     override_compatibility: Boolean(profile.override_compatibility),
@@ -4701,14 +4739,26 @@ const tabs = document.querySelectorAll(".tab");
                 if (totalHours > profile.max_hours && !profile.allow_over_capacity) {
                     warnings.push(`${profile.name} exceeds ${profile.max_hours}h capacity (${totalHours}h).`);
                 }
+                const allowedFamilies = hiringAllowedFamiliesByGroup[profile.group_key || ""];
+                const incompatibleFamilies = new Set();
                 const groups = new Set();
                 (profile.items || []).forEach((item) => {
-                    const group = hiringCompatibilityByFamily[item.family || ""];
-                    if (group) {
-                        groups.add(group);
+                    const family = item.family || "";
+                    if (allowedFamilies) {
+                        if (!allowedFamilies.has(family)) {
+                            incompatibleFamilies.add(hiringFamilyLabels[family] || family || "Subject");
+                        }
+                    } else {
+                        const group = hiringCompatibilityByFamily[family];
+                        if (group) {
+                            groups.add(group);
+                        }
                     }
                 });
-                if (groups.size > 1 && !profile.override_compatibility) {
+                if (incompatibleFamilies.size > 0 && !profile.override_compatibility) {
+                    warnings.push(`${profile.name} includes incompatible subjects (${Array.from(incompatibleFamilies).join(", ")}).`);
+                }
+                if (!allowedFamilies && groups.size > 1 && !profile.override_compatibility) {
                     warnings.push(`${profile.name} mixes incompatible groups (${Array.from(groups).join(", ")}).`);
                 }
             });
@@ -5247,13 +5297,22 @@ const tabs = document.querySelectorAll(".tab");
 
             profiles.forEach((profile) => {
                 const totalHours = profileTotalHours(profile);
-                const remaining = profile.max_hours - totalHours;
-                const status = totalHours === profile.max_hours
-                    ? "Complete"
-                    : totalHours < profile.max_hours
-                        ? "Underfilled"
-                        : "Over Capacity";
-                const capPct = Math.max(0, Math.min(100, (totalHours / profile.max_hours) * 100));
+                const blockSize = Math.max(1, Number(profile.block_size_hours || 24));
+                const capacityHours = Math.max(blockSize, Number(profile.max_hours || blockSize));
+                const fullBlocks = Math.floor(totalHours / blockSize);
+                const blockRemainder = totalHours % blockSize;
+                const progressHours = totalHours > 0 && blockRemainder === 0 ? blockSize : blockRemainder;
+                const remaining = capacityHours - totalHours;
+                const status = totalHours > capacityHours
+                    ? "Over Capacity"
+                    : totalHours > 0 && blockRemainder === 0
+                        ? "Complete Blocks"
+                        : fullBlocks > 0
+                            ? "Partial Remainder"
+                            : "Below Full Block";
+                const capPct = totalHours > capacityHours
+                    ? 100
+                    : Math.max(0, Math.min(100, (progressHours / blockSize) * 100));
 
                 const card = document.createElement("article");
                 card.className = "report-hiring-profile is-editable";
@@ -5278,7 +5337,7 @@ const tabs = document.querySelectorAll(".tab");
                         </div>
                         <div class="report-hiring-stat">
                             <span>Full 24h Blocks</span>
-                            <strong>${Math.floor(totalHours / profile.max_hours)}</strong>
+                            <strong>${fullBlocks}</strong>
                         </div>
                         <div class="report-hiring-stat">
                             <span>Remaining Capacity</span>
@@ -5288,7 +5347,7 @@ const tabs = document.querySelectorAll(".tab");
                     <div class="report-hiring-progress">
                         <div class="report-hiring-progress-head">
                             <span>Progress toward next 24h block</span>
-                            <strong>${totalHours % profile.max_hours} / ${profile.max_hours}h</strong>
+                            <strong>${progressHours} / ${blockSize}h</strong>
                         </div>
                         <div class="report-hiring-progress-track" aria-label="24-hour block progress">
                             <div class="report-hiring-progress-fill" style="--progress-width:${capPct}%;"></div>
@@ -5439,6 +5498,7 @@ const tabs = document.querySelectorAll(".tab");
                 assignment_note: "Standalone profile required",
                 accent_color: "#0A4EA3",
                 max_hours: 24,
+                block_size_hours: 24,
                 is_manual: true,
                 allow_over_capacity: false,
                 override_compatibility: false,

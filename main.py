@@ -100,6 +100,7 @@ def _get_positive_int_env(name: str, default: int) -> int:
 
 
 REPORT_STANDARD_MAX_HOURS = 24
+HIRING_PLAN_POOL_LOGIC_VERSION = 2
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
@@ -114,54 +115,95 @@ PRIORITY_STAFFING_SUBJECT_PREFIXES = {
 }
 HIRING_FAMILY_PRIORITY = {
     "english": 0,
-    "arabic": 1,
-    "math": 2,
-    "mental_math": 2,
-    "science": 3,
-    "ict": 4,
-    "islamic": 5,
-    "quran": 5,
-    "social_arabic": 6,
-    "social_english": 6,
-    "social": 7,
-    "pe": 8,
-    "wellbeing": 8,
-    "art": 9,
-    "performing_arts": 10,
-    "reflection": 11,
+    "social_english": 1,
+    "wellbeing": 2,
+    "reflection": 3,
+    "performing_arts": 4,
+    "art": 5,
+    "science": 6,
+    "ict": 7,
+    "math": 8,
+    "mental_math": 8,
+    "physics": 9,
+    "arabic": 10,
+    "islamic": 11,
+    "quran": 11,
+    "social_arabic": 12,
+    "pe": 13,
+    "social": 14,
 }
 HIRING_COMPATIBILITY_GROUPS = {
-    "english": "english_humanities",
-    "social_english": "english_humanities",
-    "arabic": "arabic_related",
-    "social_arabic": "arabic_related",
-    "math": "math",
-    "mental_math": "math",
-    "science": "science_ict",
-    "ict": "science_ict",
-    "islamic": "arabic_related",
-    "quran": "arabic_related",
+    "english": "english_pool",
+    "social_english": "english_pool",
+    "wellbeing": "english_pool",
+    "reflection": "english_pool",
+    "performing_arts": "english_pool",
+    "art": "english_pool",
+    "science": "general_science_pool",
+    "ict": "general_science_pool",
+    "math": "math_pool",
+    "mental_math": "math_pool",
+    "physics": "math_pool",
+    "arabic": "arabic_pool",
+    "islamic": "arabic_pool",
+    "quran": "arabic_pool",
+    "social_arabic": "arabic_pool",
+    "pe": "physical_education",
     "social": "social_humanities",
-    "pe": "student_life",
-    "wellbeing": "student_life",
-    "art": "student_life",
-    "performing_arts": "student_life",
-    "reflection": "student_life",
 }
 HIRING_GROUP_LABELS = {
-    "english_humanities": "English / Social Studies English",
-    "arabic_related": "Arabic / Quran / Islamic / Social Studies Arabic",
-    "math": "Mathematics / Mental Math",
-    "science_ict": "Science / ICT",
+    "english_pool": "English Pool",
+    "english_humanities": "English Pool",
+    "english_remainder": "English-Compatible Remainder",
+    "arabic_pool": "Arabic Pool",
+    "arabic_related": "Arabic Pool",
+    "math_pool": "Math Pool",
+    "math": "Math Pool",
+    "general_science_pool": "General Science Pool",
+    "science_ict": "General Science Pool",
+    "ict_remainder": "ICT Remainder",
+    "physical_education": "Physical Education Pool",
     "social_humanities": "Social Studies",
-    "student_life": "Physical Education / Well Being / Art / Performing Arts / Reflection",
-    "creative_arts": "Art / Performing Arts",
+    "wellbeing_reflection": "Well Being / Reflection Remainder",
+    "creative_arts": "Art / Performing Arts Remainder",
+    "student_life": "Student-Life Remainder",
+}
+HIRING_NAMED_POOL_KEYS = {
+    "english_pool",
+    "general_science_pool",
+    "math_pool",
+    "arabic_pool",
+    "physical_education",
+}
+HIRING_PROFILE_GROUP_LABEL_KEYS = HIRING_NAMED_POOL_KEYS | {
+    "english_remainder",
+    "ict_remainder",
+    "wellbeing_reflection",
+    "creative_arts",
+}
+HIRING_POOL_ALLOWED_FAMILIES = {
+    "english_pool": {"english", "social_english", "wellbeing", "reflection", "performing_arts", "art"},
+    "english_humanities": {"english", "social_english", "wellbeing", "reflection", "performing_arts", "art"},
+    "english_remainder": {"social_english", "wellbeing", "reflection"},
+    "general_science_pool": {"science", "ict", "art"},
+    "science_ict": {"science", "ict", "art"},
+    "ict_remainder": {"ict"},
+    "math_pool": {"math", "mental_math", "physics", "art"},
+    "math": {"math", "mental_math", "physics", "art"},
+    "arabic_pool": {"arabic", "islamic", "quran", "social_arabic"},
+    "arabic_related": {"arabic", "islamic", "quran", "social_arabic"},
+    "physical_education": {"pe"},
+    "social_humanities": {"social"},
+    "wellbeing_reflection": {"wellbeing", "reflection"},
+    "creative_arts": {"performing_arts", "art"},
+    "student_life": {"wellbeing", "reflection", "performing_arts", "art"},
 }
 HIRING_FAMILY_LABELS = {
     "english": "English",
     "arabic": "Arabic",
     "math": "Mathematics",
     "mental_math": "Mental Math",
+    "physics": "Physics",
     "science": "Science",
     "ict": "ICT",
     "islamic": "Islamic",
@@ -3042,17 +3084,22 @@ def _detect_hiring_subject_family(subject_row: dict) -> str:
         return "quran"
     if re.search(r"\b(reflection|reflective|advisory|character education)\b", normalized_text):
         return "reflection"
+    if re.search(r"\b(social studies english|social english|sse)\b", normalized_text):
+        return "social_english"
+    if re.search(
+        r"\b(social studies arabic|social arabic|social studies ksa|ksa social|social studies saudi|saudi social|ssa)\b",
+        normalized_text,
+    ):
+        return "social_arabic"
     if re.search(r"\b(english|ela|phonics|reading|writing|literacy|language arts)\b", normalized_text):
         return "english"
     if re.search(r"\b(arabic|arbic|lang ar|arab)\b", normalized_text):
         return "arabic"
-    if re.search(r"\b(social studies english|social english|sse)\b", normalized_text):
-        return "social_english"
-    if re.search(r"\b(social studies arabic|social arabic|ksa social|ssa)\b", normalized_text):
-        return "social_arabic"
     if re.search(r"\b(math|maths|mathematics|algebra|geometry|calculus)\b", normalized_text):
         return "math"
-    if re.search(r"\b(science|biology|chemistry|physics|steam)\b", normalized_text):
+    if re.search(r"\b(physics|physical science)\b", normalized_text):
+        return "physics"
+    if re.search(r"\b(science|biology|chemistry|steam)\b", normalized_text):
         return "science"
     if re.search(r"\b(ict|computer|computing|technology|coding|robotics|cs)\b", normalized_text):
         return "ict"
@@ -3074,7 +3121,9 @@ def _detect_hiring_subject_family(subject_row: dict) -> str:
         return "mental_math"
     if "math" in alignment_groups:
         return "math"
-    if alignment_groups.intersection({"science", "biology", "chemistry", "physics"}):
+    if "physics" in alignment_groups:
+        return "physics"
+    if alignment_groups.intersection({"science", "biology", "chemistry"}):
         return "science"
     if "computer" in alignment_groups:
         return "ict"
@@ -3122,6 +3171,9 @@ def _build_hiring_profile_label(
     group_key: str = "",
     dedicated: bool = False,
 ) -> str:
+    if group_key in HIRING_PROFILE_GROUP_LABEL_KEYS and group_key in HIRING_GROUP_LABELS:
+        return HIRING_GROUP_LABELS[group_key]
+
     if dedicated and len(coverage_items) == 1:
         return f"{coverage_items[0].get('subject_name', 'Subject')} Teacher"
 
@@ -3186,28 +3238,53 @@ def _build_hiring_pool_reason(
     remaining_hours: int,
 ) -> str:
     group_label = HIRING_GROUP_LABELS.get(group_key, "this specialization")
-    if group_key == "arabic_related":
+    if group_key in {"arabic_pool", "arabic_related"}:
         base_reason = (
-            "Arabic, Quran, Islamic, Social Studies Arabic, and Qaadah Nooraniah are treated as one combined hiring pool "
-            "because the same teacher profile can reasonably cover these related subjects, with Arabic kept as the first priority and Qaadah Nooraniah aligned under Quran-related coverage."
+            "Arabic Pool keeps Arabic first and groups Islamic, Quran, Qaadah Nooraniah, and Social Studies Arabic "
+            "as compatible Arabic/identity-related coverage."
         )
-    elif group_key == "english_humanities":
+    elif group_key in {"english_pool", "english_humanities"}:
         base_reason = (
-            "English is treated as the primary hiring need, with Social Studies English used as the first "
-            "secondary subject inside the same compatible profile when there is remaining capacity. If English profiles are already full, Social Studies English is only moved to Science first, then Math, where compatible remainder capacity exists."
+            "English Pool covers English first. Social Studies English, Well Being, Reflection, Performing Arts, "
+            "and Art are added only when English leaves capacity inside the next 24h block."
         )
-    elif group_key == "science_ict":
+    elif group_key == "english_remainder":
         base_reason = (
-            "Science remains the main specialization in this pool, and ICT is used only as the secondary "
-            "compatible subject where remaining capacity exists. Social Studies English can be absorbed here only after English-compatible capacity is exhausted."
+            "These English-compatible hours remain visible outside the main English Pool because no English spare "
+            "capacity was available to absorb them."
         )
-    elif group_key == "math":
+    elif group_key in {"general_science_pool", "science_ict"}:
         base_reason = (
-            "Mathematics remains a priority specialist area and is only combined with closely related math subjects first. Social Studies English only moves here after both English and Science compatible capacity are already full."
+            "General Science Pool prioritizes Science, Biology, and Chemistry. ICT is absorbed only after "
+            "science-related hours are covered and spare 24h-block capacity remains."
+        )
+    elif group_key == "ict_remainder":
+        base_reason = (
+            "ICT remains visible as its own remainder because the General Science Pool had no spare capacity "
+            "available after covering science-related subjects."
+        )
+    elif group_key in {"math_pool", "math"}:
+        base_reason = (
+            "Math Pool prioritizes Mathematics / Math and can include Physics as the compatible secondary subject. "
+            "Art can be absorbed here only as remaining spare capacity after the English Pool has been handled."
+        )
+    elif group_key == "physical_education":
+        base_reason = (
+            "Physical Education is kept in its own pool and is not merged with unrelated subjects."
+        )
+    elif group_key == "creative_arts":
+        base_reason = (
+            "Art-related hours remain visible here after approved English, Math, or General Science capacity is used. "
+            "Art is never routed to Arabic, Quran, Islamic, Qaadah Nooraniah, Social Studies KSA, or Social Studies Arabic."
+        )
+    elif group_key == "wellbeing_reflection":
+        base_reason = (
+            "Well Being and Reflection remain visible here after the English Pool has no spare compatible capacity."
         )
     elif group_key == "student_life":
         base_reason = (
-            "Physical Education, Well Being, Art, Performing Arts, and Reflection are shown together as one compatible student-life pool, following the priority order Physical Education, then Well Being, then Art, then Performing Arts, then Reflection."
+            "These student-life hours are shown as a remainder pool for manual review instead of being merged "
+            "with Physical Education."
         )
     else:
         base_reason = f"These subjects are grouped under the {group_label} specialization."
@@ -3286,19 +3363,19 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
             )
         return consumed
 
-    def consume_social_hours(limit: int | None = None) -> list[dict]:
-        """Consume Social Studies hours in priority: Social Studies English, then generic Social Studies."""
+    def consume_families_in_order(families: list[str], limit: int | None = None) -> list[dict]:
         consumed = []
         remaining_limit = None if limit is None else max(int(limit), 0)
-        for family in ["social_english", "social"]:
+        for family in families:
             if remaining_limit is not None and remaining_limit <= 0:
                 break
-            before = sum(int(item.get("hours", 0) or 0) for item in consumed)
             family_consumed = consume_family_hours(family, remaining_limit)
             consumed.extend(family_consumed)
             if remaining_limit is not None:
-                after = sum(int(item.get("hours", 0) or 0) for item in consumed)
-                remaining_limit -= max(after - before, 0)
+                remaining_limit -= sum(
+                    int(item.get("hours", 0) or 0)
+                    for item in family_consumed
+                )
         return consumed
 
     def get_next_block_capacity(total_hours: int, *, allow_empty: bool = False) -> int:
@@ -3308,6 +3385,16 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         if remainder == 0:
             return 0
         return REPORT_STANDARD_MAX_HOURS - remainder
+
+    def get_pool_hours(pool_items: list[dict]) -> int:
+        return sum(int(item.get("hours", 0) or 0) for item in pool_items)
+
+    def fill_pool_capacity(pool_items: list[dict], families: list[str]) -> list[dict]:
+        pool_hours = get_pool_hours(pool_items)
+        pool_capacity = get_next_block_capacity(pool_hours)
+        if pool_hours > 0 and pool_capacity > 0:
+            pool_items.extend(consume_families_in_order(families, pool_capacity))
+        return pool_items
 
     def build_pool_profile(group_key: str, pool_items: list[dict]):
         nonlocal profile_counter
@@ -3341,6 +3428,15 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
             if remaining_hours > 0
             else 0
         )
+        recommended_capacity_hours = (
+            full_teacher_count * REPORT_STANDARD_MAX_HOURS
+            if remaining_hours == 0
+            else (full_teacher_count + 1) * REPORT_STANDARD_MAX_HOURS
+        )
+        recommended_capacity_hours = max(
+            REPORT_STANDARD_MAX_HOURS,
+            recommended_capacity_hours,
+        )
         progress_width_pct = (
             round((remaining_hours / REPORT_STANDARD_MAX_HOURS) * 100, 1)
             if remaining_hours > 0
@@ -3350,6 +3446,7 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
 
         profile = {
             "id": f"hire-plan-{profile_counter}",
+            "group_key": group_key,
             "profile_label": _build_hiring_profile_label(
                 coverage_items,
                 group_key=group_key,
@@ -3359,13 +3456,18 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
             "full_teacher_count": full_teacher_count,
             "profile_type": "combined_pool" if is_multi_subject_pool else "specialist_pool",
             "status_label": (
-                "Combined specialization pool"
-                if is_multi_subject_pool
-                else "Specialist priority pool"
+                "Recommended subject pool"
+                if group_key in HIRING_NAMED_POOL_KEYS
+                else (
+                    "Combined specialization pool"
+                    if is_multi_subject_pool
+                    else "Specialist priority pool"
+                )
             ),
             "total_hours": total_hours,
             "group_total_hours": total_hours,
-            "capacity_hours": REPORT_STANDARD_MAX_HOURS,
+            "capacity_hours": recommended_capacity_hours,
+            "block_size_hours": REPORT_STANDARD_MAX_HOURS,
             "remaining_hours": remaining_hours,
             "remaining_capacity_hours": capacity_to_next_block,
             "hours_to_next_block": capacity_to_next_block,
@@ -3384,15 +3486,31 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         }
 
         coverage_families = {item.get("family", "") for item in coverage_items}
-        if group_key == "english_humanities" and coverage_families.intersection({"social_english", "social"}):
-            if "english" in coverage_families:
-                profile["assignment_note"] = "Social Studies absorbed by English profile"
+        if group_key == "english_pool":
+            if coverage_families == {"english"}:
+                profile["assignment_note"] = "English-first pool"
             else:
-                profile["assignment_note"] = "Standalone profile required"
-        elif group_key == "science_ict" and coverage_families.intersection({"social_english", "social"}):
-            profile["assignment_note"] = "Absorbed by Science / ICT"
-        elif group_key == "math" and coverage_families.intersection({"social_english", "social"}):
-            profile["assignment_note"] = "Absorbed by Math profile"
+                profile["assignment_note"] = "English spare capacity filled by approved English Pool subjects"
+        elif group_key == "general_science_pool":
+            if "art" in coverage_families:
+                profile["assignment_note"] = "Art absorbed by General Science spare capacity"
+            elif "ict" in coverage_families:
+                profile["assignment_note"] = "ICT absorbed after General Science priority subjects"
+            else:
+                profile["assignment_note"] = "General Science priority pool"
+        elif group_key == "math_pool":
+            if "art" in coverage_families:
+                profile["assignment_note"] = "Art absorbed by Math spare capacity"
+            elif "physics" in coverage_families:
+                profile["assignment_note"] = "Physics grouped with Math"
+            else:
+                profile["assignment_note"] = "Math priority pool"
+        elif group_key == "arabic_pool":
+            profile["assignment_note"] = "Arabic / identity-related pool"
+        elif group_key == "physical_education":
+            profile["assignment_note"] = "Separate Physical Education pool"
+        elif group_key in {"english_remainder", "ict_remainder", "wellbeing_reflection", "creative_arts"}:
+            profile["assignment_note"] = "Visible remainder for manual adjustment"
         elif group_key == "social_humanities":
             profile["assignment_note"] = "Standalone profile required"
         else:
@@ -3401,63 +3519,59 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         profile_counter += 1
         return profile
 
-    arabic_pool = []
-    for family in ["arabic", "quran", "islamic", "social_arabic"]:
-        arabic_pool.extend(consume_family_hours(family))
-    profile = build_pool_profile("arabic_related", arabic_pool)
-    if profile:
-        profiles.append(profile)
-
     english_pool = []
     english_pool.extend(consume_family_hours("english"))
-    english_pool_hours = sum(int(item.get("hours", 0) or 0) for item in english_pool)
-    # Social Studies should only flow into English when an English profile already exists.
-    english_capacity_for_social = get_next_block_capacity(english_pool_hours)
-    if english_pool_hours > 0 and english_capacity_for_social > 0:
-        english_pool.extend(consume_social_hours(english_capacity_for_social))
-    profile = build_pool_profile("english_humanities", english_pool)
-    if profile:
-        profiles.append(profile)
+    fill_pool_capacity(
+        english_pool,
+        ["social_english", "wellbeing", "reflection", "performing_arts", "art"],
+    )
 
-    science_pool = []
-    science_pool.extend(consume_family_hours("science"))
-    science_pool_hours = sum(int(item.get("hours", 0) or 0) for item in science_pool)
-    science_capacity = get_next_block_capacity(science_pool_hours)
-    if science_capacity > 0:
-        science_pool.extend(consume_family_hours("ict", science_capacity))
-        science_pool_hours = sum(int(item.get("hours", 0) or 0) for item in science_pool)
-        science_capacity = get_next_block_capacity(science_pool_hours)
-    if science_pool_hours > 0 and science_capacity > 0 and (get_family_hours("social_english") > 0 or get_family_hours("social") > 0):
-        science_pool.extend(consume_social_hours(science_capacity))
-    profile = build_pool_profile("science_ict", science_pool)
-    if profile:
-        profiles.append(profile)
+    general_science_pool = []
+    general_science_pool.extend(consume_family_hours("science"))
+    fill_pool_capacity(general_science_pool, ["ict"])
 
     math_pool = []
-    for family in ["math", "mental_math"]:
-        math_pool.extend(consume_family_hours(family))
-    math_pool_hours = sum(int(item.get("hours", 0) or 0) for item in math_pool)
-    math_capacity = get_next_block_capacity(math_pool_hours)
-    if math_pool_hours > 0 and math_capacity > 0 and (get_family_hours("social_english") > 0 or get_family_hours("social") > 0):
-        math_pool.extend(consume_social_hours(math_capacity))
-    profile = build_pool_profile("math", math_pool)
-    if profile:
-        profiles.append(profile)
+    math_pool.extend(consume_families_in_order(["math", "mental_math", "physics"]))
 
-    remaining_english_social_pool = consume_family_hours("social_english")
-    profile = build_pool_profile("english_humanities", remaining_english_social_pool)
+    # Art may only move out of the English-compatible set after English has been handled,
+    # and never into Arabic/identity subjects.
+    fill_pool_capacity(math_pool, ["art"])
+    fill_pool_capacity(general_science_pool, ["art"])
+
+    arabic_pool = []
+    arabic_pool.extend(consume_families_in_order(["arabic", "islamic", "quran", "social_arabic"]))
+
+    physical_education_pool = []
+    physical_education_pool.extend(consume_family_hours("pe"))
+
+    for group_key, pool_items in [
+        ("english_pool", english_pool),
+        ("general_science_pool", general_science_pool),
+        ("math_pool", math_pool),
+        ("arabic_pool", arabic_pool),
+        ("physical_education", physical_education_pool),
+    ]:
+        profile = build_pool_profile(group_key, pool_items)
+        if profile:
+            profiles.append(profile)
+
+    remaining_english_pool = consume_families_in_order(["social_english", "wellbeing", "reflection"])
+    profile = build_pool_profile("english_remainder", remaining_english_pool)
     if profile:
         profiles.append(profile)
 
     remaining_ict_pool = consume_family_hours("ict")
-    profile = build_pool_profile("science_ict", remaining_ict_pool)
+    profile = build_pool_profile("ict_remainder", remaining_ict_pool)
     if profile:
         profiles.append(profile)
 
-    student_life_pool = []
-    for family in ["pe", "wellbeing", "art", "performing_arts", "reflection"]:
-        student_life_pool.extend(consume_family_hours(family))
-    profile = build_pool_profile("student_life", student_life_pool)
+    remaining_wellbeing_reflection_pool = consume_families_in_order(["wellbeing", "reflection"])
+    profile = build_pool_profile("wellbeing_reflection", remaining_wellbeing_reflection_pool)
+    if profile:
+        profiles.append(profile)
+
+    remaining_creative_arts_pool = consume_families_in_order(["performing_arts", "art"])
+    profile = build_pool_profile("creative_arts", remaining_creative_arts_pool)
     if profile:
         profiles.append(profile)
 
@@ -3468,25 +3582,6 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
 
     remaining_other_items = []
     for family, items in family_buckets.items():
-        if family in {
-            "arabic",
-            "quran",
-            "islamic",
-            "social_arabic",
-            "english",
-            "social_english",
-            "science",
-            "ict",
-            "math",
-            "mental_math",
-            "pe",
-            "wellbeing",
-            "art",
-            "performing_arts",
-            "reflection",
-            "social",
-        }:
-            continue
         for item in items:
             open_hours = int(item.get("remaining_hours", 0) or 0)
             if open_hours <= 0:
@@ -3516,6 +3611,7 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
     )
     equivalent_full_teacher_count = covered_hours // REPORT_STANDARD_MAX_HOURS
     equivalent_remaining_hours = covered_hours % REPORT_STANDARD_MAX_HOURS
+    unallocated_hours = max(total_uncovered_hours - covered_hours, 0)
 
     pool_debug_parts = [
         (
@@ -3535,6 +3631,11 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         equivalent_remaining_hours,
         " | ".join(pool_debug_parts),
     )
+    if unallocated_hours > 0:
+        logging.warning(
+            "Hiring plan has %sh uncovered but not assigned to a visible pool.",
+            unallocated_hours,
+        )
 
     return {
         "hiring_plan_profiles": profiles,
@@ -3542,6 +3643,7 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         "hiring_plan_full_teacher_count": full_teacher_count,
         "hiring_plan_partial_profile_count": partial_profile_count,
         "hiring_plan_covered_hours": covered_hours,
+        "hiring_plan_unallocated_hours": unallocated_hours,
         "hiring_plan_remaining_capacity_hours": remaining_capacity_hours,
         "hiring_plan_equivalent_full_teacher_count": equivalent_full_teacher_count,
         "hiring_plan_equivalent_remaining_hours": equivalent_remaining_hours,
@@ -3608,7 +3710,8 @@ def _build_hiring_plan_editor_payload(report_summary: dict, report_subject_rows:
                 "group_key": str(profile.get("group_key", "") or ""),
                 "assignment_note": str(profile.get("assignment_note", "Compatible pool grouping") or "Compatible pool grouping"),
                 "accent_color": str(profile.get("accent_color", "#0A4EA3") or "#0A4EA3"),
-                "max_hours": REPORT_STANDARD_MAX_HOURS,
+                "max_hours": int(profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS),
+                "block_size_hours": int(profile.get("block_size_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS),
                 "is_manual": False,
                 "allow_over_capacity": False,
                 "override_compatibility": False,
@@ -3634,6 +3737,7 @@ def _build_hiring_plan_editor_payload(report_summary: dict, report_subject_rows:
         )
 
     return {
+        "pool_logic_version": HIRING_PLAN_POOL_LOGIC_VERSION,
         "profiles": profile_items,
         "unassigned_items": unassigned_items,
         "locked": True,
@@ -3674,6 +3778,7 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
                 "assignment_note": str(raw_profile.get("assignment_note", "") or ""),
                 "accent_color": str(raw_profile.get("accent_color", "#0A4EA3") or "#0A4EA3"),
                 "max_hours": int(raw_profile.get("max_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS),
+                "block_size_hours": int(raw_profile.get("block_size_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS),
                 "is_manual": bool(raw_profile.get("is_manual", False)),
                 "allow_over_capacity": bool(raw_profile.get("allow_over_capacity", False)),
                 "override_compatibility": bool(raw_profile.get("override_compatibility", False)),
@@ -3699,6 +3804,7 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
         )
 
     return {
+        "pool_logic_version": HIRING_PLAN_POOL_LOGIC_VERSION,
         "profiles": profiles,
         "unassigned_items": unassigned_items,
         "locked": bool(payload["locked"]) if "locked" in payload else True,
@@ -3718,15 +3824,27 @@ def _collect_hiring_plan_warnings(plan_payload: dict) -> list[str]:
                 f"{profile_name} is over capacity ({profile_hours}h / {max_hours}h). Enable override to allow this."
             )
 
+        profile_group_key = str(profile.get("group_key", "") or "")
+        allowed_families = HIRING_POOL_ALLOWED_FAMILIES.get(profile_group_key)
+        incompatible_families = []
         group_keys = set()
         for item in profile.get("items", []) or []:
             family = str(item.get("family", "") or "")
             if not family:
                 family = _detect_hiring_subject_family(item)
-            group_keys.add(HIRING_COMPATIBILITY_GROUPS.get(family, f"single_{family}"))
+            if allowed_families is not None:
+                if family not in allowed_families:
+                    incompatible_families.append(HIRING_FAMILY_LABELS.get(family, family or "Subject"))
+            else:
+                group_keys.add(HIRING_COMPATIBILITY_GROUPS.get(family, f"single_{family}"))
+
+        if incompatible_families and not profile.get("override_compatibility", False):
+            warnings.append(
+                f"{profile_name} includes incompatible subject families ({', '.join(sorted(set(incompatible_families)))})."
+            )
 
         mixed_groups = {key for key in group_keys if key}
-        if len(mixed_groups) > 1 and not profile.get("override_compatibility", False):
+        if allowed_families is None and len(mixed_groups) > 1 and not profile.get("override_compatibility", False):
             warnings.append(
                 f"{profile_name} mixes normally incompatible subject groups ({', '.join(sorted(mixed_groups))})."
             )
@@ -7685,6 +7803,17 @@ def load_dashboard_hiring_plan(
         plan_payload = json.loads(str(draft.plan_json or "{}"))
     except json.JSONDecodeError:
         plan_payload = {}
+    try:
+        saved_pool_logic_version = int(plan_payload.get("pool_logic_version", 0) or 0)
+    except (TypeError, ValueError):
+        saved_pool_logic_version = 0
+    if saved_pool_logic_version < HIRING_PLAN_POOL_LOGIC_VERSION:
+        return {
+            "ok": True,
+            "source": "outdated",
+            "plan": None,
+            "updated_at": draft.updated_at.isoformat() if getattr(draft, "updated_at", None) else None,
+        }
     normalized_plan = _normalize_hiring_plan_payload(plan_payload)
     normalized_plan["locked"] = True
     return {
