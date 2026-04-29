@@ -4635,6 +4635,10 @@ const tabs = document.querySelectorAll(".tab");
                 }
 
                 if (target === "reports") {
+                    hiringStudioExpandedProfileIds.clear();
+                    if (hiringStudioState.loaded) {
+                        renderHiringStudio();
+                    }
                     animateReportKpis();
                     animateReportBars();
                 }
