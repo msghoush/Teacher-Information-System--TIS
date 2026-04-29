@@ -100,8 +100,9 @@ def _get_positive_int_env(name: str, default: int) -> int:
 
 
 REPORT_STANDARD_MAX_HOURS = 24
-# Version 5: enforce single General Science Pool (eliminates Science Pool / duplicate pools)
-HIRING_PLAN_POOL_LOGIC_VERSION = 5
+# Version 6: leftover science/biology/chemistry/ict subjects always merged into
+# the existing General Science Pool card instead of generating a new standalone card.
+HIRING_PLAN_POOL_LOGIC_VERSION = 6
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
@@ -3534,7 +3535,72 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
 
     if remaining_other_items:
         remaining_other_items.sort(key=_get_hiring_subject_sort_key)
+        # Group remaining items: named-pool leftovers get merged into existing profiles;
+        # truly unrecognized items become their own standalone card.
+        named_pool_leftovers: dict[str, list[dict]] = {}
+        truly_other_items: list[dict] = []
         for item in remaining_other_items:
+            resolved_gk = _normalize_hiring_pool_group_key(
+                item.get("group_key", f"single_{item.get('family', 'other')}"),
+                item.get("family", ""),
+            )
+            if resolved_gk in HIRING_NAMED_POOL_KEYS:
+                named_pool_leftovers.setdefault(resolved_gk, []).append(item)
+            else:
+                truly_other_items.append(item)
+
+        # Merge named-pool leftovers into their existing profile if one exists,
+        # otherwise build a new profile for that pool.
+        for pool_gk, leftover_items in named_pool_leftovers.items():
+            existing_profile = next(
+                (p for p in profiles if p.get("group_key") == pool_gk), None
+            )
+            if existing_profile is not None:
+                for item in leftover_items:
+                    item_hours = int(item.get("hours", item.get("remaining_hours", 0)) or 0)
+                    if item_hours <= 0:
+                        continue
+                    existing_profile["coverage_items"].append({
+                        **item,
+                        "hours": item_hours,
+                    })
+                    existing_profile["total_hours"] = existing_profile.get("total_hours", 0) + item_hours
+                    existing_profile["group_total_hours"] = existing_profile["total_hours"]
+                    family = item.get("family", "")
+                    if family and family not in existing_profile.get("unique_families", []):
+                        existing_profile.setdefault("unique_families", []).append(family)
+                # Recalculate derived fields
+                total_hours = existing_profile["total_hours"]
+                full_teacher_count = total_hours // REPORT_STANDARD_MAX_HOURS
+                remaining_hours = total_hours % REPORT_STANDARD_MAX_HOURS
+                existing_profile["full_teacher_count"] = full_teacher_count
+                existing_profile["teacher_count"] = full_teacher_count
+                existing_profile["remaining_hours"] = remaining_hours
+                existing_profile["is_full_load"] = full_teacher_count > 0
+                existing_profile["capacity_hours"] = max(
+                    REPORT_STANDARD_MAX_HOURS,
+                    (full_teacher_count * REPORT_STANDARD_MAX_HOURS
+                     if remaining_hours == 0
+                     else (full_teacher_count + 1) * REPORT_STANDARD_MAX_HOURS),
+                )
+                existing_profile["remaining_capacity_hours"] = (
+                    REPORT_STANDARD_MAX_HOURS - remaining_hours if remaining_hours > 0 else 0
+                )
+                existing_profile["coverage_label"] = _build_hiring_coverage_label(
+                    existing_profile["coverage_items"]
+                )
+                coverage_families_now = {ci.get("family", "") for ci in existing_profile["coverage_items"]}
+                if pool_gk == "general_science_pool":
+                    if "ict" in coverage_families_now:
+                        existing_profile["assignment_note"] = "ICT absorbed after General Science priority subjects"
+                    else:
+                        existing_profile["assignment_note"] = "General Science priority pool"
+            else:
+                profile = build_pool_profile(pool_gk, leftover_items)
+                if profile:
+                    profiles.append(profile)
+
+        for item in truly_other_items:
             profile = build_pool_profile(
                 _normalize_hiring_pool_group_key(
                     item.get("group_key", f"single_{item.get('family', 'other')}"),
