@@ -100,9 +100,9 @@ def _get_positive_int_env(name: str, default: int) -> int:
 
 
 REPORT_STANDARD_MAX_HOURS = 24
-# Version 6: leftover science/biology/chemistry/ict subjects always merged into
-# the existing General Science Pool card instead of generating a new standalone card.
-HIRING_PLAN_POOL_LOGIC_VERSION = 6
+# Version 7: any saved-plan science-family items are canonically regrouped into
+# one General Science Pool during load/save normalization.
+HIRING_PLAN_POOL_LOGIC_VERSION = 7
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
@@ -3853,6 +3853,73 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
                 "subject_color": str(raw_item.get("subject_color", "#0A4EA3") or "#0A4EA3"),
                 "hours": hours,
             }
+        )
+
+    science_families = {"science", "biology", "chemistry", "ict"}
+    science_pool_items = []
+
+    for profile in profiles:
+        retained_items = []
+        for item in profile.get("items", []) or []:
+            family = str(item.get("family", "") or "")
+            if not family:
+                family = _detect_hiring_subject_family(item)
+            item["family"] = family
+            if family in science_families:
+                science_pool_items.append(item)
+            else:
+                retained_items.append(item)
+        profile["items"] = retained_items
+
+    retained_unassigned_items = []
+    for item in unassigned_items:
+        family = str(item.get("family", "") or "")
+        if not family:
+            family = _detect_hiring_subject_family(item)
+        item["family"] = family
+        if family in science_families:
+            science_pool_items.append(item)
+        else:
+            retained_unassigned_items.append(item)
+    unassigned_items = retained_unassigned_items
+
+    profiles = [profile for profile in profiles if profile.get("items")]
+
+    if science_pool_items:
+        science_pool_items.sort(
+            key=lambda item: (
+                HIRING_FAMILY_PRIORITY.get(item.get("family"), 99),
+                -int(item.get("hours", 0) or 0),
+                str(item.get("subject_name", "") or "").lower(),
+            )
+        )
+        science_profile = next(
+            (profile for profile in profiles if profile.get("group_key") == "general_science_pool"),
+            None,
+        )
+        if science_profile is None:
+            science_profile = {
+                "id": "general-science-pool",
+                "name": HIRING_GROUP_LABELS["general_science_pool"],
+                "group_key": "general_science_pool",
+                "assignment_note": "General Science priority pool",
+                "accent_color": HIRING_POOL_ACCENT_COLORS["general_science_pool"],
+                "max_hours": REPORT_STANDARD_MAX_HOURS,
+                "block_size_hours": REPORT_STANDARD_MAX_HOURS,
+                "is_manual": False,
+                "allow_over_capacity": False,
+                "override_compatibility": False,
+                "items": [],
+            }
+            profiles.append(science_profile)
+        science_profile["name"] = HIRING_GROUP_LABELS["general_science_pool"]
+        science_profile["group_key"] = "general_science_pool"
+        science_profile["accent_color"] = HIRING_POOL_ACCENT_COLORS["general_science_pool"]
+        science_profile["items"] = [*science_profile.get("items", []), *science_pool_items]
+        science_profile["assignment_note"] = (
+            "ICT absorbed after General Science priority subjects"
+            if any(item.get("family") == "ict" for item in science_profile["items"])
+            else "General Science priority pool"
         )
 
     return {
