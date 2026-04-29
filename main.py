@@ -100,9 +100,9 @@ def _get_positive_int_env(name: str, default: int) -> int:
 
 
 REPORT_STANDARD_MAX_HOURS = 24
-# Version 8: infer legacy/missing item families from subject text so science
-# items marked as "other" are still merged into one General Science Pool.
-HIRING_PLAN_POOL_LOGIC_VERSION = 8
+# Version 9: classify science-family subjects from common abbreviations
+# (SCI/BIO/CHEM/ICT) at source detection level, then normalize to one pool.
+HIRING_PLAN_POOL_LOGIC_VERSION = 9
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
@@ -3085,11 +3085,11 @@ def _detect_hiring_subject_family(subject_row: dict) -> str:
         return "arabic"
     if re.search(r"\b(math|maths|mathematics|algebra|geometry|calculus)\b", normalized_text):
         return "math"
-    if re.search(r"\b(physics|physical science)\b", normalized_text):
+    if re.search(r"\b(physics|physical science|phy)\b", normalized_text):
         return "physics"
-    if re.search(r"\b(science|biology|chemistry|steam)\b", normalized_text):
+    if re.search(r"\b(science|general science|sci|biology|bio|chemistry|chem|steam)\b", normalized_text):
         return "science"
-    if re.search(r"\b(ict|computer|computing|technology|coding|robotics|cs)\b", normalized_text):
+    if re.search(r"\b(ict|information communication technology|computer|computing|technology|coding|robotics|cs)\b", normalized_text):
         return "ict"
     if re.search(r"\b(pe|physical education|sport|fitness)\b", normalized_text):
         return "pe"
@@ -3872,9 +3872,9 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
         normalized_text = _normalize_subject_family_key(
             f"{item.get('subject_code', '')} {item.get('subject_name', '')} {item.get('subject_key', '')}"
         )
-        if re.search(r"\b(science|general science|biology|chemistry)\b", normalized_text):
+        if re.search(r"\b(science|general science|sci|biology|bio|chemistry|chem)\b", normalized_text):
             return "science"
-        if re.search(r"\b(ict|computer|computing|technology|coding|robotics|cs)\b", normalized_text):
+        if re.search(r"\b(ict|information communication technology|computer|computing|technology|coding|robotics|cs)\b", normalized_text):
             return "ict"
         return family
     science_pool_items = []

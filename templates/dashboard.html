@@ -4791,10 +4791,10 @@ const tabs = document.querySelectorAll(".tab");
                 if (!family || family === "other") {
                     const text = `${String(item.subject_code || "")} ${String(item.subject_name || "")} ${String(item.subject_key || "")}`
                         .toLowerCase();
-                    if (/\b(science|general science|biology|chemistry)\b/.test(text)) {
+                    if (/\b(science|general science|sci|biology|bio|chemistry|chem)\b/.test(text)) {
                         return "science";
                     }
-                    if (/\b(ict|computer|computing|technology|coding|robotics|cs)\b/.test(text)) {
+                    if (/\b(ict|information communication technology|computer|computing|technology|coding|robotics|cs)\b/.test(text)) {
                         return "ict";
                     }
                 }
