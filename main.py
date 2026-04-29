@@ -3512,8 +3512,8 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
     if science_profile is not None:
         science_remainder = int(science_profile.get("remaining_hours", 0) or 0)
         if science_remainder > 0:
-            ict_gap = REPORT_STANDARD_MAX_HOURS - science_remainder
-            ict_secondary_items = consume_family_hours("ict", ict_gap)
+            ict_capacity_to_fill = REPORT_STANDARD_MAX_HOURS - science_remainder
+            ict_secondary_items = consume_family_hours("ict", ict_capacity_to_fill)
             if ict_secondary_items:
                 for ict_item in ict_secondary_items:
                     item_hours = int(ict_item.get("hours", 0) or 0)
