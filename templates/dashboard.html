@@ -4643,23 +4643,28 @@ const tabs = document.querySelectorAll(".tab");
             social_arabic: "arabic_pool",
             pe: "physical_education",
             social: "english_pool",
+            science: "science_pool",
+            ict: "science_pool",
         };
         const hiringAllowedFamiliesByGroup = {
             english_pool: new Set(["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"]),
             math_pool: new Set(["math", "mental_math", "physics"]),
             arabic_pool: new Set(["arabic", "islamic", "quran", "social_arabic"]),
+            science_pool: new Set(["science", "ict"]),
             physical_education: new Set(["pe"]),
         };
         const hiringPoolNamesByGroup = {
             english_pool: "English Pool",
             arabic_pool: "Arabic Pool",
             math_pool: "Math Pool",
+            science_pool: "Science Pool",
             physical_education: "Physical Education Pool",
         };
         const hiringPoolAccentByGroup = {
             english_pool: "#2563EB",
             arabic_pool: "#0F766E",
             math_pool: "#7C3AED",
+            science_pool: "#059669",
             physical_education: "#EA580C",
         };
         const normalizeHiringGroupKey = (groupKey, family = "") => {
@@ -4673,6 +4678,9 @@ const tabs = document.querySelectorAll(".tab");
             }
             if (["arabic", "arabic_related", "single_arabic", "single_islamic", "single_quran", "single_social_arabic"].includes(group)) {
                 return "arabic_pool";
+            }
+            if (["science", "science_pool", "single_science", "single_ict"].includes(group)) {
+                return "science_pool";
             }
             if (["pe", "student_life", "single_pe"].includes(group)) {
                 return "physical_education";
