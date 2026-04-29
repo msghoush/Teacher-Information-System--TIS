@@ -4649,10 +4649,10 @@ const tabs = document.querySelectorAll(".tab");
             math: "math_pool",
             mental_math: "math_pool",
             physics: "math_pool",
-            science: "science_pool",
-            biology: "science_pool",
-            chemistry: "science_pool",
-            ict: "science_pool",
+            science: "general_science_pool",
+            biology: "general_science_pool",
+            chemistry: "general_science_pool",
+            ict: "general_science_pool",
             arabic: "arabic_pool",
             islamic: "arabic_pool",
             quran: "arabic_pool",
@@ -4663,7 +4663,7 @@ const tabs = document.querySelectorAll(".tab");
         const hiringAllowedFamiliesByGroup = {
             english_pool: new Set(["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"]),
             math_pool: new Set(["math", "mental_math", "physics"]),
-            science_pool: new Set(["science", "biology", "chemistry", "ict"]),
+            general_science_pool: new Set(["science", "biology", "chemistry", "ict"]),
             arabic_pool: new Set(["arabic", "islamic", "quran", "social_arabic"]),
             physical_education: new Set(["pe"]),
         };
@@ -4671,24 +4671,47 @@ const tabs = document.querySelectorAll(".tab");
             english_pool: "English Pool",
             arabic_pool: "Arabic Pool",
             math_pool: "Math Pool",
-            science_pool: "Science Pool",
+            general_science_pool: "General Science Pool",
             physical_education: "Physical Education Pool",
         };
         const hiringPoolAccentByGroup = {
             english_pool: "#2563EB",
             arabic_pool: "#0F766E",
             math_pool: "#7C3AED",
-            science_pool: "#1D4ED8",
+            general_science_pool: "#1D4ED8",
             physical_education: "#EA580C",
         };
         const normalizeHiringGroupKey = (groupKey, family = "") => {
-            const group = String(groupKey || "").trim().toLowerCase();
-            const itemFamily = String(family || "").trim().toLowerCase();
+            const group = String(groupKey || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+            const itemFamily = String(family || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
             if (["math", "single_math", "single_mental_math", "single_physics"].includes(group)) {
                 return "math_pool";
             }
-            if (["science", "science_pool", "general_science_pool", "single_science", "single_biology", "single_chemistry", "single_ict"].includes(group)) {
-                return "science_pool";
+            if ([
+                "biology",
+                "biology_pool",
+                "chemistry",
+                "chemistry_pool",
+                "ict",
+                "ict_pool",
+                "science",
+                "science_pool",
+                "science_teacher",
+                "general_science",
+                "general_science_pool",
+                "general_science_teacher",
+                "general_science_related",
+                "general_science_related_pool",
+                "general_science_related_subjects",
+                "science_related",
+                "science_related_pool",
+                "science_related_subjects",
+                "single_science",
+                "single_biology",
+                "single_chemistry",
+                "single_ict",
+            ].includes(group)) {
+                return "general_science_pool";
             }
             if (["english", "english_humanities", "english_remainder", "single_english", "single_social_english", "single_social"].includes(group)) {
                 return "english_pool";
@@ -4709,6 +4732,8 @@ const tabs = document.querySelectorAll(".tab");
             performing_arts: "Performing Arts",
             art: "Art",
             science: "Science",
+            biology: "Biology",
+            chemistry: "Chemistry",
             ict: "ICT",
             math: "Math",
             mental_math: "Mental Math",
@@ -4782,6 +4807,18 @@ const tabs = document.querySelectorAll(".tab");
                 if (!family || family === "other") {
                     const text = `${String(item.subject_code || "")} ${String(item.subject_name || "")} ${String(item.subject_key || "")}`
                         .toLowerCase();
+                    if (/\b(biology|life science|life sciences)\b|\bbio(?:\b|\d)/.test(text)) {
+                        return "biology";
+                    }
+                    if (/\b(chemistry|chemical science|chemical sciences)\b|\bchem(?:\b|\d)/.test(text)) {
+                        return "chemistry";
+                    }
+                    if (/\b(science|general science|steam)\b|\bsci(?:\b|\d)/.test(text)) {
+                        return "science";
+                    }
+                    if (/\b(ict|information communication technology|computer|computing|technology|coding|robotics)\b|\bcs(?:\b|\d)/.test(text)) {
+                        return "ict";
+                    }
                 }
                 return family;
             };
@@ -4802,7 +4839,31 @@ const tabs = document.querySelectorAll(".tab");
                 return candidate;
             };
             const rawNormProfiles = profiles.map((profile, profileIndex) => {
-                const groupKey = normalizeHiringGroupKey(profile.group_key || "");
+                const normalizedItems = (Array.isArray(profile.items) ? profile.items : []).map((item, itemIndex) => ({
+                    id: makeUniqueChipId(item.id, `chip-${profileIndex + 1}`, itemIndex),
+                    subject_key: String(item.subject_key || ""),
+                    subject_name: String(item.subject_name || "Subject"),
+                    subject_code: String(item.subject_code || ""),
+                    family: inferItemFamily(item),
+                    subject_color: String(item.subject_color || "#0A4EA3"),
+                    hours: Number(item.hours || 0),
+                })).filter((item) => item.hours > 0);
+                const rawGroupKey = String(profile.group_key || "");
+                let initialGroupKey = normalizeHiringGroupKey(rawGroupKey);
+                if (!rawGroupKey.trim()) {
+                    const nameGroupKey = normalizeHiringGroupKey(profile.name || "");
+                    if (nameGroupKey === "general_science_pool") {
+                        initialGroupKey = nameGroupKey;
+                    }
+                }
+                const itemGroupKeys = new Set(
+                    normalizedItems
+                        .map((item) => normalizeHiringGroupKey("", item.family))
+                        .filter(Boolean)
+                );
+                const groupKey = (!hiringPoolNamesByGroup[initialGroupKey] && itemGroupKeys.size === 1 && itemGroupKeys.has("general_science_pool"))
+                    ? "general_science_pool"
+                    : initialGroupKey;
                 return {
                     id: String(profile.id || `profile-${profileIndex + 1}`),
                     name: String(hiringPoolNamesByGroup[groupKey] || profile.name || "Proposed Pool"),
@@ -4814,29 +4875,68 @@ const tabs = document.querySelectorAll(".tab");
                     is_manual: Boolean(profile.is_manual),
                     allow_over_capacity: Boolean(profile.allow_over_capacity),
                     override_compatibility: Boolean(profile.override_compatibility),
-                    items: (Array.isArray(profile.items) ? profile.items : []).map((item, itemIndex) => ({
-                        id: makeUniqueChipId(item.id, `chip-${profileIndex + 1}`, itemIndex),
-                        subject_key: String(item.subject_key || ""),
-                        subject_name: String(item.subject_name || "Subject"),
-                        subject_code: String(item.subject_code || ""),
-                        family: String(item.family || ""),
-                        subject_color: String(item.subject_color || "#0A4EA3"),
-                        hours: Number(item.hours || 0),
-                    })).filter((item) => item.hours > 0),
+                    items: normalizedItems,
                 };
             });
-            // Deduplicate: merge profiles that share a named pool group_key
-            // (prevents Science Pool + General Science Pool duplicate cards from stale saved data).
+            const generalScienceItems = [];
+            let generalScienceProfile = null;
+            const scienceNormalizedProfiles = [];
+            rawNormProfiles.forEach((profile) => {
+                const retainedItems = [];
+                (profile.items || []).forEach((item) => {
+                    if (normalizeHiringGroupKey("", item.family) === "general_science_pool") {
+                        generalScienceItems.push(item);
+                    } else {
+                        retainedItems.push(item);
+                    }
+                });
+                if (profile.group_key === "general_science_pool") {
+                    if (!generalScienceProfile) {
+                        profile.name = "General Science Pool";
+                        profile.is_manual = false;
+                        profile.items = retainedItems;
+                        generalScienceProfile = profile;
+                        scienceNormalizedProfiles.push(profile);
+                    } else {
+                        generalScienceProfile.items = [...generalScienceProfile.items, ...retainedItems];
+                    }
+                } else if (retainedItems.length > 0) {
+                    profile.items = retainedItems;
+                    scienceNormalizedProfiles.push(profile);
+                }
+            });
+            if (generalScienceItems.length > 0) {
+                if (!generalScienceProfile) {
+                    generalScienceProfile = {
+                        id: "profile-general-science-pool",
+                        name: "General Science Pool",
+                        group_key: "general_science_pool",
+                        assignment_note: "Science, Biology, Chemistry, and eligible ICT combined in one pool",
+                        accent_color: hiringPoolAccentByGroup.general_science_pool,
+                        max_hours: 24,
+                        block_size_hours: 24,
+                        is_manual: false,
+                        allow_over_capacity: false,
+                        override_compatibility: false,
+                        items: [],
+                    };
+                    scienceNormalizedProfiles.unshift(generalScienceProfile);
+                }
+                generalScienceProfile.items = [...generalScienceItems, ...(generalScienceProfile.items || [])];
+            }
+            // Deduplicate profiles that resolve to the same named pool.
             const seenGroupKeys = new Map();
             const dedupedProfiles = [];
-            rawNormProfiles.forEach((profile) => {
+            scienceNormalizedProfiles.forEach((profile) => {
                 const gk = profile.group_key;
                 if (gk && hiringPoolNamesByGroup[gk]) {
                     if (seenGroupKeys.has(gk)) {
                         const existing = seenGroupKeys.get(gk);
                         existing.items = [...existing.items, ...profile.items];
                         existing.max_hours = Math.max(existing.max_hours, profile.max_hours);
+                        existing.name = hiringPoolNamesByGroup[gk];
                     } else {
+                        profile.name = hiringPoolNamesByGroup[gk];
                         seenGroupKeys.set(gk, profile);
                         dedupedProfiles.push(profile);
                     }
@@ -4844,6 +4944,16 @@ const tabs = document.querySelectorAll(".tab");
                     dedupedProfiles.push(profile);
                 }
             });
+            const recalculateProfileCapacity = (profile) => {
+                const blockSize = Math.max(1, Number(profile.block_size_hours || 24));
+                const totalHours = (profile.items || []).reduce((sum, item) => sum + Number(item.hours || 0), 0);
+                const recommendedCapacity = totalHours > 0
+                    ? Math.max(blockSize, Math.ceil(totalHours / blockSize) * blockSize)
+                    : blockSize;
+                profile.block_size_hours = blockSize;
+                profile.max_hours = Math.max(Number(profile.max_hours || blockSize), recommendedCapacity);
+                return profile;
+            };
             const normalizedProfiles = dedupedProfiles.map((profile) => {
                 const retainedItems = [];
                 (profile.items || []).forEach((item) => {
@@ -4854,10 +4964,10 @@ const tabs = document.querySelectorAll(".tab");
                     };
                     retainedItems.push(normalizedItem);
                 });
-                return {
+                return recalculateProfileCapacity({
                     ...profile,
                     items: retainedItems,
-                };
+                });
             }).filter((profile) => (profile.items || []).length > 0);
             const normalizedUnassigned = [];
             unassigned.forEach((item, itemIndex) => {
@@ -4875,9 +4985,39 @@ const tabs = document.querySelectorAll(".tab");
                 }
                 normalizedUnassigned.push(normalizedItem);
             });
+            const retainedUnassignedItems = [];
+            const unassignedGeneralScienceItems = [];
+            normalizedUnassigned.forEach((item) => {
+                if (normalizeHiringGroupKey("", item.family) === "general_science_pool") {
+                    unassignedGeneralScienceItems.push(item);
+                } else {
+                    retainedUnassignedItems.push(item);
+                }
+            });
+            if (unassignedGeneralScienceItems.length > 0) {
+                let generalProfile = normalizedProfiles.find((profile) => profile.group_key === "general_science_pool");
+                if (!generalProfile) {
+                    generalProfile = {
+                        id: "profile-general-science-pool",
+                        name: "General Science Pool",
+                        group_key: "general_science_pool",
+                        assignment_note: "Science, Biology, Chemistry, and eligible ICT combined in one pool",
+                        accent_color: hiringPoolAccentByGroup.general_science_pool,
+                        max_hours: 24,
+                        block_size_hours: 24,
+                        is_manual: false,
+                        allow_over_capacity: false,
+                        override_compatibility: false,
+                        items: [],
+                    };
+                    normalizedProfiles.unshift(generalProfile);
+                }
+                generalProfile.items = [...(generalProfile.items || []), ...unassignedGeneralScienceItems];
+                recalculateProfileCapacity(generalProfile);
+            }
             return {
                 profiles: normalizedProfiles,
-                unassigned_items: normalizedUnassigned,
+                unassigned_items: retainedUnassignedItems,
                 locked: Object.prototype.hasOwnProperty.call(source, "locked") ? Boolean(source.locked) : true,
                 summary: source.summary || {},
             };
@@ -5135,6 +5275,7 @@ const tabs = document.querySelectorAll(".tab");
             }
             hiringStudioState.dragging = null;
             document.body.classList.remove("hiring-is-dragging");
+            hiringStudioState.plan = normalizePlan(hiringStudioState.plan);
             renderHiringStudio();
             if (placed) {
                 scheduleHiringStudioAutoSave(`Moved ${detached.chip.subject_name}.`);
@@ -5409,6 +5550,7 @@ const tabs = document.querySelectorAll(".tab");
                 const movedChip = removeChipFromSource(sourceType, sourceId, chip.id);
                 if (movedChip) {
                     hiringStudioState.plan.unassigned_items.push(movedChip);
+                    hiringStudioState.plan = normalizePlan(hiringStudioState.plan);
                     renderHiringStudio();
                     scheduleHiringStudioAutoSave(`Moved ${movedChip.subject_name} to unassigned.`);
                 }
@@ -5447,6 +5589,14 @@ const tabs = document.querySelectorAll(".tab");
             }
 
             profiles.forEach((profile) => {
+                const renderedGroupKey = normalizeHiringGroupKey(profile.group_key || "");
+                const renderedNameGroupKey = profile.group_key ? "" : normalizeHiringGroupKey(profile.name || "");
+                if (renderedGroupKey === "general_science_pool" || renderedNameGroupKey === "general_science_pool") {
+                    profile.group_key = "general_science_pool";
+                    profile.name = "General Science Pool";
+                    profile.is_manual = false;
+                    profile.assignment_note = profile.assignment_note || "Science, Biology, Chemistry, and eligible ICT combined in one pool";
+                }
                 const totalHours = profileTotalHours(profile);
                 const blockSize = Math.max(1, Number(profile.block_size_hours || 24));
                 const capacityHours = Math.max(blockSize, Number(profile.max_hours || blockSize));
@@ -5519,10 +5669,19 @@ const tabs = document.querySelectorAll(".tab");
 
                 const nameInput = card.querySelector(".hiring-profile-name");
                 if (nameInput) {
-                    nameInput.disabled = locked;
+                    nameInput.disabled = locked || profile.group_key === "general_science_pool";
                 }
                 nameInput?.addEventListener("input", () => {
-                    if (locked) {
+                    if (locked || profile.group_key === "general_science_pool") {
+                        return;
+                    }
+                    if (normalizeHiringGroupKey(nameInput.value || "") === "general_science_pool") {
+                        profile.group_key = "general_science_pool";
+                        profile.name = "General Science Pool";
+                        profile.is_manual = false;
+                        hiringStudioState.plan = normalizePlan(hiringStudioState.plan);
+                        renderHiringStudio();
+                        scheduleHiringStudioAutoSave("General Science Pool name restored.");
                         return;
                     }
                     profile.name = nameInput.value || "Proposed Pool";

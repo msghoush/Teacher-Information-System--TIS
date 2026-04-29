@@ -100,9 +100,9 @@ def _get_positive_int_env(name: str, default: int) -> int:
 
 
 REPORT_STANDARD_MAX_HOURS = 24
-# Version 9: classify science-family subjects from common abbreviations
-# (SCI/BIO/CHEM/ICT) at source detection level, then normalize to one pool.
-HIRING_PLAN_POOL_LOGIC_VERSION = 9
+# Version 10: canonicalize every science-related recommendation into exactly
+# one General Science Pool, including legacy science-pool / single-science keys.
+HIRING_PLAN_POOL_LOGIC_VERSION = 10
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
@@ -131,8 +131,10 @@ HIRING_FAMILY_PRIORITY = {
     "mental_math": 9,
     "physics": 10,
     "science": 11,
-    "ict": 12,
-    "pe": 13,
+    "biology": 12,
+    "chemistry": 13,
+    "ict": 14,
+    "pe": 15,
 }
 HIRING_COMPATIBILITY_GROUPS = {
     "english": "english_pool",
@@ -145,10 +147,10 @@ HIRING_COMPATIBILITY_GROUPS = {
     "math": "math_pool",
     "mental_math": "math_pool",
     "physics": "math_pool",
-    "science": "science_pool",
-    "biology": "science_pool",
-    "chemistry": "science_pool",
-    "ict": "science_pool",
+    "science": "general_science_pool",
+    "biology": "general_science_pool",
+    "chemistry": "general_science_pool",
+    "ict": "general_science_pool",
     "arabic": "arabic_pool",
     "islamic": "arabic_pool",
     "quran": "arabic_pool",
@@ -159,28 +161,28 @@ HIRING_GROUP_LABELS = {
     "english_pool": "English Pool",
     "arabic_pool": "Arabic Pool",
     "math_pool": "Math Pool",
-    "science_pool": "Science Pool",
+    "general_science_pool": "General Science Pool",
     "physical_education": "Physical Education Pool",
 }
 HIRING_POOL_ACCENT_COLORS = {
     "english_pool": "#2563EB",
     "arabic_pool": "#0F766E",
     "math_pool": "#7C3AED",
-    "science_pool": "#1D4ED8",
+    "general_science_pool": "#1D4ED8",
     "physical_education": "#EA580C",
 }
 HIRING_NAMED_POOL_KEYS = {
     "english_pool",
     "math_pool",
     "arabic_pool",
-    "science_pool",
+    "general_science_pool",
     "physical_education",
 }
 HIRING_PROFILE_GROUP_LABEL_KEYS = HIRING_NAMED_POOL_KEYS
 HIRING_POOL_ALLOWED_FAMILIES = {
     "english_pool": {"english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"},
     "math_pool": {"math", "mental_math", "physics"},
-    "science_pool": {"science", "biology", "chemistry", "ict"},
+    "general_science_pool": {"science", "biology", "chemistry", "ict"},
     "arabic_pool": {"arabic", "islamic", "quran", "social_arabic"},
     "physical_education": {"pe"},
 }
@@ -191,6 +193,8 @@ HIRING_FAMILY_LABELS = {
     "mental_math": "Mental Math",
     "physics": "Physics",
     "science": "Science",
+    "biology": "Biology",
+    "chemistry": "Chemistry",
     "ict": "ICT",
     "islamic": "Islamic",
     "quran": "Quran",
@@ -3087,9 +3091,13 @@ def _detect_hiring_subject_family(subject_row: dict) -> str:
         return "math"
     if re.search(r"\b(physics|physical science|phy)\b", normalized_text):
         return "physics"
-    if re.search(r"\b(science|general science|sci|biology|bio|chemistry|chem|steam)\b", normalized_text):
+    if re.search(r"\b(biology|life science|life sciences)\b|\bbio(?:\b|\d)", normalized_text):
+        return "biology"
+    if re.search(r"\b(chemistry|chemical science|chemical sciences)\b|\bchem(?:\b|\d)", normalized_text):
+        return "chemistry"
+    if re.search(r"\b(science|general science|steam)\b|\bsci(?:\b|\d)", normalized_text):
         return "science"
-    if re.search(r"\b(ict|information communication technology|computer|computing|technology|coding|robotics|cs)\b", normalized_text):
+    if re.search(r"\b(ict|information communication technology|computer|computing|technology|coding|robotics)\b|\bcs(?:\b|\d)", normalized_text):
         return "ict"
     if re.search(r"\b(pe|physical education|sport|fitness)\b", normalized_text):
         return "pe"
@@ -3111,7 +3119,11 @@ def _detect_hiring_subject_family(subject_row: dict) -> str:
         return "math"
     if "physics" in alignment_groups:
         return "physics"
-    if alignment_groups.intersection({"science", "biology", "chemistry"}):
+    if "biology" in alignment_groups:
+        return "biology"
+    if "chemistry" in alignment_groups:
+        return "chemistry"
+    if "science" in alignment_groups:
         return "science"
     if "computer" in alignment_groups:
         return "ict"
@@ -3217,20 +3229,43 @@ def _build_hiring_profile_reason(
 
 
 def _normalize_hiring_pool_group_key(group_key: str = "", family: str = "") -> str:
-    normalized_group = str(group_key or "").strip().lower()
-    normalized_family = str(family or "").strip().lower()
+    normalized_group = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        str(group_key or "").strip().lower(),
+    ).strip("_")
+    normalized_family = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        str(family or "").strip().lower(),
+    ).strip("_")
     if normalized_group in {"math", "math_pool", "single_math", "single_mental_math", "single_physics"}:
         return "math_pool"
     if normalized_group in {
+        "biology",
+        "biology_pool",
+        "chemistry",
+        "chemistry_pool",
+        "ict",
+        "ict_pool",
         "science",
         "science_pool",
+        "science_teacher",
         "general_science_pool",
+        "general_science",
+        "general_science_teacher",
+        "general_science_related",
+        "general_science_related_pool",
+        "general_science_related_subjects",
+        "science_related",
+        "science_related_pool",
+        "science_related_subjects",
         "single_science",
         "single_biology",
         "single_chemistry",
         "single_ict",
     }:
-        return "science_pool"
+        return "general_science_pool"
     if normalized_group in {"english", "english_humanities", "english_remainder", "single_english", "single_social_english", "single_social"}:
         return "english_pool"
     if normalized_group in {"arabic", "arabic_related", "single_arabic", "single_islamic", "single_quran", "single_social_arabic"}:
@@ -3241,7 +3276,7 @@ def _normalize_hiring_pool_group_key(group_key: str = "", family: str = "") -> s
     if normalized_family in {"math", "mental_math", "physics"}:
         return "math_pool"
     if normalized_family in {"science", "biology", "chemistry", "ict"}:
-        return "science_pool"
+        return "general_science_pool"
     if normalized_family in {"english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"}:
         return "english_pool"
     if normalized_family in {"arabic", "islamic", "quran", "social_arabic"}:
@@ -3274,9 +3309,10 @@ def _build_hiring_pool_reason(
         base_reason = (
             "Math Pool groups Mathematics / Math with Physics as compatible coverage."
         )
-    elif group_key == "science_pool":
+    elif group_key == "general_science_pool":
         base_reason = (
-            "Science Pool groups Science, Biology, Chemistry, and ICT as compatible STEM coverage."
+            "General Science Pool groups Science, Biology, Chemistry, and eligible ICT uncovered hours "
+            "as one compatible science-related coverage pool."
         )
     elif group_key == "physical_education":
         base_reason = (
@@ -3472,8 +3508,8 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
                 profile["assignment_note"] = "Physics grouped with Math"
             else:
                 profile["assignment_note"] = "Math priority pool"
-        elif group_key == "science_pool":
-            profile["assignment_note"] = "Science + Biology + Chemistry + ICT combined in one pool"
+        elif group_key == "general_science_pool":
+            profile["assignment_note"] = "Science, Biology, Chemistry, and eligible ICT combined in one pool"
         elif group_key == "arabic_pool":
             profile["assignment_note"] = "Arabic / identity-related pool"
         elif group_key == "physical_education":
@@ -3490,7 +3526,7 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
             ["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"],
         ),
         (
-            "science_pool",
+            "general_science_pool",
             ["science", "biology", "chemistry", "ict"],
         ),
         (
@@ -3763,19 +3799,36 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
             hours = int(raw_item.get("hours", 0) or 0)
             if hours <= 0:
                 continue
+            family = str(raw_item.get("family", "") or "").strip().lower()
+            if not family or family == "other":
+                family = _detect_hiring_subject_family(raw_item)
             items.append(
                 {
                     "id": str(raw_item.get("id", "") or ""),
                     "subject_key": str(raw_item.get("subject_key", "") or ""),
                     "subject_name": str(raw_item.get("subject_name", "Subject") or "Subject"),
                     "subject_code": str(raw_item.get("subject_code", "") or ""),
-                    "family": str(raw_item.get("family", "") or ""),
+                    "family": family,
                     "subject_color": str(raw_item.get("subject_color", "#0A4EA3") or "#0A4EA3"),
                     "hours": hours,
                 }
             )
 
-        profile_group_key = _normalize_hiring_pool_group_key(str(raw_profile.get("group_key", "") or ""))
+        raw_profile_group_key = str(raw_profile.get("group_key", "") or "")
+        profile_group_key = _normalize_hiring_pool_group_key(raw_profile_group_key)
+        if not raw_profile_group_key.strip():
+            profile_name_group_key = _normalize_hiring_pool_group_key(
+                str(raw_profile.get("name", "") or "")
+            )
+            if profile_name_group_key == "general_science_pool":
+                profile_group_key = profile_name_group_key
+        if profile_group_key not in HIRING_NAMED_POOL_KEYS and items:
+            item_group_keys = {
+                _normalize_hiring_pool_group_key(family=str(item.get("family", "") or ""))
+                for item in items
+            }
+            if item_group_keys == {"general_science_pool"}:
+                profile_group_key = "general_science_pool"
         profiles.append(
             {
                 "id": str(raw_profile.get("id", "") or ""),
@@ -3801,8 +3854,54 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
             }
         )
 
-    # Deduplicate profiles: merge any profiles that share a named pool group_key
-    # (this prevents duplicate Science Pool / General Science Pool cards from saved data).
+    general_science_items: list[dict] = []
+    general_science_profile: dict | None = None
+    science_normalized_profiles: list[dict] = []
+    for profile in profiles:
+        retained_items: list[dict] = []
+        for item in profile.get("items", []) or []:
+            item_group_key = _normalize_hiring_pool_group_key(
+                family=str(item.get("family", "") or "")
+            )
+            if item_group_key == "general_science_pool":
+                general_science_items.append(item)
+            else:
+                retained_items.append(item)
+
+        if profile.get("group_key") == "general_science_pool":
+            if general_science_profile is None:
+                profile["name"] = HIRING_GROUP_LABELS["general_science_pool"]
+                profile["is_manual"] = False
+                profile["items"] = retained_items
+                general_science_profile = profile
+                science_normalized_profiles.append(profile)
+            else:
+                general_science_profile["items"].extend(retained_items)
+        elif retained_items:
+            profile["items"] = retained_items
+            science_normalized_profiles.append(profile)
+
+    if general_science_items:
+        if general_science_profile is None:
+            general_science_profile = {
+                "id": "profile-general-science-pool",
+                "name": HIRING_GROUP_LABELS["general_science_pool"],
+                "group_key": "general_science_pool",
+                "assignment_note": "Science, Biology, Chemistry, and eligible ICT combined in one pool",
+                "accent_color": HIRING_POOL_ACCENT_COLORS["general_science_pool"],
+                "max_hours": REPORT_STANDARD_MAX_HOURS,
+                "block_size_hours": REPORT_STANDARD_MAX_HOURS,
+                "is_manual": False,
+                "allow_over_capacity": False,
+                "override_compatibility": False,
+                "items": [],
+            }
+            science_normalized_profiles.insert(0, general_science_profile)
+        general_science_profile["items"] = general_science_items + general_science_profile.get("items", [])
+
+    profiles = science_normalized_profiles
+
+    # Deduplicate profiles: merge any profiles that share a named pool group_key.
     seen_named_keys: dict[str, dict] = {}
     deduped_profiles: list[dict] = []
     for profile in profiles:
@@ -3823,21 +3922,79 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
             deduped_profiles.append(profile)
     profiles = deduped_profiles
 
+    for profile in profiles:
+        total_hours = sum(int(item.get("hours", 0) or 0) for item in profile.get("items", []) or [])
+        block_size_hours = max(1, int(profile.get("block_size_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS))
+        recommended_capacity = (
+            max(block_size_hours, ((total_hours + block_size_hours - 1) // block_size_hours) * block_size_hours)
+            if total_hours > 0
+            else block_size_hours
+        )
+        profile["block_size_hours"] = block_size_hours
+        profile["max_hours"] = max(
+            int(profile.get("max_hours", block_size_hours) or block_size_hours),
+            recommended_capacity,
+        )
+
     unassigned_items = []
     for raw_item in payload.get("unassigned_items", []) or []:
         hours = int(raw_item.get("hours", 0) or 0)
         if hours <= 0:
             continue
+        family = str(raw_item.get("family", "") or "").strip().lower()
+        if not family or family == "other":
+            family = _detect_hiring_subject_family(raw_item)
         unassigned_items.append(
             {
                 "id": str(raw_item.get("id", "") or ""),
                 "subject_key": str(raw_item.get("subject_key", "") or ""),
                 "subject_name": str(raw_item.get("subject_name", "Subject") or "Subject"),
                 "subject_code": str(raw_item.get("subject_code", "") or ""),
-                "family": str(raw_item.get("family", "") or ""),
+                "family": family,
                 "subject_color": str(raw_item.get("subject_color", "#0A4EA3") or "#0A4EA3"),
                 "hours": hours,
             }
+        )
+
+    retained_unassigned_items: list[dict] = []
+    unassigned_general_science_items: list[dict] = []
+    for item in unassigned_items:
+        if _normalize_hiring_pool_group_key(family=str(item.get("family", "") or "")) == "general_science_pool":
+            unassigned_general_science_items.append(item)
+        else:
+            retained_unassigned_items.append(item)
+    unassigned_items = retained_unassigned_items
+
+    if unassigned_general_science_items:
+        general_science_profile = next(
+            (profile for profile in profiles if profile.get("group_key") == "general_science_pool"),
+            None,
+        )
+        if general_science_profile is None:
+            general_science_profile = {
+                "id": "profile-general-science-pool",
+                "name": HIRING_GROUP_LABELS["general_science_pool"],
+                "group_key": "general_science_pool",
+                "assignment_note": "Science, Biology, Chemistry, and eligible ICT combined in one pool",
+                "accent_color": HIRING_POOL_ACCENT_COLORS["general_science_pool"],
+                "max_hours": REPORT_STANDARD_MAX_HOURS,
+                "block_size_hours": REPORT_STANDARD_MAX_HOURS,
+                "is_manual": False,
+                "allow_over_capacity": False,
+                "override_compatibility": False,
+                "items": [],
+            }
+            profiles.insert(0, general_science_profile)
+        general_science_profile["items"].extend(unassigned_general_science_items)
+        total_hours = sum(int(item.get("hours", 0) or 0) for item in general_science_profile.get("items", []) or [])
+        block_size_hours = max(1, int(general_science_profile.get("block_size_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS))
+        recommended_capacity = max(
+            block_size_hours,
+            ((total_hours + block_size_hours - 1) // block_size_hours) * block_size_hours,
+        )
+        general_science_profile["max_hours"] = max(
+            int(general_science_profile.get("max_hours", block_size_hours) or block_size_hours),
+            recommended_capacity,
         )
 
     return {
