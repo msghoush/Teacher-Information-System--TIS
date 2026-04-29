@@ -2963,27 +2963,40 @@
         /* Expand / Collapse */
         .hiring-collapse-btn {
             flex-shrink: 0;
-            border: none;
-            background: transparent;
+            border: 1px solid #d6e2f5;
+            background: #f7faff;
             color: #64748b;
             font-size: 13px;
             cursor: pointer;
             padding: 2px 4px;
             line-height: 1;
             border-radius: 4px;
-            transition: transform 0.2s ease;
+            transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
         }
-        .hiring-collapse-btn:hover { background: #eef2f7; }
+        .hiring-collapse-btn:hover {
+            background: #eef4ff;
+            border-color: #bfd4f3;
+        }
         .report-hiring-profile.is-collapsed .hiring-collapse-btn {
             transform: rotate(-90deg);
+        }
+        .report-hiring-profile.is-editable.is-collapsed {
+            gap: 8px;
         }
         .hiring-profile-body {
             display: grid;
             gap: 14px;
-            transition: none;
+            max-height: 1600px;
+            overflow: hidden;
+            opacity: 1;
+            transform: translateY(0);
+            transition: max-height 0.24s ease, opacity 0.18s ease, transform 0.18s ease;
         }
         .report-hiring-profile.is-collapsed .hiring-profile-body {
-            display: none;
+            max-height: 0;
+            opacity: 0;
+            transform: translateY(-4px);
+            pointer-events: none;
         }
         .hiring-profile-title-row {
             display: flex;
@@ -4758,6 +4771,7 @@ const tabs = document.querySelectorAll(".tab");
                 summary: {},
             },
         };
+        const hiringStudioExpandedProfileIds = new Set();
         let hiringStudioAutoSaveTimer = null;
         let hiringStudioAutoSaveInFlight = false;
 
@@ -5601,7 +5615,8 @@ const tabs = document.querySelectorAll(".tab");
                     : Math.max(0, Math.min(100, (progressHours / blockSize) * 100));
 
                 const card = document.createElement("article");
-                card.className = "report-hiring-profile is-editable";
+                const isExpanded = hiringStudioExpandedProfileIds.has(profile.id);
+                card.className = `report-hiring-profile is-editable ${isExpanded ? "" : "is-collapsed"}`.trim();
                 card.dataset.profileId = profile.id;
                 card.style.setProperty("--studio-accent", profile.accent_color || "#0A4EA3");
                 card.style.setProperty("--plan-accent", profile.accent_color || "#0A4EA3");
@@ -5614,6 +5629,7 @@ const tabs = document.querySelectorAll(".tab");
                             </div>
                             <div class="report-hiring-profile-meta">
                                 <span class="report-hiring-chip ${totalHours > profile.max_hours ? 'is-gap' : 'is-full'}">${status}</span>
+                                <span class="report-hiring-chip">${totalHours}h</span>
                                 <span class="report-hiring-chip">${(profile.items || []).length} subject${(profile.items || []).length === 1 ? "" : "s"}</span>
                                 ${profile.is_manual ? '<button type="button" class="hiring-card-remove">Delete Profile</button>' : ''}
                             </div>
@@ -5720,8 +5736,18 @@ const tabs = document.querySelectorAll(".tab");
                 });
 
                 const collapseBtn = card.querySelector(".hiring-collapse-btn");
+                if (collapseBtn) {
+                    collapseBtn.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+                }
                 collapseBtn?.addEventListener("click", () => {
-                    card.classList.toggle("is-collapsed");
+                    const nextCollapsed = !card.classList.contains("is-collapsed");
+                    card.classList.toggle("is-collapsed", nextCollapsed);
+                    collapseBtn.setAttribute("aria-expanded", nextCollapsed ? "false" : "true");
+                    if (nextCollapsed) {
+                        hiringStudioExpandedProfileIds.delete(profile.id);
+                    } else {
+                        hiringStudioExpandedProfileIds.add(profile.id);
+                    }
                 });
 
                 const dropZone = card.querySelector(".hiring-chip-dropzone");
