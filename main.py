@@ -100,9 +100,9 @@ def _get_positive_int_env(name: str, default: int) -> int:
 
 
 REPORT_STANDARD_MAX_HOURS = 24
-# Version 7: any saved-plan science-family items are canonically regrouped into
-# one General Science Pool during load/save normalization.
-HIRING_PLAN_POOL_LOGIC_VERSION = 7
+# Version 8: infer legacy/missing item families from subject text so science
+# items marked as "other" are still merged into one General Science Pool.
+HIRING_PLAN_POOL_LOGIC_VERSION = 8
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
@@ -3856,14 +3856,33 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
         )
 
     science_families = {"science", "biology", "chemistry", "ict"}
+
+    def _infer_item_family(item: dict) -> str:
+        family = str(item.get("family", "") or "").strip().lower()
+        if family in science_families:
+            return family
+        if not family or family == "other":
+            detected = str(_detect_hiring_subject_family(item) or "").strip().lower()
+            if detected:
+                family = detected
+        if family in science_families:
+            return family
+
+        # Defensive fallback for legacy values that failed prior detection.
+        normalized_text = _normalize_subject_family_key(
+            f"{item.get('subject_code', '')} {item.get('subject_name', '')} {item.get('subject_key', '')}"
+        )
+        if re.search(r"\b(science|general science|biology|chemistry)\b", normalized_text):
+            return "science"
+        if re.search(r"\b(ict|computer|computing|technology|coding|robotics|cs)\b", normalized_text):
+            return "ict"
+        return family
     science_pool_items = []
 
     for profile in profiles:
         retained_items = []
         for item in profile.get("items", []) or []:
-            family = str(item.get("family", "") or "")
-            if not family:
-                family = _detect_hiring_subject_family(item)
+            family = _infer_item_family(item)
             item["family"] = family
             if family in science_families:
                 science_pool_items.append(item)
@@ -3873,9 +3892,7 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
 
     retained_unassigned_items = []
     for item in unassigned_items:
-        family = str(item.get("family", "") or "")
-        if not family:
-            family = _detect_hiring_subject_family(item)
+        family = _infer_item_family(item)
         item["family"] = family
         if family in science_families:
             science_pool_items.append(item)

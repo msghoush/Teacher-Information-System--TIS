@@ -4783,6 +4783,23 @@ const tabs = document.querySelectorAll(".tab");
                 chemistry: 2,
                 ict: 3,
             };
+            const inferItemFamily = (item) => {
+                let family = String(item.family || "").trim().toLowerCase();
+                if (scienceFamilies.has(family)) {
+                    return family;
+                }
+                if (!family || family === "other") {
+                    const text = `${String(item.subject_code || "")} ${String(item.subject_name || "")} ${String(item.subject_key || "")}`
+                        .toLowerCase();
+                    if (/\b(science|general science|biology|chemistry)\b/.test(text)) {
+                        return "science";
+                    }
+                    if (/\b(ict|computer|computing|technology|coding|robotics|cs)\b/.test(text)) {
+                        return "ict";
+                    }
+                }
+                return family;
+            };
             const usedChipIds = new Set();
             const makeUniqueChipId = (baseId, fallbackPrefix, idx) => {
                 const base = String(baseId || `${fallbackPrefix}-${idx + 1}`);
@@ -4846,7 +4863,7 @@ const tabs = document.querySelectorAll(".tab");
             const normalizedProfiles = dedupedProfiles.map((profile) => {
                 const retainedItems = [];
                 (profile.items || []).forEach((item) => {
-                    const family = String(item.family || "").trim().toLowerCase();
+                    const family = inferItemFamily(item);
                     const normalizedItem = {
                         ...item,
                         family,
@@ -4869,7 +4886,7 @@ const tabs = document.querySelectorAll(".tab");
                     subject_key: String(item.subject_key || ""),
                     subject_name: String(item.subject_name || "Subject"),
                     subject_code: String(item.subject_code || ""),
-                    family: String(item.family || "").trim().toLowerCase(),
+                    family: inferItemFamily(item),
                     subject_color: String(item.subject_color || "#0A4EA3"),
                     hours: Number(item.hours || 0),
                 };
