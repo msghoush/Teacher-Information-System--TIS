@@ -3215,7 +3215,14 @@ def _build_hiring_profile_reason(
 def _normalize_hiring_pool_group_key(group_key: str = "", family: str = "") -> str:
     normalized_group = str(group_key or "").strip().lower()
     normalized_family = str(family or "").strip().lower()
-    if normalized_group in {"science", "science_pool", "science_ict", "single_science"}:
+    # All science-related group keys must map to a single General Science Pool.
+    if normalized_group in {
+        "science", "science_pool", "science_ict", "single_science",
+        "general_science", "general_science_pool",
+        "biology", "single_biology",
+        "chemistry", "single_chemistry",
+        "general_science_teacher", "science_teacher",
+    }:
         return "general_science_pool"
     if normalized_group in {"math", "math_pool", "single_math", "single_mental_math", "single_physics"}:
         return "math_pool"
@@ -3736,6 +3743,28 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
                 "items": items,
             }
         )
+
+    # Deduplicate profiles: merge any profiles that share a named pool group_key
+    # (this prevents duplicate Science Pool / General Science Pool cards from saved data).
+    seen_named_keys: dict[str, dict] = {}
+    deduped_profiles: list[dict] = []
+    for profile in profiles:
+        gk = profile.get("group_key", "")
+        if gk and gk in HIRING_NAMED_POOL_KEYS:
+            if gk in seen_named_keys:
+                # Merge items into the existing profile for this pool
+                existing = seen_named_keys[gk]
+                existing["items"].extend(profile.get("items", []))
+                existing["max_hours"] = max(
+                    int(existing.get("max_hours", REPORT_STANDARD_MAX_HOURS)),
+                    int(profile.get("max_hours", REPORT_STANDARD_MAX_HOURS)),
+                )
+            else:
+                seen_named_keys[gk] = profile
+                deduped_profiles.append(profile)
+        else:
+            deduped_profiles.append(profile)
+    profiles = deduped_profiles
 
     unassigned_items = []
     for raw_item in payload.get("unassigned_items", []) or []:

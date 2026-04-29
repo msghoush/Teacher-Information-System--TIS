@@ -2719,18 +2719,22 @@
 
         .report-hiring-plan-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
-            gap: 10px;
+            grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+            gap: 20px;
+            align-items: start;
         }
 
         .report-hiring-profile {
             border: 1px solid #d7e4fa;
             border-radius: 12px;
             background: #ffffff;
-            padding: 10px;
+            padding: 16px;
             display: grid;
-            gap: 8px;
+            gap: 14px;
             border-left: 5px solid var(--plan-accent, #0a4ea3);
+            box-sizing: border-box;
+            min-width: 0;
+            word-break: break-word;
         }
 
         .report-hiring-profile-head {
@@ -2878,9 +2882,9 @@
             border: 1px solid #d7e4fa;
             border-radius: 12px;
             background: #fff;
-            padding: 10px;
+            padding: 16px;
             display: grid;
-            gap: 10px;
+            gap: 16px;
         }
 
         .hiring-studio-toolbar {
@@ -2931,8 +2935,8 @@
 
         .hiring-studio-layout {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
-            gap: 10px;
+            grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+            gap: 20px;
             align-items: start;
         }
 
@@ -2953,7 +2957,43 @@
         }
 
         .report-hiring-profile.is-editable {
-            gap: 10px;
+            gap: 14px;
+        }
+
+        /* Expand / Collapse */
+        .hiring-collapse-btn {
+            flex-shrink: 0;
+            border: none;
+            background: transparent;
+            color: #64748b;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 2px 4px;
+            line-height: 1;
+            border-radius: 4px;
+            transition: transform 0.2s ease;
+        }
+        .hiring-collapse-btn:hover { background: #eef2f7; }
+        .report-hiring-profile.is-collapsed .hiring-collapse-btn {
+            transform: rotate(-90deg);
+        }
+        .hiring-profile-body {
+            display: grid;
+            gap: 14px;
+            transition: none;
+        }
+        .report-hiring-profile.is-collapsed .hiring-profile-body {
+            display: none;
+        }
+        .hiring-profile-title-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            width: 100%;
+        }
+        .hiring-profile-title-row .hiring-profile-name {
+            flex: 1;
+            min-width: 0;
         }
 
         .report-hiring-profile-head .hiring-profile-name {
@@ -4630,7 +4670,14 @@ const tabs = document.querySelectorAll(".tab");
         const normalizeHiringGroupKey = (groupKey, family = "") => {
             const group = String(groupKey || "").trim().toLowerCase();
             const itemFamily = String(family || "").trim().toLowerCase();
-            if (["science", "science_pool", "science_ict", "single_science"].includes(group)) {
+            // All science-related group key variants must collapse to a single General Science Pool.
+            if ([
+                "science", "science_pool", "science_ict", "single_science",
+                "general_science", "general_science_pool",
+                "biology", "single_biology",
+                "chemistry", "single_chemistry",
+                "general_science_teacher", "science_teacher",
+            ].includes(group)) {
                 return "general_science_pool";
             }
             if (["math", "single_math", "single_mental_math", "single_physics"].includes(group)) {
@@ -4739,31 +4786,51 @@ const tabs = document.querySelectorAll(".tab");
                 usedChipIds.add(candidate);
                 return candidate;
             };
+            const rawNormProfiles = profiles.map((profile, profileIndex) => {
+                const groupKey = normalizeHiringGroupKey(profile.group_key || "");
+                return {
+                    id: String(profile.id || `profile-${profileIndex + 1}`),
+                    name: String(hiringPoolNamesByGroup[groupKey] || profile.name || "Proposed Pool"),
+                    group_key: groupKey,
+                    assignment_note: String(profile.assignment_note || "Compatible pool grouping"),
+                    accent_color: String(hiringPoolAccentByGroup[groupKey] || profile.accent_color || "#0A4EA3"),
+                    max_hours: Number(profile.max_hours || 24),
+                    block_size_hours: Number(profile.block_size_hours || 24),
+                    is_manual: Boolean(profile.is_manual),
+                    allow_over_capacity: Boolean(profile.allow_over_capacity),
+                    override_compatibility: Boolean(profile.override_compatibility),
+                    items: (Array.isArray(profile.items) ? profile.items : []).map((item, itemIndex) => ({
+                        id: makeUniqueChipId(item.id, `chip-${profileIndex + 1}`, itemIndex),
+                        subject_key: String(item.subject_key || ""),
+                        subject_name: String(item.subject_name || "Subject"),
+                        subject_code: String(item.subject_code || ""),
+                        family: String(item.family || ""),
+                        subject_color: String(item.subject_color || "#0A4EA3"),
+                        hours: Number(item.hours || 0),
+                    })).filter((item) => item.hours > 0),
+                };
+            });
+            // Deduplicate: merge profiles that share a named pool group_key
+            // (prevents Science Pool + General Science Pool duplicate cards from stale saved data).
+            const seenGroupKeys = new Map();
+            const dedupedProfiles = [];
+            rawNormProfiles.forEach((profile) => {
+                const gk = profile.group_key;
+                if (gk && hiringPoolNamesByGroup[gk]) {
+                    if (seenGroupKeys.has(gk)) {
+                        const existing = seenGroupKeys.get(gk);
+                        existing.items = [...existing.items, ...profile.items];
+                        existing.max_hours = Math.max(existing.max_hours, profile.max_hours);
+                    } else {
+                        seenGroupKeys.set(gk, profile);
+                        dedupedProfiles.push(profile);
+                    }
+                } else {
+                    dedupedProfiles.push(profile);
+                }
+            });
             return {
-                profiles: profiles.map((profile, profileIndex) => {
-                    const groupKey = normalizeHiringGroupKey(profile.group_key || "");
-                    return {
-                        id: String(profile.id || `profile-${profileIndex + 1}`),
-                        name: String(hiringPoolNamesByGroup[groupKey] || profile.name || "Proposed Pool"),
-                        group_key: groupKey,
-                        assignment_note: String(profile.assignment_note || "Compatible pool grouping"),
-                        accent_color: String(hiringPoolAccentByGroup[groupKey] || profile.accent_color || "#0A4EA3"),
-                        max_hours: Number(profile.max_hours || 24),
-                        block_size_hours: Number(profile.block_size_hours || 24),
-                        is_manual: Boolean(profile.is_manual),
-                        allow_over_capacity: Boolean(profile.allow_over_capacity),
-                        override_compatibility: Boolean(profile.override_compatibility),
-                        items: (Array.isArray(profile.items) ? profile.items : []).map((item, itemIndex) => ({
-                            id: makeUniqueChipId(item.id, `chip-${profileIndex + 1}`, itemIndex),
-                            subject_key: String(item.subject_key || ""),
-                            subject_name: String(item.subject_name || "Subject"),
-                            subject_code: String(item.subject_code || ""),
-                            family: String(item.family || ""),
-                            subject_color: String(item.subject_color || "#0A4EA3"),
-                            hours: Number(item.hours || 0),
-                        })).filter((item) => item.hours > 0),
-                    };
-                }),
+                profiles: dedupedProfiles,
                 unassigned_items: unassigned.map((item, itemIndex) => ({
                     id: makeUniqueChipId(item.id, "chip-unassigned", itemIndex),
                     subject_key: String(item.subject_key || ""),
@@ -5368,7 +5435,10 @@ const tabs = document.querySelectorAll(".tab");
                 card.innerHTML = `
                     <div class="hiring-profile-headline">
                         <div class="report-hiring-profile-head" style="width:100%;">
-                            <input class="hiring-profile-name" value="${profile.name.replace(/"/g, '&quot;')}" />
+                            <div class="hiring-profile-title-row">
+                                <input class="hiring-profile-name" value="${profile.name.replace(/"/g, '&quot;')}" />
+                                <button type="button" class="hiring-collapse-btn" aria-label="Toggle pool details" title="Expand / Collapse">&#9660;</button>
+                            </div>
                             <div class="report-hiring-profile-meta">
                                 <span class="report-hiring-chip ${totalHours > profile.max_hours ? 'is-gap' : 'is-full'}">${status}</span>
                                 <span class="report-hiring-chip">${(profile.items || []).length} subject${(profile.items || []).length === 1 ? "" : "s"}</span>
@@ -5376,35 +5446,37 @@ const tabs = document.querySelectorAll(".tab");
                             </div>
                         </div>
                     </div>
-                    <div class="report-hiring-summary-grid">
-                        <div class="report-hiring-stat">
-                            <span>Total In Profile</span>
-                            <strong>${totalHours}h</strong>
+                    <div class="hiring-profile-body">
+                        <div class="report-hiring-summary-grid">
+                            <div class="report-hiring-stat">
+                                <span>Total In Profile</span>
+                                <strong>${totalHours}h</strong>
+                            </div>
+                            <div class="report-hiring-stat">
+                                <span>Full 24h Blocks</span>
+                                <strong>${fullBlocks}</strong>
+                            </div>
+                            <div class="report-hiring-stat">
+                                <span>Remaining Capacity</span>
+                                <strong>${remaining >= 0 ? `${remaining}h` : `${Math.abs(remaining)}h over`}</strong>
+                            </div>
                         </div>
-                        <div class="report-hiring-stat">
-                            <span>Full 24h Blocks</span>
-                            <strong>${fullBlocks}</strong>
+                        <div class="report-hiring-progress">
+                            <div class="report-hiring-progress-head">
+                                <span>Progress toward next 24h block</span>
+                                <strong>${progressHours} / ${blockSize}h</strong>
+                            </div>
+                            <div class="report-hiring-progress-track" aria-label="24-hour block progress">
+                                <div class="report-hiring-progress-fill" style="--progress-width:${capPct}%;"></div>
+                            </div>
                         </div>
-                        <div class="report-hiring-stat">
-                            <span>Remaining Capacity</span>
-                            <strong>${remaining >= 0 ? `${remaining}h` : `${Math.abs(remaining)}h over`}</strong>
+                        <div class="hiring-mini-row">
+                            <label><input type="checkbox" class="hiring-allow-over" ${profile.allow_over_capacity ? "checked" : ""}/> Allow > ${profile.max_hours}h</label>
+                            <label><input type="checkbox" class="hiring-override-compat" ${profile.override_compatibility ? "checked" : ""}/> Override compatibility</label>
                         </div>
+                        <div class="report-hiring-reason">${profile.assignment_note || "Compatible pool grouping"}</div>
+                        <div class="hiring-chip-dropzone" data-drop-target="profile"></div>
                     </div>
-                    <div class="report-hiring-progress">
-                        <div class="report-hiring-progress-head">
-                            <span>Progress toward next 24h block</span>
-                            <strong>${progressHours} / ${blockSize}h</strong>
-                        </div>
-                        <div class="report-hiring-progress-track" aria-label="24-hour block progress">
-                            <div class="report-hiring-progress-fill" style="--progress-width:${capPct}%;"></div>
-                        </div>
-                    </div>
-                    <div class="hiring-mini-row">
-                        <label><input type="checkbox" class="hiring-allow-over" ${profile.allow_over_capacity ? "checked" : ""}/> Allow > ${profile.max_hours}h</label>
-                        <label><input type="checkbox" class="hiring-override-compat" ${profile.override_compatibility ? "checked" : ""}/> Override compatibility</label>
-                    </div>
-                    <div class="report-hiring-reason">${profile.assignment_note || "Compatible pool grouping"}</div>
-                    <div class="hiring-chip-dropzone" data-drop-target="profile"></div>
                 `;
 
                 const nameInput = card.querySelector(".hiring-profile-name");
@@ -5463,6 +5535,11 @@ const tabs = document.querySelectorAll(".tab");
                     profile.override_compatibility = overrideCompat.checked;
                     renderWarnings();
                     scheduleHiringStudioAutoSave("Compatibility override updated.");
+                });
+
+                const collapseBtn = card.querySelector(".hiring-collapse-btn");
+                collapseBtn?.addEventListener("click", () => {
+                    card.classList.toggle("is-collapsed");
                 });
 
                 const dropZone = card.querySelector(".hiring-chip-dropzone");
