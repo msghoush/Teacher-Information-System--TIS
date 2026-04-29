@@ -2931,8 +2931,9 @@
 
         .hiring-studio-layout {
             display: grid;
-            grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+            grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
             gap: 10px;
+            align-items: start;
         }
 
         .hiring-profile-grid {
@@ -3070,12 +3071,26 @@
 
         .hiring-unassigned-panel {
             border: 1px solid #dce8fa;
-            border-radius: 10px;
+            border-radius: 8px;
             background: #f9fbff;
-            padding: 8px;
+            padding: 6px;
             display: grid;
-            gap: 8px;
+            gap: 6px;
             align-content: start;
+            max-width: 220px;
+        }
+
+        .hiring-unassigned-panel .hiring-chip-dropzone {
+            min-height: 34px;
+            padding: 5px;
+            gap: 5px;
+        }
+
+        .hiring-unassigned-panel .hiring-mini-row {
+            align-items: flex-start;
+            gap: 4px;
+            flex-wrap: wrap;
+            font-size: 10px;
         }
 
         .hiring-mini-row {
@@ -3124,6 +3139,10 @@
         @media (max-width: 1000px) {
             .hiring-studio-layout {
                 grid-template-columns: 1fr;
+            }
+
+            .hiring-unassigned-panel {
+                max-width: none;
             }
         }
 
@@ -4594,6 +4613,40 @@ const tabs = document.querySelectorAll(".tab");
             arabic_pool: new Set(["arabic", "islamic", "quran", "social_arabic"]),
             physical_education: new Set(["pe"]),
         };
+        const hiringPoolNamesByGroup = {
+            english_pool: "English Pool",
+            arabic_pool: "Arabic Pool",
+            math_pool: "Math Pool",
+            general_science_pool: "General Science Pool",
+            physical_education: "Physical Education Pool",
+        };
+        const hiringPoolAccentByGroup = {
+            english_pool: "#2563EB",
+            arabic_pool: "#0F766E",
+            math_pool: "#7C3AED",
+            general_science_pool: "#15803D",
+            physical_education: "#EA580C",
+        };
+        const normalizeHiringGroupKey = (groupKey, family = "") => {
+            const group = String(groupKey || "").trim().toLowerCase();
+            const itemFamily = String(family || "").trim().toLowerCase();
+            if (["science", "science_pool", "science_ict", "single_science"].includes(group)) {
+                return "general_science_pool";
+            }
+            if (["math", "single_math", "single_mental_math", "single_physics"].includes(group)) {
+                return "math_pool";
+            }
+            if (["english", "english_humanities", "english_remainder", "single_english", "single_social_english", "single_social"].includes(group)) {
+                return "english_pool";
+            }
+            if (["arabic", "arabic_related", "single_arabic", "single_islamic", "single_quran", "single_social_arabic"].includes(group)) {
+                return "arabic_pool";
+            }
+            if (["pe", "student_life", "single_pe"].includes(group)) {
+                return "physical_education";
+            }
+            return hiringCompatibilityByFamily[itemFamily] || group;
+        };
         const hiringFamilyLabels = {
             english: "English",
             social_english: "Social Studies English",
@@ -4687,27 +4740,30 @@ const tabs = document.querySelectorAll(".tab");
                 return candidate;
             };
             return {
-                profiles: profiles.map((profile, profileIndex) => ({
-                    id: String(profile.id || `profile-${profileIndex + 1}`),
-                    name: String(profile.name || "Proposed Pool"),
-                    group_key: String(profile.group_key || ""),
-                    assignment_note: String(profile.assignment_note || "Compatible pool grouping"),
-                    accent_color: String(profile.accent_color || "#0A4EA3"),
-                    max_hours: Number(profile.max_hours || 24),
-                    block_size_hours: Number(profile.block_size_hours || 24),
-                    is_manual: Boolean(profile.is_manual),
-                    allow_over_capacity: Boolean(profile.allow_over_capacity),
-                    override_compatibility: Boolean(profile.override_compatibility),
-                    items: (Array.isArray(profile.items) ? profile.items : []).map((item, itemIndex) => ({
-                        id: makeUniqueChipId(item.id, `chip-${profileIndex + 1}`, itemIndex),
-                        subject_key: String(item.subject_key || ""),
-                        subject_name: String(item.subject_name || "Subject"),
-                        subject_code: String(item.subject_code || ""),
-                        family: String(item.family || ""),
-                        subject_color: String(item.subject_color || "#0A4EA3"),
-                        hours: Number(item.hours || 0),
-                    })).filter((item) => item.hours > 0),
-                })),
+                profiles: profiles.map((profile, profileIndex) => {
+                    const groupKey = normalizeHiringGroupKey(profile.group_key || "");
+                    return {
+                        id: String(profile.id || `profile-${profileIndex + 1}`),
+                        name: String(hiringPoolNamesByGroup[groupKey] || profile.name || "Proposed Pool"),
+                        group_key: groupKey,
+                        assignment_note: String(profile.assignment_note || "Compatible pool grouping"),
+                        accent_color: String(hiringPoolAccentByGroup[groupKey] || profile.accent_color || "#0A4EA3"),
+                        max_hours: Number(profile.max_hours || 24),
+                        block_size_hours: Number(profile.block_size_hours || 24),
+                        is_manual: Boolean(profile.is_manual),
+                        allow_over_capacity: Boolean(profile.allow_over_capacity),
+                        override_compatibility: Boolean(profile.override_compatibility),
+                        items: (Array.isArray(profile.items) ? profile.items : []).map((item, itemIndex) => ({
+                            id: makeUniqueChipId(item.id, `chip-${profileIndex + 1}`, itemIndex),
+                            subject_key: String(item.subject_key || ""),
+                            subject_name: String(item.subject_name || "Subject"),
+                            subject_code: String(item.subject_code || ""),
+                            family: String(item.family || ""),
+                            subject_color: String(item.subject_color || "#0A4EA3"),
+                            hours: Number(item.hours || 0),
+                        })).filter((item) => item.hours > 0),
+                    };
+                }),
                 unassigned_items: unassigned.map((item, itemIndex) => ({
                     id: makeUniqueChipId(item.id, "chip-unassigned", itemIndex),
                     subject_key: String(item.subject_key || ""),

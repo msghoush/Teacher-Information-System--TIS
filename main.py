@@ -100,7 +100,7 @@ def _get_positive_int_env(name: str, default: int) -> int:
 
 
 REPORT_STANDARD_MAX_HOURS = 24
-HIRING_PLAN_POOL_LOGIC_VERSION = 3
+HIRING_PLAN_POOL_LOGIC_VERSION = 4
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
@@ -157,6 +157,13 @@ HIRING_GROUP_LABELS = {
     "math_pool": "Math Pool",
     "general_science_pool": "General Science Pool",
     "physical_education": "Physical Education Pool",
+}
+HIRING_POOL_ACCENT_COLORS = {
+    "english_pool": "#2563EB",
+    "arabic_pool": "#0F766E",
+    "math_pool": "#7C3AED",
+    "general_science_pool": "#15803D",
+    "physical_education": "#EA580C",
 }
 HIRING_NAMED_POOL_KEYS = {
     "english_pool",
@@ -3205,6 +3212,34 @@ def _build_hiring_profile_reason(
     )
 
 
+def _normalize_hiring_pool_group_key(group_key: str = "", family: str = "") -> str:
+    normalized_group = str(group_key or "").strip().lower()
+    normalized_family = str(family or "").strip().lower()
+    if normalized_group in {"science", "science_pool", "science_ict", "single_science"}:
+        return "general_science_pool"
+    if normalized_group in {"math", "math_pool", "single_math", "single_mental_math", "single_physics"}:
+        return "math_pool"
+    if normalized_group in {"english", "english_humanities", "english_remainder", "single_english", "single_social_english", "single_social"}:
+        return "english_pool"
+    if normalized_group in {"arabic", "arabic_related", "single_arabic", "single_islamic", "single_quran", "single_social_arabic"}:
+        return "arabic_pool"
+    if normalized_group in {"pe", "student_life", "single_pe"}:
+        return "physical_education"
+
+    if normalized_family in {"science", "ict"}:
+        return "general_science_pool"
+    if normalized_family in {"math", "mental_math", "physics"}:
+        return "math_pool"
+    if normalized_family in {"english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"}:
+        return "english_pool"
+    if normalized_family in {"arabic", "islamic", "quran", "social_arabic"}:
+        return "arabic_pool"
+    if normalized_family == "pe":
+        return "physical_education"
+
+    return normalized_group
+
+
 def _build_hiring_pool_reason(
     group_key: str,
     coverage_items: list[dict],
@@ -3333,6 +3368,7 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         )
         if total_hours <= 0:
             return None
+        group_key = _normalize_hiring_pool_group_key(group_key)
 
         full_teacher_count = total_hours // REPORT_STANDARD_MAX_HOURS
         remaining_hours = total_hours % REPORT_STANDARD_MAX_HOURS
@@ -3407,7 +3443,10 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
                 full_teacher_count,
                 remaining_hours,
             ),
-            "accent_color": coverage_items[0].get("subject_color", "#0A4EA3"),
+            "accent_color": HIRING_POOL_ACCENT_COLORS.get(
+                group_key,
+                coverage_items[0].get("subject_color", "#0A4EA3"),
+            ),
             "progress_width_pct": progress_width_pct,
         }
 
@@ -3483,7 +3522,13 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
     if remaining_other_items:
         remaining_other_items.sort(key=_get_hiring_subject_sort_key)
         for item in remaining_other_items:
-            profile = build_pool_profile(item.get("group_key", f"single_{item.get('family', 'other')}"), [item])
+            profile = build_pool_profile(
+                _normalize_hiring_pool_group_key(
+                    item.get("group_key", f"single_{item.get('family', 'other')}"),
+                    item.get("family", ""),
+                ),
+                [item],
+            )
             if profile:
                 profiles.append(profile)
 
@@ -3589,13 +3634,23 @@ def _build_hiring_plan_editor_payload(report_summary: dict, report_subject_rows:
                 }
             )
 
+        profile_group_key = _normalize_hiring_pool_group_key(str(profile.get("group_key", "") or ""))
         profile_items.append(
             {
                 "id": str(profile.get("id", f"profile-{len(profile_items)+1}")),
-                "name": str(profile.get("profile_label", "Proposed Pool") or "Proposed Pool"),
-                "group_key": str(profile.get("group_key", "") or ""),
+                "name": HIRING_GROUP_LABELS.get(
+                    profile_group_key,
+                    str(profile.get("profile_label", "Proposed Pool") or "Proposed Pool"),
+                ),
+                "group_key": profile_group_key,
                 "assignment_note": str(profile.get("assignment_note", "Compatible pool grouping") or "Compatible pool grouping"),
-                "accent_color": str(profile.get("accent_color", "#0A4EA3") or "#0A4EA3"),
+                "accent_color": str(
+                    HIRING_POOL_ACCENT_COLORS.get(
+                        profile_group_key,
+                        profile.get("accent_color", "#0A4EA3"),
+                    )
+                    or "#0A4EA3"
+                ),
                 "max_hours": int(profile.get("capacity_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS),
                 "block_size_hours": int(profile.get("block_size_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS),
                 "is_manual": False,
@@ -3656,13 +3711,23 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
                 }
             )
 
+        profile_group_key = _normalize_hiring_pool_group_key(str(raw_profile.get("group_key", "") or ""))
         profiles.append(
             {
                 "id": str(raw_profile.get("id", "") or ""),
-                "name": str(raw_profile.get("name", "Proposed Pool") or "Proposed Pool"),
-                "group_key": str(raw_profile.get("group_key", "") or ""),
+                "name": HIRING_GROUP_LABELS.get(
+                    profile_group_key,
+                    str(raw_profile.get("name", "Proposed Pool") or "Proposed Pool"),
+                ),
+                "group_key": profile_group_key,
                 "assignment_note": str(raw_profile.get("assignment_note", "") or ""),
-                "accent_color": str(raw_profile.get("accent_color", "#0A4EA3") or "#0A4EA3"),
+                "accent_color": str(
+                    HIRING_POOL_ACCENT_COLORS.get(
+                        profile_group_key,
+                        raw_profile.get("accent_color", "#0A4EA3"),
+                    )
+                    or "#0A4EA3"
+                ),
                 "max_hours": int(raw_profile.get("max_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS),
                 "block_size_hours": int(raw_profile.get("block_size_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS),
                 "is_manual": bool(raw_profile.get("is_manual", False)),
@@ -3710,7 +3775,7 @@ def _collect_hiring_plan_warnings(plan_payload: dict) -> list[str]:
                 f"{profile_name} is over capacity ({profile_hours}h / {max_hours}h). Enable override to allow this."
             )
 
-        profile_group_key = str(profile.get("group_key", "") or "")
+        profile_group_key = _normalize_hiring_pool_group_key(str(profile.get("group_key", "") or ""))
         allowed_families = HIRING_POOL_ALLOWED_FAMILIES.get(profile_group_key)
         incompatible_families = []
         group_keys = set()
