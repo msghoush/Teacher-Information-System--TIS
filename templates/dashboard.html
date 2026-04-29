@@ -4652,7 +4652,7 @@ const tabs = document.querySelectorAll(".tab");
             science: "general_science_pool",
             biology: "general_science_pool",
             chemistry: "general_science_pool",
-            ict: "single_ict",
+            ict: "general_science_pool",
             arabic: "arabic_pool",
             islamic: "arabic_pool",
             quran: "arabic_pool",
@@ -4692,6 +4692,8 @@ const tabs = document.querySelectorAll(".tab");
                 "biology_pool",
                 "chemistry",
                 "chemistry_pool",
+                "ict",
+                "ict_pool",
                 "science",
                 "science_pool",
                 "science_teacher",
@@ -4707,11 +4709,9 @@ const tabs = document.querySelectorAll(".tab");
                 "single_science",
                 "single_biology",
                 "single_chemistry",
+                "single_ict",
             ].includes(group)) {
                 return "general_science_pool";
-            }
-            if (["ict", "ict_pool", "single_ict"].includes(group)) {
-                return "single_ict";
             }
             if (["english", "english_humanities", "english_remainder", "single_english", "single_social_english", "single_social"].includes(group)) {
                 return "english_pool";
@@ -4766,20 +4766,7 @@ const tabs = document.querySelectorAll(".tab");
         const profileTotalHours = (profile) => {
             return (profile.items || []).reduce((sum, item) => sum + Number(item.hours || 0), 0);
         };
-        const isGeneralScienceCoreFamily = (family) => ["science", "biology", "chemistry"].includes(String(family || "").trim().toLowerCase());
-        const isIctFamily = (family) => String(family || "").trim().toLowerCase() === "ict";
-        const itemHoursTotal = (items) => (items || []).reduce((sum, item) => sum + Number(item.hours || 0), 0);
-        const getGeneralScienceIctCapacity = (coreHours) => {
-            if (coreHours <= 0) {
-                return 0;
-            }
-            const remainder = coreHours % 24;
-            return remainder > 0 ? 24 - remainder : 0;
-        };
-        const shouldAutoAbsorbIctIntoGeneralScience = (coreHours, ictHours) => {
-            const capacity = getGeneralScienceIctCapacity(coreHours);
-            return ictHours > 0 && capacity > 0 && ictHours <= capacity;
-        };
+        const isGeneralScienceFamily = (family) => ["science", "biology", "chemistry", "ict"].includes(String(family || "").trim().toLowerCase());
 
         const summarizeHiringStudioPlan = () => {
             const profiles = hiringStudioState.plan.profiles || [];
@@ -4827,7 +4814,7 @@ const tabs = document.querySelectorAll(".tab");
                     if (/\b(chemistry|chemical science|chemical sciences)\b|\bchem(?:\b|\d)/.test(text)) {
                         return "chemistry";
                     }
-                    if (/\b(science|general science|steam)\b|\bsci(?:\b|\d)/.test(text)) {
+                    if (/\b(science|general science|steam)\b|\b(?:sci|sce)(?:\b|\d)/.test(text)) {
                         return "science";
                     }
                     if (/\b(ict|information communication technology|computer|computing|technology|coding|robotics)\b|\bcs(?:\b|\d)/.test(text)) {
@@ -4892,8 +4879,7 @@ const tabs = document.querySelectorAll(".tab");
                     items: normalizedItems,
                 };
             });
-            const generalScienceCoreItems = [];
-            const generalScienceIctItems = [];
+            const generalScienceItems = [];
             let generalScienceProfile = null;
             const scienceNormalizedProfiles = [];
             const ensureGeneralScienceProfile = () => {
@@ -4902,7 +4888,7 @@ const tabs = document.querySelectorAll(".tab");
                         id: "profile-general-science-pool",
                         name: "General Science Pool",
                         group_key: "general_science_pool",
-                        assignment_note: "Science, Biology, Chemistry, plus only fitting ICT remainder hours",
+                        assignment_note: "Science first, with Biology, Chemistry, and ICT merged into one pool",
                         accent_color: hiringPoolAccentByGroup.general_science_pool,
                         max_hours: 24,
                         block_size_hours: 24,
@@ -4918,10 +4904,8 @@ const tabs = document.querySelectorAll(".tab");
             rawNormProfiles.forEach((profile) => {
                 const retainedItems = [];
                 (profile.items || []).forEach((item) => {
-                    if (isGeneralScienceCoreFamily(item.family)) {
-                        generalScienceCoreItems.push(item);
-                    } else if (isIctFamily(item.family)) {
-                        generalScienceIctItems.push(item);
+                    if (isGeneralScienceFamily(item.family)) {
+                        generalScienceItems.push(item);
                     } else {
                         retainedItems.push(item);
                     }
@@ -4956,26 +4940,20 @@ const tabs = document.querySelectorAll(".tab");
                 if (normalizedItem.hours <= 0) {
                     return;
                 }
-                if (isGeneralScienceCoreFamily(normalizedItem.family)) {
-                    generalScienceCoreItems.push(normalizedItem);
-                } else if (isIctFamily(normalizedItem.family)) {
-                    generalScienceIctItems.push(normalizedItem);
+                if (isGeneralScienceFamily(normalizedItem.family)) {
+                    generalScienceItems.push(normalizedItem);
                 } else {
                     retainedUnassignedItems.push(normalizedItem);
                 }
             });
-            if (generalScienceCoreItems.length > 0) {
+            if (generalScienceItems.length > 0) {
                 const profileShell = ensureGeneralScienceProfile();
-                profileShell.items = [...generalScienceCoreItems, ...(profileShell.items || [])];
-                const coreHours = itemHoursTotal(generalScienceCoreItems);
-                const ictHours = itemHoursTotal(generalScienceIctItems);
-                if (shouldAutoAbsorbIctIntoGeneralScience(coreHours, ictHours)) {
-                    profileShell.items = [...(profileShell.items || []), ...generalScienceIctItems];
-                } else {
-                    retainedUnassignedItems.push(...generalScienceIctItems);
-                }
-            } else {
-                retainedUnassignedItems.push(...generalScienceIctItems);
+                const familyOrder = { science: 0, biology: 1, chemistry: 2, ict: 3 };
+                generalScienceItems.sort((a, b) => (
+                    (familyOrder[a.family] ?? 99) - (familyOrder[b.family] ?? 99)
+                    || String(a.subject_name || "").localeCompare(String(b.subject_name || ""))
+                ));
+                profileShell.items = [...generalScienceItems, ...(profileShell.items || [])];
             }
             // Deduplicate profiles that resolve to the same named pool.
             const seenGroupKeys = new Map();
@@ -5602,7 +5580,7 @@ const tabs = document.querySelectorAll(".tab");
                     profile.group_key = "general_science_pool";
                     profile.name = "General Science Pool";
                     profile.is_manual = false;
-                    profile.assignment_note = profile.assignment_note || "Science, Biology, Chemistry, plus only fitting ICT remainder hours";
+                    profile.assignment_note = profile.assignment_note || "Science first, with Biology, Chemistry, and ICT merged into one pool";
                 }
                 const totalHours = profileTotalHours(profile);
                 const blockSize = Math.max(1, Number(profile.block_size_hours || 24));
