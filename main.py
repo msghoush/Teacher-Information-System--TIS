@@ -100,7 +100,8 @@ def _get_positive_int_env(name: str, default: int) -> int:
 
 
 REPORT_STANDARD_MAX_HOURS = 24
-HIRING_PLAN_POOL_LOGIC_VERSION = 4
+# Version 5: enforce single General Science Pool (eliminates Science Pool / duplicate pools)
+HIRING_PLAN_POOL_LOGIC_VERSION = 5
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
