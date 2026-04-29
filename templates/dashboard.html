@@ -4634,10 +4634,6 @@ const tabs = document.querySelectorAll(".tab");
             reflection: "english_pool",
             performing_arts: "english_pool",
             art: "english_pool",
-            science: "general_science_pool",
-            biology: "general_science_pool",
-            chemistry: "general_science_pool",
-            ict: "general_science_pool",
             math: "math_pool",
             mental_math: "math_pool",
             physics: "math_pool",
@@ -4650,7 +4646,6 @@ const tabs = document.querySelectorAll(".tab");
         };
         const hiringAllowedFamiliesByGroup = {
             english_pool: new Set(["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"]),
-            general_science_pool: new Set(["science", "biology", "chemistry", "ict"]),
             math_pool: new Set(["math", "mental_math", "physics"]),
             arabic_pool: new Set(["arabic", "islamic", "quran", "social_arabic"]),
             physical_education: new Set(["pe"]),
@@ -4659,33 +4654,17 @@ const tabs = document.querySelectorAll(".tab");
             english_pool: "English Pool",
             arabic_pool: "Arabic Pool",
             math_pool: "Math Pool",
-            general_science_pool: "General Science Pool",
             physical_education: "Physical Education Pool",
         };
         const hiringPoolAccentByGroup = {
             english_pool: "#2563EB",
             arabic_pool: "#0F766E",
             math_pool: "#7C3AED",
-            general_science_pool: "#15803D",
             physical_education: "#EA580C",
         };
         const normalizeHiringGroupKey = (groupKey, family = "") => {
             const group = String(groupKey || "").trim().toLowerCase();
             const itemFamily = String(family || "").trim().toLowerCase();
-            // All science-related group key variants must collapse to a single General Science Pool.
-            if ([
-                "science", "science_pool", "science_ict", "single_science",
-                "general_science", "general_science_pool",
-                "biology", "single_biology",
-                "chemistry", "single_chemistry",
-                "general_science_teacher", "science_teacher",
-            ].includes(group)) {
-                return "general_science_pool";
-            }
-            // Also check by family: biology/chemistry families always → General Science Pool
-            if (["science", "biology", "chemistry", "ict"].includes(itemFamily)) {
-                return "general_science_pool";
-            }
             if (["math", "single_math", "single_mental_math", "single_physics"].includes(group)) {
                 return "math_pool";
             }
@@ -4776,27 +4755,11 @@ const tabs = document.querySelectorAll(".tab");
             const source = rawPlan || {};
             const profiles = Array.isArray(source.profiles) ? source.profiles : [];
             const unassigned = Array.isArray(source.unassigned_items) ? source.unassigned_items : [];
-            const scienceFamilies = new Set(["science", "biology", "chemistry", "ict"]);
-            const scienceFamilyPriority = {
-                science: 0,
-                biology: 1,
-                chemistry: 2,
-                ict: 3,
-            };
             const inferItemFamily = (item) => {
                 let family = String(item.family || "").trim().toLowerCase();
-                if (scienceFamilies.has(family)) {
-                    return family;
-                }
                 if (!family || family === "other") {
                     const text = `${String(item.subject_code || "")} ${String(item.subject_name || "")} ${String(item.subject_key || "")}`
                         .toLowerCase();
-                    if (/\b(science|general science|sci|biology|bio|chemistry|chem)\b/.test(text)) {
-                        return "science";
-                    }
-                    if (/\b(ict|information communication technology|computer|computing|technology|coding|robotics|cs)\b/.test(text)) {
-                        return "ict";
-                    }
                 }
                 return family;
             };
@@ -4859,7 +4822,6 @@ const tabs = document.querySelectorAll(".tab");
                     dedupedProfiles.push(profile);
                 }
             });
-            const sciencePoolItems = [];
             const normalizedProfiles = dedupedProfiles.map((profile) => {
                 const retainedItems = [];
                 (profile.items || []).forEach((item) => {
@@ -4868,11 +4830,7 @@ const tabs = document.querySelectorAll(".tab");
                         ...item,
                         family,
                     };
-                    if (scienceFamilies.has(family)) {
-                        sciencePoolItems.push(normalizedItem);
-                    } else {
-                        retainedItems.push(normalizedItem);
-                    }
+                    retainedItems.push(normalizedItem);
                 });
                 return {
                     ...profile,
@@ -4893,49 +4851,8 @@ const tabs = document.querySelectorAll(".tab");
                 if (normalizedItem.hours <= 0) {
                     return;
                 }
-                if (scienceFamilies.has(normalizedItem.family)) {
-                    sciencePoolItems.push(normalizedItem);
-                } else {
-                    normalizedUnassigned.push(normalizedItem);
-                }
+                normalizedUnassigned.push(normalizedItem);
             });
-            if (sciencePoolItems.length > 0) {
-                sciencePoolItems.sort((left, right) => {
-                    const leftPriority = scienceFamilyPriority[left.family] ?? 99;
-                    const rightPriority = scienceFamilyPriority[right.family] ?? 99;
-                    if (leftPriority !== rightPriority) {
-                        return leftPriority - rightPriority;
-                    }
-                    if (left.hours !== right.hours) {
-                        return right.hours - left.hours;
-                    }
-                    return left.subject_name.localeCompare(right.subject_name);
-                });
-                let scienceProfile = normalizedProfiles.find((profile) => profile.group_key === "general_science_pool");
-                if (!scienceProfile) {
-                    scienceProfile = {
-                        id: "general-science-pool",
-                        name: hiringPoolNamesByGroup.general_science_pool,
-                        group_key: "general_science_pool",
-                        assignment_note: "General Science priority pool",
-                        accent_color: hiringPoolAccentByGroup.general_science_pool,
-                        max_hours: 24,
-                        block_size_hours: 24,
-                        is_manual: false,
-                        allow_over_capacity: false,
-                        override_compatibility: false,
-                        items: [],
-                    };
-                    normalizedProfiles.push(scienceProfile);
-                }
-                scienceProfile.name = hiringPoolNamesByGroup.general_science_pool;
-                scienceProfile.group_key = "general_science_pool";
-                scienceProfile.accent_color = hiringPoolAccentByGroup.general_science_pool;
-                scienceProfile.items = [...(scienceProfile.items || []), ...sciencePoolItems];
-                scienceProfile.assignment_note = scienceProfile.items.some((item) => item.family === "ict")
-                    ? "ICT absorbed after General Science priority subjects"
-                    : "General Science priority pool";
-            }
             return {
                 profiles: normalizedProfiles,
                 unassigned_items: normalizedUnassigned,

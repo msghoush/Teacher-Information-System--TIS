@@ -142,10 +142,6 @@ HIRING_COMPATIBILITY_GROUPS = {
     "reflection": "english_pool",
     "performing_arts": "english_pool",
     "art": "english_pool",
-    "science": "general_science_pool",
-    "biology": "general_science_pool",
-    "chemistry": "general_science_pool",
-    "ict": "general_science_pool",
     "math": "math_pool",
     "mental_math": "math_pool",
     "physics": "math_pool",
@@ -159,19 +155,16 @@ HIRING_GROUP_LABELS = {
     "english_pool": "English Pool",
     "arabic_pool": "Arabic Pool",
     "math_pool": "Math Pool",
-    "general_science_pool": "General Science Pool",
     "physical_education": "Physical Education Pool",
 }
 HIRING_POOL_ACCENT_COLORS = {
     "english_pool": "#2563EB",
     "arabic_pool": "#0F766E",
     "math_pool": "#7C3AED",
-    "general_science_pool": "#15803D",
     "physical_education": "#EA580C",
 }
 HIRING_NAMED_POOL_KEYS = {
     "english_pool",
-    "general_science_pool",
     "math_pool",
     "arabic_pool",
     "physical_education",
@@ -179,7 +172,6 @@ HIRING_NAMED_POOL_KEYS = {
 HIRING_PROFILE_GROUP_LABEL_KEYS = HIRING_NAMED_POOL_KEYS
 HIRING_POOL_ALLOWED_FAMILIES = {
     "english_pool": {"english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"},
-    "general_science_pool": {"science", "biology", "chemistry", "ict"},
     "math_pool": {"math", "mental_math", "physics"},
     "arabic_pool": {"arabic", "islamic", "quran", "social_arabic"},
     "physical_education": {"pe"},
@@ -3219,15 +3211,6 @@ def _build_hiring_profile_reason(
 def _normalize_hiring_pool_group_key(group_key: str = "", family: str = "") -> str:
     normalized_group = str(group_key or "").strip().lower()
     normalized_family = str(family or "").strip().lower()
-    # All science-related group keys must map to a single General Science Pool.
-    if normalized_group in {
-        "science", "science_pool", "science_ict", "single_science",
-        "general_science", "general_science_pool",
-        "biology", "single_biology",
-        "chemistry", "single_chemistry",
-        "general_science_teacher", "science_teacher",
-    }:
-        return "general_science_pool"
     if normalized_group in {"math", "math_pool", "single_math", "single_mental_math", "single_physics"}:
         return "math_pool"
     if normalized_group in {"english", "english_humanities", "english_remainder", "single_english", "single_social_english", "single_social"}:
@@ -3237,9 +3220,6 @@ def _normalize_hiring_pool_group_key(group_key: str = "", family: str = "") -> s
     if normalized_group in {"pe", "student_life", "single_pe"}:
         return "physical_education"
 
-    # Normalize family into pool: biology and chemistry always go into General Science Pool
-    if normalized_family in {"science", "biology", "chemistry", "ict"}:
-        return "general_science_pool"
     if normalized_family in {"math", "mental_math", "physics"}:
         return "math_pool"
     if normalized_family in {"english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"}:
@@ -3269,11 +3249,6 @@ def _build_hiring_pool_reason(
         base_reason = (
             "English Pool keeps English first and groups Social Studies English, Well Being, Reflection, "
             "Performing Arts, and Art directly in the same pool."
-        )
-    elif group_key == "general_science_pool":
-        base_reason = (
-            "General Science Pool groups Science, Biology, and Chemistry as priority science coverage, "
-            "with ICT included as the secondary compatible subject."
         )
     elif group_key == "math_pool":
         base_reason = (
@@ -3468,11 +3443,6 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
                 profile["assignment_note"] = "English-first pool"
             else:
                 profile["assignment_note"] = "English Pool compatible subjects grouped together"
-        elif group_key == "general_science_pool":
-            if "ict" in coverage_families:
-                profile["assignment_note"] = "ICT absorbed after General Science priority subjects"
-            else:
-                profile["assignment_note"] = "General Science priority pool"
         elif group_key == "math_pool":
             if "physics" in coverage_families:
                 profile["assignment_note"] = "Physics grouped with Math"
@@ -3500,12 +3470,6 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         (
             "math_pool",
             ["math", "mental_math", "physics"],
-        ),
-        (
-            "general_science_pool",
-            # Include biology/chemistry explicitly so they are absorbed even if detection
-            # ever returns those families instead of the canonical "science" family.
-            ["science", "biology", "chemistry", "ict"],
         ),
         (
             "physical_education",
@@ -3590,11 +3554,6 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
                     existing_profile["coverage_items"]
                 )
                 coverage_families_now = {ci.get("family", "") for ci in existing_profile["coverage_items"]}
-                if pool_gk == "general_science_pool":
-                    if "ict" in coverage_families_now:
-                        existing_profile["assignment_note"] = "ICT absorbed after General Science priority subjects"
-                    else:
-                        existing_profile["assignment_note"] = "General Science priority pool"
             else:
                 profile = build_pool_profile(pool_gk, leftover_items)
                 if profile:
@@ -3853,90 +3812,6 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
                 "subject_color": str(raw_item.get("subject_color", "#0A4EA3") or "#0A4EA3"),
                 "hours": hours,
             }
-        )
-
-    science_families = {"science", "biology", "chemistry", "ict"}
-
-    def _infer_item_family(item: dict) -> str:
-        family = str(item.get("family", "") or "").strip().lower()
-        if family in science_families:
-            return family
-        if not family or family == "other":
-            detected = str(_detect_hiring_subject_family(item) or "").strip().lower()
-            if detected:
-                family = detected
-        if family in science_families:
-            return family
-
-        # Defensive fallback for legacy values that failed prior detection.
-        normalized_text = _normalize_subject_family_key(
-            f"{item.get('subject_code', '')} {item.get('subject_name', '')} {item.get('subject_key', '')}"
-        )
-        if re.search(r"\b(science|general science|sci|biology|bio|chemistry|chem)\b", normalized_text):
-            return "science"
-        if re.search(r"\b(ict|information communication technology|computer|computing|technology|coding|robotics|cs)\b", normalized_text):
-            return "ict"
-        return family
-    science_pool_items = []
-
-    for profile in profiles:
-        retained_items = []
-        for item in profile.get("items", []) or []:
-            family = _infer_item_family(item)
-            item["family"] = family
-            if family in science_families:
-                science_pool_items.append(item)
-            else:
-                retained_items.append(item)
-        profile["items"] = retained_items
-
-    retained_unassigned_items = []
-    for item in unassigned_items:
-        family = _infer_item_family(item)
-        item["family"] = family
-        if family in science_families:
-            science_pool_items.append(item)
-        else:
-            retained_unassigned_items.append(item)
-    unassigned_items = retained_unassigned_items
-
-    profiles = [profile for profile in profiles if profile.get("items")]
-
-    if science_pool_items:
-        science_pool_items.sort(
-            key=lambda item: (
-                HIRING_FAMILY_PRIORITY.get(item.get("family"), 99),
-                -int(item.get("hours", 0) or 0),
-                str(item.get("subject_name", "") or "").lower(),
-            )
-        )
-        science_profile = next(
-            (profile for profile in profiles if profile.get("group_key") == "general_science_pool"),
-            None,
-        )
-        if science_profile is None:
-            science_profile = {
-                "id": "general-science-pool",
-                "name": HIRING_GROUP_LABELS["general_science_pool"],
-                "group_key": "general_science_pool",
-                "assignment_note": "General Science priority pool",
-                "accent_color": HIRING_POOL_ACCENT_COLORS["general_science_pool"],
-                "max_hours": REPORT_STANDARD_MAX_HOURS,
-                "block_size_hours": REPORT_STANDARD_MAX_HOURS,
-                "is_manual": False,
-                "allow_over_capacity": False,
-                "override_compatibility": False,
-                "items": [],
-            }
-            profiles.append(science_profile)
-        science_profile["name"] = HIRING_GROUP_LABELS["general_science_pool"]
-        science_profile["group_key"] = "general_science_pool"
-        science_profile["accent_color"] = HIRING_POOL_ACCENT_COLORS["general_science_pool"]
-        science_profile["items"] = [*science_profile.get("items", []), *science_pool_items]
-        science_profile["assignment_note"] = (
-            "ICT absorbed after General Science priority subjects"
-            if any(item.get("family") == "ict" for item in science_profile["items"])
-            else "General Science priority pool"
         )
 
     return {
