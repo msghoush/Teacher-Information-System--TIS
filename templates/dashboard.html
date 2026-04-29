@@ -4585,24 +4585,14 @@ const tabs = document.querySelectorAll(".tab");
             quran: "arabic_pool",
             social_arabic: "arabic_pool",
             pe: "physical_education",
-            social: "social_humanities",
+            social: "english_pool",
         };
         const hiringAllowedFamiliesByGroup = {
-            english_pool: new Set(["english", "social_english", "wellbeing", "reflection", "performing_arts", "art"]),
-            english_humanities: new Set(["english", "social_english", "wellbeing", "reflection", "performing_arts", "art"]),
-            english_remainder: new Set(["social_english", "wellbeing", "reflection"]),
-            general_science_pool: new Set(["science", "ict", "art"]),
-            science_ict: new Set(["science", "ict", "art"]),
-            ict_remainder: new Set(["ict"]),
-            math_pool: new Set(["math", "mental_math", "physics", "art"]),
-            math: new Set(["math", "mental_math", "physics", "art"]),
+            english_pool: new Set(["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"]),
+            general_science_pool: new Set(["science", "ict"]),
+            math_pool: new Set(["math", "mental_math", "physics"]),
             arabic_pool: new Set(["arabic", "islamic", "quran", "social_arabic"]),
-            arabic_related: new Set(["arabic", "islamic", "quran", "social_arabic"]),
             physical_education: new Set(["pe"]),
-            social_humanities: new Set(["social"]),
-            wellbeing_reflection: new Set(["wellbeing", "reflection"]),
-            creative_arts: new Set(["performing_arts", "art"]),
-            student_life: new Set(["wellbeing", "reflection", "performing_arts", "art"]),
         };
         const hiringFamilyLabels = {
             english: "English",
@@ -4699,7 +4689,7 @@ const tabs = document.querySelectorAll(".tab");
             return {
                 profiles: profiles.map((profile, profileIndex) => ({
                     id: String(profile.id || `profile-${profileIndex + 1}`),
-                    name: String(profile.name || "Proposed Teacher Profile"),
+                    name: String(profile.name || "Proposed Pool"),
                     group_key: String(profile.group_key || ""),
                     assignment_note: String(profile.assignment_note || "Compatible pool grouping"),
                     accent_color: String(profile.accent_color || "#0A4EA3"),
@@ -5369,7 +5359,7 @@ const tabs = document.querySelectorAll(".tab");
                     if (locked) {
                         return;
                     }
-                    profile.name = nameInput.value || "Proposed Teacher Profile";
+                    profile.name = nameInput.value || "Proposed Pool";
                     renderWarnings();
                     scheduleHiringStudioAutoSave("Profile name updated.");
                 });
@@ -5493,7 +5483,7 @@ const tabs = document.querySelectorAll(".tab");
             const profileId = `profile-manual-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
             hiringStudioState.plan.profiles.push({
                 id: profileId,
-                name: "Manual Profile",
+                name: "Manual Pool",
                 group_key: "",
                 assignment_note: "Standalone profile required",
                 accent_color: "#0A4EA3",
