@@ -4635,6 +4635,8 @@ const tabs = document.querySelectorAll(".tab");
             performing_arts: "english_pool",
             art: "english_pool",
             science: "general_science_pool",
+            biology: "general_science_pool",
+            chemistry: "general_science_pool",
             ict: "general_science_pool",
             math: "math_pool",
             mental_math: "math_pool",
@@ -4648,7 +4650,7 @@ const tabs = document.querySelectorAll(".tab");
         };
         const hiringAllowedFamiliesByGroup = {
             english_pool: new Set(["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"]),
-            general_science_pool: new Set(["science", "ict"]),
+            general_science_pool: new Set(["science", "biology", "chemistry", "ict"]),
             math_pool: new Set(["math", "mental_math", "physics"]),
             arabic_pool: new Set(["arabic", "islamic", "quran", "social_arabic"]),
             physical_education: new Set(["pe"]),
@@ -4678,6 +4680,10 @@ const tabs = document.querySelectorAll(".tab");
                 "chemistry", "single_chemistry",
                 "general_science_teacher", "science_teacher",
             ].includes(group)) {
+                return "general_science_pool";
+            }
+            // Also check by family: biology/chemistry families always → General Science Pool
+            if (["science", "biology", "chemistry", "ict"].includes(itemFamily)) {
                 return "general_science_pool";
             }
             if (["math", "single_math", "single_mental_math", "single_physics"].includes(group)) {

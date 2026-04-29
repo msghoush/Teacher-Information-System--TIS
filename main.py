@@ -142,6 +142,8 @@ HIRING_COMPATIBILITY_GROUPS = {
     "performing_arts": "english_pool",
     "art": "english_pool",
     "science": "general_science_pool",
+    "biology": "general_science_pool",
+    "chemistry": "general_science_pool",
     "ict": "general_science_pool",
     "math": "math_pool",
     "mental_math": "math_pool",
@@ -176,7 +178,7 @@ HIRING_NAMED_POOL_KEYS = {
 HIRING_PROFILE_GROUP_LABEL_KEYS = HIRING_NAMED_POOL_KEYS
 HIRING_POOL_ALLOWED_FAMILIES = {
     "english_pool": {"english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"},
-    "general_science_pool": {"science", "ict"},
+    "general_science_pool": {"science", "biology", "chemistry", "ict"},
     "math_pool": {"math", "mental_math", "physics"},
     "arabic_pool": {"arabic", "islamic", "quran", "social_arabic"},
     "physical_education": {"pe"},
@@ -3234,7 +3236,8 @@ def _normalize_hiring_pool_group_key(group_key: str = "", family: str = "") -> s
     if normalized_group in {"pe", "student_life", "single_pe"}:
         return "physical_education"
 
-    if normalized_family in {"science", "ict"}:
+    # Normalize family into pool: biology and chemistry always go into General Science Pool
+    if normalized_family in {"science", "biology", "chemistry", "ict"}:
         return "general_science_pool"
     if normalized_family in {"math", "mental_math", "physics"}:
         return "math_pool"
@@ -3499,7 +3502,9 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         ),
         (
             "general_science_pool",
-            ["science", "ict"],
+            # Include biology/chemistry explicitly so they are absorbed even if detection
+            # ever returns those families instead of the canonical "science" family.
+            ["science", "biology", "chemistry", "ict"],
         ),
         (
             "physical_education",
