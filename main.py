@@ -145,6 +145,10 @@ HIRING_COMPATIBILITY_GROUPS = {
     "math": "math_pool",
     "mental_math": "math_pool",
     "physics": "math_pool",
+    "science": "science_pool",
+    "biology": "science_pool",
+    "chemistry": "science_pool",
+    "ict": "science_pool",
     "arabic": "arabic_pool",
     "islamic": "arabic_pool",
     "quran": "arabic_pool",
@@ -155,24 +159,28 @@ HIRING_GROUP_LABELS = {
     "english_pool": "English Pool",
     "arabic_pool": "Arabic Pool",
     "math_pool": "Math Pool",
+    "science_pool": "Science Pool",
     "physical_education": "Physical Education Pool",
 }
 HIRING_POOL_ACCENT_COLORS = {
     "english_pool": "#2563EB",
     "arabic_pool": "#0F766E",
     "math_pool": "#7C3AED",
+    "science_pool": "#1D4ED8",
     "physical_education": "#EA580C",
 }
 HIRING_NAMED_POOL_KEYS = {
     "english_pool",
     "math_pool",
     "arabic_pool",
+    "science_pool",
     "physical_education",
 }
 HIRING_PROFILE_GROUP_LABEL_KEYS = HIRING_NAMED_POOL_KEYS
 HIRING_POOL_ALLOWED_FAMILIES = {
     "english_pool": {"english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"},
     "math_pool": {"math", "mental_math", "physics"},
+    "science_pool": {"science", "biology", "chemistry", "ict"},
     "arabic_pool": {"arabic", "islamic", "quran", "social_arabic"},
     "physical_education": {"pe"},
 }
@@ -3213,6 +3221,16 @@ def _normalize_hiring_pool_group_key(group_key: str = "", family: str = "") -> s
     normalized_family = str(family or "").strip().lower()
     if normalized_group in {"math", "math_pool", "single_math", "single_mental_math", "single_physics"}:
         return "math_pool"
+    if normalized_group in {
+        "science",
+        "science_pool",
+        "general_science_pool",
+        "single_science",
+        "single_biology",
+        "single_chemistry",
+        "single_ict",
+    }:
+        return "science_pool"
     if normalized_group in {"english", "english_humanities", "english_remainder", "single_english", "single_social_english", "single_social"}:
         return "english_pool"
     if normalized_group in {"arabic", "arabic_related", "single_arabic", "single_islamic", "single_quran", "single_social_arabic"}:
@@ -3222,6 +3240,8 @@ def _normalize_hiring_pool_group_key(group_key: str = "", family: str = "") -> s
 
     if normalized_family in {"math", "mental_math", "physics"}:
         return "math_pool"
+    if normalized_family in {"science", "biology", "chemistry", "ict"}:
+        return "science_pool"
     if normalized_family in {"english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"}:
         return "english_pool"
     if normalized_family in {"arabic", "islamic", "quran", "social_arabic"}:
@@ -3254,6 +3274,10 @@ def _build_hiring_pool_reason(
         base_reason = (
             "Math Pool groups Mathematics / Math with Physics as compatible coverage."
         )
+    elif group_key == "science_pool":
+        base_reason = (
+            "Science Pool groups Science, Biology, Chemistry, and ICT as compatible STEM coverage."
+        )
     elif group_key == "physical_education":
         base_reason = (
             "Physical Education is kept in its own pool and is not merged with unrelated subjects."
@@ -3275,18 +3299,12 @@ def _build_hiring_pool_reason(
 
 
 def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> dict:
-    # Science families to exclude from recommended hiring plan
-    EXCLUDED_SCIENCE_FAMILIES = {"science", "biology", "chemistry", "ict"}
-    
     uncovered_items = []
     for row in report_subject_rows or []:
         remaining_hours = int(row.get("remaining_hours", 0) or 0)
         if remaining_hours <= 0:
             continue
         family = _detect_hiring_subject_family(row)
-        # Exclude science-related items from hiring plan
-        if family in EXCLUDED_SCIENCE_FAMILIES:
-            continue
         group_key = HIRING_COMPATIBILITY_GROUPS.get(family, f"single_{family}")
         uncovered_items.append(
             {
@@ -3454,6 +3472,8 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
                 profile["assignment_note"] = "Physics grouped with Math"
             else:
                 profile["assignment_note"] = "Math priority pool"
+        elif group_key == "science_pool":
+            profile["assignment_note"] = "Science + Biology + Chemistry + ICT combined in one pool"
         elif group_key == "arabic_pool":
             profile["assignment_note"] = "Arabic / identity-related pool"
         elif group_key == "physical_education":
@@ -3468,6 +3488,10 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         (
             "english_pool",
             ["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"],
+        ),
+        (
+            "science_pool",
+            ["science", "biology", "chemistry", "ict"],
         ),
         (
             "arabic_pool",
@@ -3505,8 +3529,8 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
 
     if remaining_other_items:
         remaining_other_items.sort(key=_get_hiring_subject_sort_key)
-        # Group remaining items: named-pool leftovers get merged into existing profiles;
-        # truly unrecognized items become their own standalone card.
+        # Group remaining items: named-pool leftovers get merged into existing profiles.
+        # Truly unrecognized items remain unallocated and will show in editor unassigned.
         named_pool_leftovers: dict[str, list[dict]] = {}
         truly_other_items: list[dict] = []
         for item in remaining_other_items:
@@ -3565,16 +3589,12 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
                 if profile:
                     profiles.append(profile)
 
-        for item in truly_other_items:
-            profile = build_pool_profile(
-                _normalize_hiring_pool_group_key(
-                    item.get("group_key", f"single_{item.get('family', 'other')}"),
-                    item.get("family", ""),
-                ),
-                [item],
+        if truly_other_items:
+            logging.info(
+                "Leaving %s item(s) (%sh) unassigned because no compatible named pool exists.",
+                len(truly_other_items),
+                sum(int(item.get("hours", 0) or 0) for item in truly_other_items),
             )
-            if profile:
-                profiles.append(profile)
 
     full_teacher_count = sum(int(profile.get("full_teacher_count", 0) or 0) for profile in profiles)
     partial_profile_count = sum(1 for profile in profiles if int(profile.get("remaining_hours", 0) or 0) > 0)

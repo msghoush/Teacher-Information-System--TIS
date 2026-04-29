@@ -3129,51 +3129,20 @@
             flex-wrap: nowrap;
         }
 
+        .hiring-unassigned-panel .hiring-hour-chip {
+            width: 100%;
+            box-sizing: border-box;
+            border-radius: 8px;
+            justify-content: space-between;
+            padding: 7px 9px;
+            font-size: 12px;
+        }
+
         .hiring-unassigned-panel .hiring-mini-row {
             align-items: flex-start;
             gap: 4px;
             flex-wrap: wrap;
             font-size: 10px;
-        }
-
-        .hiring-unassigned-subject-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: #fff;
-            border: 1px solid #e2ecfa;
-            border-radius: 8px;
-            padding: 7px 10px;
-            width: 100%;
-            box-sizing: border-box;
-        }
-
-        .hiring-unassigned-subject-row .subject-color-dot {
-            flex-shrink: 0;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-        }
-
-        .hiring-unassigned-subject-row .subject-label {
-            flex: 1;
-            font-size: 12px;
-            font-weight: 600;
-            color: #17365d;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .hiring-unassigned-subject-row .subject-hours-badge {
-            flex-shrink: 0;
-            font-size: 11px;
-            font-weight: 700;
-            color: #0a4ea3;
-            background: #e8f0fb;
-            border: 1px solid #c8d9f5;
-            border-radius: 999px;
-            padding: 2px 8px;
         }
 
         .hiring-mini-row {
@@ -4680,6 +4649,10 @@ const tabs = document.querySelectorAll(".tab");
             math: "math_pool",
             mental_math: "math_pool",
             physics: "math_pool",
+            science: "science_pool",
+            biology: "science_pool",
+            chemistry: "science_pool",
+            ict: "science_pool",
             arabic: "arabic_pool",
             islamic: "arabic_pool",
             quran: "arabic_pool",
@@ -4690,6 +4663,7 @@ const tabs = document.querySelectorAll(".tab");
         const hiringAllowedFamiliesByGroup = {
             english_pool: new Set(["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"]),
             math_pool: new Set(["math", "mental_math", "physics"]),
+            science_pool: new Set(["science", "biology", "chemistry", "ict"]),
             arabic_pool: new Set(["arabic", "islamic", "quran", "social_arabic"]),
             physical_education: new Set(["pe"]),
         };
@@ -4697,12 +4671,14 @@ const tabs = document.querySelectorAll(".tab");
             english_pool: "English Pool",
             arabic_pool: "Arabic Pool",
             math_pool: "Math Pool",
+            science_pool: "Science Pool",
             physical_education: "Physical Education Pool",
         };
         const hiringPoolAccentByGroup = {
             english_pool: "#2563EB",
             arabic_pool: "#0F766E",
             math_pool: "#7C3AED",
+            science_pool: "#1D4ED8",
             physical_education: "#EA580C",
         };
         const normalizeHiringGroupKey = (groupKey, family = "") => {
@@ -4710,6 +4686,9 @@ const tabs = document.querySelectorAll(".tab");
             const itemFamily = String(family || "").trim().toLowerCase();
             if (["math", "single_math", "single_mental_math", "single_physics"].includes(group)) {
                 return "math_pool";
+            }
+            if (["science", "science_pool", "general_science_pool", "single_science", "single_biology", "single_chemistry", "single_ict"].includes(group)) {
+                return "science_pool";
             }
             if (["english", "english_humanities", "english_remainder", "single_english", "single_social_english", "single_social"].includes(group)) {
                 return "english_pool";
@@ -4798,7 +4777,6 @@ const tabs = document.querySelectorAll(".tab");
             const source = rawPlan || {};
             const profiles = Array.isArray(source.profiles) ? source.profiles : [];
             const unassigned = Array.isArray(source.unassigned_items) ? source.unassigned_items : [];
-            const EXCLUDED_SCIENCE_FAMILIES = new Set(["science", "biology", "chemistry", "ict"]);
             const inferItemFamily = (item) => {
                 let family = String(item.family || "").trim().toLowerCase();
                 if (!family || family === "other") {
@@ -4870,10 +4848,6 @@ const tabs = document.querySelectorAll(".tab");
                 const retainedItems = [];
                 (profile.items || []).forEach((item) => {
                     const family = inferItemFamily(item);
-                    // Exclude science-related items
-                    if (EXCLUDED_SCIENCE_FAMILIES.has(family)) {
-                        return;
-                    }
                     const normalizedItem = {
                         ...item,
                         family,
@@ -4897,10 +4871,6 @@ const tabs = document.querySelectorAll(".tab");
                     hours: Number(item.hours || 0),
                 };
                 if (normalizedItem.hours <= 0) {
-                    return;
-                }
-                // Exclude science-related items
-                if (EXCLUDED_SCIENCE_FAMILIES.has(normalizedItem.family)) {
                     return;
                 }
                 normalizedUnassigned.push(normalizedItem);
@@ -5620,50 +5590,6 @@ const tabs = document.querySelectorAll(".tab");
                 hiringStudioProfiles.appendChild(card);
             });
 
-            // Add unassigned remaining card to the profiles grid (always shown)
-            const unassignedTotal = (hiringStudioState.plan.unassigned_items || []).reduce((sum, item) => sum + Number(item.hours || 0), 0);
-            {
-                const unassignedCard = document.createElement("article");
-                unassignedCard.className = "report-hiring-profile is-unassigned-card";
-                unassignedCard.style.setProperty("--studio-accent", "#9CA3AF");
-                unassignedCard.style.setProperty("--plan-accent", "#9CA3AF");
-                unassignedCard.innerHTML = `
-                    <div class="hiring-profile-headline">
-                        <div class="report-hiring-profile-head" style="width:100%;">
-                            <div class="hiring-profile-title-row">
-                                <span class="hiring-profile-name-label">Unassigned Remaining Hours</span>
-                            </div>
-                            <div class="report-hiring-profile-meta">
-                                <span class="report-hiring-chip">${(hiringStudioState.plan.unassigned_items || []).length} item${(hiringStudioState.plan.unassigned_items || []).length === 1 ? "" : "s"}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="hiring-profile-body">
-                        <div class="report-hiring-summary-grid">
-                            <div class="report-hiring-stat">
-                                <span>Unassigned Hours</span>
-                                <strong>${unassignedTotal}h</strong>
-                            </div>
-                            <div class="report-hiring-stat">
-                                <span>Need Assignment</span>
-                                <strong>Pending</strong>
-                            </div>
-                        </div>
-                        <div class="report-hiring-reason">Remaining hours waiting to be assigned to profiles or manually placed.</div>
-                        <div class="hiring-chip-dropzone" data-drop-target="unassigned-inline"></div>
-                    </div>
-                `;
-                
-                const dropZone = unassignedCard.querySelector(".hiring-chip-dropzone");
-                dropZone?.classList.toggle("is-locked", locked);
-                attachDropBehavior(dropZone, "unassigned", "unassigned");
-                (hiringStudioState.plan.unassigned_items || []).forEach((chip) => {
-                    dropZone.appendChild(buildChip(chip, "unassigned", "unassigned"));
-                });
-
-                hiringStudioProfiles.appendChild(unassignedCard);
-            }
-
             hiringStudioUnassigned.innerHTML = "";
             hiringStudioUnassigned.classList.toggle("is-locked", locked);
             attachDropBehavior(hiringStudioUnassigned, "unassigned", "unassigned");
@@ -5675,14 +5601,7 @@ const tabs = document.querySelectorAll(".tab");
                 hiringStudioUnassigned.appendChild(emptyMsg);
             } else {
                 unassignedItems.forEach((chip) => {
-                    const row = document.createElement("div");
-                    row.className = "hiring-unassigned-subject-row";
-                    row.innerHTML = `
-                        <span class="subject-color-dot" style="background:${chip.subject_color || '#0A4EA3'};"></span>
-                        <span class="subject-label" title="${chip.subject_name}">${chip.subject_name}</span>
-                        <span class="subject-hours-badge">${chip.hours}h</span>
-                    `;
-                    hiringStudioUnassigned.appendChild(row);
+                    hiringStudioUnassigned.appendChild(buildChip(chip, "unassigned", "unassigned"));
                 });
             }
 
