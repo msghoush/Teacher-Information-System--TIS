@@ -100,9 +100,9 @@ def _get_positive_int_env(name: str, default: int) -> int:
 
 
 REPORT_STANDARD_MAX_HOURS = 24
-# Version 10: removed General Science Pool; science, biology, chemistry, and ICT
-# subjects now appear as standalone specialist profiles in the hiring plan.
-HIRING_PLAN_POOL_LOGIC_VERSION = 10
+# Version 11: reinstated Science Pool grouping Science, Biology, and Chemistry;
+# ICT is absorbed as secondary to fill remaining capacity in the Science Pool block.
+HIRING_PLAN_POOL_LOGIC_VERSION = 11
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
@@ -149,24 +149,28 @@ HIRING_COMPATIBILITY_GROUPS = {
     "islamic": "arabic_pool",
     "quran": "arabic_pool",
     "social_arabic": "arabic_pool",
+    "science": "science_pool",
     "pe": "physical_education",
 }
 HIRING_GROUP_LABELS = {
     "english_pool": "English Pool",
     "arabic_pool": "Arabic Pool",
     "math_pool": "Math Pool",
+    "science_pool": "Science Pool",
     "physical_education": "Physical Education Pool",
 }
 HIRING_POOL_ACCENT_COLORS = {
     "english_pool": "#2563EB",
     "arabic_pool": "#0F766E",
     "math_pool": "#7C3AED",
+    "science_pool": "#059669",
     "physical_education": "#EA580C",
 }
 HIRING_NAMED_POOL_KEYS = {
     "english_pool",
     "math_pool",
     "arabic_pool",
+    "science_pool",
     "physical_education",
 }
 HIRING_PROFILE_GROUP_LABEL_KEYS = HIRING_NAMED_POOL_KEYS
@@ -174,6 +178,7 @@ HIRING_POOL_ALLOWED_FAMILIES = {
     "english_pool": {"english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"},
     "math_pool": {"math", "mental_math", "physics"},
     "arabic_pool": {"arabic", "islamic", "quran", "social_arabic"},
+    "science_pool": {"science", "ict"},
     "physical_education": {"pe"},
 }
 HIRING_FAMILY_LABELS = {
@@ -3217,6 +3222,8 @@ def _normalize_hiring_pool_group_key(group_key: str = "", family: str = "") -> s
         return "english_pool"
     if normalized_group in {"arabic", "arabic_related", "single_arabic", "single_islamic", "single_quran", "single_social_arabic"}:
         return "arabic_pool"
+    if normalized_group in {"science", "science_pool", "single_science", "single_ict"}:
+        return "science_pool"
     if normalized_group in {"pe", "student_life", "single_pe"}:
         return "physical_education"
 
@@ -3226,6 +3233,8 @@ def _normalize_hiring_pool_group_key(group_key: str = "", family: str = "") -> s
         return "english_pool"
     if normalized_family in {"arabic", "islamic", "quran", "social_arabic"}:
         return "arabic_pool"
+    if normalized_family in {"science", "ict"}:
+        return "science_pool"
     if normalized_family == "pe":
         return "physical_education"
 
@@ -3253,6 +3262,11 @@ def _build_hiring_pool_reason(
     elif group_key == "math_pool":
         base_reason = (
             "Math Pool groups Mathematics / Math with Physics as compatible coverage."
+        )
+    elif group_key == "science_pool":
+        base_reason = (
+            "Science Pool groups Science, Biology, and Chemistry as compatible coverage. "
+            "ICT hours are absorbed as secondary to fill any remaining capacity within the pool block."
         )
     elif group_key == "physical_education":
         base_reason = (
@@ -3450,6 +3464,11 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
                 profile["assignment_note"] = "Math priority pool"
         elif group_key == "arabic_pool":
             profile["assignment_note"] = "Arabic / identity-related pool"
+        elif group_key == "science_pool":
+            if "ict" in coverage_families:
+                profile["assignment_note"] = "Science pool with ICT as secondary absorption"
+            else:
+                profile["assignment_note"] = "Science / Biology / Chemistry specialist pool"
         elif group_key == "physical_education":
             profile["assignment_note"] = "Separate Physical Education pool"
         else:
@@ -3472,6 +3491,10 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
             ["math", "mental_math", "physics"],
         ),
         (
+            "science_pool",
+            ["science"],
+        ),
+        (
             "physical_education",
             ["pe"],
         ),
@@ -3482,6 +3505,49 @@ def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> di
         profile = build_pool_profile(group_key, pool_items)
         if profile:
             profiles.append(profile)
+
+    # ICT secondary absorption: absorb ICT hours into the Science Pool only to fill
+    # the remaining capacity needed to complete the next 24-hour teacher block.
+    science_profile = next((p for p in profiles if p.get("group_key") == "science_pool"), None)
+    if science_profile is not None:
+        science_remainder = int(science_profile.get("remaining_hours", 0) or 0)
+        if science_remainder > 0:
+            ict_gap = REPORT_STANDARD_MAX_HOURS - science_remainder
+            ict_secondary_items = consume_family_hours("ict", ict_gap)
+            if ict_secondary_items:
+                for ict_item in ict_secondary_items:
+                    item_hours = int(ict_item.get("hours", 0) or 0)
+                    if item_hours <= 0:
+                        continue
+                    science_profile["coverage_items"].append({**ict_item, "hours": item_hours})
+                    science_profile["total_hours"] = science_profile.get("total_hours", 0) + item_hours
+                    science_profile["group_total_hours"] = science_profile["total_hours"]
+                    if "ict" not in science_profile.get("unique_families", []):
+                        science_profile.setdefault("unique_families", []).append("ict")
+                # Recalculate derived fields after ICT absorption
+                total = science_profile["total_hours"]
+                full_count = total // REPORT_STANDARD_MAX_HOURS
+                rem = total % REPORT_STANDARD_MAX_HOURS
+                science_profile["full_teacher_count"] = full_count
+                science_profile["teacher_count"] = full_count
+                science_profile["remaining_hours"] = rem
+                science_profile["is_full_load"] = full_count > 0
+                cap = max(
+                    REPORT_STANDARD_MAX_HOURS,
+                    full_count * REPORT_STANDARD_MAX_HOURS if rem == 0
+                    else (full_count + 1) * REPORT_STANDARD_MAX_HOURS,
+                )
+                science_profile["capacity_hours"] = cap
+                science_profile["remaining_capacity_hours"] = (
+                    REPORT_STANDARD_MAX_HOURS - rem if rem > 0 else 0
+                )
+                science_profile["coverage_label"] = _build_hiring_coverage_label(
+                    science_profile["coverage_items"]
+                )
+                science_profile["progress_width_pct"] = (
+                    round((rem / REPORT_STANDARD_MAX_HOURS) * 100, 1) if rem > 0 else 100.0
+                )
+                science_profile["assignment_note"] = "Science pool with ICT as secondary absorption"
 
     remaining_other_items = []
     for family, items in family_buckets.items():
