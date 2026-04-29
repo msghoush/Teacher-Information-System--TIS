@@ -3113,17 +3113,20 @@
             border: 1px solid #dce8fa;
             border-radius: 8px;
             background: #f9fbff;
-            padding: 6px;
+            padding: 10px;
             display: grid;
-            gap: 6px;
+            gap: 8px;
             align-content: start;
-            max-width: 220px;
+            max-width: 260px;
         }
 
         .hiring-unassigned-panel .hiring-chip-dropzone {
-            min-height: 34px;
-            padding: 5px;
-            gap: 5px;
+            min-height: 60px;
+            padding: 6px;
+            gap: 6px;
+            display: flex;
+            flex-direction: column;
+            flex-wrap: nowrap;
         }
 
         .hiring-unassigned-panel .hiring-mini-row {
@@ -3131,6 +3134,46 @@
             gap: 4px;
             flex-wrap: wrap;
             font-size: 10px;
+        }
+
+        .hiring-unassigned-subject-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #fff;
+            border: 1px solid #e2ecfa;
+            border-radius: 8px;
+            padding: 7px 10px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .hiring-unassigned-subject-row .subject-color-dot {
+            flex-shrink: 0;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .hiring-unassigned-subject-row .subject-label {
+            flex: 1;
+            font-size: 12px;
+            font-weight: 600;
+            color: #17365d;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .hiring-unassigned-subject-row .subject-hours-badge {
+            flex-shrink: 0;
+            font-size: 11px;
+            font-weight: 700;
+            color: #0a4ea3;
+            background: #e8f0fb;
+            border: 1px solid #c8d9f5;
+            border-radius: 999px;
+            padding: 2px 8px;
         }
 
         .hiring-mini-row {
@@ -5577,9 +5620,9 @@ const tabs = document.querySelectorAll(".tab");
                 hiringStudioProfiles.appendChild(card);
             });
 
-            // Add unassigned remaining card to the profiles grid
+            // Add unassigned remaining card to the profiles grid (always shown)
             const unassignedTotal = (hiringStudioState.plan.unassigned_items || []).reduce((sum, item) => sum + Number(item.hours || 0), 0);
-            if (unassignedTotal > 0) {
+            {
                 const unassignedCard = document.createElement("article");
                 unassignedCard.className = "report-hiring-profile is-unassigned-card";
                 unassignedCard.style.setProperty("--studio-accent", "#9CA3AF");
@@ -5624,11 +5667,26 @@ const tabs = document.querySelectorAll(".tab");
             hiringStudioUnassigned.innerHTML = "";
             hiringStudioUnassigned.classList.toggle("is-locked", locked);
             attachDropBehavior(hiringStudioUnassigned, "unassigned", "unassigned");
-            (hiringStudioState.plan.unassigned_items || []).forEach((chip) => {
-                hiringStudioUnassigned.appendChild(buildChip(chip, "unassigned", "unassigned"));
-            });
+            const unassignedItems = hiringStudioState.plan.unassigned_items || [];
+            if (unassignedItems.length === 0) {
+                const emptyMsg = document.createElement("span");
+                emptyMsg.style.cssText = "font-size:11px;color:#9ca3af;padding:4px 2px;";
+                emptyMsg.textContent = "No unassigned hours.";
+                hiringStudioUnassigned.appendChild(emptyMsg);
+            } else {
+                unassignedItems.forEach((chip) => {
+                    const row = document.createElement("div");
+                    row.className = "hiring-unassigned-subject-row";
+                    row.innerHTML = `
+                        <span class="subject-color-dot" style="background:${chip.subject_color || '#0A4EA3'};"></span>
+                        <span class="subject-label" title="${chip.subject_name}">${chip.subject_name}</span>
+                        <span class="subject-hours-badge">${chip.hours}h</span>
+                    `;
+                    hiringStudioUnassigned.appendChild(row);
+                });
+            }
 
-            const unassignedTotal2 = (hiringStudioState.plan.unassigned_items || []).reduce((sum, item) => sum + Number(item.hours || 0), 0);
+            const unassignedTotal2 = unassignedItems.reduce((sum, item) => sum + Number(item.hours || 0), 0);
             if (hiringStudioUnassignedTotal) {
                 hiringStudioUnassignedTotal.textContent = `${unassignedTotal2}h`;
             }
