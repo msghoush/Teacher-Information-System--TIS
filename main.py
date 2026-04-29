@@ -8248,6 +8248,12 @@ def _ensure_teachers_table_columns():
                     "ALTER TABLE teachers ADD COLUMN national_section_hours INTEGER DEFAULT 0"
                 )
             )
+        if "is_new_teacher" not in existing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE teachers ADD COLUMN is_new_teacher BOOLEAN DEFAULT FALSE"
+                )
+            )
         if teacher_id_column and teacher_id_length and teacher_id_length < 10:
             if db_dialect == "postgresql":
                 connection.execute(
@@ -8276,6 +8282,13 @@ def _ensure_teachers_table_columns():
                 "UPDATE teachers "
                 "SET national_section_hours = 0 "
                 "WHERE national_section_hours IS NULL"
+            )
+        )
+        connection.execute(
+            text(
+                "UPDATE teachers "
+                "SET is_new_teacher = FALSE "
+                "WHERE is_new_teacher IS NULL"
             )
         )
 

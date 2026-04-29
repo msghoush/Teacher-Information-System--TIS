@@ -1688,6 +1688,12 @@
                         Teaches In National Section
                     </label>
                 </div>
+                <div class="field field-wide">
+                    <label class="toggle-row" for="is_new_teacher">
+                        <input id="is_new_teacher" type="checkbox" name="is_new_teacher" value="on" {% if teacher.is_new_teacher %}checked{% endif %}>
+                        New Teacher
+                    </label>
+                </div>
                 <div class="field field-wide{% if not teacher.teaches_national_section %} is-hidden{% endif %}" id="nationalSectionHoursField">
                     <label for="national_section_hours">National Section Hours</label>
                     <input id="national_section_hours" type="number" name="national_section_hours" min="1" value="{{ teacher.national_section_hours if teacher.national_section_hours else 1 }}">

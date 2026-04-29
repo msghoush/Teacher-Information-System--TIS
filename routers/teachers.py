@@ -971,6 +971,7 @@ def _render_teachers_page(
         "extra_hours_count": "",
         "teaches_national_section": False,
         "national_section_hours": "1",
+        "is_new_teacher": False,
     }
     if form_data:
         normalized_form_data.update(form_data)
@@ -1417,6 +1418,7 @@ def copy_teachers_from_year(
                     source_teacher.teaches_national_section
                 ),
                 national_section_hours=source_teacher.national_section_hours or 0,
+                is_new_teacher=bool(getattr(source_teacher, "is_new_teacher", False)),
                 branch_id=branch_id,
                 academic_year_id=target_academic_year_id,
             )
@@ -1581,6 +1583,7 @@ def create_teacher(
     extra_hours_count: str = Form("0"),
     teaches_national_section: str = Form(""),
     national_section_hours: str = Form("0"),
+    is_new_teacher: str = Form(""),
     db: Session = Depends(get_db),
 ):
     current_user = get_current_user(request, db)
@@ -1629,6 +1632,7 @@ def create_teacher(
         teaches_national_section
     )
     parsed_national_section_hours = _parse_int(national_section_hours)
+    is_new_teacher_enabled = _is_extra_hours_allowed(is_new_teacher)
     branch_id, academic_year_id = _get_scope_ids(current_user)
 
     errors = []
@@ -1806,6 +1810,7 @@ def create_teacher(
                     if parsed_national_section_hours is not None
                     else 1
                 ),
+                "is_new_teacher": is_new_teacher_enabled,
             },
             selected_subject_codes=normalized_subject_codes,
             selected_section_assignment_values=normalized_section_assignment_values,
@@ -1833,6 +1838,7 @@ def create_teacher(
             if parsed_national_section_hours is not None
             else 0
         ),
+        is_new_teacher=is_new_teacher_enabled,
         branch_id=branch_id,
         academic_year_id=academic_year_id,
     )
@@ -1888,6 +1894,7 @@ def create_teacher(
                     if parsed_national_section_hours is not None
                     else 1
                 ),
+                "is_new_teacher": is_new_teacher_enabled,
             },
             selected_subject_codes=normalized_subject_codes,
             selected_section_assignment_values=normalized_section_assignment_values,
@@ -1950,6 +1957,7 @@ def update_teacher(
     extra_hours_count: str = Form("0"),
     teaches_national_section: str = Form(""),
     national_section_hours: str = Form("0"),
+    is_new_teacher: str = Form(""),
     db: Session = Depends(get_db),
 ):
     current_user = get_current_user(request, db)
@@ -2002,6 +2010,7 @@ def update_teacher(
         teaches_national_section
     )
     parsed_national_section_hours = _parse_int(national_section_hours)
+    is_new_teacher_enabled = _is_extra_hours_allowed(is_new_teacher)
 
     errors = []
     if not TEACHER_ID_PATTERN.match(teacher_id):
@@ -2186,6 +2195,7 @@ def update_teacher(
                 if parsed_national_section_hours is not None
                 else 0
             ),
+            is_new_teacher=is_new_teacher_enabled,
         )
         return _render_edit_teacher_page(
             request=request,
@@ -2219,6 +2229,7 @@ def update_teacher(
         if parsed_national_section_hours is not None
         else 0
     )
+    teacher.is_new_teacher = is_new_teacher_enabled
 
     try:
         db.query(models.TeacherSectionAssignment).filter(

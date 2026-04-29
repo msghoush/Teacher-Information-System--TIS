@@ -108,6 +108,7 @@ class Teacher(Base):
     extra_hours_count = Column(Integer, default=0)
     teaches_national_section = Column(Boolean, default=False)
     national_section_hours = Column(Integer, default=0)
+    is_new_teacher = Column(Boolean, default=False)
     branch_id = Column(Integer, ForeignKey("branches.id"))
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
 

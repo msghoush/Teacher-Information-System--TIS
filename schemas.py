@@ -21,5 +21,6 @@ class TeacherCreate(BaseModel):
     extra_hours_count: int = 0
     teaches_national_section: bool = False
     national_section_hours: int = 0
+    is_new_teacher: bool = False
     branch_id: int
     academic_year_id: int

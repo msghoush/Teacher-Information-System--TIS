@@ -1821,6 +1821,21 @@
             line-height: 1.3;
         }
 
+        .teacher-status-badge {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid #bfd4f3;
+            background: #edf4ff;
+            color: #1e4d86;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
         .assigned-list {
             margin: 0;
             padding: 0;
@@ -2577,6 +2592,12 @@
                                 Teaches In National Section
                             </label>
                         </div>
+                        <div class="field field-wide">
+                            <label class="toggle-row" for="is_new_teacher">
+                                <input id="is_new_teacher" type="checkbox" name="is_new_teacher" value="on" {% if form_data.is_new_teacher %}checked{% endif %}>
+                                New Teacher
+                            </label>
+                        </div>
                         <div class="field field-wide is-hidden" id="nationalSectionHoursField">
                             <label for="national_section_hours">National Section Hours</label>
                             <input id="national_section_hours" type="number" name="national_section_hours" min="1" value="{{ form_data.national_section_hours }}">
@@ -2646,6 +2667,9 @@
                                     <div class="teacher-identity">
                                         {% set qualification_data = teacher_qualification_map.get(teacher.id, {}) %}
                                         <strong>{{ teacher.first_name }}{% if teacher.middle_name %} {{ teacher.middle_name }}{% endif %} {{ teacher.last_name }}</strong>
+                                        {% if teacher.is_new_teacher %}
+                                        <span class="teacher-status-badge">New Teacher</span>
+                                        {% endif %}
                                         <span>ID {{ teacher.teacher_id }}</span>
                                         <span>Qualifications {{ qualification_data.get("summary") or "Not set" }}</span>
                                     </div>
@@ -2839,6 +2863,9 @@
                                         <span class="hours-status-chip {% if within_capacity %}is-good{% else %}is-danger{% endif %}">
                                             {{ "Within Capacity" if within_capacity else "Over Capacity" }}
                                         </span>
+                                        {% if teacher.is_new_teacher %}
+                                        <span class="teacher-status-badge">New Teacher</span>
+                                        {% endif %}
                                         <span class="hours-status-note">Base max: {{ teacher.max_hours or 24 }}h</span>
                                         <span class="hours-status-note">Extra hours: {{ extra_hours }}h {{ "enabled" if teacher.extra_hours_allowed else "disabled" }}</span>
                                     </div>
