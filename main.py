@@ -3275,12 +3275,18 @@ def _build_hiring_pool_reason(
 
 
 def _build_hiring_coverage_recommendation(report_subject_rows: list[dict]) -> dict:
+    # Science families to exclude from recommended hiring plan
+    EXCLUDED_SCIENCE_FAMILIES = {"science", "biology", "chemistry", "ict"}
+    
     uncovered_items = []
     for row in report_subject_rows or []:
         remaining_hours = int(row.get("remaining_hours", 0) or 0)
         if remaining_hours <= 0:
             continue
         family = _detect_hiring_subject_family(row)
+        # Exclude science-related items from hiring plan
+        if family in EXCLUDED_SCIENCE_FAMILIES:
+            continue
         group_key = HIRING_COMPATIBILITY_GROUPS.get(family, f"single_{family}")
         uncovered_items.append(
             {

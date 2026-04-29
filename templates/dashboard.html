@@ -4755,6 +4755,7 @@ const tabs = document.querySelectorAll(".tab");
             const source = rawPlan || {};
             const profiles = Array.isArray(source.profiles) ? source.profiles : [];
             const unassigned = Array.isArray(source.unassigned_items) ? source.unassigned_items : [];
+            const EXCLUDED_SCIENCE_FAMILIES = new Set(["science", "biology", "chemistry", "ict"]);
             const inferItemFamily = (item) => {
                 let family = String(item.family || "").trim().toLowerCase();
                 if (!family || family === "other") {
@@ -4826,6 +4827,10 @@ const tabs = document.querySelectorAll(".tab");
                 const retainedItems = [];
                 (profile.items || []).forEach((item) => {
                     const family = inferItemFamily(item);
+                    // Exclude science-related items
+                    if (EXCLUDED_SCIENCE_FAMILIES.has(family)) {
+                        return;
+                    }
                     const normalizedItem = {
                         ...item,
                         family,
@@ -4849,6 +4854,10 @@ const tabs = document.querySelectorAll(".tab");
                     hours: Number(item.hours || 0),
                 };
                 if (normalizedItem.hours <= 0) {
+                    return;
+                }
+                // Exclude science-related items
+                if (EXCLUDED_SCIENCE_FAMILIES.has(normalizedItem.family)) {
                     return;
                 }
                 normalizedUnassigned.push(normalizedItem);
