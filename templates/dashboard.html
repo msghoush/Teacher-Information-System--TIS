@@ -5577,6 +5577,50 @@ const tabs = document.querySelectorAll(".tab");
                 hiringStudioProfiles.appendChild(card);
             });
 
+            // Add unassigned remaining card to the profiles grid
+            const unassignedTotal = (hiringStudioState.plan.unassigned_items || []).reduce((sum, item) => sum + Number(item.hours || 0), 0);
+            if (unassignedTotal > 0) {
+                const unassignedCard = document.createElement("article");
+                unassignedCard.className = "report-hiring-profile is-unassigned-card";
+                unassignedCard.style.setProperty("--studio-accent", "#9CA3AF");
+                unassignedCard.style.setProperty("--plan-accent", "#9CA3AF");
+                unassignedCard.innerHTML = `
+                    <div class="hiring-profile-headline">
+                        <div class="report-hiring-profile-head" style="width:100%;">
+                            <div class="hiring-profile-title-row">
+                                <span class="hiring-profile-name-label">Unassigned Remaining Hours</span>
+                            </div>
+                            <div class="report-hiring-profile-meta">
+                                <span class="report-hiring-chip">${(hiringStudioState.plan.unassigned_items || []).length} item${(hiringStudioState.plan.unassigned_items || []).length === 1 ? "" : "s"}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hiring-profile-body">
+                        <div class="report-hiring-summary-grid">
+                            <div class="report-hiring-stat">
+                                <span>Unassigned Hours</span>
+                                <strong>${unassignedTotal}h</strong>
+                            </div>
+                            <div class="report-hiring-stat">
+                                <span>Need Assignment</span>
+                                <strong>Pending</strong>
+                            </div>
+                        </div>
+                        <div class="report-hiring-reason">Remaining hours waiting to be assigned to profiles or manually placed.</div>
+                        <div class="hiring-chip-dropzone" data-drop-target="unassigned-inline"></div>
+                    </div>
+                `;
+                
+                const dropZone = unassignedCard.querySelector(".hiring-chip-dropzone");
+                dropZone?.classList.toggle("is-locked", locked);
+                attachDropBehavior(dropZone, "unassigned", "unassigned");
+                (hiringStudioState.plan.unassigned_items || []).forEach((chip) => {
+                    dropZone.appendChild(buildChip(chip, "unassigned", "unassigned"));
+                });
+
+                hiringStudioProfiles.appendChild(unassignedCard);
+            }
+
             hiringStudioUnassigned.innerHTML = "";
             hiringStudioUnassigned.classList.toggle("is-locked", locked);
             attachDropBehavior(hiringStudioUnassigned, "unassigned", "unassigned");
@@ -5584,9 +5628,9 @@ const tabs = document.querySelectorAll(".tab");
                 hiringStudioUnassigned.appendChild(buildChip(chip, "unassigned", "unassigned"));
             });
 
-            const unassignedTotal = (hiringStudioState.plan.unassigned_items || []).reduce((sum, item) => sum + Number(item.hours || 0), 0);
+            const unassignedTotal2 = (hiringStudioState.plan.unassigned_items || []).reduce((sum, item) => sum + Number(item.hours || 0), 0);
             if (hiringStudioUnassignedTotal) {
-                hiringStudioUnassignedTotal.textContent = `${unassignedTotal}h`;
+                hiringStudioUnassignedTotal.textContent = `${unassignedTotal2}h`;
             }
             updateHiringStudioDerivedSummary();
             if (hiringStudioStatus && locked) {
