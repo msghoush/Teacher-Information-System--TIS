@@ -104,6 +104,63 @@
             color: var(--muted);
         }
 
+        .profile-avatar-card {
+            margin-bottom: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border: 1px solid #d7e3f4;
+            border-radius: 12px;
+            background: #f8fbff;
+        }
+
+        .profile-avatar-dot {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            overflow: hidden;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0a4ea3, #c79a14);
+            color: #ffffff;
+            font-size: 20px;
+            font-weight: 800;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+
+        .profile-avatar-dot img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .profile-avatar-fallback {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+
+        .profile-avatar-copy {
+            display: grid;
+            gap: 3px;
+        }
+
+        .profile-avatar-copy strong {
+            font-size: 14px;
+            color: #1f2737;
+        }
+
+        .profile-avatar-copy span {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
         .grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -197,6 +254,23 @@
             {% endfor %}
         </ul>
         {% endif %}
+
+        <div class="profile-avatar-card">
+            <span class="profile-avatar-dot">
+                {% if user_avatar.get("photo_url") %}
+                <img
+                    src="{{ user_avatar.get('photo_url') }}"
+                    alt="{{ user_row.first_name }} {{ user_row.last_name }} profile photo"
+                    onerror="this.style.display='none'; const fallback=this.nextElementSibling; if (fallback) fallback.style.display='inline-flex';"
+                >
+                {% endif %}
+                <span class="profile-avatar-fallback" {% if user_avatar.get("photo_url") %}style="display:none;"{% endif %}>{{ user_avatar.get("initials", "U") }}</span>
+            </span>
+            <div class="profile-avatar-copy">
+                <strong>{{ user_row.first_name }} {{ user_row.last_name }}</strong>
+                <span>{{ user_row.role or "User" }}</span>
+            </div>
+        </div>
 
         <p class="hint">Leave password empty to keep current password unchanged.</p>
 

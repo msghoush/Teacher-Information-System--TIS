@@ -676,6 +676,55 @@ svg.tab-icon {
     line-height: 1.3;
 }
 
+.header-user-chip {
+    min-width: 220px;
+    padding: 8px 10px;
+    border: 1px solid var(--app-line);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.78);
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.header-user-chip strong {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.2;
+    color: var(--app-ink);
+}
+
+.header-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, rgba(10, 78, 163, 0.95), rgba(199, 154, 20, 0.86));
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.header-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.header-avatar-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
 .header-actions {
     display: flex;
     align-items: center;
@@ -711,6 +760,7 @@ svg.tab-icon {
 .sidebar-logout,
 .shell-action,
 .header-chip,
+.header-user-chip,
 .page-panel,
 .page-stage .card,
 .page-stage .stat,
@@ -737,6 +787,12 @@ svg.tab-icon {
 }
 
 .header-chip:hover {
+    transform: translateY(-1px);
+    border-color: var(--app-line-strong);
+    background: #ffffff;
+}
+
+.header-user-chip:hover {
     transform: translateY(-1px);
     border-color: var(--app-line-strong);
     background: #ffffff;

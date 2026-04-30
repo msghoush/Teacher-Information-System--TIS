@@ -89,10 +89,14 @@
                 <div class="sidebar-account">
                     <div class="sidebar-avatar">
                         {% if shell.user_image_url %}
-                        <img class="sidebar-avatar-image" src="{{ shell.user_image_url }}" alt="{{ shell.user_name }} profile photo">
-                        {% else %}
-                        <span class="sidebar-avatar-fallback">{{ shell.user_name[:1] if shell.user_name else "U" }}</span>
+                        <img
+                            class="sidebar-avatar-image"
+                            src="{{ shell.user_image_url }}"
+                            alt="{{ shell.user_name }} profile photo"
+                            onerror="this.style.display='none'; const fallback=this.nextElementSibling; if (fallback) fallback.style.display='inline-flex';"
+                        >
                         {% endif %}
+                        <span class="sidebar-avatar-fallback" {% if shell.user_image_url %}style="display:none;"{% endif %}>{{ shell.user_initials or "U" }}</span>
                     </div>
                     <div class="sidebar-account-copy">
                         <strong>{{ shell.user_name }}</strong>
@@ -142,6 +146,19 @@
                         <div class="header-chip">
                             <span>{{ icon("shield", "shell-icon") }} Role</span>
                             <strong>{{ shell.role_label or "System User" }}</strong>
+                        </div>
+                        <div class="header-user-chip" title="{{ shell.user_name }}">
+                            <span class="header-avatar">
+                                {% if shell.user_image_url %}
+                                <img
+                                    src="{{ shell.user_image_url }}"
+                                    alt="{{ shell.user_name }} profile photo"
+                                    onerror="this.style.display='none'; const fallback=this.nextElementSibling; if (fallback) fallback.style.display='inline-flex';"
+                                >
+                                {% endif %}
+                                <span class="header-avatar-fallback" {% if shell.user_image_url %}style="display:none;"{% endif %}>{{ shell.user_initials or "U" }}</span>
+                            </span>
+                            <strong>{{ shell.user_name }}</strong>
                         </div>
                         {% if shell.new_notification_count %}
                         <a class="header-chip header-notification-chip" href="/notifications">

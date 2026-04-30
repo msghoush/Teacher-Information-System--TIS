@@ -1,7 +1,9 @@
 import re
+import os
+from urllib.parse import quote_plus
 
 from fastapi import APIRouter, Request, Form, Depends
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -103,6 +105,52 @@ def _parse_is_active(value: str):
     return None
 
 
+def _build_user_initials(first_name: str = "", last_name: str = "") -> str:
+    first = str(first_name or "").strip()
+    last = str(last_name or "").strip()
+    if first and last:
+        return f"{first[:1]}{last[:1]}".upper()
+    if first:
+        return first[:1].upper()
+    if last:
+        return last[:1].upper()
+    return "U"
+
+
+def _build_user_avatar_summary(request: Request, user_row) -> dict:
+    profile_image_data = getattr(user_row, "profile_image_data", None)
+    has_profile_photo = bool(profile_image_data)
+    profile_image_path = str(getattr(user_row, "profile_image_path", "") or "").strip()
+    normalized_profile_image_path = profile_image_path.replace("\\", "/").lstrip("/")
+    static_photo_url = ""
+    if normalized_profile_image_path:
+        absolute_profile_image_path = os.path.join(
+            "static",
+            *normalized_profile_image_path.split("/"),
+        )
+        if os.path.exists(absolute_profile_image_path):
+            static_photo_url = str(request.url_for("static", path=normalized_profile_image_path))
+    image_version = quote_plus(
+        str(
+            getattr(user_row, "profile_image_updated_at", "")
+            or normalized_profile_image_path
+            or f"user-{getattr(user_row, 'id', 0)}"
+        )
+    )
+    return {
+        "initials": _build_user_initials(
+            getattr(user_row, "first_name", ""),
+            getattr(user_row, "last_name", ""),
+        ),
+        "has_photo": has_profile_photo,
+        "photo_url": (
+            f"{request.url_for('get_user_profile_photo', user_pk=getattr(user_row, 'id', 0))}?v={image_version}"
+            if has_profile_photo
+            else static_photo_url
+        ),
+    }
+
+
 def _render_edit_user_page(
     request: Request,
     db: Session,
@@ -136,6 +184,7 @@ def _render_edit_user_page(
             "error": error,
             "detail_errors": detail_errors or [],
             "form_data": form_data,
+            "user_avatar": _build_user_avatar_summary(request, user_row),
             **build_shell_context(
                 request,
                 db,
@@ -169,6 +218,10 @@ def _render_users_page(
         )
 
     users = users_query.order_by(models.User.id.desc()).all()
+    user_avatar_map = {
+        user_row.id: _build_user_avatar_summary(request, user_row)
+        for user_row in users
+    }
     manageable_user_ids = set()
     if can_edit_user_accounts:
         manageable_user_ids = {
@@ -186,6 +239,7 @@ def _render_users_page(
         {
             "request": request,
             "users": users,
+            "user_avatar_map": user_avatar_map,
             "branch_map": branch_map,
             "positions": POSITIONS,
             "role_choices": _get_user_roles_for_creator(current_user),
@@ -223,6 +277,42 @@ def users_page(
         request=request,
         db=db,
         current_user=current_user,
+    )
+
+
+@router.get("/photo/{user_pk}", name="get_user_profile_photo")
+def get_user_profile_photo(
+    request: Request,
+    user_pk: int,
+    db: Session = Depends(get_db),
+):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return Response(status_code=401)
+
+    if not auth.can_manage_users(current_user):
+        return Response(status_code=403)
+
+    user_row = db.query(models.User).filter(models.User.id == user_pk).first()
+    if not user_row:
+        return Response(status_code=404)
+
+    profile_image_data = getattr(user_row, "profile_image_data", None)
+    if not profile_image_data:
+        return Response(status_code=404)
+
+    content_type = str(getattr(user_row, "profile_image_content_type", "") or "").strip()
+    if not content_type.startswith("image/"):
+        content_type = "image/png"
+
+    return Response(
+        content=bytes(profile_image_data),
+        media_type=content_type,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
     )
 
 

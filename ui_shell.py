@@ -8,6 +8,49 @@ import auth
 import models
 
 
+def _build_user_initials(first_name: str = "", last_name: str = "", fallback_name: str = "") -> str:
+    first = str(first_name or "").strip()
+    last = str(last_name or "").strip()
+    if first and last:
+        return f"{first[:1]}{last[:1]}".upper()
+    if first:
+        return first[:1].upper()
+    if last:
+        return last[:1].upper()
+
+    name_text = str(fallback_name or "").strip()
+    if name_text:
+        parts = [part for part in name_text.split() if part]
+        if len(parts) >= 2:
+            return f"{parts[0][:1]}{parts[1][:1]}".upper()
+        return parts[0][:2].upper()
+    return "U"
+
+
+def build_user_avatar_payload(request, user_row) -> dict:
+    profile_image_path = str(getattr(user_row, "profile_image_path", "") or "").strip()
+    normalized_profile_image_path = profile_image_path.replace("\\", "/").lstrip("/")
+    profile_image_data = getattr(user_row, "profile_image_data", None)
+    image_url = ""
+    if profile_image_data:
+        version_token = quote_plus(normalized_profile_image_path or f"user-{getattr(user_row, 'id', '0')}")
+        image_url = f"{request.url_for('get_current_profile_photo')}?v={version_token}"
+    elif normalized_profile_image_path:
+        absolute_profile_image_path = os.path.join("static", *normalized_profile_image_path.split("/"))
+        if os.path.exists(absolute_profile_image_path):
+            image_url = str(request.url_for("static", path=normalized_profile_image_path))
+
+    initials = _build_user_initials(
+        getattr(user_row, "first_name", ""),
+        getattr(user_row, "last_name", ""),
+        fallback_name=f"{getattr(user_row, 'first_name', '')} {getattr(user_row, 'last_name', '')}".strip(),
+    )
+    return {
+        "image_url": image_url,
+        "initials": initials,
+    }
+
+
 PAGE_META = {
     "dashboard": {
         "eyebrow": "Command Center",
@@ -181,19 +224,9 @@ def build_shell_context(
         active_year_id = active_year.id if active_year else None
 
     effective_role = getattr(current_user, "effective_role", None) or getattr(current_user, "role", "")
-    profile_image_path = str(getattr(current_user, "profile_image_path", "") or "").strip()
-    normalized_profile_image_path = profile_image_path.replace("\\", "/").lstrip("/")
-    profile_image_data = getattr(current_user, "profile_image_data", None)
-    profile_image_url = ""
-    if profile_image_data:
-        version_token = quote_plus(normalized_profile_image_path or f"user-{current_user.id}")
-        profile_image_url = f"{request.url_for('get_current_profile_photo')}?v={version_token}"
-    elif normalized_profile_image_path:
-        absolute_profile_image_path = os.path.join("static", *normalized_profile_image_path.split("/"))
-        if os.path.exists(absolute_profile_image_path):
-            profile_image_url = str(
-                request.url_for("static", path=normalized_profile_image_path)
-            )
+    avatar_payload = build_user_avatar_payload(request, current_user)
+    profile_image_url = avatar_payload["image_url"]
+    profile_initials = avatar_payload["initials"]
     resolved_notice = notice or str(request.query_params.get("notice", "")).strip()
     try:
         # Use an explicit COUNT(id) query to avoid selecting all columns.
@@ -223,6 +256,7 @@ def build_shell_context(
             "user_name": f"{current_user.first_name} {current_user.last_name}".strip(),
             "role_label": effective_role,
             "user_image_url": profile_image_url,
+            "user_initials": profile_initials,
             "branch_name": branch.name if branch else "Not assigned",
             "academic_year_name": academic_year.year_name if academic_year else "Not assigned",
             "can_manage_system_settings": can_manage_system_settings,
