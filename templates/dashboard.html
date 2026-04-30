@@ -4698,6 +4698,7 @@ const tabs = document.querySelectorAll(".tab");
             general_science_pool: "#1D4ED8",
             physical_education: "#EA580C",
         };
+        const hiringManualPoolUppercaseWords = new Set(["ICT", "PE", "KG", "STEM", "STEAM"]);
         const normalizeHiringGroupKey = (groupKey, family = "") => {
             const group = String(groupKey || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
             const itemFamily = String(family || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -4740,6 +4741,28 @@ const tabs = document.querySelectorAll(".tab");
                 return "physical_education";
             }
             return hiringCompatibilityByFamily[itemFamily] || group;
+        };
+        const formatHiringManualPoolName = (value) => {
+            const raw = String(value || "").trim();
+            if (!raw) {
+                return "Manual Pool";
+            }
+            const withoutSuffix = raw.replace(/\s+manual\s+pool\s*$/i, "").trim();
+            if (!withoutSuffix) {
+                return "Manual Pool";
+            }
+            const normalizedBase = withoutSuffix
+                .split(/\s+/)
+                .filter(Boolean)
+                .map((word) => {
+                    const upperWord = word.toUpperCase();
+                    if (hiringManualPoolUppercaseWords.has(upperWord)) {
+                        return upperWord;
+                    }
+                    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+                })
+                .join(" ");
+            return `${normalizedBase} Manual Pool`;
         };
         const hiringFamilyLabels = {
             english: "English",
@@ -4884,9 +4907,12 @@ const tabs = document.querySelectorAll(".tab");
                 const groupKey = (!isManualProfile && !hiringPoolNamesByGroup[initialGroupKey] && itemGroupKeys.size === 1 && itemGroupKeys.has("general_science_pool"))
                     ? "general_science_pool"
                     : initialGroupKey;
+                const profileName = isManualProfile
+                    ? formatHiringManualPoolName(profile.name || "Manual Pool")
+                    : String(hiringPoolNamesByGroup[groupKey] || profile.name || "Proposed Pool");
                 return {
                     id: String(profile.id || `profile-${profileIndex + 1}`),
-                    name: String(hiringPoolNamesByGroup[groupKey] || profile.name || "Proposed Pool"),
+                    name: profileName,
                     group_key: groupKey,
                     assignment_note: String(profile.assignment_note || "Compatible pool grouping"),
                     accent_color: String(hiringPoolAccentByGroup[groupKey] || profile.accent_color || "#0A4EA3"),
@@ -5560,11 +5586,13 @@ const tabs = document.querySelectorAll(".tab");
             profiles.forEach((profile) => {
                 const renderedGroupKey = normalizeHiringGroupKey(profile.group_key || "");
                 const renderedNameGroupKey = profile.group_key ? "" : normalizeHiringGroupKey(profile.name || "");
-                if (renderedGroupKey === "general_science_pool" || renderedNameGroupKey === "general_science_pool") {
+                if (!profile.is_manual && (renderedGroupKey === "general_science_pool" || renderedNameGroupKey === "general_science_pool")) {
                     profile.group_key = "general_science_pool";
                     profile.name = "General Science Pool";
                     profile.is_manual = false;
                     profile.assignment_note = profile.assignment_note || "Science first, with Biology, Chemistry, and ICT merged into one pool";
+                } else if (profile.is_manual) {
+                    profile.name = formatHiringManualPoolName(profile.name || "Manual Pool");
                 }
                 const totalHours = profileTotalHours(profile);
                 const blockSize = Math.max(1, Number(profile.block_size_hours || 24));
@@ -5646,7 +5674,7 @@ const tabs = document.querySelectorAll(".tab");
                     if (locked || profile.group_key === "general_science_pool") {
                         return;
                     }
-                    if (normalizeHiringGroupKey(nameInput.value || "") === "general_science_pool") {
+                    if (!profile.is_manual && normalizeHiringGroupKey(nameInput.value || "") === "general_science_pool") {
                         profile.group_key = "general_science_pool";
                         profile.name = "General Science Pool";
                         profile.is_manual = false;
@@ -5658,6 +5686,20 @@ const tabs = document.querySelectorAll(".tab");
                     profile.name = nameInput.value || "Proposed Pool";
                     renderWarnings();
                     markHiringStudioDirty("Profile name updated.");
+                });
+                nameInput?.addEventListener("blur", () => {
+                    if (locked || profile.group_key === "general_science_pool" || !profile.is_manual) {
+                        return;
+                    }
+                    const formattedName = formatHiringManualPoolName(nameInput.value || "Manual Pool");
+                    if (profile.name !== formattedName) {
+                        profile.name = formattedName;
+                        nameInput.value = formattedName;
+                        renderWarnings();
+                        markHiringStudioDirty("Profile name updated.");
+                    } else {
+                        nameInput.value = formattedName;
+                    }
                 });
 
                 const removeBtn = card.querySelector(".hiring-card-remove");
