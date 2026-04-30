@@ -423,7 +423,7 @@ svg.tab-icon {
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    background: linear-gradient(135deg, rgba(199, 154, 20, 0.92), rgba(255, 255, 255, 0.24));
+    background: linear-gradient(135deg, rgba(10, 78, 163, 0.95), rgba(199, 154, 20, 0.86));
     color: #ffffff;
     font-size: 18px;
     font-weight: 800;
@@ -444,6 +444,11 @@ svg.tab-icon {
     justify-content: center;
     width: 100%;
     height: 100%;
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1;
+    text-transform: uppercase;
 }
 
 .sidebar-account-copy {
@@ -458,7 +463,7 @@ svg.tab-icon {
     display: block;
 }
 
-.sidebar-account span,
+.sidebar-account-copy span,
 .sidebar-photo-help {
     color: rgba(232, 240, 255, 0.72);
     font-size: 12px;
