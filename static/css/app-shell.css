@@ -461,8 +461,8 @@ svg.tab-icon {
     gap: 2px;
 }
 
-.sidebar-account strong,
-.sidebar-account span,
+.sidebar-account-copy strong,
+.sidebar-account-copy span,
 .sidebar-photo-help {
     display: block;
 }
