@@ -102,7 +102,7 @@ def _get_positive_int_env(name: str, default: int) -> int:
 REPORT_STANDARD_MAX_HOURS = 24
 # Version 12: SCE/Science is a core major subject. Any uncovered Science creates
 # one General Science Pool that absorbs Science, Biology, Chemistry, and ICT.
-HIRING_PLAN_POOL_LOGIC_VERSION = 12
+HIRING_PLAN_POOL_LOGIC_VERSION = 13
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
@@ -3357,17 +3357,19 @@ def _apply_general_science_editor_rule(
             general_science_profile["override_compatibility"] = bool(profile.get("override_compatibility", False))
             general_science_profile["is_manual"] = False
             general_science_profile["items"].extend(retained_items)
-        elif retained_items:
+        else:
             profile["items"] = retained_items
             normalized_profiles.append(profile)
 
     retained_unassigned_items: list[dict] = []
     for item in unassigned_items:
         family = str(item.get("family", "") or "").strip().lower()
-        if family in HIRING_GENERAL_SCIENCE_FAMILIES:
-            general_science_items.append(item)
-        else:
-            retained_unassigned_items.append(item)
+        retained_unassigned_items.append(
+            {
+                **item,
+                "family": family,
+            }
+        )
 
     if general_science_items:
         general_science_profile = ensure_general_science_profile()
@@ -3377,8 +3379,6 @@ def _apply_general_science_editor_rule(
     seen_named_keys: dict[str, dict] = {}
     deduped_profiles: list[dict] = []
     for profile in normalized_profiles:
-        if not profile.get("items"):
-            continue
         gk = profile.get("group_key", "")
         if gk and gk in HIRING_NAMED_POOL_KEYS:
             if gk in seen_named_keys:
@@ -3911,6 +3911,7 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
     profiles = []
     for raw_profile in payload.get("profiles", []) or []:
         items = []
+        is_manual_profile = bool(raw_profile.get("is_manual", False))
         for raw_item in raw_profile.get("items", []) or []:
             hours = int(raw_item.get("hours", 0) or 0)
             if hours <= 0:
@@ -3932,13 +3933,13 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
 
         raw_profile_group_key = str(raw_profile.get("group_key", "") or "")
         profile_group_key = _normalize_hiring_pool_group_key(raw_profile_group_key)
-        if not raw_profile_group_key.strip():
+        if not is_manual_profile and not raw_profile_group_key.strip():
             profile_name_group_key = _normalize_hiring_pool_group_key(
                 str(raw_profile.get("name", "") or "")
             )
             if profile_name_group_key == "general_science_pool":
                 profile_group_key = profile_name_group_key
-        if profile_group_key not in HIRING_NAMED_POOL_KEYS and items:
+        if not is_manual_profile and profile_group_key not in HIRING_NAMED_POOL_KEYS and items:
             item_group_keys = {
                 _normalize_hiring_pool_group_key(family=str(item.get("family", "") or ""))
                 for item in items
@@ -3963,7 +3964,7 @@ def _normalize_hiring_plan_payload(raw_payload: dict) -> dict:
                 ),
                 "max_hours": int(raw_profile.get("max_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS),
                 "block_size_hours": int(raw_profile.get("block_size_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS),
-                "is_manual": bool(raw_profile.get("is_manual", False)),
+                "is_manual": is_manual_profile,
                 "allow_over_capacity": bool(raw_profile.get("allow_over_capacity", False)),
                 "override_compatibility": bool(raw_profile.get("override_compatibility", False)),
                 "items": items,

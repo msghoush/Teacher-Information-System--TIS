@@ -4867,9 +4867,10 @@ const tabs = document.querySelectorAll(".tab");
                     subject_color: String(item.subject_color || "#0A4EA3"),
                     hours: Number(item.hours || 0),
                 })).filter((item) => item.hours > 0);
+                const isManualProfile = Boolean(profile.is_manual);
                 const rawGroupKey = String(profile.group_key || "");
                 let initialGroupKey = normalizeHiringGroupKey(rawGroupKey);
-                if (!rawGroupKey.trim()) {
+                if (!isManualProfile && !rawGroupKey.trim()) {
                     const nameGroupKey = normalizeHiringGroupKey(profile.name || "");
                     if (nameGroupKey === "general_science_pool") {
                         initialGroupKey = nameGroupKey;
@@ -4880,7 +4881,7 @@ const tabs = document.querySelectorAll(".tab");
                         .map((item) => normalizeHiringGroupKey("", item.family))
                         .filter(Boolean)
                 );
-                const groupKey = (!hiringPoolNamesByGroup[initialGroupKey] && itemGroupKeys.size === 1 && itemGroupKeys.has("general_science_pool"))
+                const groupKey = (!isManualProfile && !hiringPoolNamesByGroup[initialGroupKey] && itemGroupKeys.size === 1 && itemGroupKeys.has("general_science_pool"))
                     ? "general_science_pool"
                     : initialGroupKey;
                 return {
@@ -4891,7 +4892,7 @@ const tabs = document.querySelectorAll(".tab");
                     accent_color: String(hiringPoolAccentByGroup[groupKey] || profile.accent_color || "#0A4EA3"),
                     max_hours: Number(profile.max_hours || 24),
                     block_size_hours: Number(profile.block_size_hours || 24),
-                    is_manual: Boolean(profile.is_manual),
+                    is_manual: isManualProfile,
                     allow_over_capacity: Boolean(profile.allow_over_capacity),
                     override_compatibility: Boolean(profile.override_compatibility),
                     items: normalizedItems,
@@ -4939,7 +4940,7 @@ const tabs = document.querySelectorAll(".tab");
                     profileShell.allow_over_capacity = Boolean(profile.allow_over_capacity);
                     profileShell.override_compatibility = Boolean(profile.override_compatibility);
                     profileShell.items = [...(profileShell.items || []), ...retainedItems];
-                } else if (retainedItems.length > 0) {
+                } else {
                     profile.items = retainedItems;
                     scienceNormalizedProfiles.push(profile);
                 }
@@ -4958,11 +4959,7 @@ const tabs = document.querySelectorAll(".tab");
                 if (normalizedItem.hours <= 0) {
                     return;
                 }
-                if (isGeneralScienceFamily(normalizedItem.family)) {
-                    generalScienceItems.push(normalizedItem);
-                } else {
-                    retainedUnassignedItems.push(normalizedItem);
-                }
+                retainedUnassignedItems.push(normalizedItem);
             });
             if (generalScienceItems.length > 0) {
                 const profileShell = ensureGeneralScienceProfile();
@@ -5017,7 +5014,7 @@ const tabs = document.querySelectorAll(".tab");
                     ...profile,
                     items: retainedItems,
                 });
-            }).filter((profile) => (profile.items || []).length > 0);
+            });
             return {
                 profiles: normalizedProfiles,
                 unassigned_items: retainedUnassignedItems,
@@ -5069,6 +5066,25 @@ const tabs = document.querySelectorAll(".tab");
                 item.className = "hiring-warning-item";
                 item.textContent = warning;
                 hiringStudioWarnings.appendChild(item);
+            });
+        };
+
+        const logHiringStudioAction = (actionLabel) => {
+            if (!hiringStudioState?.plan) {
+                return;
+            }
+            const profiles = hiringStudioState.plan.profiles || [];
+            console.info("[HiringStudio]", {
+                action: actionLabel,
+                poolsCount: profiles.length,
+                unassignedCount: (hiringStudioState.plan.unassigned_items || []).length,
+                profiles: profiles.map((profile) => ({
+                    id: profile.id,
+                    name: profile.name,
+                    isManual: Boolean(profile.is_manual),
+                    hours: profileTotalHours(profile),
+                    subjects: (profile.items || []).map((item) => `${item.subject_name} ${item.hours}h`),
+                })),
             });
         };
 
@@ -5281,6 +5297,7 @@ const tabs = document.querySelectorAll(".tab");
             hiringStudioState.plan = normalizePlan(hiringStudioState.plan);
             renderHiringStudio();
             if (placed) {
+                logHiringStudioAction(`drop:${detached.chip.subject_name}`);
                 scheduleHiringStudioAutoSave(`Moved ${detached.chip.subject_name}.`);
             }
         };
@@ -5555,6 +5572,7 @@ const tabs = document.querySelectorAll(".tab");
                     hiringStudioState.plan.unassigned_items.push(movedChip);
                     hiringStudioState.plan = normalizePlan(hiringStudioState.plan);
                     renderHiringStudio();
+                    logHiringStudioAction(`remove:${movedChip.subject_name}`);
                     scheduleHiringStudioAutoSave(`Moved ${movedChip.subject_name} to unassigned.`);
                 }
             });
@@ -5710,6 +5728,7 @@ const tabs = document.querySelectorAll(".tab");
                     });
                     hiringStudioState.plan.profiles = hiringStudioState.plan.profiles.filter((entry) => entry.id !== profile.id);
                     renderHiringStudio();
+                    logHiringStudioAction(`delete-profile:${profile.name}`);
                     scheduleHiringStudioAutoSave(`Deleted ${profile.name}.`);
                 });
 
@@ -5848,6 +5867,7 @@ const tabs = document.querySelectorAll(".tab");
                 items: [],
             });
             renderHiringStudio();
+            logHiringStudioAction(`add-profile:${profileId}`);
             scheduleHiringStudioAutoSave("Added manual profile.");
         };
 
@@ -5890,6 +5910,7 @@ const tabs = document.querySelectorAll(".tab");
 
             hiringStudioState.loaded = true;
             renderHiringStudio();
+            logHiringStudioAction("load");
         };
 
         hiringStudioAddProfileBtn?.addEventListener("click", addHiringProfile);
