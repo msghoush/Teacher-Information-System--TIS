@@ -102,7 +102,7 @@ def _get_positive_int_env(name: str, default: int) -> int:
 REPORT_STANDARD_MAX_HOURS = 24
 # Version 12: SCE/Science is a core major subject. Any uncovered Science creates
 # one General Science Pool that absorbs Science, Biology, Chemistry, and ICT.
-HIRING_PLAN_POOL_LOGIC_VERSION = 13
+HIRING_PLAN_POOL_LOGIC_VERSION = 14
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
@@ -3316,7 +3316,6 @@ def _apply_general_science_editor_rule(
 ) -> tuple[list[dict], list[dict]]:
     normalized_profiles: list[dict] = []
     general_science_profile: dict | None = None
-    general_science_items: list[dict] = []
 
     def ensure_general_science_profile() -> dict:
         nonlocal general_science_profile
@@ -3338,14 +3337,6 @@ def _apply_general_science_editor_rule(
         return general_science_profile
 
     for profile in profiles:
-        retained_items: list[dict] = []
-        for item in profile.get("items", []) or []:
-            family = str(item.get("family", "") or "").strip().lower()
-            if family in HIRING_GENERAL_SCIENCE_FAMILIES:
-                general_science_items.append(item)
-            else:
-                retained_items.append(item)
-
         if profile.get("group_key") == "general_science_pool":
             general_science_profile = ensure_general_science_profile()
             general_science_profile["id"] = str(profile.get("id", "") or general_science_profile["id"])
@@ -3356,9 +3347,8 @@ def _apply_general_science_editor_rule(
             general_science_profile["allow_over_capacity"] = bool(profile.get("allow_over_capacity", False))
             general_science_profile["override_compatibility"] = bool(profile.get("override_compatibility", False))
             general_science_profile["is_manual"] = False
-            general_science_profile["items"].extend(retained_items)
+            general_science_profile["items"].extend(profile.get("items", []) or [])
         else:
-            profile["items"] = retained_items
             normalized_profiles.append(profile)
 
     retained_unassigned_items: list[dict] = []
@@ -3370,11 +3360,6 @@ def _apply_general_science_editor_rule(
                 "family": family,
             }
         )
-
-    if general_science_items:
-        general_science_profile = ensure_general_science_profile()
-        general_science_items.sort(key=_get_hiring_subject_sort_key)
-        general_science_profile["items"] = general_science_items + general_science_profile.get("items", [])
 
     seen_named_keys: dict[str, dict] = {}
     deduped_profiles: list[dict] = []
