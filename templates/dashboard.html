@@ -4675,6 +4675,7 @@ const tabs = document.querySelectorAll(".tab");
             quran: "arabic_pool",
             social_arabic: "arabic_pool",
             pe: "physical_education",
+            homeroom: "homeroom_pool",
             social: "english_pool",
         };
         const hiringAllowedFamiliesByGroup = {
@@ -4683,6 +4684,7 @@ const tabs = document.querySelectorAll(".tab");
             general_science_pool: new Set(["science", "biology", "chemistry", "ict"]),
             arabic_pool: new Set(["arabic", "islamic", "quran", "social_arabic"]),
             physical_education: new Set(["pe"]),
+            homeroom_pool: new Set(["homeroom"]),
         };
         const hiringPoolNamesByGroup = {
             english_pool: "English Pool",
@@ -4690,6 +4692,7 @@ const tabs = document.querySelectorAll(".tab");
             math_pool: "Math Pool",
             general_science_pool: "General Science Pool",
             physical_education: "Physical Education Pool",
+            homeroom_pool: "Homeroom Pool",
         };
         const hiringPoolAccentByGroup = {
             english_pool: "#2563EB",
@@ -4697,6 +4700,7 @@ const tabs = document.querySelectorAll(".tab");
             math_pool: "#7C3AED",
             general_science_pool: "#1D4ED8",
             physical_education: "#EA580C",
+            homeroom_pool: "#B45309",
         };
         const hiringManualPoolUppercaseWords = new Set(["ICT", "PE", "KG", "STEM", "STEAM"]);
         const normalizeHiringGroupKey = (groupKey, family = "") => {
@@ -4739,6 +4743,9 @@ const tabs = document.querySelectorAll(".tab");
             }
             if (["pe", "student_life", "single_pe"].includes(group)) {
                 return "physical_education";
+            }
+            if (["homeroom", "home_room", "homeroom_pool", "homeroom_teacher", "single_homeroom"].includes(group)) {
+                return "homeroom_pool";
             }
             return hiringCompatibilityByFamily[itemFamily] || group;
         };
