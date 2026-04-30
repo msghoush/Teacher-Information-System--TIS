@@ -419,6 +419,7 @@ svg.tab-icon {
     width: 52px;
     height: 52px;
     border-radius: 50%;
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -432,18 +433,21 @@ svg.tab-icon {
 }
 
 .sidebar-avatar-image {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: center;
     display: block;
 }
 
 .sidebar-avatar-fallback {
+    position: absolute;
+    inset: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
-    height: 100%;
     color: #ffffff;
     font-size: 18px;
     font-weight: 800;
@@ -703,6 +707,7 @@ svg.tab-icon {
     width: 34px;
     height: 34px;
     border-radius: 50%;
+    position: relative;
     overflow: hidden;
     display: inline-flex;
     align-items: center;
@@ -716,18 +721,21 @@ svg.tab-icon {
 }
 
 .header-avatar img {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: center;
     display: block;
 }
 
 .header-avatar-fallback {
+    position: absolute;
+    inset: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
-    height: 100%;
 }
 
 .header-actions {
