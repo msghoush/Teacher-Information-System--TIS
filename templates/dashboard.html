@@ -1726,7 +1726,7 @@
             --donut-primary: #0a4ea3;
             --donut-secondary: #d7e1ef;
             --donut-target: 0;
-            --donut-sweep: 0;
+            --donut-sweep: var(--donut-target);
             position: relative;
             width: 144px;
             aspect-ratio: 1;
@@ -1953,6 +1953,14 @@
             white-space: nowrap;
         }
 
+        .dashboard-analytics-section {
+            margin-top: 16px;
+        }
+
+        .dashboard-analytics-section .report-card {
+            margin-top: 0;
+        }
+
         .report-subject-list {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
@@ -1981,6 +1989,77 @@
             animation: reportCardRise 420ms ease both;
         }
 
+        .report-subject-item > summary {
+            list-style: none;
+            cursor: pointer;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 12px;
+            outline: none;
+        }
+
+        .report-subject-item > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .report-subject-summary-main {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .report-subject-toggle-arrow {
+            margin-top: 2px;
+            width: 18px;
+            height: 18px;
+            border-radius: 999px;
+            border: 1px solid var(--subject-accent-soft);
+            background: #fff;
+            color: #2f507f;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            line-height: 1;
+            flex-shrink: 0;
+            transition: transform 160ms ease, border-color 160ms ease;
+        }
+
+        .report-subject-item[open] .report-subject-toggle-arrow {
+            transform: rotate(90deg);
+            border-color: var(--subject-accent);
+        }
+
+        .report-subject-summary-side {
+            display: grid;
+            gap: 8px;
+            justify-items: end;
+            text-align: right;
+        }
+
+        .report-subject-summary-metric {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 4px;
+            color: #26456d;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .report-subject-summary-metric strong {
+            font-size: 16px;
+            color: #17365d;
+            line-height: 1;
+        }
+
+        .report-subject-expanded {
+            display: grid;
+            gap: 14px;
+            padding-top: 12px;
+        }
+
         .report-subject-item::before {
             content: "";
             position: absolute;
@@ -1994,6 +2073,11 @@
             transform: translateY(-4px);
             border-color: var(--subject-accent);
             box-shadow: 0 18px 34px rgba(15, 23, 42, 0.10);
+        }
+
+        .report-subject-item > summary:focus-visible {
+            border-radius: 14px;
+            box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.22);
         }
 
         .report-subject-item.is-critical {
@@ -3355,7 +3439,16 @@
                 grid-template-columns: 1fr;
             }
 
+            .report-subject-item > summary {
+                grid-template-columns: 1fr;
+            }
+
             .report-subject-side {
+                justify-items: start;
+                text-align: left;
+            }
+
+            .report-subject-summary-side {
                 justify-items: start;
                 text-align: left;
             }
@@ -3544,6 +3637,172 @@
                 {% else %}
                 <div class="empty">No subjects yet. Open the Subjects module to add your first record.</div>
                 {% endif %}
+
+                {% if report_summary.total_required_hours > 0 and report_subject_card_rows %}
+                <section class="dashboard-analytics-section" aria-label="Subject Sufficiency Breakdown">
+                    <div class="report-card report-card-subjects">
+                        <div class="report-card-head">
+                            <div class="report-card-head-copy">
+                                <h4 class="report-heading"><span class="section-heading-icon report-heading-icon">{{ icon("subjects", "icon") }}</span><span class="report-heading-label">Subject Sufficiency Breakdown</span></h4>
+                                <p>Subject-level coverage cards are now in the Subjects workspace. Expand a subject to inspect contributors and open sections.</p>
+                            </div>
+                            <span class="report-card-tag">{{ report_subject_count or report_subject_rows|length }} subjects</span>
+                        </div>
+                        <div class="report-subject-list">
+                            {% for row in report_subject_card_rows %}
+                            {% set open_sections_total = (row.uncovered_sections_count or 0) + (row.partial_sections_count or 0) %}
+                            <details class="report-subject-item {{ row.staffing_item_class }}" style="--subject-accent: {{ row.subject_donut_primary }}; --subject-accent-soft: {{ row.subject_donut_secondary }}; --subject-accent-surface: {{ row.subject_accent_surface }}; --subject-pill-bg: {{ row.subject_status_bg }}; --subject-pill-fg: {{ row.subject_status_text }}; --subject-pill-border: {{ row.subject_status_border }};">
+                                <summary>
+                                    <div class="report-subject-summary-main">
+                                        <span class="report-subject-toggle-arrow" aria-hidden="true">&#9654;</span>
+                                        <div>
+                                            <div class="report-subject-title-row">
+                                                <h5>{{ row.subject_name }}</h5>
+                                                {% if row.priority_staffing_subject %}
+                                                <span class="report-subject-flag">Priority Subject</span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="report-inline-note">{{ row.required_hours }}h total • {{ row.allocated_hours }}h covered • {{ row.remaining_hours }}h uncovered</div>
+                                        </div>
+                                    </div>
+                                    <div class="report-subject-summary-side">
+                                        <span class="report-status-pill {{ row.staffing_status_class }}">{{ row.staffing_status_label }}</span>
+                                        <div class="report-subject-summary-metric"><strong>{{ row.coverage_percentage }}%</strong><span>coverage</span></div>
+                                        <div class="report-donut-shell report-subject-donut" style="--donut-primary: {{ row.subject_donut_primary }}; --donut-secondary: {{ row.subject_donut_secondary }}; --donut-target: {{ row.coverage_percentage }};">
+                                            <div class="report-donut-center">
+                                                <strong><span class="report-kpi-value" data-value="{{ row.coverage_percentage }}">{{ row.coverage_percentage }}</span><span class="report-percent-sign">%</span></strong>
+                                                <span>covered</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </summary>
+
+                                <div class="report-subject-expanded">
+                                    <div class="report-subject-track">
+                                        <div class="report-subject-track-fill" style="background: linear-gradient(90deg, {{ row.subject_donut_primary }} 0 {{ row.coverage_percentage }}%, {{ row.subject_donut_secondary }} {{ row.coverage_percentage }}% 100%);"></div>
+                                    </div>
+
+                                    <div class="report-subject-kpis">
+                                        <div class="report-subject-kpi-chip is-clear">
+                                            <span>Covered</span>
+                                            <strong><span class="report-kpi-value" data-value="{{ row.allocated_hours }}">{{ row.allocated_hours }}</span>h</strong>
+                                        </div>
+                                        <div class="report-subject-kpi-chip {% if row.remaining_hours > 0 %}is-gap{% else %}is-clear{% endif %}">
+                                            <span>Uncovered</span>
+                                            <strong><span class="report-kpi-value" data-value="{{ row.remaining_hours }}">{{ row.remaining_hours }}</span>h</strong>
+                                        </div>
+                                        <div class="report-subject-kpi-chip">
+                                            <span>Teachers</span>
+                                            <strong><span class="report-kpi-value" data-value="{{ row.assigned_teacher_count or 0 }}">{{ row.assigned_teacher_count or 0 }}</span></strong>
+                                        </div>
+                                        <div class="report-subject-kpi-chip">
+                                            <span>Open Sections</span>
+                                            <strong><span class="report-kpi-value" data-value="{{ open_sections_total }}">{{ open_sections_total }}</span></strong>
+                                        </div>
+                                    </div>
+
+                                    <div class="report-subject-caption">
+                                        <span><strong>{{ row.required_current_hours }}h</strong> current • <strong>{{ row.required_new_hours }}h</strong> new</span>
+                                        <span class="{% if row.remaining_hours > 0 %}report-caption-alert{% endif %}">{{ row.teacher_requirement_blocks or 0 }} × 24h blocks</span>
+                                    </div>
+
+                                    <div class="report-subject-body-grid">
+                                        <div class="report-contributor-panel">
+                                            <div class="report-contributor-head">
+                                                <span>Teacher Coverage</span>
+                                                <strong><span class="report-kpi-value" data-value="{{ row.assigned_teacher_count or 0 }}">{{ row.assigned_teacher_count or 0 }}</span></strong>
+                                            </div>
+                                            {% if row.assigned_teacher_contributors %}
+                                            <div class="report-contributor-list">
+                                                {% for contributor in row.assigned_teacher_contributors %}
+                                                <div class="report-contributor-chip">
+                                                    <div class="report-contributor-meta">
+                                                        <span>{{ contributor.teacher_name }}</span>
+                                                        <strong>{{ contributor.current_subject_hours }}h here • {{ contributor.total_allocated_hours }}/{{ contributor.capacity_hours }}h total</strong>
+                                                    </div>
+                                                    <div class="report-contributor-track" title="{{ contributor.current_subject_hours }}h from {{ row.subject_name }} • {{ contributor.other_allocated_hours }}h from other subjects • {{ contributor.remaining_capacity_hours }}h free">
+                                                        {% if contributor.other_share_percentage > 0 %}
+                                                        <div class="report-contributor-fill is-other" style="width: {{ contributor.other_share_percentage }}%;"></div>
+                                                        {% endif %}
+                                                        {% if contributor.current_share_percentage > 0 %}
+                                                        <div class="report-contributor-fill is-current" style="width: {{ contributor.current_share_percentage }}%;"></div>
+                                                        {% endif %}
+                                                    </div>
+                                                    <div class="report-contributor-capacity">
+                                                        <span><strong>{{ contributor.total_share_percentage }}%</strong> of 24h load</span>
+                                                        <span>
+                                                            {% if contributor.other_allocated_hours > 0 %}
+                                                            {{ contributor.current_subject_hours }}h here • {{ contributor.other_allocated_hours }}h other
+                                                            {% else %}
+                                                            {{ contributor.current_subject_hours }}h from this subject
+                                                            {% endif %}
+                                                        </span>
+                                                        <span>
+                                                            {% if contributor.remaining_capacity_hours > 0 %}
+                                                            {{ contributor.remaining_capacity_hours }}h free
+                                                            {% else %}
+                                                            Fully allocated
+                                                            {% endif %}
+                                                        </span>
+                                                    </div>
+                                                    <div class="report-contributor-foot">
+                                                        {% if contributor.section_labels %}
+                                                        {{ contributor.section_labels | join(" · ") }}
+                                                        {% else %}
+                                                        Assigned in active sections
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                            {% else %}
+                                            <div class="report-inline-note">No teachers are currently assigned to this subject.</div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="report-section-summary">
+                                            <div class="report-section-block is-open">
+                                                <div class="report-section-block-head">
+                                                    <span>Sections Still Open</span>
+                                                    <strong>{{ open_sections_total }}</strong>
+                                                </div>
+                                                {% if row.partial_section_labels %}
+                                                <div>
+                                                    <div class="report-inline-note">Partially covered</div>
+                                                    <div class="report-section-list">
+                                                        {% for label in row.partial_section_labels %}
+                                                        <span class="report-section-pill is-open">{{ label }}</span>
+                                                        {% endfor %}
+                                                    </div>
+                                                </div>
+                                                {% endif %}
+                                                {% if row.uncovered_section_labels %}
+                                                <div>
+                                                    <div class="report-inline-note">No compatible allocation yet</div>
+                                                    <div class="report-section-list">
+                                                        {% for label in row.uncovered_section_labels %}
+                                                        <span class="report-section-pill is-open">{{ label }}</span>
+                                                        {% endfor %}
+                                                    </div>
+                                                </div>
+                                                {% endif %}
+                                                {% if not row.partial_section_labels and not row.uncovered_section_labels %}
+                                                <div class="report-inline-note">All sections are currently allocated.</div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {% if row.staffing_note %}
+                                    <div class="report-subject-note">{{ row.staffing_note }}</div>
+                                    {% endif %}
+                                </div>
+                            </details>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </section>
+                {% endif %}
             </div>
 
             <div class="panel" id="panel-teachers">
@@ -3583,6 +3842,137 @@
                 </div>
                 {% else %}
                 <div class="empty">No teacher records yet. Open the Teachers module to add your first record.</div>
+                {% endif %}
+
+                {% if report_summary.total_required_hours > 0 %}
+                <section class="dashboard-analytics-section" aria-label="Assigned Coverage Across Planned Sections">
+                    <div class="report-card report-teachers-card">
+                        <div class="report-card-head">
+                            <div class="report-card-head-copy">
+                                <h4>Assigned Coverage Across Planned Sections</h4>
+                                <p>Visual teacher cards show assigned load, remaining capacity, and distribution across planned section allocations.</p>
+                            </div>
+                            <span class="report-card-tag">{{ report_teacher_rows|length }} teachers</span>
+                        </div>
+                        {% if report_teacher_rows %}
+                        <div class="report-teacher-list">
+                            {% for row in report_teacher_rows %}
+                            {% set teacher_fill_pct = ((row.expected_allocated_hours / row.capacity_hours) * 100) if row.capacity_hours else 0 %}
+                            {% set teacher_fill = 100 if teacher_fill_pct > 100 else teacher_fill_pct %}
+                            <details class="report-teacher-item{% if row.is_underloaded %} is-underloaded{% endif %}">
+                                <summary>
+                                    <div class="report-teacher-head">
+                                        <strong>{{ row.teacher_name }}</strong>
+                                        <div class="report-teacher-meta">
+                                            ID {{ row.teacher_id }} | Current {{ row.expected_allocated_hours }} / {{ row.capacity_hours }}h | Remaining {{ row.remaining_capacity_hours }}h
+                                        </div>
+                                    </div>
+                                    <div class="report-teacher-badges">
+                                        <span class="report-teacher-badge">{{ row.expected_allocated_hours }}h allocated</span>
+                                        {% if row.is_underloaded %}
+                                        <span class="report-teacher-badge report-teacher-badge-underloaded">Underloaded</span>
+                                        {% endif %}
+                                        <span class="report-teacher-badge report-teacher-badge-accent">
+                                            {% if row.remaining_capacity_hours > 0 %}{{ row.remaining_capacity_hours }}h spare{% else %}Full load{% endif %}
+                                        </span>
+                                    </div>
+                                </summary>
+                                <div class="report-teacher-body">
+                                    <div class="report-teacher-track">
+                                        <div
+                                            class="report-teacher-track-fill"
+                                            style="background: linear-gradient(90deg, #0a4ea3 0 {{ teacher_fill|round(1) }}%, #e5edf7 {{ teacher_fill|round(1) }}% 100%);"
+                                        ></div>
+                                    </div>
+                                    <div class="report-teacher-columns">
+                                        <div class="report-teacher-column">
+                                            <span>Homeroom Allocation</span>
+                                            <strong>{{ row.homeroom_allocated_hours }}h</strong>
+                                        </div>
+                                        <div class="report-teacher-column">
+                                            <span>Primary Allocation</span>
+                                            <strong>{{ row.primary_allocated_hours }}h</strong>
+                                        </div>
+                                        <div class="report-teacher-column">
+                                            <span>Support Allocation</span>
+                                            <strong>{{ row.support_allocated_hours }}h</strong>
+                                        </div>
+                                    </div>
+                                    <div class="report-inline-note">
+                                        Total capacity {{ row.total_capacity_hours }}h | National section {{ row.national_section_hours }}h | International capacity {{ row.capacity_hours }}h
+                                    </div>
+                                    {% if row.degree_major %}
+                                    <div class="report-inline-note">Degree / major: {{ row.degree_major }}</div>
+                                    {% endif %}
+                                    {% if row.is_underloaded %}
+                                    <div class="report-inline-note">
+                                        This teacher still has {{ row.remaining_capacity_hours }}h of international capacity available after the current section assignments.
+                                    </div>
+                                    {% endif %}
+                                    {% if row.homeroom_section_labels %}
+                                    <div>
+                                        <div class="report-inline-note">Reserved homeroom sections</div>
+                                        <div class="report-tag-list">
+                                            {% for label in row.homeroom_section_labels %}
+                                            <span class="report-tag">{{ label }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% if row.homeroom_subject_labels %}
+                                    <div>
+                                        <div class="report-inline-note">Homeroom subjects reserved first</div>
+                                        <div class="report-tag-list">
+                                            {% for label in row.homeroom_subject_labels %}
+                                            <span class="report-tag">{{ label }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    <div>
+                                        <div class="report-inline-note">Assigned subject coverage</div>
+                                        <div class="report-tag-list">
+                                            {% if row.subject_labels %}
+                                                {% for label in row.subject_labels %}
+                                                <span class="report-tag">{{ label }}</span>
+                                                {% endfor %}
+                                            {% else %}
+                                                <span class="report-tag">No primary subject basis</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="report-inline-note">Current assigned hours in listed subjects: {{ row.primary_subject_basis_hours }}h</div>
+                                    {% if row.support_subject_labels %}
+                                    <div>
+                                        <div class="report-inline-note">Support subjects used only after primary demand is covered</div>
+                                        <div class="report-tag-list">
+                                            {% for label in row.support_subject_labels %}
+                                            <span class="report-tag">{{ label }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% if row.homeroom_allocation_labels %}
+                                    <div class="report-inline-note">{{ row.homeroom_allocation_labels | join(" | ") }}</div>
+                                    {% endif %}
+                                    {% if row.allocation_labels %}
+                                    <div class="report-inline-note">{{ row.allocation_labels | join(", ") }}</div>
+                                    {% endif %}
+                                    {% if row.is_underloaded %}
+                                    <div class="report-inline-note">No additional subject recommendation is forced here; use the spare capacity and uncovered-hour data together when reviewing staffing decisions.</div>
+                                    {% endif %}
+                                </div>
+                            </details>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="empty">No teacher records found in this branch/year scope.</div>
+                        {% endif %}
+                        <div class="report-footnote">
+                            Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Utilized in planned-section allocations: {{ report_summary.teachers_utilized }} | Full load at international capacity: {{ report_summary.teachers_full_load }} | Underloaded: {{ report_summary.underloaded_teachers }} | Lower-primary homeroom default coverage: {{ report_summary.homeroom_default_coverage_hours }}h | Priority subjects with gaps: {{ report_summary.priority_subjects_with_gaps }} | Priority uncovered sections: {{ report_summary.priority_uncovered_sections }} | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
+                        </div>
+                    </div>
+                </section>
                 {% endif %}
             </div>
 
@@ -3662,8 +4052,8 @@
             <div class="panel" id="panel-reports">
                 <div class="panel-head">
                     <div>
-                        <h3 class="section-heading"><span class="section-heading-icon">{{ icon("report", "icon") }}</span>Reports Workspace</h3>
-                        <p>Section-accurate assignment coverage across opened sections, assigned teachers, and uncovered demand.</p>
+                        <h3 class="section-heading"><span class="section-heading-icon">{{ icon("report", "icon") }}</span>Reports & Insights Workspace</h3>
+                        <p>High-level coverage, uncovered demand, and strategic hiring insight for the current branch and year scope.</p>
                     </div>
                     <div class="panel-head-actions">
                         <a class="open-link" href="/planning">{{ icon("planning", "icon") }} Open Planning</a>
@@ -3943,294 +4333,6 @@
                         </div>
                     </div>
                 </article>
-
-                <div class="report-layout">
-                    <div class="report-card report-card-subjects">
-                        <div class="report-card-head">
-                            <div class="report-card-head-copy">
-                                <h4 class="report-heading"><span class="section-heading-icon report-heading-icon">{{ icon("subjects", "icon") }}</span><span class="report-heading-label">Subject Sufficiency Breakdown</span></h4>
-                                <p>Each subject is summarized through a quick visual coverage view, compact executive metrics, and a focused open-sections panel.</p>
-                            </div>
-                            <span class="report-card-tag">{{ report_subject_count or report_subject_rows|length }} subjects</span>
-                        </div>
-                        <div class="report-subject-list">
-                            {% for row in report_subject_card_rows %}
-                            {% set open_sections_total = (row.uncovered_sections_count or 0) + (row.partial_sections_count or 0) %}
-                            <article class="report-subject-item {{ row.staffing_item_class }}" style="--subject-accent: {{ row.subject_donut_primary }}; --subject-accent-soft: {{ row.subject_donut_secondary }}; --subject-accent-surface: {{ row.subject_accent_surface }}; --subject-pill-bg: {{ row.subject_status_bg }}; --subject-pill-fg: {{ row.subject_status_text }}; --subject-pill-border: {{ row.subject_status_border }};">
-                                <div class="report-subject-head">
-                                    <div>
-                                        <div class="report-subject-title-row">
-                                            <h5>{{ row.subject_name }}</h5>
-                                            {% if row.priority_staffing_subject %}
-                                            <span class="report-subject-flag">Priority Subject</span>
-                                            {% endif %}
-                                        </div>
-                                        <div class="report-inline-note">
-                                            {{ row.required_hours }}h total demand • {{ row.covered_sections_count or 0 }}/{{ row.total_sections or 0 }} sections covered{% if open_sections_total %} • {{ open_sections_total }} still open{% endif %}
-                                        </div>
-                                    </div>
-                                    <div class="report-subject-side">
-                                        <span class="report-status-pill {{ row.staffing_status_class }}">{{ row.staffing_status_label }}</span>
-                                        <div class="report-donut-shell report-subject-donut" style="--donut-primary: {{ row.subject_donut_primary }}; --donut-secondary: {{ row.subject_donut_secondary }}; --donut-target: {{ row.coverage_percentage }};">
-                                            <div class="report-donut-center">
-                                                <strong><span class="report-kpi-value" data-value="{{ row.coverage_percentage }}">{{ row.coverage_percentage }}</span><span class="report-percent-sign">%</span></strong>
-                                                <span>covered</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="report-subject-track">
-                                    <div class="report-subject-track-fill" style="background: linear-gradient(90deg, {{ row.subject_donut_primary }} 0 {{ row.coverage_percentage }}%, {{ row.subject_donut_secondary }} {{ row.coverage_percentage }}% 100%);"></div>
-                                </div>
-
-                                <div class="report-subject-kpis">
-                                    <div class="report-subject-kpi-chip is-clear">
-                                        <span>Covered</span>
-                                        <strong><span class="report-kpi-value" data-value="{{ row.allocated_hours }}">{{ row.allocated_hours }}</span>h</strong>
-                                    </div>
-                                    <div class="report-subject-kpi-chip {% if row.remaining_hours > 0 %}is-gap{% else %}is-clear{% endif %}">
-                                        <span>Uncovered</span>
-                                        <strong><span class="report-kpi-value" data-value="{{ row.remaining_hours }}">{{ row.remaining_hours }}</span>h</strong>
-                                    </div>
-                                    <div class="report-subject-kpi-chip">
-                                        <span>Teachers</span>
-                                        <strong><span class="report-kpi-value" data-value="{{ row.assigned_teacher_count or 0 }}">{{ row.assigned_teacher_count or 0 }}</span></strong>
-                                    </div>
-                                    <div class="report-subject-kpi-chip">
-                                        <span>Open Sections</span>
-                                        <strong><span class="report-kpi-value" data-value="{{ open_sections_total }}">{{ open_sections_total }}</span></strong>
-                                    </div>
-                                </div>
-
-                                <div class="report-subject-caption">
-                                    <span><strong>{{ row.required_current_hours }}h</strong> current • <strong>{{ row.required_new_hours }}h</strong> new</span>
-                                    <span class="{% if row.remaining_hours > 0 %}report-caption-alert{% endif %}">{{ row.teacher_requirement_blocks or 0 }} × 24h blocks</span>
-                                </div>
-
-                                <div class="report-subject-body-grid">
-                                    <div class="report-contributor-panel">
-                                        <div class="report-contributor-head">
-                                            <span>Teacher Coverage</span>
-                                            <strong><span class="report-kpi-value" data-value="{{ row.assigned_teacher_count or 0 }}">{{ row.assigned_teacher_count or 0 }}</span></strong>
-                                        </div>
-                                        {% if row.assigned_teacher_contributors %}
-                                        <div class="report-contributor-list">
-                                            {% for contributor in row.assigned_teacher_contributors %}
-                                            <div class="report-contributor-chip">
-                                                <div class="report-contributor-meta">
-                                                    <span>{{ contributor.teacher_name }}</span>
-                                                    <strong>{{ contributor.current_subject_hours }}h here • {{ contributor.total_allocated_hours }}/{{ contributor.capacity_hours }}h total</strong>
-                                                </div>
-                                                <div class="report-contributor-track" title="{{ contributor.current_subject_hours }}h from {{ row.subject_name }} • {{ contributor.other_allocated_hours }}h from other subjects • {{ contributor.remaining_capacity_hours }}h free">
-                                                    {% if contributor.other_share_percentage > 0 %}
-                                                    <div class="report-contributor-fill is-other" style="width: {{ contributor.other_share_percentage }}%;"></div>
-                                                    {% endif %}
-                                                    {% if contributor.current_share_percentage > 0 %}
-                                                    <div class="report-contributor-fill is-current" style="width: {{ contributor.current_share_percentage }}%;"></div>
-                                                    {% endif %}
-                                                </div>
-                                                <div class="report-contributor-capacity">
-                                                    <span><strong>{{ contributor.total_share_percentage }}%</strong> of 24h load</span>
-                                                    <span>
-                                                        {% if contributor.other_allocated_hours > 0 %}
-                                                        {{ contributor.current_subject_hours }}h here • {{ contributor.other_allocated_hours }}h other
-                                                        {% else %}
-                                                        {{ contributor.current_subject_hours }}h from this subject
-                                                        {% endif %}
-                                                    </span>
-                                                    <span>
-                                                        {% if contributor.remaining_capacity_hours > 0 %}
-                                                        {{ contributor.remaining_capacity_hours }}h free
-                                                        {% else %}
-                                                        Fully allocated
-                                                        {% endif %}
-                                                    </span>
-                                                </div>
-                                                <div class="report-contributor-foot">
-                                                    {% if contributor.section_labels %}
-                                                    {{ contributor.section_labels | join(" · ") }}
-                                                    {% else %}
-                                                    Assigned in active sections
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                            {% endfor %}
-                                        </div>
-                                        {% else %}
-                                        <div class="report-inline-note">No teachers are currently assigned to this subject.</div>
-                                        {% endif %}
-                                    </div>
-
-                                    <div class="report-section-summary">
-                                        <div class="report-section-block is-open">
-                                            <div class="report-section-block-head">
-                                                <span>Sections Still Open</span>
-                                                <strong>{{ open_sections_total }}</strong>
-                                            </div>
-                                            {% if row.partial_section_labels %}
-                                            <div>
-                                                <div class="report-inline-note">Partially covered</div>
-                                                <div class="report-section-list">
-                                                    {% for label in row.partial_section_labels %}
-                                                    <span class="report-section-pill is-open">{{ label }}</span>
-                                                    {% endfor %}
-                                                </div>
-                                            </div>
-                                            {% endif %}
-                                            {% if row.uncovered_section_labels %}
-                                            <div>
-                                                <div class="report-inline-note">No compatible allocation yet</div>
-                                                <div class="report-section-list">
-                                                    {% for label in row.uncovered_section_labels %}
-                                                    <span class="report-section-pill is-open">{{ label }}</span>
-                                                    {% endfor %}
-                                                </div>
-                                            </div>
-                                            {% endif %}
-                                            {% if not row.partial_section_labels and not row.uncovered_section_labels %}
-                                            <div class="report-inline-note">All sections are currently allocated.</div>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {% if row.staffing_note %}
-                                <div class="report-subject-note">{{ row.staffing_note }}</div>
-                                {% endif %}
-                            </article>
-                            {% endfor %}
-                        </div>
-                    </div>
-
-                </div>
-
-                <div class="report-card report-teachers-card">
-                    <div class="report-card-head">
-                        <div class="report-card-head-copy">
-                            <h4>Assigned Coverage Across Planned Sections</h4>
-                            <p>Compact teacher cards show the current assigned load, remaining international capacity, and the lower-primary homeroom hours already covered by default rules.</p>
-                        </div>
-                        <span class="report-card-tag">{{ report_teacher_rows|length }} teachers</span>
-                    </div>
-                    {% if report_teacher_rows %}
-                    <div class="report-teacher-list">
-                        {% for row in report_teacher_rows %}
-                        {% set teacher_fill_pct = ((row.expected_allocated_hours / row.capacity_hours) * 100) if row.capacity_hours else 0 %}
-                        {% set teacher_fill = 100 if teacher_fill_pct > 100 else teacher_fill_pct %}
-                        <details class="report-teacher-item{% if row.is_underloaded %} is-underloaded{% endif %}">
-                            <summary>
-                                <div class="report-teacher-head">
-                                    <strong>{{ row.teacher_name }}</strong>
-                                    <div class="report-teacher-meta">
-                                        ID {{ row.teacher_id }} | Current {{ row.expected_allocated_hours }} / {{ row.capacity_hours }}h | Remaining {{ row.remaining_capacity_hours }}h
-                                    </div>
-                                </div>
-                                <div class="report-teacher-badges">
-                                    <span class="report-teacher-badge">{{ row.expected_allocated_hours }}h allocated</span>
-                                    {% if row.is_underloaded %}
-                                    <span class="report-teacher-badge report-teacher-badge-underloaded">Underloaded</span>
-                                    {% endif %}
-                                    <span class="report-teacher-badge report-teacher-badge-accent">
-                                        {% if row.remaining_capacity_hours > 0 %}{{ row.remaining_capacity_hours }}h spare{% else %}Full load{% endif %}
-                                    </span>
-                                </div>
-                            </summary>
-                            <div class="report-teacher-body">
-                                <div class="report-teacher-track">
-                                    <div
-                                        class="report-teacher-track-fill"
-                                        style="background: linear-gradient(90deg, #0a4ea3 0 {{ teacher_fill|round(1) }}%, #e5edf7 {{ teacher_fill|round(1) }}% 100%);"
-                                    ></div>
-                                </div>
-                                <div class="report-teacher-columns">
-                                    <div class="report-teacher-column">
-                                        <span>Homeroom Allocation</span>
-                                        <strong>{{ row.homeroom_allocated_hours }}h</strong>
-                                    </div>
-                                    <div class="report-teacher-column">
-                                        <span>Primary Allocation</span>
-                                        <strong>{{ row.primary_allocated_hours }}h</strong>
-                                    </div>
-                                    <div class="report-teacher-column">
-                                        <span>Support Allocation</span>
-                                        <strong>{{ row.support_allocated_hours }}h</strong>
-                                    </div>
-                                </div>
-                                <div class="report-inline-note">
-                                    Total capacity {{ row.total_capacity_hours }}h | National section {{ row.national_section_hours }}h | International capacity {{ row.capacity_hours }}h
-                                </div>
-                                {% if row.degree_major %}
-                                <div class="report-inline-note">Degree / major: {{ row.degree_major }}</div>
-                                {% endif %}
-                                {% if row.is_underloaded %}
-                                <div class="report-inline-note">
-                                    This teacher still has {{ row.remaining_capacity_hours }}h of international capacity available after the current section assignments.
-                                </div>
-                                {% endif %}
-                                {% if row.homeroom_section_labels %}
-                                <div>
-                                    <div class="report-inline-note">Reserved homeroom sections</div>
-                                    <div class="report-tag-list">
-                                        {% for label in row.homeroom_section_labels %}
-                                        <span class="report-tag">{{ label }}</span>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                                {% endif %}
-                                {% if row.homeroom_subject_labels %}
-                                <div>
-                                    <div class="report-inline-note">Homeroom subjects reserved first</div>
-                                    <div class="report-tag-list">
-                                        {% for label in row.homeroom_subject_labels %}
-                                        <span class="report-tag">{{ label }}</span>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                                {% endif %}
-                                <div>
-                                    <div class="report-inline-note">Assigned subject coverage</div>
-                                    <div class="report-tag-list">
-                                        {% if row.subject_labels %}
-                                            {% for label in row.subject_labels %}
-                                            <span class="report-tag">{{ label }}</span>
-                                            {% endfor %}
-                                        {% else %}
-                                            <span class="report-tag">No primary subject basis</span>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                <div class="report-inline-note">Current assigned hours in listed subjects: {{ row.primary_subject_basis_hours }}h</div>
-                                {% if row.support_subject_labels %}
-                                <div>
-                                    <div class="report-inline-note">Support subjects used only after primary demand is covered</div>
-                                    <div class="report-tag-list">
-                                        {% for label in row.support_subject_labels %}
-                                        <span class="report-tag">{{ label }}</span>
-                                        {% endfor %}
-                                    </div>
-                                </div>
-                                {% endif %}
-                                {% if row.homeroom_allocation_labels %}
-                                <div class="report-inline-note">{{ row.homeroom_allocation_labels | join(" | ") }}</div>
-                                {% endif %}
-                                {% if row.allocation_labels %}
-                                <div class="report-inline-note">{{ row.allocation_labels | join(", ") }}</div>
-                                {% endif %}
-                                {% if row.is_underloaded %}
-                                <div class="report-inline-note">No additional subject recommendation is forced here; use the spare capacity and uncovered-hour data together when reviewing staffing decisions.</div>
-                                {% endif %}
-                            </div>
-                        </details>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <div class="empty">No teacher records found in this branch/year scope.</div>
-                    {% endif %}
-                    <div class="report-footnote">
-                        Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Utilized in planned-section allocations: {{ report_summary.teachers_utilized }} | Full load at international capacity: {{ report_summary.teachers_full_load }} | Underloaded: {{ report_summary.underloaded_teachers }} | Lower-primary homeroom default coverage: {{ report_summary.homeroom_default_coverage_hours }}h | Priority subjects with gaps: {{ report_summary.priority_subjects_with_gaps }} | Priority uncovered sections: {{ report_summary.priority_uncovered_sections }} | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
-                    </div>
-                </div>
                 {% else %}
                 <div class="empty">
                     No report output yet for this branch/year scope. Add planned sections and subject weekly hours to generate teacher sufficiency analytics.
