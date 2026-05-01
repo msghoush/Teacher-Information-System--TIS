@@ -4777,6 +4777,7 @@ const tabs = document.querySelectorAll(".tab");
             quran: "arabic_pool",
             social_arabic: "arabic_pool",
             pe: "physical_education",
+            homeroom: "homeroom_pool",
             social: "english_pool",
         };
         const hiringAllowedFamiliesByGroup = {
@@ -4785,6 +4786,7 @@ const tabs = document.querySelectorAll(".tab");
             general_science_pool: new Set(["science", "biology", "chemistry", "ict"]),
             arabic_pool: new Set(["arabic", "islamic", "quran", "social_arabic"]),
             physical_education: new Set(["pe"]),
+            homeroom_pool: new Set(["homeroom"]),
         };
         const hiringPoolNamesByGroup = {
             english_pool: "English Pool",
@@ -4792,6 +4794,7 @@ const tabs = document.querySelectorAll(".tab");
             math_pool: "Math Pool",
             general_science_pool: "General Science Pool",
             physical_education: "Physical Education Pool",
+            homeroom_pool: "Homeroom Pool",
         };
         const hiringPoolAccentByGroup = {
             english_pool: "#2563EB",
@@ -4799,7 +4802,9 @@ const tabs = document.querySelectorAll(".tab");
             math_pool: "#7C3AED",
             general_science_pool: "#1D4ED8",
             physical_education: "#EA580C",
+            homeroom_pool: "#B45309",
         };
+        const hiringManualPoolUppercaseWords = new Set(["ICT", "PE", "KG", "STEM", "STEAM"]);
         const normalizeHiringGroupKey = (groupKey, family = "") => {
             const group = String(groupKey || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
             const itemFamily = String(family || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -4841,7 +4846,32 @@ const tabs = document.querySelectorAll(".tab");
             if (["pe", "student_life", "single_pe"].includes(group)) {
                 return "physical_education";
             }
+            if (["homeroom", "home_room", "homeroom_pool", "homeroom_teacher", "single_homeroom"].includes(group)) {
+                return "homeroom_pool";
+            }
             return hiringCompatibilityByFamily[itemFamily] || group;
+        };
+        const formatHiringManualPoolName = (value) => {
+            const raw = String(value || "").trim();
+            if (!raw) {
+                return "Manual Pool";
+            }
+            const withoutSuffix = raw.replace(/\s+manual\s+pool\s*$/i, "").trim();
+            if (!withoutSuffix) {
+                return "Manual Pool";
+            }
+            const normalizedBase = withoutSuffix
+                .split(/\s+/)
+                .filter(Boolean)
+                .map((word) => {
+                    const upperWord = word.toUpperCase();
+                    if (hiringManualPoolUppercaseWords.has(upperWord)) {
+                        return upperWord;
+                    }
+                    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+                })
+                .join(" ");
+            return `${normalizedBase} Manual Pool`;
         };
         const hiringFamilyLabels = {
             english: "English",
@@ -4969,9 +4999,10 @@ const tabs = document.querySelectorAll(".tab");
                     subject_color: String(item.subject_color || "#0A4EA3"),
                     hours: Number(item.hours || 0),
                 })).filter((item) => item.hours > 0);
+                const isManualProfile = Boolean(profile.is_manual);
                 const rawGroupKey = String(profile.group_key || "");
                 let initialGroupKey = normalizeHiringGroupKey(rawGroupKey);
-                if (!rawGroupKey.trim()) {
+                if (!isManualProfile && !rawGroupKey.trim()) {
                     const nameGroupKey = normalizeHiringGroupKey(profile.name || "");
                     if (nameGroupKey === "general_science_pool") {
                         initialGroupKey = nameGroupKey;
@@ -4982,24 +5013,26 @@ const tabs = document.querySelectorAll(".tab");
                         .map((item) => normalizeHiringGroupKey("", item.family))
                         .filter(Boolean)
                 );
-                const groupKey = (!hiringPoolNamesByGroup[initialGroupKey] && itemGroupKeys.size === 1 && itemGroupKeys.has("general_science_pool"))
+                const groupKey = (!isManualProfile && !hiringPoolNamesByGroup[initialGroupKey] && itemGroupKeys.size === 1 && itemGroupKeys.has("general_science_pool"))
                     ? "general_science_pool"
                     : initialGroupKey;
+                const profileName = isManualProfile
+                    ? formatHiringManualPoolName(profile.name || "Manual Pool")
+                    : String(hiringPoolNamesByGroup[groupKey] || profile.name || "Proposed Pool");
                 return {
                     id: String(profile.id || `profile-${profileIndex + 1}`),
-                    name: String(hiringPoolNamesByGroup[groupKey] || profile.name || "Proposed Pool"),
+                    name: profileName,
                     group_key: groupKey,
                     assignment_note: String(profile.assignment_note || "Compatible pool grouping"),
                     accent_color: String(hiringPoolAccentByGroup[groupKey] || profile.accent_color || "#0A4EA3"),
                     max_hours: Number(profile.max_hours || 24),
                     block_size_hours: Number(profile.block_size_hours || 24),
-                    is_manual: Boolean(profile.is_manual),
+                    is_manual: isManualProfile,
                     allow_over_capacity: Boolean(profile.allow_over_capacity),
                     override_compatibility: Boolean(profile.override_compatibility),
                     items: normalizedItems,
                 };
             });
-            const generalScienceItems = [];
             let generalScienceProfile = null;
             const scienceNormalizedProfiles = [];
             const ensureGeneralScienceProfile = () => {
@@ -5022,14 +5055,6 @@ const tabs = document.querySelectorAll(".tab");
                 return generalScienceProfile;
             };
             rawNormProfiles.forEach((profile) => {
-                const retainedItems = [];
-                (profile.items || []).forEach((item) => {
-                    if (isGeneralScienceFamily(item.family)) {
-                        generalScienceItems.push(item);
-                    } else {
-                        retainedItems.push(item);
-                    }
-                });
                 if (profile.group_key === "general_science_pool") {
                     const profileShell = ensureGeneralScienceProfile();
                     profileShell.id = String(profile.id || profileShell.id);
@@ -5040,9 +5065,8 @@ const tabs = document.querySelectorAll(".tab");
                     profileShell.is_manual = false;
                     profileShell.allow_over_capacity = Boolean(profile.allow_over_capacity);
                     profileShell.override_compatibility = Boolean(profile.override_compatibility);
-                    profileShell.items = [...(profileShell.items || []), ...retainedItems];
-                } else if (retainedItems.length > 0) {
-                    profile.items = retainedItems;
+                    profileShell.items = [...(profileShell.items || []), ...(profile.items || [])];
+                } else {
                     scienceNormalizedProfiles.push(profile);
                 }
             });
@@ -5060,21 +5084,8 @@ const tabs = document.querySelectorAll(".tab");
                 if (normalizedItem.hours <= 0) {
                     return;
                 }
-                if (isGeneralScienceFamily(normalizedItem.family)) {
-                    generalScienceItems.push(normalizedItem);
-                } else {
-                    retainedUnassignedItems.push(normalizedItem);
-                }
+                retainedUnassignedItems.push(normalizedItem);
             });
-            if (generalScienceItems.length > 0) {
-                const profileShell = ensureGeneralScienceProfile();
-                const familyOrder = { science: 0, biology: 1, chemistry: 2, ict: 3 };
-                generalScienceItems.sort((a, b) => (
-                    (familyOrder[a.family] ?? 99) - (familyOrder[b.family] ?? 99)
-                    || String(a.subject_name || "").localeCompare(String(b.subject_name || ""))
-                ));
-                profileShell.items = [...generalScienceItems, ...(profileShell.items || [])];
-            }
             // Deduplicate profiles that resolve to the same named pool.
             const seenGroupKeys = new Map();
             const dedupedProfiles = [];
@@ -5119,7 +5130,7 @@ const tabs = document.querySelectorAll(".tab");
                     ...profile,
                     items: retainedItems,
                 });
-            }).filter((profile) => (profile.items || []).length > 0);
+            });
             return {
                 profiles: normalizedProfiles,
                 unassigned_items: retainedUnassignedItems,
@@ -5174,48 +5185,34 @@ const tabs = document.querySelectorAll(".tab");
             });
         };
 
-        const scheduleHiringStudioAutoSave = (message = "Hiring plan adjusted.") => {
-            if (!hiringStudioState.loaded || isPlanLocked()) {
+        const logHiringStudioAction = (actionLabel) => {
+            if (!hiringStudioState?.plan) {
+                return;
+            }
+            const profiles = hiringStudioState.plan.profiles || [];
+            console.info("[HiringStudio]", {
+                action: actionLabel,
+                poolsCount: profiles.length,
+                unassignedCount: (hiringStudioState.plan.unassigned_items || []).length,
+                profiles: profiles.map((profile) => ({
+                    id: profile.id,
+                    name: profile.name,
+                    isManual: Boolean(profile.is_manual),
+                    hours: profileTotalHours(profile),
+                    subjects: (profile.items || []).map((item) => `${item.subject_name} ${item.hours}h`),
+                })),
+            });
+        };
+
+        const markHiringStudioDirty = (message = "Hiring plan adjusted.") => {
+            if (!hiringStudioState.loaded) {
                 return;
             }
             updateHiringStudioDerivedSummary();
+            renderWarningItems(collectLocalWarnings());
             if (hiringStudioStatus) {
-                hiringStudioStatus.textContent = `${message} Saving automatically...`;
+                hiringStudioStatus.textContent = `${message} Unsaved changes. Click Save Plan to keep them.`;
             }
-            if (hiringStudioAutoSaveTimer) {
-                clearTimeout(hiringStudioAutoSaveTimer);
-            }
-            hiringStudioAutoSaveTimer = window.setTimeout(async () => {
-                if (hiringStudioAutoSaveInFlight) {
-                    scheduleHiringStudioAutoSave(message);
-                    return;
-                }
-                hiringStudioAutoSaveInFlight = true;
-                try {
-                    const response = await fetch("/dashboard/api/hiring-plan/save", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({ plan: hiringStudioState.plan }),
-                    });
-                    const payload = await response.json();
-                    if (!response.ok || !payload.ok) {
-                        throw new Error(payload.error || "Could not save hiring plan.");
-                    }
-                    renderWarningItems(payload.warnings || collectLocalWarnings());
-                    if (hiringStudioStatus) {
-                        hiringStudioStatus.textContent = `${message} Saved automatically.`;
-                    }
-                } catch (error) {
-                    renderWarningItems(collectLocalWarnings());
-                    if (hiringStudioStatus) {
-                        hiringStudioStatus.textContent = `${message} Could not auto-save; use Save Plan.`;
-                    }
-                } finally {
-                    hiringStudioAutoSaveInFlight = false;
-                }
-            }, 650);
         };
 
         const isPlanLocked = () => Boolean(hiringStudioState.plan.locked);
@@ -5383,7 +5380,8 @@ const tabs = document.querySelectorAll(".tab");
             hiringStudioState.plan = normalizePlan(hiringStudioState.plan);
             renderHiringStudio();
             if (placed) {
-                scheduleHiringStudioAutoSave(`Moved ${detached.chip.subject_name}.`);
+                logHiringStudioAction(`drop:${detached.chip.subject_name}`);
+                markHiringStudioDirty(`Moved ${detached.chip.subject_name}.`);
             }
         };
 
@@ -5657,7 +5655,8 @@ const tabs = document.querySelectorAll(".tab");
                     hiringStudioState.plan.unassigned_items.push(movedChip);
                     hiringStudioState.plan = normalizePlan(hiringStudioState.plan);
                     renderHiringStudio();
-                    scheduleHiringStudioAutoSave(`Moved ${movedChip.subject_name} to unassigned.`);
+                    logHiringStudioAction(`remove:${movedChip.subject_name}`);
+                    markHiringStudioDirty(`Moved ${movedChip.subject_name} to unassigned.`);
                 }
             });
 
@@ -5696,11 +5695,13 @@ const tabs = document.querySelectorAll(".tab");
             profiles.forEach((profile) => {
                 const renderedGroupKey = normalizeHiringGroupKey(profile.group_key || "");
                 const renderedNameGroupKey = profile.group_key ? "" : normalizeHiringGroupKey(profile.name || "");
-                if (renderedGroupKey === "general_science_pool" || renderedNameGroupKey === "general_science_pool") {
+                if (!profile.is_manual && (renderedGroupKey === "general_science_pool" || renderedNameGroupKey === "general_science_pool")) {
                     profile.group_key = "general_science_pool";
                     profile.name = "General Science Pool";
                     profile.is_manual = false;
                     profile.assignment_note = profile.assignment_note || "Science first, with Biology, Chemistry, and ICT merged into one pool";
+                } else if (profile.is_manual) {
+                    profile.name = formatHiringManualPoolName(profile.name || "Manual Pool");
                 }
                 const totalHours = profileTotalHours(profile);
                 const blockSize = Math.max(1, Number(profile.block_size_hours || 24));
@@ -5782,18 +5783,32 @@ const tabs = document.querySelectorAll(".tab");
                     if (locked || profile.group_key === "general_science_pool") {
                         return;
                     }
-                    if (normalizeHiringGroupKey(nameInput.value || "") === "general_science_pool") {
+                    if (!profile.is_manual && normalizeHiringGroupKey(nameInput.value || "") === "general_science_pool") {
                         profile.group_key = "general_science_pool";
                         profile.name = "General Science Pool";
                         profile.is_manual = false;
                         hiringStudioState.plan = normalizePlan(hiringStudioState.plan);
                         renderHiringStudio();
-                        scheduleHiringStudioAutoSave("General Science Pool name restored.");
+                        markHiringStudioDirty("General Science Pool name restored.");
                         return;
                     }
                     profile.name = nameInput.value || "Proposed Pool";
                     renderWarnings();
-                    scheduleHiringStudioAutoSave("Profile name updated.");
+                    markHiringStudioDirty("Profile name updated.");
+                });
+                nameInput?.addEventListener("blur", () => {
+                    if (locked || profile.group_key === "general_science_pool" || !profile.is_manual) {
+                        return;
+                    }
+                    const formattedName = formatHiringManualPoolName(nameInput.value || "Manual Pool");
+                    if (profile.name !== formattedName) {
+                        profile.name = formattedName;
+                        nameInput.value = formattedName;
+                        renderWarnings();
+                        markHiringStudioDirty("Profile name updated.");
+                    } else {
+                        nameInput.value = formattedName;
+                    }
                 });
 
                 const removeBtn = card.querySelector(".hiring-card-remove");
@@ -5812,7 +5827,8 @@ const tabs = document.querySelectorAll(".tab");
                     });
                     hiringStudioState.plan.profiles = hiringStudioState.plan.profiles.filter((entry) => entry.id !== profile.id);
                     renderHiringStudio();
-                    scheduleHiringStudioAutoSave(`Deleted ${profile.name}.`);
+                    logHiringStudioAction(`delete-profile:${profile.name}`);
+                    markHiringStudioDirty(`Deleted ${profile.name}.`);
                 });
 
                 const allowOver = card.querySelector(".hiring-allow-over");
@@ -5825,7 +5841,7 @@ const tabs = document.querySelectorAll(".tab");
                     }
                     profile.allow_over_capacity = allowOver.checked;
                     renderWarnings();
-                    scheduleHiringStudioAutoSave("Capacity override updated.");
+                    markHiringStudioDirty("Capacity override updated.");
                 });
 
                 const overrideCompat = card.querySelector(".hiring-override-compat");
@@ -5838,7 +5854,7 @@ const tabs = document.querySelectorAll(".tab");
                     }
                     profile.override_compatibility = overrideCompat.checked;
                     renderWarnings();
-                    scheduleHiringStudioAutoSave("Compatibility override updated.");
+                    markHiringStudioDirty("Compatibility override updated.");
                 });
 
                 const collapseBtn = card.querySelector(".hiring-collapse-btn");
@@ -5889,7 +5905,7 @@ const tabs = document.querySelectorAll(".tab");
             if (hiringStudioStatus && locked) {
                 hiringStudioStatus.textContent = "Plan locked. Unlock to edit drag/drop, profile settings, and manual profiles.";
             } else if (hiringStudioStatus && !locked) {
-                hiringStudioStatus.textContent = "Plan unlocked. Drag chips between pools to adjust the recommendation.";
+                hiringStudioStatus.textContent = "Plan unlocked. Drag chips between pools, then click Save Plan to keep changes.";
             }
             renderWarnings();
         };
@@ -5897,10 +5913,6 @@ const tabs = document.querySelectorAll(".tab");
         const saveHiringStudio = async () => {
             if (!hiringStudioSaveBtn) {
                 return;
-            }
-            if (hiringStudioAutoSaveTimer) {
-                clearTimeout(hiringStudioAutoSaveTimer);
-                hiringStudioAutoSaveTimer = null;
             }
             updateHiringStudioDerivedSummary();
             hiringStudioSaveBtn.disabled = true;
@@ -5950,15 +5962,15 @@ const tabs = document.querySelectorAll(".tab");
                 items: [],
             });
             renderHiringStudio();
-            scheduleHiringStudioAutoSave("Added manual profile.");
+            logHiringStudioAction(`add-profile:${profileId}`);
+            markHiringStudioDirty("Added manual profile.");
         };
 
-        const togglePlanLock = async () => {
+        const togglePlanLock = () => {
             hiringStudioState.plan.locked = !isPlanLocked();
             renderHiringStudio();
             const lockText = hiringStudioState.plan.locked ? "Locking approved plan..." : "Unlocking plan for edits...";
-            hiringStudioStatus.textContent = lockText;
-            await saveHiringStudio();
+            markHiringStudioDirty(lockText);
         };
 
         const loadHiringStudio = async () => {
@@ -5992,6 +6004,7 @@ const tabs = document.querySelectorAll(".tab");
 
             hiringStudioState.loaded = true;
             renderHiringStudio();
+            logHiringStudioAction("load");
         };
 
         hiringStudioAddProfileBtn?.addEventListener("click", addHiringProfile);

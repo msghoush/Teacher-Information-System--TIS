@@ -419,11 +419,12 @@ svg.tab-icon {
     width: 52px;
     height: 52px;
     border-radius: 50%;
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    background: linear-gradient(135deg, rgba(199, 154, 20, 0.92), rgba(255, 255, 255, 0.24));
+    background: linear-gradient(135deg, rgba(10, 78, 163, 0.95), rgba(199, 154, 20, 0.86));
     color: #ffffff;
     font-size: 18px;
     font-weight: 800;
@@ -432,18 +433,26 @@ svg.tab-icon {
 }
 
 .sidebar-avatar-image {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: center;
     display: block;
 }
 
 .sidebar-avatar-fallback {
+    position: absolute;
+    inset: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
-    height: 100%;
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1;
+    text-transform: uppercase;
 }
 
 .sidebar-account-copy {
@@ -452,13 +461,13 @@ svg.tab-icon {
     gap: 2px;
 }
 
-.sidebar-account strong,
-.sidebar-account span,
+.sidebar-account-copy strong,
+.sidebar-account-copy span,
 .sidebar-photo-help {
     display: block;
 }
 
-.sidebar-account span,
+.sidebar-account-copy span,
 .sidebar-photo-help {
     color: rgba(232, 240, 255, 0.72);
     font-size: 12px;
@@ -698,6 +707,7 @@ svg.tab-icon {
     width: 34px;
     height: 34px;
     border-radius: 50%;
+    position: relative;
     overflow: hidden;
     display: inline-flex;
     align-items: center;
@@ -711,18 +721,21 @@ svg.tab-icon {
 }
 
 .header-avatar img {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: center;
     display: block;
 }
 
 .header-avatar-fallback {
+    position: absolute;
+    inset: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
-    height: 100%;
 }
 
 .header-actions {
