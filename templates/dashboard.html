@@ -1961,11 +1961,61 @@
             margin-top: 0;
         }
 
+        .report-subject-filterbar {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) 220px auto auto;
+            gap: 10px;
+            align-items: center;
+            margin: 10px 0 14px;
+        }
+
+        .report-subject-filter-select {
+            width: 100%;
+            height: 40px;
+            border-radius: 10px;
+            border: 1px solid #c7d6ea;
+            background: #fff;
+            color: #1f3559;
+            font-size: 13px;
+            padding: 0 12px;
+        }
+
+        .report-subject-filter-clear {
+            height: 40px;
+            border-radius: 10px;
+            border: 1px solid #c7d6ea;
+            background: #fff;
+            color: #2c4f7d;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 0 12px;
+            cursor: pointer;
+        }
+
+        .report-subject-filter-count {
+            font-size: 12px;
+            color: #4f607a;
+            font-weight: 700;
+            white-space: nowrap;
+            text-align: right;
+        }
+
         .report-subject-list {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
+            grid-template-columns: 1fr;
             gap: 16px;
             align-items: stretch;
+        }
+
+        .report-subject-empty {
+            margin-top: 8px;
+            border: 1px dashed #c7d6ea;
+            border-radius: 12px;
+            padding: 12px;
+            background: #f8fbff;
+            color: #4f607a;
+            font-size: 13px;
+            display: none;
         }
 
         .report-subject-item {
@@ -2058,6 +2108,38 @@
             display: grid;
             gap: 14px;
             padding-top: 12px;
+        }
+
+        .report-subject-summary-copy {
+            display: grid;
+            gap: 8px;
+        }
+
+        .report-subject-demand-pill {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 7px;
+            padding: 6px 11px;
+            border-radius: 999px;
+            border: 1px solid #a8c4e9;
+            background: linear-gradient(145deg, #f0f6ff, #e3efff);
+            width: fit-content;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+        }
+
+        .report-subject-demand-pill span {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: #325077;
+            font-weight: 800;
+        }
+
+        .report-subject-demand-pill strong {
+            font-size: 22px;
+            line-height: 1;
+            color: #0a4ea3;
+            letter-spacing: -0.02em;
         }
 
         .report-subject-item::before {
@@ -3395,6 +3477,14 @@
                 grid-template-columns: 1fr;
             }
 
+            .report-subject-filterbar {
+                grid-template-columns: 1fr;
+            }
+
+            .report-subject-filter-count {
+                text-align: left;
+            }
+
             .report-donut-grid {
                 grid-template-columns: 1fr;
             }
@@ -3648,19 +3738,41 @@
                             </div>
                             <span class="report-card-tag">{{ report_subject_count or report_subject_rows|length }} subjects</span>
                         </div>
+                        <div class="report-subject-filterbar">
+                            <input id="reportSubjectCardSearch" class="subject-filter-input" type="text" placeholder="Filter subject cards by name, status, or note">
+                            <select id="reportSubjectCardGroupFilter" class="report-subject-filter-select" aria-label="Filter subject cards by group">
+                                <option value="all">All Subject Cards</option>
+                                <option value="needs-attention">Needs Coverage</option>
+                                <option value="fully-covered">Fully Covered</option>
+                                <option value="priority">Priority Subjects</option>
+                                <option value="high-demand">High Demand (24h+)</option>
+                            </select>
+                            <button id="reportSubjectCardClear" type="button" class="report-subject-filter-clear">Clear Filter</button>
+                            <div id="reportSubjectCardCount" class="report-subject-filter-count"></div>
+                        </div>
                         <div class="report-subject-list">
                             {% for row in report_subject_card_rows %}
                             {% set open_sections_total = (row.uncovered_sections_count or 0) + (row.partial_sections_count or 0) %}
-                            <details class="report-subject-item {{ row.staffing_item_class }}" style="--subject-accent: {{ row.subject_donut_primary }}; --subject-accent-soft: {{ row.subject_donut_secondary }}; --subject-accent-surface: {{ row.subject_accent_surface }}; --subject-pill-bg: {{ row.subject_status_bg }}; --subject-pill-fg: {{ row.subject_status_text }}; --subject-pill-border: {{ row.subject_status_border }};">
+                            <details
+                                class="report-subject-item {{ row.staffing_item_class }}"
+                                data-group="{% if row.priority_staffing_subject %}priority{% elif row.remaining_hours > 0 %}needs-attention{% else %}fully-covered{% endif %}"
+                                data-demand-hours="{{ row.required_hours or 0 }}"
+                                data-search="{{ (row.subject_name ~ ' ' ~ (row.staffing_status_label or '') ~ ' ' ~ (row.staffing_note or '') ~ ' ' ~ (row.remaining_hours or 0) ~ ' uncovered ' ~ (row.allocated_hours or 0) ~ ' covered') | lower }}"
+                                style="--subject-accent: {{ row.subject_donut_primary }}; --subject-accent-soft: {{ row.subject_donut_secondary }}; --subject-accent-surface: {{ row.subject_accent_surface }}; --subject-pill-bg: {{ row.subject_status_bg }}; --subject-pill-fg: {{ row.subject_status_text }}; --subject-pill-border: {{ row.subject_status_border }};"
+                            >
                                 <summary>
                                     <div class="report-subject-summary-main">
                                         <span class="report-subject-toggle-arrow" aria-hidden="true">&#9654;</span>
-                                        <div>
+                                        <div class="report-subject-summary-copy">
                                             <div class="report-subject-title-row">
                                                 <h5>{{ row.subject_name }}</h5>
                                                 {% if row.priority_staffing_subject %}
                                                 <span class="report-subject-flag">Priority Subject</span>
                                                 {% endif %}
+                                            </div>
+                                            <div class="report-subject-demand-pill">
+                                                <span>Total Hours Demand</span>
+                                                <strong>{{ row.required_hours }}h</strong>
                                             </div>
                                             <div class="report-inline-note">{{ row.required_hours }}h total • {{ row.allocated_hours }}h covered • {{ row.remaining_hours }}h uncovered</div>
                                         </div>
@@ -3668,7 +3780,7 @@
                                     <div class="report-subject-summary-side">
                                         <span class="report-status-pill {{ row.staffing_status_class }}">{{ row.staffing_status_label }}</span>
                                         <div class="report-subject-summary-metric"><strong>{{ row.coverage_percentage }}%</strong><span>coverage</span></div>
-                                        <div class="report-donut-shell report-subject-donut" style="--donut-primary: {{ row.subject_donut_primary }}; --donut-secondary: {{ row.subject_donut_secondary }}; --donut-target: {{ row.coverage_percentage }};">
+                                        <div class="report-donut-shell report-subject-donut" style="--donut-primary: {{ row.subject_donut_primary }}; --donut-secondary: #e5e7eb; --donut-target: {{ row.coverage_percentage }};">
                                             <div class="report-donut-center">
                                                 <strong><span class="report-kpi-value" data-value="{{ row.coverage_percentage }}">{{ row.coverage_percentage }}</span><span class="report-percent-sign">%</span></strong>
                                                 <span>covered</span>
@@ -3800,6 +3912,7 @@
                             </details>
                             {% endfor %}
                         </div>
+                        <div id="reportSubjectCardNoResult" class="report-subject-empty">No subject cards match the current filter.</div>
                     </div>
                 </section>
                 {% endif %}
@@ -4364,6 +4477,12 @@ const tabs = document.querySelectorAll(".tab");
         const reportCoverageFill = document.getElementById("reportCoverageFill");
         const reportFocusChips = Array.from(document.querySelectorAll(".report-focus-chip"));
         const reportSubjectRows = Array.from(document.querySelectorAll(".report-subject-row"));
+        const reportSubjectCards = Array.from(document.querySelectorAll(".report-subject-item"));
+        const reportSubjectCardSearch = document.getElementById("reportSubjectCardSearch");
+        const reportSubjectCardGroupFilter = document.getElementById("reportSubjectCardGroupFilter");
+        const reportSubjectCardClear = document.getElementById("reportSubjectCardClear");
+        const reportSubjectCardCount = document.getElementById("reportSubjectCardCount");
+        const reportSubjectCardNoResult = document.getElementById("reportSubjectCardNoResult");
         const reportDonutShells = Array.from(document.querySelectorAll(".report-donut-shell"));
         const subjectGradeOrder = ["KG", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
         const dashboardSubjectRowsByGrade = new Map();
@@ -4487,6 +4606,42 @@ const tabs = document.querySelectorAll(".tab");
                 }
                 row.style.display = match ? "" : "none";
             });
+        };
+
+        const applyReportSubjectCardFilters = () => {
+            if (reportSubjectCards.length === 0) {
+                return;
+            }
+
+            const term = reportSubjectCardSearch ? reportSubjectCardSearch.value.trim().toLowerCase() : "";
+            const selectedGroup = reportSubjectCardGroupFilter ? reportSubjectCardGroupFilter.value : "all";
+            let visibleCards = 0;
+
+            reportSubjectCards.forEach((card) => {
+                const cardSearch = String(card.dataset.search || "").toLowerCase();
+                const group = String(card.dataset.group || "");
+                const demandHours = Number(card.dataset.demandHours || "0");
+                const termMatch = !term || cardSearch.includes(term);
+                let groupMatch = selectedGroup === "all" || selectedGroup === group;
+
+                if (selectedGroup === "high-demand") {
+                    groupMatch = demandHours >= 24;
+                }
+
+                const isVisible = termMatch && groupMatch;
+                card.style.display = isVisible ? "" : "none";
+                if (isVisible) {
+                    visibleCards += 1;
+                }
+            });
+
+            if (reportSubjectCardCount) {
+                reportSubjectCardCount.textContent = `Showing ${visibleCards} of ${reportSubjectCards.length} subjects`;
+            }
+
+            if (reportSubjectCardNoResult) {
+                reportSubjectCardNoResult.style.display = visibleCards === 0 ? "block" : "none";
+            }
         };
 
         const getDashboardRowGrade = (row) => {
@@ -4713,6 +4868,27 @@ const tabs = document.querySelectorAll(".tab");
                 });
             });
             applyReportSubjectFilter("all");
+        }
+
+        if (reportSubjectCards.length > 0) {
+            applyReportSubjectCardFilters();
+            if (reportSubjectCardSearch) {
+                reportSubjectCardSearch.addEventListener("input", applyReportSubjectCardFilters);
+            }
+            if (reportSubjectCardGroupFilter) {
+                reportSubjectCardGroupFilter.addEventListener("change", applyReportSubjectCardFilters);
+            }
+            if (reportSubjectCardClear) {
+                reportSubjectCardClear.addEventListener("click", () => {
+                    if (reportSubjectCardSearch) {
+                        reportSubjectCardSearch.value = "";
+                    }
+                    if (reportSubjectCardGroupFilter) {
+                        reportSubjectCardGroupFilter.value = "all";
+                    }
+                    applyReportSubjectCardFilters();
+                });
+            }
         }
 
         tabs.forEach((tab) => {
