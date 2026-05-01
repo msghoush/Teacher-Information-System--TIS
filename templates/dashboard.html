@@ -2115,6 +2115,41 @@
             gap: 8px;
         }
 
+        .report-subject-summary-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+        }
+
+        .report-subject-summary-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #dbe7f5;
+            background: #fff;
+            color: #36557a;
+            border-radius: 999px;
+            padding: 5px 10px;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .report-subject-summary-badge strong {
+            color: #17365d;
+            font-size: 12px;
+        }
+
+        .report-subject-summary-badge.is-gap {
+            border-color: #efc0b9;
+            background: #fff4f1;
+            color: #9f2f24;
+        }
+
+        .report-subject-summary-badge.is-gap strong {
+            color: #b42318;
+        }
+
         .report-subject-demand-pill {
             display: inline-flex;
             align-items: baseline;
@@ -2490,6 +2525,27 @@
             font-size: 11px;
             color: #5d7597;
             line-height: 1.5;
+        }
+
+        .report-contributor-section-list {
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+        }
+
+        .report-contributor-section-chip {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #c6d8ef;
+            background: linear-gradient(145deg, #ffffff, #f3f8ff);
+            color: #1f436f;
+            border-radius: 9px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.2;
         }
 
         .report-inline-note {
@@ -3775,6 +3831,12 @@
                                                 <strong>{{ row.required_hours }}h</strong>
                                             </div>
                                             <div class="report-inline-note">{{ row.required_hours }}h total • {{ row.allocated_hours }}h covered • {{ row.remaining_hours }}h uncovered</div>
+                                            <div class="report-subject-summary-stats">
+                                                <span class="report-subject-summary-badge"><strong>{{ row.allocated_hours }}h</strong> Covered</span>
+                                                <span class="report-subject-summary-badge {% if row.remaining_hours > 0 %}is-gap{% endif %}"><strong>{{ row.remaining_hours }}h</strong> Uncovered</span>
+                                                <span class="report-subject-summary-badge"><strong>{{ row.assigned_teacher_count or 0 }}</strong> Teachers</span>
+                                                <span class="report-subject-summary-badge"><strong>{{ open_sections_total }}</strong> Open Sections</span>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="report-subject-summary-side">
@@ -3859,7 +3921,12 @@
                                                     </div>
                                                     <div class="report-contributor-foot">
                                                         {% if contributor.section_labels %}
-                                                        {{ contributor.section_labels | join(" · ") }}
+                                                        <div class="report-inline-note">Allocated Sections</div>
+                                                        <div class="report-contributor-section-list">
+                                                            {% for section_label in contributor.section_labels %}
+                                                            <span class="report-contributor-section-chip">{{ section_label }}</span>
+                                                            {% endfor %}
+                                                        </div>
                                                         {% else %}
                                                         Assigned in active sections
                                                         {% endif %}
