@@ -2899,15 +2899,50 @@
             border-color: #bfd5fb;
         }
 
-        .report-teacher-donut {
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            background: conic-gradient(from -90deg, var(--donut-color, #0a4ea3) 0% var(--donut-fill, 0%), #c8daed var(--donut-fill, 0%) 100%);
-            -webkit-mask: radial-gradient(farthest-side, transparent 52%, #000 52%);
-            mask: radial-gradient(farthest-side, transparent 52%, #000 52%);
+        .report-teacher-donut-shell {
+            width: 48px;
+            box-shadow: 0 3px 8px rgba(15, 23, 42, 0.1);
             flex-shrink: 0;
             margin-top: 2px;
+        }
+
+        .report-teacher-donut-shell::after {
+            width: 62%;
+            height: 62%;
+        }
+
+        .report-teacher-donut-shell .report-donut-center {
+            gap: 0;
+        }
+
+        .report-teacher-donut-shell .report-donut-center strong {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            line-height: 1;
+            color: #17365d;
+            text-shadow: none;
+            display: inline-flex;
+            align-items: baseline;
+            justify-content: center;
+        }
+
+        .report-teacher-donut-shell .report-donut-center strong .report-kpi-value {
+            font-size: 1em;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .report-teacher-donut-shell .report-donut-center strong .report-percent-sign {
+            font-size: 0.72em;
+            font-weight: 700;
+            margin-left: 0;
+            top: 0;
+            opacity: 0.8;
+        }
+
+        .report-teacher-donut-shell .report-donut-center > span {
+            display: none;
         }
 
         .report-teacher-head {
@@ -4196,8 +4231,13 @@
                             {% set teacher_fill = 100 if teacher_fill_pct > 100 else teacher_fill_pct %}
                             <details class="report-teacher-item{% if row.is_underloaded %} is-underloaded{% endif %}">
                                 <summary>
-                                    {% set donut_color = '#b91c1c' if teacher_fill_pct > 100 else ('#c79a14' if teacher_fill_pct >= 90 else '#0a4ea3') %}
-                                    <div class="report-teacher-donut" style="--donut-fill: {{ teacher_fill|round(1) }}%; --donut-color: {{ donut_color }};"></div>
+                                    {% set donut_pct = teacher_fill|round(0)|int %}
+                                    {% set donut_primary = '#15803d' if donut_pct >= 80 else ('#d97706' if donut_pct >= 50 else '#dc2626') %}
+                                    <div class="report-donut-shell report-teacher-donut-shell" style="--donut-primary: {{ donut_primary }}; --donut-secondary: #dde6f0; --donut-target: {{ donut_pct }};">
+                                        <div class="report-donut-center">
+                                            <strong><span class="report-kpi-value" data-value="{{ donut_pct }}">{{ donut_pct }}</span><span class="report-percent-sign">%</span></strong>
+                                        </div>
+                                    </div>
                                     <div class="report-teacher-head">
                                         <strong>{{ row.teacher_name }}</strong>
                                         <div class="report-teacher-meta">
