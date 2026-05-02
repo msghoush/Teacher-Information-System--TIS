@@ -2177,21 +2177,6 @@
             line-height: 1;
         }
 
-        .report-subject-summary-progress {
-            width: 132px;
-            height: 8px;
-            border-radius: 999px;
-            background: #e5e7eb;
-            overflow: hidden;
-            box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
-        }
-
-        .report-subject-summary-progress-fill {
-            display: block;
-            height: 100%;
-            border-radius: inherit;
-        }
-
         .report-subject-summary-badge strong {
             color: #17365d;
             font-size: 12px;
@@ -2217,7 +2202,6 @@
         .report-subject-summary-teacher-chip {
             display: inline-flex;
             align-items: center;
-            max-width: 180px;
             border: 1px solid #d4e2f4;
             background: #fff;
             color: #2f517a;
@@ -2225,10 +2209,8 @@
             padding: 6px 10px;
             font-size: 12px;
             font-weight: 700;
-            line-height: 1;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            line-height: 1.2;
+            white-space: normal;
         }
 
         .report-subject-summary-teacher-chip.is-more {
@@ -3932,14 +3914,12 @@
                                             <div class="report-subject-summary-stats">
                                                 <span class="report-subject-summary-badge"><strong>{{ row.allocated_hours }}h</strong> Covered</span>
                                                 <span class="report-subject-summary-badge {% if row.remaining_hours > 0 %}is-gap{% endif %}"><strong>{{ row.remaining_hours }}h</strong> Uncovered</span>
-                                            </div>
-                                            <div class="report-subject-summary-teachers">
                                                 {% if row.assigned_teacher_contributors %}
-                                                    {% for contributor in row.assigned_teacher_contributors[:3] %}
+                                                    {% for contributor in row.assigned_teacher_contributors[:2] %}
                                                     <span class="report-subject-summary-teacher-chip" title="{{ contributor.teacher_name }}">{{ contributor.teacher_name }}</span>
                                                     {% endfor %}
-                                                    {% if (row.assigned_teacher_contributors | length) > 3 %}
-                                                    <span class="report-subject-summary-teacher-chip is-more">+{{ (row.assigned_teacher_contributors | length) - 3 }} more</span>
+                                                    {% if (row.assigned_teacher_contributors | length) > 2 %}
+                                                    <span class="report-subject-summary-teacher-chip is-more">+{{ (row.assigned_teacher_contributors | length) - 2 }} more</span>
                                                     {% endif %}
                                                 {% else %}
                                                     <span class="report-subject-summary-teacher-chip is-empty">No teachers assigned</span>
@@ -3948,10 +3928,13 @@
                                         </div>
                                     </div>
                                     <div class="report-subject-summary-side">
-                                        <div class="report-subject-summary-metric"><strong>{{ row.coverage_percentage }}%</strong><span>coverage</span></div>
-                                        <div class="report-subject-summary-progress" aria-label="Coverage progress">
-                                            <span class="report-subject-summary-progress-fill" style="width: {{ row.coverage_percentage }}%; background: {{ row.subject_donut_primary }};"></span>
+                                        <div class="report-donut-shell report-subject-donut" style="--donut-primary: {{ row.subject_donut_primary }}; --donut-secondary: #e5e7eb; --donut-target: {{ row.coverage_percentage }};">
+                                            <div class="report-donut-center">
+                                                <strong><span class="report-kpi-value" data-value="{{ row.coverage_percentage }}">{{ row.coverage_percentage }}</span><span class="report-percent-sign">%</span></strong>
+                                                <span>covered</span>
+                                            </div>
                                         </div>
+                                        <div class="report-subject-summary-metric"><strong>{{ row.coverage_percentage }}%</strong><span>coverage</span></div>
                                         <span class="report-status-pill {{ row.staffing_status_class }}">{{ row.staffing_status_label }}</span>
                                     </div>
                                 </summary>
@@ -5091,6 +5074,7 @@ const tabs = document.querySelectorAll(".tab");
 
                 if (target === "subjects") {
                     animateSubjectKpis();
+                    animateReportDonuts();
                 }
 
                 if (target === "reports") {
@@ -6372,6 +6356,7 @@ const tabs = document.querySelectorAll(".tab");
         const activeSubjectsPanel = document.getElementById("panel-subjects");
         if (activeSubjectsPanel && activeSubjectsPanel.classList.contains("active")) {
             animateSubjectKpis();
+            animateReportDonuts();
         }
 
         const activePlanningPanel = document.getElementById("panel-planning");
