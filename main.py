@@ -574,6 +574,13 @@ CONFIGURATION_MODULES = (
         "description": "Manage branch records and status.",
     },
     {
+        "key": "users",
+        "label": "Users",
+        "href": "/users",
+        "icon": "users",
+        "description": "Manage user accounts, roles, and active status.",
+    },
+    {
         "key": "degrees",
         "label": "Degrees",
         "href": "/system-configuration/degrees",
