@@ -2082,6 +2082,10 @@
             border-color: var(--subject-accent);
         }
 
+        .report-subject-item[open] .report-subject-summary-side .report-donut-shell {
+            display: none;
+        }
+
         .report-subject-summary-side {
             display: grid;
             gap: 6px;
@@ -4727,6 +4731,29 @@ const tabs = document.querySelectorAll(".tab");
             reportDonutsAnimated = true;
         };
 
+        const animateSingleDonut = (shell) => {
+            if (!shell) {
+                return;
+            }
+            const targetValue = Number(shell.style.getPropertyValue("--donut-target") || "0");
+            const safeTarget = Math.max(0, Math.min(100, targetValue));
+            shell.style.setProperty("--donut-sweep", "0");
+
+            const startAt = performance.now();
+            const durationMs = 900;
+
+            const tick = (timestamp) => {
+                const progress = Math.min((timestamp - startAt) / durationMs, 1);
+                const eased = 1 - Math.pow(1 - progress, 3);
+                shell.style.setProperty("--donut-sweep", String(safeTarget * eased));
+                if (progress < 1) {
+                    requestAnimationFrame(tick);
+                }
+            };
+
+            requestAnimationFrame(tick);
+        };
+
         const animateReportBars = () => {
             if (reportBarsAnimated) {
                 return;
@@ -5053,6 +5080,14 @@ const tabs = document.querySelectorAll(".tab");
                     applyReportSubjectCardFilters();
                 });
             }
+            reportSubjectCards.forEach((card) => {
+                card.addEventListener("toggle", () => {
+                    if (card.open) {
+                        const expandedDonut = card.querySelector(".report-subject-expanded-head .report-donut-shell");
+                        animateSingleDonut(expandedDonut);
+                    }
+                });
+            });
         }
 
         tabs.forEach((tab) => {
