@@ -2082,10 +2082,6 @@
             border-color: var(--subject-accent);
         }
 
-        .report-subject-item[open] .report-subject-summary-side .report-donut-shell {
-            display: none;
-        }
-
         .report-subject-summary-side {
             display: grid;
             gap: 6px;
@@ -2110,6 +2106,21 @@
             color: #17365d;
             line-height: 1;
             letter-spacing: -0.03em;
+        }
+
+        .report-subject-summary-progress {
+            width: 132px;
+            height: 8px;
+            border-radius: 999px;
+            background: #e5e7eb;
+            overflow: hidden;
+            box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
+        }
+
+        .report-subject-summary-progress-fill {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
         }
 
         .report-subject-title-row h5 {
@@ -3932,13 +3943,10 @@
                                         </div>
                                     </div>
                                     <div class="report-subject-summary-side">
-                                        <div class="report-donut-shell report-subject-donut" style="--donut-primary: {{ row.subject_donut_primary }}; --donut-secondary: #e5e7eb; --donut-target: {{ row.coverage_percentage }};">
-                                            <div class="report-donut-center">
-                                                <strong><span class="report-kpi-value" data-value="{{ row.coverage_percentage }}">{{ row.coverage_percentage }}</span><span class="report-percent-sign">%</span></strong>
-                                                <span>covered</span>
-                                            </div>
-                                        </div>
                                         <div class="report-subject-summary-metric"><strong>{{ row.coverage_percentage }}%</strong><span>coverage</span></div>
+                                        <div class="report-subject-summary-progress" aria-label="Coverage progress">
+                                            <span class="report-subject-summary-progress-fill" style="width: {{ row.coverage_percentage }}%; background: {{ row.subject_donut_primary }};"></span>
+                                        </div>
                                         <span class="report-status-pill {{ row.staffing_status_class }}">{{ row.staffing_status_label }}</span>
                                     </div>
                                 </summary>
