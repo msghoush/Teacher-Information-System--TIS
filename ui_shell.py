@@ -154,16 +154,6 @@ def _build_nav_items(
         },
     ]
 
-    if can_manage_users:
-        items.append(
-            {
-                "label": "Users",
-                "href": "/users",
-                "icon": "users",
-                "active": is_active("/users"),
-            }
-        )
-
     if can_manage_system_settings:
         items.append(
             {

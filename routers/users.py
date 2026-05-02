@@ -105,6 +105,10 @@ def _parse_is_active(value: str):
     return None
 
 
+def _is_developer_account(user_row) -> bool:
+    return auth.normalize_role(getattr(user_row, "role", "")) == auth.ROLE_DEVELOPER
+
+
 def _build_user_initials(first_name: str = "", last_name: str = "") -> str:
     first = str(first_name or "").strip()
     last = str(last_name or "").strip()
@@ -169,6 +173,7 @@ def _render_edit_user_page(
 
     role_choices = list(_get_user_roles_for_creator(current_user))
     normalized_row_role = auth.normalize_role(getattr(user_row, "role", ""))
+    selected_role = auth.normalize_role(form_data.get("role", normalized_row_role))
     if normalized_row_role and normalized_row_role not in role_choices:
         role_choices.insert(0, normalized_row_role)
 
@@ -180,6 +185,7 @@ def _render_edit_user_page(
             "user_row": user_row,
             "positions": POSITIONS,
             "role_choices": role_choices,
+            "can_set_inactive": selected_role != auth.ROLE_DEVELOPER,
             "available_branches": _get_available_branches(db, current_user),
             "error": error,
             "detail_errors": detail_errors or [],
@@ -516,6 +522,9 @@ def update_user(
     if parsed_is_active is None:
         errors.append("Invalid status selected.")
 
+    if role == auth.ROLE_DEVELOPER and parsed_is_active is False:
+        errors.append("Developer accounts must remain active.")
+
     if password and len(password) < 8:
         errors.append("Password must be at least 8 characters.")
 
@@ -595,6 +604,63 @@ def update_user(
         db=db,
         current_user=current_user,
         success=f"User updated successfully: {first_name} {last_name}",
+    )
+
+
+@router.post("/status/{user_pk}")
+def update_user_status(
+    request: Request,
+    user_pk: int,
+    is_active: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    if not auth.can_manage_users(current_user):
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    if not auth.can_edit_user_accounts(current_user):
+        return RedirectResponse(url="/users", status_code=302)
+
+    user_row = _get_user_for_management(db, current_user, user_pk)
+    if not user_row:
+        return _render_users_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="User not found or access denied.",
+        )
+
+    parsed_is_active = _parse_is_active(is_active)
+    if parsed_is_active is None:
+        return _render_users_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Invalid status selected.",
+        )
+
+    if _is_developer_account(user_row) and parsed_is_active is False:
+        return _render_users_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="Developer accounts must remain active.",
+        )
+
+    user_row.is_active = parsed_is_active
+    db.commit()
+
+    display_name = f"{user_row.first_name} {user_row.last_name}".strip()
+    display_name = display_name or (user_row.user_id or user_row.username or "User")
+    status_label = "Active" if parsed_is_active else "Inactive"
+    return _render_users_page(
+        request=request,
+        db=db,
+        current_user=current_user,
+        success=f"User status updated: {display_name} is now {status_label}.",
     )
 
 

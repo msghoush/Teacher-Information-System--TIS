@@ -61,10 +61,22 @@
                 </nav>
             </section>
 
-            {% if shell.can_manage_system_settings and shell.available_scope_branches %}
+            {% if shell.can_manage_system_settings %}
             <section class="sidebar-section">
                 <h3 class="sidebar-section-title">Configuration</h3>
                 <div class="sidebar-config">
+                    <div class="sidebar-config-card">
+                        <h4 class="sidebar-card-title">Administrative Modules</h4>
+                        <p>Open core administration workspaces without leaving the current page.</p>
+                        <div class="sidebar-config-row">
+                            <a class="sidebar-config-link" href="/system-configuration">{{ icon("settings", "shell-icon") }} System Configuration</a>
+                            {% if shell.can_manage_users %}
+                            <a class="sidebar-config-link" href="/users">{{ icon("users", "shell-icon") }} Users</a>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if shell.available_scope_branches %}
                     <div class="sidebar-config-card">
                         <h4 class="sidebar-card-title">Change Branch</h4>
                         <p>Switch branch scope without leaving the current screen.</p>
@@ -81,6 +93,7 @@
                             <button class="sidebar-config-btn" type="submit">{{ icon("branch", "shell-icon") }} Switch Branch</button>
                         </form>
                     </div>
+                    {% endif %}
                 </div>
             </section>
             {% endif %}

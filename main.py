@@ -7717,9 +7717,6 @@ def dashboard(
         models.Teacher.branch_id == scoped_branch_id,
         models.Teacher.academic_year_id == scoped_academic_year_id
     )
-    users_query = db.query(models.User).filter(
-        models.User.branch_id == scoped_branch_id
-    )
     planning_sections_query = db.query(models.PlanningSection).filter(
         models.PlanningSection.branch_id == scoped_branch_id,
         models.PlanningSection.academic_year_id == scoped_academic_year_id,
@@ -7753,7 +7750,6 @@ def dashboard(
         for subject in subjects_dashboard_rows
     )
     teacher_count = teachers_query.count()
-    users_count = users_query.count()
     planning_sections = planning_sections_query.all()
     planning_total_sections = len(planning_sections)
     planning_current_sections_count = sum(
@@ -7771,9 +7767,6 @@ def dashboard(
     ).all()
     teachers_preview = teachers_query.order_by(
         models.Teacher.id.desc()
-    ).limit(8).all()
-    users_preview = users_query.order_by(
-        models.User.id.desc()
     ).limit(8).all()
     subject_hours_by_grade = {}
     for subject in subjects_dashboard_rows:
@@ -7912,10 +7905,6 @@ def dashboard(
     year_map = {
         year.id: year.year_name for year in all_years
     }
-    branch_map = {
-        branch_item.id: branch_item.name
-        for branch_item in db.query(models.Branch).all()
-    }
     available_scope_branches = db.query(models.Branch).filter(
         models.Branch.status == True
     ).order_by(models.Branch.name.asc()).all()
@@ -7937,14 +7926,12 @@ def dashboard(
             "academic_year_name": academic_year_name,
             "subject_count": subject_count,
             "teacher_count": teacher_count,
-            "users_count": users_count,
             "planning_total_sections": planning_total_sections,
             "planning_current_sections_count": planning_current_sections_count,
             "planning_new_sections_count": planning_new_sections_count,
             "planning_total_allocated_hours": planning_total_allocated_hours,
             "subjects_dashboard_rows": subjects_dashboard_rows,
             "teachers_preview": teachers_preview,
-            "users_preview": users_preview,
             "report_summary": report_summary,
             "report_subject_count": report_subject_count,
             "report_subject_rows": report_subject_rows,
@@ -7960,14 +7947,12 @@ def dashboard(
             "hiring_plan_editor_auto_payload": hiring_plan_editor_auto_payload,
             "all_years": all_years,
             "year_map": year_map,
-            "branch_map": branch_map,
             "can_manage_system_settings": can_manage_system_settings,
             "info_message": info_message,
             "scoped_academic_year_id": scoped_academic_year_id,
             "available_scope_branches": available_scope_branches,
             "scoped_branch_id": scoped_branch_id,
             "active_year_id": active_year.id if active_year else None,
-            "is_admin": auth.can_manage_users(user),
             **build_shell_context(
                 request,
                 db,

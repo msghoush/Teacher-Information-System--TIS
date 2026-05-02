@@ -316,8 +316,9 @@
                     <label for="is_active">Status</label>
                     <select id="is_active" name="is_active" required>
                         <option value="active" {% if form_data.get('is_active', 'active' if user_row.is_active else 'inactive') == 'active' %}selected{% endif %}>Active</option>
-                        <option value="inactive" {% if form_data.get('is_active', 'active' if user_row.is_active else 'inactive') == 'inactive' %}selected{% endif %}>Inactive</option>
+                        <option value="inactive" {% if form_data.get('is_active', 'active' if user_row.is_active else 'inactive') == 'inactive' %}selected{% endif %} {% if not can_set_inactive %}disabled{% endif %}>Inactive</option>
                     </select>
+                    <small id="statusDeveloperHint" class="hint" style="margin:4px 0 0;{% if can_set_inactive %}display:none;{% endif %}">Developer accounts must remain active.</small>
                 </div>
                 <div class="field field-wide">
                     <label for="password">New Password (Optional)</label>
@@ -337,11 +338,42 @@
 {% block page_scripts %}
 <script>
 const userIdInput = document.getElementById("user_id");
+    const roleSelect = document.getElementById("role");
+    const statusSelect = document.getElementById("is_active");
+    const statusDeveloperHint = document.getElementById("statusDeveloperHint");
 
         if (userIdInput) {
             userIdInput.addEventListener("input", () => {
                 userIdInput.value = userIdInput.value.replace(/\D/g, "").slice(0, 10);
             });
         }
+
+        const syncDeveloperStatusRule = () => {
+            if (!roleSelect || !statusSelect) {
+                return;
+            }
+
+            const selectedRole = (roleSelect.value || "").trim().toLowerCase();
+            const inactiveOption = statusSelect.querySelector('option[value="inactive"]');
+            const isDeveloperRole = selectedRole === "developer";
+
+            if (inactiveOption) {
+                inactiveOption.disabled = isDeveloperRole;
+            }
+
+            if (isDeveloperRole && statusSelect.value === "inactive") {
+                statusSelect.value = "active";
+            }
+
+            if (statusDeveloperHint) {
+                statusDeveloperHint.style.display = isDeveloperRole ? "block" : "none";
+            }
+        };
+
+        if (roleSelect) {
+            roleSelect.addEventListener("change", syncDeveloperStatusRule);
+        }
+
+        syncDeveloperStatusRule();
     </script>
 {% endblock %}
