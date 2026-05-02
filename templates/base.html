@@ -49,7 +49,6 @@
                             {{ icon(item.icon, "shell-icon") }}
                             <span class="sidebar-link-copy">
                                 <strong>{{ item.label }}</strong>
-                                <span>{{ "Current workspace" if item.active else "Open module" }}</span>
                             </span>
                             {% if item.badge_count %}
                             <span class="sidebar-nav-badge" aria-label="{{ item.badge_count }} new notifications">{{ item.badge_count }}</span>
