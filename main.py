@@ -99,6 +99,22 @@ def _get_positive_int_env(name: str, default: int) -> int:
     return parsed_value if parsed_value > 0 else default
 
 
+IDLE_TIMEOUT_COOKIE_KEY = "last_activity_ts"
+IDLE_TIMEOUT_MINUTES = _get_positive_int_env("TIS_IDLE_TIMEOUT_MINUTES", 30)
+IDLE_TIMEOUT_SECONDS = IDLE_TIMEOUT_MINUTES * 60
+IDLE_TIMEOUT_LOGIN_MESSAGE = "Session timed out due to inactivity. Please log in again."
+IDLE_TIMEOUT_EXEMPT_PATHS = {
+    "/",
+    "/login",
+    "/logout",
+    "/forgot-password",
+    "/favicon.ico",
+}
+IDLE_TIMEOUT_EXEMPT_PREFIXES = (
+    "/static/",
+)
+
+
 REPORT_STANDARD_MAX_HOURS = 24
 # Version 15: Homeroom uncovered load gets its own named hiring pool instead of
 # falling through to unassigned as an unknown specialization.
@@ -5309,6 +5325,62 @@ def _build_report_allocation_xlsx_bytes(
 
 
 @app.middleware("http")
+async def inactivity_timeout_middleware(request: Request, call_next):
+    path = request.url.path or ""
+    if path in IDLE_TIMEOUT_EXEMPT_PATHS or any(
+        path.startswith(prefix) for prefix in IDLE_TIMEOUT_EXEMPT_PREFIXES
+    ):
+        return await call_next(request)
+
+    user_id_cookie = str(request.cookies.get("user_id") or "").strip()
+    if not user_id_cookie:
+        return await call_next(request)
+
+    db = SessionLocal()
+    try:
+        user = db.query(models.User).filter(
+            models.User.user_id == user_id_cookie
+        ).first()
+        if not user:
+            response = RedirectResponse(url="/", status_code=302)
+            response.delete_cookie("user_id")
+            response.delete_cookie("branch_id")
+            response.delete_cookie("academic_year_id")
+            response.delete_cookie(IDLE_TIMEOUT_COOKIE_KEY)
+            return response
+
+        if auth.is_developer(user):
+            return await call_next(request)
+
+        now_ts = int(time.time())
+        last_activity_raw = str(request.cookies.get(IDLE_TIMEOUT_COOKIE_KEY) or "").strip()
+        if last_activity_raw:
+            try:
+                last_activity_ts = int(last_activity_raw)
+            except ValueError:
+                last_activity_ts = 0
+
+            if last_activity_ts > 0 and (now_ts - last_activity_ts) > IDLE_TIMEOUT_SECONDS:
+                timeout_response = RedirectResponse(url="/?timeout=1", status_code=302)
+                timeout_response.delete_cookie("user_id")
+                timeout_response.delete_cookie("branch_id")
+                timeout_response.delete_cookie("academic_year_id")
+                timeout_response.delete_cookie(IDLE_TIMEOUT_COOKIE_KEY)
+                return timeout_response
+
+        response = await call_next(request)
+        response.set_cookie(
+            key=IDLE_TIMEOUT_COOKIE_KEY,
+            value=str(now_ts),
+            httponly=True,
+            samesite="lax",
+        )
+        return response
+    finally:
+        db.close()
+
+
+@app.middleware("http")
 async def audit_logging_middleware(request: Request, call_next):
     started_at = time.perf_counter()
     status_code = 500
@@ -5391,9 +5463,13 @@ def read_root(
             status_code=302
         )
 
+    timeout_notice = str(request.query_params.get("timeout", "")).strip().lower()
+    timeout_error = IDLE_TIMEOUT_LOGIN_MESSAGE if timeout_notice in {"1", "true", "yes"} else None
+
     return _render_login_page(
         request=request,
         db=db,
+        error=timeout_error,
     )
 
 
@@ -5782,6 +5858,12 @@ def login(
         value=str(active_year.id),
         httponly=True,
         samesite="lax"
+    )
+    response.set_cookie(
+        key=IDLE_TIMEOUT_COOKIE_KEY,
+        value=str(int(time.time())),
+        httponly=True,
+        samesite="lax",
     )
     return response
 
@@ -6337,6 +6419,7 @@ def logout():
     response.delete_cookie("user_id")
     response.delete_cookie("branch_id")
     response.delete_cookie("academic_year_id")
+    response.delete_cookie(IDLE_TIMEOUT_COOKIE_KEY)
     return response
 
 
