@@ -2028,12 +2028,12 @@
             position: relative;
             overflow: hidden;
             display: grid;
-            gap: 14px;
+            gap: 10px;
             min-height: 100%;
             border: 1px solid var(--subject-accent-soft);
             border-radius: 20px;
             background: linear-gradient(155deg, #ffffff, var(--subject-accent-surface));
-            padding: 16px;
+            padding: 12px;
             box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
             transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
             animation: reportCardRise 420ms ease both;
@@ -2044,7 +2044,7 @@
             cursor: pointer;
             display: grid;
             grid-template-columns: minmax(0, 1fr) auto;
-            align-items: center;
+            align-items: start;
             gap: 12px;
             outline: none;
         }
@@ -2056,7 +2056,7 @@
         .report-subject-summary-main {
             display: flex;
             align-items: flex-start;
-            gap: 10px;
+            gap: 8px;
             min-width: 0;
         }
 
@@ -2084,9 +2084,10 @@
 
         .report-subject-summary-side {
             display: grid;
-            gap: 8px;
+            gap: 6px;
             justify-items: end;
             text-align: right;
+            min-width: 140px;
         }
 
         .report-subject-summary-metric {
@@ -2094,14 +2095,35 @@
             align-items: baseline;
             gap: 4px;
             color: #26456d;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
         }
 
         .report-subject-summary-metric strong {
-            font-size: 16px;
+            font-size: 24px;
             color: #17365d;
             line-height: 1;
+            letter-spacing: -0.03em;
+        }
+
+        .report-subject-title-row h5 {
+            margin: 0;
+            font-size: 22px;
+            line-height: 1.1;
+            font-weight: 800;
+            color: #17365d;
+            letter-spacing: -0.02em;
+        }
+
+        .report-subject-name-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: var(--subject-accent);
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 0 0 3px rgba(10, 78, 163, 0.16);
+            flex-shrink: 0;
         }
 
         .report-subject-expanded {
@@ -2112,7 +2134,7 @@
 
         .report-subject-summary-copy {
             display: grid;
-            gap: 8px;
+            gap: 7px;
         }
 
         .report-subject-summary-stats {
@@ -2133,6 +2155,21 @@
             font-size: 11px;
             font-weight: 700;
             line-height: 1;
+        }
+
+        .report-subject-summary-progress {
+            width: 132px;
+            height: 8px;
+            border-radius: 999px;
+            background: #e5e7eb;
+            overflow: hidden;
+            box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
+        }
+
+        .report-subject-summary-progress-fill {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
         }
 
         .report-subject-summary-badge strong {
@@ -3821,6 +3858,7 @@
                                         <span class="report-subject-toggle-arrow" aria-hidden="true">&#9654;</span>
                                         <div class="report-subject-summary-copy">
                                             <div class="report-subject-title-row">
+                                                <span class="report-subject-name-dot" aria-hidden="true"></span>
                                                 <h5>{{ row.subject_name }}</h5>
                                                 {% if row.priority_staffing_subject %}
                                                 <span class="report-subject-flag">Priority Subject</span>
@@ -3830,24 +3868,18 @@
                                                 <span>Total Hours Demand</span>
                                                 <strong>{{ row.required_hours }}h</strong>
                                             </div>
-                                            <div class="report-inline-note">{{ row.required_hours }}h total • {{ row.allocated_hours }}h covered • {{ row.remaining_hours }}h uncovered</div>
                                             <div class="report-subject-summary-stats">
                                                 <span class="report-subject-summary-badge"><strong>{{ row.allocated_hours }}h</strong> Covered</span>
                                                 <span class="report-subject-summary-badge {% if row.remaining_hours > 0 %}is-gap{% endif %}"><strong>{{ row.remaining_hours }}h</strong> Uncovered</span>
-                                                <span class="report-subject-summary-badge"><strong>{{ row.assigned_teacher_count or 0 }}</strong> Teachers</span>
-                                                <span class="report-subject-summary-badge"><strong>{{ open_sections_total }}</strong> Open Sections</span>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="report-subject-summary-side">
-                                        <span class="report-status-pill {{ row.staffing_status_class }}">{{ row.staffing_status_label }}</span>
                                         <div class="report-subject-summary-metric"><strong>{{ row.coverage_percentage }}%</strong><span>coverage</span></div>
-                                        <div class="report-donut-shell report-subject-donut" style="--donut-primary: {{ row.subject_donut_primary }}; --donut-secondary: #e5e7eb; --donut-target: {{ row.coverage_percentage }};">
-                                            <div class="report-donut-center">
-                                                <strong><span class="report-kpi-value" data-value="{{ row.coverage_percentage }}">{{ row.coverage_percentage }}</span><span class="report-percent-sign">%</span></strong>
-                                                <span>covered</span>
-                                            </div>
+                                        <div class="report-subject-summary-progress" aria-label="Coverage progress">
+                                            <span class="report-subject-summary-progress-fill" style="width: {{ row.coverage_percentage }}%; background: {{ row.subject_donut_primary }};"></span>
                                         </div>
+                                        <span class="report-status-pill {{ row.staffing_status_class }}">{{ row.staffing_status_label }}</span>
                                     </div>
                                 </summary>
 
