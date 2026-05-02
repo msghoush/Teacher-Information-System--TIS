@@ -1533,6 +1533,18 @@ def _build_reporting_context_from_section_assignments(
             )
             if subject_key in subject_demand_map
         ]
+        subject_chips = [
+            {
+                "name": subject_demand_map[subject_key]["subject_name"],
+                "color": subject_demand_map[subject_key].get("subject_color", "#0A4EA3"),
+                "hours": hours,
+            }
+            for subject_key, hours in sorted(
+                profile["allocation_breakdown"].items(),
+                key=lambda item: (-item[1], subject_demand_map.get(item[0], {}).get("subject_name", item[0])),
+            )
+            if subject_key in subject_demand_map
+        ]
 
         teacher = profile["teacher"]
         report_teacher_rows.append(
@@ -1542,6 +1554,7 @@ def _build_reporting_context_from_section_assignments(
                 "teacher_name": profile["name"],
                 "degree_major": str(getattr(teacher, "degree_major", "") or "").strip(),
                 "subject_labels": subject_labels,
+                "subject_chips": subject_chips,
                 "support_subject_labels": [],
                 "homeroom_subject_labels": [
                     subject_demand_map[subject_key]["subject_name"]
@@ -2772,6 +2785,18 @@ def _build_reporting_context(
                     for item in allocation_items
                 )
             )
+        subject_chips = [
+            {
+                "name": subject_demand_map[subject_key]["subject_name"],
+                "color": subject_demand_map[subject_key].get("subject_color", "#0A4EA3"),
+                "hours": hours,
+            }
+            for subject_key, hours in sorted(
+                profile["allocation_breakdown"].items(),
+                key=lambda item: (-item[1], subject_demand_map.get(item[0], {}).get("subject_name", item[0])),
+            )
+            if subject_key in subject_demand_map
+        ]
 
         teacher = profile["teacher"]
         report_teacher_rows.append(
@@ -2781,6 +2806,7 @@ def _build_reporting_context(
                 "teacher_name": profile["name"],
                 "degree_major": str(getattr(teacher, "degree_major", "") or "").strip(),
                 "subject_labels": subject_labels,
+                "subject_chips": subject_chips,
                 "support_subject_labels": support_subject_labels,
                 "homeroom_subject_labels": homeroom_subject_labels,
                 "homeroom_section_labels": homeroom_section_labels,

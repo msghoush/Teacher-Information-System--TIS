@@ -2899,6 +2899,57 @@
             border-color: #bfd5fb;
         }
 
+        .report-teacher-donut {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            background: conic-gradient(var(--donut-color, #0a4ea3) 0% var(--donut-fill, 0%), #e5edf7 var(--donut-fill, 0%) 100%);
+            -webkit-mask: radial-gradient(farthest-side, transparent 62%, #000 62%);
+            mask: radial-gradient(farthest-side, transparent 62%, #000 62%);
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .report-teacher-head {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .teacher-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 6px;
+        }
+
+        .teacher-subject-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 7px 2px 5px;
+            border-radius: 999px;
+            background: #f0f4fa;
+            border: 1px solid #dce6f5;
+            font-size: 11px;
+            font-weight: 600;
+            color: #2c4b6e;
+            white-space: nowrap;
+            line-height: 1.4;
+        }
+
+        .teacher-subject-chip-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .teacher-subject-chip.is-more {
+            background: #e8eef7;
+            color: #4a6382;
+            border-color: #ccd8ec;
+        }
+
         .report-teacher-body {
             padding: 14px;
             display: grid;
@@ -4145,14 +4196,29 @@
                             {% set teacher_fill = 100 if teacher_fill_pct > 100 else teacher_fill_pct %}
                             <details class="report-teacher-item{% if row.is_underloaded %} is-underloaded{% endif %}">
                                 <summary>
+                                    {% set donut_color = '#b91c1c' if teacher_fill_pct > 100 else ('#c79a14' if teacher_fill_pct >= 90 else '#0a4ea3') %}
+                                    <div class="report-teacher-donut" style="--donut-fill: {{ teacher_fill|round(1) }}%; --donut-color: {{ donut_color }};"></div>
                                     <div class="report-teacher-head">
                                         <strong>{{ row.teacher_name }}</strong>
                                         <div class="report-teacher-meta">
-                                            ID {{ row.teacher_id }} | Current {{ row.expected_allocated_hours }} / {{ row.capacity_hours }}h | Remaining {{ row.remaining_capacity_hours }}h
+                                            ID {{ row.teacher_id }} · {{ row.expected_allocated_hours }}/{{ row.capacity_hours }}h
                                         </div>
+                                        {% if row.subject_chips %}
+                                        <div class="teacher-chip-row">
+                                            {% for chip in row.subject_chips[:4] %}
+                                            <span class="teacher-subject-chip">
+                                                <span class="teacher-subject-chip-dot" style="background: {{ chip.color }};"></span>
+                                                {{ chip.name }} · {{ chip.hours }}h
+                                            </span>
+                                            {% endfor %}
+                                            {% if row.subject_chips|length > 4 %}
+                                            <span class="teacher-subject-chip is-more">+{{ row.subject_chips|length - 4 }} more</span>
+                                            {% endif %}
+                                        </div>
+                                        {% endif %}
                                     </div>
                                     <div class="report-teacher-badges">
-                                        <span class="report-teacher-badge">{{ row.expected_allocated_hours }}h allocated</span>
+                                        <span class="report-teacher-badge">{{ row.expected_allocated_hours }}h</span>
                                         {% if row.is_underloaded %}
                                         <span class="report-teacher-badge report-teacher-badge-underloaded">Underloaded</span>
                                         {% endif %}
