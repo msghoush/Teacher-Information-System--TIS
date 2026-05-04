@@ -11,7 +11,7 @@ ROLE_EDITOR = "Editor"
 ROLE_USER = "User"
 ROLE_LIMITED = "Limited Access"
 POSITION_EDUCATION_EXCELLENCE = "Education Excellence"
-INACTIVE_ACCOUNT_MESSAGE = "Your account is inactive. Please contact the developer."
+INACTIVE_ACCOUNT_MESSAGE = "Your account is currently inactive. Please Contat the system developer."
 
 DATA_MODIFY_ROLES = {
     ROLE_DEVELOPER,
