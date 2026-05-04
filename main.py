@@ -17,7 +17,10 @@ import time
 from typing import Optional, Any
 from urllib.parse import quote_plus
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.chart import BarChart, PieChart, Reference
+from openpyxl.formatting.rule import DataBarRule
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.utils import get_column_letter
 
 from database import engine, SessionLocal
@@ -5362,6 +5365,1538 @@ def _build_report_allocation_xlsx_bytes(
     return output.getvalue()
 
 
+REPORT_EXPORT_SECTION_CHOICES = {"full", "summary", "hiring", "subjects", "teachers"}
+
+
+def _normalize_report_export_section(section: str = "full") -> str:
+    normalized = str(section or "full").strip().lower()
+    return normalized if normalized in REPORT_EXPORT_SECTION_CHOICES else "full"
+
+
+def _build_report_export_filename(
+    branch_name: str,
+    academic_year_name: str,
+    extension: str,
+    section: str = "full",
+) -> str:
+    def _sanitize(text_value: str) -> str:
+        normalized = re.sub(r"[^A-Za-z0-9]+", "-", str(text_value or "").strip())
+        return normalized.strip("-").lower() or "scope"
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_branch = _sanitize(branch_name)
+    safe_year = _sanitize(academic_year_name)
+    safe_section = _sanitize(_normalize_report_export_section(section))
+    safe_extension = str(extension or "xlsx").strip().lower().lstrip(".") or "xlsx"
+    return f"tis_analytical_report_{safe_branch}_{safe_year}_{safe_section}_{timestamp}.{safe_extension}"
+
+
+def _load_saved_or_auto_hiring_plan(
+    db: Session,
+    user,
+    branch_id: int,
+    academic_year_id: int,
+    auto_payload: dict,
+) -> dict:
+    plan_payload = _normalize_hiring_plan_payload(auto_payload or {})
+    source = "System suggested plan"
+    updated_at = None
+
+    draft = db.query(models.HiringPlanDraft).filter(
+        models.HiringPlanDraft.branch_id == int(branch_id),
+        models.HiringPlanDraft.academic_year_id == int(academic_year_id),
+        models.HiringPlanDraft.user_id == int(user.id),
+    ).first() if branch_id and academic_year_id and getattr(user, "id", None) else None
+
+    if draft:
+        try:
+            saved_payload = json.loads(str(draft.plan_json or "{}"))
+        except json.JSONDecodeError:
+            saved_payload = {}
+        try:
+            saved_version = int(saved_payload.get("pool_logic_version", 0) or 0)
+        except (TypeError, ValueError):
+            saved_version = 0
+
+        if saved_version >= HIRING_PLAN_POOL_LOGIC_VERSION:
+            plan_payload = _normalize_hiring_plan_payload(saved_payload)
+            plan_payload["locked"] = True
+            source = "Saved hiring plan"
+            updated_at = draft.updated_at
+        else:
+            source = "System suggested plan (saved plan was outdated)"
+
+    return {
+        "plan": plan_payload,
+        "source": source,
+        "updated_at": updated_at,
+        "warnings": _collect_hiring_plan_warnings(plan_payload),
+    }
+
+
+def _summarize_hiring_plan_for_export(plan_payload: dict, report_summary: dict) -> dict:
+    total_uncovered_hours = int(report_summary.get("total_uncovered_hours", 0) or 0)
+    profile_rows = []
+    item_rows = []
+    unassigned_rows = []
+
+    for profile in plan_payload.get("profiles", []) or []:
+        items = list(profile.get("items", []) or [])
+        total_hours = sum(int(item.get("hours", 0) or 0) for item in items)
+        block_size = max(
+            1,
+            int(profile.get("block_size_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS),
+        )
+        max_hours = max(
+            block_size,
+            int(profile.get("max_hours", block_size) or block_size),
+        )
+        full_blocks = total_hours // block_size
+        remainder_hours = total_hours % block_size
+        coverage_pct = round((total_hours / max_hours) * 100) if max_hours else 0
+        profile_name = str(profile.get("name", "Proposed Pool") or "Proposed Pool")
+
+        profile_row = {
+            "id": str(profile.get("id", "")),
+            "name": profile_name,
+            "group_key": str(profile.get("group_key", "") or ""),
+            "accent_color": str(profile.get("accent_color", "#0A4EA3") or "#0A4EA3"),
+            "assignment_note": str(profile.get("assignment_note", "") or ""),
+            "total_hours": total_hours,
+            "max_hours": max_hours,
+            "block_size_hours": block_size,
+            "full_blocks": full_blocks,
+            "remainder_hours": remainder_hours,
+            "remaining_capacity_hours": max(max_hours - total_hours, 0),
+            "coverage_pct": min(max(coverage_pct, 0), 100),
+            "subject_count": len(items),
+            "subjects_label": ", ".join(
+                f"{item.get('subject_name', 'Subject')} ({int(item.get('hours', 0) or 0)}h)"
+                for item in items
+            ),
+            "is_manual": bool(profile.get("is_manual", False)),
+        }
+        profile_rows.append(profile_row)
+
+        for item in items:
+            hours = int(item.get("hours", 0) or 0)
+            if hours <= 0:
+                continue
+            item_rows.append(
+                {
+                    "pool_name": profile_name,
+                    "pool_group": profile_row["group_key"],
+                    "pool_accent_color": profile_row["accent_color"],
+                    "subject_name": str(item.get("subject_name", "Subject") or "Subject"),
+                    "subject_code": str(item.get("subject_code", "") or ""),
+                    "family": str(item.get("family", "") or ""),
+                    "subject_color": str(item.get("subject_color", profile_row["accent_color"]) or profile_row["accent_color"]),
+                    "hours": hours,
+                }
+            )
+
+    for item in plan_payload.get("unassigned_items", []) or []:
+        hours = int(item.get("hours", 0) or 0)
+        if hours <= 0:
+            continue
+        unassigned_rows.append(
+            {
+                "subject_name": str(item.get("subject_name", "Subject") or "Subject"),
+                "subject_code": str(item.get("subject_code", "") or ""),
+                "family": str(item.get("family", "") or ""),
+                "subject_color": str(item.get("subject_color", "#B91C1C") or "#B91C1C"),
+                "hours": hours,
+            }
+        )
+
+    planned_hours = sum(row["total_hours"] for row in profile_rows)
+    planned_full_blocks = sum(row["full_blocks"] for row in profile_rows)
+    unassigned_hours = sum(row["hours"] for row in unassigned_rows)
+    planned_coverage_pct = (
+        round((planned_hours / total_uncovered_hours) * 100)
+        if total_uncovered_hours > 0
+        else 100
+    )
+
+    return {
+        "profiles": profile_rows,
+        "items": item_rows,
+        "unassigned_items": unassigned_rows,
+        "summary": {
+            "total_uncovered_hours": total_uncovered_hours,
+            "planned_pool_hours": planned_hours,
+            "planned_full_blocks": planned_full_blocks,
+            "unassigned_hours": unassigned_hours,
+            "planned_coverage_pct": max(0, min(100, planned_coverage_pct)),
+            "global_full_hires": int(report_summary.get("total_new_teachers_required", 0) or 0),
+            "global_remainder_hours": int(report_summary.get("remaining_uncovered_hours_after_hires", 0) or 0),
+        },
+    }
+
+
+def _build_current_report_package(db: Session, user) -> dict:
+    scoped_branch_id = getattr(user, "scope_branch_id", user.branch_id)
+    scoped_academic_year_id = getattr(
+        user,
+        "scope_academic_year_id",
+        user.academic_year_id,
+    )
+
+    branch = db.query(models.Branch).filter(
+        models.Branch.id == scoped_branch_id
+    ).first()
+    academic_year = db.query(models.AcademicYear).filter(
+        models.AcademicYear.id == scoped_academic_year_id
+    ).first()
+
+    subjects_query = db.query(models.Subject).filter(
+        models.Subject.branch_id == scoped_branch_id,
+        models.Subject.academic_year_id == scoped_academic_year_id,
+    )
+    teachers_query = db.query(models.Teacher).filter(
+        models.Teacher.branch_id == scoped_branch_id,
+        models.Teacher.academic_year_id == scoped_academic_year_id,
+    )
+    planning_sections_query = db.query(models.PlanningSection).filter(
+        models.PlanningSection.branch_id == scoped_branch_id,
+        models.PlanningSection.academic_year_id == scoped_academic_year_id,
+    )
+
+    subjects_dashboard_rows = subjects_query.order_by(
+        models.Subject.grade.asc(),
+        models.Subject.subject_code.asc(),
+    ).all()
+    for subject in subjects_dashboard_rows:
+        bundle_subject_labels = list(
+            get_homeroom_bundle_subject_labels(
+                subject_code=subject.subject_code or "",
+                subject_name=subject.subject_name or "",
+                weekly_hours=subject.weekly_hours,
+                grade_label=_normalize_grade_label(subject.grade),
+            )
+        )
+        setattr(
+            subject,
+            "effective_subject_count",
+            get_effective_subject_count(
+                subject_code=subject.subject_code or "",
+                subject_name=subject.subject_name or "",
+                weekly_hours=subject.weekly_hours,
+                grade_label=_normalize_grade_label(subject.grade),
+            ),
+        )
+        setattr(subject, "homeroom_bundle_subject_labels", bundle_subject_labels)
+
+    subject_count = sum(
+        int(getattr(subject, "effective_subject_count", 1) or 1)
+        for subject in subjects_dashboard_rows
+    )
+    teacher_count = teachers_query.count()
+    planning_sections = planning_sections_query.all()
+    planning_total_sections = len(planning_sections)
+    planning_current_sections_count = sum(
+        1
+        for section in planning_sections
+        if str(section.class_status or "").strip().lower() == "current"
+    )
+    planning_new_sections_count = sum(
+        1
+        for section in planning_sections
+        if str(section.class_status or "").strip().lower() == "new"
+    )
+    teachers_for_reporting = teachers_query.order_by(models.Teacher.id.asc()).all()
+    teachers_preview = teachers_query.order_by(models.Teacher.id.desc()).limit(8).all()
+
+    subject_hours_by_grade = {}
+    for subject in subjects_dashboard_rows:
+        grade_label = _normalize_grade_label(getattr(subject, "grade", None))
+        if not grade_label:
+            continue
+        subject_hours_by_grade[grade_label] = (
+            subject_hours_by_grade.get(grade_label, 0)
+            + int(subject.weekly_hours or 0)
+        )
+    planning_total_allocated_hours = sum(
+        subject_hours_by_grade.get(_normalize_grade_label(section.grade_level), 0)
+        for section in planning_sections
+    )
+
+    planning_section_ids = [
+        section.id
+        for section in planning_sections
+        if getattr(section, "id", None)
+    ]
+    section_assignments = []
+    if planning_section_ids:
+        section_assignments = db.query(models.TeacherSectionAssignment).filter(
+            models.TeacherSectionAssignment.planning_section_id.in_(planning_section_ids)
+        ).all()
+
+    reporting_context = _build_reporting_context_from_section_assignments(
+        db=db,
+        subjects=subjects_dashboard_rows,
+        planning_sections=planning_sections,
+        teachers=teachers_for_reporting,
+        section_assignments=section_assignments,
+    )
+    allocation_data = _build_report_class_allocation_data_from_section_assignments(
+        db=db,
+        subjects=subjects_dashboard_rows,
+        planning_sections=planning_sections,
+        teachers=teachers_for_reporting,
+        reporting_context=reporting_context,
+        section_assignments=section_assignments,
+    )
+
+    subject_section_map = allocation_data.get("subject_section_map", {})
+    report_subject_rows = [
+        {
+            **row,
+            **subject_section_map.get(row["subject_key"], {}),
+        }
+        for row in reporting_context.get("subject_rows", [])
+    ]
+
+    underloaded_teacher_map = {
+        row.get("teacher_pk"): row
+        for row in allocation_data.get("underloaded_teacher_rows", [])
+    }
+    report_teacher_rows = []
+    for row in reporting_context.get("teacher_rows", []):
+        underloaded_row = underloaded_teacher_map.get(row.get("teacher_pk"), {})
+        report_teacher_rows.append(
+            {
+                **row,
+                "is_underloaded": int(row.get("remaining_capacity_hours", 0)) > 0,
+                "recommended_absorption_hours": int(
+                    underloaded_row.get("recommended_absorption_hours", 0)
+                ),
+                "recommended_assignment_labels": list(
+                    underloaded_row.get("recommended_assignment_labels", [])
+                ),
+                "projected_allocated_hours": int(
+                    underloaded_row.get(
+                        "projected_allocated_hours",
+                        row.get("expected_allocated_hours", 0),
+                    )
+                ),
+                "projected_remaining_capacity_hours": int(
+                    underloaded_row.get(
+                        "projected_remaining_capacity_hours",
+                        row.get("remaining_capacity_hours", 0),
+                    )
+                ),
+            }
+        )
+
+    report_subject_rows, report_summary = _decorate_staffing_report_rows(
+        report_subject_rows,
+        reporting_context.get("summary", {}),
+    )
+    report_gap_rows = [
+        row
+        for row in report_subject_rows
+        if int(row.get("remaining_hours", 0) or 0) > 0
+    ]
+    report_summary["subjects_with_gaps"] = len(report_gap_rows)
+    report_summary["underloaded_teachers"] = sum(
+        1 for row in report_teacher_rows if row.get("is_underloaded")
+    )
+    report_summary["underloaded_teachers_with_recommendations"] = sum(
+        1
+        for row in report_teacher_rows
+        if int(row.get("recommended_absorption_hours", 0) or 0) > 0
+    )
+    report_summary["recommended_internal_absorption_hours"] = sum(
+        int(row.get("recommended_absorption_hours", 0) or 0)
+        for row in report_teacher_rows
+    )
+
+    report_visuals = _build_dashboard_report_visuals(
+        report_summary=report_summary,
+        report_subject_rows=report_subject_rows,
+        report_grade_rows=reporting_context.get("grade_rows", []),
+        planning_current_sections_count=planning_current_sections_count,
+        planning_new_sections_count=planning_new_sections_count,
+    )
+    report_subject_card_rows = sorted(
+        report_subject_rows,
+        key=lambda row: (
+            -int(row.get("coverage_percentage", 0) or 0),
+            int(row.get("remaining_hours", 0) or 0),
+            str(row.get("subject_name", "") or "").lower(),
+        ),
+    )
+    hiring_plan_editor_auto_payload = _build_hiring_plan_editor_payload(
+        report_summary=report_summary,
+        report_subject_rows=report_subject_rows,
+    )
+    hiring_plan_state = _load_saved_or_auto_hiring_plan(
+        db=db,
+        user=user,
+        branch_id=scoped_branch_id,
+        academic_year_id=scoped_academic_year_id,
+        auto_payload=hiring_plan_editor_auto_payload,
+    )
+    hiring_plan_export = _summarize_hiring_plan_for_export(
+        hiring_plan_state["plan"],
+        report_summary,
+    )
+
+    branch_name = branch.name if branch else "Not assigned"
+    academic_year_name = academic_year.year_name if academic_year else "Not assigned"
+
+    return {
+        "branch_name": branch_name,
+        "academic_year_name": academic_year_name,
+        "scoped_branch_id": scoped_branch_id,
+        "scoped_academic_year_id": scoped_academic_year_id,
+        "subject_count": subject_count,
+        "teacher_count": teacher_count,
+        "planning_total_sections": planning_total_sections,
+        "planning_current_sections_count": planning_current_sections_count,
+        "planning_new_sections_count": planning_new_sections_count,
+        "planning_total_allocated_hours": planning_total_allocated_hours,
+        "subjects_dashboard_rows": subjects_dashboard_rows,
+        "teachers_preview": teachers_preview,
+        "planning_sections": planning_sections,
+        "section_assignments": section_assignments,
+        "reporting_context": reporting_context,
+        "allocation_data": allocation_data,
+        "report_summary": report_summary,
+        "report_subject_count": sum(
+            int(row.get("effective_subject_count", 1) or 1)
+            for row in report_subject_rows
+        ),
+        "report_subject_rows": report_subject_rows,
+        "report_subject_card_rows": report_subject_card_rows,
+        "report_gap_rows": report_gap_rows,
+        "report_teacher_rows": report_teacher_rows,
+        "report_underloaded_teacher_rows": allocation_data.get(
+            "underloaded_teacher_rows",
+            [],
+        ),
+        "report_grade_rows": reporting_context.get("grade_rows", []),
+        "report_visuals": report_visuals,
+        "hiring_plan_editor_auto_payload": hiring_plan_editor_auto_payload,
+        "hiring_plan_export": hiring_plan_export,
+        "hiring_plan_source": hiring_plan_state["source"],
+        "hiring_plan_updated_at": hiring_plan_state["updated_at"],
+        "hiring_plan_warnings": hiring_plan_state["warnings"],
+    }
+
+
+def _excel_color(value: str, fallback: str = "0A4EA3") -> str:
+    cleaned = str(value or "").strip().lstrip("#")
+    if re.fullmatch(r"[0-9A-Fa-f]{6}", cleaned):
+        return cleaned.upper()
+    return fallback
+
+
+def _make_fill(value: str, fallback: str = "F8FAFC") -> PatternFill:
+    color = _excel_color(value, fallback)
+    return PatternFill(start_color=color, end_color=color, fill_type="solid")
+
+
+def _style_report_sheet(sheet, tab_color: str = "0A4EA3"):
+    sheet.sheet_view.showGridLines = False
+    sheet.sheet_properties.tabColor = _excel_color(tab_color)
+
+
+def _apply_report_title(sheet, title: str, subtitle: str, last_column: int = 8):
+    last_letter = get_column_letter(max(1, last_column))
+    sheet.merge_cells(f"A1:{last_letter}1")
+    sheet.merge_cells(f"A2:{last_letter}2")
+    sheet["A1"] = title
+    sheet["A1"].font = Font(bold=True, size=18, color="0A4EA3")
+    sheet["A1"].alignment = Alignment(horizontal="left", vertical="center")
+    sheet["A2"] = subtitle
+    sheet["A2"].font = Font(size=10, color="536782")
+    sheet["A2"].alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    sheet.row_dimensions[1].height = 26
+    sheet.row_dimensions[2].height = 32
+
+
+def _add_report_table(sheet, start_row: int, end_row: int, end_column: int, name: str):
+    if end_row <= start_row:
+        return
+    safe_name = re.sub(r"[^A-Za-z0-9_]", "_", name).strip("_") or "ReportTable"
+    safe_name = f"{safe_name[:220]}_{start_row}"
+    table_ref = f"A{start_row}:{get_column_letter(end_column)}{end_row}"
+    table = Table(displayName=safe_name, ref=table_ref)
+    table.tableStyleInfo = TableStyleInfo(
+        name="TableStyleMedium2",
+        showFirstColumn=False,
+        showLastColumn=False,
+        showRowStripes=True,
+        showColumnStripes=False,
+    )
+    sheet.add_table(table)
+
+
+def _format_report_header_row(sheet, row_index: int, total_columns: int):
+    _apply_excel_header_style(sheet, row_index, total_columns)
+    for col_index in range(1, total_columns + 1):
+        cell = sheet.cell(row=row_index, column=col_index)
+        cell.border = Border(bottom=Side(style="thin", color="B8C6DA"))
+
+
+def _write_kpi_cards(sheet, start_row: int, cards: list[tuple[str, Any, str]], columns: int = 4) -> int:
+    row = start_row
+    card_width = 2
+    for index, (label, value, note) in enumerate(cards):
+        col = 1 + (index % columns) * card_width
+        if index and index % columns == 0:
+            row += 4
+        sheet.merge_cells(
+            start_row=row,
+            start_column=col,
+            end_row=row,
+            end_column=col + card_width - 1,
+        )
+        sheet.merge_cells(
+            start_row=row + 1,
+            start_column=col,
+            end_row=row + 1,
+            end_column=col + card_width - 1,
+        )
+        sheet.merge_cells(
+            start_row=row + 2,
+            start_column=col,
+            end_row=row + 2,
+            end_column=col + card_width - 1,
+        )
+        label_cell = sheet.cell(row=row, column=col, value=label)
+        value_cell = sheet.cell(row=row + 1, column=col, value=value)
+        note_cell = sheet.cell(row=row + 2, column=col, value=note)
+        for r in range(row, row + 3):
+            for c in range(col, col + card_width):
+                sheet.cell(row=r, column=c).fill = _make_fill("EDF4FF")
+                sheet.cell(row=r, column=c).border = Border(
+                    left=Side(style="thin", color="D8E2F0"),
+                    right=Side(style="thin", color="D8E2F0"),
+                    top=Side(style="thin", color="D8E2F0"),
+                    bottom=Side(style="thin", color="D8E2F0"),
+                )
+        label_cell.font = Font(bold=True, size=9, color="536782")
+        value_cell.font = Font(bold=True, size=20, color="0A4EA3")
+        note_cell.font = Font(size=9, color="536782")
+        note_cell.alignment = Alignment(wrap_text=True, vertical="top")
+    return row + 4
+
+
+def _build_summary_overview_sheet(workbook: Workbook, report_package: dict):
+    summary = report_package["report_summary"]
+    sheet = workbook.active
+    sheet.title = "Summary Overview"
+    _style_report_sheet(sheet, "0A4EA3")
+    _apply_report_title(
+        sheet,
+        "TIS Analytical Staffing Report",
+        (
+            f"Branch: {report_package['branch_name']} | Academic Year: "
+            f"{report_package['academic_year_name']} | Generated: "
+            f"{datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        ),
+        last_column=8,
+    )
+    for col, width in {
+        "A": 24,
+        "B": 16,
+        "C": 18,
+        "D": 16,
+        "E": 18,
+        "F": 18,
+        "G": 18,
+        "H": 18,
+        "J": 18,
+        "K": 16,
+    }.items():
+        sheet.column_dimensions[col].width = width
+
+    next_row = _write_kpi_cards(
+        sheet,
+        4,
+        [
+            ("Total Demand", f"{summary.get('total_required_hours', 0)}h", "All planned section-subject hours"),
+            ("Covered Hours", f"{summary.get('total_allocated_hours', 0)}h", "Matched current teacher allocations"),
+            ("Uncovered Hours", f"{summary.get('total_uncovered_hours', 0)}h", "Remaining weekly hours"),
+            ("Whole New Hires", summary.get("total_new_teachers_required", 0), "24h full teacher blocks"),
+            ("Coverage", f"{summary.get('coverage_percentage', 0)}%", "Covered vs total demand"),
+            ("Remaining After Hires", f"{summary.get('remaining_uncovered_hours_after_hires', 0)}h", "Remainder after whole hires"),
+            ("Underloaded Teachers", summary.get("underloaded_teachers", 0), "Teachers with spare international capacity"),
+            ("Priority Gap Hours", f"{summary.get('priority_gap_hours', 0)}h", "Priority uncovered demand"),
+        ],
+    )
+
+    metric_start = next_row + 1
+    metrics = [
+        ("Existing Teachers", summary.get("total_existing_teachers", 0)),
+        ("Total Existing Capacity", f"{summary.get('total_existing_capacity_hours', 0)}h"),
+        ("Unused Existing Capacity", f"{summary.get('unused_existing_capacity_hours', 0)}h"),
+        ("Teachers Utilized", summary.get("teachers_utilized", 0)),
+        ("Full Load Teachers", summary.get("teachers_full_load", 0)),
+        ("Subjects With Gaps", summary.get("subjects_with_gaps", 0)),
+        ("Priority Subjects With Gaps", summary.get("priority_subjects_with_gaps", 0)),
+        ("Homeroom Default Coverage", f"{summary.get('homeroom_default_coverage_hours', 0)}h"),
+        ("Hiring Plan Source", report_package.get("hiring_plan_source", "System suggested plan")),
+    ]
+    sheet.cell(row=metric_start, column=1, value="KPI Details").font = Font(
+        bold=True,
+        size=12,
+        color="0A4EA3",
+    )
+    sheet.append(["Metric", "Value"])
+    header_row = sheet.max_row
+    _format_report_header_row(sheet, header_row, 2)
+    for label, value in metrics:
+        sheet.append([label, value])
+    _add_report_table(sheet, header_row, sheet.max_row, 2, "SummaryKpis")
+
+    chart_data_row = 4
+    sheet["J2"] = "Coverage Chart"
+    sheet["J2"].font = Font(bold=True, color="0A4EA3")
+    sheet["J3"] = "Metric"
+    sheet["K3"] = "Hours"
+    chart_values = [
+        ("Required", summary.get("total_required_hours", 0)),
+        ("Covered", summary.get("total_allocated_hours", 0)),
+        ("Uncovered", summary.get("total_uncovered_hours", 0)),
+    ]
+    for offset, (label, value) in enumerate(chart_values):
+        sheet.cell(row=chart_data_row + offset, column=10, value=label)
+        sheet.cell(row=chart_data_row + offset, column=11, value=value)
+
+    bar_chart = BarChart()
+    bar_chart.type = "bar"
+    bar_chart.style = 10
+    bar_chart.title = "Demand vs Coverage"
+    bar_chart.y_axis.title = "Metric"
+    bar_chart.x_axis.title = "Hours"
+    bar_chart.add_data(
+        Reference(sheet, min_col=11, min_row=3, max_row=chart_data_row + len(chart_values) - 1),
+        titles_from_data=True,
+    )
+    bar_chart.set_categories(
+        Reference(sheet, min_col=10, min_row=chart_data_row, max_row=chart_data_row + len(chart_values) - 1)
+    )
+    bar_chart.height = 7
+    bar_chart.width = 12
+    sheet.add_chart(bar_chart, "J8")
+
+    sheet["J20"] = "Coverage Mix"
+    sheet["J20"].font = Font(bold=True, color="0A4EA3")
+    sheet["J21"] = "Status"
+    sheet["K21"] = "Hours"
+    sheet["J22"] = "Covered"
+    sheet["K22"] = summary.get("total_allocated_hours", 0)
+    sheet["J23"] = "Uncovered"
+    sheet["K23"] = summary.get("total_uncovered_hours", 0)
+    pie_chart = PieChart()
+    pie_chart.title = "Covered vs Uncovered"
+    pie_chart.add_data(Reference(sheet, min_col=11, min_row=21, max_row=23), titles_from_data=True)
+    pie_chart.set_categories(Reference(sheet, min_col=10, min_row=22, max_row=23))
+    pie_chart.height = 7
+    pie_chart.width = 9
+    sheet.add_chart(pie_chart, "J25")
+
+
+def _build_hiring_plan_sheet(workbook: Workbook, report_package: dict):
+    plan = report_package["hiring_plan_export"]
+    plan_summary = plan["summary"]
+    sheet = workbook.create_sheet("Recommended Hiring Plan")
+    _style_report_sheet(sheet, "C79A14")
+    _apply_report_title(
+        sheet,
+        "Recommended Hiring Plan",
+        (
+            f"{report_package.get('hiring_plan_source', 'System suggested plan')} | "
+            f"{plan_summary.get('global_full_hires', 0)} full hires | "
+            f"{plan_summary.get('global_remainder_hours', 0)}h remainder"
+        ),
+        last_column=9,
+    )
+    for col, width in {
+        "A": 24,
+        "B": 14,
+        "C": 14,
+        "D": 14,
+        "E": 16,
+        "F": 16,
+        "G": 18,
+        "H": 46,
+        "I": 16,
+        "K": 24,
+        "L": 14,
+    }.items():
+        sheet.column_dimensions[col].width = width
+
+    next_row = _write_kpi_cards(
+        sheet,
+        4,
+        [
+            ("Pool Hours", f"{plan_summary.get('planned_pool_hours', 0)}h", "Uncovered hours assigned to pools"),
+            ("Full Blocks In Pools", plan_summary.get("planned_full_blocks", 0), "Per-pool 24h blocks"),
+            ("Unassigned Hours", f"{plan_summary.get('unassigned_hours', 0)}h", "Not placed in a pool"),
+            ("Pool Coverage", f"{plan_summary.get('planned_coverage_pct', 0)}%", "Pool hours vs total uncovered"),
+        ],
+    )
+
+    pool_header_row = next_row + 1
+    sheet.cell(row=pool_header_row, column=1, value="Pools").font = Font(
+        bold=True,
+        size=12,
+        color="0A4EA3",
+    )
+    headers = [
+        "Pool",
+        "Group",
+        "Hours",
+        "Max Hours",
+        "Full 24h Blocks",
+        "Remainder",
+        "Progress %",
+        "Subjects Inside Pool",
+        "Note",
+    ]
+    sheet.append(headers)
+    table_header_row = sheet.max_row
+    _format_report_header_row(sheet, table_header_row, len(headers))
+    for row in plan["profiles"]:
+        sheet.append(
+            [
+                row["name"],
+                row["group_key"],
+                row["total_hours"],
+                row["max_hours"],
+                row["full_blocks"],
+                row["remainder_hours"],
+                row["coverage_pct"],
+                row["subjects_label"],
+                row["assignment_note"],
+            ]
+        )
+        row_index = sheet.max_row
+        for col_index in range(1, len(headers) + 1):
+            sheet.cell(row=row_index, column=col_index).alignment = Alignment(
+                horizontal="left" if col_index in {1, 2, 8, 9} else "center",
+                vertical="top",
+                wrap_text=True,
+            )
+        sheet.cell(row=row_index, column=1).fill = _make_fill(row["accent_color"], "EDF4FF")
+    if plan["profiles"]:
+        progress_range = f"G{table_header_row + 1}:G{sheet.max_row}"
+        sheet.conditional_formatting.add(
+            progress_range,
+            DataBarRule(start_type="num", start_value=0, end_type="num", end_value=100, color="0A4EA3"),
+        )
+        _add_report_table(sheet, table_header_row, sheet.max_row, len(headers), "HiringPools")
+
+    item_header_row = sheet.max_row + 3
+    sheet.cell(row=item_header_row, column=1, value="Subjects Inside Pools").font = Font(
+        bold=True,
+        size=12,
+        color="0A4EA3",
+    )
+    item_headers = ["Pool", "Subject", "Code", "Family", "Hours"]
+    sheet.append(item_headers)
+    item_table_header = sheet.max_row
+    _format_report_header_row(sheet, item_table_header, len(item_headers))
+    for item in plan["items"]:
+        sheet.append(
+            [
+                item["pool_name"],
+                item["subject_name"],
+                item["subject_code"],
+                item["family"],
+                item["hours"],
+            ]
+        )
+        row_index = sheet.max_row
+        sheet.cell(row=row_index, column=1).fill = _make_fill(item["pool_accent_color"], "EDF4FF")
+        sheet.cell(row=row_index, column=2).fill = _make_fill(item["subject_color"], "EDF4FF")
+    if plan["items"]:
+        _add_report_table(sheet, item_table_header, sheet.max_row, len(item_headers), "HiringPoolSubjects")
+
+    if plan["unassigned_items"]:
+        unassigned_header_row = sheet.max_row + 3
+        sheet.cell(row=unassigned_header_row, column=1, value="Unassigned Remaining Hours").font = Font(
+            bold=True,
+            size=12,
+            color="B91C1C",
+        )
+        sheet.append(["Subject", "Code", "Family", "Hours"])
+        unassigned_table_header = sheet.max_row
+        _format_report_header_row(sheet, unassigned_table_header, 4)
+        for item in plan["unassigned_items"]:
+            sheet.append([item["subject_name"], item["subject_code"], item["family"], item["hours"]])
+            sheet.cell(row=sheet.max_row, column=4).fill = _make_fill("FEE2E2")
+        _add_report_table(sheet, unassigned_table_header, sheet.max_row, 4, "HiringUnassigned")
+
+    if plan["profiles"]:
+        chart_start_row = 4
+        sheet["K2"] = "Pool Hours Chart"
+        sheet["K2"].font = Font(bold=True, color="0A4EA3")
+        sheet["K3"] = "Pool"
+        sheet["L3"] = "Hours"
+        for offset, row in enumerate(plan["profiles"]):
+            sheet.cell(row=chart_start_row + offset, column=11, value=row["name"])
+            sheet.cell(row=chart_start_row + offset, column=12, value=row["total_hours"])
+        chart = BarChart()
+        chart.type = "bar"
+        chart.title = "Hours by Pool"
+        chart.add_data(
+            Reference(sheet, min_col=12, min_row=3, max_row=chart_start_row + len(plan["profiles"]) - 1),
+            titles_from_data=True,
+        )
+        chart.set_categories(
+            Reference(sheet, min_col=11, min_row=chart_start_row, max_row=chart_start_row + len(plan["profiles"]) - 1)
+        )
+        chart.height = 7
+        chart.width = 12
+        sheet.add_chart(chart, "K8")
+
+
+def _build_subjects_breakdown_sheet(workbook: Workbook, report_package: dict):
+    rows = report_package["report_subject_rows"]
+    sheet = workbook.create_sheet("Subjects Breakdown")
+    _style_report_sheet(sheet, "0F7F7A")
+    _apply_report_title(
+        sheet,
+        "Subjects Breakdown",
+        "Demand, coverage, uncovered hours, section coverage, and staffing block requirements.",
+        last_column=11,
+    )
+    widths = {
+        "A": 26,
+        "B": 14,
+        "C": 18,
+        "D": 16,
+        "E": 16,
+        "F": 16,
+        "G": 16,
+        "H": 16,
+        "I": 16,
+        "J": 18,
+        "K": 44,
+        "M": 24,
+        "N": 14,
+    }
+    for col, width in widths.items():
+        sheet.column_dimensions[col].width = width
+
+    headers = [
+        "Subject",
+        "Code",
+        "Grades",
+        "Current Hours",
+        "New Hours",
+        "Total Demand",
+        "Covered",
+        "Uncovered",
+        "Coverage %",
+        "24h Blocks",
+        "Status / Note",
+    ]
+    header_row = 4
+    for col_index, header in enumerate(headers, start=1):
+        sheet.cell(row=header_row, column=col_index, value=header)
+    _format_report_header_row(sheet, header_row, len(headers))
+    for row in rows:
+        sheet.append(
+            [
+                row.get("subject_name", ""),
+                row.get("subject_code", ""),
+                ", ".join(str(item) for item in row.get("grades", [])),
+                row.get("required_current_hours", 0),
+                row.get("required_new_hours", 0),
+                row.get("required_hours", 0),
+                row.get("allocated_hours", 0),
+                row.get("remaining_hours", 0),
+                row.get("coverage_percentage", 0),
+                row.get("teacher_requirement_blocks", row.get("additional_teachers_needed", 0)),
+                row.get("staffing_status_label", "") or row.get("staffing_note", ""),
+            ]
+        )
+        row_index = sheet.max_row
+        subject_color = row.get("subject_color", "#EDF4FF")
+        sheet.cell(row=row_index, column=1).fill = _make_fill(subject_color, "EDF4FF")
+        sheet.cell(row=row_index, column=8).fill = (
+            _make_fill("FEE2E2") if int(row.get("remaining_hours", 0) or 0) > 0 else _make_fill("DCFCE7")
+        )
+        sheet.cell(row=row_index, column=9).number_format = '0"%"'
+        for col_index in range(1, len(headers) + 1):
+            sheet.cell(row=row_index, column=col_index).alignment = Alignment(
+                horizontal="left" if col_index in {1, 2, 3, 11} else "center",
+                vertical="top",
+                wrap_text=True,
+            )
+    if rows:
+        sheet.conditional_formatting.add(
+            f"I{header_row + 1}:I{sheet.max_row}",
+            DataBarRule(start_type="num", start_value=0, end_type="num", end_value=100, color="0F7F7A"),
+        )
+        _add_report_table(sheet, header_row, sheet.max_row, len(headers), "SubjectBreakdown")
+
+    gap_rows = [
+        row for row in rows if int(row.get("remaining_hours", 0) or 0) > 0
+    ][:12]
+    if gap_rows:
+        chart_row = 4
+        sheet["M2"] = "Top Uncovered Subjects"
+        sheet["M2"].font = Font(bold=True, color="0A4EA3")
+        sheet["M3"] = "Subject"
+        sheet["N3"] = "Hours"
+        for offset, row in enumerate(gap_rows):
+            sheet.cell(row=chart_row + offset, column=13, value=row.get("subject_name", ""))
+            sheet.cell(row=chart_row + offset, column=14, value=row.get("remaining_hours", 0))
+        chart = BarChart()
+        chart.type = "bar"
+        chart.title = "Uncovered Hours"
+        chart.add_data(
+            Reference(sheet, min_col=14, min_row=3, max_row=chart_row + len(gap_rows) - 1),
+            titles_from_data=True,
+        )
+        chart.set_categories(
+            Reference(sheet, min_col=13, min_row=chart_row, max_row=chart_row + len(gap_rows) - 1)
+        )
+        chart.height = 8
+        chart.width = 12
+        sheet.add_chart(chart, "M18")
+
+
+def _build_teachers_overview_sheet(workbook: Workbook, report_package: dict):
+    rows = report_package["report_teacher_rows"]
+    sheet = workbook.create_sheet("Teachers Overview")
+    _style_report_sheet(sheet, "7C3AED")
+    _apply_report_title(
+        sheet,
+        "Teachers Overview",
+        "Teacher load, assigned subjects, capacity, allocation, national-section hours, and remaining international capacity.",
+        last_column=11,
+    )
+    for col, width in {
+        "A": 14,
+        "B": 26,
+        "C": 26,
+        "D": 16,
+        "E": 16,
+        "F": 16,
+        "G": 16,
+        "H": 16,
+        "I": 16,
+        "J": 16,
+        "K": 46,
+        "M": 24,
+        "N": 14,
+    }.items():
+        sheet.column_dimensions[col].width = width
+
+    headers = [
+        "Teacher ID",
+        "Teacher Name",
+        "Degree / Major",
+        "Allocated Hours",
+        "International Capacity",
+        "Load %",
+        "Remaining Capacity",
+        "Homeroom",
+        "Primary",
+        "Support",
+        "Assigned Subjects",
+    ]
+    header_row = 4
+    for col_index, header in enumerate(headers, start=1):
+        sheet.cell(row=header_row, column=col_index, value=header)
+    _format_report_header_row(sheet, header_row, len(headers))
+    for row in rows:
+        capacity_hours = int(row.get("capacity_hours", REPORT_STANDARD_MAX_HOURS) or REPORT_STANDARD_MAX_HOURS)
+        allocated_hours = int(row.get("expected_allocated_hours", 0) or 0)
+        load_pct = round((allocated_hours / capacity_hours) * 100) if capacity_hours else 0
+        sheet.append(
+            [
+                row.get("teacher_id", ""),
+                row.get("teacher_name", ""),
+                row.get("degree_major", ""),
+                allocated_hours,
+                capacity_hours,
+                load_pct,
+                row.get("remaining_capacity_hours", 0),
+                row.get("homeroom_allocated_hours", 0),
+                row.get("primary_allocated_hours", 0),
+                row.get("support_allocated_hours", 0),
+                ", ".join(row.get("allocation_labels", []) or row.get("subject_labels", [])),
+            ]
+        )
+        row_index = sheet.max_row
+        sheet.cell(row=row_index, column=6).number_format = '0"%"'
+        sheet.cell(row=row_index, column=7).fill = (
+            _make_fill("DCFCE7") if int(row.get("remaining_capacity_hours", 0) or 0) <= 0 else _make_fill("FEF3C7")
+        )
+        for col_index in range(1, len(headers) + 1):
+            sheet.cell(row=row_index, column=col_index).alignment = Alignment(
+                horizontal="left" if col_index in {2, 3, 11} else "center",
+                vertical="top",
+                wrap_text=True,
+            )
+    if rows:
+        sheet.conditional_formatting.add(
+            f"F{header_row + 1}:F{sheet.max_row}",
+            DataBarRule(start_type="num", start_value=0, end_type="num", end_value=100, color="7C3AED"),
+        )
+        _add_report_table(sheet, header_row, sheet.max_row, len(headers), "TeachersOverview")
+
+    top_load_rows = rows[:12]
+    if top_load_rows:
+        chart_row = 4
+        sheet["M2"] = "Teacher Load Chart"
+        sheet["M2"].font = Font(bold=True, color="0A4EA3")
+        sheet["M3"] = "Teacher"
+        sheet["N3"] = "Hours"
+        for offset, row in enumerate(top_load_rows):
+            sheet.cell(row=chart_row + offset, column=13, value=row.get("teacher_name", ""))
+            sheet.cell(row=chart_row + offset, column=14, value=row.get("expected_allocated_hours", 0))
+        chart = BarChart()
+        chart.type = "bar"
+        chart.title = "Allocated Hours by Teacher"
+        chart.add_data(
+            Reference(sheet, min_col=14, min_row=3, max_row=chart_row + len(top_load_rows) - 1),
+            titles_from_data=True,
+        )
+        chart.set_categories(
+            Reference(sheet, min_col=13, min_row=chart_row, max_row=chart_row + len(top_load_rows) - 1)
+        )
+        chart.height = 8
+        chart.width = 12
+        sheet.add_chart(chart, "M18")
+
+
+def _build_class_matrix_sheet(workbook: Workbook, report_package: dict):
+    allocation_data = report_package["allocation_data"]
+    class_rows = allocation_data.get("class_rows", [])
+    teacher_matrix_rows = allocation_data.get("teacher_matrix_rows", [])
+    sheet = workbook.create_sheet("Class Allocation Matrix")
+    _style_report_sheet(sheet, "1D4ED8")
+    _apply_report_title(
+        sheet,
+        "Class Allocation Matrix",
+        "Teacher-to-class coverage generated from current section assignments and homeroom-default allocation.",
+        last_column=max(6 + len(class_rows), 8),
+    )
+
+    headers = [
+        "Teacher ID",
+        "Teacher Name",
+        "Assigned Hours",
+        "Remaining Capacity",
+        "Assigned Subject",
+        "Support Subject",
+    ] + [row["class_label"] for row in class_rows]
+    header_row = 4
+    for col_index, header in enumerate(headers, start=1):
+        sheet.cell(row=header_row, column=col_index, value=header)
+    _format_report_header_row(sheet, header_row, len(headers))
+    class_order = [row["class_key"] for row in class_rows]
+    for row_data in teacher_matrix_rows:
+        row_values = [
+            row_data.get("teacher_id", ""),
+            row_data.get("teacher_name", ""),
+            row_data.get("expected_allocated_hours", 0),
+            row_data.get("remaining_capacity_hours", 0),
+            row_data.get("primary_subject_label", ""),
+            row_data.get("support_subject_label", ""),
+        ] + [
+            row_data.get("class_cells", {}).get(class_key, "")
+            for class_key in class_order
+        ]
+        sheet.append(row_values)
+        row_index = sheet.max_row
+        for col_index in range(1, len(headers) + 1):
+            sheet.cell(row=row_index, column=col_index).alignment = Alignment(
+                horizontal="left" if col_index in {2, 5, 6} or col_index >= 7 else "center",
+                vertical="top",
+                wrap_text=True,
+            )
+        sheet.cell(row=row_index, column=4).fill = (
+            _make_fill("DCFCE7") if int(row_data.get("remaining_capacity_hours", 0) or 0) <= 0 else _make_fill("FEF3C7")
+        )
+        for offset, class_key in enumerate(class_order, start=7):
+            if not sheet.cell(row=row_index, column=offset).value:
+                continue
+            fill_key = row_data.get("class_fill_subject_keys", {}).get(class_key, "")
+            sheet.cell(row=row_index, column=offset).fill = _subject_fill_for_key(fill_key) or _make_fill("EDF4FF")
+
+    for col_index in range(1, len(headers) + 1):
+        width = 24 if col_index in {2, 5, 6} else 16
+        if col_index >= 7:
+            width = 18
+        sheet.column_dimensions[get_column_letter(col_index)].width = width
+    if teacher_matrix_rows:
+        _add_report_table(sheet, header_row, sheet.max_row, len(headers), "ClassAllocationMatrix")
+    sheet.freeze_panes = "A5"
+
+
+def _build_class_demand_sheet(workbook: Workbook, report_package: dict):
+    allocation_data = report_package["allocation_data"]
+    sheet = workbook.create_sheet("Class Demand Details")
+    _style_report_sheet(sheet, "B91C1C")
+    _apply_report_title(
+        sheet,
+        "Class Demand Details",
+        "Uncovered class-level demand and detailed teacher allocation rows.",
+        last_column=8,
+    )
+    headers = ["Class", "Class Status", "Subject Code", "Subject Name", "Uncovered Hours"]
+    header_row = 4
+    for col_index, header in enumerate(headers, start=1):
+        sheet.cell(row=header_row, column=col_index, value=header)
+    _format_report_header_row(sheet, header_row, len(headers))
+    unassigned_rows = allocation_data.get("unassigned_rows", [])
+    if unassigned_rows:
+        for row in unassigned_rows:
+            sheet.append(
+                [
+                    row.get("class_label", ""),
+                    row.get("class_status", ""),
+                    row.get("subject_code", ""),
+                    row.get("subject_name", ""),
+                    row.get("remaining_hours", 0),
+                ]
+            )
+            sheet.cell(row=sheet.max_row, column=5).fill = _make_fill("FEE2E2")
+    else:
+        sheet.append(["All classes are fully covered.", "", "", "", 0])
+        sheet.cell(row=sheet.max_row, column=1).fill = _make_fill("DCFCE7")
+    _add_report_table(sheet, header_row, sheet.max_row, len(headers), "ClassDemandGaps")
+
+    detail_start = sheet.max_row + 3
+    sheet.cell(row=detail_start, column=1, value="Teacher Allocation Rows").font = Font(
+        bold=True,
+        size=12,
+        color="0A4EA3",
+    )
+    detail_headers = [
+        "Teacher ID",
+        "Teacher Name",
+        "Class",
+        "Class Status",
+        "Subject Code",
+        "Subject Name",
+        "Allocated Hours",
+        "Coverage Type",
+    ]
+    for col_index, header in enumerate(detail_headers, start=1):
+        sheet.cell(row=detail_start + 1, column=col_index, value=header)
+    _format_report_header_row(sheet, detail_start + 1, len(detail_headers))
+    for item in allocation_data.get("assignment_rows", []):
+        sheet.append(
+            [
+                item.get("teacher_id", ""),
+                item.get("teacher_name", ""),
+                item.get("class_label", ""),
+                item.get("class_status", ""),
+                item.get("subject_code", ""),
+                item.get("subject_name", ""),
+                item.get("allocated_hours", 0),
+                item.get("coverage_type", ""),
+            ]
+        )
+    if allocation_data.get("assignment_rows"):
+        _add_report_table(sheet, detail_start + 1, sheet.max_row, len(detail_headers), "TeacherAllocationRows")
+
+    for col, width in {
+        "A": 18,
+        "B": 24,
+        "C": 16,
+        "D": 16,
+        "E": 16,
+        "F": 28,
+        "G": 16,
+        "H": 16,
+    }.items():
+        sheet.column_dimensions[col].width = width
+    for row in sheet.iter_rows():
+        for cell in row:
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+
+def _build_professional_report_xlsx_bytes(report_package: dict, section: str = "full") -> bytes:
+    section = _normalize_report_export_section(section)
+    workbook = Workbook()
+    _build_summary_overview_sheet(workbook, report_package)
+
+    if section in {"full", "hiring"}:
+        _build_hiring_plan_sheet(workbook, report_package)
+    if section in {"full", "subjects"}:
+        _build_subjects_breakdown_sheet(workbook, report_package)
+    if section in {"full", "teachers"}:
+        _build_teachers_overview_sheet(workbook, report_package)
+    if section == "full":
+        _build_class_matrix_sheet(workbook, report_package)
+        _build_class_demand_sheet(workbook, report_package)
+
+    for sheet in workbook.worksheets:
+        sheet.freeze_panes = sheet.freeze_panes or "A4"
+        for row in sheet.iter_rows():
+            for cell in row:
+                if cell.value is not None and cell.alignment is None:
+                    cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+def _pdf_escape_text(value: Any) -> str:
+    text = str(value if value is not None else "")
+    text = text.replace("\u2022", "-").replace("\u00d7", "x")
+    text = text.encode("latin-1", "replace").decode("latin-1")
+    return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _pdf_rgb(color_value: str, fallback: str = "#0A4EA3") -> tuple[float, float, float]:
+    cleaned = str(color_value or fallback).strip().lstrip("#")
+    if not re.fullmatch(r"[0-9A-Fa-f]{6}", cleaned):
+        cleaned = str(fallback).strip().lstrip("#")
+    return (
+        int(cleaned[0:2], 16) / 255,
+        int(cleaned[2:4], 16) / 255,
+        int(cleaned[4:6], 16) / 255,
+    )
+
+
+class _SimplePdfReport:
+    width = 595.28
+    height = 841.89
+    margin = 42
+
+    def __init__(self, title: str, subtitle: str):
+        self.title = title
+        self.subtitle = subtitle
+        self.pages: list[list[str]] = []
+        self.y = self.height - self.margin
+        self.add_page()
+
+    def _current(self) -> list[str]:
+        return self.pages[-1]
+
+    def _text_command(self, x: float, y: float, value: Any, size: float = 9, color: str = "#11243F", bold: bool = False) -> str:
+        r, g, b = _pdf_rgb(color, "#11243F")
+        font = "/F2" if bold else "/F1"
+        return (
+            f"{r:.4f} {g:.4f} {b:.4f} rg\n"
+            f"BT {font} {size:.2f} Tf {x:.2f} {y:.2f} Td ({_pdf_escape_text(value)}) Tj ET\n"
+        )
+
+    def add_page(self):
+        self.pages.append([])
+        self.y = self.height - self.margin
+        self.text(self.margin, self.y, self.title, size=15, color="#0A4EA3", bold=True)
+        self.y -= 16
+        self.text(self.margin, self.y, self.subtitle, size=8.5, color="#536782")
+        self.y -= 22
+        self.line(self.margin, self.y, self.width - self.margin, self.y, "#CAD9EA")
+        self.y -= 18
+
+    def ensure_space(self, height: float):
+        if self.y - height < self.margin + 24:
+            self.add_page()
+
+    def text(self, x: float, y: float, value: Any, size: float = 9, color: str = "#11243F", bold: bool = False):
+        self._current().append(self._text_command(x, y, value, size=size, color=color, bold=bold))
+
+    def rect(self, x: float, y: float, width: float, height: float, color: str):
+        r, g, b = _pdf_rgb(color)
+        self._current().append(
+            f"{r:.4f} {g:.4f} {b:.4f} rg\n{x:.2f} {y:.2f} {width:.2f} {height:.2f} re f\n"
+        )
+
+    def line(self, x1: float, y1: float, x2: float, y2: float, color: str = "#CAD9EA", width: float = 0.8):
+        r, g, b = _pdf_rgb(color, "#CAD9EA")
+        self._current().append(
+            f"{r:.4f} {g:.4f} {b:.4f} RG\n{width:.2f} w\n{x1:.2f} {y1:.2f} m {x2:.2f} {y2:.2f} l S\n"
+        )
+
+    def h2(self, value: str):
+        self.ensure_space(34)
+        self.text(self.margin, self.y, value, size=13, color="#0A4EA3", bold=True)
+        self.y -= 18
+
+    def paragraph(self, value: str, size: float = 8.5, color: str = "#536782", width: float = 500):
+        words = str(value or "").split()
+        line = ""
+        max_chars = max(20, int(width / (size * 0.47)))
+        for word in words:
+            candidate = f"{line} {word}".strip()
+            if len(candidate) > max_chars and line:
+                self.ensure_space(11)
+                self.text(self.margin, self.y, line, size=size, color=color)
+                self.y -= 11
+                line = word
+            else:
+                line = candidate
+        if line:
+            self.ensure_space(11)
+            self.text(self.margin, self.y, line, size=size, color=color)
+            self.y -= 13
+
+    def kpi_grid(self, cards: list[tuple[str, str, str]]):
+        card_width = (self.width - (2 * self.margin) - 18) / 4
+        card_height = 58
+        for index, (label, value, note) in enumerate(cards):
+            if index and index % 4 == 0:
+                self.y -= card_height + 10
+            if index % 4 == 0:
+                self.ensure_space(card_height + 10)
+                row_y = self.y - card_height
+            x = self.margin + (index % 4) * (card_width + 6)
+            self.rect(x, row_y, card_width, card_height, "#EDF4FF")
+            self.text(x + 8, row_y + 40, label, size=7.3, color="#536782", bold=True)
+            self.text(x + 8, row_y + 22, value, size=16, color="#0A4EA3", bold=True)
+            self.text(x + 8, row_y + 9, note[:32], size=6.5, color="#536782")
+        self.y -= card_height + 16
+
+    def progress_bar(self, label: str, value: int, maximum: int, color: str = "#0A4EA3"):
+        maximum = max(int(maximum or 0), 1)
+        value = max(0, int(value or 0))
+        pct = max(0, min(1, value / maximum))
+        self.ensure_space(28)
+        self.text(self.margin, self.y, f"{label}: {value} / {maximum}", size=8, color="#11243F", bold=True)
+        self.y -= 11
+        bar_width = self.width - (2 * self.margin)
+        self.rect(self.margin, self.y - 8, bar_width, 8, "#D9E3F1")
+        self.rect(self.margin, self.y - 8, bar_width * pct, 8, color)
+        self.y -= 18
+
+    def bar_chart(self, title: str, items: list[tuple[str, int, str]], max_items: int = 8):
+        chart_items = items[:max_items]
+        if not chart_items:
+            return
+        self.h2(title)
+        max_value = max(value for _, value, _ in chart_items) or 1
+        bar_width = 310
+        for label, value, color in chart_items:
+            self.ensure_space(24)
+            self.text(self.margin, self.y, label[:38], size=8, color="#11243F")
+            self.text(self.margin + 390, self.y, f"{value}h", size=8, color="#11243F", bold=True)
+            self.rect(self.margin + 150, self.y - 2, bar_width, 8, "#E5EDF7")
+            self.rect(self.margin + 150, self.y - 2, bar_width * (value / max_value), 8, color)
+            self.y -= 18
+        self.y -= 8
+
+    def table(self, title: str, headers: list[str], rows: list[list[Any]], widths: list[float], max_rows: int | None = None):
+        if title:
+            self.h2(title)
+        rows = rows if max_rows is None else rows[:max_rows]
+        row_height = 22
+        total_width = sum(widths)
+        self.ensure_space(row_height * 2)
+        y = self.y - row_height
+        self.rect(self.margin, y, total_width, row_height, "#0A4EA3")
+        x = self.margin
+        for header, width in zip(headers, widths):
+            self.text(x + 4, y + 8, header, size=6.8, color="#FFFFFF", bold=True)
+            x += width
+        self.y = y
+        for row in rows:
+            self.ensure_space(row_height)
+            y = self.y - row_height
+            fill = "#F8FAFC" if (len(self._current()) % 2 == 0) else "#FFFFFF"
+            self.rect(self.margin, y, total_width, row_height, fill)
+            x = self.margin
+            for value, width in zip(row, widths):
+                text = str(value if value is not None else "")
+                max_chars = max(8, int(width / 4.2))
+                self.text(x + 4, y + 8, text[:max_chars], size=6.6, color="#11243F")
+                x += width
+            self.line(self.margin, y, self.margin + total_width, y, "#E6EDF6", 0.4)
+            self.y = y
+        self.y -= 14
+
+    def build(self) -> bytes:
+        for index, page in enumerate(self.pages, start=1):
+            page.append(
+                self._text_command(
+                    self.margin,
+                    24,
+                    f"Generated by TIS | Page {index}",
+                    size=7,
+                    color="#536782",
+                )
+            )
+
+        content_streams = [
+            "".join(page).encode("latin-1", "replace")
+            for page in self.pages
+        ]
+        kids = []
+        objects: list[bytes] = []
+        objects.append(b"<< /Type /Catalog /Pages 2 0 R >>")
+        objects.append(b"")
+        objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+        objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>")
+        next_object_number = 5
+        page_objects = []
+        for content in content_streams:
+            page_number = next_object_number
+            content_number = next_object_number + 1
+            kids.append(f"{page_number} 0 R")
+            page_objects.append(
+                (
+                    page_number,
+                    (
+                        f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {self.width:.2f} {self.height:.2f}] "
+                        f"/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> "
+                        f"/Contents {content_number} 0 R >>"
+                    ).encode("latin-1"),
+                )
+            )
+            page_objects.append(
+                (
+                    content_number,
+                    b"<< /Length " + str(len(content)).encode("ascii") + b" >>\nstream\n" + content + b"\nendstream",
+                )
+            )
+            next_object_number += 2
+
+        objects[1] = (
+            f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {len(kids)} >>"
+        ).encode("latin-1")
+        for _, obj in page_objects:
+            objects.append(obj)
+
+        pdf = b"%PDF-1.4\n"
+        offsets = [0]
+        for object_index, obj in enumerate(objects, start=1):
+            offsets.append(len(pdf))
+            pdf += f"{object_index} 0 obj\n".encode("ascii") + obj + b"\nendobj\n"
+        xref_offset = len(pdf)
+        pdf += f"xref\n0 {len(objects) + 1}\n".encode("ascii")
+        pdf += b"0000000000 65535 f \n"
+        for offset in offsets[1:]:
+            pdf += f"{offset:010d} 00000 n \n".encode("ascii")
+        pdf += (
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF"
+        ).encode("ascii")
+        return pdf
+
+
+def _build_professional_report_pdf_bytes(report_package: dict, section: str = "full") -> bytes:
+    section = _normalize_report_export_section(section)
+    summary = report_package["report_summary"]
+    title = "TIS Analytical Staffing Report"
+    subtitle = (
+        f"{report_package['branch_name']} | {report_package['academic_year_name']} | "
+        f"Generated {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    )
+    pdf = _SimplePdfReport(title, subtitle)
+    pdf.h2("Summary Overview")
+    pdf.paragraph(
+        "This export uses the same current reporting calculations as the dashboard: planned section demand, "
+        "teacher-section allocation, homeroom default coverage, uncovered hours, and the latest subject-pool hiring logic."
+    )
+    pdf.kpi_grid(
+        [
+            ("Total Demand", f"{summary.get('total_required_hours', 0)}h", "Section-subject hours"),
+            ("Covered", f"{summary.get('total_allocated_hours', 0)}h", "Assigned coverage"),
+            ("Uncovered", f"{summary.get('total_uncovered_hours', 0)}h", "Remaining hours"),
+            ("Full Hires", str(summary.get("total_new_teachers_required", 0)), "24h teacher blocks"),
+            ("Coverage", f"{summary.get('coverage_percentage', 0)}%", "Demand covered"),
+            ("Remainder", f"{summary.get('remaining_uncovered_hours_after_hires', 0)}h", "After whole hires"),
+            ("Underloaded", str(summary.get("underloaded_teachers", 0)), "Teachers with capacity"),
+            ("Priority Gaps", f"{summary.get('priority_gap_hours', 0)}h", "Priority subjects"),
+        ]
+    )
+    pdf.progress_bar(
+        "Coverage",
+        int(summary.get("total_allocated_hours", 0) or 0),
+        int(summary.get("total_required_hours", 0) or 0),
+        "#0A4EA3",
+    )
+    gap_items = [
+        (
+            row.get("subject_name", "Subject"),
+            int(row.get("remaining_hours", 0) or 0),
+            row.get("subject_color", "#B91C1C"),
+        )
+        for row in report_package.get("report_gap_rows", [])
+    ]
+    pdf.bar_chart("Top Uncovered Subjects", gap_items, max_items=8)
+
+    if section in {"full", "hiring"}:
+        plan = report_package["hiring_plan_export"]
+        plan_summary = plan["summary"]
+        pdf.h2("Recommended Hiring Plan")
+        pdf.paragraph(
+            f"{report_package.get('hiring_plan_source', 'System suggested plan')}. "
+            f"Pools cover {plan_summary.get('planned_pool_hours', 0)}h out of "
+            f"{plan_summary.get('total_uncovered_hours', 0)}h uncovered demand."
+        )
+        pdf.bar_chart(
+            "Hiring Pool Hours",
+            [
+                (row["name"], int(row["total_hours"]), row["accent_color"])
+                for row in plan["profiles"]
+            ],
+            max_items=10,
+        )
+        pdf.table(
+            "Pool Summary",
+            ["Pool", "Hours", "Full", "Rem", "Subjects"],
+            [
+                [
+                    row["name"],
+                    row["total_hours"],
+                    row["full_blocks"],
+                    row["remainder_hours"],
+                    row["subject_count"],
+                ]
+                for row in plan["profiles"]
+            ],
+            [210, 55, 45, 45, 65],
+        )
+
+    if section in {"full", "subjects"}:
+        pdf.table(
+            "Subjects Breakdown",
+            ["Subject", "Demand", "Covered", "Uncov.", "Cov %", "Blocks"],
+            [
+                [
+                    row.get("subject_name", ""),
+                    row.get("required_hours", 0),
+                    row.get("allocated_hours", 0),
+                    row.get("remaining_hours", 0),
+                    f"{row.get('coverage_percentage', 0)}%",
+                    row.get("teacher_requirement_blocks", 0),
+                ]
+                for row in report_package.get("report_subject_rows", [])
+            ],
+            [170, 55, 55, 55, 50, 50],
+            max_rows=None if section == "subjects" else 28,
+        )
+
+    if section in {"full", "teachers"}:
+        pdf.table(
+            "Teachers Overview",
+            ["Teacher", "ID", "Load", "Cap", "Remain", "Subjects"],
+            [
+                [
+                    row.get("teacher_name", ""),
+                    row.get("teacher_id", ""),
+                    row.get("expected_allocated_hours", 0),
+                    row.get("capacity_hours", 0),
+                    row.get("remaining_capacity_hours", 0),
+                    ", ".join(row.get("allocation_labels", []) or row.get("subject_labels", [])),
+                ]
+                for row in report_package.get("report_teacher_rows", [])
+            ],
+            [145, 55, 45, 45, 55, 175],
+            max_rows=None if section == "teachers" else 24,
+        )
+
+    return pdf.build()
+
+
 @app.middleware("http")
 async def inactivity_timeout_middleware(request: Request, call_next):
     path = request.url.path or ""
@@ -7820,215 +9355,29 @@ def dashboard(
     if not user:
         return RedirectResponse(url="/")
 
-    scoped_branch_id = getattr(user, "scope_branch_id", user.branch_id)
-    scoped_academic_year_id = getattr(
-        user,
-        "scope_academic_year_id",
-        user.academic_year_id
-    )
-
-    branch = db.query(models.Branch).filter(
-        models.Branch.id == scoped_branch_id
-    ).first()
-
-    academic_year = db.query(models.AcademicYear).filter(
-        models.AcademicYear.id == scoped_academic_year_id
-    ).first()
-
-    branch_name = branch.name if branch else "Not assigned"
-    academic_year_name = (
-        academic_year.year_name if academic_year else "Not assigned"
-    )
-    subjects_query = db.query(models.Subject).filter(
-        models.Subject.branch_id == scoped_branch_id,
-        models.Subject.academic_year_id == scoped_academic_year_id
-    )
-    teachers_query = db.query(models.Teacher).filter(
-        models.Teacher.branch_id == scoped_branch_id,
-        models.Teacher.academic_year_id == scoped_academic_year_id
-    )
-    planning_sections_query = db.query(models.PlanningSection).filter(
-        models.PlanningSection.branch_id == scoped_branch_id,
-        models.PlanningSection.academic_year_id == scoped_academic_year_id,
-    )
-    subjects_dashboard_rows = subjects_query.order_by(
-        models.Subject.grade.asc(),
-        models.Subject.subject_code.asc(),
-    ).all()
-    for subject in subjects_dashboard_rows:
-        bundle_subject_labels = list(
-            get_homeroom_bundle_subject_labels(
-                subject_code=subject.subject_code or "",
-                subject_name=subject.subject_name or "",
-                weekly_hours=subject.weekly_hours,
-                grade_label=_normalize_grade_label(subject.grade),
-            )
-        )
-        setattr(
-            subject,
-            "effective_subject_count",
-            get_effective_subject_count(
-                subject_code=subject.subject_code or "",
-                subject_name=subject.subject_name or "",
-                weekly_hours=subject.weekly_hours,
-                grade_label=_normalize_grade_label(subject.grade),
-            ),
-        )
-        setattr(subject, "homeroom_bundle_subject_labels", bundle_subject_labels)
-    subject_count = sum(
-        int(getattr(subject, "effective_subject_count", 1) or 1)
-        for subject in subjects_dashboard_rows
-    )
-    teacher_count = teachers_query.count()
-    planning_sections = planning_sections_query.all()
-    planning_total_sections = len(planning_sections)
-    planning_current_sections_count = sum(
-        1
-        for section in planning_sections
-        if str(section.class_status).strip().lower() == "current"
-    )
-    planning_new_sections_count = sum(
-        1
-        for section in planning_sections
-        if str(section.class_status).strip().lower() == "new"
-    )
-    teachers_for_reporting = teachers_query.order_by(
-        models.Teacher.id.asc()
-    ).all()
-    teachers_preview = teachers_query.order_by(
-        models.Teacher.id.desc()
-    ).limit(8).all()
-    subject_hours_by_grade = {}
-    for subject in subjects_dashboard_rows:
-        grade_label = _normalize_grade_label(getattr(subject, "grade", None))
-        if not grade_label:
-            continue
-        subject_hours_by_grade[grade_label] = (
-            subject_hours_by_grade.get(grade_label, 0)
-            + int(subject.weekly_hours or 0)
-        )
-    planning_total_allocated_hours = sum(
-        subject_hours_by_grade.get(section.grade_level, 0)
-        for section in planning_sections
-    )
-    planning_section_ids = [
-        section.id
-        for section in planning_sections
-        if getattr(section, "id", None)
-    ]
-    section_assignments = []
-    if planning_section_ids:
-        section_assignments = db.query(models.TeacherSectionAssignment).filter(
-            models.TeacherSectionAssignment.planning_section_id.in_(planning_section_ids)
-        ).all()
-
-    reporting_context = _build_reporting_context_from_section_assignments(
-        db=db,
-        subjects=subjects_dashboard_rows,
-        planning_sections=planning_sections,
-        teachers=teachers_for_reporting,
-        section_assignments=section_assignments,
-    )
-    allocation_data = _build_report_class_allocation_data_from_section_assignments(
-        db=db,
-        subjects=subjects_dashboard_rows,
-        planning_sections=planning_sections,
-        teachers=teachers_for_reporting,
-        reporting_context=reporting_context,
-        section_assignments=section_assignments,
-    )
-    subject_section_map = allocation_data.get("subject_section_map", {})
-    report_subject_rows = []
-    for row in reporting_context["subject_rows"]:
-        report_subject_rows.append(
-            {
-                **row,
-                **subject_section_map.get(row["subject_key"], {}),
-            }
-        )
-    report_gap_rows = []
-    for row in reporting_context["gap_rows"]:
-        report_gap_rows.append(
-            {
-                **row,
-                **subject_section_map.get(row["subject_key"], {}),
-            }
-        )
-
-    underloaded_teacher_map = {
-        row.get("teacher_pk"): row
-        for row in allocation_data.get("underloaded_teacher_rows", [])
-    }
-    report_teacher_rows = []
-    for row in reporting_context["teacher_rows"]:
-        underloaded_row = underloaded_teacher_map.get(row.get("teacher_pk"), {})
-        report_teacher_rows.append(
-            {
-                **row,
-                "is_underloaded": int(row.get("remaining_capacity_hours", 0)) > 0,
-                "recommended_absorption_hours": int(
-                    underloaded_row.get("recommended_absorption_hours", 0)
-                ),
-                "recommended_assignment_labels": list(
-                    underloaded_row.get("recommended_assignment_labels", [])
-                ),
-                "projected_allocated_hours": int(
-                    underloaded_row.get(
-                        "projected_allocated_hours",
-                        row.get("expected_allocated_hours", 0),
-                    )
-                ),
-                "projected_remaining_capacity_hours": int(
-                    underloaded_row.get(
-                        "projected_remaining_capacity_hours",
-                        row.get("remaining_capacity_hours", 0),
-                    )
-                ),
-            }
-        )
-
-    report_subject_rows, report_summary = _decorate_staffing_report_rows(
-        report_subject_rows,
-        reporting_context["summary"],
-    )
-    report_subject_count = sum(
-        int(row.get("effective_subject_count", 1) or 1)
-        for row in report_subject_rows
-    )
-    report_gap_rows = [
-        row
-        for row in report_subject_rows
-        if int(row.get("remaining_hours", 0)) > 0
-    ]
-    report_summary["underloaded_teachers"] = sum(
-        1 for row in report_teacher_rows if row.get("is_underloaded")
-    )
-    report_summary["underloaded_teachers_with_recommendations"] = sum(
-        1 for row in report_teacher_rows if row.get("recommended_absorption_hours", 0) > 0
-    )
-    report_summary["recommended_internal_absorption_hours"] = sum(
-        row.get("recommended_absorption_hours", 0)
-        for row in report_teacher_rows
-    )
-    report_subject_card_rows = sorted(
-        report_subject_rows,
-        key=lambda row: (
-            -int(row.get("coverage_percentage", 0) or 0),
-            int(row.get("remaining_hours", 0) or 0),
-            str(row.get("subject_name", "") or "").lower(),
-        ),
-    )
-    report_visuals = _build_dashboard_report_visuals(
-        report_summary=report_summary,
-        report_subject_rows=report_subject_rows,
-        report_grade_rows=reporting_context["grade_rows"],
-        planning_current_sections_count=planning_current_sections_count,
-        planning_new_sections_count=planning_new_sections_count,
-    )
-    hiring_plan_editor_auto_payload = _build_hiring_plan_editor_payload(
-        report_summary=report_summary,
-        report_subject_rows=report_subject_rows,
-    )
+    report_package = _build_current_report_package(db, user)
+    branch_name = report_package["branch_name"]
+    academic_year_name = report_package["academic_year_name"]
+    subject_count = report_package["subject_count"]
+    teacher_count = report_package["teacher_count"]
+    planning_total_sections = report_package["planning_total_sections"]
+    planning_current_sections_count = report_package["planning_current_sections_count"]
+    planning_new_sections_count = report_package["planning_new_sections_count"]
+    planning_total_allocated_hours = report_package["planning_total_allocated_hours"]
+    subjects_dashboard_rows = report_package["subjects_dashboard_rows"]
+    teachers_preview = report_package["teachers_preview"]
+    report_summary = report_package["report_summary"]
+    report_subject_count = report_package["report_subject_count"]
+    report_subject_rows = report_package["report_subject_rows"]
+    report_subject_card_rows = report_package["report_subject_card_rows"]
+    report_gap_rows = report_package["report_gap_rows"]
+    report_teacher_rows = report_package["report_teacher_rows"]
+    report_visuals = report_package["report_visuals"]
+    hiring_plan_editor_auto_payload = report_package["hiring_plan_editor_auto_payload"]
+    allocation_data = report_package["allocation_data"]
+    reporting_context = report_package["reporting_context"]
+    scoped_academic_year_id = report_package["scoped_academic_year_id"]
+    scoped_branch_id = report_package["scoped_branch_id"]
     all_years = db.query(models.AcademicYear).order_by(
         models.AcademicYear.year_name.desc()
     ).all()
@@ -8198,88 +9547,59 @@ async def save_dashboard_hiring_plan(
 @app.get("/reports/allocation-plan.xlsx")
 def download_report_allocation_plan(
     request: Request,
+    section: str = Query("full"),
     db: Session = Depends(get_db),
 ):
     user = auth.get_current_user(request, db)
     if not user:
         return RedirectResponse(url="/")
 
-    scoped_branch_id = getattr(user, "scope_branch_id", user.branch_id)
-    scoped_academic_year_id = getattr(
-        user,
-        "scope_academic_year_id",
-        user.academic_year_id,
+    normalized_section = _normalize_report_export_section(section)
+    report_package = _build_current_report_package(db, user)
+    payload = _build_professional_report_xlsx_bytes(
+        report_package,
+        section=normalized_section,
     )
-
-    branch = db.query(models.Branch).filter(
-        models.Branch.id == scoped_branch_id
-    ).first()
-    academic_year = db.query(models.AcademicYear).filter(
-        models.AcademicYear.id == scoped_academic_year_id
-    ).first()
-
-    subjects_rows = db.query(models.Subject).filter(
-        models.Subject.branch_id == scoped_branch_id,
-        models.Subject.academic_year_id == scoped_academic_year_id,
-    ).order_by(
-        models.Subject.grade.asc(),
-        models.Subject.subject_code.asc(),
-    ).all()
-    teachers_rows = db.query(models.Teacher).filter(
-        models.Teacher.branch_id == scoped_branch_id,
-        models.Teacher.academic_year_id == scoped_academic_year_id,
-    ).order_by(models.Teacher.id.asc()).all()
-    planning_sections = db.query(models.PlanningSection).filter(
-        models.PlanningSection.branch_id == scoped_branch_id,
-        models.PlanningSection.academic_year_id == scoped_academic_year_id,
-    ).all()
-
-    planning_section_ids = [
-        section.id
-        for section in planning_sections
-        if getattr(section, "id", None)
-    ]
-    section_assignments = []
-    if planning_section_ids:
-        section_assignments = db.query(models.TeacherSectionAssignment).filter(
-            models.TeacherSectionAssignment.planning_section_id.in_(planning_section_ids)
-        ).all()
-
-    reporting_context = _build_reporting_context_from_section_assignments(
-        db=db,
-        subjects=subjects_rows,
-        planning_sections=planning_sections,
-        teachers=teachers_rows,
-        section_assignments=section_assignments,
-    )
-    allocation_data = _build_report_class_allocation_data_from_section_assignments(
-        db=db,
-        subjects=subjects_rows,
-        planning_sections=planning_sections,
-        teachers=teachers_rows,
-        reporting_context=reporting_context,
-        section_assignments=section_assignments,
-    )
-    branch_name = branch.name if branch else "Not assigned"
-    academic_year_name = (
-        academic_year.year_name if academic_year else "Not assigned"
-    )
-    payload = _build_report_allocation_xlsx_bytes(
-        branch_name=branch_name,
-        academic_year_name=academic_year_name,
-        subjects=subjects_rows,
-        planning_sections=planning_sections,
-        reporting_context=reporting_context,
-        allocation_data=allocation_data,
-    )
-    file_name = _build_report_allocation_filename(
-        branch_name=branch_name,
-        academic_year_name=academic_year_name,
+    file_name = _build_report_export_filename(
+        report_package["branch_name"],
+        report_package["academic_year_name"],
+        "xlsx",
+        normalized_section,
     )
 
     return StreamingResponse(
         io.BytesIO(payload),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{file_name}"'},
+    )
+
+
+@app.get("/reports/allocation-plan.pdf")
+def download_report_allocation_plan_pdf(
+    request: Request,
+    section: str = Query("full"),
+    db: Session = Depends(get_db),
+):
+    user = auth.get_current_user(request, db)
+    if not user:
+        return RedirectResponse(url="/")
+
+    normalized_section = _normalize_report_export_section(section)
+    report_package = _build_current_report_package(db, user)
+    payload = _build_professional_report_pdf_bytes(
+        report_package,
+        section=normalized_section,
+    )
+    file_name = _build_report_export_filename(
+        report_package["branch_name"],
+        report_package["academic_year_name"],
+        "pdf",
+        normalized_section,
+    )
+
+    return StreamingResponse(
+        io.BytesIO(payload),
+        media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{file_name}"'},
     )
 

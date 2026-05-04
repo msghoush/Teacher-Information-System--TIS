@@ -470,6 +470,61 @@
             flex-wrap: wrap;
         }
 
+        .export-menu {
+            position: relative;
+            display: inline-flex;
+        }
+
+        .export-menu summary {
+            list-style: none;
+            user-select: none;
+        }
+
+        .export-menu summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .export-menu-panel {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            z-index: 45;
+            min-width: 240px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 16px 34px rgba(15, 23, 42, 0.16);
+            padding: 8px;
+        }
+
+        .export-menu-panel a,
+        .export-menu-panel span {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            min-height: 32px;
+            border-radius: 7px;
+            padding: 7px 8px;
+            color: #1f3658;
+            font-size: 12px;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .export-menu-panel a:hover {
+            background: #edf4ff;
+            color: var(--brand-deep);
+        }
+
+        .export-menu-section-label {
+            margin-top: 4px;
+            color: var(--muted) !important;
+            font-size: 11px !important;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
         .open-link.disabled {
             pointer-events: none;
             background: #8b97ab;
@@ -3825,7 +3880,18 @@
 {% endblock %}
 
 {% block page_header_actions %}
-<a class="shell-action is-primary" href="/reports/allocation-plan.xlsx">{{ icon("report", "shell-icon") }} Export Allocation Plan</a>
+<details class="export-menu">
+    <summary class="shell-action is-primary">{{ icon("download", "shell-icon") }} Export Report</summary>
+    <div class="export-menu-panel">
+        <a href="/reports/allocation-plan.xlsx?section=full">{{ icon("spreadsheet", "icon") }} Export as Excel</a>
+        <a href="/reports/allocation-plan.pdf?section=full">{{ icon("report", "icon") }} Export as PDF</a>
+        <span class="export-menu-section-label">Specific section</span>
+        <a href="/reports/allocation-plan.xlsx?section=hiring">{{ icon("report", "icon") }} Hiring Plan Excel</a>
+        <a href="/reports/allocation-plan.xlsx?section=subjects">{{ icon("subjects", "icon") }} Subjects Excel</a>
+        <a href="/reports/allocation-plan.xlsx?section=teachers">{{ icon("teachers", "icon") }} Teachers Excel</a>
+        <a href="/reports/allocation-plan.pdf?section=summary">{{ icon("insights", "icon") }} Summary PDF</a>
+    </div>
+</details>
 {% endblock %}
 
 {% block content %}
@@ -4405,7 +4471,18 @@
                     </div>
                     <div class="panel-head-actions">
                         <a class="open-link" href="/planning">{{ icon("planning", "icon") }} Open Planning</a>
-                        <a class="open-link" href="/reports/allocation-plan.xlsx">{{ icon("download", "icon") }} Download Allocation Plan</a>
+                        <details class="export-menu">
+                            <summary class="open-link">{{ icon("download", "icon") }} Export Report</summary>
+                            <div class="export-menu-panel">
+                                <a href="/reports/allocation-plan.xlsx?section=full">{{ icon("spreadsheet", "icon") }} Export as Excel</a>
+                                <a href="/reports/allocation-plan.pdf?section=full">{{ icon("report", "icon") }} Export as PDF</a>
+                                <span class="export-menu-section-label">Specific section</span>
+                                <a href="/reports/allocation-plan.xlsx?section=hiring">{{ icon("report", "icon") }} Hiring Plan Excel</a>
+                                <a href="/reports/allocation-plan.pdf?section=hiring">{{ icon("report", "icon") }} Hiring Plan PDF</a>
+                                <a href="/reports/allocation-plan.xlsx?section=subjects">{{ icon("subjects", "icon") }} Subjects Excel</a>
+                                <a href="/reports/allocation-plan.xlsx?section=teachers">{{ icon("teachers", "icon") }} Teachers Excel</a>
+                            </div>
+                        </details>
                     </div>
                 </div>
                 <div class="report-note">
