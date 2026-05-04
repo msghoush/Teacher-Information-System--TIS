@@ -103,6 +103,12 @@ IDLE_TIMEOUT_COOKIE_KEY = "last_activity_ts"
 IDLE_TIMEOUT_MINUTES = _get_positive_int_env("TIS_IDLE_TIMEOUT_MINUTES", 30)
 IDLE_TIMEOUT_SECONDS = IDLE_TIMEOUT_MINUTES * 60
 IDLE_TIMEOUT_LOGIN_MESSAGE = "Session timed out due to inactivity. Please log in again."
+AUTH_SESSION_COOKIE_KEYS = (
+    "user_id",
+    "branch_id",
+    "academic_year_id",
+    IDLE_TIMEOUT_COOKIE_KEY,
+)
 IDLE_TIMEOUT_EXEMPT_PATHS = {
     "/",
     "/login",
@@ -113,6 +119,12 @@ IDLE_TIMEOUT_EXEMPT_PATHS = {
 IDLE_TIMEOUT_EXEMPT_PREFIXES = (
     "/static/",
 )
+
+
+def _clear_auth_session_cookies(response):
+    for cookie_key in AUTH_SESSION_COOKIE_KEYS:
+        response.delete_cookie(cookie_key)
+    return response
 
 
 REPORT_STANDARD_MAX_HOURS = 24
@@ -5353,7 +5365,7 @@ def _build_report_allocation_xlsx_bytes(
 @app.middleware("http")
 async def inactivity_timeout_middleware(request: Request, call_next):
     path = request.url.path or ""
-    if path in IDLE_TIMEOUT_EXEMPT_PATHS or any(
+    if any(
         path.startswith(prefix) for prefix in IDLE_TIMEOUT_EXEMPT_PREFIXES
     ):
         return await call_next(request)
@@ -5369,11 +5381,14 @@ async def inactivity_timeout_middleware(request: Request, call_next):
         ).first()
         if not user:
             response = RedirectResponse(url="/", status_code=302)
-            response.delete_cookie("user_id")
-            response.delete_cookie("branch_id")
-            response.delete_cookie("academic_year_id")
-            response.delete_cookie(IDLE_TIMEOUT_COOKIE_KEY)
-            return response
+            return _clear_auth_session_cookies(response)
+
+        if not auth.is_user_active(user):
+            response = RedirectResponse(url="/?inactive=1", status_code=302)
+            return _clear_auth_session_cookies(response)
+
+        if path in IDLE_TIMEOUT_EXEMPT_PATHS:
+            return await call_next(request)
 
         if auth.is_developer(user):
             return await call_next(request)
@@ -5388,11 +5403,7 @@ async def inactivity_timeout_middleware(request: Request, call_next):
 
             if last_activity_ts > 0 and (now_ts - last_activity_ts) > IDLE_TIMEOUT_SECONDS:
                 timeout_response = RedirectResponse(url="/?timeout=1", status_code=302)
-                timeout_response.delete_cookie("user_id")
-                timeout_response.delete_cookie("branch_id")
-                timeout_response.delete_cookie("academic_year_id")
-                timeout_response.delete_cookie(IDLE_TIMEOUT_COOKIE_KEY)
-                return timeout_response
+                return _clear_auth_session_cookies(timeout_response)
 
         response = await call_next(request)
         response.set_cookie(
@@ -5491,11 +5502,17 @@ def read_root(
 
     timeout_notice = str(request.query_params.get("timeout", "")).strip().lower()
     timeout_error = IDLE_TIMEOUT_LOGIN_MESSAGE if timeout_notice in {"1", "true", "yes"} else None
+    inactive_notice = str(request.query_params.get("inactive", "")).strip().lower()
+    inactive_error = (
+        auth.INACTIVE_ACCOUNT_MESSAGE
+        if inactive_notice in {"1", "true", "yes"}
+        else None
+    )
 
     return _render_login_page(
         request=request,
         db=db,
-        error=timeout_error,
+        error=inactive_error or timeout_error,
     )
 
 
@@ -5812,14 +5829,15 @@ def login(
             status_code=401
         )
 
-    if not user.is_active:
-        return _render_login_page(
+    if not auth.is_user_active(user):
+        response = _render_login_page(
             request=request,
             db=db,
             username=username,
-            error="Your account is inactive. Please contact Admin.",
+            error=auth.INACTIVE_ACCOUNT_MESSAGE,
             status_code=403
         )
+        return _clear_auth_session_cookies(response)
 
     can_all_branch_scope = auth.can_access_all_branches(user)
     active_branches = db.query(models.Branch).filter(
@@ -6442,11 +6460,7 @@ def mark_notification_resolved(
 @app.get("/logout")
 def logout():
     response = RedirectResponse(url="/", status_code=302)
-    response.delete_cookie("user_id")
-    response.delete_cookie("branch_id")
-    response.delete_cookie("academic_year_id")
-    response.delete_cookie(IDLE_TIMEOUT_COOKIE_KEY)
-    return response
+    return _clear_auth_session_cookies(response)
 
 
 @app.post("/profile/photo")
@@ -8308,6 +8322,13 @@ def _ensure_users_table_columns():
                     f"ALTER TABLE users ADD COLUMN profile_image_data {profile_image_binary_type}"
                 )
             )
+        if "is_active" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT TRUE")
+            )
+        connection.execute(
+            text("UPDATE users SET is_active = TRUE WHERE is_active IS NULL")
+        )
 
 
 def _ensure_teachers_table_columns():

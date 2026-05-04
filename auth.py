@@ -11,6 +11,7 @@ ROLE_EDITOR = "Editor"
 ROLE_USER = "User"
 ROLE_LIMITED = "Limited Access"
 POSITION_EDUCATION_EXCELLENCE = "Education Excellence"
+INACTIVE_ACCOUNT_MESSAGE = "Your account is inactive. Please contact the developer."
 
 DATA_MODIFY_ROLES = {
     ROLE_DEVELOPER,
@@ -68,6 +69,10 @@ def can_access_all_branches(user) -> bool:
 
 def is_developer(user) -> bool:
     return normalize_role(getattr(user, "role", "")) == ROLE_DEVELOPER
+
+
+def is_user_active(user) -> bool:
+    return bool(getattr(user, "is_active", False))
 
 
 def can_access_all_years(user) -> bool:
@@ -166,6 +171,14 @@ def get_current_user(
     ).first()
 
     if not user:
+        return None
+
+    if not is_user_active(user):
+        request.state.audit_actor_user_id = user.user_id
+        request.state.audit_actor_username = user.username or ""
+        request.state.audit_actor_role = normalize_role(user.role)
+        request.state.audit_actor_branch_id = user.branch_id
+        request.state.inactive_user_id = user.user_id
         return None
 
     branch_cookie = request.cookies.get("branch_id")
