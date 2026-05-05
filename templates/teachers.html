@@ -2180,6 +2180,14 @@
             min-width: 0;
         }
 
+        .teacher-load-subject-sections {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-top: -1px;
+        }
+
         .teacher-load-chip-pill {
             display: inline-flex;
             align-items: center;
@@ -2789,31 +2797,13 @@
                                                                     <span class="teacher-load-chip-pill">{{ item.hours }}h</span>
                                                                     <span class="teacher-load-chip-pill">{{ item.section_count }} sections</span>
                                                                 </div>
-                                                            </div>
-                                                            {% endfor %}
-                                                        </div>
-                                                    </div>
-
-                                                    <div class="teacher-load-distribution-card">
-                                                        <div class="teacher-load-distribution-head teacher-load-head-row">
-                                                            <strong>Section Distribution</strong>
-                                                            <span>{{ allocation.get("section_assignment_count", 0) }} assignments</span>
-                                                        </div>
-                                                        <div class="teacher-load-distribution-grid">
-                                                            {% for item in allocation.get("teaching_load_items", []) %}
-                                                            <div class="teacher-load-distribution-item">
-                                                                <div class="teacher-load-distribution-head teacher-load-head-row">
-                                                                    <strong>{{ item.subject_code }}</strong>
-                                                                    <span>{{ item.section_count }} sections</span>
-                                                                </div>
-                                                                <div class="teacher-load-section-chip-row">
-                                                                    {% for section_label in item.sections[:3] %}
+                                                                {% if item.sections %}
+                                                                <div class="teacher-load-subject-sections">
+                                                                    {% for section_label in item.sections %}
                                                                     <span class="teacher-load-section-chip">{{ section_label }}</span>
                                                                     {% endfor %}
-                                                                    {% if item.section_count > 3 %}
-                                                                    <span class="teacher-load-section-chip is-muted">+{{ item.section_count - 3 }} more</span>
-                                                                    {% endif %}
                                                                 </div>
+                                                                {% endif %}
                                                             </div>
                                                             {% endfor %}
                                                         </div>
