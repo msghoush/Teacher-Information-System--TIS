@@ -737,96 +737,6 @@
                 max-width: 15vw;
             }
         }
-
-        /* ── Grade & Sections Overview ───────────────────────────── */
-        .grade-overview-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 12px;
-            margin-top: 10px;
-        }
-
-        .gos-card {
-            border-radius: 14px;
-            border: 1px solid #d0dff0;
-            background: #fff;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(15,23,42,0.06);
-        }
-
-        .gos-header {
-            padding: 10px 16px;
-            background: #f0f5ff;
-            border-bottom: 1px solid #d0dff0;
-            font-size: 14px;
-            font-weight: 800;
-            color: #0f2a54;
-            letter-spacing: 0.2px;
-        }
-
-        .gos-body {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-        }
-
-        .gos-col {
-            padding: 14px 10px 12px;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 3px;
-        }
-
-        .gos-col + .gos-col {
-            border-left: 1px solid #e8eff8;
-        }
-
-        .gos-col-current { background: #f0fdf4; }
-        .gos-col-new     { background: #eff6ff; }
-        .gos-col-diff    { background: #fafbfc; }
-
-        .gos-col-label {
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-        }
-
-        .gos-col-current .gos-col-label { color: #15803d; }
-        .gos-col-new     .gos-col-label { color: #1d4ed8; }
-        .gos-col-diff    .gos-col-label { color: #475569; }
-
-        .gos-col-number {
-            font-size: 38px;
-            font-weight: 900;
-            line-height: 1;
-        }
-
-        .gos-col-current .gos-col-number { color: #16a34a; }
-        .gos-col-new     .gos-col-number { color: #2563eb; }
-
-        .gos-col-sub {
-            font-size: 10px;
-            color: #94a3b8;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .gos-diff-number {
-            font-size: 30px;
-            font-weight: 900;
-            line-height: 1;
-        }
-
-        .gos-diff-positive { color: #15803d; }
-        .gos-diff-negative { color: #be123c; }
-        .gos-diff-zero     { color: #94a3b8; }
-
-        .gos-diff-sub-positive { color: #15803d; }
-        .gos-diff-sub-negative { color: #be123c; }
-        .gos-diff-sub-zero     { color: #94a3b8; }
 </style>
 {% endblock %}
 
@@ -964,42 +874,6 @@
                         <small>Automatically calculated school-wide load</small>
                     </div>
                 </div>
-
-                {% if grades_section_summary %}
-                <div class="grade-overview-grid">
-                    {% for gs in grades_section_summary %}
-                    {% set diff = gs.diff %}
-                    <div class="gos-card">
-                        <div class="gos-header">{{ gs.grade_label }}</div>
-                        <div class="gos-body">
-                            <div class="gos-col gos-col-current">
-                                <span class="gos-col-label">Current</span>
-                                <span class="gos-col-number">{{ gs.current_count }}</span>
-                                <span class="gos-col-sub">sections</span>
-                            </div>
-                            <div class="gos-col gos-col-new">
-                                <span class="gos-col-label">New</span>
-                                <span class="gos-col-number">{{ gs.new_count }}</span>
-                                <span class="gos-col-sub">sections</span>
-                            </div>
-                            <div class="gos-col gos-col-diff">
-                                <span class="gos-col-label">Change</span>
-                                {% if diff > 0 %}
-                                <span class="gos-diff-number gos-diff-positive">+{{ diff }}</span>
-                                <span class="gos-col-sub gos-diff-sub-positive">▲ increase</span>
-                                {% elif diff < 0 %}
-                                <span class="gos-diff-number gos-diff-negative">{{ diff }}</span>
-                                <span class="gos-col-sub gos-diff-sub-negative">▼ decrease</span>
-                                {% else %}
-                                <span class="gos-diff-number gos-diff-zero">—</span>
-                                <span class="gos-col-sub gos-diff-sub-zero">no change</span>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endif %}
 
                 {% if planning_rows %}
                 <div class="table-wrap">
