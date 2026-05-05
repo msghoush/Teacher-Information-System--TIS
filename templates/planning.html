@@ -737,6 +737,106 @@
                 max-width: 15vw;
             }
         }
+
+        /* ── Grade & Sections Overview ───────────────────────────── */
+        .grade-overview-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .grade-chip {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f8fbff;
+            border: 1px solid #d0dff0;
+            border-radius: 12px;
+            padding: 10px 14px;
+            min-width: 260px;
+            flex: 1 1 260px;
+        }
+
+        .grade-chip-label {
+            font-size: 13px;
+            font-weight: 800;
+            color: #122846;
+            min-width: 68px;
+            flex-shrink: 0;
+        }
+
+        .grade-chip-badges {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .gc-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            border-radius: 999px;
+            padding: 3px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            border: 1px solid;
+        }
+
+        .gc-badge-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .gc-badge-current {
+            background: #ecfaf3;
+            border-color: #add9c2;
+            color: #067647;
+        }
+
+        .gc-badge-current .gc-badge-dot {
+            background: #12b76a;
+        }
+
+        .gc-badge-new {
+            background: #eff6ff;
+            border-color: #bfdbfe;
+            color: #1d4ed8;
+        }
+
+        .gc-badge-new .gc-badge-dot {
+            background: #3b82f6;
+        }
+
+        .gc-diff {
+            font-size: 12px;
+            font-weight: 800;
+            padding: 3px 9px;
+            border-radius: 999px;
+            border: 1px solid;
+            flex-shrink: 0;
+        }
+
+        .gc-diff-positive {
+            background: #ecfdf5;
+            border-color: #6ee7b7;
+            color: #047857;
+        }
+
+        .gc-diff-negative {
+            background: #fff1f2;
+            border-color: #fecdd3;
+            color: #be123c;
+        }
+
+        .gc-diff-zero {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #64748b;
+        }
 </style>
 {% endblock %}
 
@@ -874,6 +974,34 @@
                         <small>Automatically calculated school-wide load</small>
                     </div>
                 </div>
+
+                {% if grades_section_summary %}
+                <div class="grade-overview-grid">
+                    {% for gs in grades_section_summary %}
+                    {% set diff = gs.diff %}
+                    <div class="grade-chip">
+                        <span class="grade-chip-label">{{ gs.grade_label }}</span>
+                        <div class="grade-chip-badges">
+                            <span class="gc-badge gc-badge-current">
+                                <span class="gc-badge-dot"></span>
+                                Current&nbsp;<strong>{{ gs.current_count }}</strong>
+                            </span>
+                            <span class="gc-badge gc-badge-new">
+                                <span class="gc-badge-dot"></span>
+                                New&nbsp;<strong>{{ gs.new_count }}</strong>
+                            </span>
+                            {% if diff > 0 %}
+                            <span class="gc-diff gc-diff-positive">+{{ diff }}</span>
+                            {% elif diff < 0 %}
+                            <span class="gc-diff gc-diff-negative">{{ diff }}</span>
+                            {% else %}
+                            <span class="gc-diff gc-diff-zero">—</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
 
                 {% if planning_rows %}
                 <div class="table-wrap">

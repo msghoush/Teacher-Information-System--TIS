@@ -623,6 +623,29 @@ def _render_planning_page(
         row["allocated_hours"] for row in planning_rows
     )
 
+    _grade_counts: dict = {}
+    for row in planning_rows:
+        grade = row["record"].grade_level
+        if grade not in _grade_counts:
+            _grade_counts[grade] = {"current": 0, "new": 0}
+        if row["record"].class_status == "Current":
+            _grade_counts[grade]["current"] += 1
+        elif row["record"].class_status == "New":
+            _grade_counts[grade]["new"] += 1
+
+    grades_section_summary = [
+        {
+            "grade": grade,
+            "grade_label": "KG" if grade == "KG" else f"Grade {grade}",
+            "current_count": counts["current"],
+            "new_count": counts["new"],
+            "diff": counts["new"] - counts["current"],
+        }
+        for grade, counts in sorted(
+            _grade_counts.items(), key=lambda item: _grade_sort_value(item[0])
+        )
+    ]
+
     normalized_form_data = {
         "grade_level": "1",
         "section_name": "A",
@@ -649,6 +672,7 @@ def _render_planning_page(
             "current_sections_count": current_sections_count,
             "new_sections_count": new_sections_count,
             "total_allocated_hours": total_allocated_hours,
+            "grades_section_summary": grades_section_summary,
             "can_modify": can_modify,
             "can_edit": can_edit,
             "can_delete": can_delete,
