@@ -2229,63 +2229,64 @@
 
         .report-subject-summary-copy {
             display: grid;
-            gap: 7px;
+            gap: 5px;
         }
 
-        .report-subject-summary-stats {
+        .report-subject-summary-line {
             display: flex;
+            align-items: center;
             flex-wrap: wrap;
-            gap: 7px;
+            gap: 4px;
+            font-size: 12px;
+            color: #2f517a;
+            line-height: 1.2;
         }
 
-        .report-subject-summary-badge {
+        .report-subject-summary-segment {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            border: 1px solid #dbe7f5;
-            background: #fff;
-            color: #36557a;
-            border-radius: 999px;
-            padding: 5px 10px;
+            gap: 4px;
+            white-space: nowrap;
+        }
+
+        .report-subject-summary-segment-label {
             font-size: 11px;
+            color: #4e6483;
             font-weight: 700;
-            line-height: 1;
         }
 
-        .report-subject-summary-badge strong {
-            color: #17365d;
+        .report-subject-summary-segment-value {
             font-size: 12px;
+            color: #17365d;
+            font-weight: 800;
         }
 
-        .report-subject-summary-badge.is-gap {
-            border-color: #efc0b9;
-            background: #fff4f1;
-            color: #9f2f24;
-        }
-
-        .report-subject-summary-badge.is-gap strong {
-            color: #b42318;
+        .report-subject-summary-separator {
+            color: #7d93b0;
+            font-weight: 700;
+            margin: 0 1px;
         }
 
         .report-subject-summary-teachers {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 7px;
+            display: inline-flex;
             align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+            min-width: 0;
         }
 
         .report-subject-summary-teacher-chip {
             display: inline-flex;
             align-items: center;
-            border: 1px solid #d4e2f4;
+            border: 1px solid #dbe7f5;
             background: #fff;
             color: #2f517a;
             border-radius: 999px;
-            padding: 6px 10px;
-            font-size: 12px;
+            padding: 2px 7px;
+            font-size: 11px;
             font-weight: 700;
-            line-height: 1.2;
-            white-space: normal;
+            line-height: 1;
+            white-space: nowrap;
         }
 
         .report-subject-summary-teacher-chip.is-more {
@@ -4069,13 +4070,15 @@
                                                 <span class="report-subject-flag">Priority Subject</span>
                                                 {% endif %}
                                             </div>
-                                            <div class="report-subject-demand-pill">
-                                                <span>Total Hours Demand</span>
-                                                <strong>{{ row.required_hours }}h</strong>
-                                            </div>
-                                            <div class="report-subject-summary-stats">
-                                                <span class="report-subject-summary-badge"><strong>{{ row.allocated_hours }}h</strong> Covered</span>
-                                                <span class="report-subject-summary-badge {% if row.remaining_hours > 0 %}is-gap{% endif %}"><strong>{{ row.remaining_hours }}h</strong> Uncovered</span>
+                                            <div class="report-subject-summary-line">
+                                                <span class="report-subject-summary-segment"><span class="report-subject-summary-segment-label">Total Hours:</span><span class="report-subject-summary-segment-value">{{ row.required_hours }}h</span></span>
+                                                <span class="report-subject-summary-separator">|</span>
+                                                <span class="report-subject-summary-segment"><span class="report-subject-summary-segment-label">Covered:</span><span class="report-subject-summary-segment-value">{{ row.allocated_hours }}h</span></span>
+                                                <span class="report-subject-summary-separator">|</span>
+                                                <span class="report-subject-summary-segment"><span class="report-subject-summary-segment-label">Uncovered:</span><span class="report-subject-summary-segment-value">{{ row.remaining_hours }}h</span></span>
+                                                <span class="report-subject-summary-separator">|</span>
+                                                <span class="report-subject-summary-segment"><span class="report-subject-summary-segment-label">Teachers:</span></span>
+                                                <span class="report-subject-summary-teachers">
                                                 {% if row.assigned_teacher_contributors %}
                                                     {% for contributor in row.assigned_teacher_contributors[:2] %}
                                                     <span class="report-subject-summary-teacher-chip" title="{{ contributor.teacher_name }}">{{ contributor.teacher_name }}</span>
@@ -4086,6 +4089,7 @@
                                                 {% else %}
                                                     <span class="report-subject-summary-teacher-chip is-empty">No teachers assigned</span>
                                                 {% endif %}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
