@@ -376,23 +376,25 @@
             margin: 0;
             padding: 0;
             list-style: none;
-            display: grid;
-            gap: 6px;
-            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-            max-height: 190px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 5px;
+            max-height: 160px;
             overflow: auto;
         }
 
         .aligned-item {
             display: flex;
             align-items: center;
-            gap: 6px;
-            flex-wrap: wrap;
-            padding: 4px 6px;
+            gap: 5px;
+            padding: 2px 7px;
             border: 1px solid #dbe7f8;
             border-radius: 999px;
             background: #f8fbff;
             color: #2f4361;
+            white-space: nowrap;
+            min-height: 24px;
         }
 
         .aligned-item-dot {
@@ -405,23 +407,23 @@
 
         .aligned-item-title {
             margin: 0;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
-            line-height: 1.25;
+            line-height: 1;
             color: #1f3759;
         }
 
         .aligned-item-hours {
             display: inline-flex;
             align-items: center;
-            margin-left: auto;
-            padding: 2px 6px;
+            padding: 1px 5px;
             border-radius: 999px;
             border: 1px solid #d9e6f8;
             background: #ffffff;
             color: #365275;
-            font-size: 10px;
+            font-size: 9px;
             font-weight: 700;
+            line-height: 1;
         }
 
         .aligned-item-state {
@@ -1028,18 +1030,8 @@ const gradeSelect = document.getElementById("grade_level");
 
                 const hours = document.createElement("span");
                 hours.className = "aligned-item-hours";
-                hours.textContent = `${Number(subject.weekly_hours || 0)}h/week`;
+                hours.textContent = `${Number(subject.weekly_hours || 0)}h`;
                 row.appendChild(hours);
-
-                const homeroomDefaultActive = Boolean(homeroomTeacherSelect?.value)
-                    && isHomeroomDefaultSubject(selectedGrade, subject);
-
-                if (homeroomDefaultActive) {
-                    const state = document.createElement("span");
-                    state.className = "aligned-item-state";
-                    state.textContent = "Homeroom Default";
-                    row.appendChild(state);
-                }
 
                 alignedSubjectsPreview.appendChild(row);
                 totalHours += Number(subject.weekly_hours || 0);
