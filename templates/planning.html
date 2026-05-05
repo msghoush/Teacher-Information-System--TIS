@@ -740,103 +740,93 @@
 
         /* ── Grade & Sections Overview ───────────────────────────── */
         .grade-overview-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 4px;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
+            margin-top: 10px;
         }
 
-        .grade-chip {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: #f8fbff;
+        .gos-card {
+            border-radius: 14px;
             border: 1px solid #d0dff0;
-            border-radius: 12px;
-            padding: 10px 14px;
-            min-width: 260px;
-            flex: 1 1 260px;
+            background: #fff;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(15,23,42,0.06);
         }
 
-        .grade-chip-label {
-            font-size: 13px;
+        .gos-header {
+            padding: 10px 16px;
+            background: #f0f5ff;
+            border-bottom: 1px solid #d0dff0;
+            font-size: 14px;
             font-weight: 800;
-            color: #122846;
-            min-width: 68px;
-            flex-shrink: 0;
+            color: #0f2a54;
+            letter-spacing: 0.2px;
         }
 
-        .grade-chip-badges {
+        .gos-body {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        .gos-col {
+            padding: 14px 10px 12px;
+            text-align: center;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 8px;
-            flex: 1;
+            gap: 3px;
         }
 
-        .gc-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            border-radius: 999px;
-            padding: 3px 10px;
-            font-size: 12px;
+        .gos-col + .gos-col {
+            border-left: 1px solid #e8eff8;
+        }
+
+        .gos-col-current { background: #f0fdf4; }
+        .gos-col-new     { background: #eff6ff; }
+        .gos-col-diff    { background: #fafbfc; }
+
+        .gos-col-label {
+            font-size: 10px;
             font-weight: 700;
-            border: 1px solid;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
         }
 
-        .gc-badge-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            flex-shrink: 0;
+        .gos-col-current .gos-col-label { color: #15803d; }
+        .gos-col-new     .gos-col-label { color: #1d4ed8; }
+        .gos-col-diff    .gos-col-label { color: #475569; }
+
+        .gos-col-number {
+            font-size: 38px;
+            font-weight: 900;
+            line-height: 1;
         }
 
-        .gc-badge-current {
-            background: #ecfaf3;
-            border-color: #add9c2;
-            color: #067647;
+        .gos-col-current .gos-col-number { color: #16a34a; }
+        .gos-col-new     .gos-col-number { color: #2563eb; }
+
+        .gos-col-sub {
+            font-size: 10px;
+            color: #94a3b8;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        .gc-badge-current .gc-badge-dot {
-            background: #12b76a;
+        .gos-diff-number {
+            font-size: 30px;
+            font-weight: 900;
+            line-height: 1;
         }
 
-        .gc-badge-new {
-            background: #eff6ff;
-            border-color: #bfdbfe;
-            color: #1d4ed8;
-        }
+        .gos-diff-positive { color: #15803d; }
+        .gos-diff-negative { color: #be123c; }
+        .gos-diff-zero     { color: #94a3b8; }
 
-        .gc-badge-new .gc-badge-dot {
-            background: #3b82f6;
-        }
-
-        .gc-diff {
-            font-size: 12px;
-            font-weight: 800;
-            padding: 3px 9px;
-            border-radius: 999px;
-            border: 1px solid;
-            flex-shrink: 0;
-        }
-
-        .gc-diff-positive {
-            background: #ecfdf5;
-            border-color: #6ee7b7;
-            color: #047857;
-        }
-
-        .gc-diff-negative {
-            background: #fff1f2;
-            border-color: #fecdd3;
-            color: #be123c;
-        }
-
-        .gc-diff-zero {
-            background: #f8fafc;
-            border-color: #cbd5e1;
-            color: #64748b;
-        }
+        .gos-diff-sub-positive { color: #15803d; }
+        .gos-diff-sub-negative { color: #be123c; }
+        .gos-diff-sub-zero     { color: #94a3b8; }
 </style>
 {% endblock %}
 
@@ -979,24 +969,32 @@
                 <div class="grade-overview-grid">
                     {% for gs in grades_section_summary %}
                     {% set diff = gs.diff %}
-                    <div class="grade-chip">
-                        <span class="grade-chip-label">{{ gs.grade_label }}</span>
-                        <div class="grade-chip-badges">
-                            <span class="gc-badge gc-badge-current">
-                                <span class="gc-badge-dot"></span>
-                                Current&nbsp;<strong>{{ gs.current_count }}</strong>
-                            </span>
-                            <span class="gc-badge gc-badge-new">
-                                <span class="gc-badge-dot"></span>
-                                New&nbsp;<strong>{{ gs.new_count }}</strong>
-                            </span>
-                            {% if diff > 0 %}
-                            <span class="gc-diff gc-diff-positive">+{{ diff }}</span>
-                            {% elif diff < 0 %}
-                            <span class="gc-diff gc-diff-negative">{{ diff }}</span>
-                            {% else %}
-                            <span class="gc-diff gc-diff-zero">—</span>
-                            {% endif %}
+                    <div class="gos-card">
+                        <div class="gos-header">{{ gs.grade_label }}</div>
+                        <div class="gos-body">
+                            <div class="gos-col gos-col-current">
+                                <span class="gos-col-label">Current</span>
+                                <span class="gos-col-number">{{ gs.current_count }}</span>
+                                <span class="gos-col-sub">sections</span>
+                            </div>
+                            <div class="gos-col gos-col-new">
+                                <span class="gos-col-label">New</span>
+                                <span class="gos-col-number">{{ gs.new_count }}</span>
+                                <span class="gos-col-sub">sections</span>
+                            </div>
+                            <div class="gos-col gos-col-diff">
+                                <span class="gos-col-label">Change</span>
+                                {% if diff > 0 %}
+                                <span class="gos-diff-number gos-diff-positive">+{{ diff }}</span>
+                                <span class="gos-col-sub gos-diff-sub-positive">▲ increase</span>
+                                {% elif diff < 0 %}
+                                <span class="gos-diff-number gos-diff-negative">{{ diff }}</span>
+                                <span class="gos-col-sub gos-diff-sub-negative">▼ decrease</span>
+                                {% else %}
+                                <span class="gos-diff-number gos-diff-zero">—</span>
+                                <span class="gos-col-sub gos-diff-sub-zero">no change</span>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                     {% endfor %}
