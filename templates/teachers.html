@@ -255,6 +255,147 @@
             font-size: 13px;
         }
 
+        .assignment-suggestion-panel {
+            margin-top: 14px;
+            padding: 14px;
+            border: 1px solid #dbe7f8;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #fcfdff, #f5f9ff);
+            display: grid;
+            gap: 12px;
+        }
+
+        .assignment-suggestion-panel[data-state="ready"] {
+            border-color: #b9d6f5;
+            box-shadow: 0 12px 28px rgba(10, 78, 163, 0.08);
+        }
+
+        .assignment-suggestion-panel[data-state="empty"],
+        .assignment-suggestion-panel[data-state="error"] {
+            background: #fbfcfe;
+        }
+
+        .assignment-suggestion-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .assignment-suggestion-copy h3 {
+            margin: 0 0 4px;
+            font-size: 16px;
+            color: #17365d;
+        }
+
+        .assignment-suggestion-copy p {
+            margin: 0;
+            color: #5d6b82;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .assignment-suggestion-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #edf4ff;
+            border: 1px solid #c9dcf7;
+            color: #244a7c;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+        }
+
+        .assignment-suggestion-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .assignment-suggestion-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        .assignment-suggestion-stat {
+            padding: 10px 12px;
+            border: 1px solid #dbe7f8;
+            border-radius: 12px;
+            background: #fff;
+        }
+
+        .assignment-suggestion-stat span,
+        .assignment-suggestion-stat small {
+            display: block;
+        }
+
+        .assignment-suggestion-stat span,
+        .assignment-suggestion-stat small {
+            color: #60728b;
+            font-size: 12px;
+        }
+
+        .assignment-suggestion-stat strong {
+            display: block;
+            margin: 3px 0;
+            color: #17365d;
+            font-size: 18px;
+        }
+
+        .assignment-suggestion-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .assignment-suggestion-item {
+            padding: 12px;
+            border: 1px solid #dbe7f8;
+            border-radius: 12px;
+            background: #fff;
+        }
+
+        .assignment-suggestion-item-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .assignment-suggestion-item-head strong {
+            color: #17365d;
+        }
+
+        .assignment-suggestion-pool {
+            font-size: 12px;
+            font-weight: 700;
+            color: #244a7c;
+        }
+
+        .assignment-suggestion-sections {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .assignment-suggestion-section {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 9px;
+            border-radius: 999px;
+            border: 1px solid #d8e5f6;
+            background: #f8fbff;
+            color: #365275;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
         .error-list {
             margin: 0 0 10px;
             padding-left: 20px;
@@ -2515,6 +2656,21 @@
                             <div id="sectionAssignmentBoard" class="subject-assignment-board"></div>
                             <div id="sectionAssignmentEmpty" class="section-assignment-empty">Choose one or more subjects in Step 1, and the matching sections will appear here to assign to this teacher.</div>
                             </div>
+                            <div id="assignmentSuggestionPanel" class="assignment-suggestion-panel" data-state="loading">
+                                <div class="assignment-suggestion-head">
+                                    <div class="assignment-suggestion-copy">
+                                        <span id="assignmentSuggestionBadge" class="assignment-suggestion-badge">Loading plan</span>
+                                        <h3>Recommended Assignment Suggestion</h3>
+                                        <p id="assignmentSuggestionText">Checking the current Recommended Hiring Plan and matching uncovered hours to this teacher's specialization.</p>
+                                    </div>
+                                    <div class="assignment-suggestion-actions">
+                                        <button id="assignmentSuggestionApplyBtn" class="subject-grade-btn" type="button" disabled>Apply Suggestion</button>
+                                        <button id="assignmentSuggestionRefreshBtn" class="subject-grade-btn" type="button">Refresh</button>
+                                    </div>
+                                </div>
+                                <div id="assignmentSuggestionSummary" class="assignment-suggestion-summary"></div>
+                                <div id="assignmentSuggestionList" class="assignment-suggestion-list"></div>
+                            </div>
                             <div id="allocationSummary" class="allocation-dashboard" data-state="empty" aria-live="polite">
                                 <div class="allocation-dashboard-head">
                                     <div class="allocation-copy">
@@ -2944,6 +3100,13 @@ const searchInput = document.getElementById("teacherSearch");
         const allocationExtraHoursValue = document.getElementById("allocationExtraHoursValue");
         const allocationNationalHoursValue = document.getElementById("allocationNationalHoursValue");
         const allocationTotalCapacityValue = document.getElementById("allocationTotalCapacityValue");
+        const assignmentSuggestionPanel = document.getElementById("assignmentSuggestionPanel");
+        const assignmentSuggestionBadge = document.getElementById("assignmentSuggestionBadge");
+        const assignmentSuggestionText = document.getElementById("assignmentSuggestionText");
+        const assignmentSuggestionSummary = document.getElementById("assignmentSuggestionSummary");
+        const assignmentSuggestionList = document.getElementById("assignmentSuggestionList");
+        const assignmentSuggestionApplyBtn = document.getElementById("assignmentSuggestionApplyBtn");
+        const assignmentSuggestionRefreshBtn = document.getElementById("assignmentSuggestionRefreshBtn");
         const standardMaxHours = 24;
         const subjectChoices = {{ subject_choices | tojson }};
         const qualificationOptions = {{ qualification_options | tojson }};
@@ -2979,6 +3142,38 @@ const searchInput = document.getElementById("teacherSearch");
             });
             return map;
         }, {});
+        const suggestionPoolLabels = {
+            english_pool: "English Pool",
+            arabic_pool: "Arabic Pool",
+            math_pool: "Math Pool",
+            general_science_pool: "General Science Pool",
+            physical_education: "Physical Education Pool",
+            homeroom_pool: "Homeroom Pool",
+        };
+        const suggestionAlignmentPoolMap = {
+            english: "english_pool",
+            arabic: "arabic_pool",
+            islamic: "arabic_pool",
+            math: "math_pool",
+            physics: "math_pool",
+            science: "general_science_pool",
+            biology: "general_science_pool",
+            chemistry: "general_science_pool",
+            computer: "general_science_pool",
+            pe: "physical_education",
+            kindergarten: "homeroom_pool",
+        };
+        const suggestionPoolPriority = [
+            "english_pool",
+            "arabic_pool",
+            "math_pool",
+            "general_science_pool",
+            "physical_education",
+            "homeroom_pool",
+        ];
+        let hiringPlanSuggestionPlan = null;
+        let hiringPlanSuggestionSource = "";
+        let currentAssignmentSuggestion = null;
         const collapseCompactDetails = () => {
             document.querySelectorAll(".compact-list-details").forEach((detail) => {
                 detail.open = false;
@@ -3249,6 +3444,7 @@ const searchInput = document.getElementById("teacherSearch");
             }
 
             updateSubjectAssignmentCardStates();
+            renderAssignmentSuggestion();
         };
 
         const getGradeKey = (value) => {
@@ -3365,6 +3561,310 @@ const searchInput = document.getElementById("teacherSearch");
                 });
             });
             return alignmentKeys;
+        };
+
+        const getSelectedSuggestionPoolKeys = () => {
+            const poolKeys = new Set();
+            getSelectedAlignmentKeys().forEach((alignmentKey) => {
+                const poolKey = suggestionAlignmentPoolMap[String(alignmentKey || "").trim()];
+                if (poolKey) {
+                    poolKeys.add(poolKey);
+                }
+            });
+            return suggestionPoolPriority.filter((poolKey) => poolKeys.has(poolKey));
+        };
+
+        const getPersistedSectionHoursForSubject = (subjectCode) => {
+            const normalizedCode = String(subjectCode || "").trim().toUpperCase();
+            const subject = subjectChoicesByCode[normalizedCode] || {};
+            const weeklyHours = Number(subject.weekly_hours || 0);
+            if (!Number.isFinite(weeklyHours) || weeklyHours <= 0) {
+                return 0;
+            }
+            let selectedCount = 0;
+            persistedSectionAssignmentValues.forEach((value) => {
+                if (String(value || "").toUpperCase().startsWith(`${normalizedCode}::`)) {
+                    selectedCount += 1;
+                }
+            });
+            return selectedCount * weeklyHours;
+        };
+
+        const renderAssignmentSuggestionState = (state, badgeText, message, summaryItems = [], suggestions = []) => {
+            if (!assignmentSuggestionPanel) {
+                return;
+            }
+
+            currentAssignmentSuggestion = suggestions.length > 0 ? { suggestions } : null;
+            assignmentSuggestionPanel.dataset.state = state;
+            if (assignmentSuggestionBadge) {
+                assignmentSuggestionBadge.textContent = badgeText;
+            }
+            if (assignmentSuggestionText) {
+                assignmentSuggestionText.textContent = message;
+            }
+            if (assignmentSuggestionApplyBtn) {
+                assignmentSuggestionApplyBtn.disabled = suggestions.length === 0;
+            }
+            if (assignmentSuggestionSummary) {
+                assignmentSuggestionSummary.innerHTML = "";
+                summaryItems.forEach((item) => {
+                    const card = document.createElement("div");
+                    card.className = "assignment-suggestion-stat";
+                    card.innerHTML = `<span>${item.label}</span><strong>${item.value}</strong><small>${item.note}</small>`;
+                    assignmentSuggestionSummary.appendChild(card);
+                });
+            }
+            if (assignmentSuggestionList) {
+                assignmentSuggestionList.innerHTML = "";
+                suggestions.forEach((suggestion) => {
+                    const item = document.createElement("article");
+                    item.className = "assignment-suggestion-item";
+
+                    const head = document.createElement("div");
+                    head.className = "assignment-suggestion-item-head";
+                    head.innerHTML = `<div><strong>${suggestion.subjectCode} - ${suggestion.subjectName}</strong><div class="assignment-suggestion-pool">${suggestion.poolLabel} • ${suggestion.hours}h</div></div><span class="subject-assignment-pill is-strong">${suggestion.sections.length} sections</span>`;
+                    item.appendChild(head);
+
+                    const sections = document.createElement("div");
+                    sections.className = "assignment-suggestion-sections";
+                    suggestion.sections.forEach((section) => {
+                        const chip = document.createElement("span");
+                        chip.className = "assignment-suggestion-section";
+                        chip.textContent = section.label;
+                        sections.appendChild(chip);
+                    });
+                    item.appendChild(sections);
+                    assignmentSuggestionList.appendChild(item);
+                });
+            }
+        };
+
+        const buildTeacherAssignmentSuggestion = () => {
+            if (!hiringPlanSuggestionPlan) {
+                return {
+                    state: "empty",
+                    badgeText: "No plan found",
+                    message: "Open and save the Recommended Hiring Plan in the dashboard, or let the dashboard generate one automatically, then refresh here.",
+                    summaryItems: [],
+                    suggestions: [],
+                };
+            }
+
+            if (!hasSelectedSpecialization()) {
+                return {
+                    state: "empty",
+                    badgeText: "Select specialization",
+                    message: "Choose at least one major or teaching specialization first so the system can match the teacher to the right hiring pool.",
+                    summaryItems: [],
+                    suggestions: [],
+                };
+            }
+
+            const snapshot = getAllocationSnapshot();
+            if (snapshot.nationalHoursExceedTotal) {
+                return {
+                    state: "error",
+                    badgeText: "Fix capacity first",
+                    message: "National section hours are higher than total teacher capacity, so the system cannot build a safe recommendation yet.",
+                    summaryItems: [],
+                    suggestions: [],
+                };
+            }
+
+            const remainingCapacityHours = Math.max(snapshot.requiredHours - snapshot.assignedHours, 0);
+            if (remainingCapacityHours <= 0) {
+                return {
+                    state: "empty",
+                    badgeText: "Capacity full",
+                    message: "This teacher is already fully allocated based on the current subject and section selections.",
+                    summaryItems: [
+                        { label: "Current Load", value: `${snapshot.assignedHours}h`, note: "No further international hours available" },
+                    ],
+                    suggestions: [],
+                };
+            }
+
+            const matchedPoolKeys = getSelectedSuggestionPoolKeys();
+            if (matchedPoolKeys.length === 0) {
+                return {
+                    state: "empty",
+                    badgeText: "No pool mapping",
+                    message: "The selected specialization does not map to one of the current Recommended Hiring Plan pools.",
+                    summaryItems: [],
+                    suggestions: [],
+                };
+            }
+
+            const matchedProfiles = (hiringPlanSuggestionPlan.profiles || []).filter((profile) => {
+                return matchedPoolKeys.includes(String(profile.group_key || "").trim());
+            });
+            if (matchedProfiles.length === 0) {
+                return {
+                    state: "empty",
+                    badgeText: "No matching pool hours",
+                    message: "The matching hiring pool is available, but it does not currently have uncovered hours left for this teacher.",
+                    summaryItems: [
+                        { label: "Matched Pools", value: matchedPoolKeys.map((poolKey) => suggestionPoolLabels[poolKey] || poolKey).join(", "), note: "No uncovered hours remain in those pools" },
+                    ],
+                    suggestions: [],
+                };
+            }
+
+            const suggestions = [];
+            let remainingHours = remainingCapacityHours;
+
+            matchedProfiles.forEach((profile) => {
+                if (remainingHours <= 0) {
+                    return;
+                }
+                const poolKey = String(profile.group_key || "").trim();
+                const poolLabel = suggestionPoolLabels[poolKey] || String(profile.name || "Matching Pool");
+                (profile.items || []).forEach((item) => {
+                    if (remainingHours <= 0) {
+                        return;
+                    }
+                    const subjectCode = String(item.subject_code || "").trim().toUpperCase();
+                    const subject = subjectChoicesByCode[subjectCode];
+                    if (!subject) {
+                        return;
+                    }
+                    const weeklyHours = Number(subject.weekly_hours || 0);
+                    if (!Number.isFinite(weeklyHours) || weeklyHours <= 0) {
+                        return;
+                    }
+
+                    const plannedOpenHours = Math.max(Number(item.hours || 0) - getPersistedSectionHoursForSubject(subjectCode), 0);
+                    if (plannedOpenHours < weeklyHours) {
+                        return;
+                    }
+
+                    const availableSections = (sectionOptionsBySubject[subjectCode] || []).filter((option) => {
+                        if (!option.is_available) {
+                            return false;
+                        }
+                        const optionValue = `${subjectCode}::${option.section_id}`;
+                        return !persistedSectionAssignmentValues.has(optionValue);
+                    });
+                    if (availableSections.length === 0) {
+                        return;
+                    }
+
+                    const maxSectionsForPool = Math.floor(plannedOpenHours / weeklyHours);
+                    const maxSectionsForCapacity = Math.floor(remainingHours / weeklyHours);
+                    const sectionsToTake = Math.min(
+                        availableSections.length,
+                        maxSectionsForPool,
+                        maxSectionsForCapacity,
+                    );
+                    if (sectionsToTake <= 0) {
+                        return;
+                    }
+
+                    const chosenSections = availableSections.slice(0, sectionsToTake).map((section) => ({
+                        sectionId: section.section_id,
+                        label: section.label,
+                        value: `${subjectCode}::${section.section_id}`,
+                    }));
+                    const suggestedHours = chosenSections.length * weeklyHours;
+                    suggestions.push({
+                        poolKey,
+                        poolLabel,
+                        subjectCode,
+                        subjectName: String(subject.subject_name || "Unnamed Subject"),
+                        hours: suggestedHours,
+                        sections: chosenSections,
+                    });
+                    remainingHours -= suggestedHours;
+                });
+            });
+
+            if (suggestions.length === 0) {
+                return {
+                    state: "empty",
+                    badgeText: "Nothing available",
+                    message: "A matching pool was found, but there are no free compatible sections left to suggest inside the remaining capacity.",
+                    summaryItems: [
+                        { label: "Matched Pools", value: matchedProfiles.map((profile) => suggestionPoolLabels[String(profile.group_key || "").trim()] || profile.name).join(", "), note: "Try another specialization or adjust the current selections" },
+                    ],
+                    suggestions: [],
+                };
+            }
+
+            const suggestedHours = suggestions.reduce((sum, item) => sum + item.hours, 0);
+            const suggestedSections = suggestions.reduce((sum, item) => sum + item.sections.length, 0);
+            return {
+                state: "ready",
+                badgeText: hiringPlanSuggestionSource === "saved" ? "Saved plan match" : "Auto plan match",
+                message: "These uncovered hours match the selected specialization and fit inside the teacher's remaining capacity. You can apply them, adjust them, or ignore them before saving.",
+                summaryItems: [
+                    { label: "Suggested Load", value: `${suggestedHours}h`, note: `${suggestedSections} sections ready to assign` },
+                    { label: "Remaining After Apply", value: `${Math.max(remainingCapacityHours - suggestedHours, 0)}h`, note: `${remainingCapacityHours}h was still available before this suggestion` },
+                    { label: "Matched Pools", value: matchedProfiles.map((profile) => suggestionPoolLabels[String(profile.group_key || "").trim()] || profile.name).join(", "), note: "Built from the current Recommended Hiring Plan" },
+                ],
+                suggestions,
+            };
+        };
+
+        const renderAssignmentSuggestion = () => {
+            const suggestionState = buildTeacherAssignmentSuggestion();
+            renderAssignmentSuggestionState(
+                suggestionState.state,
+                suggestionState.badgeText,
+                suggestionState.message,
+                suggestionState.summaryItems,
+                suggestionState.suggestions,
+            );
+        };
+
+        const applyAssignmentSuggestion = () => {
+            if (!currentAssignmentSuggestion || !currentAssignmentSuggestion.suggestions.length) {
+                return;
+            }
+            currentAssignmentSuggestion.suggestions.forEach((suggestion) => {
+                selectedSubjectCodes.add(suggestion.subjectCode);
+                suggestion.sections.forEach((section) => {
+                    persistedSectionAssignmentValues.add(section.value);
+                });
+            });
+            renderSelectedSubjectChips();
+            renderSubjectPicker();
+            renderSectionAssignmentBoard();
+            renderAssignmentSuggestion();
+        };
+
+        const loadHiringPlanSuggestion = async () => {
+            renderAssignmentSuggestionState(
+                "loading",
+                "Loading plan",
+                "Checking the current Recommended Hiring Plan and matching uncovered hours to this teacher's specialization.",
+                [],
+                [],
+            );
+            try {
+                const response = await fetch("/dashboard/api/hiring-plan/effective", {
+                    headers: {
+                        "Accept": "application/json",
+                    },
+                });
+                const payload = await response.json();
+                if (!response.ok || !payload.ok) {
+                    throw new Error(payload.error || "Could not load the hiring plan.");
+                }
+                hiringPlanSuggestionPlan = payload.plan || null;
+                hiringPlanSuggestionSource = String(payload.source || "");
+                renderAssignmentSuggestion();
+            } catch (error) {
+                hiringPlanSuggestionPlan = null;
+                hiringPlanSuggestionSource = "";
+                renderAssignmentSuggestionState(
+                    "error",
+                    "Plan unavailable",
+                    error instanceof Error ? error.message : "Could not load the Recommended Hiring Plan.",
+                    [],
+                    [],
+                );
+            }
         };
 
         const updateQualificationOptionState = (input) => {
@@ -4278,6 +4778,7 @@ const searchInput = document.getElementById("teacherSearch");
                 updateQualificationOptionState(input);
                 renderSelectedSubjectChips();
                 renderSubjectPicker();
+                renderAssignmentSuggestion();
             });
         });
 
@@ -4316,6 +4817,7 @@ const searchInput = document.getElementById("teacherSearch");
                 renderSelectedSubjectChips();
                 renderSubjectPicker();
                 filterQualificationDropdown(dropdown);
+                renderAssignmentSuggestion();
             });
         });
 
@@ -4463,11 +4965,15 @@ const searchInput = document.getElementById("teacherSearch");
             }
         }
 
+        assignmentSuggestionApplyBtn?.addEventListener("click", applyAssignmentSuggestion);
+        assignmentSuggestionRefreshBtn?.addEventListener("click", loadHiringPlanSuggestion);
+
         syncSelectedQualifications();
         renderSelectedSubjectChips();
         renderSubjectPicker();
         renderSectionAssignmentBoard();
         updateBulkDeleteState();
+        loadHiringPlanSuggestion();
 
         if (searchInput && rows.length > 0) {
             searchInput.addEventListener("input", () => {

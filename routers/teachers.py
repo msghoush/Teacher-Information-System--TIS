@@ -1,4 +1,5 @@
 from collections import defaultdict
+import json
 import re
 from types import SimpleNamespace
 
@@ -30,6 +31,7 @@ from teacher_qualifications import (
     get_qualification_option_groups,
     get_qualification_options_for_json,
     get_qualification_lookup,
+    get_subject_alignment_group_keys,
     get_subject_alignment_keyword_groups_for_json,
     get_subject_qualification_alignment,
     has_specialization_qualification,
@@ -47,6 +49,7 @@ TEACHER_ID_PATTERN = re.compile(r"^\d{1,10}$")
 NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z\s'\-]*$")
 STANDARD_MAX_HOURS = 24
 SECTION_ASSIGNMENT_SEPARATOR = "::"
+HIRING_PLAN_POOL_LOGIC_VERSION = 15
 
 
 def _get_scope_ids(current_user):
@@ -156,6 +159,248 @@ def _is_extra_hours_allowed(value) -> bool:
 
 def _teaches_national_section(value) -> bool:
     return _is_extra_hours_allowed(value)
+
+
+def _normalize_hiring_plan_subject_code(value: str) -> str:
+    return _normalize_spaces(value).strip().upper()
+
+
+def _detect_hiring_subject_family_for_draft(
+    subject_code: str,
+    subject_name: str,
+) -> str:
+    normalized_text = _normalize_spaces(f"{subject_code} {subject_name}").strip().lower()
+    alignment_groups = set(get_subject_alignment_group_keys(subject_name, subject_code))
+
+    if re.search(r"\b(qur|quran|qur an|qno|qaad|qaadah|noraniah|noorani)\b", normalized_text):
+        return "quran"
+    if re.search(r"\b(home\s*room|homeroom)\b", normalized_text):
+        return "homeroom"
+    if re.search(r"\b(reflection|reflective|advisory|character education)\b", normalized_text):
+        return "reflection"
+    if re.search(r"\b(social studies arabic|social arabic|social studies ksa|ksa social|social studies saudi|saudi social|ssa)\b", normalized_text):
+        return "social_arabic"
+    if re.search(r"\b(social studies english|social english|sse|social studies|social|humanities|civics)\b", normalized_text):
+        return "social_english"
+    if re.search(r"\b(english|ela|phonics|reading|writing|literacy|language arts)\b", normalized_text):
+        return "english"
+    if re.search(r"\b(arabic|arbic|lang ar|arab)\b", normalized_text):
+        return "arabic"
+    if re.search(r"\b(math|maths|mathematics|algebra|geometry|calculus)\b", normalized_text):
+        return "math"
+    if re.search(r"\b(physics|physical science|phy)\b", normalized_text):
+        return "physics"
+    if re.search(r"\b(biology|life science|life sciences)\b|\bbio(?:\b|\d)", normalized_text):
+        return "biology"
+    if re.search(r"\b(chemistry|chemical science|chemical sciences)\b|\bchem(?:\b|\d)", normalized_text):
+        return "chemistry"
+    if re.search(r"\b(science|general science|steam)\b|\b(?:sci|sce)(?:\b|\d)", normalized_text):
+        return "science"
+    if re.search(r"\b(ict|information communication technology|computer|computing|technology|coding|robotics)\b|\bcs(?:\b|\d)", normalized_text):
+        return "ict"
+    if re.search(r"\b(pe|physical education|sport|fitness)\b", normalized_text):
+        return "pe"
+    if "islamic" in alignment_groups or re.search(r"\b(islamic|hadith|fiqh|tawheed|religion)\b", normalized_text):
+        return "islamic"
+    if "math" in alignment_groups:
+        return "math"
+    if "physics" in alignment_groups:
+        return "physics"
+    if "biology" in alignment_groups:
+        return "biology"
+    if "chemistry" in alignment_groups:
+        return "chemistry"
+    if "science" in alignment_groups:
+        return "science"
+    if "computer" in alignment_groups:
+        return "ict"
+    if "arabic" in alignment_groups:
+        return "arabic"
+    if "english" in alignment_groups:
+        return "english"
+    if alignment_groups.intersection({"social", "history", "geography"}):
+        return "social_english"
+    if "pe" in alignment_groups:
+        return "pe"
+    return "other"
+
+
+def _get_hiring_pool_key_for_family(family: str) -> str:
+    normalized_family = str(family or "").strip().lower()
+    if normalized_family in {"english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"}:
+        return "english_pool"
+    if normalized_family in {"arabic", "islamic", "quran", "social_arabic"}:
+        return "arabic_pool"
+    if normalized_family in {"math", "mental_math", "physics"}:
+        return "math_pool"
+    if normalized_family in {"science", "biology", "chemistry", "ict"}:
+        return "general_science_pool"
+    if normalized_family == "pe":
+        return "physical_education"
+    if normalized_family == "homeroom":
+        return "homeroom_pool"
+    return ""
+
+
+def _clean_hiring_plan_payload(plan_payload: dict) -> dict:
+    profiles = []
+    for profile in plan_payload.get("profiles", []) or []:
+        items = []
+        for item in profile.get("items", []) or []:
+            hours = int(item.get("hours", 0) or 0)
+            if hours <= 0:
+                continue
+            item["hours"] = hours
+            items.append(item)
+        if not items:
+            continue
+        profile["items"] = items
+        profiles.append(profile)
+    plan_payload["profiles"] = profiles
+    plan_payload["unassigned_items"] = [
+        {**item, "hours": int(item.get("hours", 0) or 0)}
+        for item in plan_payload.get("unassigned_items", []) or []
+        if int(item.get("hours", 0) or 0) > 0
+    ]
+    return plan_payload
+
+
+def _reduce_hiring_plan_subject_hours(
+    plan_payload: dict,
+    subject_code: str,
+    hours_to_reduce: int,
+) -> None:
+    remaining = max(int(hours_to_reduce or 0), 0)
+    normalized_code = _normalize_hiring_plan_subject_code(subject_code)
+    if not normalized_code or remaining <= 0:
+        return
+
+    for profile in plan_payload.get("profiles", []) or []:
+        for item in profile.get("items", []) or []:
+            if _normalize_hiring_plan_subject_code(item.get("subject_code", "")) != normalized_code:
+                continue
+            item_hours = int(item.get("hours", 0) or 0)
+            take = min(item_hours, remaining)
+            if take <= 0:
+                continue
+            item["hours"] = item_hours - take
+            remaining -= take
+            if remaining <= 0:
+                return
+
+    for item in plan_payload.get("unassigned_items", []) or []:
+        if _normalize_hiring_plan_subject_code(item.get("subject_code", "")) != normalized_code:
+            continue
+        item_hours = int(item.get("hours", 0) or 0)
+        take = min(item_hours, remaining)
+        if take <= 0:
+            continue
+        item["hours"] = item_hours - take
+        remaining -= take
+        if remaining <= 0:
+            return
+
+
+def _increase_hiring_plan_subject_hours(
+    plan_payload: dict,
+    subject_code: str,
+    subject_name: str,
+    hours_to_add: int,
+) -> None:
+    hours_to_add = max(int(hours_to_add or 0), 0)
+    normalized_code = _normalize_hiring_plan_subject_code(subject_code)
+    if not normalized_code or hours_to_add <= 0:
+        return
+
+    for profile in plan_payload.get("profiles", []) or []:
+        for item in profile.get("items", []) or []:
+            if _normalize_hiring_plan_subject_code(item.get("subject_code", "")) == normalized_code:
+                item["hours"] = int(item.get("hours", 0) or 0) + hours_to_add
+                return
+
+    for item in plan_payload.get("unassigned_items", []) or []:
+        if _normalize_hiring_plan_subject_code(item.get("subject_code", "")) == normalized_code:
+            item["hours"] = int(item.get("hours", 0) or 0) + hours_to_add
+            return
+
+    family = _detect_hiring_subject_family_for_draft(normalized_code, subject_name)
+    pool_key = _get_hiring_pool_key_for_family(family)
+    target_items = None
+    if pool_key:
+        for profile in plan_payload.get("profiles", []) or []:
+            if str(profile.get("group_key", "") or "").strip().lower() == pool_key:
+                target_items = profile.setdefault("items", [])
+                break
+    if target_items is None:
+        target_items = plan_payload.setdefault("unassigned_items", [])
+
+    target_items.append(
+        {
+            "id": f"teacher-sync-{normalized_code.lower()}-{len(target_items) + 1}",
+            "subject_key": normalized_code,
+            "subject_name": subject_name or normalized_code,
+            "subject_code": normalized_code,
+            "family": family,
+            "subject_color": "#0A4EA3",
+            "hours": hours_to_add,
+        }
+    )
+
+
+def _sync_hiring_plan_draft_for_assignment_changes(
+    db: Session,
+    current_user,
+    assignment_hour_deltas: dict[str, int],
+    subject_map: dict[str, models.Subject],
+) -> None:
+    if not assignment_hour_deltas:
+        return
+
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    draft = db.query(models.HiringPlanDraft).filter(
+        models.HiringPlanDraft.branch_id == branch_id,
+        models.HiringPlanDraft.academic_year_id == academic_year_id,
+        models.HiringPlanDraft.user_id == current_user.id,
+    ).first()
+    if not draft:
+        return
+
+    try:
+        plan_payload = json.loads(str(draft.plan_json or "{}"))
+    except json.JSONDecodeError:
+        return
+
+    try:
+        saved_version = int(plan_payload.get("pool_logic_version", 0) or 0)
+    except (TypeError, ValueError):
+        saved_version = 0
+    if saved_version < HIRING_PLAN_POOL_LOGIC_VERSION:
+        return
+
+    for subject_code, delta_hours in assignment_hour_deltas.items():
+        normalized_code = _normalize_hiring_plan_subject_code(subject_code)
+        if not normalized_code or delta_hours == 0:
+            continue
+        subject = subject_map.get(normalized_code)
+        subject_name = str(getattr(subject, "subject_name", "") or normalized_code)
+        if delta_hours < 0:
+            _reduce_hiring_plan_subject_hours(
+                plan_payload,
+                normalized_code,
+                abs(delta_hours),
+            )
+        else:
+            _increase_hiring_plan_subject_hours(
+                plan_payload,
+                normalized_code,
+                subject_name,
+                delta_hours,
+            )
+
+    draft.plan_json = json.dumps(
+        _clean_hiring_plan_payload(plan_payload),
+        ensure_ascii=False,
+    )
 
 
 def _get_teacher_subject_override_map(db: Session, teacher_ids):
@@ -1871,6 +2116,23 @@ def create_teacher(
                     )
                 )
         db.commit()
+        assignment_hour_deltas = {}
+        for subject_code, planning_section_ids in section_assignment_map.items():
+            subject = subject_map.get(subject_code)
+            subject_hours = int(getattr(subject, "weekly_hours", 0) or 0)
+            if subject_hours <= 0 or not planning_section_ids:
+                continue
+            assignment_hour_deltas[subject_code] = (
+                assignment_hour_deltas.get(subject_code, 0)
+                - (len(planning_section_ids) * subject_hours)
+            )
+        _sync_hiring_plan_draft_for_assignment_changes(
+            db=db,
+            current_user=current_user,
+            assignment_hour_deltas=assignment_hour_deltas,
+            subject_map=subject_map,
+        )
+        db.commit()
     except IntegrityError:
         db.rollback()
         return _render_teachers_page(
@@ -2231,6 +2493,31 @@ def update_teacher(
     )
     teacher.is_new_teacher = is_new_teacher_enabled
 
+    previous_assignment_rows = db.query(models.TeacherSectionAssignment).filter(
+        models.TeacherSectionAssignment.teacher_id == teacher.id
+    ).all()
+    previous_assignment_counts = defaultdict(int)
+    previous_subject_codes = set()
+    for row in previous_assignment_rows:
+        normalized_code = _normalize_hiring_plan_subject_code(row.subject_code or "")
+        if not normalized_code:
+            continue
+        previous_assignment_counts[normalized_code] += 1
+        previous_subject_codes.add(normalized_code)
+
+    all_assignment_subject_codes = set(normalized_subject_codes) | previous_subject_codes
+    assignment_subject_map = {}
+    if all_assignment_subject_codes:
+        assignment_subject_map = {
+            subject.subject_code: subject
+            for subject in db.query(models.Subject).filter(
+                models.Subject.subject_code.in_(sorted(all_assignment_subject_codes)),
+                models.Subject.branch_id == branch_id,
+                models.Subject.academic_year_id == academic_year_id,
+            ).all()
+            if subject.subject_code
+        }
+
     try:
         db.query(models.TeacherSectionAssignment).filter(
             models.TeacherSectionAssignment.teacher_id == teacher.id
@@ -2265,6 +2552,29 @@ def update_teacher(
                         subject_code=subject_code,
                     )
                 )
+        db.commit()
+        next_assignment_counts = {
+            subject_code: len(planning_section_ids)
+            for subject_code, planning_section_ids in section_assignment_map.items()
+        }
+        assignment_hour_deltas = {}
+        for subject_code in all_assignment_subject_codes:
+            subject = assignment_subject_map.get(subject_code)
+            subject_hours = int(getattr(subject, "weekly_hours", 0) or 0)
+            if subject_hours <= 0:
+                continue
+            previous_count = int(previous_assignment_counts.get(subject_code, 0) or 0)
+            next_count = int(next_assignment_counts.get(subject_code, 0) or 0)
+            delta_count = previous_count - next_count
+            if delta_count == 0:
+                continue
+            assignment_hour_deltas[subject_code] = delta_count * subject_hours
+        _sync_hiring_plan_draft_for_assignment_changes(
+            db=db,
+            current_user=current_user,
+            assignment_hour_deltas=assignment_hour_deltas,
+            subject_map=assignment_subject_map,
+        )
         db.commit()
     except IntegrityError:
         db.rollback()

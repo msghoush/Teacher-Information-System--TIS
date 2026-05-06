@@ -9443,6 +9443,96 @@ def dashboard(
     )
 
 
+def _build_hiring_plan_auto_payload_for_scope(
+    db: Session,
+    scoped_branch_id: int,
+    scoped_academic_year_id: int,
+) -> dict:
+    subjects_dashboard_rows = db.query(models.Subject).filter(
+        models.Subject.branch_id == scoped_branch_id,
+        models.Subject.academic_year_id == scoped_academic_year_id,
+    ).order_by(
+        models.Subject.grade.asc(),
+        models.Subject.subject_code.asc(),
+    ).all()
+    for subject in subjects_dashboard_rows:
+        bundle_subject_labels = list(
+            get_homeroom_bundle_subject_labels(
+                subject_code=subject.subject_code or "",
+                subject_name=subject.subject_name or "",
+                weekly_hours=subject.weekly_hours,
+                grade_label=_normalize_grade_label(subject.grade),
+            )
+        )
+        setattr(
+            subject,
+            "effective_subject_count",
+            get_effective_subject_count(
+                subject_code=subject.subject_code or "",
+                subject_name=subject.subject_name or "",
+                weekly_hours=subject.weekly_hours,
+                grade_label=_normalize_grade_label(subject.grade),
+            ),
+        )
+        setattr(subject, "homeroom_bundle_subject_labels", bundle_subject_labels)
+
+    planning_sections = db.query(models.PlanningSection).filter(
+        models.PlanningSection.branch_id == scoped_branch_id,
+        models.PlanningSection.academic_year_id == scoped_academic_year_id,
+    ).order_by(
+        models.PlanningSection.grade_level.asc(),
+        models.PlanningSection.section_name.asc(),
+        models.PlanningSection.id.asc(),
+    ).all()
+    teachers_for_reporting = db.query(models.Teacher).filter(
+        models.Teacher.branch_id == scoped_branch_id,
+        models.Teacher.academic_year_id == scoped_academic_year_id,
+    ).order_by(models.Teacher.id.asc()).all()
+
+    planning_section_ids = [
+        section.id
+        for section in planning_sections
+        if getattr(section, "id", None)
+    ]
+    section_assignments = []
+    if planning_section_ids:
+        section_assignments = db.query(models.TeacherSectionAssignment).filter(
+            models.TeacherSectionAssignment.planning_section_id.in_(planning_section_ids)
+        ).all()
+
+    reporting_context = _build_reporting_context_from_section_assignments(
+        db=db,
+        subjects=subjects_dashboard_rows,
+        planning_sections=planning_sections,
+        teachers=teachers_for_reporting,
+        section_assignments=section_assignments,
+    )
+    allocation_data = _build_report_class_allocation_data_from_section_assignments(
+        db=db,
+        subjects=subjects_dashboard_rows,
+        planning_sections=planning_sections,
+        teachers=teachers_for_reporting,
+        reporting_context=reporting_context,
+        section_assignments=section_assignments,
+    )
+    subject_section_map = allocation_data.get("subject_section_map", {})
+    report_subject_rows = [
+        {
+            **row,
+            **subject_section_map.get(row["subject_key"], {}),
+        }
+        for row in reporting_context["subject_rows"]
+    ]
+    report_subject_rows, report_summary = _decorate_staffing_report_rows(
+        report_subject_rows,
+        reporting_context["summary"],
+    )
+    return _build_hiring_plan_editor_payload(
+        report_summary=report_summary,
+        report_subject_rows=report_subject_rows,
+    )
+
+
 @app.get("/dashboard/api/hiring-plan")
 def load_dashboard_hiring_plan(
     request: Request,
@@ -9487,6 +9577,57 @@ def load_dashboard_hiring_plan(
         "source": "saved",
         "plan": normalized_plan,
         "updated_at": draft.updated_at.isoformat() if getattr(draft, "updated_at", None) else None,
+    }
+
+
+@app.get("/dashboard/api/hiring-plan/effective")
+def load_dashboard_effective_hiring_plan(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    user = auth.get_current_user(request, db)
+    if not user:
+        return JSONResponse(status_code=401, content={"ok": False, "error": "Authentication required."})
+
+    scoped_branch_id = getattr(user, "scope_branch_id", user.branch_id)
+    scoped_academic_year_id = getattr(user, "scope_academic_year_id", user.academic_year_id)
+    if not scoped_branch_id or not scoped_academic_year_id:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "Scope is not configured."})
+
+    draft = db.query(models.HiringPlanDraft).filter(
+        models.HiringPlanDraft.branch_id == int(scoped_branch_id),
+        models.HiringPlanDraft.academic_year_id == int(scoped_academic_year_id),
+        models.HiringPlanDraft.user_id == int(user.id),
+    ).first()
+    if draft:
+        try:
+            plan_payload = json.loads(str(draft.plan_json or "{}"))
+        except json.JSONDecodeError:
+            plan_payload = {}
+        try:
+            saved_pool_logic_version = int(plan_payload.get("pool_logic_version", 0) or 0)
+        except (TypeError, ValueError):
+            saved_pool_logic_version = 0
+        if saved_pool_logic_version >= HIRING_PLAN_POOL_LOGIC_VERSION:
+            normalized_plan = _normalize_hiring_plan_payload(plan_payload)
+            normalized_plan["locked"] = True
+            return {
+                "ok": True,
+                "source": "saved",
+                "plan": normalized_plan,
+                "updated_at": draft.updated_at.isoformat() if getattr(draft, "updated_at", None) else None,
+            }
+
+    auto_plan = _build_hiring_plan_auto_payload_for_scope(
+        db=db,
+        scoped_branch_id=int(scoped_branch_id),
+        scoped_academic_year_id=int(scoped_academic_year_id),
+    )
+    auto_plan["locked"] = True
+    return {
+        "ok": True,
+        "source": "auto",
+        "plan": auto_plan,
     }
 
 
