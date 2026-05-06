@@ -2256,6 +2256,29 @@ const teacherIdInput = document.getElementById("teacher_id");
             physical_education: ["pe"],
             homeroom_pool: ["homeroom"],
         };
+        const suggestionFamilyLabels = {
+            english: "English",
+            social_english: "Social Studies",
+            social: "Social Studies",
+            wellbeing: "Well Being",
+            reflection: "Reflection",
+            performing_arts: "Performing Arts",
+            art: "Art",
+            arabic: "Arabic",
+            islamic: "Islamic",
+            quran: "Quran",
+            social_arabic: "Social Studies Arabic",
+            math: "Math",
+            physics: "Physics",
+            mental_math: "Mental Math",
+            science: "Science",
+            biology: "Biology",
+            chemistry: "Chemistry",
+            ict: "ICT",
+            pe: "Physical Education",
+            homeroom: "Homeroom",
+            other: "Compatible Subject",
+        };
         const suggestionPoolPriority = [
             "english_pool",
             "arabic_pool",
@@ -2267,6 +2290,10 @@ const teacherIdInput = document.getElementById("teacher_id");
         let hiringPlanSuggestionPlan = null;
         let hiringPlanSuggestionSource = "";
         let currentAssignmentSuggestion = null;
+        let assignmentSuggestionGeneration = 0;
+        let lastAppliedAssignmentSuggestionValues = new Set();
+        let lastAppliedAssignmentSuggestionSubjectCodes = new Set();
+        let lastAppliedAssignmentBaseSubjectCodes = new Set();
 
         const getSelectedSubjectCount = () => {
             return selectedSubjectCodes.size;
@@ -2668,7 +2695,7 @@ const teacherIdInput = document.getElementById("teacher_id");
             if (labelText.includes("islamic") && !familyCandidates.includes("islamic")) {
                 familyCandidates.unshift("islamic");
             }
-            if (labelText.includes("physical education") && !familyCandidates.includes("pe")) {
+            if ((labelText.includes("physical education") || /\bpe\b/.test(labelText)) && !familyCandidates.includes("pe")) {
                 familyCandidates.unshift("pe");
             }
             if (labelText.includes("arabic") && !familyCandidates.includes("arabic")) {
@@ -2816,6 +2843,81 @@ const teacherIdInput = document.getElementById("teacher_id");
             const subjectText = `${subject?.subject_code || ""} ${subject?.subject_name || ""}`;
             const subjectTokens = buildAlignmentTokenSet(subjectText);
             return familyCandidates.some((family) => subjectTokens.has(family));
+        };
+
+        const detectSuggestionSubjectFamily = (subject) => {
+            const normalizedText = normalizeAlignmentText(`${subject?.subject_code || ""} ${subject?.subject_name || ""}`);
+            const hasText = (pattern) => pattern.test(normalizedText);
+            if (hasText(/\b(qur|quran|qur an|qno|qaad|qaadah|noraniah|noorani)\b/)) {
+                return "quran";
+            }
+            if (hasText(/\b(home room|homeroom)\b/)) {
+                return "homeroom";
+            }
+            if (hasText(/\b(reflection|reflective|advisory|character education)\b/)) {
+                return "reflection";
+            }
+            if (hasText(/\b(social studies arabic|social arabic|social studies ksa|ksa social|social studies saudi|saudi social|ssa)\b/)) {
+                return "social_arabic";
+            }
+            if (hasText(/\b(social studies english|social english|sse|social studies|social|humanities|civics)\b/)) {
+                return "social_english";
+            }
+            if (hasText(/\b(english|ela|phonics|reading|writing|literacy|language arts)\b/)) {
+                return "english";
+            }
+            if (hasText(/\b(arabic|arbic|lang ar|arab)\b/)) {
+                return "arabic";
+            }
+            if (hasText(/\b(mental math|mental|abacus|mmt)\b/)) {
+                return "mental_math";
+            }
+            if (hasText(/\b(math|maths|mathematics|algebra|geometry|calculus)\b/)) {
+                return "math";
+            }
+            if (hasText(/\b(physics|physical science|phy)\b/)) {
+                return "physics";
+            }
+            if (hasText(/\b(biology|life science|life sciences|bio)\b/)) {
+                return "biology";
+            }
+            if (hasText(/\b(chemistry|chemical science|chemical sciences|chem)\b/)) {
+                return "chemistry";
+            }
+            if (hasText(/\b(science|general science|steam|sci|sce)\b/)) {
+                return "science";
+            }
+            if (hasText(/\b(ict|information communication technology|computer|computing|technology|coding|robotics|cs)\b/)) {
+                return "ict";
+            }
+            if (hasText(/\b(pe|physical education|sport|sports|fitness)\b/)) {
+                return "pe";
+            }
+            if (hasText(/\b(well being|wellbeing|health|sel|life skills)\b/)) {
+                return "wellbeing";
+            }
+            if (hasText(/\b(performing|performance|drama|theatre|theater|dance|music)\b/)) {
+                return "performing_arts";
+            }
+            if (hasText(/\b(art|drawing|painting|visual art)\b/)) {
+                return "art";
+            }
+            if (hasText(/\b(islamic|hadith|fiqh|tawheed|religion)\b/)) {
+                return "islamic";
+            }
+            return "other";
+        };
+
+        const rotateSuggestionItems = (items, generationOffset = assignmentSuggestionGeneration) => {
+            if (!Array.isArray(items) || items.length <= 1) {
+                return Array.isArray(items) ? [...items] : [];
+            }
+            const offset = Math.abs(Number(generationOffset || 0)) % items.length;
+            return [...items.slice(offset), ...items.slice(0, offset)];
+        };
+
+        const getSuggestionFamilyLabel = (family) => {
+            return suggestionFamilyLabels[String(family || "").trim()] || suggestionFamilyLabels.other;
         };
 
         const focusSectionAssignmentBoard = () => {
@@ -2987,7 +3089,14 @@ const teacherIdInput = document.getElementById("teacher_id");
                     const rightPoolKey = String(right.group_key || "").trim();
                     return matchedPoolKeys.indexOf(leftPoolKey) - matchedPoolKeys.indexOf(rightPoolKey);
                 });
-            if (matchedProfiles.length === 0) {
+            const effectiveProfiles = matchedProfiles.length > 0
+                ? matchedProfiles
+                : matchedPoolKeys.map((poolKey) => ({
+                    group_key: poolKey,
+                    name: suggestionPoolLabels[poolKey] || "Matching Pool",
+                    items: [],
+                }));
+            if (effectiveProfiles.length === 0) {
                 return {
                     state: "empty",
                     badgeText: "No matching pool hours",
@@ -3001,8 +3110,129 @@ const teacherIdInput = document.getElementById("teacher_id");
 
             const suggestions = [];
             let remainingHours = remainingCapacityHours;
+            const suggestedSectionValues = new Set();
+            const processedPrimaryPoolKeys = new Set();
 
-            matchedProfiles.forEach((profile) => {
+            const getSubjectSuggestedHours = (subjectCode, weeklyHours) => {
+                const normalizedCode = String(subjectCode || "").trim().toUpperCase();
+                let selectedCount = 0;
+                suggestedSectionValues.forEach((value) => {
+                    if (String(value || "").toUpperCase().startsWith(`${normalizedCode}::`)) {
+                        selectedCount += 1;
+                    }
+                });
+                return selectedCount * weeklyHours;
+            };
+
+            const getAvailableUncoveredSections = (subjectCode) => {
+                const normalizedCode = String(subjectCode || "").trim().toUpperCase();
+                const availableSections = (sectionOptionsBySubject[normalizedCode] || []).filter((option) => {
+                    if (!option.is_available || option.is_uncovered !== true) {
+                        return false;
+                    }
+                    const optionValue = `${normalizedCode}::${option.section_id}`;
+                    return !persistedSectionAssignmentValues.has(optionValue)
+                        && !suggestedSectionValues.has(optionValue);
+                });
+                return rotateSuggestionItems(availableSections);
+            };
+
+            const appendSubjectSuggestion = ({
+                poolKey,
+                poolLabel,
+                subject,
+                family,
+                isPrimaryFamily,
+                priorityLabel,
+                maxSections,
+            }) => {
+                if (remainingHours <= 0) {
+                    return;
+                }
+                const subjectCode = String(subject?.subject_code || "").trim().toUpperCase();
+                if (!subjectCode) {
+                    return;
+                }
+                const weeklyHours = Number(subject?.weekly_hours || 0);
+                if (!Number.isFinite(weeklyHours) || weeklyHours <= 0) {
+                    return;
+                }
+                const availableSections = getAvailableUncoveredSections(subjectCode);
+                if (availableSections.length === 0) {
+                    return;
+                }
+                const maxSectionsForCapacity = Math.floor(remainingHours / weeklyHours);
+                const safeMaxSections = Number.isFinite(maxSections)
+                    ? Math.max(Math.floor(maxSections), 0)
+                    : availableSections.length;
+                const sectionsToTake = Math.min(
+                    availableSections.length,
+                    safeMaxSections,
+                    maxSectionsForCapacity,
+                );
+                if (sectionsToTake <= 0) {
+                    return;
+                }
+
+                const chosenSections = availableSections.slice(0, sectionsToTake).map((section) => ({
+                    sectionId: section.section_id,
+                    label: section.label,
+                    value: `${subjectCode}::${section.section_id}`,
+                }));
+                chosenSections.forEach((section) => {
+                    suggestedSectionValues.add(section.value);
+                });
+                const suggestedHours = chosenSections.length * weeklyHours;
+                suggestions.push({
+                    poolKey,
+                    poolLabel,
+                    family,
+                    familyLabel: getSuggestionFamilyLabel(family),
+                    subjectCode,
+                    subjectName: String(subject.subject_name || "Unnamed Subject"),
+                    hours: suggestedHours,
+                    weeklyHours,
+                    isPrimaryFamily,
+                    priorityLabel,
+                    sections: chosenSections,
+                });
+                remainingHours -= suggestedHours;
+            };
+
+            const appendPrimaryFamilySuggestions = (poolKey, poolLabel, poolContext) => {
+                const primaryFamily = String(poolContext.primaryFamily || "").trim();
+                if (!primaryFamily || processedPrimaryPoolKeys.has(poolKey) || remainingHours <= 0) {
+                    return;
+                }
+                processedPrimaryPoolKeys.add(poolKey);
+                const primarySubjects = subjectChoices
+                    .filter((subject) => {
+                        const subjectFamily = detectSuggestionSubjectFamily(subject);
+                        return subjectFamily === primaryFamily
+                            && suggestionFamilyPoolMap[subjectFamily] === poolKey;
+                    })
+                    .sort((left, right) => {
+                        const leftGrade = getGradeSortValue(getGradeKey(left.grade));
+                        const rightGrade = getGradeSortValue(getGradeKey(right.grade));
+                        if (leftGrade !== rightGrade) {
+                            return leftGrade - rightGrade;
+                        }
+                        return String(left.subject_code || "").localeCompare(String(right.subject_code || ""));
+                    });
+                rotateSuggestionItems(primarySubjects).forEach((subject) => {
+                    appendSubjectSuggestion({
+                        poolKey,
+                        poolLabel,
+                        subject,
+                        family: primaryFamily,
+                        isPrimaryFamily: true,
+                        priorityLabel: "Primary major match",
+                        maxSections: Infinity,
+                    });
+                });
+            };
+
+            effectiveProfiles.forEach((profile) => {
                 if (remainingHours <= 0) {
                     return;
                 }
@@ -3013,6 +3243,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                     familyPriority: suggestionPoolFamilyOrder[poolKey] || [],
                     specializationLabels: [],
                 };
+                appendPrimaryFamilySuggestions(poolKey, poolLabel, poolContext);
                 const orderedItems = [...(profile.items || [])].sort((left, right) => {
                     const leftFamily = String(left.family || "").trim();
                     const rightFamily = String(right.family || "").trim();
@@ -3023,7 +3254,6 @@ const teacherIdInput = document.getElementById("teacher_id");
                     }
                     return String(left.subject_name || left.subject_code || "").localeCompare(String(right.subject_name || right.subject_code || ""));
                 });
-                const primaryItems = [];
                 const compatibleItems = [];
                 orderedItems.forEach((item) => {
                     const subjectCode = String(item.subject_code || "").trim().toUpperCase();
@@ -3033,13 +3263,12 @@ const teacherIdInput = document.getElementById("teacher_id");
                         return;
                     }
                     if (itemMatchesSuggestionFamily(item, subject, poolContext.primaryFamily ? [poolContext.primaryFamily] : [])) {
-                        primaryItems.push(item);
                         return;
                     }
                     compatibleItems.push(item);
                 });
 
-                [...primaryItems, ...compatibleItems].forEach((item) => {
+                rotateSuggestionItems(compatibleItems).forEach((item) => {
                     if (remainingHours <= 0) {
                         return;
                     }
@@ -3053,63 +3282,34 @@ const teacherIdInput = document.getElementById("teacher_id");
                         return;
                     }
 
-                    const availableSections = (sectionOptionsBySubject[subjectCode] || []).filter((option) => {
-                        if (!option.is_available || option.is_uncovered !== true) {
-                            return false;
-                        }
-                        const optionValue = `${subjectCode}::${option.section_id}`;
-                        return !persistedSectionAssignmentValues.has(optionValue);
-                    });
-                    if (availableSections.length === 0) {
-                        return;
-                    }
-
                     const isPrimaryFamily = itemMatchesSuggestionFamily(
                         item,
                         subject,
                         poolContext.primaryFamily ? [poolContext.primaryFamily] : [],
                     );
-                    const plannedOpenHours = Math.max(Number(item.hours || 0) - getPersistedSectionHoursForSubject(subjectCode), 0);
+                    if (isPrimaryFamily) {
+                        return;
+                    }
+                    const plannedOpenHours = Math.max(
+                        Number(item.hours || 0)
+                            - getPersistedSectionHoursForSubject(subjectCode)
+                            - getSubjectSuggestedHours(subjectCode, weeklyHours),
+                        0,
+                    );
                     if (!isPrimaryFamily && plannedOpenHours < weeklyHours) {
                         return;
                     }
 
-                    const maxSectionsForPool = isPrimaryFamily
-                        ? availableSections.length
-                        : Math.floor(plannedOpenHours / weeklyHours);
-                    const maxSectionsForCapacity = Math.floor(remainingHours / weeklyHours);
-                    const sectionsToTake = Math.min(
-                        availableSections.length,
-                        maxSectionsForPool,
-                        maxSectionsForCapacity,
-                    );
-                    if (sectionsToTake <= 0) {
-                        return;
-                    }
-
-                    const chosenSections = availableSections.slice(0, sectionsToTake).map((section) => ({
-                        sectionId: section.section_id,
-                        label: section.label,
-                        value: `${subjectCode}::${section.section_id}`,
-                    }));
-                    const suggestedHours = chosenSections.length * weeklyHours;
                     const family = String(item.family || "").trim();
-                    suggestions.push({
+                    appendSubjectSuggestion({
                         poolKey,
                         poolLabel,
+                        subject,
                         family,
-                        familyLabel: String(item.family_label || item.family || "Compatible subject")
-                            .replace(/_/g, " ")
-                            .replace(/\b\w/g, (char) => char.toUpperCase()),
-                        subjectCode,
-                        subjectName: String(subject.subject_name || "Unnamed Subject"),
-                        hours: suggestedHours,
-                        weeklyHours,
-                        isPrimaryFamily,
-                        priorityLabel: isPrimaryFamily ? "Primary major match" : "Compatible pool fill",
-                        sections: chosenSections,
+                        isPrimaryFamily: false,
+                        priorityLabel: "Compatible pool fill",
+                        maxSections: Math.floor(plannedOpenHours / weeklyHours),
                     });
-                    remainingHours -= suggestedHours;
                 });
             });
 
@@ -3119,7 +3319,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                     badgeText: "Nothing available",
                     message: "A matching pool was found, but there are no free compatible sections left to suggest inside the remaining capacity.",
                     summaryItems: [
-                        { label: "Matched Pools", value: matchedProfiles.map((profile) => suggestionPoolLabels[String(profile.group_key || "").trim()] || profile.name).join(", "), note: "Try another specialization or adjust the current selections" },
+                        { label: "Matched Pools", value: effectiveProfiles.map((profile) => suggestionPoolLabels[String(profile.group_key || "").trim()] || profile.name).join(", "), note: "Try another specialization or adjust the current selections" },
                     ],
                     suggestions: [],
                 };
@@ -3138,7 +3338,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                     { label: "Suggested Load", value: `${suggestedHours}h`, note: `${suggestedSections} sections ready to assign` },
                     { label: "Remaining After Apply", value: `${Math.max(remainingCapacityHours - suggestedHours, 0)}h`, note: `${remainingCapacityHours}h was still available before this suggestion` },
                     { label: "Primary Start", value: primaryLead.subjectName, note: `${primarySuggestions.length} core subject suggestion${primarySuggestions.length === 1 ? "" : "s"} first` },
-                    { label: "Matched Pools", value: matchedProfiles.map((profile) => suggestionPoolLabels[String(profile.group_key || "").trim()] || profile.name).join(", "), note: "Built from the current Recommended Hiring Plan" },
+                    { label: "Matched Pools", value: effectiveProfiles.map((profile) => suggestionPoolLabels[String(profile.group_key || "").trim()] || profile.name).join(", "), note: "Built from the current Recommended Hiring Plan" },
                 ],
                 suggestions,
                 suggestionMeta: {
@@ -3168,16 +3368,46 @@ const teacherIdInput = document.getElementById("teacher_id");
             );
         };
 
+        const clearAppliedAssignmentSuggestion = () => {
+            lastAppliedAssignmentSuggestionValues.forEach((value) => {
+                persistedSectionAssignmentValues.delete(value);
+            });
+            lastAppliedAssignmentSuggestionSubjectCodes.forEach((subjectCode) => {
+                if (lastAppliedAssignmentBaseSubjectCodes.has(subjectCode)) {
+                    return;
+                }
+                const hasRemainingSection = Array.from(persistedSectionAssignmentValues).some((value) => {
+                    return String(value || "").toUpperCase().startsWith(`${subjectCode}::`);
+                });
+                if (!hasRemainingSection) {
+                    selectedSubjectCodes.delete(subjectCode);
+                    selectedOverrideSubjectCodes.delete(subjectCode);
+                }
+            });
+            lastAppliedAssignmentSuggestionValues = new Set();
+            lastAppliedAssignmentSuggestionSubjectCodes = new Set();
+            lastAppliedAssignmentBaseSubjectCodes = new Set();
+        };
+
         const applyAssignmentSuggestion = (focusBoard = false) => {
             if (!currentAssignmentSuggestion || !currentAssignmentSuggestion.suggestions.length) {
                 return;
             }
+            clearAppliedAssignmentSuggestion();
+            const baseSubjectCodes = new Set(selectedSubjectCodes);
+            const appliedValues = new Set();
+            const appliedSubjectCodes = new Set();
             currentAssignmentSuggestion.suggestions.forEach((suggestion) => {
                 selectedSubjectCodes.add(suggestion.subjectCode);
+                appliedSubjectCodes.add(suggestion.subjectCode);
                 suggestion.sections.forEach((section) => {
                     persistedSectionAssignmentValues.add(section.value);
+                    appliedValues.add(section.value);
                 });
             });
+            lastAppliedAssignmentSuggestionValues = appliedValues;
+            lastAppliedAssignmentSuggestionSubjectCodes = appliedSubjectCodes;
+            lastAppliedAssignmentBaseSubjectCodes = baseSubjectCodes;
             renderSelectedSubjectChips();
             renderSubjectPicker();
             renderSectionAssignmentBoard();
@@ -3240,6 +3470,16 @@ const teacherIdInput = document.getElementById("teacher_id");
                     },
                 );
             }
+        };
+
+        const regenerateAssignmentSuggestion = async () => {
+            clearAppliedAssignmentSuggestion();
+            assignmentSuggestionGeneration += 1;
+            renderSelectedSubjectChips();
+            renderSubjectPicker();
+            renderSectionAssignmentBoard();
+            updateAllocationSummary();
+            await loadHiringPlanSuggestion();
         };
 
         const updateQualificationOptionState = (input) => {
@@ -4264,7 +4504,7 @@ const teacherIdInput = document.getElementById("teacher_id");
 
         assignmentSuggestionApplyBtn?.addEventListener("click", applyAssignmentSuggestion);
         assignmentSuggestionAdjustBtn?.addEventListener("click", adjustAssignmentSuggestion);
-        assignmentSuggestionRefreshBtn?.addEventListener("click", loadHiringPlanSuggestion);
+        assignmentSuggestionRefreshBtn?.addEventListener("click", regenerateAssignmentSuggestion);
 
         if (extraAllowed) {
             extraAllowed.addEventListener("change", () => {
