@@ -3964,6 +3964,16 @@ const searchInput = document.getElementById("teacherSearch");
             ].join("; ");
         };
 
+        const itemMatchesSuggestionFamily = (item, subject, familyCandidates = []) => {
+            const itemFamily = String(item?.family || "").trim().toLowerCase();
+            if (familyCandidates.includes(itemFamily)) {
+                return true;
+            }
+            const subjectText = `${subject?.subject_code || ""} ${subject?.subject_name || ""}`;
+            const subjectTokens = buildAlignmentTokenSet(subjectText);
+            return familyCandidates.some((family) => subjectTokens.has(family));
+        };
+
         const focusSectionAssignmentBoard = () => {
             if (!sectionAssignmentBoard) {
                 return;
@@ -4157,6 +4167,7 @@ const searchInput = document.getElementById("teacherSearch");
                 const poolContext = poolContextMap[poolKey] || {
                     primaryFamily: "",
                     familyPriority: suggestionPoolFamilyOrder[poolKey] || [],
+                    specializationLabels: [],
                 };
                 const orderedItems = [...(profile.items || [])].sort((left, right) => {
                     const leftFamily = String(left.family || "").trim();
@@ -4168,8 +4179,23 @@ const searchInput = document.getElementById("teacherSearch");
                     }
                     return String(left.subject_name || left.subject_code || "").localeCompare(String(right.subject_name || right.subject_code || ""));
                 });
-
+                const primaryItems = [];
+                const compatibleItems = [];
                 orderedItems.forEach((item) => {
+                    const subjectCode = String(item.subject_code || "").trim().toUpperCase();
+                    const subject = subjectChoicesByCode[subjectCode];
+                    if (!subject) {
+                        compatibleItems.push(item);
+                        return;
+                    }
+                    if (itemMatchesSuggestionFamily(item, subject, poolContext.primaryFamily ? [poolContext.primaryFamily] : [])) {
+                        primaryItems.push(item);
+                        return;
+                    }
+                    compatibleItems.push(item);
+                });
+
+                [...primaryItems, ...compatibleItems].forEach((item) => {
                     if (remainingHours <= 0) {
                         return;
                     }
@@ -4217,7 +4243,11 @@ const searchInput = document.getElementById("teacherSearch");
                     }));
                     const suggestedHours = chosenSections.length * weeklyHours;
                     const family = String(item.family || "").trim();
-                    const isPrimaryFamily = Boolean(poolContext.primaryFamily) && family === poolContext.primaryFamily;
+                    const isPrimaryFamily = itemMatchesSuggestionFamily(
+                        item,
+                        subject,
+                        poolContext.primaryFamily ? [poolContext.primaryFamily] : [],
+                    );
                     suggestions.push({
                         poolKey,
                         poolLabel,
