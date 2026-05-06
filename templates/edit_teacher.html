@@ -1947,7 +1947,7 @@
                             <div class="assignment-suggestion-actions">
                                 <button id="assignmentSuggestionApplyBtn" class="assignment-suggestion-action is-primary" type="button" disabled>Apply Plan</button>
                                 <button id="assignmentSuggestionAdjustBtn" class="assignment-suggestion-action" type="button">Adjust Plan</button>
-                                <button id="assignmentSuggestionRefreshBtn" class="assignment-suggestion-action" type="button">Regenerate Plan</button>
+                                <button id="assignmentSuggestionRefreshBtn" class="assignment-suggestion-action" type="button">Regenerate Auto Plan</button>
                             </div>
                         </div>
                         <div class="assignment-suggestion-progress-card">
@@ -2722,18 +2722,8 @@ const teacherIdInput = document.getElementById("teacher_id");
 
         const resolveSuggestionContextForSpecialization = (option) => {
             const familyCandidates = getSuggestedFamilyCandidatesForSpecialization(option);
-            let primaryFamily = familyCandidates[0] || "";
+            const primaryFamily = familyCandidates[0] || "";
             const poolKey = suggestionFamilyPoolMap[primaryFamily] || "";
-            if (poolKey === "general_science_pool") {
-                primaryFamily = "science";
-                const sciencePriority = suggestionPoolFamilyOrder.general_science_pool || ["science", "biology", "chemistry", "ict"];
-                const scienceFamilies = new Set(sciencePriority);
-                const orderedFamilies = [
-                    ...sciencePriority,
-                    ...familyCandidates.filter((family) => !scienceFamilies.has(family)),
-                ];
-                familyCandidates.splice(0, familyCandidates.length, ...orderedFamilies);
-            }
             return {
                 optionKey: String(option?.key || "").trim(),
                 label: String(option?.label || "").trim(),
@@ -2972,7 +2962,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                 assignmentSuggestionProgressValue.textContent = `${Math.round(progressPct)}%`;
             }
             if (assignmentSuggestionProgressNote) {
-                assignmentSuggestionProgressNote.textContent = suggestionMeta.progressNote || "Waiting for a major.";
+                assignmentSuggestionProgressNote.textContent = suggestionMeta.progressNote || "Waiting for a specialization match.";
             }
             if (assignmentSuggestionProgressBar) {
                 assignmentSuggestionProgressBar.style.width = `${progressPct}%`;
@@ -3040,7 +3030,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                 return {
                     state: "empty",
                     badgeText: "No plan found",
-                    message: "No matching plan is available yet.",
+                    message: "Open and save the Recommended Hiring Plan in the dashboard, or let the dashboard generate one automatically, then refresh here.",
                     summaryItems: [],
                     suggestions: [],
                 };
@@ -3050,7 +3040,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                 return {
                     state: "empty",
                     badgeText: "Select specialization",
-                    message: "Choose a major to build a pool match.",
+                    message: "Choose at least one major or teaching specialization first so the system can match the teacher to the right hiring pool.",
                     summaryItems: [],
                     suggestions: [],
                 };
@@ -3061,7 +3051,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                 return {
                     state: "error",
                     badgeText: "Fix capacity first",
-                    message: "National hours are above total capacity.",
+                    message: "National section hours are higher than total teacher capacity, so the system cannot build a safe recommendation yet.",
                     summaryItems: [],
                     suggestions: [],
                 };
@@ -3072,7 +3062,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                 return {
                     state: "empty",
                     badgeText: "Capacity full",
-                    message: "The current selections already fill this teacher.",
+                    message: "This teacher is already fully allocated based on the current subject and section selections.",
                     summaryItems: [
                         { label: "Current Load", value: `${snapshot.assignedHours}h`, note: "No further international hours available" },
                     ],
@@ -3085,7 +3075,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                 return {
                     state: "empty",
                     badgeText: "No pool mapping",
-                    message: "This major does not map to a hiring pool.",
+                    message: "The selected specialization does not map to one of the current Recommended Hiring Plan pools.",
                     summaryItems: [],
                     suggestions: [],
                 };
@@ -3110,7 +3100,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                 return {
                     state: "empty",
                     badgeText: "No matching pool hours",
-                    message: "No uncovered hours remain in this matching pool.",
+                    message: "The matching hiring pool is available, but it does not currently have uncovered hours left for this teacher.",
                     summaryItems: [
                         { label: "Matched Pools", value: matchedPoolKeys.map((poolKey) => suggestionPoolLabels[poolKey] || poolKey).join(", "), note: "No uncovered hours remain in those pools" },
                     ],
@@ -3327,7 +3317,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                 return {
                     state: "empty",
                     badgeText: "Nothing available",
-                    message: "No free compatible sections fit the remaining capacity.",
+                    message: "A matching pool was found, but there are no free compatible sections left to suggest inside the remaining capacity.",
                     summaryItems: [
                         { label: "Matched Pools", value: effectiveProfiles.map((profile) => suggestionPoolLabels[String(profile.group_key || "").trim()] || profile.name).join(", "), note: "Try another specialization or adjust the current selections" },
                     ],
@@ -3343,7 +3333,7 @@ const teacherIdInput = document.getElementById("teacher_id");
             return {
                 state: "ready",
                 badgeText: hiringPlanSuggestionSource === "saved" ? "Saved plan match" : "Auto plan match",
-                message: `${primaryLead.subjectName} first, then compatible pool subjects if capacity remains.`,
+                message: `${primaryLead.subjectName} is planned first from the teacher's main specialization, then compatible subjects from the same hiring pool fill any remaining safe capacity using real sections.`,
                 summaryItems: [
                     { label: "Suggested Load", value: `${suggestedHours}h`, note: `${suggestedSections} sections ready to assign` },
                     { label: "Remaining After Apply", value: `${Math.max(remainingCapacityHours - suggestedHours, 0)}h`, note: `${remainingCapacityHours}h was still available before this suggestion` },
@@ -3355,8 +3345,8 @@ const teacherIdInput = document.getElementById("teacher_id");
                     targetHours: snapshot.requiredHours,
                     plannedHours: Math.min(snapshot.assignedHours + suggestedHours, snapshot.requiredHours),
                     progressNote: compatibleSuggestions.length > 0
-                        ? `${primaryLead.subjectName} first. ${compatibleSuggestions.length} secondary group${compatibleSuggestions.length === 1 ? "" : "s"} after.`
-                        : `${primaryLead.subjectName} fills this suggestion.`,
+                        ? `${primaryLead.subjectName} leads the plan, then ${compatibleSuggestions.length} compatible subject group${compatibleSuggestions.length === 1 ? "" : "s"} continue filling the load.`
+                        : `${primaryLead.subjectName} fills the plan with direct section assignments from the matching pool.`,
                     metaChips: [
                         `${snapshot.assignedHours}h already selected`,
                         `${suggestedSections} uncovered sections ready`,
@@ -3439,13 +3429,13 @@ const teacherIdInput = document.getElementById("teacher_id");
             renderAssignmentSuggestionState(
                 "loading",
                 "Regenerating plan",
-                "Refreshing uncovered sections and rebuilding the suggestion.",
+                "Refreshing the current Recommended Hiring Plan and uncovered sections before matching this teacher's specialization.",
                 [],
                 [],
                 {
                     targetHours: standardMaxHours,
                     plannedHours: 0,
-                    progressNote: "Looking for major-first sections.",
+                    progressNote: "Looking for major-aligned uncovered sections.",
                     metaChips: [],
                 },
             );
@@ -3475,7 +3465,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                     {
                         targetHours: standardMaxHours,
                         plannedHours: 0,
-                        progressNote: "Plan could not load.",
+                        progressNote: "The hiring plan could not be loaded.",
                         metaChips: [],
                     },
                 );

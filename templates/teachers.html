@@ -1686,132 +1686,6 @@
             color: #4b5f7d;
         }
 
-        .assignment-workspace-grid {
-            display: grid;
-            grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
-            gap: 12px;
-            align-items: start;
-            margin-top: 10px;
-        }
-
-        .assignment-workspace-grid .assignment-step,
-        .assignment-workspace-grid .assignment-suggestion-panel {
-            margin-top: 0;
-            height: fit-content;
-        }
-
-        .assignment-step {
-            border-radius: 8px;
-            background: #ffffff;
-            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
-        }
-
-        .assignment-step-label {
-            background: #edf4ff;
-            border: 1px solid #c9dcf7;
-        }
-
-        .assignment-suggestion-panel {
-            border-radius: 8px;
-            padding: 12px;
-            gap: 10px;
-            background: #ffffff;
-            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
-        }
-
-        .assignment-suggestion-head {
-            gap: 10px;
-        }
-
-        .assignment-suggestion-copy {
-            gap: 4px;
-            max-width: 560px;
-        }
-
-        .assignment-suggestion-copy h3 {
-            font-size: 16px;
-        }
-
-        .assignment-suggestion-copy p,
-        .assignment-suggestion-progress-note {
-            font-size: 12px;
-            line-height: 1.35;
-        }
-
-        .assignment-suggestion-badge,
-        .assignment-suggestion-meta-chip,
-        .assignment-suggestion-stat-pill,
-        .assignment-suggestion-subject-chip,
-        .assignment-suggestion-section {
-            border-radius: 999px;
-        }
-
-        .assignment-suggestion-action {
-            border-radius: 8px;
-            padding: 9px 11px;
-        }
-
-        .assignment-suggestion-progress-card,
-        .assignment-suggestion-stat,
-        .assignment-suggestion-item {
-            border-radius: 8px;
-        }
-
-        .assignment-suggestion-progress-card {
-            padding: 10px;
-            gap: 8px;
-        }
-
-        .assignment-suggestion-progress-copy strong {
-            font-size: 18px;
-        }
-
-        .assignment-suggestion-summary {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 8px;
-        }
-
-        .assignment-suggestion-stat {
-            padding: 9px;
-        }
-
-        .assignment-suggestion-stat strong {
-            font-size: 16px;
-        }
-
-        .assignment-suggestion-list {
-            gap: 8px;
-        }
-
-        .assignment-suggestion-item {
-            padding: 10px;
-            box-shadow: none;
-            border-left: 5px solid var(--plan-subject-color);
-        }
-
-        .assignment-suggestion-item-head {
-            margin-bottom: 8px;
-        }
-
-        .assignment-suggestion-item-copy p {
-            display: none;
-        }
-
-        .assignment-suggestion-sections {
-            gap: 6px;
-        }
-
-        .assignment-suggestion-section {
-            padding: 6px 8px;
-            font-size: 11px;
-        }
-
-        @media (max-width: 1100px) {
-            .assignment-workspace-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
         .allocation-dashboard {
             margin-top: 14px;
             padding: 16px;
@@ -2920,8 +2794,8 @@
                             <label>Eligible Subjects</label>
                             <div class="assignment-step">
                                 <div class="assignment-step-label">Step 1</div>
-                                <h3>Subjects & Major Fit</h3>
-                                <p>Pick eligible subjects. Matching majors are highlighted.</p>
+                                <h3>Select the subjects this teacher can teach</h3>
+                                <p>Tick one or more subjects first. The section assignment area will appear directly below for those selected subjects.</p>
                             <div class="subject-selector-shell">
                                  <div class="subject-selector-topbar">
                                      <input id="subjectSearchInput" class="subject-search" type="text" placeholder="Search by code, subject name, or grade">
@@ -2930,13 +2804,13 @@
                                          <button id="clearAllSubjectsBtn" class="subject-grade-btn" type="button">Clear all</button>
                                      </div>
                                  </div>
-                                 <div class="subject-selector-help">Open a grade and choose subjects.</div>
+                                 <div class="subject-selector-help">Use the <strong>+</strong> sign to open one grade, then tick the subject checkboxes you want for this teacher.</div>
                                  <div id="majorGuidance" class="major-guidance" data-state="empty">
                                      <div class="major-guidance-head">
                                          <div class="major-guidance-copy">
                                              <span id="majorGuidanceBadge" class="major-guidance-badge">Add qualifications</span>
                                              <h4>Subject Alignment Guide</h4>
-                                             <p id="majorGuidanceText">Major matches appear automatically. Use override only for approved exceptions.</p>
+                                             <p id="majorGuidanceText">Select the teacher's qualifications above. Matching subjects will be highlighted automatically and non-matching choices will be flagged for review. If you need to keep a mismatch, enable the explicit Admin Override for that subject.</p>
                                          </div>
                                      </div>
                                      <div class="major-guidance-grid">
@@ -2963,30 +2837,29 @@
                                      </div>
                                  </div>
                                  <div id="selectedSubjectChips" class="subject-selector-chips"></div>
-                                 <div class="field-note">Use Admin Override only for approved mismatches.</div>
+                                 <div class="field-note">When a selected subject does not match the saved qualifications, turn on <strong>Admin Override</strong> for that subject to save it as an approved exception.</div>
                                  <div class="subject-picker" id="subjectPicker"></div>
                                  <div id="subjectNoResult" class="subject-empty" style="display:none;">No subjects match your search.</div>
                             </div>
                             </div>
-                            <div class="assignment-workspace-grid">
                             <div class="assignment-step">
                                 <div class="assignment-step-label">Step 2</div>
-                                <h3>Sections</h3>
-                                <p>Assign real class sections.</p>
+                                <h3>Assign sections for each selected subject</h3>
+                                <p>This is where you choose the exact sections the teacher covers for the selected subject, for example Grade 5-A and Grade 5-B for the same subject.</p>
                             <div id="sectionAssignmentBoard" class="subject-assignment-board"></div>
-                            <div id="sectionAssignmentEmpty" class="section-assignment-empty">Select a subject to see section chips.</div>
+                            <div id="sectionAssignmentEmpty" class="section-assignment-empty">Choose one or more subjects in Step 1, and the matching sections will appear here to assign to this teacher.</div>
                             </div>
                             <div id="assignmentSuggestionPanel" class="assignment-suggestion-panel" data-state="loading">
                                 <div class="assignment-suggestion-head">
                                     <div class="assignment-suggestion-copy">
-                                        <span id="assignmentSuggestionBadge" class="assignment-suggestion-badge">Smart plan</span>
+                                        <span id="assignmentSuggestionBadge" class="assignment-suggestion-badge">Loading plan</span>
                                         <h3>Smart Auto Matching Plan</h3>
-                                        <p id="assignmentSuggestionText">Major first. Then compatible pool subjects if capacity remains.</p>
+                                        <p id="assignmentSuggestionText">Refreshing the current Recommended Hiring Plan and uncovered sections, then matching this teacher's main specialization before any compatible secondary pool subject.</p>
                                     </div>
                                     <div class="assignment-suggestion-actions">
                                         <button id="assignmentSuggestionApplyBtn" class="assignment-suggestion-action is-primary" type="button" disabled>Apply Plan</button>
                                         <button id="assignmentSuggestionAdjustBtn" class="assignment-suggestion-action" type="button">Adjust Plan</button>
-                                        <button id="assignmentSuggestionRefreshBtn" class="assignment-suggestion-action" type="button">Regenerate Plan</button>
+                                        <button id="assignmentSuggestionRefreshBtn" class="assignment-suggestion-action" type="button">Regenerate Auto Plan</button>
                                     </div>
                                 </div>
                                 <div class="assignment-suggestion-progress-card">
@@ -2995,7 +2868,7 @@
                                             <span id="assignmentSuggestionProgressLabel">0h planned of 24h target</span>
                                             <strong id="assignmentSuggestionProgressValue">0%</strong>
                                         </div>
-                                        <div id="assignmentSuggestionProgressNote" class="assignment-suggestion-progress-note">Waiting for a major.</div>
+                                        <div id="assignmentSuggestionProgressNote" class="assignment-suggestion-progress-note">Waiting for a specialization match.</div>
                                     </div>
                                     <div class="assignment-suggestion-progress-track">
                                         <span id="assignmentSuggestionProgressBar" class="assignment-suggestion-progress-fill"></span>
@@ -3005,13 +2878,12 @@
                                 <div id="assignmentSuggestionSummary" class="assignment-suggestion-summary"></div>
                                 <div id="assignmentSuggestionList" class="assignment-suggestion-list"></div>
                             </div>
-                            </div>
                             <div id="allocationSummary" class="allocation-dashboard" data-state="empty" aria-live="polite">
                                 <div class="allocation-dashboard-head">
                                     <div class="allocation-copy">
                                         <span id="allocationStatusBadge" class="allocation-status-badge">Start with subjects</span>
                                         <h3>Teaching Load Overview</h3>
-                                        <p id="allocationStatusText">Live weekly hours and remaining capacity.</p>
+                                        <p id="allocationStatusText">Select eligible subjects first, then assign sections to see the teacher's live weekly hours and remaining international capacity.</p>
                                     </div>
                                     <div class="allocation-hours-total">
                                         <strong id="allocationAssignedHoursValue">0h</strong>
@@ -4040,18 +3912,8 @@ const searchInput = document.getElementById("teacherSearch");
 
         const resolveSuggestionContextForSpecialization = (option) => {
             const familyCandidates = getSuggestedFamilyCandidatesForSpecialization(option);
-            let primaryFamily = familyCandidates[0] || "";
+            const primaryFamily = familyCandidates[0] || "";
             const poolKey = suggestionFamilyPoolMap[primaryFamily] || "";
-            if (poolKey === "general_science_pool") {
-                primaryFamily = "science";
-                const sciencePriority = suggestionPoolFamilyOrder.general_science_pool || ["science", "biology", "chemistry", "ict"];
-                const scienceFamilies = new Set(sciencePriority);
-                const orderedFamilies = [
-                    ...sciencePriority,
-                    ...familyCandidates.filter((family) => !scienceFamilies.has(family)),
-                ];
-                familyCandidates.splice(0, familyCandidates.length, ...orderedFamilies);
-            }
             return {
                 optionKey: String(option?.key || "").trim(),
                 label: String(option?.label || "").trim(),
@@ -4291,7 +4153,7 @@ const searchInput = document.getElementById("teacherSearch");
                 assignmentSuggestionProgressValue.textContent = `${Math.round(progressPct)}%`;
             }
             if (assignmentSuggestionProgressNote) {
-                assignmentSuggestionProgressNote.textContent = suggestionMeta.progressNote || "Waiting for a major.";
+                assignmentSuggestionProgressNote.textContent = suggestionMeta.progressNote || "Waiting for a specialization match.";
             }
             if (assignmentSuggestionProgressBar) {
                 assignmentSuggestionProgressBar.style.width = `${progressPct}%`;
@@ -4359,7 +4221,7 @@ const searchInput = document.getElementById("teacherSearch");
                 return {
                     state: "empty",
                     badgeText: "No plan found",
-                    message: "No matching plan is available yet.",
+                    message: "Open and save the Recommended Hiring Plan in the dashboard, or let the dashboard generate one automatically, then refresh here.",
                     summaryItems: [],
                     suggestions: [],
                 };
@@ -4369,7 +4231,7 @@ const searchInput = document.getElementById("teacherSearch");
                 return {
                     state: "empty",
                     badgeText: "Select specialization",
-                    message: "Choose a major to build a pool match.",
+                    message: "Choose at least one major or teaching specialization first so the system can match the teacher to the right hiring pool.",
                     summaryItems: [],
                     suggestions: [],
                 };
@@ -4380,7 +4242,7 @@ const searchInput = document.getElementById("teacherSearch");
                 return {
                     state: "error",
                     badgeText: "Fix capacity first",
-                    message: "National hours are above total capacity.",
+                    message: "National section hours are higher than total teacher capacity, so the system cannot build a safe recommendation yet.",
                     summaryItems: [],
                     suggestions: [],
                 };
@@ -4391,7 +4253,7 @@ const searchInput = document.getElementById("teacherSearch");
                 return {
                     state: "empty",
                     badgeText: "Capacity full",
-                    message: "The current selections already fill this teacher.",
+                    message: "This teacher is already fully allocated based on the current subject and section selections.",
                     summaryItems: [
                         { label: "Current Load", value: `${snapshot.assignedHours}h`, note: "No further international hours available" },
                     ],
@@ -4404,7 +4266,7 @@ const searchInput = document.getElementById("teacherSearch");
                 return {
                     state: "empty",
                     badgeText: "No pool mapping",
-                    message: "This major does not map to a hiring pool.",
+                    message: "The selected specialization does not map to one of the current Recommended Hiring Plan pools.",
                     summaryItems: [],
                     suggestions: [],
                 };
@@ -4429,7 +4291,7 @@ const searchInput = document.getElementById("teacherSearch");
                 return {
                     state: "empty",
                     badgeText: "No matching pool hours",
-                    message: "No uncovered hours remain in this matching pool.",
+                    message: "The matching hiring pool is available, but it does not currently have uncovered hours left for this teacher.",
                     summaryItems: [
                         { label: "Matched Pools", value: matchedPoolKeys.map((poolKey) => suggestionPoolLabels[poolKey] || poolKey).join(", "), note: "No uncovered hours remain in those pools" },
                     ],
@@ -4646,7 +4508,7 @@ const searchInput = document.getElementById("teacherSearch");
                 return {
                     state: "empty",
                     badgeText: "Nothing available",
-                    message: "No free compatible sections fit the remaining capacity.",
+                    message: "A matching pool was found, but there are no free compatible sections left to suggest inside the remaining capacity.",
                     summaryItems: [
                         { label: "Matched Pools", value: effectiveProfiles.map((profile) => suggestionPoolLabels[String(profile.group_key || "").trim()] || profile.name).join(", "), note: "Try another specialization or adjust the current selections" },
                     ],
@@ -4662,7 +4524,7 @@ const searchInput = document.getElementById("teacherSearch");
             return {
                 state: "ready",
                 badgeText: hiringPlanSuggestionSource === "saved" ? "Saved plan match" : "Auto plan match",
-                message: `${primaryLead.subjectName} first, then compatible pool subjects if capacity remains.`,
+                message: `${primaryLead.subjectName} is planned first from the teacher's main specialization, then compatible subjects from the same hiring pool fill any remaining safe capacity using real sections.`,
                 summaryItems: [
                     { label: "Suggested Load", value: `${suggestedHours}h`, note: `${suggestedSections} sections ready to assign` },
                     { label: "Remaining After Apply", value: `${Math.max(remainingCapacityHours - suggestedHours, 0)}h`, note: `${remainingCapacityHours}h was still available before this suggestion` },
@@ -4674,8 +4536,8 @@ const searchInput = document.getElementById("teacherSearch");
                     targetHours: snapshot.requiredHours,
                     plannedHours: Math.min(snapshot.assignedHours + suggestedHours, snapshot.requiredHours),
                     progressNote: compatibleSuggestions.length > 0
-                        ? `${primaryLead.subjectName} first. ${compatibleSuggestions.length} secondary group${compatibleSuggestions.length === 1 ? "" : "s"} after.`
-                        : `${primaryLead.subjectName} fills this suggestion.`,
+                        ? `${primaryLead.subjectName} leads the plan, then ${compatibleSuggestions.length} compatible subject group${compatibleSuggestions.length === 1 ? "" : "s"} continue filling the load.`
+                        : `${primaryLead.subjectName} fills the plan with direct section assignments from the matching pool.`,
                     metaChips: [
                         `${snapshot.assignedHours}h already selected`,
                         `${suggestedSections} uncovered sections ready`,
@@ -4758,13 +4620,13 @@ const searchInput = document.getElementById("teacherSearch");
             renderAssignmentSuggestionState(
                 "loading",
                 "Regenerating plan",
-                "Refreshing uncovered sections and rebuilding the suggestion.",
+                "Refreshing the current Recommended Hiring Plan and uncovered sections before matching this teacher's specialization.",
                 [],
                 [],
                 {
                     targetHours: standardMaxHours,
                     plannedHours: 0,
-                    progressNote: "Looking for major-first sections.",
+                    progressNote: "Looking for major-aligned uncovered sections.",
                     metaChips: [],
                 },
             );
@@ -4794,7 +4656,7 @@ const searchInput = document.getElementById("teacherSearch");
                     {
                         targetHours: standardMaxHours,
                         plannedHours: 0,
-                        progressNote: "Plan could not load.",
+                        progressNote: "The hiring plan could not be loaded.",
                         metaChips: [],
                     },
                 );
