@@ -2853,13 +2853,13 @@
                                 <div class="assignment-suggestion-head">
                                     <div class="assignment-suggestion-copy">
                                         <span id="assignmentSuggestionBadge" class="assignment-suggestion-badge">Loading plan</span>
-                                        <h3>Recommended Assignment Suggestion</h3>
-                                        <p id="assignmentSuggestionText">Checking the current Recommended Hiring Plan and matching uncovered hours to this teacher's specialization.</p>
+                                        <h3>Smart Auto Matching Plan</h3>
+                                        <p id="assignmentSuggestionText">Refreshing the current Recommended Hiring Plan and uncovered sections, then matching this teacher's main specialization before any compatible secondary pool subject.</p>
                                     </div>
                                     <div class="assignment-suggestion-actions">
                                         <button id="assignmentSuggestionApplyBtn" class="assignment-suggestion-action is-primary" type="button" disabled>Apply Plan</button>
                                         <button id="assignmentSuggestionAdjustBtn" class="assignment-suggestion-action" type="button">Adjust Plan</button>
-                                        <button id="assignmentSuggestionRefreshBtn" class="assignment-suggestion-action" type="button">Refresh</button>
+                                        <button id="assignmentSuggestionRefreshBtn" class="assignment-suggestion-action" type="button">Regenerate Auto Plan</button>
                                     </div>
                                 </div>
                                 <div class="assignment-suggestion-progress-card">
@@ -3321,22 +3321,53 @@ const searchInput = document.getElementById("teacherSearch");
         const assignmentSuggestionAdjustBtn = document.getElementById("assignmentSuggestionAdjustBtn");
         const assignmentSuggestionRefreshBtn = document.getElementById("assignmentSuggestionRefreshBtn");
         const standardMaxHours = 24;
-        const subjectChoices = {{ subject_choices | tojson }};
+        const autoMatchingDataUrl = "/teachers/auto-matching-data";
+        let subjectChoices = {{ subject_choices | tojson }};
         const qualificationOptions = {{ qualification_options | tojson }};
         let selectedQualificationKeys = new Set(
             {{ selected_qualification_keys | tojson }}
                 .map((value) => String(value || "").trim())
                 .filter((value) => Boolean(value))
         );
-        const sectionOptionsBySubject = {{ section_options_by_subject | tojson }};
+        let sectionOptionsBySubject = {{ section_options_by_subject | tojson }};
         const subjectAlignmentKeywordGroups = {{ subject_alignment_keyword_groups | tojson }};
         let persistedSectionAssignmentValues = new Set({{ selected_section_assignment_values | tojson }});
         const qualificationOptionsByKey = Object.fromEntries(
             qualificationOptions.map((item) => [String(item.key || "").trim(), item])
         );
-        const subjectChoicesByCode = Object.fromEntries(
+        let subjectChoicesByCode = Object.fromEntries(
             subjectChoices.map((item) => [String(item.subject_code || "").trim().toUpperCase(), item])
         );
+        const refreshSubjectChoicesByCode = () => {
+            subjectChoicesByCode = Object.fromEntries(
+                subjectChoices.map((item) => [String(item.subject_code || "").trim().toUpperCase(), item])
+            );
+        };
+
+        const refreshAssignmentSectionData = async () => {
+            try {
+                const response = await fetch(autoMatchingDataUrl, {
+                    headers: { "Accept": "application/json" },
+                });
+                if (!response.ok) {
+                    return false;
+                }
+                const payload = await response.json();
+                if (!payload || payload.ok === false) {
+                    return false;
+                }
+                if (Array.isArray(payload.subject_choices)) {
+                    subjectChoices = payload.subject_choices;
+                    refreshSubjectChoicesByCode();
+                }
+                if (payload.section_options_by_subject && typeof payload.section_options_by_subject === "object") {
+                    sectionOptionsBySubject = payload.section_options_by_subject;
+                }
+                return true;
+            } catch (error) {
+                return false;
+            }
+        };
         let selectedSubjectCodes = new Set(
             {{ selected_subject_codes | tojson }}
                 .map((value) => String(value || "").trim().toUpperCase())
@@ -3824,6 +3855,9 @@ const searchInput = document.getElementById("teacherSearch");
             if (labelText.includes("physical education") && !familyCandidates.includes("pe")) {
                 familyCandidates.unshift("pe");
             }
+            if (labelText.includes("islamic") && !familyCandidates.includes("islamic")) {
+                familyCandidates.unshift("islamic");
+            }
             if (labelText.includes("english") && !familyCandidates.includes("english")) {
                 familyCandidates.unshift("english");
             }
@@ -3954,13 +3988,14 @@ const searchInput = document.getElementById("teacherSearch");
             default: { color: "#0a4ea3", soft: "#f5f9ff", border: "#dbe7f8", text: "#2f4361" },
         };
 
-        const getSuggestionCardStyle = (family) => {
-            const palette = suggestionFamilyPaletteMap[String(family || "").trim()] || suggestionFamilyPaletteMap.default;
+        const getSuggestionCardStyle = (suggestion) => {
+            const palette = suggestionFamilyPaletteMap[String(suggestion?.family || "").trim()] || suggestionFamilyPaletteMap.default;
+            const subject = subjectChoicesByCode[String(suggestion?.subjectCode || "").trim().toUpperCase()] || {};
             return [
-                `--plan-subject-color: ${palette.color}`,
-                `--plan-subject-soft: ${palette.soft}`,
-                `--plan-subject-border: ${palette.border}`,
-                `--plan-subject-text: ${palette.text}`,
+                `--plan-subject-color: ${subject.color || palette.color}`,
+                `--plan-subject-soft: ${subject.color_surface || subject.color_soft || palette.soft}`,
+                `--plan-subject-border: ${subject.color_border || palette.border}`,
+                `--plan-subject-text: ${subject.color_text || palette.text}`,
             ].join("; ");
         };
 
@@ -4044,7 +4079,7 @@ const searchInput = document.getElementById("teacherSearch");
                 suggestions.forEach((suggestion) => {
                     const item = document.createElement("article");
                     item.className = `assignment-suggestion-item${suggestion.isPrimaryFamily ? " is-primary" : ""}`;
-                    item.style.cssText = getSuggestionCardStyle(suggestion.family);
+                    item.style.cssText = getSuggestionCardStyle(suggestion);
 
                     const head = document.createElement("div");
                     head.className = "assignment-suggestion-item-head";
@@ -4209,13 +4244,8 @@ const searchInput = document.getElementById("teacherSearch");
                         return;
                     }
 
-                    const plannedOpenHours = Math.max(Number(item.hours || 0) - getPersistedSectionHoursForSubject(subjectCode), 0);
-                    if (plannedOpenHours < weeklyHours) {
-                        return;
-                    }
-
                     const availableSections = (sectionOptionsBySubject[subjectCode] || []).filter((option) => {
-                        if (!option.is_available) {
+                        if (!option.is_available || option.is_uncovered !== true) {
                             return false;
                         }
                         const optionValue = `${subjectCode}::${option.section_id}`;
@@ -4225,7 +4255,19 @@ const searchInput = document.getElementById("teacherSearch");
                         return;
                     }
 
-                    const maxSectionsForPool = Math.floor(plannedOpenHours / weeklyHours);
+                    const isPrimaryFamily = itemMatchesSuggestionFamily(
+                        item,
+                        subject,
+                        poolContext.primaryFamily ? [poolContext.primaryFamily] : [],
+                    );
+                    const plannedOpenHours = Math.max(Number(item.hours || 0) - getPersistedSectionHoursForSubject(subjectCode), 0);
+                    if (!isPrimaryFamily && plannedOpenHours < weeklyHours) {
+                        return;
+                    }
+
+                    const maxSectionsForPool = isPrimaryFamily
+                        ? availableSections.length
+                        : Math.floor(plannedOpenHours / weeklyHours);
                     const maxSectionsForCapacity = Math.floor(remainingHours / weeklyHours);
                     const sectionsToTake = Math.min(
                         availableSections.length,
@@ -4243,11 +4285,6 @@ const searchInput = document.getElementById("teacherSearch");
                     }));
                     const suggestedHours = chosenSections.length * weeklyHours;
                     const family = String(item.family || "").trim();
-                    const isPrimaryFamily = itemMatchesSuggestionFamily(
-                        item,
-                        subject,
-                        poolContext.primaryFamily ? [poolContext.primaryFamily] : [],
-                    );
                     suggestions.push({
                         poolKey,
                         poolLabel,
@@ -4352,8 +4389,8 @@ const searchInput = document.getElementById("teacherSearch");
         const loadHiringPlanSuggestion = async () => {
             renderAssignmentSuggestionState(
                 "loading",
-                "Loading plan",
-                "Checking the current Recommended Hiring Plan and matching uncovered hours to this teacher's specialization.",
+                "Regenerating plan",
+                "Refreshing the current Recommended Hiring Plan and uncovered sections before matching this teacher's specialization.",
                 [],
                 [],
                 {
@@ -4364,6 +4401,7 @@ const searchInput = document.getElementById("teacherSearch");
                 },
             );
             try {
+                await refreshAssignmentSectionData();
                 const response = await fetch("/dashboard/api/hiring-plan/effective", {
                     headers: {
                         "Accept": "application/json",

@@ -4,7 +4,7 @@ import re
 from types import SimpleNamespace
 
 from fastapi import APIRouter, Request, Form, Depends
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -447,6 +447,7 @@ def _get_subject_choices(db: Session, branch_id: int, academic_year_id: int):
                 "grade": subject.grade,
                 "color": subject_color,
                 "color_soft": theme["soft"],
+                "color_surface": theme["surface"],
                 "color_text": theme["text"],
                 "color_border": theme["border"],
             }
@@ -664,12 +665,21 @@ def _get_section_options_by_subject(
             subject_options.append(
                 {
                     "section_id": section.id,
+                    "grade_label": _normalize_grade_label(section.grade_level),
+                    "section_name": str(section.section_name or "").strip(),
+                    "class_status": str(section.class_status or "").strip(),
+                    "section_label": _format_section_label(section),
                     "label": (
                         f"{_format_section_label(section)}"
                         f" ({section.class_status})"
                     ),
                     "teacher_id": occupying_teacher_id,
                     "teacher_name": teacher_names_by_id.get(occupying_teacher_id, ""),
+                    "is_uncovered": occupying_teacher_id is None,
+                    "is_current_teacher_assignment": (
+                        occupying_teacher_id is not None
+                        and occupying_teacher_id == current_teacher_id
+                    ),
                     "is_available": not assigned_to_other,
                 }
             )
@@ -1163,6 +1173,43 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
         teacher_data["matches_max_hours"] = is_within_capacity
 
     return allocation_map
+
+
+@router.get("/auto-matching-data")
+def auto_matching_data(
+    request: Request,
+    current_teacher_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return JSONResponse(
+            status_code=401,
+            content={"ok": False, "error": "Authentication required."},
+        )
+
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    scoped_teacher_id = None
+    if current_teacher_id is not None:
+        teacher = db.query(models.Teacher).filter(
+            models.Teacher.id == current_teacher_id,
+            models.Teacher.branch_id == branch_id,
+            models.Teacher.academic_year_id == academic_year_id,
+        ).first()
+        if teacher:
+            scoped_teacher_id = teacher.id
+
+    section_assignment_support = _get_section_options_by_subject(
+        db=db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+        current_teacher_id=scoped_teacher_id,
+    )
+    return {
+        "ok": True,
+        "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
+        "section_options_by_subject": section_assignment_support["section_options_by_subject"],
+    }
 
 
 def _render_teachers_page(
