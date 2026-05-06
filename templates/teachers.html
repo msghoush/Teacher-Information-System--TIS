@@ -256,23 +256,30 @@
         }
 
         .assignment-suggestion-panel {
+            position: relative;
+            overflow: hidden;
             margin-top: 14px;
-            padding: 14px;
-            border: 1px solid #dbe7f8;
-            border-radius: 14px;
-            background: linear-gradient(180deg, #fcfdff, #f5f9ff);
+            padding: 16px;
+            border: 1px solid #d6e3f5;
+            border-radius: 20px;
+            background:
+                radial-gradient(circle at top right, rgba(37, 99, 235, 0.14), transparent 30%),
+                linear-gradient(180deg, #fcfdff, #f3f8ff);
             display: grid;
-            gap: 12px;
+            gap: 14px;
+            box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
         }
 
         .assignment-suggestion-panel[data-state="ready"] {
-            border-color: #b9d6f5;
-            box-shadow: 0 12px 28px rgba(10, 78, 163, 0.08);
+            border-color: #9cc2f0;
+            box-shadow: 0 18px 40px rgba(37, 99, 235, 0.12);
         }
 
         .assignment-suggestion-panel[data-state="empty"],
         .assignment-suggestion-panel[data-state="error"] {
-            background: #fbfcfe;
+            background:
+                radial-gradient(circle at top right, rgba(148, 163, 184, 0.08), transparent 30%),
+                linear-gradient(180deg, #fcfdff, #f7f9fc);
         }
 
         .assignment-suggestion-head {
@@ -280,40 +287,155 @@
             flex-wrap: wrap;
             align-items: flex-start;
             justify-content: space-between;
-            gap: 12px;
+            gap: 14px;
+        }
+
+        .assignment-suggestion-copy {
+            display: grid;
+            gap: 5px;
+            max-width: 760px;
         }
 
         .assignment-suggestion-copy h3 {
-            margin: 0 0 4px;
-            font-size: 16px;
-            color: #17365d;
+            margin: 0;
+            font-size: 18px;
+            color: #16375f;
         }
 
         .assignment-suggestion-copy p {
             margin: 0;
             color: #5d6b82;
             font-size: 13px;
-            line-height: 1.5;
+            line-height: 1.55;
         }
 
         .assignment-suggestion-badge {
             display: inline-flex;
             align-items: center;
+            width: fit-content;
             padding: 6px 10px;
             border-radius: 999px;
-            background: #edf4ff;
+            background: rgba(255, 255, 255, 0.84);
             border: 1px solid #c9dcf7;
             color: #244a7c;
             font-size: 11px;
             font-weight: 800;
             letter-spacing: 0.4px;
             text-transform: uppercase;
+            backdrop-filter: blur(6px);
         }
 
         .assignment-suggestion-actions {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
+        }
+
+        .assignment-suggestion-action {
+            border: 1px solid #cadcf6;
+            border-radius: 11px;
+            background: #ffffff;
+            color: #234569;
+            font-size: 12px;
+            font-weight: 800;
+            padding: 10px 13px;
+            cursor: pointer;
+            transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background-color 140ms ease;
+        }
+
+        .assignment-suggestion-action:hover {
+            transform: translateY(-1px);
+            border-color: #9dbde8;
+            box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
+        }
+
+        .assignment-suggestion-action.is-primary {
+            background: linear-gradient(135deg, #0a4ea3, #2563eb);
+            border-color: #0a4ea3;
+            color: #fff;
+        }
+
+        .assignment-suggestion-action:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .assignment-suggestion-progress-card {
+            padding: 14px;
+            border: 1px solid rgba(198, 212, 232, 0.95);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.82);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+            display: grid;
+            gap: 10px;
+        }
+
+        .assignment-suggestion-progress-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .assignment-suggestion-progress-copy {
+            display: grid;
+            gap: 3px;
+        }
+
+        .assignment-suggestion-progress-copy span {
+            color: #5d6b82;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .assignment-suggestion-progress-copy strong {
+            color: #17365d;
+            font-size: 20px;
+            line-height: 1;
+        }
+
+        .assignment-suggestion-progress-note {
+            color: #365275;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .assignment-suggestion-progress-track {
+            height: 12px;
+            border-radius: 999px;
+            background: #dbe8f8;
+            overflow: hidden;
+        }
+
+        .assignment-suggestion-progress-fill {
+            display: block;
+            height: 100%;
+            width: 0;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #0a4ea3, #2563eb 48%, #60a5fa 100%);
+            transition: width 180ms ease;
+        }
+
+        .assignment-suggestion-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .assignment-suggestion-meta-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 10px;
+            border-radius: 999px;
+            border: 1px solid #d5e2f5;
+            background: #f8fbff;
+            color: #365275;
+            font-size: 12px;
+            font-weight: 700;
         }
 
         .assignment-suggestion-summary {
@@ -323,77 +445,148 @@
         }
 
         .assignment-suggestion-stat {
-            padding: 10px 12px;
+            padding: 11px 12px;
             border: 1px solid #dbe7f8;
-            border-radius: 12px;
-            background: #fff;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.92);
         }
 
         .assignment-suggestion-stat span,
         .assignment-suggestion-stat small {
             display: block;
-        }
-
-        .assignment-suggestion-stat span,
-        .assignment-suggestion-stat small {
             color: #60728b;
             font-size: 12px;
         }
 
         .assignment-suggestion-stat strong {
             display: block;
-            margin: 3px 0;
+            margin: 4px 0;
             color: #17365d;
             font-size: 18px;
         }
 
         .assignment-suggestion-list {
             display: grid;
-            gap: 10px;
+            gap: 12px;
         }
 
         .assignment-suggestion-item {
-            padding: 12px;
-            border: 1px solid #dbe7f8;
-            border-radius: 12px;
-            background: #fff;
+            --plan-subject-color: #0a4ea3;
+            --plan-subject-soft: #f5f9ff;
+            --plan-subject-border: #dbe7f8;
+            --plan-subject-text: #2f4361;
+            padding: 14px;
+            border: 1px solid var(--plan-subject-border);
+            border-radius: 16px;
+            background: linear-gradient(180deg, #ffffff, var(--plan-subject-soft));
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+            transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+        }
+
+        .assignment-suggestion-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 16px 30px rgba(15, 23, 42, 0.1);
+            border-color: color-mix(in srgb, var(--plan-subject-color) 35%, #dbe7f8);
+        }
+
+        .assignment-suggestion-item.is-primary {
+            box-shadow: 0 18px 34px rgba(37, 99, 235, 0.12);
         }
 
         .assignment-suggestion-item-head {
             display: flex;
             flex-wrap: wrap;
-            align-items: center;
+            align-items: flex-start;
             justify-content: space-between;
-            gap: 8px;
-            margin-bottom: 8px;
+            gap: 10px;
+            margin-bottom: 10px;
         }
 
-        .assignment-suggestion-item-head strong {
-            color: #17365d;
+        .assignment-suggestion-item-copy {
+            display: grid;
+            gap: 5px;
         }
 
-        .assignment-suggestion-pool {
+        .assignment-suggestion-item-copy strong {
+            color: var(--plan-subject-text);
+            font-size: 15px;
+        }
+
+        .assignment-suggestion-item-copy p {
+            margin: 0;
+            color: #58708f;
             font-size: 12px;
-            font-weight: 700;
+            line-height: 1.45;
+        }
+
+        .assignment-suggestion-subject-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+        }
+
+        .assignment-suggestion-subject-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 9px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid var(--plan-subject-border);
+            color: var(--plan-subject-text);
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .assignment-suggestion-subject-chip i {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--plan-subject-color);
+            display: inline-block;
+        }
+
+        .assignment-suggestion-item-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+            justify-content: flex-end;
+        }
+
+        .assignment-suggestion-stat-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 7px 10px;
+            border-radius: 999px;
+            border: 1px solid #d5e2f5;
+            background: #fff;
             color: #244a7c;
+            font-size: 12px;
+            font-weight: 800;
         }
 
         .assignment-suggestion-sections {
             display: flex;
             flex-wrap: wrap;
-            gap: 6px;
+            gap: 8px;
         }
 
         .assignment-suggestion-section {
             display: inline-flex;
             align-items: center;
-            padding: 6px 9px;
+            padding: 7px 10px;
             border-radius: 999px;
-            border: 1px solid #d8e5f6;
-            background: #f8fbff;
-            color: #365275;
+            border: 1px solid var(--plan-subject-border);
+            background: rgba(255, 255, 255, 0.92);
+            color: var(--plan-subject-text);
             font-size: 12px;
             font-weight: 700;
+            transition: transform 140ms ease, background-color 140ms ease;
+        }
+
+        .assignment-suggestion-section:hover {
+            transform: translateY(-1px);
+            background: #fff;
         }
 
         .error-list {
@@ -2664,9 +2857,23 @@
                                         <p id="assignmentSuggestionText">Checking the current Recommended Hiring Plan and matching uncovered hours to this teacher's specialization.</p>
                                     </div>
                                     <div class="assignment-suggestion-actions">
-                                        <button id="assignmentSuggestionApplyBtn" class="subject-grade-btn" type="button" disabled>Apply Suggestion</button>
-                                        <button id="assignmentSuggestionRefreshBtn" class="subject-grade-btn" type="button">Refresh</button>
+                                        <button id="assignmentSuggestionApplyBtn" class="assignment-suggestion-action is-primary" type="button" disabled>Apply Plan</button>
+                                        <button id="assignmentSuggestionAdjustBtn" class="assignment-suggestion-action" type="button">Adjust Plan</button>
+                                        <button id="assignmentSuggestionRefreshBtn" class="assignment-suggestion-action" type="button">Refresh</button>
                                     </div>
+                                </div>
+                                <div class="assignment-suggestion-progress-card">
+                                    <div class="assignment-suggestion-progress-head">
+                                        <div class="assignment-suggestion-progress-copy">
+                                            <span id="assignmentSuggestionProgressLabel">0h planned of 24h target</span>
+                                            <strong id="assignmentSuggestionProgressValue">0%</strong>
+                                        </div>
+                                        <div id="assignmentSuggestionProgressNote" class="assignment-suggestion-progress-note">Waiting for a specialization match.</div>
+                                    </div>
+                                    <div class="assignment-suggestion-progress-track">
+                                        <span id="assignmentSuggestionProgressBar" class="assignment-suggestion-progress-fill"></span>
+                                    </div>
+                                    <div id="assignmentSuggestionMeta" class="assignment-suggestion-meta"></div>
                                 </div>
                                 <div id="assignmentSuggestionSummary" class="assignment-suggestion-summary"></div>
                                 <div id="assignmentSuggestionList" class="assignment-suggestion-list"></div>
@@ -3103,9 +3310,15 @@ const searchInput = document.getElementById("teacherSearch");
         const assignmentSuggestionPanel = document.getElementById("assignmentSuggestionPanel");
         const assignmentSuggestionBadge = document.getElementById("assignmentSuggestionBadge");
         const assignmentSuggestionText = document.getElementById("assignmentSuggestionText");
+        const assignmentSuggestionProgressLabel = document.getElementById("assignmentSuggestionProgressLabel");
+        const assignmentSuggestionProgressValue = document.getElementById("assignmentSuggestionProgressValue");
+        const assignmentSuggestionProgressNote = document.getElementById("assignmentSuggestionProgressNote");
+        const assignmentSuggestionProgressBar = document.getElementById("assignmentSuggestionProgressBar");
+        const assignmentSuggestionMeta = document.getElementById("assignmentSuggestionMeta");
         const assignmentSuggestionSummary = document.getElementById("assignmentSuggestionSummary");
         const assignmentSuggestionList = document.getElementById("assignmentSuggestionList");
         const assignmentSuggestionApplyBtn = document.getElementById("assignmentSuggestionApplyBtn");
+        const assignmentSuggestionAdjustBtn = document.getElementById("assignmentSuggestionAdjustBtn");
         const assignmentSuggestionRefreshBtn = document.getElementById("assignmentSuggestionRefreshBtn");
         const standardMaxHours = 24;
         const subjectChoices = {{ subject_choices | tojson }};
@@ -3150,18 +3363,53 @@ const searchInput = document.getElementById("teacherSearch");
             physical_education: "Physical Education Pool",
             homeroom_pool: "Homeroom Pool",
         };
-        const suggestionAlignmentPoolMap = {
+        const suggestionAlignmentFamilyMap = {
+            english: "english",
+            social: "social_english",
+            history: "social_english",
+            geography: "social_english",
+            arabic: "arabic",
+            islamic: "islamic",
+            math: "math",
+            physics: "physics",
+            science: "science",
+            biology: "biology",
+            chemistry: "chemistry",
+            computer: "ict",
+            pe: "pe",
+            kindergarten: "homeroom",
+            art: "art",
+            music: "performing_arts",
+        };
+        const suggestionFamilyPoolMap = {
             english: "english_pool",
+            social_english: "english_pool",
+            social: "english_pool",
+            wellbeing: "english_pool",
+            reflection: "english_pool",
+            performing_arts: "english_pool",
+            art: "english_pool",
             arabic: "arabic_pool",
             islamic: "arabic_pool",
+            quran: "arabic_pool",
+            social_arabic: "arabic_pool",
             math: "math_pool",
             physics: "math_pool",
+            mental_math: "math_pool",
             science: "general_science_pool",
             biology: "general_science_pool",
             chemistry: "general_science_pool",
-            computer: "general_science_pool",
+            ict: "general_science_pool",
             pe: "physical_education",
-            kindergarten: "homeroom_pool",
+            homeroom: "homeroom_pool",
+        };
+        const suggestionPoolFamilyOrder = {
+            english_pool: ["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"],
+            arabic_pool: ["arabic", "islamic", "quran", "social_arabic"],
+            math_pool: ["math", "physics", "mental_math"],
+            general_science_pool: ["science", "biology", "chemistry", "ict"],
+            physical_education: ["pe"],
+            homeroom_pool: ["homeroom"],
         };
         const suggestionPoolPriority = [
             "english_pool",
@@ -3563,15 +3811,107 @@ const searchInput = document.getElementById("teacherSearch");
             return alignmentKeys;
         };
 
-        const getSelectedSuggestionPoolKeys = () => {
-            const poolKeys = new Set();
-            getSelectedAlignmentKeys().forEach((alignmentKey) => {
-                const poolKey = suggestionAlignmentPoolMap[String(alignmentKey || "").trim()];
-                if (poolKey) {
-                    poolKeys.add(poolKey);
+        const getSuggestedFamilyCandidatesForSpecialization = (option) => {
+            const familyCandidates = [];
+            (option?.alignment_keys || []).forEach((alignmentKey) => {
+                const family = suggestionAlignmentFamilyMap[String(alignmentKey || "").trim()];
+                if (family && !familyCandidates.includes(family)) {
+                    familyCandidates.push(family);
                 }
             });
-            return suggestionPoolPriority.filter((poolKey) => poolKeys.has(poolKey));
+
+            const labelText = String(option?.label || "").trim().toLowerCase();
+            if (labelText.includes("physical education") && !familyCandidates.includes("pe")) {
+                familyCandidates.unshift("pe");
+            }
+            if (labelText.includes("english") && !familyCandidates.includes("english")) {
+                familyCandidates.unshift("english");
+            }
+            if (labelText.includes("arabic") && !familyCandidates.includes("arabic")) {
+                familyCandidates.unshift("arabic");
+            }
+            if ((labelText.includes("mathematics") || labelText.includes("math")) && !familyCandidates.includes("math")) {
+                familyCandidates.unshift("math");
+            }
+            if (labelText.includes("biology") && !familyCandidates.includes("biology")) {
+                familyCandidates.unshift("biology");
+            }
+            if (labelText.includes("chemistry") && !familyCandidates.includes("chemistry")) {
+                familyCandidates.unshift("chemistry");
+            }
+            if (labelText.includes("science") && !familyCandidates.includes("science")) {
+                familyCandidates.unshift("science");
+            }
+            if ((labelText.includes("ict") || labelText.includes("computer")) && !familyCandidates.includes("ict")) {
+                familyCandidates.unshift("ict");
+            }
+
+            return familyCandidates;
+        };
+
+        const resolveSuggestionContextForSpecialization = (option) => {
+            const familyCandidates = getSuggestedFamilyCandidatesForSpecialization(option);
+            const primaryFamily = familyCandidates[0] || "";
+            const poolKey = suggestionFamilyPoolMap[primaryFamily] || "";
+            return {
+                optionKey: String(option?.key || "").trim(),
+                label: String(option?.label || "").trim(),
+                poolKey,
+                poolLabel: suggestionPoolLabels[poolKey] || "",
+                primaryFamily,
+                familyCandidates,
+            };
+        };
+
+        const getSelectedSuggestionContexts = () => {
+            return getSelectedSpecializationChoices()
+                .map((option) => resolveSuggestionContextForSpecialization(option))
+                .filter((context) => Boolean(context.poolKey));
+        };
+
+        const getSelectedSuggestionPoolKeys = () => {
+            const seenPoolKeys = new Set();
+            const orderedPoolKeys = [];
+            getSelectedSuggestionContexts().forEach((context) => {
+                if (!seenPoolKeys.has(context.poolKey)) {
+                    seenPoolKeys.add(context.poolKey);
+                    orderedPoolKeys.push(context.poolKey);
+                }
+            });
+            return orderedPoolKeys;
+        };
+
+        const getSelectedPoolContextMap = () => {
+            const contextMap = {};
+            getSelectedSuggestionContexts().forEach((context) => {
+                if (!context.poolKey) {
+                    return;
+                }
+                if (!contextMap[context.poolKey]) {
+                    contextMap[context.poolKey] = {
+                        poolKey: context.poolKey,
+                        poolLabel: context.poolLabel,
+                        primaryFamily: context.primaryFamily,
+                        familyPriority: [],
+                        specializationLabels: [],
+                    };
+                }
+                contextMap[context.poolKey].specializationLabels.push(context.label);
+                context.familyCandidates.forEach((family) => {
+                    if (family && !contextMap[context.poolKey].familyPriority.includes(family)) {
+                        contextMap[context.poolKey].familyPriority.push(family);
+                    }
+                });
+            });
+
+            Object.values(contextMap).forEach((context) => {
+                (suggestionPoolFamilyOrder[context.poolKey] || []).forEach((family) => {
+                    if (!context.familyPriority.includes(family)) {
+                        context.familyPriority.push(family);
+                    }
+                });
+            });
+            return contextMap;
         };
 
         const getPersistedSectionHoursForSubject = (subjectCode) => {
@@ -3590,12 +3930,62 @@ const searchInput = document.getElementById("teacherSearch");
             return selectedCount * weeklyHours;
         };
 
-        const renderAssignmentSuggestionState = (state, badgeText, message, summaryItems = [], suggestions = []) => {
+        const suggestionFamilyPaletteMap = {
+            english: { color: "#2563eb", soft: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
+            social_english: { color: "#0f766e", soft: "#ecfeff", border: "#99f6e4", text: "#115e59" },
+            social: { color: "#0f766e", soft: "#ecfeff", border: "#99f6e4", text: "#115e59" },
+            wellbeing: { color: "#7c3aed", soft: "#f5f3ff", border: "#ddd6fe", text: "#6d28d9" },
+            reflection: { color: "#8b5cf6", soft: "#f5f3ff", border: "#ddd6fe", text: "#6d28d9" },
+            performing_arts: { color: "#db2777", soft: "#fdf2f8", border: "#fbcfe8", text: "#be185d" },
+            art: { color: "#ea580c", soft: "#fff7ed", border: "#fed7aa", text: "#c2410c" },
+            arabic: { color: "#059669", soft: "#ecfdf5", border: "#a7f3d0", text: "#047857" },
+            islamic: { color: "#16a34a", soft: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
+            quran: { color: "#15803d", soft: "#f0fdf4", border: "#bbf7d0", text: "#166534" },
+            social_arabic: { color: "#0f766e", soft: "#ecfeff", border: "#99f6e4", text: "#115e59" },
+            math: { color: "#2563eb", soft: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
+            physics: { color: "#7c3aed", soft: "#f5f3ff", border: "#ddd6fe", text: "#6d28d9" },
+            mental_math: { color: "#4f46e5", soft: "#eef2ff", border: "#c7d2fe", text: "#4338ca" },
+            science: { color: "#0891b2", soft: "#ecfeff", border: "#a5f3fc", text: "#0e7490" },
+            biology: { color: "#16a34a", soft: "#f0fdf4", border: "#bbf7d0", text: "#15803d" },
+            chemistry: { color: "#dc2626", soft: "#fef2f2", border: "#fecaca", text: "#b91c1c" },
+            ict: { color: "#4f46e5", soft: "#eef2ff", border: "#c7d2fe", text: "#4338ca" },
+            pe: { color: "#ea580c", soft: "#fff7ed", border: "#fed7aa", text: "#c2410c" },
+            homeroom: { color: "#64748b", soft: "#f8fafc", border: "#cbd5e1", text: "#475569" },
+            default: { color: "#0a4ea3", soft: "#f5f9ff", border: "#dbe7f8", text: "#2f4361" },
+        };
+
+        const getSuggestionCardStyle = (family) => {
+            const palette = suggestionFamilyPaletteMap[String(family || "").trim()] || suggestionFamilyPaletteMap.default;
+            return [
+                `--plan-subject-color: ${palette.color}`,
+                `--plan-subject-soft: ${palette.soft}`,
+                `--plan-subject-border: ${palette.border}`,
+                `--plan-subject-text: ${palette.text}`,
+            ].join("; ");
+        };
+
+        const focusSectionAssignmentBoard = () => {
+            if (!sectionAssignmentBoard) {
+                return;
+            }
+            sectionAssignmentBoard.scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+
+        const renderAssignmentSuggestionState = (
+            state,
+            badgeText,
+            message,
+            summaryItems = [],
+            suggestions = [],
+            suggestionMeta = {},
+        ) => {
             if (!assignmentSuggestionPanel) {
                 return;
             }
 
-            currentAssignmentSuggestion = suggestions.length > 0 ? { suggestions } : null;
+            currentAssignmentSuggestion = suggestions.length > 0
+                ? { suggestions, meta: suggestionMeta }
+                : null;
             assignmentSuggestionPanel.dataset.state = state;
             if (assignmentSuggestionBadge) {
                 assignmentSuggestionBadge.textContent = badgeText;
@@ -3605,6 +3995,30 @@ const searchInput = document.getElementById("teacherSearch");
             }
             if (assignmentSuggestionApplyBtn) {
                 assignmentSuggestionApplyBtn.disabled = suggestions.length === 0;
+            }
+            const targetHours = Math.max(Number(suggestionMeta.targetHours || 0), 0);
+            const plannedHours = Math.max(Number(suggestionMeta.plannedHours || 0), 0);
+            const progressPct = targetHours > 0 ? Math.min((plannedHours / targetHours) * 100, 100) : 0;
+            if (assignmentSuggestionProgressLabel) {
+                assignmentSuggestionProgressLabel.textContent = `${plannedHours}h planned of ${targetHours}h target`;
+            }
+            if (assignmentSuggestionProgressValue) {
+                assignmentSuggestionProgressValue.textContent = `${Math.round(progressPct)}%`;
+            }
+            if (assignmentSuggestionProgressNote) {
+                assignmentSuggestionProgressNote.textContent = suggestionMeta.progressNote || "Waiting for a specialization match.";
+            }
+            if (assignmentSuggestionProgressBar) {
+                assignmentSuggestionProgressBar.style.width = `${progressPct}%`;
+            }
+            if (assignmentSuggestionMeta) {
+                assignmentSuggestionMeta.innerHTML = "";
+                (suggestionMeta.metaChips || []).forEach((chipText) => {
+                    const chip = document.createElement("span");
+                    chip.className = "assignment-suggestion-meta-chip";
+                    chip.textContent = chipText;
+                    assignmentSuggestionMeta.appendChild(chip);
+                });
             }
             if (assignmentSuggestionSummary) {
                 assignmentSuggestionSummary.innerHTML = "";
@@ -3619,11 +4033,26 @@ const searchInput = document.getElementById("teacherSearch");
                 assignmentSuggestionList.innerHTML = "";
                 suggestions.forEach((suggestion) => {
                     const item = document.createElement("article");
-                    item.className = "assignment-suggestion-item";
+                    item.className = `assignment-suggestion-item${suggestion.isPrimaryFamily ? " is-primary" : ""}`;
+                    item.style.cssText = getSuggestionCardStyle(suggestion.family);
 
                     const head = document.createElement("div");
                     head.className = "assignment-suggestion-item-head";
-                    head.innerHTML = `<div><strong>${suggestion.subjectCode} - ${suggestion.subjectName}</strong><div class="assignment-suggestion-pool">${suggestion.poolLabel} • ${suggestion.hours}h</div></div><span class="subject-assignment-pill is-strong">${suggestion.sections.length} sections</span>`;
+                    head.innerHTML = `
+                        <div class="assignment-suggestion-item-copy">
+                            <strong>${suggestion.subjectCode} - ${suggestion.subjectName}</strong>
+                            <p>${suggestion.poolLabel} plan aligned to real uncovered sections. ${suggestion.priorityLabel}.</p>
+                            <div class="assignment-suggestion-subject-chip-row">
+                                <span class="assignment-suggestion-subject-chip"><i></i>${suggestion.familyLabel}</span>
+                                <span class="assignment-suggestion-subject-chip">${suggestion.hours}h total</span>
+                                <span class="assignment-suggestion-subject-chip">${suggestion.weeklyHours}h per section</span>
+                            </div>
+                        </div>
+                        <div class="assignment-suggestion-item-stats">
+                            <span class="assignment-suggestion-stat-pill">${suggestion.sections.length} sections</span>
+                            <span class="assignment-suggestion-stat-pill">${suggestion.priorityLabel}</span>
+                        </div>
+                    `;
                     item.appendChild(head);
 
                     const sections = document.createElement("div");
@@ -3631,7 +4060,7 @@ const searchInput = document.getElementById("teacherSearch");
                     suggestion.sections.forEach((section) => {
                         const chip = document.createElement("span");
                         chip.className = "assignment-suggestion-section";
-                        chip.textContent = section.label;
+                        chip.textContent = `${section.label} - ${suggestion.weeklyHours}h`;
                         sections.appendChild(chip);
                     });
                     item.appendChild(sections);
@@ -3696,9 +4125,14 @@ const searchInput = document.getElementById("teacherSearch");
                 };
             }
 
-            const matchedProfiles = (hiringPlanSuggestionPlan.profiles || []).filter((profile) => {
-                return matchedPoolKeys.includes(String(profile.group_key || "").trim());
-            });
+            const poolContextMap = getSelectedPoolContextMap();
+            const matchedProfiles = (hiringPlanSuggestionPlan.profiles || [])
+                .filter((profile) => matchedPoolKeys.includes(String(profile.group_key || "").trim()))
+                .sort((left, right) => {
+                    const leftPoolKey = String(left.group_key || "").trim();
+                    const rightPoolKey = String(right.group_key || "").trim();
+                    return matchedPoolKeys.indexOf(leftPoolKey) - matchedPoolKeys.indexOf(rightPoolKey);
+                });
             if (matchedProfiles.length === 0) {
                 return {
                     state: "empty",
@@ -3720,7 +4154,22 @@ const searchInput = document.getElementById("teacherSearch");
                 }
                 const poolKey = String(profile.group_key || "").trim();
                 const poolLabel = suggestionPoolLabels[poolKey] || String(profile.name || "Matching Pool");
-                (profile.items || []).forEach((item) => {
+                const poolContext = poolContextMap[poolKey] || {
+                    primaryFamily: "",
+                    familyPriority: suggestionPoolFamilyOrder[poolKey] || [],
+                };
+                const orderedItems = [...(profile.items || [])].sort((left, right) => {
+                    const leftFamily = String(left.family || "").trim();
+                    const rightFamily = String(right.family || "").trim();
+                    const leftIndex = poolContext.familyPriority.includes(leftFamily) ? poolContext.familyPriority.indexOf(leftFamily) : 999;
+                    const rightIndex = poolContext.familyPriority.includes(rightFamily) ? poolContext.familyPriority.indexOf(rightFamily) : 999;
+                    if (leftIndex !== rightIndex) {
+                        return leftIndex - rightIndex;
+                    }
+                    return String(left.subject_name || left.subject_code || "").localeCompare(String(right.subject_name || right.subject_code || ""));
+                });
+
+                orderedItems.forEach((item) => {
                     if (remainingHours <= 0) {
                         return;
                     }
@@ -3767,12 +4216,21 @@ const searchInput = document.getElementById("teacherSearch");
                         value: `${subjectCode}::${section.section_id}`,
                     }));
                     const suggestedHours = chosenSections.length * weeklyHours;
+                    const family = String(item.family || "").trim();
+                    const isPrimaryFamily = Boolean(poolContext.primaryFamily) && family === poolContext.primaryFamily;
                     suggestions.push({
                         poolKey,
                         poolLabel,
+                        family,
+                        familyLabel: String(item.family_label || item.family || "Compatible subject")
+                            .replace(/_/g, " ")
+                            .replace(/\b\w/g, (char) => char.toUpperCase()),
                         subjectCode,
                         subjectName: String(subject.subject_name || "Unnamed Subject"),
                         hours: suggestedHours,
+                        weeklyHours,
+                        isPrimaryFamily,
+                        priorityLabel: isPrimaryFamily ? "Primary major match" : "Compatible pool fill",
                         sections: chosenSections,
                     });
                     remainingHours -= suggestedHours;
@@ -3793,16 +4251,32 @@ const searchInput = document.getElementById("teacherSearch");
 
             const suggestedHours = suggestions.reduce((sum, item) => sum + item.hours, 0);
             const suggestedSections = suggestions.reduce((sum, item) => sum + item.sections.length, 0);
+            const primarySuggestions = suggestions.filter((item) => item.isPrimaryFamily);
+            const compatibleSuggestions = suggestions.filter((item) => !item.isPrimaryFamily);
+            const primaryLead = primarySuggestions[0] || suggestions[0];
             return {
                 state: "ready",
                 badgeText: hiringPlanSuggestionSource === "saved" ? "Saved plan match" : "Auto plan match",
-                message: "These uncovered hours match the selected specialization and fit inside the teacher's remaining capacity. You can apply them, adjust them, or ignore them before saving.",
+                message: `${primaryLead.subjectName} is planned first from the teacher's main specialization, then compatible subjects from the same hiring pool fill any remaining safe capacity using real sections.`,
                 summaryItems: [
                     { label: "Suggested Load", value: `${suggestedHours}h`, note: `${suggestedSections} sections ready to assign` },
                     { label: "Remaining After Apply", value: `${Math.max(remainingCapacityHours - suggestedHours, 0)}h`, note: `${remainingCapacityHours}h was still available before this suggestion` },
+                    { label: "Primary Start", value: primaryLead.subjectName, note: `${primarySuggestions.length} core subject suggestion${primarySuggestions.length === 1 ? "" : "s"} first` },
                     { label: "Matched Pools", value: matchedProfiles.map((profile) => suggestionPoolLabels[String(profile.group_key || "").trim()] || profile.name).join(", "), note: "Built from the current Recommended Hiring Plan" },
                 ],
                 suggestions,
+                suggestionMeta: {
+                    targetHours: snapshot.requiredHours,
+                    plannedHours: Math.min(snapshot.assignedHours + suggestedHours, snapshot.requiredHours),
+                    progressNote: compatibleSuggestions.length > 0
+                        ? `${primaryLead.subjectName} leads the plan, then ${compatibleSuggestions.length} compatible subject group${compatibleSuggestions.length === 1 ? "" : "s"} continue filling the load.`
+                        : `${primaryLead.subjectName} fills the plan with direct section assignments from the matching pool.`,
+                    metaChips: [
+                        `${snapshot.assignedHours}h already selected`,
+                        `${suggestedSections} uncovered sections ready`,
+                        `${snapshot.extraHoursAllowed ? "Extra hours enabled" : "Standard 24h target"}`,
+                    ],
+                },
             };
         };
 
@@ -3814,10 +4288,11 @@ const searchInput = document.getElementById("teacherSearch");
                 suggestionState.message,
                 suggestionState.summaryItems,
                 suggestionState.suggestions,
+                suggestionState.suggestionMeta || {},
             );
         };
 
-        const applyAssignmentSuggestion = () => {
+        const applyAssignmentSuggestion = (focusBoard = false) => {
             if (!currentAssignmentSuggestion || !currentAssignmentSuggestion.suggestions.length) {
                 return;
             }
@@ -3831,6 +4306,17 @@ const searchInput = document.getElementById("teacherSearch");
             renderSubjectPicker();
             renderSectionAssignmentBoard();
             renderAssignmentSuggestion();
+            if (focusBoard) {
+                focusSectionAssignmentBoard();
+            }
+        };
+
+        const adjustAssignmentSuggestion = () => {
+            if (!currentAssignmentSuggestion || !currentAssignmentSuggestion.suggestions.length) {
+                focusSectionAssignmentBoard();
+                return;
+            }
+            applyAssignmentSuggestion(true);
         };
 
         const loadHiringPlanSuggestion = async () => {
@@ -3840,6 +4326,12 @@ const searchInput = document.getElementById("teacherSearch");
                 "Checking the current Recommended Hiring Plan and matching uncovered hours to this teacher's specialization.",
                 [],
                 [],
+                {
+                    targetHours: standardMaxHours,
+                    plannedHours: 0,
+                    progressNote: "Looking for major-aligned uncovered sections.",
+                    metaChips: [],
+                },
             );
             try {
                 const response = await fetch("/dashboard/api/hiring-plan/effective", {
@@ -3863,6 +4355,12 @@ const searchInput = document.getElementById("teacherSearch");
                     error instanceof Error ? error.message : "Could not load the Recommended Hiring Plan.",
                     [],
                     [],
+                    {
+                        targetHours: standardMaxHours,
+                        plannedHours: 0,
+                        progressNote: "The hiring plan could not be loaded.",
+                        metaChips: [],
+                    },
                 );
             }
         };
@@ -4966,6 +5464,7 @@ const searchInput = document.getElementById("teacherSearch");
         }
 
         assignmentSuggestionApplyBtn?.addEventListener("click", applyAssignmentSuggestion);
+        assignmentSuggestionAdjustBtn?.addEventListener("click", adjustAssignmentSuggestion);
         assignmentSuggestionRefreshBtn?.addEventListener("click", loadHiringPlanSuggestion);
 
         syncSelectedQualifications();
