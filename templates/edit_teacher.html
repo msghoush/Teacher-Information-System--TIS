@@ -2967,8 +2967,8 @@ const teacherIdInput = document.getElementById("teacher_id");
                 return "physics";
             }
             if (
-                hasText(/\b(science|general science|integrated science|steam|sci|sce)\b/)
-                && !hasText(/\b(computer science|life science|life sciences|chemical science|chemical sciences|physical science)\b/)
+                hasText(/\b(science|sciences|general science|general sciences|integrated science|integrated sciences|steam|sci|sce)\b/)
+                && !hasText(/\b(computer science|computer sciences|life science|life sciences|chemical science|chemical sciences|physical science|physical sciences)\b/)
             ) {
                 return "science";
             }

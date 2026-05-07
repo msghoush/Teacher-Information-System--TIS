@@ -49,7 +49,7 @@ TEACHER_ID_PATTERN = re.compile(r"^\d{1,10}$")
 NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z\s'\-]*$")
 STANDARD_MAX_HOURS = 24
 SECTION_ASSIGNMENT_SEPARATOR = "::"
-HIRING_PLAN_POOL_LOGIC_VERSION = 15
+HIRING_PLAN_POOL_LOGIC_VERSION = 21
 
 
 def _get_scope_ids(current_user):
@@ -191,9 +191,9 @@ def _detect_hiring_subject_family_for_draft(
     if re.search(r"\b(physics|physical science|phy)\b", normalized_text):
         return "physics"
     if (
-        re.search(r"\b(science|general science|integrated science|steam)\b|\b(?:sci|sce)(?:\b|\d)", normalized_text)
+        re.search(r"\b(science|sciences|general science|general sciences|integrated science|integrated sciences|steam)\b|\b(?:sci|sce)(?:\b|\d)", normalized_text)
         and not re.search(
-            r"\b(computer science|life science|life sciences|chemical science|chemical sciences|physical science)\b",
+            r"\b(computer science|computer sciences|life science|life sciences|chemical science|chemical sciences|physical science|physical sciences)\b",
             normalized_text,
         )
     ):

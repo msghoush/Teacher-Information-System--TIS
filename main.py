@@ -131,9 +131,9 @@ def _clear_auth_session_cookies(response):
 
 
 REPORT_STANDARD_MAX_HOURS = 24
-# Version 20: Auto Match now allocates from real uncovered sections first
-# across both create/edit teacher flows before moving to secondary families.
-HIRING_PLAN_POOL_LOGIC_VERSION = 20
+# Version 21: General Science auto matching keeps Science as the lead family
+# before Biology, Chemistry, and ICT, including saved/effective plan payloads.
+HIRING_PLAN_POOL_LOGIC_VERSION = 21
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
@@ -3542,9 +3542,9 @@ def _detect_hiring_subject_family(subject_row: dict) -> str:
     if re.search(r"\b(physics|physical science|phy)\b", normalized_text):
         return "physics"
     if (
-        re.search(r"\b(science|general science|integrated science|steam)\b|\b(?:sci|sce)(?:\b|\d)", normalized_text)
+        re.search(r"\b(science|sciences|general science|general sciences|integrated science|integrated sciences|steam)\b|\b(?:sci|sce)(?:\b|\d)", normalized_text)
         and not re.search(
-            r"\b(computer science|life science|life sciences|chemical science|chemical sciences|physical science)\b",
+            r"\b(computer science|computer sciences|life science|life sciences|chemical science|chemical sciences|physical science|physical sciences)\b",
             normalized_text,
         )
     ):
@@ -3769,6 +3769,27 @@ def _recalculate_hiring_editor_profile_capacity(profile: dict) -> dict:
     return profile
 
 
+def _sort_hiring_editor_profile_items(profile: dict) -> dict:
+    group_key = _normalize_hiring_pool_group_key(str(profile.get("group_key", "") or ""))
+    family_order = HIRING_POOL_FAMILY_ORDER.get(group_key, [])
+    if not family_order:
+        return profile
+
+    family_order_map = {family: index for index, family in enumerate(family_order)}
+    profile["items"] = sorted(
+        profile.get("items", []) or [],
+        key=lambda item: (
+            family_order_map.get(
+                str(item.get("family", "") or "").strip().lower(),
+                len(family_order_map) + 1,
+            ),
+            str(item.get("subject_name", "") or "").strip().lower(),
+            str(item.get("subject_code", "") or "").strip().upper(),
+        ),
+    )
+    return profile
+
+
 def _apply_general_science_editor_rule(
     profiles: list[dict],
     unassigned_items: list[dict],
@@ -3842,7 +3863,12 @@ def _apply_general_science_editor_rule(
             deduped_profiles.append(profile)
 
     return (
-        [_recalculate_hiring_editor_profile_capacity(profile) for profile in deduped_profiles],
+        [
+            _recalculate_hiring_editor_profile_capacity(
+                _sort_hiring_editor_profile_items(profile)
+            )
+            for profile in deduped_profiles
+        ],
         retained_unassigned_items,
     )
 
