@@ -2747,7 +2747,10 @@ const teacherIdInput = document.getElementById("teacher_id");
                 baseFamilies,
             });
 
-            if (textIncludesAnyKeyword(normalizedLabel, ["english", "english literature", "literature", "language arts", "ela"])) {
+            if (textIncludesAnyKeyword(normalizedLabel, ["arabic", "arabic language", "arabic literature"])) {
+                return buildRule("arabic_major", "arabic_pool", ["arabic"], ["arabic", "islamic", "quran", "social_arabic"], "Arabic major prioritizes Arabic first");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["english", "english literature", "language arts", "ela"])) {
                 return buildRule("english_major", "english_pool", ["english"], ["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"], "English major prioritizes English first");
             }
             if (textIncludesAnyKeyword(normalizedLabel, ["ict", "computer", "computer science", "software engineering", "information technology", "technology", "computing", "programming", "informatics", "digital"])) {
@@ -2758,9 +2761,6 @@ const teacherIdInput = document.getElementById("teacher_id");
             }
             if (textIncludesAnyKeyword(normalizedLabel, ["math", "mathematics", "maths", "algebra", "geometry", "calculus", "statistics"])) {
                 return buildRule("math_major", "math_pool", ["math"], ["math", "physics"], "Math major prioritizes Math first");
-            }
-            if (textIncludesAnyKeyword(normalizedLabel, ["arabic", "arabic language", "arabic literature"])) {
-                return buildRule("arabic_major", "arabic_pool", ["arabic"], ["arabic", "islamic", "quran", "social_arabic"], "Arabic major prioritizes Arabic first");
             }
             if (textIncludesAnyKeyword(normalizedLabel, ["islamic", "islamic studies", "quran", "quranic", "hadith", "fiqh", "tawheed", "religion", "noorani", "noraniah", "qaadah"])) {
                 return buildRule("islamic_major", "arabic_pool", ["islamic", "quran"], ["islamic", "quran", "social_arabic", "arabic"], "Islamic/Quran major prioritizes Islamic first");

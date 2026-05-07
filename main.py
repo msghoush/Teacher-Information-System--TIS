@@ -1007,9 +1007,23 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
     if not normalized_major:
         return default_rule
 
+    is_arabic_major = _text_contains_any_keyword(
+        normalized_major,
+        ("arabic", "arabic language", "arabic literature"),
+    )
+    if is_arabic_major:
+        return {
+            "rule_key": "arabic_major",
+            "label": "Arabic major",
+            "pool_key": "arabic_pool",
+            "priority_families": ["arabic"],
+            "allowed_families": ["arabic", "islamic", "quran", "social_arabic"],
+            "search_all_pools": False,
+        }
+
     is_english_major = _text_contains_any_keyword(
         normalized_major,
-        ("english", "english literature", "literature", "language arts", "ela"),
+        ("english", "english literature", "language arts", "ela"),
     )
     if is_english_major:
         return {
@@ -1079,20 +1093,6 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "pool_key": "math_pool",
             "priority_families": ["math"],
             "allowed_families": ["math", "physics"],
-            "search_all_pools": False,
-        }
-
-    is_arabic_major = _text_contains_any_keyword(
-        normalized_major,
-        ("arabic", "arabic language", "arabic literature"),
-    )
-    if is_arabic_major:
-        return {
-            "rule_key": "arabic_major",
-            "label": "Arabic major",
-            "pool_key": "arabic_pool",
-            "priority_families": ["arabic"],
-            "allowed_families": ["arabic", "islamic", "quran", "social_arabic"],
             "search_all_pools": False,
         }
 
