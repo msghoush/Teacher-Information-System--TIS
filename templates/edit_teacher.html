@@ -3232,42 +3232,6 @@ const teacherIdInput = document.getElementById("teacher_id");
                 });
             };
 
-            const hasRemainingPrimaryFamilyCoverage = (poolContext, orderedItems) => {
-                const primaryFamily = String(poolContext.primaryFamily || "").trim();
-                if (!primaryFamily || remainingHours <= 0) {
-                    return false;
-                }
-                const primaryItems = orderedItems.filter((item) => {
-                    const itemFamily = String(item.family || "").trim();
-                    return itemFamily === primaryFamily;
-                });
-                return primaryItems.some((item) => {
-                    const subjectCode = String(item.subject_code || "").trim().toUpperCase();
-                    const subject = subjectChoicesByCode[subjectCode];
-                    if (!subject) {
-                        return false;
-                    }
-                    const weeklyHours = Number(subject.weekly_hours || 0);
-                    if (!Number.isFinite(weeklyHours) || weeklyHours <= 0) {
-                        return false;
-                    }
-                    if (Math.floor(remainingHours / weeklyHours) <= 0) {
-                        return false;
-                    }
-                    const plannedOpenHours = Math.max(
-                        Number(item.hours || 0)
-                            - getPersistedSectionHoursForSubject(subjectCode)
-                            - getSubjectSuggestedHours(subjectCode, weeklyHours),
-                        0,
-                    );
-                    if (plannedOpenHours < weeklyHours) {
-                        return false;
-                    }
-                    const availableSections = getAvailableUncoveredSections(subjectCode);
-                    return availableSections.length > 0;
-                });
-            };
-
             effectiveProfiles.forEach((profile) => {
                 if (remainingHours <= 0) {
                     return;
@@ -3279,6 +3243,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                     familyPriority: suggestionPoolFamilyOrder[poolKey] || [],
                     specializationLabels: [],
                 };
+                appendPrimaryFamilySuggestions(poolKey, poolLabel, poolContext);
                 const orderedItems = [...(profile.items || [])].sort((left, right) => {
                     const leftFamily = String(left.family || "").trim();
                     const rightFamily = String(right.family || "").trim();
@@ -3289,10 +3254,6 @@ const teacherIdInput = document.getElementById("teacher_id");
                     }
                     return String(left.subject_name || left.subject_code || "").localeCompare(String(right.subject_name || right.subject_code || ""));
                 });
-                appendPrimaryFamilySuggestions(poolKey, poolLabel, poolContext);
-                if (hasRemainingPrimaryFamilyCoverage(poolContext, orderedItems)) {
-                    return;
-                }
                 const compatibleItems = [];
                 orderedItems.forEach((item) => {
                     const subjectCode = String(item.subject_code || "").trim().toUpperCase();
