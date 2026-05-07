@@ -131,9 +131,9 @@ def _clear_auth_session_cookies(response):
 
 
 REPORT_STANDARD_MAX_HOURS = 24
-# Version 18: Invalidate older saved hiring-plan drafts so the latest
-# strict, deterministic auto-match logic is always regenerated.
-HIRING_PLAN_POOL_LOGIC_VERSION = 18
+# Version 19: Strict teacher-major auto match uses explicit allowed-family
+# rules and deterministic subject-first assignment.
+HIRING_PLAN_POOL_LOGIC_VERSION = 19
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
@@ -1000,7 +1000,9 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
         "rule_key": "generic_major_match",
         "label": "Generic major alignment",
         "pool_key": "",
-        "family_priority": [],
+        "priority_families": [],
+        "allowed_families": [],
+        "search_all_pools": False,
     }
     if not normalized_major:
         return default_rule
@@ -1014,7 +1016,8 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "rule_key": "english_major",
             "label": "English major",
             "pool_key": "english_pool",
-            "family_priority": [
+            "priority_families": ["english"],
+            "allowed_families": [
                 "english",
                 "social_english",
                 "social",
@@ -1023,6 +1026,7 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
                 "performing_arts",
                 "art",
             ],
+            "search_all_pools": False,
         }
 
     is_ict_major = _text_contains_any_keyword(
@@ -1045,7 +1049,9 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "rule_key": "ict_major",
             "label": "ICT / Computer Science major",
             "pool_key": "general_science_pool",
-            "family_priority": ["ict"],
+            "priority_families": ["ict"],
+            "allowed_families": ["ict"],
+            "search_all_pools": True,
         }
 
     is_physics_major = _text_contains_any_keyword(
@@ -1057,7 +1063,9 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "rule_key": "physics_major",
             "label": "Physics major",
             "pool_key": "math_pool",
-            "family_priority": ["physics", "math"],
+            "priority_families": ["math", "physics"],
+            "allowed_families": ["math", "physics"],
+            "search_all_pools": False,
         }
 
     is_math_major = _text_contains_any_keyword(
@@ -1069,7 +1077,9 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "rule_key": "math_major",
             "label": "Math major",
             "pool_key": "math_pool",
-            "family_priority": ["math", "physics"],
+            "priority_families": ["math"],
+            "allowed_families": ["math", "physics"],
+            "search_all_pools": False,
         }
 
     is_arabic_major = _text_contains_any_keyword(
@@ -1081,7 +1091,9 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "rule_key": "arabic_major",
             "label": "Arabic major",
             "pool_key": "arabic_pool",
-            "family_priority": ["arabic", "islamic", "quran", "social_arabic"],
+            "priority_families": ["arabic"],
+            "allowed_families": ["arabic", "islamic", "quran", "social_arabic"],
+            "search_all_pools": False,
         }
 
     is_islamic_major = _text_contains_any_keyword(
@@ -1105,7 +1117,9 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "rule_key": "islamic_major",
             "label": "Islamic / Quran major",
             "pool_key": "arabic_pool",
-            "family_priority": ["islamic", "quran", "social_arabic", "arabic"],
+            "priority_families": ["islamic", "quran"],
+            "allowed_families": ["islamic", "quran", "social_arabic", "arabic"],
+            "search_all_pools": False,
         }
 
     is_social_studies_major = _text_contains_any_keyword(
@@ -1126,7 +1140,9 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "rule_key": "social_studies_major",
             "label": "Social Studies major",
             "pool_key": "english_pool",
-            "family_priority": ["social_english", "social", "wellbeing", "reflection", "performing_arts", "art"],
+            "priority_families": ["social_english", "social"],
+            "allowed_families": ["social_english", "social"],
+            "search_all_pools": True,
         }
 
     is_science_major = _text_contains_any_keyword(
@@ -1147,7 +1163,9 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "rule_key": "general_science_major",
             "label": "General Science major",
             "pool_key": "general_science_pool",
-            "family_priority": ["science", "biology", "chemistry", "ict"],
+            "priority_families": ["science"],
+            "allowed_families": ["science", "biology", "chemistry", "ict"],
+            "search_all_pools": False,
         }
 
     return default_rule
@@ -2567,8 +2585,11 @@ def _build_reporting_context(
                 for index, subject_key in enumerate(ranked_subject_keys)
             }
             rule_pool_key = str(major_priority_rule.get("pool_key", "") or "")
-            rule_family_priority = list(
-                major_priority_rule.get("family_priority", []) or []
+            rule_priority_families = list(
+                major_priority_rule.get("priority_families", []) or []
+            )
+            rule_allowed_families = list(
+                major_priority_rule.get("allowed_families", []) or []
             )
             candidate_subject_family_map = {
                 key: _build_subject_priority_family(
@@ -2579,8 +2600,8 @@ def _build_reporting_context(
                 for key in ranked_subject_keys
             }
             rule_subject_keys = []
-            if rule_pool_key and rule_family_priority:
-                allowed_rule_families = set(rule_family_priority)
+            if rule_pool_key and rule_allowed_families:
+                allowed_rule_families = set(rule_allowed_families)
                 pool_subject_keys = [
                     key
                     for key in ranked_subject_keys
@@ -2592,7 +2613,7 @@ def _build_reporting_context(
                 ]
                 family_order_map = {
                     family: index
-                    for index, family in enumerate(rule_family_priority)
+                    for index, family in enumerate(rule_allowed_families)
                 }
                 rule_subject_keys = sorted(
                     pool_subject_keys,
@@ -2692,7 +2713,10 @@ def _build_reporting_context(
                 "major_priority_rule_label": major_priority_rule.get("label", ""),
                 "major_priority_pool_key": major_priority_rule.get("pool_key", ""),
                 "major_priority_family_order": list(
-                    major_priority_rule.get("family_priority", []) or []
+                    major_priority_rule.get("allowed_families", []) or []
+                ),
+                "major_priority_primary_families": list(
+                    major_priority_rule.get("priority_families", []) or []
                 ),
                 "national_section_hours": teacher_capacity_breakdown[
                     "national_section_hours"
