@@ -1005,6 +1005,26 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
     if not normalized_major:
         return default_rule
 
+    is_english_major = _text_contains_any_keyword(
+        normalized_major,
+        ("english", "english literature", "literature", "language arts", "ela"),
+    )
+    if is_english_major:
+        return {
+            "rule_key": "english_major",
+            "label": "English major",
+            "pool_key": "english_pool",
+            "family_priority": [
+                "english",
+                "social_english",
+                "social",
+                "wellbeing",
+                "reflection",
+                "performing_arts",
+                "art",
+            ],
+        }
+
     is_ict_major = _text_contains_any_keyword(
         normalized_major,
         (
@@ -1025,7 +1045,7 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "rule_key": "ict_major",
             "label": "ICT / Computer Science major",
             "pool_key": "general_science_pool",
-            "family_priority": ["ict", "science", "biology", "chemistry"],
+            "family_priority": ["ict"],
         }
 
     is_physics_major = _text_contains_any_keyword(
@@ -1037,7 +1057,7 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "rule_key": "physics_major",
             "label": "Physics major",
             "pool_key": "math_pool",
-            "family_priority": ["physics", "math", "mental_math"],
+            "family_priority": ["physics", "math"],
         }
 
     is_math_major = _text_contains_any_keyword(
@@ -1049,7 +1069,7 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "rule_key": "math_major",
             "label": "Math major",
             "pool_key": "math_pool",
-            "family_priority": ["math", "mental_math", "physics"],
+            "family_priority": ["math", "physics"],
         }
 
     is_arabic_major = _text_contains_any_keyword(
@@ -2560,6 +2580,7 @@ def _build_reporting_context(
             }
             rule_subject_keys = []
             if rule_pool_key and rule_family_priority:
+                allowed_rule_families = set(rule_family_priority)
                 pool_subject_keys = [
                     key
                     for key in ranked_subject_keys
@@ -2567,13 +2588,8 @@ def _build_reporting_context(
                         candidate_subject_family_map.get(key, "")
                     )
                     == rule_pool_key
+                    and candidate_subject_family_map.get(key, "") in allowed_rule_families
                 ]
-                if major_priority_rule.get("rule_key") == "social_studies_major":
-                    pool_subject_keys = [
-                        key
-                        for key in pool_subject_keys
-                        if candidate_subject_family_map.get(key, "") != "english"
-                    ]
                 family_order_map = {
                     family: index
                     for index, family in enumerate(rule_family_priority)
@@ -2938,6 +2954,16 @@ def _build_reporting_context(
         total_allocated_hours = min(
             homeroom_allocated_hours + sum(allocation_breakdown.values()),
             teacher_capacity_hours,
+        )
+        logging.getLogger("uvicorn.error").debug(
+            "Smart auto-plan final: teacher=%s major=%s rule=%s pool=%s allocated=%sh remaining_capacity=%sh breakdown=%s",
+            profile.get("name", "Unknown Teacher"),
+            profile.get("degree_major", "") or "-",
+            profile.get("major_priority_rule_key", "generic_major_match"),
+            profile.get("major_priority_pool_key", "") or "-",
+            total_allocated_hours,
+            max(teacher_capacity_hours - total_allocated_hours, 0),
+            allocation_breakdown,
         )
         profile["allocation_breakdown"] = allocation_breakdown
         profile["allocated_hours"] = total_allocated_hours

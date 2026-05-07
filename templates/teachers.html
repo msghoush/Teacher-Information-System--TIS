@@ -3937,14 +3937,17 @@ const searchInput = document.getElementById("teacherSearch");
                 baseFamilies,
             });
 
+            if (textIncludesAnyKeyword(normalizedLabel, ["english", "english literature", "literature", "language arts", "ela"])) {
+                return buildRule("english_major", "english_pool", ["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"], "English major prioritizes English first");
+            }
             if (textIncludesAnyKeyword(normalizedLabel, ["ict", "computer", "computer science", "software engineering", "information technology", "technology", "computing", "programming", "informatics", "digital"])) {
-                return buildRule("ict_major", "general_science_pool", ["ict", "science", "biology", "chemistry"], "ICT major prioritizes ICT first");
+                return buildRule("ict_major", "general_science_pool", ["ict"], "ICT major prioritizes ICT first and does not auto-fill other pool subjects");
             }
             if (textIncludesAnyKeyword(normalizedLabel, ["physics", "physical science"])) {
-                return buildRule("physics_major", "math_pool", ["physics", "math", "mental_math"], "Physics major prioritizes Physics first");
+                return buildRule("physics_major", "math_pool", ["physics", "math"], "Physics major prioritizes Physics first");
             }
             if (textIncludesAnyKeyword(normalizedLabel, ["math", "mathematics", "maths", "algebra", "geometry", "calculus", "statistics"])) {
-                return buildRule("math_major", "math_pool", ["math", "mental_math", "physics"], "Math major prioritizes Math first");
+                return buildRule("math_major", "math_pool", ["math", "physics"], "Math major prioritizes Math first");
             }
             if (textIncludesAnyKeyword(normalizedLabel, ["arabic", "arabic language", "arabic literature"])) {
                 return buildRule("arabic_major", "arabic_pool", ["arabic", "islamic", "quran", "social_arabic"], "Arabic major prioritizes Arabic first");
@@ -4625,14 +4628,37 @@ const searchInput = document.getElementById("teacherSearch");
                 orderedItems.forEach((item) => {
                     const subjectCode = String(item.subject_code || "").trim().toUpperCase();
                     const subject = subjectChoicesByCode[subjectCode];
+                    const itemFamily = String(item.family || "").trim();
                     if (!subject) {
-                        compatibleItems.push(item);
+                        if (poolContext.familyPriority.includes(itemFamily)) {
+                            compatibleItems.push(item);
+                        } else {
+                            console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                                reason: "family not allowed by major rule",
+                                poolKey,
+                                subjectCode,
+                                subjectName: item.subject_name,
+                                family: itemFamily,
+                                allowedFamilies: poolContext.familyPriority,
+                            });
+                        }
                         return;
                     }
                     if (itemMatchesSuggestionFamily(item, subject, poolContext.primaryFamily ? [poolContext.primaryFamily] : [])) {
                         return;
                     }
-                    if (poolContext.ruleKeys.includes("social_studies_major") && String(item.family || "").trim() === "english") {
+                    if (!poolContext.familyPriority.includes(itemFamily)) {
+                        console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                            reason: "family not allowed by major rule",
+                            poolKey,
+                            subjectCode,
+                            subjectName: item.subject_name,
+                            family: itemFamily,
+                            allowedFamilies: poolContext.familyPriority,
+                        });
+                        return;
+                    }
+                    if (poolContext.ruleKeys.includes("social_studies_major") && itemFamily === "english") {
                         console.debug(autoPlanDebugPrefix, "Skipped subject", {
                             reason: "social studies major excludes english fallback",
                             poolKey,
@@ -4739,6 +4765,17 @@ const searchInput = document.getElementById("teacherSearch");
             const primarySuggestions = suggestions.filter((item) => item.isPrimaryFamily);
             const compatibleSuggestions = suggestions.filter((item) => !item.isPrimaryFamily);
             const primaryLead = primarySuggestions[0] || suggestions[0];
+            console.debug(autoPlanDebugPrefix, "Final assigned hours", {
+                suggestedHours,
+                suggestedSections,
+                remainingCapacityHoursBeforeApply: remainingCapacityHours,
+                remainingAfterApply: Math.max(remainingCapacityHours - suggestedHours, 0),
+                primaryLead: primaryLead ? {
+                    subjectCode: primaryLead.subjectCode,
+                    subjectName: primaryLead.subjectName,
+                    family: primaryLead.family,
+                } : null,
+            });
             return {
                 state: "ready",
                 badgeText: hiringPlanSuggestionSource === "saved" ? "Saved plan match" : "Auto plan match",
