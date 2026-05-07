@@ -2966,14 +2966,17 @@ const teacherIdInput = document.getElementById("teacher_id");
             if (hasText(/\b(physics|physical science|phy)\b/)) {
                 return "physics";
             }
+            if (
+                hasText(/\b(science|general science|integrated science|steam|sci|sce)\b/)
+                && !hasText(/\b(computer science|life science|life sciences|chemical science|chemical sciences|physical science)\b/)
+            ) {
+                return "science";
+            }
             if (hasText(/\b(biology|life science|life sciences|bio)\b/)) {
                 return "biology";
             }
             if (hasText(/\b(chemistry|chemical science|chemical sciences|chem)\b/)) {
                 return "chemistry";
-            }
-            if (hasText(/\b(science|general science|steam|sci|sce)\b/)) {
-                return "science";
             }
             if (hasText(/\b(ict|information communication technology|computer|computing|technology|coding|robotics|cs)\b/)) {
                 return "ict";
@@ -3376,15 +3379,15 @@ const teacherIdInput = document.getElementById("teacher_id");
                 })
                 .filter((candidate) => Boolean(candidate))
                 .sort((left, right) => {
-                    const leftFamilyIndex = mergedAllowedFamilies.indexOf(left.family);
-                    const rightFamilyIndex = mergedAllowedFamilies.indexOf(right.family);
-                    if (leftFamilyIndex !== rightFamilyIndex) {
-                        return leftFamilyIndex - rightFamilyIndex;
-                    }
                     const leftPrimaryRank = mergedPrimaryFamilies.includes(left.family) ? 0 : 1;
                     const rightPrimaryRank = mergedPrimaryFamilies.includes(right.family) ? 0 : 1;
                     if (leftPrimaryRank !== rightPrimaryRank) {
                         return leftPrimaryRank - rightPrimaryRank;
+                    }
+                    const leftFamilyIndex = mergedAllowedFamilies.indexOf(left.family);
+                    const rightFamilyIndex = mergedAllowedFamilies.indexOf(right.family);
+                    if (leftFamilyIndex !== rightFamilyIndex) {
+                        return leftFamilyIndex - rightFamilyIndex;
                     }
                     const leftPoolIndex = matchedPoolKeys.includes(left.poolKey) ? matchedPoolKeys.indexOf(left.poolKey) : 999;
                     const rightPoolIndex = matchedPoolKeys.includes(right.poolKey) ? matchedPoolKeys.indexOf(right.poolKey) : 999;

@@ -190,12 +190,18 @@ def _detect_hiring_subject_family_for_draft(
         return "math"
     if re.search(r"\b(physics|physical science|phy)\b", normalized_text):
         return "physics"
+    if (
+        re.search(r"\b(science|general science|integrated science|steam)\b|\b(?:sci|sce)(?:\b|\d)", normalized_text)
+        and not re.search(
+            r"\b(computer science|life science|life sciences|chemical science|chemical sciences|physical science)\b",
+            normalized_text,
+        )
+    ):
+        return "science"
     if re.search(r"\b(biology|life science|life sciences)\b|\bbio(?:\b|\d)", normalized_text):
         return "biology"
     if re.search(r"\b(chemistry|chemical science|chemical sciences)\b|\bchem(?:\b|\d)", normalized_text):
         return "chemistry"
-    if re.search(r"\b(science|general science|steam)\b|\b(?:sci|sce)(?:\b|\d)", normalized_text):
-        return "science"
     if re.search(r"\b(ict|information communication technology|computer|computing|technology|coding|robotics)\b|\bcs(?:\b|\d)", normalized_text):
         return "ict"
     if re.search(r"\b(pe|physical education|sport|fitness)\b", normalized_text):

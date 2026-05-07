@@ -2602,9 +2602,30 @@ def _build_reporting_context(
             rule_subject_keys = []
             if rule_pool_key and rule_allowed_families:
                 allowed_rule_families = set(rule_allowed_families)
+                rule_candidate_subject_keys = list(ranked_subject_keys)
+                if major_priority_rule.get("rule_key") == "general_science_major":
+                    seen_rule_candidate_keys = set(rule_candidate_subject_keys)
+                    for demand_subject_key, demand_subject in subject_demand_map.items():
+                        if demand_subject_key in seen_rule_candidate_keys:
+                            continue
+                        demand_subject_family = _build_subject_priority_family(
+                            subject_name=demand_subject["subject_name"],
+                            subject_key=demand_subject_key,
+                            subject_code=demand_subject.get("subject_code", ""),
+                        )
+                        if (
+                            HIRING_COMPATIBILITY_GROUPS.get(demand_subject_family)
+                            == rule_pool_key
+                            and demand_subject_family in allowed_rule_families
+                        ):
+                            rule_candidate_subject_keys.append(demand_subject_key)
+                            seen_rule_candidate_keys.add(demand_subject_key)
+                            candidate_subject_family_map[demand_subject_key] = (
+                                demand_subject_family
+                            )
                 pool_subject_keys = [
                     key
-                    for key in ranked_subject_keys
+                    for key in rule_candidate_subject_keys
                     if HIRING_COMPATIBILITY_GROUPS.get(
                         candidate_subject_family_map.get(key, "")
                     )
@@ -2623,6 +2644,8 @@ def _build_reporting_context(
                             len(family_order_map) + 1,
                         ),
                         ranked_index_by_key.get(key, 999),
+                        -subject_demand_map[key]["required_hours"],
+                        subject_demand_map[key]["subject_name"],
                     ),
                 )
 
@@ -3518,12 +3541,18 @@ def _detect_hiring_subject_family(subject_row: dict) -> str:
         return "math"
     if re.search(r"\b(physics|physical science|phy)\b", normalized_text):
         return "physics"
+    if (
+        re.search(r"\b(science|general science|integrated science|steam)\b|\b(?:sci|sce)(?:\b|\d)", normalized_text)
+        and not re.search(
+            r"\b(computer science|life science|life sciences|chemical science|chemical sciences|physical science)\b",
+            normalized_text,
+        )
+    ):
+        return "science"
     if re.search(r"\b(biology|life science|life sciences)\b|\bbio(?:\b|\d)", normalized_text):
         return "biology"
     if re.search(r"\b(chemistry|chemical science|chemical sciences)\b|\bchem(?:\b|\d)", normalized_text):
         return "chemistry"
-    if re.search(r"\b(science|general science|steam)\b|\b(?:sci|sce)(?:\b|\d)", normalized_text):
-        return "science"
     if re.search(r"\b(ict|information communication technology|computer|computing|technology|coding|robotics)\b|\bcs(?:\b|\d)", normalized_text):
         return "ict"
     if re.search(r"\b(pe|physical education|sport|fitness)\b", normalized_text):
