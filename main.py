@@ -1106,7 +1106,7 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "rule_key": "social_studies_major",
             "label": "Social Studies major",
             "pool_key": "english_pool",
-            "family_priority": ["social_english", "social", "english", "wellbeing", "reflection", "performing_arts", "art"],
+            "family_priority": ["social_english", "social", "wellbeing", "reflection", "performing_arts", "art"],
         }
 
     is_science_major = _text_contains_any_keyword(
@@ -2568,6 +2568,12 @@ def _build_reporting_context(
                     )
                     == rule_pool_key
                 ]
+                if major_priority_rule.get("rule_key") == "social_studies_major":
+                    pool_subject_keys = [
+                        key
+                        for key in pool_subject_keys
+                        if candidate_subject_family_map.get(key, "") != "english"
+                    ]
                 family_order_map = {
                     family: index
                     for index, family in enumerate(rule_family_priority)
