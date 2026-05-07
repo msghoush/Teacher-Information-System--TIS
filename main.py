@@ -1043,6 +1043,71 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "search_all_pools": False,
         }
 
+    is_art_major = _text_contains_any_keyword(
+        normalized_major,
+        ("art", "art education", "visual art", "visual arts", "drawing", "painting"),
+    )
+    if is_art_major:
+        return {
+            "rule_key": "art_major",
+            "label": "Art major",
+            "pool_key": "english_pool",
+            "priority_families": ["art"],
+            "allowed_families": ["art"],
+            "search_all_pools": False,
+        }
+
+    is_performing_arts_major = _text_contains_any_keyword(
+        normalized_major,
+        (
+            "performing arts",
+            "performance",
+            "music",
+            "music education",
+            "drama",
+            "theatre",
+            "theater",
+            "dance",
+        ),
+    )
+    if is_performing_arts_major:
+        return {
+            "rule_key": "performing_arts_major",
+            "label": "Performing Arts major",
+            "pool_key": "english_pool",
+            "priority_families": ["performing_arts"],
+            "allowed_families": ["performing_arts", "art", "reflection", "wellbeing"],
+            "search_all_pools": False,
+        }
+
+    is_reflection_major = _text_contains_any_keyword(
+        normalized_major,
+        ("reflection", "reflective", "advisory", "character education"),
+    )
+    if is_reflection_major:
+        return {
+            "rule_key": "reflection_major",
+            "label": "Reflection major",
+            "pool_key": "english_pool",
+            "priority_families": ["reflection"],
+            "allowed_families": ["reflection", "wellbeing", "performing_arts", "art"],
+            "search_all_pools": False,
+        }
+
+    is_wellbeing_major = _text_contains_any_keyword(
+        normalized_major,
+        ("wellbeing", "well being", "health", "sel", "life skills"),
+    )
+    if is_wellbeing_major:
+        return {
+            "rule_key": "wellbeing_major",
+            "label": "Well Being major",
+            "pool_key": "english_pool",
+            "priority_families": ["wellbeing"],
+            "allowed_families": ["wellbeing", "reflection", "performing_arts", "art"],
+            "search_all_pools": False,
+        }
+
     is_ict_major = _text_contains_any_keyword(
         normalized_major,
         (

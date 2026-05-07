@@ -2753,6 +2753,18 @@ const teacherIdInput = document.getElementById("teacher_id");
             if (textIncludesAnyKeyword(normalizedLabel, ["english", "english literature", "language arts", "ela"])) {
                 return buildRule("english_major", "english_pool", ["english"], ["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"], "English major prioritizes English first");
             }
+            if (textIncludesAnyKeyword(normalizedLabel, ["art", "art education", "visual art", "visual arts", "drawing", "painting"])) {
+                return buildRule("art_major", "english_pool", ["art"], ["art"], "Art Education only auto-matches Art");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["performing arts", "performance", "music", "music education", "drama", "theatre", "theater", "dance"])) {
+                return buildRule("performing_arts_major", "english_pool", ["performing_arts"], ["performing_arts", "art", "reflection", "wellbeing"], "Performing Arts auto-matches creative/student-life subjects only");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["reflection", "reflective", "advisory", "character education"])) {
+                return buildRule("reflection_major", "english_pool", ["reflection"], ["reflection", "wellbeing", "performing_arts", "art"], "Reflection auto-matches student-life subjects only");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["wellbeing", "well being", "health", "sel", "life skills"])) {
+                return buildRule("wellbeing_major", "english_pool", ["wellbeing"], ["wellbeing", "reflection", "performing_arts", "art"], "Well Being auto-matches student-life subjects only");
+            }
             if (textIncludesAnyKeyword(normalizedLabel, ["ict", "computer", "computer science", "software engineering", "information technology", "technology", "computing", "programming", "informatics", "digital"])) {
                 return buildRule("ict_major", "general_science_pool", ["ict"], ["ict"], "ICT major prioritizes ICT first and does not auto-fill other pool subjects", true);
             }
@@ -2774,9 +2786,17 @@ const teacherIdInput = document.getElementById("teacher_id");
 
             const primaryFamily = baseFamilies[0] || "";
             const poolKey = suggestionFamilyPoolMap[primaryFamily] || "";
-            const defaultAllowedFamilies = primaryFamily
+            let defaultAllowedFamilies = primaryFamily
                 ? [primaryFamily, ...(suggestionPoolFamilyOrder[poolKey] || []).filter((family) => family !== primaryFamily)]
                 : [];
+            if (primaryFamily === "art") {
+                defaultAllowedFamilies = ["art"];
+            } else if (["performing_arts", "reflection", "wellbeing"].includes(primaryFamily)) {
+                defaultAllowedFamilies = [
+                    primaryFamily,
+                    ...["performing_arts", "art", "reflection", "wellbeing"].filter((family) => family !== primaryFamily),
+                ];
+            }
             return {
                 ruleKey: "generic_major_match",
                 poolKey,
