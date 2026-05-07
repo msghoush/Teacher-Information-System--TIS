@@ -4386,6 +4386,63 @@ const searchInput = document.getElementById("teacherSearch");
                 };
             }
 
+            const getMatchedPlanItems = () => {
+                const planItems = [];
+                (hiringPlanSuggestionPlan?.profiles || []).forEach((profile, profileIndex) => {
+                    const profilePoolKey = String(profile?.group_key || "").trim();
+                    if (!searchAllPools && !matchedPoolKeys.includes(profilePoolKey)) {
+                        return;
+                    }
+                    (profile?.items || []).forEach((item, itemIndex) => {
+                        const rawFamily = String(item?.family || "").trim().toLowerCase();
+                        const family = rawFamily || detectSuggestionSubjectFamily({
+                            subject_code: item?.subject_code || "",
+                            subject_name: item?.subject_name || "",
+                        });
+                        const poolKey = suggestionFamilyPoolMap[family] || profilePoolKey;
+                        if (!family || !mergedAllowedFamilies.includes(family)) {
+                            return;
+                        }
+                        if (!searchAllPools && !matchedPoolKeys.includes(poolKey) && !matchedPoolKeys.includes(profilePoolKey)) {
+                            return;
+                        }
+                        planItems.push({
+                            item,
+                            family,
+                            poolKey,
+                            poolLabel: suggestionPoolLabels[poolKey] || suggestionPoolLabels[profilePoolKey] || "Matching Pool",
+                            subjectCode: String(item?.subject_code || "").trim().toUpperCase(),
+                            subjectName: normalizeAlignmentText(item?.subject_name || ""),
+                            hours: Number(item?.hours || 0),
+                            sortIndex: planItems.length,
+                            profileIndex,
+                            itemIndex,
+                        });
+                    });
+                });
+                return planItems.sort((left, right) => {
+                    const leftPrimaryRank = mergedPrimaryFamilies.includes(left.family) ? 0 : 1;
+                    const rightPrimaryRank = mergedPrimaryFamilies.includes(right.family) ? 0 : 1;
+                    if (leftPrimaryRank !== rightPrimaryRank) {
+                        return leftPrimaryRank - rightPrimaryRank;
+                    }
+                    if (left.profileIndex !== right.profileIndex) {
+                        return left.profileIndex - right.profileIndex;
+                    }
+                    return left.itemIndex - right.itemIndex;
+                });
+            };
+
+            const matchedPlanItems = getMatchedPlanItems();
+            const findPlanItemForSubject = (subject, detectedFamily) => {
+                const subjectCode = String(subject?.subject_code || "").trim().toUpperCase();
+                const subjectName = normalizeAlignmentText(subject?.subject_name || "");
+                return matchedPlanItems.find((planItem) => planItem.subjectCode && planItem.subjectCode === subjectCode)
+                    || matchedPlanItems.find((planItem) => planItem.subjectName && planItem.subjectName === subjectName)
+                    || matchedPlanItems.find((planItem) => planItem.family === detectedFamily)
+                    || null;
+            };
+
             const suggestions = [];
             let remainingHours = remainingCapacityHours;
             const suggestedSectionValues = new Set();
@@ -4537,7 +4594,9 @@ const searchInput = document.getElementById("teacherSearch");
                     if (!subjectCode) {
                         return null;
                     }
-                    const family = detectSuggestionSubjectFamily(subject);
+                    const detectedFamily = detectSuggestionSubjectFamily(subject);
+                    const planItem = findPlanItemForSubject(subject, detectedFamily);
+                    const family = planItem?.family || detectedFamily;
                     const poolKey = suggestionFamilyPoolMap[family] || "";
                     if (!family || !mergedAllowedFamilies.includes(family)) {
                         return null;
@@ -4562,6 +4621,9 @@ const searchInput = document.getElementById("teacherSearch");
                         weeklyHours,
                         availableSections,
                         availableHours: availableSections.length * weeklyHours,
+                        planItem,
+                        planSortIndex: planItem?.sortIndex ?? 9999,
+                        planHours: Number(planItem?.hours || 0),
                     };
                 })
                 .filter((candidate) => Boolean(candidate))
@@ -4570,6 +4632,9 @@ const searchInput = document.getElementById("teacherSearch");
                     const rightPrimaryRank = mergedPrimaryFamilies.includes(right.family) ? 0 : 1;
                     if (leftPrimaryRank !== rightPrimaryRank) {
                         return leftPrimaryRank - rightPrimaryRank;
+                    }
+                    if (left.planSortIndex !== right.planSortIndex) {
+                        return left.planSortIndex - right.planSortIndex;
                     }
                     const leftFamilyIndex = mergedAllowedFamilies.indexOf(left.family);
                     const rightFamilyIndex = mergedAllowedFamilies.indexOf(right.family);
@@ -4589,15 +4654,46 @@ const searchInput = document.getElementById("teacherSearch");
                 searchAllPools,
                 primaryFamilies: mergedPrimaryFamilies,
                 allowedFamilies: mergedAllowedFamilies,
+                planItems: matchedPlanItems.map((planItem) => ({
+                    poolKey: planItem.poolKey,
+                    subjectCode: planItem.subjectCode,
+                    subjectName: planItem.item?.subject_name,
+                    family: planItem.family,
+                    hours: planItem.hours,
+                    sortIndex: planItem.sortIndex,
+                })),
                 candidates: candidateSubjects.map((candidate) => ({
                     poolKey: candidate.poolKey,
                     subjectCode: candidate.subjectCode,
                     subjectName: String(candidate.subject.subject_name || "Unnamed Subject"),
                     family: candidate.family,
+                    planSortIndex: candidate.planSortIndex,
+                    planHours: candidate.planHours,
                     availableSections: candidate.availableSections.map((section) => section.label),
                     availableHours: candidate.availableHours,
                 })),
             });
+
+            const primaryPlanItems = matchedPlanItems.filter((planItem) => {
+                return mergedPrimaryFamilies.includes(planItem.family) && Number(planItem.hours || 0) > 0;
+            });
+            const primaryCandidates = candidateSubjects.filter((candidate) => mergedPrimaryFamilies.includes(candidate.family));
+            const hasSciencePriorityPlan = matchedPoolKeys.includes("general_science_pool") && mergedPrimaryFamilies.includes("science");
+            if (hasSciencePriorityPlan && primaryPlanItems.length > 0 && primaryCandidates.length === 0) {
+                const primaryPlanLabel = primaryPlanItems
+                    .map((planItem) => `${planItem.item?.subject_name || getSuggestionFamilyLabel(planItem.family)} (${planItem.hours}h)`)
+                    .join(", ");
+                return {
+                    state: "empty",
+                    badgeText: "Science priority blocked",
+                    message: `${primaryPlanLabel} is first in the General Science Pool, but no available uncovered Science sections were found for assignment. Auto Match will not skip to Biology, Chemistry, or ICT while Science remains in the pool.`,
+                    summaryItems: [
+                        { label: "Priority Pool Item", value: primaryPlanLabel, note: "Resolve this before compatible pool fill" },
+                        { label: "Matched Pools", value: matchedPoolLabels.join(", "), note: "Science must be exhausted before Biology, Chemistry, or ICT" },
+                    ],
+                    suggestions: [],
+                };
+            }
 
             if (candidateSubjects.length === 0) {
                 return {
@@ -4611,7 +4707,6 @@ const searchInput = document.getElementById("teacherSearch");
                 };
             }
 
-            const primaryCandidates = candidateSubjects.filter((candidate) => mergedPrimaryFamilies.includes(candidate.family));
             const secondaryCandidates = candidateSubjects.filter((candidate) => !mergedPrimaryFamilies.includes(candidate.family));
 
             primaryCandidates.forEach((candidate) => {
