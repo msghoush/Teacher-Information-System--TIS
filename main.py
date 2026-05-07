@@ -131,9 +131,9 @@ def _clear_auth_session_cookies(response):
 
 
 REPORT_STANDARD_MAX_HOURS = 24
-# Version 19: Strict teacher-major auto match uses explicit allowed-family
-# rules and deterministic subject-first assignment.
-HIRING_PLAN_POOL_LOGIC_VERSION = 19
+# Version 20: Auto Match now allocates from real uncovered sections first
+# across both create/edit teacher flows before moving to secondary families.
+HIRING_PLAN_POOL_LOGIC_VERSION = 20
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},

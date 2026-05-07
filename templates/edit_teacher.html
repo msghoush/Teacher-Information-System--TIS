@@ -2720,17 +2720,88 @@ const teacherIdInput = document.getElementById("teacher_id");
             return familyCandidates;
         };
 
-        const resolveSuggestionContextForSpecialization = (option) => {
-            const familyCandidates = getSuggestedFamilyCandidatesForSpecialization(option);
-            const primaryFamily = familyCandidates[0] || "";
+        const textIncludesAnyKeyword = (normalizedText, keywords = []) => {
+            if (!normalizedText) {
+                return false;
+            }
+            return keywords.some((keyword) => {
+                const normalizedKeyword = normalizeAlignmentText(keyword);
+                return normalizedKeyword
+                    && (normalizedText === normalizedKeyword || ` ${normalizedText} `.includes(` ${normalizedKeyword} `));
+            });
+        };
+
+        const resolveSmartAutoPlanRuleForSpecialization = (option) => {
+            const label = String(option?.label || "").trim();
+            const normalizedLabel = normalizeAlignmentText(label);
+            const baseFamilies = getSuggestedFamilyCandidatesForSpecialization(option);
+            const buildRule = (ruleKey, poolKey, priorityFamilies, allowedFamilies, description, searchAllPools = false) => ({
+                ruleKey,
+                poolKey,
+                poolLabel: suggestionPoolLabels[poolKey] || "",
+                label,
+                description,
+                primaryFamilies: [...priorityFamilies],
+                allowedFamilies: [...allowedFamilies],
+                searchAllPools,
+                baseFamilies,
+            });
+
+            if (textIncludesAnyKeyword(normalizedLabel, ["english", "english literature", "literature", "language arts", "ela"])) {
+                return buildRule("english_major", "english_pool", ["english"], ["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"], "English major prioritizes English first");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["ict", "computer", "computer science", "software engineering", "information technology", "technology", "computing", "programming", "informatics", "digital"])) {
+                return buildRule("ict_major", "general_science_pool", ["ict"], ["ict"], "ICT major prioritizes ICT first and does not auto-fill other pool subjects", true);
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["physics", "physical science"])) {
+                return buildRule("physics_major", "math_pool", ["math", "physics"], ["math", "physics"], "Physics major prioritizes Math and Physics");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["math", "mathematics", "maths", "algebra", "geometry", "calculus", "statistics"])) {
+                return buildRule("math_major", "math_pool", ["math"], ["math", "physics"], "Math major prioritizes Math first");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["arabic", "arabic language", "arabic literature"])) {
+                return buildRule("arabic_major", "arabic_pool", ["arabic"], ["arabic", "islamic", "quran", "social_arabic"], "Arabic major prioritizes Arabic first");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["islamic", "islamic studies", "quran", "quranic", "hadith", "fiqh", "tawheed", "religion", "noorani", "noraniah", "qaadah"])) {
+                return buildRule("islamic_major", "arabic_pool", ["islamic", "quran"], ["islamic", "quran", "social_arabic", "arabic"], "Islamic/Quran major prioritizes Islamic first");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["social studies", "social", "history", "geography", "economics", "economic", "humanities", "civics"])) {
+                return buildRule("social_studies_major", "english_pool", ["social_english", "social"], ["social_english", "social"], "Social Studies major only auto-matches Social Studies", true);
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["science", "general science", "biology", "chemistry", "biochemistry", "life science", "laboratory", "lab"])) {
+                return buildRule("general_science_major", "general_science_pool", ["science"], ["science", "biology", "chemistry", "ict"], "Science-related major prioritizes Science first");
+            }
+
+            const primaryFamily = baseFamilies[0] || "";
             const poolKey = suggestionFamilyPoolMap[primaryFamily] || "";
+            const defaultAllowedFamilies = primaryFamily
+                ? [primaryFamily, ...(suggestionPoolFamilyOrder[poolKey] || []).filter((family) => family !== primaryFamily)]
+                : [];
+            return {
+                ruleKey: "generic_major_match",
+                poolKey,
+                poolLabel: suggestionPoolLabels[poolKey] || "",
+                label,
+                description: "Generic specialization alignment",
+                primaryFamilies: primaryFamily ? [primaryFamily] : [],
+                allowedFamilies: defaultAllowedFamilies,
+                searchAllPools: false,
+                baseFamilies,
+            };
+        };
+
+        const resolveSuggestionContextForSpecialization = (option) => {
+            const rule = resolveSmartAutoPlanRuleForSpecialization(option);
             return {
                 optionKey: String(option?.key || "").trim(),
                 label: String(option?.label || "").trim(),
-                poolKey,
-                poolLabel: suggestionPoolLabels[poolKey] || "",
-                primaryFamily,
-                familyCandidates,
+                poolKey: rule.poolKey,
+                poolLabel: rule.poolLabel,
+                primaryFamilies: rule.primaryFamilies,
+                allowedFamilies: rule.allowedFamilies,
+                searchAllPools: Boolean(rule.searchAllPools),
+                ruleKey: rule.ruleKey,
+                ruleDescription: rule.description,
             };
         };
 
@@ -2762,24 +2833,41 @@ const teacherIdInput = document.getElementById("teacher_id");
                     contextMap[context.poolKey] = {
                         poolKey: context.poolKey,
                         poolLabel: context.poolLabel,
-                        primaryFamily: context.primaryFamily,
-                        familyPriority: [],
+                        primaryFamilies: [],
+                        allowedFamilies: [],
+                        searchAllPools: false,
                         specializationLabels: [],
+                        ruleKeys: [],
                     };
                 }
                 contextMap[context.poolKey].specializationLabels.push(context.label);
-                context.familyCandidates.forEach((family) => {
-                    if (family && !contextMap[context.poolKey].familyPriority.includes(family)) {
-                        contextMap[context.poolKey].familyPriority.push(family);
+                if (context.ruleKey && !contextMap[context.poolKey].ruleKeys.includes(context.ruleKey)) {
+                    contextMap[context.poolKey].ruleKeys.push(context.ruleKey);
+                }
+                (context.primaryFamilies || []).forEach((family) => {
+                    if (family && !contextMap[context.poolKey].primaryFamilies.includes(family)) {
+                        contextMap[context.poolKey].primaryFamilies.push(family);
                     }
                 });
+                (context.allowedFamilies || []).forEach((family) => {
+                    if (family && !contextMap[context.poolKey].allowedFamilies.includes(family)) {
+                        contextMap[context.poolKey].allowedFamilies.push(family);
+                    }
+                });
+                if (context.searchAllPools) {
+                    contextMap[context.poolKey].searchAllPools = true;
+                }
             });
 
             Object.values(contextMap).forEach((context) => {
-                (suggestionPoolFamilyOrder[context.poolKey] || []).forEach((family) => {
-                    if (!context.familyPriority.includes(family)) {
-                        context.familyPriority.push(family);
-                    }
+                console.debug(autoPlanDebugPrefix, "Selected major rule", {
+                    poolKey: context.poolKey,
+                    poolLabel: context.poolLabel,
+                    ruleKeys: context.ruleKeys,
+                    primaryFamilies: context.primaryFamilies,
+                    allowedFamilies: context.allowedFamilies,
+                    searchAllPools: context.searchAllPools,
+                    specializationLabels: context.specializationLabels,
                 });
             });
             return contextMap;
@@ -3082,28 +3170,28 @@ const teacherIdInput = document.getElementById("teacher_id");
             }
 
             const poolContextMap = getSelectedPoolContextMap();
-            const matchedProfiles = (hiringPlanSuggestionPlan.profiles || [])
-                .filter((profile) => matchedPoolKeys.includes(String(profile.group_key || "").trim()))
-                .sort((left, right) => {
-                    const leftPoolKey = String(left.group_key || "").trim();
-                    const rightPoolKey = String(right.group_key || "").trim();
-                    return matchedPoolKeys.indexOf(leftPoolKey) - matchedPoolKeys.indexOf(rightPoolKey);
+            const matchedPoolLabels = matchedPoolKeys.map((poolKey) => suggestionPoolLabels[poolKey] || poolKey);
+            const searchAllPools = Object.values(poolContextMap).some((context) => Boolean(context.searchAllPools));
+            const mergedPrimaryFamilies = [];
+            const mergedAllowedFamilies = [];
+            Object.values(poolContextMap).forEach((context) => {
+                (context.primaryFamilies || []).forEach((family) => {
+                    if (family && !mergedPrimaryFamilies.includes(family)) {
+                        mergedPrimaryFamilies.push(family);
+                    }
                 });
-            const effectiveProfiles = matchedProfiles.length > 0
-                ? matchedProfiles
-                : matchedPoolKeys.map((poolKey) => ({
-                    group_key: poolKey,
-                    name: suggestionPoolLabels[poolKey] || "Matching Pool",
-                    items: [],
-                }));
-            if (effectiveProfiles.length === 0) {
+                (context.allowedFamilies || []).forEach((family) => {
+                    if (family && !mergedAllowedFamilies.includes(family)) {
+                        mergedAllowedFamilies.push(family);
+                    }
+                });
+            });
+            if (mergedAllowedFamilies.length === 0) {
                 return {
                     state: "empty",
-                    badgeText: "No matching pool hours",
-                    message: "The matching hiring pool is available, but it does not currently have uncovered hours left for this teacher.",
-                    summaryItems: [
-                        { label: "Matched Pools", value: matchedPoolKeys.map((poolKey) => suggestionPoolLabels[poolKey] || poolKey).join(", "), note: "No uncovered hours remain in those pools" },
-                    ],
+                    badgeText: "No rule families",
+                    message: "The selected specialization did not resolve to any allowed subject families for Auto Match.",
+                    summaryItems: [],
                     suggestions: [],
                 };
             }
@@ -3111,7 +3199,6 @@ const teacherIdInput = document.getElementById("teacher_id");
             const suggestions = [];
             let remainingHours = remainingCapacityHours;
             const suggestedSectionValues = new Set();
-            const processedPrimaryPoolKeys = new Set();
 
             const getSubjectSuggestedHours = (subjectCode, weeklyHours) => {
                 const normalizedCode = String(subjectCode || "").trim().toUpperCase();
@@ -3134,7 +3221,18 @@ const teacherIdInput = document.getElementById("teacher_id");
                     return !persistedSectionAssignmentValues.has(optionValue)
                         && !suggestedSectionValues.has(optionValue);
                 });
-                return rotateSuggestionItems(availableSections);
+                return availableSections.sort((left, right) => {
+                    const leftStatus = String(left.class_status || "").trim().toLowerCase();
+                    const rightStatus = String(right.class_status || "").trim().toLowerCase();
+                    const leftStatusRank = leftStatus === "current" ? 0 : 1;
+                    const rightStatusRank = rightStatus === "current" ? 0 : 1;
+                    if (leftStatusRank !== rightStatusRank) {
+                        return leftStatusRank - rightStatusRank;
+                    }
+                    return String(left.label || left.section_label || "").localeCompare(
+                        String(right.label || right.section_label || "")
+                    );
+                });
             };
 
             const appendSubjectSuggestion = ({
@@ -3147,18 +3245,42 @@ const teacherIdInput = document.getElementById("teacher_id");
                 maxSections,
             }) => {
                 if (remainingHours <= 0) {
+                    console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                        reason: "no remaining capacity",
+                        poolKey,
+                        subjectCode: String(subject?.subject_code || "").trim().toUpperCase(),
+                        subjectName: String(subject?.subject_name || "Unnamed Subject"),
+                    });
                     return;
                 }
                 const subjectCode = String(subject?.subject_code || "").trim().toUpperCase();
                 if (!subjectCode) {
+                    console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                        reason: "missing subject code",
+                        poolKey,
+                        subjectName: String(subject?.subject_name || "Unnamed Subject"),
+                    });
                     return;
                 }
                 const weeklyHours = Number(subject?.weekly_hours || 0);
                 if (!Number.isFinite(weeklyHours) || weeklyHours <= 0) {
+                    console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                        reason: "invalid weekly hours",
+                        poolKey,
+                        subjectCode,
+                        subjectName: String(subject?.subject_name || "Unnamed Subject"),
+                        weeklyHours,
+                    });
                     return;
                 }
                 const availableSections = getAvailableUncoveredSections(subjectCode);
                 if (availableSections.length === 0) {
+                    console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                        reason: "no available uncovered sections",
+                        poolKey,
+                        subjectCode,
+                        subjectName: String(subject?.subject_name || "Unnamed Subject"),
+                    });
                     return;
                 }
                 const maxSectionsForCapacity = Math.floor(remainingHours / weeklyHours);
@@ -3171,6 +3293,15 @@ const teacherIdInput = document.getElementById("teacher_id");
                     maxSectionsForCapacity,
                 );
                 if (sectionsToTake <= 0) {
+                    console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                        reason: "remaining capacity cannot fit another section",
+                        poolKey,
+                        subjectCode,
+                        subjectName: String(subject?.subject_name || "Unnamed Subject"),
+                        remainingHours,
+                        weeklyHours,
+                        maxSections,
+                    });
                     return;
                 }
 
@@ -3196,120 +3327,124 @@ const teacherIdInput = document.getElementById("teacher_id");
                     priorityLabel,
                     sections: chosenSections,
                 });
+                console.debug(autoPlanDebugPrefix, "Selected subject", {
+                    poolKey,
+                    subjectCode,
+                    subjectName: String(subject.subject_name || "Unnamed Subject"),
+                    family,
+                    isPrimaryFamily,
+                    priorityLabel,
+                    suggestedHours,
+                    chosenSections: chosenSections.map((section) => section.label),
+                    remainingHoursBefore: remainingHours,
+                });
                 remainingHours -= suggestedHours;
             };
 
-            const appendPrimaryFamilySuggestions = (poolKey, poolLabel, poolContext) => {
-                const primaryFamily = String(poolContext.primaryFamily || "").trim();
-                if (!primaryFamily || processedPrimaryPoolKeys.has(poolKey) || remainingHours <= 0) {
-                    return;
-                }
-                processedPrimaryPoolKeys.add(poolKey);
-                const primarySubjects = subjectChoices
-                    .filter((subject) => {
-                        const subjectFamily = detectSuggestionSubjectFamily(subject);
-                        return subjectFamily === primaryFamily
-                            && suggestionFamilyPoolMap[subjectFamily] === poolKey;
-                    })
-                    .sort((left, right) => {
-                        const leftGrade = getGradeSortValue(getGradeKey(left.grade));
-                        const rightGrade = getGradeSortValue(getGradeKey(right.grade));
-                        if (leftGrade !== rightGrade) {
-                            return leftGrade - rightGrade;
-                        }
-                        return String(left.subject_code || "").localeCompare(String(right.subject_code || ""));
-                    });
-                rotateSuggestionItems(primarySubjects).forEach((subject) => {
-                    appendSubjectSuggestion({
-                        poolKey,
-                        poolLabel,
-                        subject,
-                        family: primaryFamily,
-                        isPrimaryFamily: true,
-                        priorityLabel: "Primary major match",
-                        maxSections: Infinity,
-                    });
-                });
-            };
-
-            effectiveProfiles.forEach((profile) => {
-                if (remainingHours <= 0) {
-                    return;
-                }
-                const poolKey = String(profile.group_key || "").trim();
-                const poolLabel = suggestionPoolLabels[poolKey] || String(profile.name || "Matching Pool");
-                const poolContext = poolContextMap[poolKey] || {
-                    primaryFamily: "",
-                    familyPriority: suggestionPoolFamilyOrder[poolKey] || [],
-                    specializationLabels: [],
-                };
-                appendPrimaryFamilySuggestions(poolKey, poolLabel, poolContext);
-                const orderedItems = [...(profile.items || [])].sort((left, right) => {
-                    const leftFamily = String(left.family || "").trim();
-                    const rightFamily = String(right.family || "").trim();
-                    const leftIndex = poolContext.familyPriority.includes(leftFamily) ? poolContext.familyPriority.indexOf(leftFamily) : 999;
-                    const rightIndex = poolContext.familyPriority.includes(rightFamily) ? poolContext.familyPriority.indexOf(rightFamily) : 999;
-                    if (leftIndex !== rightIndex) {
-                        return leftIndex - rightIndex;
+            const candidateSubjects = subjectChoices
+                .map((subject) => {
+                    const subjectCode = String(subject.subject_code || "").trim().toUpperCase();
+                    if (!subjectCode) {
+                        return null;
                     }
-                    return String(left.subject_name || left.subject_code || "").localeCompare(String(right.subject_name || right.subject_code || ""));
-                });
-                const compatibleItems = [];
-                orderedItems.forEach((item) => {
-                    const subjectCode = String(item.subject_code || "").trim().toUpperCase();
-                    const subject = subjectChoicesByCode[subjectCode];
-                    if (!subject) {
-                        compatibleItems.push(item);
-                        return;
+                    const family = detectSuggestionSubjectFamily(subject);
+                    const poolKey = suggestionFamilyPoolMap[family] || "";
+                    if (!family || !mergedAllowedFamilies.includes(family)) {
+                        return null;
                     }
-                    if (itemMatchesSuggestionFamily(item, subject, poolContext.primaryFamily ? [poolContext.primaryFamily] : [])) {
-                        return;
-                    }
-                    compatibleItems.push(item);
-                });
-
-                rotateSuggestionItems(compatibleItems).forEach((item) => {
-                    if (remainingHours <= 0) {
-                        return;
-                    }
-                    const subjectCode = String(item.subject_code || "").trim().toUpperCase();
-                    const subject = subjectChoicesByCode[subjectCode];
-                    if (!subject) {
-                        return;
+                    if (!searchAllPools && !matchedPoolKeys.includes(poolKey)) {
+                        return null;
                     }
                     const weeklyHours = Number(subject.weekly_hours || 0);
                     if (!Number.isFinite(weeklyHours) || weeklyHours <= 0) {
-                        return;
+                        return null;
                     }
-
-                    const isPrimaryFamily = itemMatchesSuggestionFamily(
-                        item,
-                        subject,
-                        poolContext.primaryFamily ? [poolContext.primaryFamily] : [],
-                    );
-                    if (isPrimaryFamily) {
-                        return;
+                    const availableSections = getAvailableUncoveredSections(subjectCode);
+                    if (availableSections.length === 0) {
+                        return null;
                     }
-                    const plannedOpenHours = Math.max(
-                        Number(item.hours || 0)
-                            - getPersistedSectionHoursForSubject(subjectCode)
-                            - getSubjectSuggestedHours(subjectCode, weeklyHours),
-                        0,
-                    );
-                    if (!isPrimaryFamily && plannedOpenHours < weeklyHours) {
-                        return;
-                    }
-
-                    const family = String(item.family || "").trim();
-                    appendSubjectSuggestion({
+                    return {
                         poolKey,
-                        poolLabel,
-                        subject,
+                        poolLabel: suggestionPoolLabels[poolKey] || "Matching Pool",
                         family,
-                        isPrimaryFamily: false,
-                        priorityLabel: "Compatible pool fill",
-                        maxSections: Math.floor(plannedOpenHours / weeklyHours),
-                    });
+                        subject,
+                        subjectCode,
+                        weeklyHours,
+                        availableSections,
+                        availableHours: availableSections.length * weeklyHours,
+                    };
+                })
+                .filter((candidate) => Boolean(candidate))
+                .sort((left, right) => {
+                    const leftFamilyIndex = mergedAllowedFamilies.indexOf(left.family);
+                    const rightFamilyIndex = mergedAllowedFamilies.indexOf(right.family);
+                    if (leftFamilyIndex !== rightFamilyIndex) {
+                        return leftFamilyIndex - rightFamilyIndex;
+                    }
+                    const leftPrimaryRank = mergedPrimaryFamilies.includes(left.family) ? 0 : 1;
+                    const rightPrimaryRank = mergedPrimaryFamilies.includes(right.family) ? 0 : 1;
+                    if (leftPrimaryRank !== rightPrimaryRank) {
+                        return leftPrimaryRank - rightPrimaryRank;
+                    }
+                    const leftPoolIndex = matchedPoolKeys.includes(left.poolKey) ? matchedPoolKeys.indexOf(left.poolKey) : 999;
+                    const rightPoolIndex = matchedPoolKeys.includes(right.poolKey) ? matchedPoolKeys.indexOf(right.poolKey) : 999;
+                    if (leftPoolIndex !== rightPoolIndex) {
+                        return leftPoolIndex - rightPoolIndex;
+                    }
+                    return String(left.subjectCode || "").localeCompare(String(right.subjectCode || ""));
+                });
+
+            console.debug(autoPlanDebugPrefix, "Section-first candidates", {
+                matchedPools: matchedPoolLabels,
+                searchAllPools,
+                primaryFamilies: mergedPrimaryFamilies,
+                allowedFamilies: mergedAllowedFamilies,
+                candidates: candidateSubjects.map((candidate) => ({
+                    poolKey: candidate.poolKey,
+                    subjectCode: candidate.subjectCode,
+                    subjectName: String(candidate.subject.subject_name || "Unnamed Subject"),
+                    family: candidate.family,
+                    availableSections: candidate.availableSections.map((section) => section.label),
+                    availableHours: candidate.availableHours,
+                })),
+            });
+
+            if (candidateSubjects.length === 0) {
+                return {
+                    state: "empty",
+                    badgeText: "No matching sections",
+                    message: "No uncovered sections were found for the selected specialization rule.",
+                    summaryItems: [
+                        { label: "Matched Pools", value: matchedPoolLabels.join(", "), note: "No eligible uncovered sections remain for the allowed subject families" },
+                    ],
+                    suggestions: [],
+                };
+            }
+
+            const primaryCandidates = candidateSubjects.filter((candidate) => mergedPrimaryFamilies.includes(candidate.family));
+            const secondaryCandidates = candidateSubjects.filter((candidate) => !mergedPrimaryFamilies.includes(candidate.family));
+
+            primaryCandidates.forEach((candidate) => {
+                appendSubjectSuggestion({
+                    poolKey: candidate.poolKey,
+                    poolLabel: candidate.poolLabel,
+                    subject: candidate.subject,
+                    family: candidate.family,
+                    isPrimaryFamily: true,
+                    priorityLabel: "Primary major match",
+                    maxSections: Infinity,
+                });
+            });
+
+            secondaryCandidates.forEach((candidate) => {
+                appendSubjectSuggestion({
+                    poolKey: candidate.poolKey,
+                    poolLabel: candidate.poolLabel,
+                    subject: candidate.subject,
+                    family: candidate.family,
+                    isPrimaryFamily: false,
+                    priorityLabel: "Compatible pool fill",
+                    maxSections: Infinity,
                 });
             });
 
@@ -3317,9 +3452,9 @@ const teacherIdInput = document.getElementById("teacher_id");
                 return {
                     state: "empty",
                     badgeText: "Nothing available",
-                    message: "A matching pool was found, but there are no free compatible sections left to suggest inside the remaining capacity.",
+                    message: "A matching specialization rule was found, but no uncovered sections could be assigned within the remaining capacity.",
                     summaryItems: [
-                        { label: "Matched Pools", value: effectiveProfiles.map((profile) => suggestionPoolLabels[String(profile.group_key || "").trim()] || profile.name).join(", "), note: "Try another specialization or adjust the current selections" },
+                        { label: "Matched Pools", value: matchedPoolLabels.join(", "), note: "Try another specialization or adjust the current selections" },
                     ],
                     suggestions: [],
                 };
@@ -3330,23 +3465,34 @@ const teacherIdInput = document.getElementById("teacher_id");
             const primarySuggestions = suggestions.filter((item) => item.isPrimaryFamily);
             const compatibleSuggestions = suggestions.filter((item) => !item.isPrimaryFamily);
             const primaryLead = primarySuggestions[0] || suggestions[0];
+            console.debug(autoPlanDebugPrefix, "Final assigned hours", {
+                suggestedHours,
+                suggestedSections,
+                remainingCapacityHoursBeforeApply: remainingCapacityHours,
+                remainingAfterApply: Math.max(remainingCapacityHours - suggestedHours, 0),
+                primaryLead: primaryLead ? {
+                    subjectCode: primaryLead.subjectCode,
+                    subjectName: primaryLead.subjectName,
+                    family: primaryLead.family,
+                } : null,
+            });
             return {
                 state: "ready",
                 badgeText: hiringPlanSuggestionSource === "saved" ? "Saved plan match" : "Auto plan match",
-                message: `${primaryLead.subjectName} is planned first from the teacher's main specialization, then compatible subjects from the same hiring pool fill any remaining safe capacity using real sections.`,
+                message: `${primaryLead.subjectName} is planned first from the teacher's main specialization, then compatible subjects continue only after the priority subject families are exhausted.`,
                 summaryItems: [
                     { label: "Suggested Load", value: `${suggestedHours}h`, note: `${suggestedSections} sections ready to assign` },
                     { label: "Remaining After Apply", value: `${Math.max(remainingCapacityHours - suggestedHours, 0)}h`, note: `${remainingCapacityHours}h was still available before this suggestion` },
                     { label: "Primary Start", value: primaryLead.subjectName, note: `${primarySuggestions.length} core subject suggestion${primarySuggestions.length === 1 ? "" : "s"} first` },
-                    { label: "Matched Pools", value: effectiveProfiles.map((profile) => suggestionPoolLabels[String(profile.group_key || "").trim()] || profile.name).join(", "), note: "Built from the current Recommended Hiring Plan" },
+                    { label: "Matched Pools", value: matchedPoolLabels.join(", "), note: "Built from the current Recommended Hiring Plan subject-pool rule" },
                 ],
                 suggestions,
                 suggestionMeta: {
                     targetHours: snapshot.requiredHours,
                     plannedHours: Math.min(snapshot.assignedHours + suggestedHours, snapshot.requiredHours),
                     progressNote: compatibleSuggestions.length > 0
-                        ? `${primaryLead.subjectName} leads the plan, then ${compatibleSuggestions.length} compatible subject group${compatibleSuggestions.length === 1 ? "" : "s"} continue filling the load.`
-                        : `${primaryLead.subjectName} fills the plan with direct section assignments from the matching pool.`,
+                        ? `${primaryLead.subjectName} leads the plan, then ${compatibleSuggestions.length} compatible subject group${compatibleSuggestions.length === 1 ? "" : "s"} continue only after the priority families are exhausted.`
+                        : `${primaryLead.subjectName} fills the plan with direct section assignments from the priority subject families.`,
                     metaChips: [
                         `${snapshot.assignedHours}h already selected`,
                         `${suggestedSections} uncovered sections ready`,
