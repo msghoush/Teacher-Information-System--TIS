@@ -131,9 +131,9 @@ def _clear_auth_session_cookies(response):
 
 
 REPORT_STANDARD_MAX_HOURS = 24
-# Version 15: Homeroom uncovered load gets its own named hiring pool instead of
-# falling through to unassigned as an unknown specialization.
-HIRING_PLAN_POOL_LOGIC_VERSION = 15
+# Version 16: Smart auto matching now prioritizes teacher-major subject order
+# within each pool before filling remaining compatible capacity.
+HIRING_PLAN_POOL_LOGIC_VERSION = 16
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},
@@ -205,6 +205,14 @@ HIRING_POOL_ACCENT_COLORS = {
     "general_science_pool": "#1D4ED8",
     "physical_education": "#EA580C",
     "homeroom_pool": "#B45309",
+}
+HIRING_POOL_FAMILY_ORDER = {
+    "english_pool": ["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"],
+    "arabic_pool": ["arabic", "islamic", "quran", "social_arabic"],
+    "math_pool": ["math", "mental_math", "physics"],
+    "general_science_pool": ["science", "biology", "chemistry", "ict"],
+    "physical_education": ["pe"],
+    "homeroom_pool": ["homeroom"],
 }
 HIRING_NAMED_POOL_KEYS = {
     "english_pool",
@@ -968,6 +976,170 @@ def _subject_matches_teacher_major(teacher, subject_name: str, subject_key: str 
         getattr(teacher, "degree_major", ""),
         subject_name,
         subject_key,
+    )
+
+
+def _text_contains_any_keyword(normalized_text: str, keywords) -> bool:
+    if not normalized_text:
+        return False
+    for keyword in keywords:
+        normalized_keyword = _normalize_alignment_text(keyword)
+        if not normalized_keyword:
+            continue
+        if (
+            normalized_text == normalized_keyword
+            or f" {normalized_keyword} " in f" {normalized_text} "
+        ):
+            return True
+    return False
+
+
+def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
+    normalized_major = _normalize_alignment_text(major_text)
+    default_rule = {
+        "rule_key": "generic_major_match",
+        "label": "Generic major alignment",
+        "pool_key": "",
+        "family_priority": [],
+    }
+    if not normalized_major:
+        return default_rule
+
+    is_ict_major = _text_contains_any_keyword(
+        normalized_major,
+        (
+            "ict",
+            "computer",
+            "computer science",
+            "software engineering",
+            "information technology",
+            "informatics",
+            "programming",
+            "technology",
+            "computing",
+            "digital",
+        ),
+    )
+    if is_ict_major:
+        return {
+            "rule_key": "ict_major",
+            "label": "ICT / Computer Science major",
+            "pool_key": "general_science_pool",
+            "family_priority": ["ict", "science", "biology", "chemistry"],
+        }
+
+    is_physics_major = _text_contains_any_keyword(
+        normalized_major,
+        ("physics", "physical science"),
+    )
+    if is_physics_major:
+        return {
+            "rule_key": "physics_major",
+            "label": "Physics major",
+            "pool_key": "math_pool",
+            "family_priority": ["physics", "math", "mental_math"],
+        }
+
+    is_math_major = _text_contains_any_keyword(
+        normalized_major,
+        ("math", "mathematics", "maths", "algebra", "geometry", "calculus", "statistics"),
+    )
+    if is_math_major:
+        return {
+            "rule_key": "math_major",
+            "label": "Math major",
+            "pool_key": "math_pool",
+            "family_priority": ["math", "mental_math", "physics"],
+        }
+
+    is_arabic_major = _text_contains_any_keyword(
+        normalized_major,
+        ("arabic", "arabic language", "arabic literature"),
+    )
+    if is_arabic_major:
+        return {
+            "rule_key": "arabic_major",
+            "label": "Arabic major",
+            "pool_key": "arabic_pool",
+            "family_priority": ["arabic", "islamic", "quran", "social_arabic"],
+        }
+
+    is_islamic_major = _text_contains_any_keyword(
+        normalized_major,
+        (
+            "islamic",
+            "islamic studies",
+            "quran",
+            "quranic",
+            "hadith",
+            "fiqh",
+            "tawheed",
+            "religion",
+            "noorani",
+            "noraniah",
+            "qaadah",
+        ),
+    )
+    if is_islamic_major:
+        return {
+            "rule_key": "islamic_major",
+            "label": "Islamic / Quran major",
+            "pool_key": "arabic_pool",
+            "family_priority": ["islamic", "quran", "social_arabic", "arabic"],
+        }
+
+    is_social_studies_major = _text_contains_any_keyword(
+        normalized_major,
+        (
+            "social studies",
+            "social",
+            "history",
+            "geography",
+            "economics",
+            "economic",
+            "humanities",
+            "civics",
+        ),
+    )
+    if is_social_studies_major:
+        return {
+            "rule_key": "social_studies_major",
+            "label": "Social Studies major",
+            "pool_key": "english_pool",
+            "family_priority": ["social_english", "social", "english", "wellbeing", "reflection", "performing_arts", "art"],
+        }
+
+    is_science_major = _text_contains_any_keyword(
+        normalized_major,
+        (
+            "science",
+            "general science",
+            "biology",
+            "chemistry",
+            "biochemistry",
+            "life science",
+            "laboratory",
+            "lab",
+        ),
+    )
+    if is_science_major and not is_physics_major:
+        return {
+            "rule_key": "general_science_major",
+            "label": "General Science major",
+            "pool_key": "general_science_pool",
+            "family_priority": ["science", "biology", "chemistry", "ict"],
+        }
+
+    return default_rule
+
+
+def _build_subject_priority_family(subject_name: str, subject_key: str = "", subject_code: str = "") -> str:
+    return _detect_hiring_subject_family(
+        {
+            "subject_name": subject_name,
+            "subject_key": subject_key,
+            "subject_code": subject_code,
+        }
     )
 
 
@@ -2332,6 +2504,7 @@ def _build_reporting_context(
     teacher_profiles = []
     for teacher in teachers:
         teacher_id = getattr(teacher, "id", None)
+        teacher_major_text = str(getattr(teacher, "degree_major", "") or "").strip()
         candidate_subject_keys = sorted(
             teacher_subject_map.get(teacher_id, set()),
             key=lambda key: subject_demand_map[key]["subject_name"],
@@ -2343,6 +2516,7 @@ def _build_reporting_context(
         primary_subject_keys = []
         secondary_subject_keys = []
         primary_subject_key = None
+        major_priority_rule = _resolve_teacher_major_priority_rule(teacher_major_text)
         if candidate_subject_keys:
             ranked_subject_keys = sorted(
                 candidate_subject_keys,
@@ -2368,7 +2542,51 @@ def _build_reporting_context(
                     key,
                 )
             ]
-            if major_aligned_subject_keys:
+            ranked_index_by_key = {
+                subject_key: index
+                for index, subject_key in enumerate(ranked_subject_keys)
+            }
+            rule_pool_key = str(major_priority_rule.get("pool_key", "") or "")
+            rule_family_priority = list(
+                major_priority_rule.get("family_priority", []) or []
+            )
+            candidate_subject_family_map = {
+                key: _build_subject_priority_family(
+                    subject_name=subject_demand_map[key]["subject_name"],
+                    subject_key=key,
+                    subject_code=subject_demand_map[key].get("subject_code", ""),
+                )
+                for key in ranked_subject_keys
+            }
+            rule_subject_keys = []
+            if rule_pool_key and rule_family_priority:
+                pool_subject_keys = [
+                    key
+                    for key in ranked_subject_keys
+                    if HIRING_COMPATIBILITY_GROUPS.get(
+                        candidate_subject_family_map.get(key, "")
+                    )
+                    == rule_pool_key
+                ]
+                family_order_map = {
+                    family: index
+                    for index, family in enumerate(rule_family_priority)
+                }
+                rule_subject_keys = sorted(
+                    pool_subject_keys,
+                    key=lambda key: (
+                        family_order_map.get(
+                            candidate_subject_family_map.get(key, ""),
+                            len(family_order_map) + 1,
+                        ),
+                        ranked_index_by_key.get(key, 999),
+                    ),
+                )
+
+            if rule_subject_keys:
+                primary_subject_keys = list(rule_subject_keys)
+                secondary_subject_keys = []
+            elif major_aligned_subject_keys:
                 primary_subject_keys = list(major_aligned_subject_keys)
                 secondary_subject_keys = [
                     key for key in ranked_subject_keys if key not in primary_subject_keys
@@ -2379,6 +2597,8 @@ def _build_reporting_context(
             primary_subject_key = ranked_subject_keys[0]
 
         support_subject_keys = list(secondary_subject_keys)
+        if major_priority_rule.get("pool_key") and primary_subject_keys:
+            support_subject_keys = []
         seen_support_subject_keys = set(support_subject_keys)
         for base_subject_key in ranked_subject_keys:
             for support_subject_key in CROSS_SUBJECT_SUPPORT_RULES.get(
@@ -2397,6 +2617,17 @@ def _build_reporting_context(
                     support_subject_keys.append(normalized_support_key)
                     seen_support_subject_keys.add(normalized_support_key)
 
+        logging.getLogger("uvicorn.error").debug(
+            "Smart auto-plan teacher rule: teacher=%s major=%s rule=%s pool=%s primary=%s secondary=%s support=%s",
+            _build_teacher_display_name(teacher),
+            teacher_major_text or "-",
+            major_priority_rule.get("rule_key", "generic_major_match"),
+            major_priority_rule.get("pool_key", "") or "-",
+            primary_subject_keys,
+            secondary_subject_keys,
+            support_subject_keys,
+        )
+
         teacher_capacity_breakdown = get_teacher_capacity_breakdown(
             teacher,
             default_max_hours=REPORT_STANDARD_MAX_HOURS,
@@ -2407,6 +2638,7 @@ def _build_reporting_context(
             {
                 "teacher": teacher,
                 "name": _build_teacher_display_name(teacher),
+                "degree_major": teacher_major_text,
                 "subject_keys": primary_subject_keys,
                 "secondary_subject_keys": secondary_subject_keys,
                 "support_subject_keys": support_subject_keys,
@@ -2434,6 +2666,12 @@ def _build_reporting_context(
                 "total_capacity_hours": teacher_capacity_breakdown[
                     "total_capacity_hours"
                 ],
+                "major_priority_rule_key": major_priority_rule.get("rule_key", ""),
+                "major_priority_rule_label": major_priority_rule.get("label", ""),
+                "major_priority_pool_key": major_priority_rule.get("pool_key", ""),
+                "major_priority_family_order": list(
+                    major_priority_rule.get("family_priority", []) or []
+                ),
                 "national_section_hours": teacher_capacity_breakdown[
                     "national_section_hours"
                 ],
@@ -2542,6 +2780,10 @@ def _build_reporting_context(
             profile.get("remaining_capacity_hours", REPORT_STANDARD_MAX_HOURS)
         )
         allocation_breakdown = {}
+        major_family_order = list(profile.get("major_priority_family_order", []) or [])
+        major_family_order_map = {
+            family: index for index, family in enumerate(major_family_order)
+        }
 
         while remaining_capacity > 0:
             primary_candidate_subject_keys = [
@@ -2571,10 +2813,26 @@ def _build_reporting_context(
                 candidate_subject_keys = support_candidate_subject_keys
 
             if not candidate_subject_keys:
+                logging.getLogger("uvicorn.error").debug(
+                    "Smart auto-plan stop: teacher=%s rule=%s remaining_capacity=%sh reason=no compatible uncovered subjects",
+                    profile.get("name", "Unknown Teacher"),
+                    profile.get("major_priority_rule_key", "generic_major_match"),
+                    remaining_capacity,
+                )
                 break
 
             candidate_subject_keys.sort(
                 key=lambda subject_key: (
+                    major_family_order_map.get(
+                        _build_subject_priority_family(
+                            subject_name=subject_demand_map[subject_key]["subject_name"],
+                            subject_key=subject_key,
+                            subject_code=subject_demand_map[subject_key].get(
+                                "subject_code", ""
+                            ),
+                        ),
+                        len(major_family_order_map) + 1,
+                    ),
                     -remaining_hours_by_subject.get(subject_key, 0),
                     subject_demand_map[subject_key]["subject_name"],
                 )
@@ -2585,7 +2843,46 @@ def _build_reporting_context(
             )
             allocated_hours = min(remaining_capacity, subject_remaining_hours)
             if allocated_hours <= 0:
+                logging.getLogger("uvicorn.error").debug(
+                    "Smart auto-plan stop: teacher=%s subject=%s remaining_capacity=%sh reason=allocated_hours_zero",
+                    profile.get("name", "Unknown Teacher"),
+                    selected_subject_key,
+                    remaining_capacity,
+                )
                 break
+
+            selected_family = _build_subject_priority_family(
+                subject_name=subject_demand_map[selected_subject_key]["subject_name"],
+                subject_key=selected_subject_key,
+                subject_code=subject_demand_map[selected_subject_key].get(
+                    "subject_code", ""
+                ),
+            )
+            skipped_subject_details = [
+                (
+                    subject_key,
+                    _build_subject_priority_family(
+                        subject_name=subject_demand_map[subject_key]["subject_name"],
+                        subject_key=subject_key,
+                        subject_code=subject_demand_map[subject_key].get(
+                            "subject_code", ""
+                        ),
+                    ),
+                    remaining_hours_by_subject.get(subject_key, 0),
+                )
+                for subject_key in candidate_subject_keys[1:]
+            ]
+            logging.getLogger("uvicorn.error").debug(
+                "Smart auto-plan pick: teacher=%s major_rule=%s pool=%s selected=%s family=%s allocated=%sh remaining_before=%sh skipped=%s",
+                profile.get("name", "Unknown Teacher"),
+                profile.get("major_priority_rule_key", "generic_major_match"),
+                profile.get("major_priority_pool_key", "") or "-",
+                selected_subject_key,
+                selected_family or "-",
+                allocated_hours,
+                remaining_capacity,
+                skipped_subject_details,
+            )
 
             allocation_breakdown[selected_subject_key] = (
                 allocation_breakdown.get(selected_subject_key, 0) + allocated_hours

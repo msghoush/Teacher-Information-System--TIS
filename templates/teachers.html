@@ -3465,6 +3465,7 @@ const searchInput = document.getElementById("teacherSearch");
             homeroom: "Homeroom",
             other: "Compatible Subject",
         };
+        const autoPlanDebugPrefix = "[Smart Auto Matching Plan]";
         const suggestionPoolPriority = [
             "english_pool",
             "arabic_pool",
@@ -3910,17 +3911,82 @@ const searchInput = document.getElementById("teacherSearch");
             return familyCandidates;
         };
 
-        const resolveSuggestionContextForSpecialization = (option) => {
-            const familyCandidates = getSuggestedFamilyCandidatesForSpecialization(option);
-            const primaryFamily = familyCandidates[0] || "";
+        const textIncludesAnyKeyword = (normalizedText, keywords = []) => {
+            if (!normalizedText) {
+                return false;
+            }
+            return keywords.some((keyword) => {
+                const normalizedKeyword = normalizeAlignmentText(keyword);
+                return normalizedKeyword
+                    && (normalizedText === normalizedKeyword || ` ${normalizedText} `.includes(` ${normalizedKeyword} `));
+            });
+        };
+
+        const resolveSmartAutoPlanRuleForSpecialization = (option) => {
+            const label = String(option?.label || "").trim();
+            const normalizedLabel = normalizeAlignmentText(label);
+            const baseFamilies = getSuggestedFamilyCandidatesForSpecialization(option);
+            const buildRule = (ruleKey, poolKey, familyPriority, description) => ({
+                ruleKey,
+                poolKey,
+                poolLabel: suggestionPoolLabels[poolKey] || "",
+                label,
+                description,
+                primaryFamily: familyPriority[0] || "",
+                familyCandidates: [...familyPriority],
+                baseFamilies,
+            });
+
+            if (textIncludesAnyKeyword(normalizedLabel, ["ict", "computer", "computer science", "software engineering", "information technology", "technology", "computing", "programming", "informatics", "digital"])) {
+                return buildRule("ict_major", "general_science_pool", ["ict", "science", "biology", "chemistry"], "ICT major prioritizes ICT first");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["physics", "physical science"])) {
+                return buildRule("physics_major", "math_pool", ["physics", "math", "mental_math"], "Physics major prioritizes Physics first");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["math", "mathematics", "maths", "algebra", "geometry", "calculus", "statistics"])) {
+                return buildRule("math_major", "math_pool", ["math", "mental_math", "physics"], "Math major prioritizes Math first");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["arabic", "arabic language", "arabic literature"])) {
+                return buildRule("arabic_major", "arabic_pool", ["arabic", "islamic", "quran", "social_arabic"], "Arabic major prioritizes Arabic first");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["islamic", "islamic studies", "quran", "quranic", "hadith", "fiqh", "tawheed", "religion", "noorani", "noraniah", "qaadah"])) {
+                return buildRule("islamic_major", "arabic_pool", ["islamic", "quran", "social_arabic", "arabic"], "Islamic/Quran major prioritizes Islamic first");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["social studies", "social", "history", "geography", "economics", "economic", "humanities", "civics"])) {
+                return buildRule("social_studies_major", "english_pool", ["social_english", "social", "english", "wellbeing", "reflection", "performing_arts", "art"], "Social Studies major prioritizes Social Studies first");
+            }
+            if (textIncludesAnyKeyword(normalizedLabel, ["science", "general science", "biology", "chemistry", "biochemistry", "life science", "laboratory", "lab"])) {
+                return buildRule("general_science_major", "general_science_pool", ["science", "biology", "chemistry", "ict"], "Science-related major prioritizes Science first");
+            }
+
+            const primaryFamily = baseFamilies[0] || "";
             const poolKey = suggestionFamilyPoolMap[primaryFamily] || "";
+            const defaultFamilyPriority = primaryFamily
+                ? [primaryFamily, ...(suggestionPoolFamilyOrder[poolKey] || []).filter((family) => family !== primaryFamily)]
+                : [];
+            return {
+                ruleKey: "generic_major_match",
+                poolKey,
+                poolLabel: suggestionPoolLabels[poolKey] || "",
+                label,
+                description: "Generic specialization alignment",
+                primaryFamily,
+                familyCandidates: defaultFamilyPriority,
+                baseFamilies,
+            };
+        };
+
+        const resolveSuggestionContextForSpecialization = (option) => {
+            const rule = resolveSmartAutoPlanRuleForSpecialization(option);
             return {
                 optionKey: String(option?.key || "").trim(),
                 label: String(option?.label || "").trim(),
-                poolKey,
-                poolLabel: suggestionPoolLabels[poolKey] || "",
-                primaryFamily,
-                familyCandidates,
+                poolKey: rule.poolKey,
+                poolLabel: rule.poolLabel,
+                primaryFamily: rule.primaryFamily,
+                familyCandidates: rule.familyCandidates,
+                ruleKey: rule.ruleKey,
+                ruleDescription: rule.description,
             };
         };
 
@@ -3955,9 +4021,13 @@ const searchInput = document.getElementById("teacherSearch");
                         primaryFamily: context.primaryFamily,
                         familyPriority: [],
                         specializationLabels: [],
+                        ruleKeys: [],
                     };
                 }
                 contextMap[context.poolKey].specializationLabels.push(context.label);
+                if (context.ruleKey && !contextMap[context.poolKey].ruleKeys.includes(context.ruleKey)) {
+                    contextMap[context.poolKey].ruleKeys.push(context.ruleKey);
+                }
                 context.familyCandidates.forEach((family) => {
                     if (family && !contextMap[context.poolKey].familyPriority.includes(family)) {
                         contextMap[context.poolKey].familyPriority.push(family);
@@ -3970,6 +4040,13 @@ const searchInput = document.getElementById("teacherSearch");
                     if (!context.familyPriority.includes(family)) {
                         context.familyPriority.push(family);
                     }
+                });
+                console.debug(autoPlanDebugPrefix, "Selected major rule", {
+                    poolKey: context.poolKey,
+                    poolLabel: context.poolLabel,
+                    ruleKeys: context.ruleKeys,
+                    familyPriority: context.familyPriority,
+                    specializationLabels: context.specializationLabels,
                 });
             });
             return contextMap;
@@ -4338,18 +4415,42 @@ const searchInput = document.getElementById("teacherSearch");
                 maxSections,
             }) => {
                 if (remainingHours <= 0) {
+                    console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                        reason: "no remaining capacity",
+                        poolKey,
+                        subjectCode: String(subject?.subject_code || "").trim().toUpperCase(),
+                        subjectName: String(subject?.subject_name || "Unnamed Subject"),
+                    });
                     return;
                 }
                 const subjectCode = String(subject?.subject_code || "").trim().toUpperCase();
                 if (!subjectCode) {
+                    console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                        reason: "missing subject code",
+                        poolKey,
+                        subjectName: String(subject?.subject_name || "Unnamed Subject"),
+                    });
                     return;
                 }
                 const weeklyHours = Number(subject?.weekly_hours || 0);
                 if (!Number.isFinite(weeklyHours) || weeklyHours <= 0) {
+                    console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                        reason: "invalid weekly hours",
+                        poolKey,
+                        subjectCode,
+                        subjectName: String(subject?.subject_name || "Unnamed Subject"),
+                        weeklyHours,
+                    });
                     return;
                 }
                 const availableSections = getAvailableUncoveredSections(subjectCode);
                 if (availableSections.length === 0) {
+                    console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                        reason: "no available uncovered sections",
+                        poolKey,
+                        subjectCode,
+                        subjectName: String(subject?.subject_name || "Unnamed Subject"),
+                    });
                     return;
                 }
                 const maxSectionsForCapacity = Math.floor(remainingHours / weeklyHours);
@@ -4362,6 +4463,15 @@ const searchInput = document.getElementById("teacherSearch");
                     maxSectionsForCapacity,
                 );
                 if (sectionsToTake <= 0) {
+                    console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                        reason: "remaining capacity cannot fit another section",
+                        poolKey,
+                        subjectCode,
+                        subjectName: String(subject?.subject_name || "Unnamed Subject"),
+                        remainingHours,
+                        weeklyHours,
+                        maxSections,
+                    });
                     return;
                 }
 
@@ -4386,6 +4496,17 @@ const searchInput = document.getElementById("teacherSearch");
                     isPrimaryFamily,
                     priorityLabel,
                     sections: chosenSections,
+                });
+                console.debug(autoPlanDebugPrefix, "Selected subject", {
+                    poolKey,
+                    subjectCode,
+                    subjectName: String(subject.subject_name || "Unnamed Subject"),
+                    family,
+                    isPrimaryFamily,
+                    priorityLabel,
+                    suggestedHours,
+                    chosenSections: chosenSections.map((section) => section.label),
+                    remainingHoursBefore: remainingHours,
                 });
                 remainingHours -= suggestedHours;
             };
@@ -4433,6 +4554,7 @@ const searchInput = document.getElementById("teacherSearch");
                     primaryFamily: "",
                     familyPriority: suggestionPoolFamilyOrder[poolKey] || [],
                     specializationLabels: [],
+                    ruleKeys: [],
                 };
                 appendPrimaryFamilySuggestions(poolKey, poolLabel, poolContext);
                 const orderedItems = [...(profile.items || [])].sort((left, right) => {
@@ -4459,6 +4581,19 @@ const searchInput = document.getElementById("teacherSearch");
                     compatibleItems.push(item);
                 });
 
+                console.debug(autoPlanDebugPrefix, "Evaluating pool", {
+                    poolKey,
+                    poolLabel,
+                    ruleKeys: poolContext.ruleKeys || [],
+                    familyPriority: poolContext.familyPriority,
+                    remainingHours,
+                    compatibleItems: compatibleItems.map((item) => ({
+                        subject: item.subject_name,
+                        family: item.family,
+                        hours: item.hours,
+                    })),
+                });
+
                 rotateSuggestionItems(compatibleItems).forEach((item) => {
                     if (remainingHours <= 0) {
                         return;
@@ -4466,13 +4601,25 @@ const searchInput = document.getElementById("teacherSearch");
                     const subjectCode = String(item.subject_code || "").trim().toUpperCase();
                     const subject = subjectChoicesByCode[subjectCode];
                     if (!subject) {
+                        console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                            reason: "missing subject choice",
+                            poolKey,
+                            subjectCode,
+                            subjectName: item.subject_name,
+                        });
                         return;
                     }
                     const weeklyHours = Number(subject.weekly_hours || 0);
                     if (!Number.isFinite(weeklyHours) || weeklyHours <= 0) {
+                        console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                            reason: "invalid weekly hours",
+                            poolKey,
+                            subjectCode,
+                            subjectName: item.subject_name,
+                            weeklyHours,
+                        });
                         return;
                     }
-
                     const isPrimaryFamily = itemMatchesSuggestionFamily(
                         item,
                         subject,
@@ -4488,6 +4635,14 @@ const searchInput = document.getElementById("teacherSearch");
                         0,
                     );
                     if (!isPrimaryFamily && plannedOpenHours < weeklyHours) {
+                        console.debug(autoPlanDebugPrefix, "Skipped subject", {
+                            reason: "not enough uncovered hours left in plan",
+                            poolKey,
+                            subjectCode,
+                            subjectName: item.subject_name,
+                            plannedOpenHours,
+                            weeklyHours,
+                        });
                         return;
                     }
 
