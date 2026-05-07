@@ -1053,7 +1053,7 @@ def _resolve_teacher_major_priority_rule(major_text: str) -> dict:
             "label": "Art major",
             "pool_key": "english_pool",
             "priority_families": ["art"],
-            "allowed_families": ["art"],
+            "allowed_families": ["art", "performing_arts", "reflection", "wellbeing"],
             "search_all_pools": False,
         }
 

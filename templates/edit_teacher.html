@@ -2754,7 +2754,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                 return buildRule("english_major", "english_pool", ["english"], ["english", "social_english", "social", "wellbeing", "reflection", "performing_arts", "art"], "English major prioritizes English first");
             }
             if (textIncludesAnyKeyword(normalizedLabel, ["art", "art education", "visual art", "visual arts", "drawing", "painting"])) {
-                return buildRule("art_major", "english_pool", ["art"], ["art"], "Art Education only auto-matches Art");
+                return buildRule("art_major", "english_pool", ["art"], ["art", "performing_arts", "reflection", "wellbeing"], "Art Education excludes English and Social Studies");
             }
             if (textIncludesAnyKeyword(normalizedLabel, ["performing arts", "performance", "music", "music education", "drama", "theatre", "theater", "dance"])) {
                 return buildRule("performing_arts_major", "english_pool", ["performing_arts"], ["performing_arts", "art", "reflection", "wellbeing"], "Performing Arts auto-matches creative/student-life subjects only");
@@ -2790,7 +2790,7 @@ const teacherIdInput = document.getElementById("teacher_id");
                 ? [primaryFamily, ...(suggestionPoolFamilyOrder[poolKey] || []).filter((family) => family !== primaryFamily)]
                 : [];
             if (primaryFamily === "art") {
-                defaultAllowedFamilies = ["art"];
+                defaultAllowedFamilies = ["art", "performing_arts", "reflection", "wellbeing"];
             } else if (["performing_arts", "reflection", "wellbeing"].includes(primaryFamily)) {
                 defaultAllowedFamilies = [
                     primaryFamily,
