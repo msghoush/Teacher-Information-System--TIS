@@ -131,9 +131,9 @@ def _clear_auth_session_cookies(response):
 
 
 REPORT_STANDARD_MAX_HOURS = 24
-# Version 16: Smart auto matching now prioritizes teacher-major subject order
-# within each pool before filling remaining compatible capacity.
-HIRING_PLAN_POOL_LOGIC_VERSION = 16
+# Version 18: Invalidate older saved hiring-plan drafts so the latest
+# strict, deterministic auto-match logic is always regenerated.
+HIRING_PLAN_POOL_LOGIC_VERSION = 18
 CROSS_SUBJECT_SUPPORT_RULES = {
     "english": {"social studies english"},
     "arabic": {"social studies ksa"},

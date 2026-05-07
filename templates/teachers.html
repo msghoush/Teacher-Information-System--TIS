@@ -3477,7 +3477,6 @@ const searchInput = document.getElementById("teacherSearch");
         let hiringPlanSuggestionPlan = null;
         let hiringPlanSuggestionSource = "";
         let currentAssignmentSuggestion = null;
-        let assignmentSuggestionGeneration = 0;
         let lastAppliedAssignmentSuggestionValues = new Set();
         let lastAppliedAssignmentSuggestionSubjectCodes = new Set();
         let lastAppliedAssignmentBaseSubjectCodes = new Set();
@@ -4179,12 +4178,8 @@ const searchInput = document.getElementById("teacherSearch");
             return "other";
         };
 
-        const rotateSuggestionItems = (items, generationOffset = assignmentSuggestionGeneration) => {
-            if (!Array.isArray(items) || items.length <= 1) {
-                return Array.isArray(items) ? [...items] : [];
-            }
-            const offset = Math.abs(Number(generationOffset || 0)) % items.length;
-            return [...items.slice(offset), ...items.slice(0, offset)];
+        const rotateSuggestionItems = (items) => {
+            return Array.isArray(items) ? [...items] : [];
         };
 
         const getSuggestionFamilyLabel = (family) => {
@@ -4434,7 +4429,18 @@ const searchInput = document.getElementById("teacherSearch");
                     return !persistedSectionAssignmentValues.has(optionValue)
                         && !suggestedSectionValues.has(optionValue);
                 });
-                return rotateSuggestionItems(availableSections);
+                return availableSections.sort((left, right) => {
+                    const leftStatus = String(left.class_status || "").trim().toLowerCase();
+                    const rightStatus = String(right.class_status || "").trim().toLowerCase();
+                    const leftStatusRank = leftStatus === "current" ? 0 : 1;
+                    const rightStatusRank = rightStatus === "current" ? 0 : 1;
+                    if (leftStatusRank !== rightStatusRank) {
+                        return leftStatusRank - rightStatusRank;
+                    }
+                    return String(left.label || left.section_label || "").localeCompare(
+                        String(right.label || right.section_label || "")
+                    );
+                });
             };
 
             const appendSubjectSuggestion = ({
@@ -4920,7 +4926,6 @@ const searchInput = document.getElementById("teacherSearch");
 
         const regenerateAssignmentSuggestion = async () => {
             clearAppliedAssignmentSuggestion();
-            assignmentSuggestionGeneration += 1;
             renderSelectedSubjectChips();
             renderSubjectPicker();
             renderSectionAssignmentBoard();
