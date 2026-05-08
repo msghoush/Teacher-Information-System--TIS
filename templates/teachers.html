@@ -1021,6 +1021,16 @@
             height: 14px;
             color: #315a8d;
             flex-shrink: 0;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .qualification-chip .qualification-kind-icon {
+            width: 13px;
+            height: 13px;
         }
 
         .qualification-dropdown-help {
@@ -3096,7 +3106,7 @@
                                         <summary class="qualification-dropdown-trigger">
                                             <span class="qualification-dropdown-heading">
                                                 <span class="qualification-dropdown-title-block">
-                                                    <span class="qualification-dropdown-title">{% if group_kind == "degree" %}{{ icon("report", "qualification-title-icon") }}{% else %}{{ icon("insights", "qualification-title-icon") }}{% endif %}{{ group.label }}</span>
+                                                    <span class="qualification-dropdown-title">{% if group_kind == "degree" %}{{ icon("report", "qualification-title-icon") }}{% else %}{{ icon("subjects", "qualification-title-icon") }}{% endif %}{{ group.label }}</span>
                                                     <span class="qualification-dropdown-help">{{ group.options|length }} options. Multiple selections allowed.</span>
                                                 </span>
                                                 <span class="qualification-dropdown-count" data-qualification-selected-count>0 selected</span>
@@ -3113,7 +3123,7 @@
                                                 <label class="qualification-option{% if option.key in selected_qualification_keys %} is-selected{% endif %}" data-qualification-option data-qualification-search-value="{{ (option.label ~ ' ' ~ option.kind_label)|lower }}">
                                                     <input class="qualification-checkbox" type="checkbox" name="qualification_keys" value="{{ option.key }}" data-qualification-label="{{ option.label }}" data-qualification-kind="{{ option.kind }}" {% if option.key in selected_qualification_keys %}checked{% endif %}>
                                                     <span class="qualification-copy">
-                                                        <strong>{% if option.kind == "degree" %}{{ icon("report", "qualification-kind-icon") }}{% else %}{{ icon("insights", "qualification-kind-icon") }}{% endif %}{{ option.label }}</strong>
+                                                        <strong>{% if option.kind == "degree" %}{{ icon("report", "qualification-kind-icon") }}{% else %}{{ icon("subjects", "qualification-kind-icon") }}{% endif %}{{ option.label }}</strong>
                                                         <small>{{ option.kind_label }}</small>
                                                     </span>
                                                 </label>
@@ -4511,9 +4521,9 @@ const searchInput = document.getElementById("teacherSearch");
 
         const getQualificationChipIconMarkup = (kind) => {
             if (kind === "degree") {
-                return `<svg class="qualification-kind-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18"></path><path d="M7 20v-6"></path><path d="M12 20V8"></path><path d="M17 20v-9"></path></svg>`;
+                return `<svg class="qualification-kind-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"></path><path d="M7 20v-6"></path><path d="M12 20V8"></path><path d="M17 20v-9"></path></svg>`;
             }
-            return `<svg class="qualification-kind-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3a9 9 0 1 0 10 10H11Z"></path><path d="M13 3.1A9 9 0 0 1 20.9 11H13Z"></path></svg>`;
+            return `<svg class="qualification-kind-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.7 5.5 8.8 5 7 5H5a2 2 0 0 0-2 2v11a2 2 0 0 1 2-2h2c1.8 0 3.7.5 5 1.5"></path><path d="M12 6.5C13.3 5.5 15.2 5 17 5h2a2 2 0 0 1 2 2v11a2 2 0 0 0-2-2h-2c-1.8 0-3.7.5-5 1.5"></path><path d="M12 6.5v13"></path></svg>`;
         };
 
         const getSuggestionCardStyle = (suggestion) => {
