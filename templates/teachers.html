@@ -218,6 +218,147 @@
             font-size: 13px;
         }
 
+        .add-teacher-shell {
+            display: grid;
+            gap: 12px;
+        }
+
+        .add-teacher-trigger {
+            width: 100%;
+            border: 1px solid #d7e2f2;
+            border-radius: 16px;
+            background: linear-gradient(135deg, #f9fbff 0%, #eef5ff 55%, #f7fbff 100%);
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            text-align: left;
+            cursor: pointer;
+            transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+        }
+
+        .add-teacher-trigger:hover {
+            transform: translateY(-1px);
+            border-color: #9ebce6;
+            box-shadow: 0 16px 34px rgba(17, 64, 124, 0.12);
+        }
+
+        .add-teacher-trigger-copy {
+            display: grid;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .add-teacher-trigger-eyebrow {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #35557f;
+        }
+
+        .add-teacher-trigger-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: #17365d;
+            line-height: 1.2;
+        }
+
+        .add-teacher-trigger-note {
+            font-size: 12px;
+            color: #556b87;
+            line-height: 1.45;
+        }
+
+        .add-teacher-trigger-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 11px;
+            border-radius: 999px;
+            border: 1px solid #bdd2ef;
+            background: #ffffff;
+            color: #1d4d8c;
+            font-size: 12px;
+            font-weight: 800;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .add-teacher-trigger[aria-expanded="true"] .add-teacher-trigger-cta {
+            border-color: #99bcdf;
+            background: #edf4ff;
+            color: #123f76;
+        }
+
+        .add-teacher-panel {
+            border: 1px solid #d8e5f6;
+            border-radius: 18px;
+            background: #ffffff;
+            box-shadow: 0 16px 36px rgba(23, 54, 93, 0.08);
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transform: translateY(-6px);
+            transition: max-height 260ms ease, opacity 220ms ease, transform 220ms ease;
+        }
+
+        .add-teacher-panel.is-open {
+            max-height: 2200px;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .add-teacher-panel-body {
+            padding: 14px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .add-teacher-panel-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .add-teacher-panel-copy {
+            display: grid;
+            gap: 4px;
+        }
+
+        .add-teacher-panel-copy h3 {
+            margin: 0;
+            color: #17365d;
+            font-size: 18px;
+        }
+
+        .add-teacher-panel-copy p {
+            margin: 0;
+            color: #5a6d87;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .add-teacher-close {
+            border: 1px solid #c7d9f1;
+            border-radius: 9px;
+            background: #f8fbff;
+            color: #365275;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 7px 10px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .add-teacher-close:hover {
+            border-color: #9ebce6;
+            background: #edf4ff;
+            color: #173f71;
+        }
+
         .error {
             background: #ffe8e5;
             color: #8f1d18;
@@ -648,6 +789,53 @@
         .qualification-shell {
             display: grid;
             gap: 10px;
+        }
+
+        .qualification-shell-head {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        }
+
+        .qualification-focus-card {
+            border: 1px solid #dbe7f8;
+            border-radius: 12px;
+            background: #f8fbff;
+            padding: 10px;
+            display: grid;
+            gap: 3px;
+        }
+
+        .qualification-focus-card span {
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: #5e728e;
+        }
+
+        .qualification-focus-card strong {
+            font-size: 13px;
+            color: #1e3e68;
+            line-height: 1.35;
+        }
+
+        .max-hours-rule {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            width: fit-content;
+            padding: 7px 10px;
+            border: 1px solid #bfd4f3;
+            border-radius: 999px;
+            background: #edf4ff;
+            color: #1f4f88;
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .max-hours-rule strong {
+            color: #123f76;
         }
 
         .qualification-summary-bar {
@@ -1226,6 +1414,45 @@
             border-radius: 12px;
             background: #f8fbff;
             padding: 10px;
+        }
+
+        .manual-plan-panel {
+            border: 1px solid #d8e5f6;
+            border-radius: 16px;
+            background: linear-gradient(180deg, #ffffff, #f8fbff);
+            padding: 10px;
+            margin-top: 12px;
+            display: none;
+            gap: 10px;
+        }
+
+        .manual-plan-panel.is-open {
+            display: grid;
+        }
+
+        .manual-plan-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .manual-plan-header strong {
+            font-size: 13px;
+            color: #17365d;
+        }
+
+        .manual-plan-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 9px;
+            border: 1px solid #c8daf3;
+            border-radius: 999px;
+            background: #edf4ff;
+            color: #274c79;
+            font-size: 11px;
+            font-weight: 700;
         }
 
         .assignment-step:first-of-type {
@@ -2702,28 +2929,54 @@
             </article>
             {% endif %}
 
+            {% set should_open_add_teacher = success or error or (detail_errors and detail_errors|length > 0) or form_data.teacher_id or form_data.first_name or form_data.last_name %}
+            {% set should_open_manual_assignment = (selected_subject_codes and selected_subject_codes|length > 0) or (selected_section_assignment_values and selected_section_assignment_values|length > 0) %}
             <article class="card">
-                <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("teachers", "icon") }}</span>Add Teacher</span></h2>
-                <p>Capture teacher details, workload limits, eligible subjects, and the exact sections this teacher covers for each selected subject.</p>
+                <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("teachers", "icon") }}</span>Teacher Workspace</span></h2>
+                <p>Start clean with Auto Match first, then open manual controls only when you need to fine-tune assignments.</p>
 
-                {% if success %}
-                <div class="success">{{ success }}</div>
-                {% endif %}
+                <div class="add-teacher-shell">
+                    {% if can_modify %}
+                    <button id="openAddTeacherBtn" class="add-teacher-trigger" type="button" aria-expanded="{{ 'true' if should_open_add_teacher else 'false' }}" aria-controls="addTeacherPanel">
+                        <span class="add-teacher-trigger-copy">
+                            <span class="add-teacher-trigger-eyebrow">Teacher Workflow</span>
+                            <span class="add-teacher-trigger-title">+ Add Teacher</span>
+                            <span class="add-teacher-trigger-note">Open a focused form only when needed. Keep the page compact by default.</span>
+                        </span>
+                        <span class="add-teacher-trigger-cta">Open</span>
+                    </button>
+                    {% endif %}
 
-                {% if error %}
-                <div class="error">{{ error }}</div>
-                {% endif %}
+                    <div id="addTeacherPanel" class="add-teacher-panel{% if should_open_add_teacher or not can_modify %} is-open{% endif %}">
+                        <div class="add-teacher-panel-body">
+                            <div class="add-teacher-panel-head">
+                                <div class="add-teacher-panel-copy">
+                                    <h3>Create Teacher Profile</h3>
+                                    <p>Fill core identity and qualifications, then optionally adjust manual section assignments.</p>
+                                </div>
+                                {% if can_modify %}
+                                <button id="closeAddTeacherBtn" class="add-teacher-close" type="button">Close</button>
+                                {% endif %}
+                            </div>
 
-                {% if detail_errors %}
-                <ul class="error-list">
-                    {% for item in detail_errors %}
-                    <li>{{ item }}</li>
-                    {% endfor %}
-                </ul>
-                {% endif %}
+                            {% if success %}
+                            <div class="success">{{ success }}</div>
+                            {% endif %}
 
-                {% if can_modify %}
-                <form id="createTeacherForm" method="post" action="/teachers" autocomplete="off">
+                            {% if error %}
+                            <div class="error">{{ error }}</div>
+                            {% endif %}
+
+                            {% if detail_errors %}
+                            <ul class="error-list">
+                                {% for item in detail_errors %}
+                                <li>{{ item }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+
+                            {% if can_modify %}
+                            <form id="createTeacherForm" method="post" action="/teachers" autocomplete="off">
                     <div class="form-grid">
                         <div class="field">
                             <label for="teacher_id">Teacher Iqama/National ID</label>
@@ -2742,8 +2995,18 @@
                             <input id="last_name" type="text" name="last_name" value="{{ form_data.last_name }}" required>
                         </div>
                         <div class="field field-wide">
-                            <label>Qualifications</label>
+                            <label>Academic Degrees, Majors & Teaching Specializations</label>
                             <div class="qualification-shell">
+                                <div class="qualification-shell-head">
+                                    <div class="qualification-focus-card">
+                                        <span>Degrees</span>
+                                        <strong>Choose all completed academic degree levels.</strong>
+                                    </div>
+                                    <div class="qualification-focus-card">
+                                        <span>Majors & Specializations</span>
+                                        <strong>Select teaching domains used for Auto Match and validation.</strong>
+                                    </div>
+                                </div>
                                 <div class="qualification-summary-bar">
                                     <span id="qualificationSelectionCount" class="qualification-summary-badge">{{ selected_qualification_keys|length }} selected</span>
                                     <div id="qualificationSelectionChips" class="qualification-chip-list"></div>
@@ -2783,78 +3046,26 @@
                                     </details>
                                     {% endfor %}
                                 </div>
-                                <div class="field-note">Choose every degree level and subject specialization that applies. The system stores these selections in a structured way and uses them to validate subject compatibility.</div>
+                                <div class="field-note">Search and select multiple degree and specialization tags. Selected items appear as compact chips and drive subject compatibility checks.</div>
                             </div>
                         </div>
                         <div class="field">
-                            <label for="max_hours">Max Hours</label>
-                            <input id="max_hours" type="number" name="max_hours" min="1" value="{{ form_data.max_hours }}" required>
+                            <label>Maximum Teaching Load</label>
+                            <div class="max-hours-rule" aria-label="Maximum teaching load is fixed at 24 hours">
+                                <span>System Rule</span>
+                                <strong>24h fixed</strong>
+                            </div>
+                            <input type="hidden" name="max_hours" value="24">
+                            <div class="field-note">This limit is locked by policy. Use Extra Hours if additional load is approved.</div>
                         </div>
                         <div class="field field-wide">
-                            <label>Eligible Subjects</label>
-                            <div class="assignment-step">
-                                <div class="assignment-step-label">Step 1</div>
-                                <h3>Select the subjects this teacher can teach</h3>
-                                <p>Tick one or more subjects first. The section assignment area will appear directly below for those selected subjects.</p>
-                            <div class="subject-selector-shell">
-                                 <div class="subject-selector-topbar">
-                                     <input id="subjectSearchInput" class="subject-search" type="text" placeholder="Search by code, subject name, or grade">
-                                     <div class="subject-selector-tools">
-                                         <span id="subjectSelectionCount" class="subject-selection-count">0 selected</span>
-                                         <button id="clearAllSubjectsBtn" class="subject-grade-btn" type="button">Clear all</button>
-                                     </div>
-                                 </div>
-                                 <div class="subject-selector-help">Use the <strong>+</strong> sign to open one grade, then tick the subject checkboxes you want for this teacher.</div>
-                                 <div id="majorGuidance" class="major-guidance" data-state="empty">
-                                     <div class="major-guidance-head">
-                                         <div class="major-guidance-copy">
-                                             <span id="majorGuidanceBadge" class="major-guidance-badge">Add qualifications</span>
-                                             <h4>Subject Alignment Guide</h4>
-                                             <p id="majorGuidanceText">Select the teacher's qualifications above. Matching subjects will be highlighted automatically and non-matching choices will be flagged for review. If you need to keep a mismatch, enable the explicit Admin Override for that subject.</p>
-                                         </div>
-                                     </div>
-                                     <div class="major-guidance-grid">
-                                         <div class="major-guidance-stat">
-                                             <span>Matching Subjects</span>
-                                             <strong id="majorGuidanceMatchingCount">0</strong>
-                                             <small>Available in this branch and year</small>
-                                         </div>
-                                         <div class="major-guidance-stat">
-                                             <span>Selected Match</span>
-                                             <strong id="majorGuidanceSelectedMatchCount">0</strong>
-                                             <small>Chosen and aligned with major</small>
-                                         </div>
-                                         <div class="major-guidance-stat">
-                                             <span>Overrides On</span>
-                                             <strong id="majorGuidanceOverrideCount">0</strong>
-                                             <small>Approved exception subjects</small>
-                                         </div>
-                                         <div class="major-guidance-stat">
-                                             <span>Review Needed</span>
-                                             <strong id="majorGuidanceSelectedReviewCount">0</strong>
-                                             <small>Need override or different qualification</small>
-                                         </div>
-                                     </div>
-                                 </div>
-                                 <div id="selectedSubjectChips" class="subject-selector-chips"></div>
-                                 <div class="field-note">When a selected subject does not match the saved qualifications, turn on <strong>Admin Override</strong> for that subject to save it as an approved exception.</div>
-                                 <div class="subject-picker" id="subjectPicker"></div>
-                                 <div id="subjectNoResult" class="subject-empty" style="display:none;">No subjects match your search.</div>
-                            </div>
-                            </div>
-                            <div class="assignment-step">
-                                <div class="assignment-step-label">Step 2</div>
-                                <h3>Assign sections for each selected subject</h3>
-                                <p>This is where you choose the exact sections the teacher covers for the selected subject, for example Grade 5-A and Grade 5-B for the same subject.</p>
-                            <div id="sectionAssignmentBoard" class="subject-assignment-board"></div>
-                            <div id="sectionAssignmentEmpty" class="section-assignment-empty">Choose one or more subjects in Step 1, and the matching sections will appear here to assign to this teacher.</div>
-                            </div>
+                            <label>Teaching Plan</label>
                             <div id="assignmentSuggestionPanel" class="assignment-suggestion-panel" data-state="loading">
                                 <div class="assignment-suggestion-head">
                                     <div class="assignment-suggestion-copy">
-                                        <span id="assignmentSuggestionBadge" class="assignment-suggestion-badge">Loading plan</span>
+                                        <span id="assignmentSuggestionBadge" class="assignment-suggestion-badge">Loading Auto Match</span>
                                         <h3>Smart Auto Matching Plan</h3>
-                                        <p id="assignmentSuggestionText">Refreshing the current Recommended Hiring Plan and uncovered sections, then matching this teacher's main specialization before any compatible secondary pool subject.</p>
+                                        <p id="assignmentSuggestionText">Auto Match uses current plan demand and qualifications to propose the cleanest section allocation first.</p>
                                     </div>
                                     <div class="assignment-suggestion-actions">
                                         <button id="assignmentSuggestionApplyBtn" class="assignment-suggestion-action is-primary" type="button" disabled>Apply Plan</button>
@@ -2878,70 +3089,134 @@
                                 <div id="assignmentSuggestionSummary" class="assignment-suggestion-summary"></div>
                                 <div id="assignmentSuggestionList" class="assignment-suggestion-list"></div>
                             </div>
-                            <div id="allocationSummary" class="allocation-dashboard" data-state="empty" aria-live="polite">
-                                <div class="allocation-dashboard-head">
-                                    <div class="allocation-copy">
-                                        <span id="allocationStatusBadge" class="allocation-status-badge">Start with subjects</span>
-                                        <h3>Teaching Load Overview</h3>
-                                        <p id="allocationStatusText">Select eligible subjects first, then assign sections to see the teacher's live weekly hours and remaining international capacity.</p>
-                                    </div>
-                                    <div class="allocation-hours-total">
-                                        <strong id="allocationAssignedHoursValue">0h</strong>
-                                        <span>Allocated now</span>
-                                    </div>
+
+                            <div id="manualAssignmentPanel" class="manual-plan-panel{% if should_open_manual_assignment %} is-open{% endif %}">
+                                <div class="manual-plan-header">
+                                    <strong>Manual Adjustment Tools</strong>
+                                    <span id="manualPlanStatePill" class="manual-plan-pill">Expanded</span>
                                 </div>
-                                <div class="allocation-progress-panel">
-                                    <div class="allocation-progress-meta">
-                                        <span id="allocationProgressLabel">0h used of 24h international capacity</span>
-                                        <strong id="allocationProgressPercent">0%</strong>
-                                    </div>
-                                    <div class="allocation-progress-track">
-                                        <span id="allocationProgressBar" class="allocation-progress-bar" style="width: 0%;"></span>
-                                    </div>
-                                    <div id="allocationCapacityHint" class="allocation-capacity-hint">Base 24h, extra 0h, national 0h, total 24h.</div>
+                                <div class="assignment-step">
+                                    <div class="assignment-step-label">Manual Step 1</div>
+                                    <h3>Choose eligible subjects</h3>
+                                    <p>Search by grade or code, then select subjects to expose section assignment options.</p>
+                                <div class="subject-selector-shell">
+                                     <div class="subject-selector-topbar">
+                                         <input id="subjectSearchInput" class="subject-search" type="text" placeholder="Search by code, subject name, or grade">
+                                         <div class="subject-selector-tools">
+                                             <span id="subjectSelectionCount" class="subject-selection-count">0 selected</span>
+                                             <button id="clearAllSubjectsBtn" class="subject-grade-btn" type="button">Clear all</button>
+                                         </div>
+                                     </div>
+                                     <div class="subject-selector-help">Use the + sign to open one grade, then select matching subjects.</div>
+                                     <div id="majorGuidance" class="major-guidance" data-state="empty">
+                                         <div class="major-guidance-head">
+                                             <div class="major-guidance-copy">
+                                                 <span id="majorGuidanceBadge" class="major-guidance-badge">Add qualifications</span>
+                                                 <h4>Subject Alignment Guide</h4>
+                                                 <p id="majorGuidanceText">Major-aligned subjects are highlighted. Non-matching choices require Admin Override before saving.</p>
+                                             </div>
+                                         </div>
+                                         <div class="major-guidance-grid">
+                                             <div class="major-guidance-stat">
+                                                 <span>Matching Subjects</span>
+                                                 <strong id="majorGuidanceMatchingCount">0</strong>
+                                                 <small>Available in this branch and year</small>
+                                             </div>
+                                             <div class="major-guidance-stat">
+                                                 <span>Selected Match</span>
+                                                 <strong id="majorGuidanceSelectedMatchCount">0</strong>
+                                                 <small>Chosen and aligned with major</small>
+                                             </div>
+                                             <div class="major-guidance-stat">
+                                                 <span>Overrides On</span>
+                                                 <strong id="majorGuidanceOverrideCount">0</strong>
+                                                 <small>Approved exception subjects</small>
+                                             </div>
+                                             <div class="major-guidance-stat">
+                                                 <span>Review Needed</span>
+                                                 <strong id="majorGuidanceSelectedReviewCount">0</strong>
+                                                 <small>Need override or different qualification</small>
+                                             </div>
+                                         </div>
+                                     </div>
+                                     <div id="selectedSubjectChips" class="subject-selector-chips"></div>
+                                     <div class="field-note">When a selected subject does not match saved qualifications, enable <strong>Admin Override</strong> to allow it as an exception.</div>
+                                     <div class="subject-picker" id="subjectPicker"></div>
+                                     <div id="subjectNoResult" class="subject-empty" style="display:none;">No subjects match your search.</div>
                                 </div>
-                                <div class="allocation-metrics-grid">
-                                    <div class="allocation-metric-card">
-                                        <span>Subjects Selected</span>
-                                        <strong id="allocationSubjectCountValue">0</strong>
-                                        <small>Eligible subjects chosen</small>
-                                    </div>
-                                    <div class="allocation-metric-card">
-                                        <span>Sections Assigned</span>
-                                        <strong id="allocationSectionCountValue">0</strong>
-                                        <small>Live teaching assignments</small>
-                                    </div>
-                                    <div class="allocation-metric-card">
-                                        <span>Intl Capacity</span>
-                                        <strong id="allocationInternationalCapacityValue">24h</strong>
-                                        <small>Hours available for international sections</small>
-                                    </div>
-                                    <div id="allocationRemainingMetric" class="allocation-metric-card">
-                                        <span id="allocationRemainingHoursLabel">Remaining</span>
-                                        <strong id="allocationRemainingHoursValue">24h</strong>
-                                        <small id="allocationRemainingHoursNote">Hours still open for allocation</small>
-                                    </div>
                                 </div>
-                                <div class="allocation-breakdown-grid">
-                                    <div class="allocation-breakdown-item">
-                                        <span>Max Hours</span>
-                                        <strong id="allocationMaxHoursValue">24h</strong>
-                                        <small>Base weekly limit</small>
+                                <div class="assignment-step">
+                                    <div class="assignment-step-label">Manual Step 2</div>
+                                    <h3>Assign sections per subject</h3>
+                                    <p>Select the exact sections this teacher should cover for each selected subject.</p>
+                                <div id="sectionAssignmentBoard" class="subject-assignment-board"></div>
+                                <div id="sectionAssignmentEmpty" class="section-assignment-empty">Choose one or more subjects, and matching sections will appear here.</div>
+                                </div>
+                                <div id="allocationSummary" class="allocation-dashboard" data-state="empty" aria-live="polite">
+                                    <div class="allocation-dashboard-head">
+                                        <div class="allocation-copy">
+                                            <span id="allocationStatusBadge" class="allocation-status-badge">Start with subjects</span>
+                                            <h3>Teaching Load Overview</h3>
+                                            <p id="allocationStatusText">Select eligible subjects first, then assign sections to see this teacher's live weekly load.</p>
+                                        </div>
+                                        <div class="allocation-hours-total">
+                                            <strong id="allocationAssignedHoursValue">0h</strong>
+                                            <span>Allocated now</span>
+                                        </div>
                                     </div>
-                                    <div class="allocation-breakdown-item">
-                                        <span>Extra Hours</span>
-                                        <strong id="allocationExtraHoursValue">0h</strong>
-                                        <small>Optional added capacity</small>
+                                    <div class="allocation-progress-panel">
+                                        <div class="allocation-progress-meta">
+                                            <span id="allocationProgressLabel">0h used of 24h international capacity</span>
+                                            <strong id="allocationProgressPercent">0%</strong>
+                                        </div>
+                                        <div class="allocation-progress-track">
+                                            <span id="allocationProgressBar" class="allocation-progress-bar" style="width: 0%;"></span>
+                                        </div>
+                                        <div id="allocationCapacityHint" class="allocation-capacity-hint">Base 24h, extra 0h, national 0h, total 24h.</div>
                                     </div>
-                                    <div class="allocation-breakdown-item">
-                                        <span>National Hours</span>
-                                        <strong id="allocationNationalHoursValue">0h</strong>
-                                        <small>Reserved outside international load</small>
+                                    <div class="allocation-metrics-grid">
+                                        <div class="allocation-metric-card">
+                                            <span>Subjects Selected</span>
+                                            <strong id="allocationSubjectCountValue">0</strong>
+                                            <small>Eligible subjects chosen</small>
+                                        </div>
+                                        <div class="allocation-metric-card">
+                                            <span>Sections Assigned</span>
+                                            <strong id="allocationSectionCountValue">0</strong>
+                                            <small>Live teaching assignments</small>
+                                        </div>
+                                        <div class="allocation-metric-card">
+                                            <span>Intl Capacity</span>
+                                            <strong id="allocationInternationalCapacityValue">24h</strong>
+                                            <small>Hours available for international sections</small>
+                                        </div>
+                                        <div id="allocationRemainingMetric" class="allocation-metric-card">
+                                            <span id="allocationRemainingHoursLabel">Remaining</span>
+                                            <strong id="allocationRemainingHoursValue">24h</strong>
+                                            <small id="allocationRemainingHoursNote">Hours still open for allocation</small>
+                                        </div>
                                     </div>
-                                    <div class="allocation-breakdown-item">
-                                        <span>Total Capacity</span>
-                                        <strong id="allocationTotalCapacityValue">24h</strong>
-                                        <small>Max plus extra before deductions</small>
+                                    <div class="allocation-breakdown-grid">
+                                        <div class="allocation-breakdown-item">
+                                            <span>Max Hours</span>
+                                            <strong id="allocationMaxHoursValue">24h</strong>
+                                            <small>Base weekly limit</small>
+                                        </div>
+                                        <div class="allocation-breakdown-item">
+                                            <span>Extra Hours</span>
+                                            <strong id="allocationExtraHoursValue">0h</strong>
+                                            <small>Optional added capacity</small>
+                                        </div>
+                                        <div class="allocation-breakdown-item">
+                                            <span>National Hours</span>
+                                            <strong id="allocationNationalHoursValue">0h</strong>
+                                            <small>Reserved outside international load</small>
+                                        </div>
+                                        <div class="allocation-breakdown-item">
+                                            <span>Total Capacity</span>
+                                            <strong id="allocationTotalCapacityValue">24h</strong>
+                                            <small>Max plus extra before deductions</small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -2979,6 +3254,8 @@
                 {% else %}
                 <div class="empty">Your role is read-only. You can view teacher records but cannot create new records.</div>
                 {% endif %}
+                    </div>
+                </div>
             </article>
 
             <article class="card">
@@ -3260,6 +3537,9 @@ const searchInput = document.getElementById("teacherSearch");
         const bulkSelectAll = document.getElementById("bulkSelectAll");
         const bulkDeleteForm = document.getElementById("bulkDeleteForm");
         const bulkDeleteTrigger = document.getElementById("bulkDeleteTrigger");
+        const openAddTeacherBtn = document.getElementById("openAddTeacherBtn");
+        const closeAddTeacherBtn = document.getElementById("closeAddTeacherBtn");
+        const addTeacherPanel = document.getElementById("addTeacherPanel");
         const extraAllowed = document.getElementById("extra_hours_allowed");
         const extraCountField = document.getElementById("extraHoursCountField");
         const extraCountInput = document.getElementById("extra_hours_count");
@@ -3271,7 +3551,6 @@ const searchInput = document.getElementById("teacherSearch");
         const qualificationDropdowns = Array.from(document.querySelectorAll("[data-qualification-dropdown]"));
         const qualificationSelectionCount = document.getElementById("qualificationSelectionCount");
         const qualificationSelectionChips = document.getElementById("qualificationSelectionChips");
-        const maxHoursInput = document.getElementById("max_hours");
         const teacherForm = document.getElementById("createTeacherForm");
         const subjectSearchInput = document.getElementById("subjectSearchInput");
         const subjectSelectionCount = document.getElementById("subjectSelectionCount");
@@ -3320,6 +3599,8 @@ const searchInput = document.getElementById("teacherSearch");
         const assignmentSuggestionApplyBtn = document.getElementById("assignmentSuggestionApplyBtn");
         const assignmentSuggestionAdjustBtn = document.getElementById("assignmentSuggestionAdjustBtn");
         const assignmentSuggestionRefreshBtn = document.getElementById("assignmentSuggestionRefreshBtn");
+        const manualAssignmentPanel = document.getElementById("manualAssignmentPanel");
+        const manualPlanStatePill = document.getElementById("manualPlanStatePill");
         const standardMaxHours = 24;
         const autoMatchingDataUrl = "/teachers/auto-matching-data";
         let subjectChoices = {{ subject_choices | tojson }};
@@ -3487,6 +3768,33 @@ const searchInput = document.getElementById("teacherSearch");
             });
         };
 
+        const setAddTeacherPanel = (isOpen) => {
+            if (!addTeacherPanel) {
+                return;
+            }
+            addTeacherPanel.classList.toggle("is-open", isOpen);
+            if (openAddTeacherBtn) {
+                openAddTeacherBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+            }
+        };
+
+        const setManualPlanVisibility = (isOpen, options = {}) => {
+            if (!manualAssignmentPanel) {
+                return;
+            }
+            manualAssignmentPanel.classList.toggle("is-open", isOpen);
+            if (manualPlanStatePill) {
+                manualPlanStatePill.textContent = isOpen ? "Expanded" : "Hidden";
+            }
+            if (!assignmentSuggestionAdjustBtn) {
+                return;
+            }
+            assignmentSuggestionAdjustBtn.textContent = isOpen ? "Hide Manual Plan" : "Adjust Plan";
+            if (isOpen && options.focus) {
+                focusSectionAssignmentBoard();
+            }
+        };
+
         const getSelectedSubjectCount = () => {
             return selectedSubjectCodes.size;
         };
@@ -3525,8 +3833,7 @@ const searchInput = document.getElementById("teacherSearch");
         };
 
         const getSafeMaxHours = () => {
-            const parsedMaxHours = Number(maxHoursInput ? maxHoursInput.value : 0);
-            return Number.isFinite(parsedMaxHours) && parsedMaxHours > 0 ? parsedMaxHours : 0;
+            return standardMaxHours;
         };
 
         const getSafeExtraHours = () => {
@@ -3637,7 +3944,7 @@ const searchInput = document.getElementById("teacherSearch");
         };
 
         const updateAllocationSummary = () => {
-            if (!allocationSummary || !maxHoursInput) {
+            if (!allocationSummary) {
                 return;
             }
 
@@ -4869,11 +5176,8 @@ const searchInput = document.getElementById("teacherSearch");
         };
 
         const adjustAssignmentSuggestion = () => {
-            if (!currentAssignmentSuggestion || !currentAssignmentSuggestion.suggestions.length) {
-                focusSectionAssignmentBoard();
-                return;
-            }
-            applyAssignmentSuggestion(true);
+            const isOpen = manualAssignmentPanel?.classList.contains("is-open") || false;
+            setManualPlanVisibility(!isOpen, { focus: !isOpen });
         };
 
         const loadHiringPlanSuggestion = async () => {
@@ -5905,6 +6209,19 @@ const searchInput = document.getElementById("teacherSearch");
             qualificationDropdowns.forEach((dropdown) => {
                 dropdown.open = false;
             });
+            if (openAddTeacherBtn && addTeacherPanel?.classList.contains("is-open")) {
+                setAddTeacherPanel(false);
+            }
+        });
+
+        openAddTeacherBtn?.addEventListener("click", () => {
+            setAddTeacherPanel(true);
+            teacherIdInput?.focus();
+        });
+
+        closeAddTeacherBtn?.addEventListener("click", () => {
+            setAddTeacherPanel(false);
+            openAddTeacherBtn?.focus();
         });
 
         if (clearAllSubjectsBtn) {
@@ -5927,112 +6244,76 @@ const searchInput = document.getElementById("teacherSearch");
             nationalSectionHoursInput.addEventListener("change", updateAllocationSummary);
         }
 
-        if (maxHoursInput) {
-            const enforceExtraHoursRule = () => {
-                const parsedValue = Number(maxHoursInput.value);
-                if (!Number.isFinite(parsedValue) || parsedValue <= standardMaxHours) {
-                    updateAllocationSummary();
+        if (teacherForm) {
+            teacherForm.addEventListener("submit", (event) => {
+                syncSelectedQualifications();
+
+                if (subjectChoices.length === 0) {
+                    event.preventDefault();
+                    window.alert("No subjects are available for assignment in the current branch/academic year.");
                     return;
                 }
 
-                if (!extraAllowed || !extraAllowed.checked) {
-                    maxHoursInput.value = String(standardMaxHours);
-                    updateAllocationSummary();
-                    window.alert("To enter more than 24 max hours, please check Extra Hours Allowed first.");
-                    if (extraAllowed) {
-                        extraAllowed.focus();
-                    }
+                if (selectedQualificationKeys.size === 0) {
+                    event.preventDefault();
+                    window.alert("Select at least one degree or specialization for this teacher.");
+                    openQualificationDropdownForInput(qualificationInputs[0]);
+                    qualificationInputs[0]?.focus();
                     return;
                 }
-            };
 
-            maxHoursInput.addEventListener("input", enforceExtraHoursRule);
-            maxHoursInput.addEventListener("change", enforceExtraHoursRule);
-            maxHoursInput.addEventListener("input", updateAllocationSummary);
-            maxHoursInput.addEventListener("change", updateAllocationSummary);
+                if (!hasSelectedSpecialization()) {
+                    event.preventDefault();
+                    window.alert("Select at least one major or subject specialization so the system can validate subject compatibility.");
+                    const firstSpecializationInput = qualificationInputs.find((input) => {
+                        return String(input.dataset.qualificationKind || "").trim() === "specialization";
+                    }) || qualificationInputs[0];
+                    openQualificationDropdownForInput(firstSpecializationInput);
+                    firstSpecializationInput?.focus();
+                    return;
+                }
 
-            if (extraAllowed) {
-                extraAllowed.addEventListener("change", enforceExtraHoursRule);
-            }
+                const selectedCount = getSelectedSubjectCount();
+                if (selectedCount === 0) {
+                    event.preventDefault();
+                    window.alert("Select at least one subject for this teacher.");
+                    return;
+                }
 
-            if (teacherForm) {
-                teacherForm.addEventListener("submit", (event) => {
-                    syncSelectedQualifications();
-                    const parsedValue = Number(maxHoursInput.value);
-                    if (Number.isFinite(parsedValue) && parsedValue > standardMaxHours && (!extraAllowed || !extraAllowed.checked)) {
-                        event.preventDefault();
-                        window.alert("To enter more than 24 max hours, please check Extra Hours Allowed first.");
-                        if (extraAllowed) {
-                            extraAllowed.focus();
-                        }
-                        return;
-                    }
-
-                    if (subjectChoices.length === 0) {
-                        event.preventDefault();
-                        window.alert("No subjects are available for assignment in the current branch/academic year.");
-                        return;
-                    }
-
-                    if (selectedQualificationKeys.size === 0) {
-                        event.preventDefault();
-                        window.alert("Select at least one degree or specialization for this teacher.");
-                        openQualificationDropdownForInput(qualificationInputs[0]);
-                        qualificationInputs[0]?.focus();
-                        return;
-                    }
-
-                    if (!hasSelectedSpecialization()) {
-                        event.preventDefault();
-                        window.alert("Select at least one major or subject specialization so the system can validate subject compatibility.");
-                        const firstSpecializationInput = qualificationInputs.find((input) => {
-                            return String(input.dataset.qualificationKind || "").trim() === "specialization";
-                        }) || qualificationInputs[0];
-                        openQualificationDropdownForInput(firstSpecializationInput);
-                        firstSpecializationInput?.focus();
-                        return;
-                    }
-
-                    const selectedCount = getSelectedSubjectCount();
-                    if (selectedCount === 0) {
-                        event.preventDefault();
-                        window.alert("Select at least one subject for this teacher.");
-                        return;
-                    }
-
-                    const pendingOverrideSubjects = getSortedSelectedSubjects().filter((subject) => {
-                        const code = String(subject.subject_code || "").trim().toUpperCase();
-                        return getSubjectMajorAlignment(subject).status === "review"
-                            && !isOverrideEnabledForSubject(code);
-                    });
-                    if (pendingOverrideSubjects.length > 0) {
-                        event.preventDefault();
-                        window.alert(`Enable Admin Override or adjust qualifications for these subjects before saving: ${pendingOverrideSubjects.map((subject) => String(subject.subject_code || "").trim().toUpperCase()).join(", ")}.`);
-                        return;
-                    }
-
-                    const allocationSnapshot = getAllocationSnapshot();
-                    if (allocationSnapshot.nationalHoursExceedTotal) {
-                        event.preventDefault();
-                        window.alert(`National section hours (${allocationSnapshot.safeNationalHours}) cannot exceed total teacher capacity (${allocationSnapshot.totalCapacityHours}).`);
-                        if (nationalSectionHoursInput) {
-                            nationalSectionHoursInput.focus();
-                        }
-                        return;
-                    }
-                    if (allocationSnapshot.assignedHours > allocationSnapshot.requiredHours) {
-                        event.preventDefault();
-                        window.alert(`Assigned section hours (${allocationSnapshot.assignedHours}) exceed available international capacity (${allocationSnapshot.requiredHours}). Reduce the selected sections, reduce national section hours, or increase allowed extra hours.`);
-                        return;
-                    }
-
+                const pendingOverrideSubjects = getSortedSelectedSubjects().filter((subject) => {
+                    const code = String(subject.subject_code || "").trim().toUpperCase();
+                    return getSubjectMajorAlignment(subject).status === "review"
+                        && !isOverrideEnabledForSubject(code);
                 });
-            }
+                if (pendingOverrideSubjects.length > 0) {
+                    event.preventDefault();
+                    window.alert(`Enable Admin Override or adjust qualifications for these subjects before saving: ${pendingOverrideSubjects.map((subject) => String(subject.subject_code || "").trim().toUpperCase()).join(", ")}.`);
+                    return;
+                }
+
+                const allocationSnapshot = getAllocationSnapshot();
+                if (allocationSnapshot.nationalHoursExceedTotal) {
+                    event.preventDefault();
+                    window.alert(`National section hours (${allocationSnapshot.safeNationalHours}) cannot exceed total teacher capacity (${allocationSnapshot.totalCapacityHours}).`);
+                    if (nationalSectionHoursInput) {
+                        nationalSectionHoursInput.focus();
+                    }
+                    return;
+                }
+                if (allocationSnapshot.assignedHours > allocationSnapshot.requiredHours) {
+                    event.preventDefault();
+                    window.alert(`Assigned section hours (${allocationSnapshot.assignedHours}) exceed available international capacity (${allocationSnapshot.requiredHours}). Reduce the selected sections, reduce national section hours, or increase allowed extra hours.`);
+                    return;
+                }
+            });
         }
 
         assignmentSuggestionApplyBtn?.addEventListener("click", applyAssignmentSuggestion);
         assignmentSuggestionAdjustBtn?.addEventListener("click", adjustAssignmentSuggestion);
         assignmentSuggestionRefreshBtn?.addEventListener("click", regenerateAssignmentSuggestion);
+
+        setAddTeacherPanel(addTeacherPanel?.classList.contains("is-open") || false);
+        setManualPlanVisibility(manualAssignmentPanel?.classList.contains("is-open") || false);
 
         syncSelectedQualifications();
         renderSelectedSubjectChips();
