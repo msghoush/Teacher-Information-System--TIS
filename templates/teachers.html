@@ -223,6 +223,39 @@
             gap: 12px;
         }
 
+        .teacher-workflow-glance {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 8px;
+        }
+
+        .teacher-workflow-card {
+            border: 1px solid #dbe7f8;
+            border-radius: 12px;
+            background: #f8fbff;
+            padding: 10px;
+            display: grid;
+            gap: 6px;
+        }
+
+        .teacher-workflow-card-head {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            color: #1d3f68;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        .teacher-workflow-card p {
+            margin: 0;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #556b87;
+        }
+
         .add-teacher-trigger {
             width: 100%;
             border: 1px solid #d7e2f2;
@@ -263,6 +296,9 @@
             font-weight: 800;
             color: #17365d;
             line-height: 1.2;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .add-teacher-trigger-note {
@@ -332,6 +368,9 @@
             margin: 0;
             color: #17365d;
             font-size: 18px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .add-teacher-panel-copy p {
@@ -804,6 +843,12 @@
             padding: 10px;
             display: grid;
             gap: 3px;
+        }
+
+        .qualification-focus-card strong {
+            display: inline-flex;
+            align-items: flex-start;
+            gap: 6px;
         }
 
         .qualification-focus-card span {
@@ -1441,6 +1486,9 @@
         .manual-plan-header strong {
             font-size: 13px;
             color: #17365d;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .manual-plan-pill {
@@ -2933,17 +2981,31 @@
             {% set should_open_manual_assignment = (selected_subject_codes and selected_subject_codes|length > 0) or (selected_section_assignment_values and selected_section_assignment_values|length > 0) %}
             <article class="card">
                 <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("teachers", "icon") }}</span>Teacher Workspace</span></h2>
-                <p>Start clean with Auto Match first, then open manual controls only when you need to fine-tune assignments.</p>
+                <p>Auto Match is primary. Manual tools stay hidden until you need them.</p>
 
                 <div class="add-teacher-shell">
+                    <div class="teacher-workflow-glance">
+                        <div class="teacher-workflow-card">
+                            <div class="teacher-workflow-card-head">{{ icon("sparkles", "icon") }} Auto Match First</div>
+                            <p>Builds a smart plan before manual edits.</p>
+                        </div>
+                        <div class="teacher-workflow-card">
+                            <div class="teacher-workflow-card-head">{{ icon("shield", "icon") }} Fixed Capacity</div>
+                            <p>Base load is locked at 24 hours.</p>
+                        </div>
+                        <div class="teacher-workflow-card">
+                            <div class="teacher-workflow-card-head">{{ icon("settings", "icon") }} Adjust On Demand</div>
+                            <p>Advanced assignment appears only when opened.</p>
+                        </div>
+                    </div>
                     {% if can_modify %}
                     <button id="openAddTeacherBtn" class="add-teacher-trigger" type="button" aria-expanded="{{ 'true' if should_open_add_teacher else 'false' }}" aria-controls="addTeacherPanel">
                         <span class="add-teacher-trigger-copy">
                             <span class="add-teacher-trigger-eyebrow">Teacher Workflow</span>
-                            <span class="add-teacher-trigger-title">+ Add Teacher</span>
-                            <span class="add-teacher-trigger-note">Open a focused form only when needed. Keep the page compact by default.</span>
+                            <span class="add-teacher-trigger-title">{{ icon("user-plus", "icon") }} Add Teacher</span>
+                            <span class="add-teacher-trigger-note">Open a focused workspace only when needed.</span>
                         </span>
-                        <span class="add-teacher-trigger-cta">Open</span>
+                        <span class="add-teacher-trigger-cta">{{ icon("open", "icon") }} Open</span>
                     </button>
                     {% endif %}
 
@@ -2951,11 +3013,11 @@
                         <div class="add-teacher-panel-body">
                             <div class="add-teacher-panel-head">
                                 <div class="add-teacher-panel-copy">
-                                    <h3>Create Teacher Profile</h3>
-                                    <p>Fill core identity and qualifications, then optionally adjust manual section assignments.</p>
+                                    <h3>{{ icon("teachers", "icon") }} Create Teacher Profile</h3>
+                                    <p>Set identity and qualifications, then confirm Auto Match or adjust manually.</p>
                                 </div>
                                 {% if can_modify %}
-                                <button id="closeAddTeacherBtn" class="add-teacher-close" type="button">Close</button>
+                                <button id="closeAddTeacherBtn" class="add-teacher-close" type="button">{{ icon("close", "icon") }} Close</button>
                                 {% endif %}
                             </div>
 
@@ -3000,11 +3062,11 @@
                                 <div class="qualification-shell-head">
                                     <div class="qualification-focus-card">
                                         <span>Degrees</span>
-                                        <strong>Choose all completed academic degree levels.</strong>
+                                        <strong>{{ icon("report", "icon") }} Choose all completed degree levels.</strong>
                                     </div>
                                     <div class="qualification-focus-card">
                                         <span>Majors & Specializations</span>
-                                        <strong>Select teaching domains used for Auto Match and validation.</strong>
+                                        <strong>{{ icon("insights", "icon") }} Select domains used for Auto Match.</strong>
                                     </div>
                                 </div>
                                 <div class="qualification-summary-bar">
@@ -3052,6 +3114,7 @@
                         <div class="field">
                             <label>Maximum Teaching Load</label>
                             <div class="max-hours-rule" aria-label="Maximum teaching load is fixed at 24 hours">
+                                {{ icon("shield", "icon") }}
                                 <span>System Rule</span>
                                 <strong>24h fixed</strong>
                             </div>
@@ -3064,7 +3127,7 @@
                                 <div class="assignment-suggestion-head">
                                     <div class="assignment-suggestion-copy">
                                         <span id="assignmentSuggestionBadge" class="assignment-suggestion-badge">Loading Auto Match</span>
-                                        <h3>Smart Auto Matching Plan</h3>
+                                        <h3>{{ icon("sparkles", "icon") }} Smart Auto Matching Plan</h3>
                                         <p id="assignmentSuggestionText">Auto Match uses current plan demand and qualifications to propose the cleanest section allocation first.</p>
                                     </div>
                                     <div class="assignment-suggestion-actions">
@@ -3092,13 +3155,13 @@
 
                             <div id="manualAssignmentPanel" class="manual-plan-panel{% if should_open_manual_assignment %} is-open{% endif %}">
                                 <div class="manual-plan-header">
-                                    <strong>Manual Adjustment Tools</strong>
+                                    <strong>{{ icon("settings", "icon") }} Manual Adjustment Tools</strong>
                                     <span id="manualPlanStatePill" class="manual-plan-pill">Expanded</span>
                                 </div>
                                 <div class="assignment-step">
                                     <div class="assignment-step-label">Manual Step 1</div>
-                                    <h3>Choose eligible subjects</h3>
-                                    <p>Search by grade or code, then select subjects to expose section assignment options.</p>
+                                    <h3>{{ icon("subjects", "icon") }} Choose eligible subjects</h3>
+                                    <p>Search by grade/code and pick subjects.</p>
                                 <div class="subject-selector-shell">
                                      <div class="subject-selector-topbar">
                                          <input id="subjectSearchInput" class="subject-search" type="text" placeholder="Search by code, subject name, or grade">
@@ -3147,8 +3210,8 @@
                                 </div>
                                 <div class="assignment-step">
                                     <div class="assignment-step-label">Manual Step 2</div>
-                                    <h3>Assign sections per subject</h3>
-                                    <p>Select the exact sections this teacher should cover for each selected subject.</p>
+                                    <h3>{{ icon("table", "icon") }} Assign sections per subject</h3>
+                                    <p>Select exact sections for each chosen subject.</p>
                                 <div id="sectionAssignmentBoard" class="subject-assignment-board"></div>
                                 <div id="sectionAssignmentEmpty" class="section-assignment-empty">Choose one or more subjects, and matching sections will appear here.</div>
                                 </div>
