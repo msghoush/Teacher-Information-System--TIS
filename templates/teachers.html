@@ -966,13 +966,21 @@
         }
 
         .qualification-dropdown-trigger::after {
-            content: "v";
+            content: "▾";
             position: absolute;
             top: 13px;
             right: 14px;
-            color: #60728b;
-            font-size: 13px;
-            font-weight: 800;
+            width: 24px;
+            height: 24px;
+            border-radius: 999px;
+            background: rgba(10, 78, 163, 0.12);
+            border: 1px solid rgba(10, 78, 163, 0.28);
+            color: var(--brand);
+            font-size: 17px;
+            font-weight: 900;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             transition: transform 140ms ease;
         }
 
@@ -3100,7 +3108,7 @@
                                         <summary class="qualification-dropdown-trigger">
                                             <span class="qualification-dropdown-heading">
                                                 <span class="qualification-dropdown-title-block">
-                                                    <span class="qualification-dropdown-title">{% if group_kind == "degree" %}{{ icon("report", "qualification-title-icon") }}{% else %}{{ icon("subjects", "qualification-title-icon") }}{% endif %}{{ group.label }}</span>
+                                                    <span class="qualification-dropdown-title">{% if group_kind == "degree" %}{{ icon("degree", "qualification-title-icon") }}{% else %}{{ icon("subjects", "qualification-title-icon") }}{% endif %}{{ group.label }}</span>
                                                     <span class="qualification-dropdown-help">{{ group.options|length }} options. Multiple selections allowed.</span>
                                                 </span>
                                                 <span class="qualification-dropdown-count" data-qualification-selected-count>0 selected</span>
