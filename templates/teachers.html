@@ -916,6 +916,7 @@
         .qualification-chip {
             display: inline-flex;
             align-items: center;
+            gap: 6px;
             padding: 6px 9px;
             border-radius: 999px;
             border: 1px solid #d7e2f3;
@@ -1009,6 +1010,17 @@
             font-size: 13px;
             color: #17365d;
             font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .qualification-title-icon,
+        .qualification-kind-icon {
+            width: 14px;
+            height: 14px;
+            color: #315a8d;
+            flex-shrink: 0;
         }
 
         .qualification-dropdown-help {
@@ -1152,6 +1164,9 @@
             font-size: 12px;
             color: #1f3759;
             line-height: 1.35;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .qualification-copy small {
@@ -3057,7 +3072,7 @@
                             <input id="last_name" type="text" name="last_name" value="{{ form_data.last_name }}" required>
                         </div>
                         <div class="field field-wide">
-                            <label>Academic Degrees, Majors & Teaching Specializations</label>
+                            <label>{{ icon("insights", "icon") }} Academic Degrees, Majors & Teaching Specializations</label>
                             <div class="qualification-shell">
                                 <div class="qualification-shell-head">
                                     <div class="qualification-focus-card">
@@ -3076,11 +3091,12 @@
                                 <div class="qualification-selector-grid">
                                     {% for group in qualification_option_groups %}
                                     {% set search_placeholder = "Search degrees" if group.options and group.options[0].kind == "degree" else "Search majors or specializations" %}
+                                    {% set group_kind = group.options[0].kind if group.options else "specialization" %}
                                     <details class="qualification-dropdown" data-qualification-dropdown>
                                         <summary class="qualification-dropdown-trigger">
                                             <span class="qualification-dropdown-heading">
                                                 <span class="qualification-dropdown-title-block">
-                                                    <span class="qualification-dropdown-title">{{ group.label }}</span>
+                                                    <span class="qualification-dropdown-title">{% if group_kind == "degree" %}{{ icon("report", "qualification-title-icon") }}{% else %}{{ icon("insights", "qualification-title-icon") }}{% endif %}{{ group.label }}</span>
                                                     <span class="qualification-dropdown-help">{{ group.options|length }} options. Multiple selections allowed.</span>
                                                 </span>
                                                 <span class="qualification-dropdown-count" data-qualification-selected-count>0 selected</span>
@@ -3097,7 +3113,7 @@
                                                 <label class="qualification-option{% if option.key in selected_qualification_keys %} is-selected{% endif %}" data-qualification-option data-qualification-search-value="{{ (option.label ~ ' ' ~ option.kind_label)|lower }}">
                                                     <input class="qualification-checkbox" type="checkbox" name="qualification_keys" value="{{ option.key }}" data-qualification-label="{{ option.label }}" data-qualification-kind="{{ option.kind }}" {% if option.key in selected_qualification_keys %}checked{% endif %}>
                                                     <span class="qualification-copy">
-                                                        <strong>{{ option.label }}</strong>
+                                                        <strong>{% if option.kind == "degree" %}{{ icon("report", "qualification-kind-icon") }}{% else %}{{ icon("insights", "qualification-kind-icon") }}{% endif %}{{ option.label }}</strong>
                                                         <small>{{ option.kind_label }}</small>
                                                     </span>
                                                 </label>
@@ -4493,6 +4509,13 @@ const searchInput = document.getElementById("teacherSearch");
             default: { color: "#0a4ea3", soft: "#f5f9ff", border: "#dbe7f8", text: "#2f4361" },
         };
 
+        const getQualificationChipIconMarkup = (kind) => {
+            if (kind === "degree") {
+                return `<svg class="qualification-kind-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18"></path><path d="M7 20v-6"></path><path d="M12 20V8"></path><path d="M17 20v-9"></path></svg>`;
+            }
+            return `<svg class="qualification-kind-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3a9 9 0 1 0 10 10H11Z"></path><path d="M13 3.1A9 9 0 0 1 20.9 11H13Z"></path></svg>`;
+        };
+
         const getSuggestionCardStyle = (suggestion) => {
             const palette = suggestionFamilyPaletteMap[String(suggestion?.family || "").trim()] || suggestionFamilyPaletteMap.default;
             const subject = subjectChoicesByCode[String(suggestion?.subjectCode || "").trim().toUpperCase()] || {};
@@ -5336,7 +5359,7 @@ const searchInput = document.getElementById("teacherSearch");
                     selectedOptions.slice(0, 2).forEach((option) => {
                         const chip = document.createElement("span");
                         chip.className = `qualification-chip${option.kind === "specialization" ? " is-specialization" : ""}`;
-                        chip.textContent = option.label;
+                        chip.innerHTML = `${getQualificationChipIconMarkup(option.kind)}<span>${option.label}</span>`;
                         preview.appendChild(chip);
                     });
 
@@ -5423,7 +5446,7 @@ const searchInput = document.getElementById("teacherSearch");
             selectedQualifications.forEach((option) => {
                 const chip = document.createElement("span");
                 chip.className = `qualification-chip${option.kind === "specialization" ? " is-specialization" : ""}`;
-                chip.textContent = option.label;
+                chip.innerHTML = `${getQualificationChipIconMarkup(option.kind)}<span>${option.label}</span>`;
                 qualificationSelectionChips.appendChild(chip);
             });
         };
