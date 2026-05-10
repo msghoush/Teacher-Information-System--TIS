@@ -1503,6 +1503,10 @@
             display: grid;
         }
 
+        .manual-plan-panel.is-open {
+            max-height: min(38vh, 460px);
+        }
+
         .manual-plan-scroll {
             min-height: 0;
             overflow-y: auto;
@@ -1646,12 +1650,23 @@
         }
 
         .manual-plan-panel.is-open + .workflow-preview-shell .allocation-dashboard {
-            padding: 12px;
-            gap: 10px;
+            padding: 10px 12px;
+            gap: 8px;
         }
 
         .manual-plan-panel.is-open + .workflow-preview-shell .allocation-metrics-grid,
         .manual-plan-panel.is-open + .workflow-preview-shell .allocation-breakdown-grid {
+            gap: 6px;
+        }
+
+        .manual-plan-panel.is-open + .workflow-preview-shell .allocation-dashboard-head {
+            gap: 8px;
+        }
+
+        .manual-plan-panel.is-open + .workflow-preview-shell .allocation-copy h3 {
+            font-size: 18px;
+            display: inline-flex;
+            align-items: center;
             gap: 8px;
         }
 
@@ -3401,7 +3416,7 @@
                                     <div class="allocation-dashboard-head">
                                         <div class="allocation-copy">
                                             <span id="allocationStatusBadge" class="allocation-status-badge">Start with subjects</span>
-                                            <h3>Teacher Load Preview</h3>
+                                            <h3>{{ icon("shield", "icon") }} Teacher Load Preview</h3>
                                             <p id="allocationStatusText">Select eligible subjects first, then assign sections to see this teacher's live weekly load.</p>
                                         </div>
                                         <div class="allocation-hours-total">
