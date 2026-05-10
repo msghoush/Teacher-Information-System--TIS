@@ -1494,25 +1494,14 @@
             background: linear-gradient(180deg, #ffffff, #f8fbff);
             margin-top: 12px;
             display: none;
-            grid-template-rows: auto minmax(0, 1fr);
-            max-height: min(46vh, 560px);
-            overflow: hidden;
+            gap: 0;
         }
 
         .manual-plan-panel.is-open {
             display: grid;
         }
 
-        .manual-plan-panel.is-open {
-            max-height: min(38vh, 460px);
-        }
-
         .manual-plan-scroll {
-            min-height: 0;
-            overflow-y: auto;
-            overscroll-behavior: contain;
-            scrollbar-gutter: stable;
-            scroll-padding-top: 14px;
             padding: 10px;
             display: grid;
             gap: 10px;
@@ -1528,10 +1517,6 @@
             padding: 10px 12px;
             border-bottom: 1px solid #e1ebf8;
             background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.96));
-            position: sticky;
-            top: 0;
-            z-index: 2;
-            backdrop-filter: blur(8px);
         }
 
         .manual-plan-header strong {
