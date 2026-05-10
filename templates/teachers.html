@@ -3066,6 +3066,7 @@
 
                             {% if can_modify %}
                             <form id="createTeacherForm" method="post" action="/teachers" autocomplete="off">
+                    <div id="teacherSelectionInputMirror" hidden></div>
                     <div class="form-grid">
                         <div class="field">
                             <label for="teacher_id">Teacher Iqama/National ID</label>
@@ -3643,6 +3644,7 @@ const searchInput = document.getElementById("teacherSearch");
         const qualificationSelectionCount = document.getElementById("qualificationSelectionCount");
         const qualificationSelectionChips = document.getElementById("qualificationSelectionChips");
         const teacherForm = document.getElementById("createTeacherForm");
+        const teacherSelectionInputMirror = document.getElementById("teacherSelectionInputMirror");
         const subjectSearchInput = document.getElementById("subjectSearchInput");
         const subjectSelectionCount = document.getElementById("subjectSelectionCount");
         const clearAllSubjectsBtn = document.getElementById("clearAllSubjectsBtn");
@@ -3898,6 +3900,61 @@ const searchInput = document.getElementById("teacherSearch");
             return Array.from(selectedOverrideSubjectCodes);
         };
 
+        const getSelectedSectionAssignmentValues = () => {
+            return Array.from(persistedSectionAssignmentValues);
+        };
+
+        const syncPersistedSectionAssignmentsFromBoard = () => {
+            const liveAssignmentInputs = Array.from(
+                document.querySelectorAll("#sectionAssignmentBoard input[name='section_assignment_values']")
+            );
+            if (liveAssignmentInputs.length === 0) {
+                return;
+            }
+
+            const renderedSubjectCodes = new Set(
+                liveAssignmentInputs
+                    .map((input) => String(input.value || "").split("::")[0])
+                    .filter((value) => Boolean(value))
+            );
+            Array.from(persistedSectionAssignmentValues).forEach((value) => {
+                const subjectCode = String(value || "").split("::")[0];
+                if (renderedSubjectCodes.has(subjectCode)) {
+                    persistedSectionAssignmentValues.delete(value);
+                }
+            });
+            liveAssignmentInputs.forEach((input) => {
+                if (input.checked) {
+                    persistedSectionAssignmentValues.add(String(input.value || ""));
+                }
+            });
+        };
+
+        const appendMirroredInput = (container, name, value) => {
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.name = name;
+            input.value = value;
+            container.appendChild(input);
+        };
+
+        const syncTeacherFormSelectionInputs = () => {
+            if (!teacherSelectionInputMirror) {
+                return;
+            }
+            syncPersistedSectionAssignmentsFromBoard();
+            teacherSelectionInputMirror.innerHTML = "";
+            getSelectedSubjectCodes().forEach((subjectCode) => {
+                appendMirroredInput(teacherSelectionInputMirror, "subject_codes", subjectCode);
+            });
+            getSelectedSectionAssignmentValues().forEach((value) => {
+                appendMirroredInput(teacherSelectionInputMirror, "section_assignment_values", value);
+            });
+            getSelectedOverrideSubjectCodes().forEach((subjectCode) => {
+                appendMirroredInput(teacherSelectionInputMirror, "qualification_override_subject_codes", subjectCode);
+            });
+        };
+
         const isOverrideEnabledForSubject = (subjectCode) => {
             return selectedOverrideSubjectCodes.has(String(subjectCode || "").trim().toUpperCase());
         };
@@ -3915,12 +3972,6 @@ const searchInput = document.getElementById("teacherSearch");
                     selectedOverrideSubjectCodes.delete(normalizedCode);
                 }
             });
-        };
-
-        const getSelectedSectionAssignments = () => {
-            return Array.from(
-                document.querySelectorAll("input[name='section_assignment_values']:checked")
-            );
         };
 
         const getSafeMaxHours = () => {
@@ -3951,9 +4002,9 @@ const searchInput = document.getElementById("teacherSearch");
             return getSafeMaxHours() + getSafeExtraHours();
         };
 
-        const getAssignedHoursFromInputs = (sectionAssignments) => {
-            return sectionAssignments.reduce((total, input) => {
-                const [subjectCode] = String(input.value || "").split("::");
+        const getAssignedHoursFromValues = (sectionAssignmentValues) => {
+            return sectionAssignmentValues.reduce((total, value) => {
+                const [subjectCode] = String(value || "").split("::");
                 const subject = subjectChoicesByCode[subjectCode] || {};
                 const parsedHours = Number(subject.weekly_hours || "0");
                 return total + (Number.isFinite(parsedHours) ? parsedHours : 0);
@@ -3962,9 +4013,10 @@ const searchInput = document.getElementById("teacherSearch");
 
         const getAllocationSnapshot = () => {
             const selectedSubjectCount = getSelectedSubjectCount();
-            const selectedSectionAssignments = getSelectedSectionAssignments();
+            syncPersistedSectionAssignmentsFromBoard();
+            const selectedSectionAssignments = getSelectedSectionAssignmentValues();
             const selectedSectionCount = selectedSectionAssignments.length;
-            const assignedHours = getAssignedHoursFromInputs(selectedSectionAssignments);
+            const assignedHours = getAssignedHoursFromValues(selectedSectionAssignments);
             const safeMaxHours = getSafeMaxHours();
             const safeExtraHours = getSafeExtraHours();
             const safeNationalHours = getSafeNationalSectionHours();
@@ -5620,6 +5672,7 @@ const searchInput = document.getElementById("teacherSearch");
                 emptyState.className = "subject-chip-empty";
                 emptyState.textContent = "No subjects selected yet.";
                 selectedSubjectChips.appendChild(emptyState);
+                syncTeacherFormSelectionInputs();
                 updateMajorGuidance();
                 return;
             }
@@ -5694,6 +5747,7 @@ const searchInput = document.getElementById("teacherSearch");
                 selectedSubjectChips.appendChild(chip);
             });
 
+            syncTeacherFormSelectionInputs();
             updateMajorGuidance();
         };
 
@@ -5981,22 +6035,14 @@ const searchInput = document.getElementById("teacherSearch");
                 return;
             }
 
-            const liveAssignmentInputs = Array.from(
-                document.querySelectorAll("input[name='section_assignment_values']")
-            );
-            if (liveAssignmentInputs.length > 0) {
-                persistedSectionAssignmentValues = new Set(
-                    liveAssignmentInputs
-                        .filter((input) => input.checked)
-                        .map((input) => String(input.value || ""))
-                );
-            }
+            syncPersistedSectionAssignmentsFromBoard();
             const selectedSubjectCodesForBoard = getSelectedSubjectCodes();
 
             sectionAssignmentBoard.innerHTML = "";
 
             if (selectedSubjectCodesForBoard.length === 0) {
                 sectionAssignmentEmpty.style.display = "block";
+                syncTeacherFormSelectionInputs();
                 updateAllocationSummary();
                 return;
             }
@@ -6090,6 +6136,7 @@ const searchInput = document.getElementById("teacherSearch");
                             persistedSectionAssignmentValues.delete(optionValue);
                         }
                         optionLabel.classList.toggle("is-selected", input.checked);
+                        syncTeacherFormSelectionInputs();
                         updateAllocationSummary();
                     });
                     optionLabel.appendChild(input);
@@ -6114,6 +6161,7 @@ const searchInput = document.getElementById("teacherSearch");
             });
 
             sectionAssignmentEmpty.style.display = "none";
+            syncTeacherFormSelectionInputs();
             updateAllocationSummary();
         };
 
@@ -6335,68 +6383,108 @@ const searchInput = document.getElementById("teacherSearch");
             nationalSectionHoursInput.addEventListener("change", updateAllocationSummary);
         }
 
-        if (teacherForm) {
-            teacherForm.addEventListener("submit", (event) => {
-                syncSelectedQualifications();
-
-                if (subjectChoices.length === 0) {
-                    event.preventDefault();
-                    window.alert("No subjects are available for assignment in the current branch/academic year.");
+        if (maxHoursInput) {
+            const enforceExtraHoursRule = () => {
+                const parsedValue = Number(maxHoursInput.value);
+                if (!Number.isFinite(parsedValue) || parsedValue <= standardMaxHours) {
+                    updateAllocationSummary();
                     return;
                 }
 
-                if (selectedQualificationKeys.size === 0) {
-                    event.preventDefault();
-                    window.alert("Select at least one degree or specialization for this teacher.");
-                    openQualificationDropdownForInput(qualificationInputs[0]);
-                    qualificationInputs[0]?.focus();
-                    return;
-                }
-
-                if (!hasSelectedSpecialization()) {
-                    event.preventDefault();
-                    window.alert("Select at least one major or subject specialization so the system can validate subject compatibility.");
-                    const firstSpecializationInput = qualificationInputs.find((input) => {
-                        return String(input.dataset.qualificationKind || "").trim() === "specialization";
-                    }) || qualificationInputs[0];
-                    openQualificationDropdownForInput(firstSpecializationInput);
-                    firstSpecializationInput?.focus();
-                    return;
-                }
-
-                const selectedCount = getSelectedSubjectCount();
-                if (selectedCount === 0) {
-                    event.preventDefault();
-                    window.alert("Select at least one subject for this teacher.");
-                    return;
-                }
-
-                const pendingOverrideSubjects = getSortedSelectedSubjects().filter((subject) => {
-                    const code = String(subject.subject_code || "").trim().toUpperCase();
-                    return getSubjectMajorAlignment(subject).status === "review"
-                        && !isOverrideEnabledForSubject(code);
-                });
-                if (pendingOverrideSubjects.length > 0) {
-                    event.preventDefault();
-                    window.alert(`Enable Admin Override or adjust qualifications for these subjects before saving: ${pendingOverrideSubjects.map((subject) => String(subject.subject_code || "").trim().toUpperCase()).join(", ")}.`);
-                    return;
-                }
-
-                const allocationSnapshot = getAllocationSnapshot();
-                if (allocationSnapshot.nationalHoursExceedTotal) {
-                    event.preventDefault();
-                    window.alert(`National section hours (${allocationSnapshot.safeNationalHours}) cannot exceed total teacher capacity (${allocationSnapshot.totalCapacityHours}).`);
-                    if (nationalSectionHoursInput) {
-                        nationalSectionHoursInput.focus();
+                if (!extraAllowed || !extraAllowed.checked) {
+                    maxHoursInput.value = String(standardMaxHours);
+                    updateAllocationSummary();
+                    window.alert("To enter more than 24 max hours, please check Extra Hours Allowed first.");
+                    if (extraAllowed) {
+                        extraAllowed.focus();
                     }
                     return;
                 }
-                if (allocationSnapshot.assignedHours > allocationSnapshot.requiredHours) {
-                    event.preventDefault();
-                    window.alert(`Assigned section hours (${allocationSnapshot.assignedHours}) exceed available international capacity (${allocationSnapshot.requiredHours}). Reduce the selected sections, reduce national section hours, or increase allowed extra hours.`);
-                    return;
-                }
-            });
+            };
+
+            maxHoursInput.addEventListener("input", enforceExtraHoursRule);
+            maxHoursInput.addEventListener("change", enforceExtraHoursRule);
+            maxHoursInput.addEventListener("input", updateAllocationSummary);
+            maxHoursInput.addEventListener("change", updateAllocationSummary);
+
+            if (extraAllowed) {
+                extraAllowed.addEventListener("change", enforceExtraHoursRule);
+            }
+
+            if (teacherForm) {
+                teacherForm.addEventListener("submit", (event) => {
+                    syncSelectedQualifications();
+                    syncTeacherFormSelectionInputs();
+
+                    const parsedValue = Number(maxHoursInput.value);
+                    if (Number.isFinite(parsedValue) && parsedValue > standardMaxHours && (!extraAllowed || !extraAllowed.checked)) {
+                        event.preventDefault();
+                        window.alert("To enter more than 24 max hours, please check Extra Hours Allowed first.");
+                        if (extraAllowed) {
+                            extraAllowed.focus();
+                        }
+                        return;
+                    }
+
+                    if (subjectChoices.length === 0) {
+                        event.preventDefault();
+                        window.alert("No subjects are available for assignment in the current branch/academic year.");
+                        return;
+                    }
+
+                    if (selectedQualificationKeys.size === 0) {
+                        event.preventDefault();
+                        window.alert("Select at least one degree or specialization for this teacher.");
+                        openQualificationDropdownForInput(qualificationInputs[0]);
+                        qualificationInputs[0]?.focus();
+                        return;
+                    }
+
+                    if (!hasSelectedSpecialization()) {
+                        event.preventDefault();
+                        window.alert("Select at least one major or subject specialization so the system can validate subject compatibility.");
+                        const firstSpecializationInput = qualificationInputs.find((input) => {
+                            return String(input.dataset.qualificationKind || "").trim() === "specialization";
+                        }) || qualificationInputs[0];
+                        openQualificationDropdownForInput(firstSpecializationInput);
+                        firstSpecializationInput?.focus();
+                        return;
+                    }
+
+                    const selectedCount = getSelectedSubjectCount();
+                    if (selectedCount === 0) {
+                        event.preventDefault();
+                        window.alert("Select at least one subject for this teacher.");
+                        return;
+                    }
+
+                    const pendingOverrideSubjects = getSortedSelectedSubjects().filter((subject) => {
+                        const code = String(subject.subject_code || "").trim().toUpperCase();
+                        return getSubjectMajorAlignment(subject).status === "review"
+                            && !isOverrideEnabledForSubject(code);
+                    });
+                    if (pendingOverrideSubjects.length > 0) {
+                        event.preventDefault();
+                        window.alert(`Enable Admin Override or adjust qualifications for these subjects before saving: ${pendingOverrideSubjects.map((subject) => String(subject.subject_code || "").trim().toUpperCase()).join(", ")}.`);
+                        return;
+                    }
+
+                    const allocationSnapshot = getAllocationSnapshot();
+                    if (allocationSnapshot.nationalHoursExceedTotal) {
+                        event.preventDefault();
+                        window.alert(`National section hours (${allocationSnapshot.safeNationalHours}) cannot exceed total teacher capacity (${allocationSnapshot.totalCapacityHours}).`);
+                        if (nationalSectionHoursInput) {
+                            nationalSectionHoursInput.focus();
+                        }
+                        return;
+                    }
+                    if (allocationSnapshot.assignedHours > allocationSnapshot.requiredHours) {
+                        event.preventDefault();
+                        window.alert(`Assigned section hours (${allocationSnapshot.assignedHours}) exceed available international capacity (${allocationSnapshot.requiredHours}). Reduce the selected sections, reduce national section hours, or increase allowed extra hours.`);
+                        return;
+                    }
+                });
+            }
         }
 
         assignmentSuggestionApplyBtn?.addEventListener("click", applyAssignmentSuggestion);
@@ -6410,6 +6498,7 @@ const searchInput = document.getElementById("teacherSearch");
         renderSelectedSubjectChips();
         renderSubjectPicker();
         renderSectionAssignmentBoard();
+        syncTeacherFormSelectionInputs();
         updateBulkDeleteState();
         loadHiringPlanSuggestion();
 
