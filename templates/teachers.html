@@ -1200,7 +1200,7 @@
 
         .subject-selector-shell {
             display: grid;
-            gap: 10px;
+            gap: 8px;
         }
 
         .subject-selector-help {
@@ -1210,7 +1210,7 @@
         }
 
         .major-guidance {
-            padding: 12px;
+            padding: 10px;
             border: 1px solid #dbe7f8;
             border-radius: 14px;
             background: linear-gradient(180deg, #fcfdff, #f4f8ff);
@@ -1354,7 +1354,7 @@
 
         .subject-selector-chips {
             display: grid;
-            gap: 8px;
+            gap: 6px;
             width: 100%;
         }
 
@@ -1475,13 +1475,13 @@
             border: 1px solid #c6d4e8;
             border-radius: 10px;
             background: linear-gradient(180deg, #fbfdff, #f4f8ff);
-            padding: 8px;
+            padding: 6px;
             display: grid;
-            gap: 8px;
+            gap: 6px;
         }
 
         .assignment-step {
-            margin-top: 10px;
+            margin-top: 0;
             border: 1px solid #dbe7f8;
             border-radius: 12px;
             background: #f8fbff;
@@ -1492,14 +1492,26 @@
             border: 1px solid #d8e5f6;
             border-radius: 16px;
             background: linear-gradient(180deg, #ffffff, #f8fbff);
-            padding: 10px;
             margin-top: 12px;
             display: none;
-            gap: 10px;
+            grid-template-rows: auto minmax(0, 1fr);
+            max-height: min(78vh, 980px);
+            overflow: hidden;
         }
 
         .manual-plan-panel.is-open {
             display: grid;
+        }
+
+        .manual-plan-scroll {
+            min-height: 0;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+            padding: 10px;
+            display: grid;
+            gap: 10px;
+            align-content: start;
         }
 
         .manual-plan-header {
@@ -1508,6 +1520,13 @@
             justify-content: space-between;
             gap: 8px;
             flex-wrap: wrap;
+            padding: 10px 12px;
+            border-bottom: 1px solid #e1ebf8;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.96));
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            backdrop-filter: blur(8px);
         }
 
         .manual-plan-header strong {
@@ -1646,7 +1665,7 @@
         }
 
         .assignment-step p {
-            margin: 0 0 10px;
+            margin: 0 0 8px;
             font-size: 12px;
             color: #51667f;
         }
@@ -1673,8 +1692,8 @@
             grid-template-columns: minmax(0, 1fr) auto;
             align-items: center;
             gap: 8px;
-            padding: 8px 10px;
-            min-height: 42px;
+            padding: 7px 10px;
+            min-height: 40px;
         }
 
         .subject-grade-group.is-open .subject-grade-summary {
@@ -1791,7 +1810,7 @@
 
         .subject-grade-panel {
             display: none;
-            padding: 10px 12px 12px;
+            padding: 8px 10px 10px;
             background: #f8fbff;
         }
 
@@ -1923,18 +1942,17 @@
         }
 
         .subject-assignment-board {
-            margin-top: 10px;
             display: grid;
-            gap: 8px;
+            gap: 6px;
         }
 
         .subject-assignment-card {
             border: 1px solid #dbe7f8;
             border-radius: 10px;
             background: #f5f9ff;
-            padding: 8px;
+            padding: 7px;
             display: grid;
-            gap: 8px;
+            gap: 7px;
             transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
         }
 
@@ -2010,14 +2028,14 @@
 
         .section-option-grid {
             display: grid;
-            gap: 8px;
+            gap: 6px;
         }
 
         .section-option {
             display: flex;
             align-items: flex-start;
             gap: 8px;
-            padding: 8px;
+            padding: 7px 8px;
             border: 1px solid #cfe0f7;
             border-radius: 8px;
             background: #ffffff;
@@ -3063,6 +3081,20 @@
             .teacher-load-subject-meta {
                 justify-content: flex-start;
             }
+
+            .manual-plan-panel {
+                max-height: none;
+            }
+
+            .manual-plan-scroll {
+                overflow: visible;
+                padding: 8px;
+            }
+
+            .manual-plan-header {
+                position: static;
+                padding: 10px;
+            }
         }
 </style>
 {% endblock %}
@@ -3288,6 +3320,7 @@
                                     <strong>{{ icon("settings", "icon") }} Adjustment Form</strong>
                                     <span id="manualPlanStatePill" class="manual-plan-pill">Expanded</span>
                                 </div>
+                                <div class="manual-plan-scroll">
                                 <div class="assignment-step">
                                     <div class="assignment-step-label">Manual Step 1</div>
                                     <h3>{{ icon("subjects", "icon") }} Review or change eligible subjects</h3>
@@ -3344,6 +3377,7 @@
                                     <p>Select exact sections for each chosen subject.</p>
                                 <div id="sectionAssignmentBoard" class="subject-assignment-board"></div>
                                 <div id="sectionAssignmentEmpty" class="section-assignment-empty">Choose one or more subjects, and matching sections will appear here.</div>
+                                </div>
                                 </div>
                             </div>
                             <div class="workflow-preview-shell">
