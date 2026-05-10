@@ -1352,6 +1352,36 @@
             font-weight: 700;
         }
 
+        .override-bulk-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 10px 12px;
+            border: 1px solid #efc89a;
+            border-radius: 10px;
+            background: #fff8ee;
+            color: #7d4600;
+        }
+
+        .override-bulk-actions[hidden] {
+            display: none;
+        }
+
+        .override-bulk-actions span {
+            font-size: 12px;
+            font-weight: 800;
+            line-height: 1.35;
+        }
+
+        .override-bulk-buttons {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
         .subject-selector-chips {
             display: grid;
             gap: 6px;
@@ -3381,6 +3411,13 @@
                                              </div>
                                          </div>
                                      </div>
+                                     <div id="overrideBulkActions" class="override-bulk-actions" hidden>
+                                         <span id="overrideBulkActionsText">0 subjects need Admin Override.</span>
+                                         <div class="override-bulk-buttons">
+                                             <button id="selectAllOverridesBtn" class="subject-grade-btn" type="button">Select All Overrides</button>
+                                             <button id="deselectAllOverridesBtn" class="subject-grade-btn" type="button">Deselect All</button>
+                                         </div>
+                                     </div>
                                      <div id="selectedSubjectChips" class="subject-selector-chips"></div>
                                      <div class="field-note">When a selected subject does not match saved qualifications, enable <strong>Admin Override</strong> to allow it as an exception.</div>
                                      <div class="subject-picker" id="subjectPicker"></div>
@@ -3804,6 +3841,10 @@ const searchInput = document.getElementById("teacherSearch");
         const subjectSelectionCount = document.getElementById("subjectSelectionCount");
         const clearAllSubjectsBtn = document.getElementById("clearAllSubjectsBtn");
         const selectedSubjectChips = document.getElementById("selectedSubjectChips");
+        const overrideBulkActions = document.getElementById("overrideBulkActions");
+        const overrideBulkActionsText = document.getElementById("overrideBulkActionsText");
+        const selectAllOverridesBtn = document.getElementById("selectAllOverridesBtn");
+        const deselectAllOverridesBtn = document.getElementById("deselectAllOverridesBtn");
         const subjectPicker = document.getElementById("subjectPicker");
         const subjectNoResult = document.getElementById("subjectNoResult");
         const majorGuidance = document.getElementById("majorGuidance");
@@ -4934,6 +4975,21 @@ const searchInput = document.getElementById("teacherSearch");
             sectionAssignmentBoard.scrollIntoView({ behavior: "smooth", block: "start" });
         };
 
+        const focusSubjectOverrideChoices = () => {
+            const target = overrideBulkActions && !overrideBulkActions.hidden
+                ? overrideBulkActions
+                : selectedSubjectChips || majorGuidance;
+            if (!target) {
+                return;
+            }
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+            window.requestAnimationFrame(() => {
+                selectedSubjectChips
+                    ?.querySelector(".subject-chip-override input[type='checkbox']")
+                    ?.focus({ preventScroll: true });
+            });
+        };
+
         const renderAssignmentSuggestionState = (
             state,
             badgeText,
@@ -5576,7 +5632,12 @@ const searchInput = document.getElementById("teacherSearch");
                 setManualPlanVisibility(true, { focus: focusBoard });
             }
             renderAssignmentSuggestion();
-            if (focusBoard) {
+            if (getSelectedReviewSubjects().length > 0) {
+                setManualPlanVisibility(true);
+                focusSubjectOverrideChoices();
+                return;
+            }
+            if (focusBoard === true) {
                 focusSectionAssignmentBoard();
             }
         };
@@ -5834,6 +5895,61 @@ const searchInput = document.getElementById("teacherSearch");
             };
         };
 
+        const getSelectedReviewSubjects = () => {
+            return getSortedSelectedSubjects().filter((subject) => {
+                return getSubjectMajorAlignment(subject).status === "review";
+            });
+        };
+
+        const updateOverrideBulkActions = (selectedReviewSubjects = getSelectedReviewSubjects()) => {
+            if (!overrideBulkActions) {
+                return;
+            }
+
+            const reviewCount = selectedReviewSubjects.length;
+            const overriddenCount = selectedReviewSubjects.filter((subject) => {
+                return isOverrideEnabledForSubject(subject.subject_code);
+            }).length;
+            const pendingCount = reviewCount - overriddenCount;
+            overrideBulkActions.hidden = reviewCount === 0;
+            overrideBulkActions.dataset.state = pendingCount > 0 ? "pending" : "complete";
+
+            if (overrideBulkActionsText) {
+                if (pendingCount > 0) {
+                    overrideBulkActionsText.textContent = `${pendingCount} of ${reviewCount} selected subject${reviewCount === 1 ? "" : "s"} still need Admin Override.`;
+                } else {
+                    overrideBulkActionsText.textContent = `${reviewCount} selected subject${reviewCount === 1 ? "" : "s"} approved with Admin Override.`;
+                }
+            }
+            if (selectAllOverridesBtn) {
+                selectAllOverridesBtn.disabled = reviewCount === 0 || pendingCount === 0;
+            }
+            if (deselectAllOverridesBtn) {
+                deselectAllOverridesBtn.disabled = overriddenCount === 0;
+            }
+        };
+
+        const setAllSelectedReviewOverrides = (isEnabled) => {
+            const selectedReviewSubjects = getSelectedReviewSubjects();
+            if (selectedReviewSubjects.length === 0) {
+                return;
+            }
+
+            selectedReviewSubjects.forEach((subject) => {
+                const code = String(subject.subject_code || "").trim().toUpperCase();
+                if (!code) {
+                    return;
+                }
+                if (isEnabled) {
+                    selectedOverrideSubjectCodes.add(code);
+                } else {
+                    selectedOverrideSubjectCodes.delete(code);
+                }
+            });
+            renderSelectedSubjectChips();
+            renderSubjectPicker();
+        };
+
         const updateMajorGuidance = () => {
             if (!majorGuidance) {
                 return;
@@ -5851,15 +5967,14 @@ const searchInput = document.getElementById("teacherSearch");
             const selectedMatchingSubjects = selectedSubjects.filter((subject) => {
                 return getSubjectMajorAlignment(subject).status === "match";
             });
-            const selectedReviewSubjects = selectedSubjects.filter((subject) => {
-                return getSubjectMajorAlignment(subject).status === "review";
-            });
+            const selectedReviewSubjects = getSelectedReviewSubjects();
             const selectedOverriddenSubjects = selectedReviewSubjects.filter((subject) => {
                 return isOverrideEnabledForSubject(subject.subject_code);
             });
             const pendingReviewSubjects = selectedReviewSubjects.filter((subject) => {
                 return !isOverrideEnabledForSubject(subject.subject_code);
             });
+            updateOverrideBulkActions(selectedReviewSubjects);
 
             let state = "empty";
             let badgeText = "Add qualifications";
@@ -6635,6 +6750,14 @@ const searchInput = document.getElementById("teacherSearch");
             });
         }
 
+        selectAllOverridesBtn?.addEventListener("click", () => {
+            setAllSelectedReviewOverrides(true);
+        });
+
+        deselectAllOverridesBtn?.addEventListener("click", () => {
+            setAllSelectedReviewOverrides(false);
+        });
+
         if (extraCountInput) {
             extraCountInput.addEventListener("input", updateAllocationSummary);
             extraCountInput.addEventListener("change", updateAllocationSummary);
@@ -6749,7 +6872,7 @@ const searchInput = document.getElementById("teacherSearch");
             }
         }
 
-        assignmentSuggestionApplyBtn?.addEventListener("click", applyAssignmentSuggestion);
+        assignmentSuggestionApplyBtn?.addEventListener("click", () => applyAssignmentSuggestion());
         assignmentSuggestionAdjustBtn?.addEventListener("click", adjustAssignmentSuggestion);
         assignmentSuggestionRefreshBtn?.addEventListener("click", regenerateAssignmentSuggestion);
 
