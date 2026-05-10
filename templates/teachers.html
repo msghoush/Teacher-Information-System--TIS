@@ -341,7 +341,7 @@
         }
 
         .add-teacher-panel.is-open {
-            max-height: 2200px;
+            max-height: 10000px;
             opacity: 1;
             transform: translateY(0);
         }
@@ -3785,6 +3785,7 @@ const searchInput = document.getElementById("teacherSearch");
         const openAddTeacherBtn = document.getElementById("openAddTeacherBtn");
         const closeAddTeacherBtn = document.getElementById("closeAddTeacherBtn");
         const addTeacherPanel = document.getElementById("addTeacherPanel");
+        const addTeacherPanelBody = addTeacherPanel?.querySelector(".add-teacher-panel-body") || null;
         const extraAllowed = document.getElementById("extra_hours_allowed");
         const extraCountField = document.getElementById("extraHoursCountField");
         const extraCountInput = document.getElementById("extra_hours_count");
@@ -4019,11 +4020,34 @@ const searchInput = document.getElementById("teacherSearch");
             });
         };
 
+        const syncAddTeacherPanelHeight = () => {
+            if (!addTeacherPanel) {
+                return;
+            }
+            if (!addTeacherPanel.classList.contains("is-open")) {
+                addTeacherPanel.style.maxHeight = "0px";
+                return;
+            }
+            addTeacherPanel.style.maxHeight = `${addTeacherPanel.scrollHeight}px`;
+        };
+
+        if (typeof ResizeObserver !== "undefined" && addTeacherPanelBody) {
+            const addTeacherPanelResizeObserver = new ResizeObserver(() => {
+                syncAddTeacherPanelHeight();
+            });
+            addTeacherPanelResizeObserver.observe(addTeacherPanelBody);
+        }
+
         const setAddTeacherPanel = (isOpen) => {
             if (!addTeacherPanel) {
                 return;
             }
             addTeacherPanel.classList.toggle("is-open", isOpen);
+            if (isOpen) {
+                requestAnimationFrame(syncAddTeacherPanelHeight);
+            } else {
+                syncAddTeacherPanelHeight();
+            }
             if (openAddTeacherBtn) {
                 openAddTeacherBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
             }
@@ -4034,6 +4058,7 @@ const searchInput = document.getElementById("teacherSearch");
                 return;
             }
             manualAssignmentPanel.classList.toggle("is-open", isOpen);
+            requestAnimationFrame(syncAddTeacherPanelHeight);
             if (manualPlanStatePill) {
                 manualPlanStatePill.textContent = isOpen ? "Expanded" : "Hidden";
             }
