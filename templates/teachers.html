@@ -1530,6 +1530,96 @@
             font-weight: 700;
         }
 
+        .plan-confirmation-panel {
+            margin-top: 12px;
+            padding: 14px;
+            border: 1px solid #dbe7f8;
+            border-radius: 16px;
+            background: linear-gradient(180deg, #ffffff, #f8fbff);
+            display: grid;
+            gap: 10px;
+        }
+
+        .plan-confirmation-panel[data-state="suggested"] {
+            border-color: #bfdbfe;
+            background: linear-gradient(180deg, #ffffff, #eff6ff);
+        }
+
+        .plan-confirmation-panel[data-state="applied"] {
+            border-color: #b7e4c7;
+            background: linear-gradient(180deg, #ffffff, #eefaf4);
+        }
+
+        .plan-confirmation-panel[data-state="adjusted"] {
+            border-color: #f4d7a6;
+            background: linear-gradient(180deg, #ffffff, #fff7ed);
+        }
+
+        .plan-confirmation-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .plan-confirmation-copy {
+            display: grid;
+            gap: 4px;
+        }
+
+        .plan-confirmation-copy strong {
+            font-size: 15px;
+            color: #17365d;
+        }
+
+        .plan-confirmation-copy p {
+            margin: 0;
+            font-size: 12px;
+            color: #556b87;
+            line-height: 1.45;
+        }
+
+        .plan-confirmation-badge {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 4px 9px;
+            border-radius: 999px;
+            border: 1px solid #c8daf3;
+            background: #edf4ff;
+            color: #244a7c;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+
+        .plan-confirmation-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .plan-confirmation-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid #dbe7f8;
+            background: rgba(255, 255, 255, 0.9);
+            color: #35557f;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .workflow-preview-shell {
+            display: grid;
+            gap: 12px;
+        }
+
         .assignment-step:first-of-type {
             margin-top: 0;
         }
@@ -3182,15 +3272,26 @@
                                 <div id="assignmentSuggestionList" class="assignment-suggestion-list"></div>
                             </div>
 
+                            <div id="planConfirmationPanel" class="plan-confirmation-panel" data-state="idle">
+                                <div class="plan-confirmation-head">
+                                    <div class="plan-confirmation-copy">
+                                        <span id="planConfirmationBadge" class="plan-confirmation-badge">Waiting</span>
+                                        <strong>Confirmed Teacher Plan</strong>
+                                        <p id="planConfirmationText">Select a degree and specialization, then Apply Plan to accept the suggested subjects, grades, and sections or Adjust Plan to edit them.</p>
+                                    </div>
+                                </div>
+                                <div id="planConfirmationMeta" class="plan-confirmation-meta"></div>
+                            </div>
+
                             <div id="manualAssignmentPanel" class="manual-plan-panel{% if should_open_manual_assignment %} is-open{% endif %}">
                                 <div class="manual-plan-header">
-                                    <strong>{{ icon("settings", "icon") }} Manual Adjustment Tools</strong>
+                                    <strong>{{ icon("settings", "icon") }} Adjustment Form</strong>
                                     <span id="manualPlanStatePill" class="manual-plan-pill">Expanded</span>
                                 </div>
                                 <div class="assignment-step">
                                     <div class="assignment-step-label">Manual Step 1</div>
-                                    <h3>{{ icon("subjects", "icon") }} Choose eligible subjects</h3>
-                                    <p>Search by grade/code and pick subjects.</p>
+                                    <h3>{{ icon("subjects", "icon") }} Review or change eligible subjects</h3>
+                                    <p>Start from the auto-matched plan, then remove subjects or add more compatible ones if needed.</p>
                                 <div class="subject-selector-shell">
                                      <div class="subject-selector-topbar">
                                          <input id="subjectSearchInput" class="subject-search" type="text" placeholder="Search by code, subject name, or grade">
@@ -3244,11 +3345,13 @@
                                 <div id="sectionAssignmentBoard" class="subject-assignment-board"></div>
                                 <div id="sectionAssignmentEmpty" class="section-assignment-empty">Choose one or more subjects, and matching sections will appear here.</div>
                                 </div>
+                            </div>
+                            <div class="workflow-preview-shell">
                                 <div id="allocationSummary" class="allocation-dashboard" data-state="empty" aria-live="polite">
                                     <div class="allocation-dashboard-head">
                                         <div class="allocation-copy">
                                             <span id="allocationStatusBadge" class="allocation-status-badge">Start with subjects</span>
-                                            <h3>Teaching Load Overview</h3>
+                                            <h3>Teacher Load Preview</h3>
                                             <p id="allocationStatusText">Select eligible subjects first, then assign sections to see this teacher's live weekly load.</p>
                                         </div>
                                         <div class="allocation-hours-total">
@@ -3693,6 +3796,10 @@ const searchInput = document.getElementById("teacherSearch");
         const assignmentSuggestionApplyBtn = document.getElementById("assignmentSuggestionApplyBtn");
         const assignmentSuggestionAdjustBtn = document.getElementById("assignmentSuggestionAdjustBtn");
         const assignmentSuggestionRefreshBtn = document.getElementById("assignmentSuggestionRefreshBtn");
+        const planConfirmationPanel = document.getElementById("planConfirmationPanel");
+        const planConfirmationBadge = document.getElementById("planConfirmationBadge");
+        const planConfirmationText = document.getElementById("planConfirmationText");
+        const planConfirmationMeta = document.getElementById("planConfirmationMeta");
         const manualAssignmentPanel = document.getElementById("manualAssignmentPanel");
         const manualPlanStatePill = document.getElementById("manualPlanStatePill");
         const standardMaxHours = 24;
@@ -3886,6 +3993,81 @@ const searchInput = document.getElementById("teacherSearch");
             assignmentSuggestionAdjustBtn.textContent = isOpen ? "Hide Manual Plan" : "Adjust Plan";
             if (isOpen && options.focus) {
                 focusSectionAssignmentBoard();
+            }
+            renderPlanConfirmationState();
+        };
+
+        const isCurrentSelectionDifferentFromAppliedSuggestion = () => {
+            if (lastAppliedAssignmentSuggestionValues.size === 0) {
+                return false;
+            }
+            if (persistedSectionAssignmentValues.size !== lastAppliedAssignmentSuggestionValues.size) {
+                return true;
+            }
+            for (const value of persistedSectionAssignmentValues) {
+                if (!lastAppliedAssignmentSuggestionValues.has(value)) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        const renderPlanConfirmationState = () => {
+            if (!planConfirmationPanel) {
+                return;
+            }
+
+            let state = "idle";
+            let badge = "Waiting";
+            let message = "Select a degree and specialization, then Apply Plan to accept the suggested subjects, grades, and sections or Adjust Plan to edit them.";
+            const chips = [];
+
+            if (currentAssignmentSuggestion?.suggestions?.length) {
+                const suggestedHours = currentAssignmentSuggestion.suggestions.reduce((sum, item) => sum + item.hours, 0);
+                const suggestedSections = currentAssignmentSuggestion.suggestions.reduce((sum, item) => sum + item.sections.length, 0);
+                const suggestedSubjects = new Set(currentAssignmentSuggestion.suggestions.map((item) => item.subjectCode)).size;
+                state = "suggested";
+                badge = "Suggested";
+                message = "Auto Match is ready. Apply Plan will accept these assignments directly. Adjust Plan will load them into the editable form first.";
+                chips.push(`${suggestedSubjects} subjects suggested`);
+                chips.push(`${suggestedSections} sections suggested`);
+                chips.push(`${suggestedHours}h suggested load`);
+            }
+
+            if (lastAppliedAssignmentSuggestionValues.size > 0) {
+                const snapshot = getAllocationSnapshot();
+                const manualOpen = manualAssignmentPanel?.classList.contains("is-open") || false;
+                const isAdjusted = isCurrentSelectionDifferentFromAppliedSuggestion();
+                state = isAdjusted ? "adjusted" : "applied";
+                badge = isAdjusted ? "Adjusted" : "Applied";
+                message = isAdjusted
+                    ? "The auto-matched plan has been loaded and edited. The current subject, grade, and section selections will be saved when you create the teacher."
+                    : "The auto-matched plan has been accepted. You can create the teacher now or open Adjust Plan to edit subjects and sections before saving.";
+                chips.length = 0;
+                chips.push(`${snapshot.selectedSubjectCount} subjects selected`);
+                chips.push(`${snapshot.selectedSectionCount} sections selected`);
+                chips.push(`${snapshot.assignedHours}h current load`);
+                chips.push(`${snapshot.remainingHours}h remaining to 24h`);
+                if (manualOpen) {
+                    chips.push("Adjustment form open");
+                }
+            }
+
+            planConfirmationPanel.dataset.state = state;
+            if (planConfirmationBadge) {
+                planConfirmationBadge.textContent = badge;
+            }
+            if (planConfirmationText) {
+                planConfirmationText.textContent = message;
+            }
+            if (planConfirmationMeta) {
+                planConfirmationMeta.innerHTML = "";
+                chips.forEach((chipText) => {
+                    const chip = document.createElement("span");
+                    chip.className = "plan-confirmation-chip";
+                    chip.textContent = chipText;
+                    planConfirmationMeta.appendChild(chip);
+                });
             }
         };
 
@@ -4202,6 +4384,7 @@ const searchInput = document.getElementById("teacherSearch");
 
             updateSubjectAssignmentCardStates();
             renderAssignmentSuggestion();
+            renderPlanConfirmationState();
         };
 
         const getGradeKey = (value) => {
@@ -4772,6 +4955,7 @@ const searchInput = document.getElementById("teacherSearch");
                     assignmentSuggestionList.appendChild(item);
                 });
             }
+            renderPlanConfirmationState();
         };
 
         const buildTeacherAssignmentSuggestion = () => {
@@ -5291,7 +5475,7 @@ const searchInput = document.getElementById("teacherSearch");
             lastAppliedAssignmentBaseSubjectCodes = new Set();
         };
 
-        const applyAssignmentSuggestion = (focusBoard = false) => {
+        const applyAssignmentSuggestion = (focusBoard = false, options = {}) => {
             if (!currentAssignmentSuggestion || !currentAssignmentSuggestion.suggestions.length) {
                 return;
             }
@@ -5313,6 +5497,9 @@ const searchInput = document.getElementById("teacherSearch");
             renderSelectedSubjectChips();
             renderSubjectPicker();
             renderSectionAssignmentBoard();
+            if (options.openManual) {
+                setManualPlanVisibility(true, { focus: focusBoard });
+            }
             renderAssignmentSuggestion();
             if (focusBoard) {
                 focusSectionAssignmentBoard();
@@ -5321,6 +5508,10 @@ const searchInput = document.getElementById("teacherSearch");
 
         const adjustAssignmentSuggestion = () => {
             const isOpen = manualAssignmentPanel?.classList.contains("is-open") || false;
+            if (!isOpen && currentAssignmentSuggestion?.suggestions?.length) {
+                applyAssignmentSuggestion(false, { openManual: true });
+                return;
+            }
             setManualPlanVisibility(!isOpen, { focus: !isOpen });
         };
 
