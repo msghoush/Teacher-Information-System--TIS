@@ -5672,7 +5672,6 @@ const searchInput = document.getElementById("teacherSearch");
                 emptyState.className = "subject-chip-empty";
                 emptyState.textContent = "No subjects selected yet.";
                 selectedSubjectChips.appendChild(emptyState);
-                syncTeacherFormSelectionInputs();
                 updateMajorGuidance();
                 return;
             }
@@ -5747,7 +5746,6 @@ const searchInput = document.getElementById("teacherSearch");
                 selectedSubjectChips.appendChild(chip);
             });
 
-            syncTeacherFormSelectionInputs();
             updateMajorGuidance();
         };
 
@@ -6042,7 +6040,6 @@ const searchInput = document.getElementById("teacherSearch");
 
             if (selectedSubjectCodesForBoard.length === 0) {
                 sectionAssignmentEmpty.style.display = "block";
-                syncTeacherFormSelectionInputs();
                 updateAllocationSummary();
                 return;
             }
@@ -6136,7 +6133,6 @@ const searchInput = document.getElementById("teacherSearch");
                             persistedSectionAssignmentValues.delete(optionValue);
                         }
                         optionLabel.classList.toggle("is-selected", input.checked);
-                        syncTeacherFormSelectionInputs();
                         updateAllocationSummary();
                     });
                     optionLabel.appendChild(input);
@@ -6161,7 +6157,6 @@ const searchInput = document.getElementById("teacherSearch");
             });
 
             sectionAssignmentEmpty.style.display = "none";
-            syncTeacherFormSelectionInputs();
             updateAllocationSummary();
         };
 
@@ -6498,7 +6493,6 @@ const searchInput = document.getElementById("teacherSearch");
         renderSelectedSubjectChips();
         renderSubjectPicker();
         renderSectionAssignmentBoard();
-        syncTeacherFormSelectionInputs();
         updateBulkDeleteState();
         loadHiringPlanSuggestion();
 
