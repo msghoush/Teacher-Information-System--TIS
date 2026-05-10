@@ -1495,7 +1495,7 @@
             margin-top: 12px;
             display: none;
             grid-template-rows: auto minmax(0, 1fr);
-            max-height: min(58vh, 720px);
+            max-height: min(46vh, 560px);
             overflow: hidden;
         }
 
@@ -1639,6 +1639,20 @@
             display: grid;
             gap: 12px;
             margin-top: 12px;
+        }
+
+        .manual-plan-panel.is-open + .workflow-preview-shell {
+            margin-top: 8px;
+        }
+
+        .manual-plan-panel.is-open + .workflow-preview-shell .allocation-dashboard {
+            padding: 12px;
+            gap: 10px;
+        }
+
+        .manual-plan-panel.is-open + .workflow-preview-shell .allocation-metrics-grid,
+        .manual-plan-panel.is-open + .workflow-preview-shell .allocation-breakdown-grid {
+            gap: 8px;
         }
 
         .assignment-step:first-of-type {
