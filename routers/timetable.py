@@ -1000,6 +1000,7 @@ class _TimetablePdf:
         self.title = title
         self.subtitle = subtitle
         self.image_assets = _load_pdf_logo_assets()
+        self.logo_asset_count = len(self.image_assets)
         self.subject_icon_asset_names: dict[tuple[str, str], str] = {}
         self.pages: list[list[str]] = []
         self.y = self.height - self.margin
@@ -1057,7 +1058,8 @@ class _TimetablePdf:
         )
 
     def draw_logo_strip(self):
-        if not self.image_assets:
+        logo_assets = self.image_assets[: self.logo_asset_count]
+        if not logo_assets:
             self.text(
                 self.width - self.margin - 170,
                 self.y,
@@ -1069,12 +1071,12 @@ class _TimetablePdf:
             return
 
         gap = 12
-        total_width = sum(asset["display_width"] for asset in self.image_assets)
-        total_width += gap * max(len(self.image_assets) - 1, 0)
+        total_width = sum(asset["display_width"] for asset in logo_assets)
+        total_width += gap * max(len(logo_assets) - 1, 0)
         start_x = self.width - self.margin - total_width
         logo_y = self.height - self.margin - 24
         x = start_x
-        for asset in self.image_assets:
+        for asset in logo_assets:
             self.image(
                 asset["name"],
                 x,
