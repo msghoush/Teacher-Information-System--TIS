@@ -294,13 +294,18 @@ async def assign_timetable_slot(
             f"{other_entry_for_teacher.get('section_label', 'another section')} in that slot."
         )
 
+    ignore_entry_id = (
+        int(existing_entry_payload.get("id") or 0)
+        if existing_entry_payload
+        else 0
+    )
     scheduled_count = sum(
         1
         for entry in workspace_payload.get("entries", [])
         if int(entry.get("section_id") or 0) == section_id
         and str(entry.get("subject_code") or "").strip().upper() == subject_code
         and str(entry.get("status") or "") == "scheduled"
-        and int(entry.get("id") or 0) != int(existing_entry_payload.get("id") or 0)
+        and int(entry.get("id") or 0) != ignore_entry_id
     )
     weekly_hours = int(option_payload.get("weekly_hours") or 0)
     if scheduled_count >= weekly_hours:
