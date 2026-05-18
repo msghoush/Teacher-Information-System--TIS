@@ -228,6 +228,10 @@
         flex-wrap: wrap;
     }
 
+    .selection-row.is-hidden {
+        display: none;
+    }
+
     .view-chip,
     .lane-chip {
         min-height: 36px;
@@ -1421,7 +1425,7 @@
                 <span class="toolbar-label">Section / Class</span>
                 <select id="sectionSelector" class="toolbar-select"></select>
             </div>
-            <div class="selection-row">
+            <div class="selection-row is-hidden" id="teacherSelectorRow">
                 <span class="toolbar-label">Teacher</span>
                 <select id="teacherSelector" class="toolbar-select"></select>
             </div>
@@ -1525,6 +1529,7 @@
         const teacherViewBtn = document.getElementById("teacherViewBtn");
         const gradeSelector = document.getElementById("gradeSelector");
         const sectionSelector = document.getElementById("sectionSelector");
+        const teacherSelectorRow = document.getElementById("teacherSelectorRow");
         const teacherSelector = document.getElementById("teacherSelector");
         const weekLegend = document.getElementById("weekLegend");
         const warningRow = document.getElementById("warningRow");
@@ -1992,6 +1997,7 @@
             sectionSelector.disabled = state.activeView !== "section";
             gradeSelector.disabled = state.activeView !== "section";
             teacherSelector.disabled = state.activeView !== "teacher";
+            teacherSelectorRow.classList.toggle("is-hidden", state.activeView !== "teacher");
             sectionViewBtn.classList.toggle("is-active", state.activeView === "section");
             teacherViewBtn.classList.toggle("is-active", state.activeView === "teacher");
         };
