@@ -117,6 +117,50 @@
         flex-wrap: wrap;
     }
 
+    .timetable-export-menu {
+        position: relative;
+    }
+
+    .timetable-export-menu summary {
+        list-style: none;
+    }
+
+    .timetable-export-menu summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .timetable-export-menu-panel {
+        position: absolute;
+        right: 0;
+        top: calc(100% + 8px);
+        z-index: 35;
+        display: grid;
+        gap: 6px;
+        min-width: 220px;
+        padding: 8px;
+        border: 1px solid var(--tt-border);
+        border-radius: 14px;
+        background: #ffffff;
+        box-shadow: 0 18px 34px rgba(23, 54, 93, 0.14);
+    }
+
+    .timetable-export-menu-panel a {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 36px;
+        padding: 8px 10px;
+        border-radius: 10px;
+        color: var(--tt-ink);
+        font-size: 13px;
+        font-weight: 800;
+        text-decoration: none;
+    }
+
+    .timetable-export-menu-panel a:hover {
+        background: var(--tt-accent-soft);
+    }
+
     .hero-btn,
     .view-chip,
     .lane-chip,
@@ -1374,6 +1418,13 @@
                 <p>The grid below reads the active branch and academic year, then combines planning sections, subject weekly hours, assigned teachers, teacher workload, subject color themes, and timetable settings into one manual scheduling workspace.</p>
             </div>
             <div class="hero-actions">
+                <details class="timetable-export-menu">
+                    <summary class="hero-btn is-primary">{{ icon("download", "icon") }} Export Timetable</summary>
+                    <div class="timetable-export-menu-panel">
+                        <a href="/timetable/export.xlsx">{{ icon("spreadsheet", "icon") }} Excel Workbook</a>
+                        <a href="/timetable/export.pdf" target="_blank" rel="noopener">{{ icon("report", "icon") }} Printable PDF</a>
+                    </div>
+                </details>
                 {% if can_manage_system_settings %}
                 <a class="hero-btn is-secondary" href="/system-configuration/timetable-settings">{{ icon("settings", "icon") }} Timetable Settings</a>
                 {% endif %}
