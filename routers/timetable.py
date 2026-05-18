@@ -559,6 +559,66 @@ def _build_blocked_slot_lookup(workspace_payload: dict) -> dict[tuple[str, int],
     return lookup
 
 
+def _parse_export_time_minutes(value: Any) -> int | None:
+    if isinstance(value, int):
+        return value
+    text = str(value or "").strip()
+    if not re.fullmatch(r"\d{2}:\d{2}", text):
+        return None
+    hours, minutes = text.split(":")
+    return (int(hours) * 60) + int(minutes)
+
+
+def _get_export_blocks(workspace_payload: dict) -> list[dict]:
+    settings = workspace_payload.get("settings", {})
+    blocks = settings.get("blocks", []) if isinstance(settings, dict) else []
+    return blocks if isinstance(blocks, list) else []
+
+
+def _build_export_board_rows(workspace_payload: dict) -> list[dict]:
+    period_rows = []
+    for slot in workspace_payload.get("time_slots", []):
+        period_index = int(slot.get("period_index") or 0)
+        sort_time = _parse_export_time_minutes(slot.get("start_time"))
+        period_rows.append(
+            {
+                "row_type": "period",
+                "sort_time": sort_time if sort_time is not None else period_index * 1000,
+                "sort_tie": period_index,
+                "slot": slot,
+            }
+        )
+
+    block_rows = []
+    for index, block in enumerate(_get_export_blocks(workspace_payload)):
+        sort_time = _parse_export_time_minutes(block.get("start_minutes"))
+        if sort_time is None:
+            sort_time = _parse_export_time_minutes(block.get("start_time"))
+        block_rows.append(
+            {
+                "row_type": "block",
+                "sort_time": sort_time if sort_time is not None else 900000 + index,
+                "sort_tie": index,
+                "block": block,
+            }
+        )
+    return sorted(
+        [*period_rows, *block_rows],
+        key=lambda item: (
+            item["sort_time"],
+            0 if item["row_type"] == "period" else 1,
+            item["sort_tie"],
+        ),
+    )
+
+
+def _block_applies_to_day(block: dict, day_key: str) -> bool:
+    expanded_day_keys = block.get("expanded_day_keys")
+    if isinstance(expanded_day_keys, list):
+        return str(day_key or "") in {str(item or "") for item in expanded_day_keys}
+    return str(block.get("day_key") or "") == str(day_key or "")
+
+
 def _format_timetable_entry(entry: dict | None, view: str) -> str:
     if not entry:
         return ""
@@ -713,7 +773,7 @@ def _write_entity_timetable_sheet(
     entity_kind: str,
 ):
     days = workspace_payload.get("days", [])
-    time_slots = workspace_payload.get("time_slots", [])
+    board_rows = _build_export_board_rows(workspace_payload)
     entity_key = "section_id" if entity_kind == "section" else "teacher_id"
     entities = (
         workspace_payload.get("sections", [])
@@ -774,7 +834,51 @@ def _write_entity_timetable_sheet(
         table_start = row
         row += 1
 
-        for slot in time_slots:
+        for row_item in board_rows:
+            if row_item.get("row_type") == "block":
+                block = row_item.get("block", {})
+                sheet.cell(row=row, column=1, value=block.get("block_type_label") or "Non-Teaching")
+                sheet.cell(row=row, column=2, value=block.get("time_range") or "")
+                sheet.cell(row=row, column=1).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                sheet.cell(row=row, column=2).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                sheet.cell(row=row, column=1).fill = PatternFill(start_color="F3F6F9", end_color="F3F6F9", fill_type="solid")
+                sheet.cell(row=row, column=2).fill = PatternFill(start_color="F3F6F9", end_color="F3F6F9", fill_type="solid")
+                sheet.cell(row=row, column=1).font = Font(color="475569", bold=True)
+                sheet.cell(row=row, column=2).font = Font(color="475569")
+
+                for day_offset, day in enumerate(days, start=3):
+                    day_key = str(day.get("key") or "")
+                    cell = sheet.cell(row=row, column=day_offset)
+                    if _block_applies_to_day(block, day_key):
+                        cell.value = "\n".join(
+                            part
+                            for part in [
+                                block.get("label") or "Blocked",
+                                block.get("block_type_label") or "",
+                                block.get("time_range") or "",
+                            ]
+                            if part
+                        )
+                        cell.fill = PatternFill(
+                            start_color=_safe_excel_hex(block.get("soft"), "F3F6F9"),
+                            end_color=_safe_excel_hex(block.get("soft"), "F3F6F9"),
+                            fill_type="solid",
+                        )
+                        cell.font = Font(
+                            color=_safe_excel_hex(block.get("text"), "475569"),
+                            bold=True,
+                            size=9,
+                        )
+                    else:
+                        cell.value = "Teaching continues"
+                        cell.fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+                        cell.font = Font(color=EXCEL_MUTED, size=9)
+                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                sheet.row_dimensions[row].height = 34
+                row += 1
+                continue
+
+            slot = row_item.get("slot", {})
             period_index = int(slot.get("period_index") or 0)
             sheet.cell(row=row, column=1, value=slot.get("short_label") or f"P{period_index}")
             sheet.cell(row=row, column=2, value=slot.get("time_range") or "")
@@ -1245,8 +1349,8 @@ def _draw_pdf_timetable_grid(
     entity_kind: str,
 ):
     days = workspace_payload.get("days", [])
-    time_slots = workspace_payload.get("time_slots", [])
-    if not days or not time_slots:
+    board_rows = _build_export_board_rows(workspace_payload)
+    if not days or not board_rows:
         pdf.paragraph("No timetable days or periods are configured for this scope.")
         return
 
@@ -1261,7 +1365,7 @@ def _draw_pdf_timetable_grid(
     grid_width = pdf.width - (2 * pdf.margin)
     day_width = (grid_width - period_width) / len(days)
     header_height = 23
-    row_height = min(43, max(27, (pdf.y - pdf.margin - 30 - header_height) / max(len(time_slots), 1)))
+    row_height = min(43, max(24, (pdf.y - pdf.margin - 30 - header_height) / max(len(board_rows), 1)))
     y_top = pdf.y
 
     pdf.rect(pdf.margin, y_top - header_height, period_width, header_height, "#0A4EA3")
@@ -1273,7 +1377,43 @@ def _draw_pdf_timetable_grid(
         x += day_width
 
     y = y_top - header_height
-    for slot in time_slots:
+    for row_item in board_rows:
+        if row_item.get("row_type") == "block":
+            block = row_item.get("block", {})
+            y -= row_height
+            block_label = block.get("block_type_label") or "Non-Teaching"
+            block_time = block.get("time_range") or ""
+            pdf.rect(pdf.margin, y, period_width, row_height, "#F3F6F9")
+            pdf.text(pdf.margin + 5, y + row_height - 13, _pdf_truncate(block_label, 16), size=7, color="#475569", bold=True)
+            if block_time:
+                pdf.text(pdf.margin + 5, y + 7, _pdf_truncate(block_time, 16), size=6, color="#60728C")
+
+            x = pdf.margin + period_width
+            for day in days:
+                day_key = str(day.get("key") or "")
+                applies_to_day = _block_applies_to_day(block, day_key)
+                if applies_to_day:
+                    fill_color = f"#{_safe_excel_hex(block.get('soft'), 'F3F6F9')}"
+                    top_line = block.get("label") or "Blocked"
+                    bottom_line = block.get("time_range") or block.get("block_type_label") or ""
+                    text_color = f"#{_safe_excel_hex(block.get('text'), '475569')}"
+                else:
+                    fill_color = "#FFFFFF"
+                    top_line = "Teaching continues"
+                    bottom_line = block_time
+                    text_color = "#60728C"
+                pdf.rect(x, y, day_width, row_height, fill_color)
+                pdf.line(x, y, x + day_width, y, "#D8E5F4", 0.35)
+                pdf.line(x, y, x, y + row_height, "#D8E5F4", 0.35)
+                if top_line:
+                    pdf.text(x + 4, y + row_height - 13, _pdf_truncate(top_line, max(10, int(day_width / 4.5))), size=6.4, color=text_color, bold=True)
+                if bottom_line:
+                    pdf.text(x + 4, y + 8, _pdf_truncate(bottom_line, max(10, int(day_width / 4.5))), size=5.8, color="#60728C")
+                x += day_width
+            pdf.line(pdf.margin, y, pdf.margin + grid_width, y, "#D8E5F4", 0.35)
+            continue
+
+        slot = row_item.get("slot", {})
         period_index = int(slot.get("period_index") or 0)
         y -= row_height
         pdf.rect(pdf.margin, y, period_width, row_height, "#F8FBFF")
