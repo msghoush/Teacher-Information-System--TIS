@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import re
+import zlib
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ from openpyxl.drawing.image import Image as ExcelImage
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from fastapi.templating import Jinja2Templates
+from PIL import Image as PillowImage
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -34,29 +36,29 @@ EXPORT_LOGO_ASSETS = (
     {
         "path": BASE_DIR / "static" / "images" / "TIS_Logo_Adjusted.png",
         "anchor": "A1",
-        "width": 108,
-        "height": 54,
+        "max_width": 82,
+        "max_height": 34,
         "fallback": "Teacher Information System",
     },
     {
         "path": BASE_DIR / "static" / "images" / "andalus-logo.png",
-        "anchor": "D1",
-        "width": 112,
-        "height": 54,
+        "anchor": "C1",
+        "max_width": 78,
+        "max_height": 34,
         "fallback": "Little Andalus International Schools",
     },
     {
         "path": BASE_DIR / "static" / "images" / "cognia-logo.png",
-        "anchor": "G1",
-        "width": 108,
-        "height": 45,
+        "anchor": "E1",
+        "max_width": 40,
+        "max_height": 34,
         "fallback": "Cognia",
     },
     {
         "path": BASE_DIR / "static" / "images" / "andalus-logo-main.png",
-        "anchor": "J1",
-        "width": 132,
-        "height": 52,
+        "anchor": "G1",
+        "max_width": 92,
+        "max_height": 34,
         "fallback": "Andalus International Schools",
     },
 )
@@ -229,8 +231,34 @@ def _safe_excel_hex(value: Any, fallback: str = EXCEL_SOFT) -> str:
     return fallback_cleaned if re.fullmatch(r"[0-9A-F]{6}", fallback_cleaned) else EXCEL_SOFT
 
 
+def _fit_dimensions(
+    source_width: float,
+    source_height: float,
+    max_width: float,
+    max_height: float,
+) -> tuple[float, float]:
+    safe_width = max(float(source_width or 1), 1)
+    safe_height = max(float(source_height or 1), 1)
+    scale = min(float(max_width) / safe_width, float(max_height) / safe_height, 1)
+    return safe_width * scale, safe_height * scale
+
+
+def _fit_sheet_to_printed_page(sheet):
+    sheet.sheet_properties.pageSetUpPr.fitToPage = True
+    sheet.page_setup.orientation = "landscape"
+    sheet.page_setup.paperSize = sheet.PAPERSIZE_A4
+    sheet.page_setup.fitToWidth = 1
+    sheet.page_setup.fitToHeight = 0
+    sheet.page_margins.left = 0.25
+    sheet.page_margins.right = 0.25
+    sheet.page_margins.top = 0.35
+    sheet.page_margins.bottom = 0.35
+    sheet.page_margins.header = 0.15
+    sheet.page_margins.footer = 0.15
+
+
 def _add_excel_logo_strip(sheet):
-    sheet.row_dimensions[1].height = 44
+    sheet.row_dimensions[1].height = 30
     for asset in EXPORT_LOGO_ASSETS:
         anchor = asset["anchor"]
         try:
@@ -238,8 +266,14 @@ def _add_excel_logo_strip(sheet):
             if not image_path.exists():
                 raise FileNotFoundError(str(image_path))
             logo = ExcelImage(str(image_path))
-            logo.width = asset["width"]
-            logo.height = asset["height"]
+            fitted_width, fitted_height = _fit_dimensions(
+                logo.width,
+                logo.height,
+                asset["max_width"],
+                asset["max_height"],
+            )
+            logo.width = fitted_width
+            logo.height = fitted_height
             sheet.add_image(logo, anchor)
         except Exception:
             fallback_cell = sheet[anchor]
@@ -272,6 +306,7 @@ def _prepare_excel_sheet(
     include_logos: bool = False,
 ) -> int:
     sheet.sheet_view.showGridLines = False
+    _fit_sheet_to_printed_page(sheet)
     if include_logos:
         _add_excel_logo_strip(sheet)
         title_row = 4
@@ -676,6 +711,56 @@ def _pdf_rgb(color_value: Any, fallback: str = "#0A4EA3") -> tuple[float, float,
     )
 
 
+def _load_pdf_logo_assets() -> list[dict]:
+    logo_assets = []
+    for index, asset in enumerate(EXPORT_LOGO_ASSETS, start=1):
+        try:
+            image_path = asset["path"]
+            if not image_path.exists():
+                continue
+            with PillowImage.open(image_path) as source_image:
+                display_width, display_height = _fit_dimensions(
+                    source_image.width,
+                    source_image.height,
+                    asset["max_width"],
+                    asset["max_height"],
+                )
+                export_scale = 3
+                resized_width = max(int(round(display_width * export_scale)), 1)
+                resized_height = max(int(round(display_height * export_scale)), 1)
+                resized_image = source_image.convert("RGBA").resize(
+                    (resized_width, resized_height),
+                    PillowImage.Resampling.LANCZOS,
+                )
+                background = PillowImage.new("RGBA", resized_image.size, "WHITE")
+                composited = PillowImage.alpha_composite(background, resized_image).convert("RGB")
+                logo_assets.append(
+                    {
+                        "name": f"Logo{index}",
+                        "display_width": display_width,
+                        "display_height": display_height,
+                        "pixel_width": composited.width,
+                        "pixel_height": composited.height,
+                        "data": zlib.compress(composited.tobytes()),
+                        "fallback": asset["fallback"],
+                    }
+                )
+        except Exception:
+            continue
+    return logo_assets
+
+
+def _pdf_image_object(asset: dict) -> bytes:
+    image_data = asset["data"]
+    header = (
+        f"<< /Type /XObject /Subtype /Image /Width {asset['pixel_width']} "
+        f"/Height {asset['pixel_height']} /ColorSpace /DeviceRGB "
+        f"/BitsPerComponent 8 /Filter /FlateDecode /Length {len(image_data)} >>\n"
+        "stream\n"
+    ).encode("ascii")
+    return header + image_data + b"\nendstream"
+
+
 class _TimetablePdf:
     width = 841.89
     height = 595.28
@@ -684,6 +769,7 @@ class _TimetablePdf:
     def __init__(self, title: str, subtitle: str):
         self.title = title
         self.subtitle = subtitle
+        self.image_assets = _load_pdf_logo_assets()
         self.pages: list[list[str]] = []
         self.y = self.height - self.margin
         self.add_page()
@@ -712,7 +798,7 @@ class _TimetablePdf:
         self.pages.append([])
         self.y = self.height - self.margin
         self.text(self.margin, self.y, self.title, size=14, color="#0A4EA3", bold=True)
-        self.text(self.width - self.margin - 170, self.y, "TIS | Andalus | Cognia", size=8, color="#60728C", bold=True)
+        self.draw_logo_strip()
         self.y -= 16
         self.text(self.margin, self.y, self.subtitle, size=8, color="#60728C")
         self.y -= 14
@@ -733,6 +819,39 @@ class _TimetablePdf:
         self._current().append(
             f"{r:.4f} {g:.4f} {b:.4f} RG\n{width:.2f} w\n{x1:.2f} {y1:.2f} m {x2:.2f} {y2:.2f} l S\n"
         )
+
+    def image(self, image_name: str, x: float, y: float, width: float, height: float):
+        self._current().append(
+            f"q\n{width:.2f} 0 0 {height:.2f} {x:.2f} {y:.2f} cm\n/{image_name} Do\nQ\n"
+        )
+
+    def draw_logo_strip(self):
+        if not self.image_assets:
+            self.text(
+                self.width - self.margin - 170,
+                self.y,
+                "TIS | Andalus | Cognia",
+                size=8,
+                color="#60728C",
+                bold=True,
+            )
+            return
+
+        gap = 12
+        total_width = sum(asset["display_width"] for asset in self.image_assets)
+        total_width += gap * max(len(self.image_assets) - 1, 0)
+        start_x = self.width - self.margin - total_width
+        logo_y = self.height - self.margin - 24
+        x = start_x
+        for asset in self.image_assets:
+            self.image(
+                asset["name"],
+                x,
+                logo_y + (24 - asset["display_height"]) / 2,
+                asset["display_width"],
+                asset["display_height"],
+            )
+            x += asset["display_width"] + gap
 
     def paragraph(self, value: str, *, width: float = 720, size: float = 8, color: str = "#60728C"):
         words = str(value or "").split()
@@ -769,7 +888,21 @@ class _TimetablePdf:
         objects.append(b"")
         objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
         objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>")
-        next_object_number = 5
+        image_resource_entries = []
+        for asset in self.image_assets:
+            image_object_number = len(objects) + 1
+            image_resource_entries.append(f"/{asset['name']} {image_object_number} 0 R")
+            objects.append(_pdf_image_object(asset))
+
+        xobject_resource = (
+            f" /XObject << {' '.join(image_resource_entries)} >>"
+            if image_resource_entries
+            else ""
+        )
+        resource_dictionary = (
+            f"<< /Font << /F1 3 0 R /F2 4 0 R >>{xobject_resource} >>"
+        )
+        next_object_number = len(objects) + 1
         page_objects = []
         for content in content_streams:
             page_number = next_object_number
@@ -780,7 +913,7 @@ class _TimetablePdf:
                     page_number,
                     (
                         f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {self.width:.2f} {self.height:.2f}] "
-                        f"/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> "
+                        f"/Resources {resource_dictionary} "
                         f"/Contents {content_number} 0 R >>"
                     ).encode("latin-1"),
                 )
