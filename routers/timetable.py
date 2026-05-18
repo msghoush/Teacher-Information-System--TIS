@@ -14,7 +14,7 @@ from openpyxl.drawing.image import Image as ExcelImage
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from fastapi.templating import Jinja2Templates
-from PIL import Image as PillowImage
+from PIL import Image as PillowImage, ImageDraw
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -231,6 +231,191 @@ def _safe_excel_hex(value: Any, fallback: str = EXCEL_SOFT) -> str:
     return fallback_cleaned if re.fullmatch(r"[0-9A-F]{6}", fallback_cleaned) else EXCEL_SOFT
 
 
+def _hex_to_rgb(value: Any, fallback: str = EXCEL_BRAND_BLUE) -> tuple[int, int, int]:
+    cleaned = _safe_excel_hex(value, fallback)
+    return (
+        int(cleaned[0:2], 16),
+        int(cleaned[2:4], 16),
+        int(cleaned[4:6], 16),
+    )
+
+
+SUBJECT_ICON_PATTERNS = (
+    ("quran", (r"QUR", r"QNO", r"NOR", r"QAAD", r"QAA", r"QURAN", r"QUR'AN", r"NORANIAH", r"NOORANI")),
+    ("islamic", (r"ISL", r"ISLAM", r"RELIGION", r"TAWHEED", r"FIQH", r"HADITH")),
+    ("mentalMath", (r"MMT", r"MENTAL\s*MATH", r"ABACUS")),
+    ("mathematics", (r"MAT", r"MATH", r"ALG", r"ARITH", r"CALCULUS", r"GEOMETRY")),
+    ("science", (r"SCI", r"SCE", r"BIO", r"CHE", r"PHY", r"SCIENCE", r"BIOLOGY", r"CHEMISTRY", r"PHYSICS", r"STEAM")),
+    ("ict", (r"ICT", r"COM", r"CS", r"TECH", r"COD", r"ROBOT", r"COMPUT", r"TECHNOLOGY", r"INFORMATION")),
+    ("arabic", (r"ARA", r"ARB", r"ARABIC")),
+    ("english", (r"ENG", r"ELA", r"LIT", r"LANG", r"ENGLISH", r"PHONICS", r"READING", r"WRITING")),
+    ("social", (r"SSE", r"SOC", r"HIS", r"GEO", r"CIVIC", r"SOCIAL", r"HISTORY", r"GEOGRAPHY", r"GLOBAL")),
+    ("pe", (r"PEH", r"PHE", r"\bPE\b", r"SPORT", r"PHYSICAL", r"FITNESS")),
+    ("performingArts", (r"PAR", r"DRAMA", r"THEATER", r"THEATRE", r"PERFORM", r"MUSIC", r"DANCE")),
+    ("art", (r"ART", r"DRAW", r"PAINT", r"VISUAL")),
+    ("wellbeing", (r"WLB", r"WELL\s*BEING", r"WELLBEING", r"HEALTH", r"LIFE\s*SKILLS", r"SEL")),
+)
+
+
+def _resolve_subject_icon_key(subject_code: Any, subject_name: Any = "") -> str:
+    identity = f"{subject_code or ''} {subject_name or ''}".upper()
+    for icon_key, patterns in SUBJECT_ICON_PATTERNS:
+        if any(re.search(pattern, identity) for pattern in patterns):
+            return icon_key
+    return "subjects"
+
+
+def _build_subject_icon_image(
+    subject_code: Any,
+    subject_name: Any = "",
+    color: Any = EXCEL_BRAND_BLUE,
+    *,
+    pixel_size: int = 96,
+) -> PillowImage.Image:
+    icon_key = _resolve_subject_icon_key(subject_code, subject_name)
+    accent = _hex_to_rgb(color, EXCEL_BRAND_BLUE)
+    image = PillowImage.new("RGBA", (pixel_size, pixel_size), (255, 255, 255, 0))
+    draw = ImageDraw.Draw(image)
+    scale = pixel_size / 48
+
+    def p(value: float) -> float:
+        return value * scale
+
+    def line(points, width=3):
+        draw.line([(p(x), p(y)) for x, y in points], fill=(255, 255, 255, 255), width=max(int(p(width)), 1), joint="curve")
+
+    def rectangle(box, width=3):
+        draw.rounded_rectangle(
+            tuple(p(value) for value in box),
+            radius=p(4),
+            outline=(255, 255, 255, 255),
+            width=max(int(p(width)), 1),
+        )
+
+    def ellipse(box, width=3):
+        draw.ellipse(
+            tuple(p(value) for value in box),
+            outline=(255, 255, 255, 255),
+            width=max(int(p(width)), 1),
+        )
+
+    def arc(box, start, end, width=3):
+        draw.arc(
+            tuple(p(value) for value in box),
+            start=start,
+            end=end,
+            fill=(255, 255, 255, 255),
+            width=max(int(p(width)), 1),
+        )
+
+    draw.rounded_rectangle(
+        (p(4), p(4), p(44), p(44)),
+        radius=p(12),
+        fill=accent + (255,),
+    )
+
+    if icon_key in {"subjects", "arabic", "quran"}:
+        rectangle((12, 13, 23, 35), width=2.5)
+        rectangle((25, 13, 36, 35), width=2.5)
+        line([(24, 14), (24, 35)], width=2)
+        if icon_key == "quran":
+            arc((17, 16, 31, 30), 35, 325, width=2)
+            line([(24, 30), (24, 34)], width=2)
+    elif icon_key == "english":
+        rectangle((14, 10, 34, 38), width=2.5)
+        line([(18, 17), (30, 17)], width=2)
+        line([(18, 24), (29, 24)], width=2)
+        line([(18, 31), (30, 31)], width=2)
+    elif icon_key in {"mathematics", "mentalMath"}:
+        rectangle((12, 12, 36, 36), width=2.5)
+        line([(18, 20), (26, 20)], width=2)
+        line([(22, 16), (22, 24)], width=2)
+        line([(29, 20), (34, 20)], width=2)
+        line([(18, 30), (25, 30)], width=2)
+        if icon_key == "mentalMath":
+            arc((14, 9, 34, 31), 195, 345, width=2)
+    elif icon_key == "science":
+        line([(21, 11), (21, 20), (13, 34), (35, 34), (27, 20), (27, 11)], width=2.6)
+        line([(18, 11), (30, 11)], width=2.6)
+        line([(17, 27), (31, 27)], width=2.2)
+    elif icon_key == "ict":
+        rectangle((10, 13, 38, 31), width=2.6)
+        line([(24, 31), (24, 37)], width=2.5)
+        line([(18, 37), (30, 37)], width=2.5)
+        line([(15, 19), (33, 19)], width=2)
+        line([(15, 24), (26, 24)], width=2)
+    elif icon_key == "islamic":
+        line([(12, 35), (36, 35)], width=2.6)
+        line([(15, 35), (15, 24), (24, 17), (33, 24), (33, 35)], width=2.5)
+        arc((24, 9, 36, 21), 45, 315, width=2)
+        line([(22, 35), (22, 29), (26, 29), (26, 35)], width=2)
+    elif icon_key == "art":
+        arc((10, 10, 38, 37), 20, 335, width=2.8)
+        draw.ellipse((p(17), p(18), p(20), p(21)), fill=(255, 255, 255, 255))
+        draw.ellipse((p(24), p(15), p(27), p(18)), fill=(255, 255, 255, 255))
+        draw.ellipse((p(30), p(21), p(33), p(24)), fill=(255, 255, 255, 255))
+        arc((25, 26, 38, 39), 210, 40, width=2.5)
+    elif icon_key == "pe":
+        ellipse((12, 12, 36, 36), width=2.8)
+        arc((15, 8, 33, 40), 70, 290, width=2)
+        arc((15, 8, 33, 40), 250, 110, width=2)
+        line([(13, 23), (35, 23)], width=2)
+    elif icon_key == "social":
+        ellipse((11, 11, 37, 37), width=2.8)
+        line([(11, 24), (37, 24)], width=2)
+        arc((17, 11, 31, 37), 90, 270, width=2)
+        arc((17, 11, 31, 37), 270, 90, width=2)
+    elif icon_key == "performingArts":
+        line([(19, 13), (19, 31)], width=3)
+        line([(19, 13), (34, 10), (34, 27)], width=3)
+        ellipse((12, 28, 21, 37), width=3)
+        ellipse((27, 24, 36, 33), width=3)
+    elif icon_key == "wellbeing":
+        line([(24, 36), (14, 26), (12, 20), (15, 15), (21, 16), (24, 20), (27, 16), (33, 15), (36, 20), (34, 26), (24, 36)], width=2.7)
+        line([(16, 25), (21, 25), (23, 21), (27, 30), (30, 25), (34, 25)], width=2)
+    else:
+        rectangle((13, 12, 23, 36), width=2.5)
+        rectangle((25, 12, 35, 36), width=2.5)
+        line([(24, 13), (24, 36)], width=2)
+
+    return image
+
+
+def _build_subject_icon_png_bytes(
+    subject_code: Any,
+    subject_name: Any = "",
+    color: Any = EXCEL_BRAND_BLUE,
+    *,
+    pixel_size: int = 96,
+) -> bytes:
+    image = _build_subject_icon_image(
+        subject_code,
+        subject_name,
+        color,
+        pixel_size=pixel_size,
+    )
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
+
+
+def _build_excel_subject_icon(entry: dict | None, *, display_size: int = 17) -> ExcelImage | None:
+    if not entry:
+        return None
+    icon_bytes = _build_subject_icon_png_bytes(
+        entry.get("subject_code", ""),
+        entry.get("subject_name", ""),
+        entry.get("subject_color", EXCEL_BRAND_BLUE),
+        pixel_size=96,
+    )
+    image_buffer = io.BytesIO(icon_bytes)
+    excel_image = ExcelImage(image_buffer)
+    excel_image.width = display_size
+    excel_image.height = display_size
+    excel_image._tis_image_buffer = image_buffer
+    return excel_image
+
+
 def _fit_dimensions(
     source_width: float,
     source_height: float,
@@ -343,7 +528,12 @@ def _style_excel_table_area(sheet, start_row: int, end_row: int, total_columns: 
         for column_index in range(1, total_columns + 1):
             cell = sheet.cell(row=row_index, column=column_index)
             cell.border = thin_border
-            cell.alignment = Alignment(vertical="top", wrap_text=True)
+            existing_alignment = cell.alignment
+            cell.alignment = Alignment(
+                horizontal=existing_alignment.horizontal,
+                vertical=existing_alignment.vertical or "top",
+                wrap_text=True,
+            )
 
 
 def _build_entry_lookup(workspace_payload: dict, entity_key: str) -> dict[tuple[int, str, int], dict]:
@@ -392,6 +582,23 @@ def _format_timetable_entry(entry: dict | None, view: str) -> str:
     if status == "stale":
         lines.append("Needs review")
     return "\n".join(lines)
+
+
+def _format_timetable_entry_for_excel(entry: dict | None, view: str) -> str:
+    text = _format_timetable_entry(entry, view)
+    if not text:
+        return ""
+    lines = text.split("\n")
+    lines[0] = f"      {lines[0]}"
+    return "\n".join(lines)
+
+
+def _add_excel_subject_icon(sheet, cell, entry: dict | None, *, display_size: int = 17):
+    subject_icon = _build_excel_subject_icon(entry, display_size=display_size)
+    if subject_icon is None:
+        return
+    subject_icon.anchor = cell.coordinate
+    sheet.add_image(subject_icon)
 
 
 def _write_overview_sheet(
@@ -581,10 +788,12 @@ def _write_entity_timetable_sheet(
                     cell.value = f"{blocked_slot.get('label', 'Blocked')}\n{blocked_slot.get('block_type_label', '')}"
                     cell.fill = PatternFill(start_color="F3F6F9", end_color="F3F6F9", fill_type="solid")
                     cell.font = Font(color="475569")
+                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
                 else:
                     entry = entry_lookup.get((entity_id, day_key, period_index))
-                    cell.value = _format_timetable_entry(entry, entity_kind)
+                    cell.value = _format_timetable_entry_for_excel(entry, entity_kind)
                     if entry:
+                        _add_excel_subject_icon(sheet, cell, entry)
                         cell.fill = PatternFill(
                             start_color=_safe_excel_hex(entry.get("subject_color_soft"), "F4F8FF"),
                             end_color=_safe_excel_hex(entry.get("subject_color_soft"), "F4F8FF"),
@@ -595,10 +804,11 @@ def _write_entity_timetable_sheet(
                             bold=True,
                             size=9,
                         )
+                        cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
                     else:
                         cell.fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
                         cell.font = Font(color=EXCEL_MUTED, size=9)
-                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             sheet.row_dimensions[row].height = 42
             row += 1
         _style_excel_table_area(sheet, table_start, row - 1, total_columns)
@@ -609,6 +819,7 @@ def _write_entity_timetable_sheet(
 def _write_subject_remaining_sheet(workbook: Workbook, workspace_payload: dict):
     sheet = workbook.create_sheet("Subject Remaining")
     headers = [
+        "Icon",
         "Section",
         "Grade",
         "Subject Code",
@@ -641,6 +852,7 @@ def _write_subject_remaining_sheet(workbook: Workbook, workspace_payload: dict):
                 else "Needs scheduling"
             )
             values = [
+                "",
                 section.get("section_label", ""),
                 section.get("grade_label", ""),
                 option.get("subject_code", ""),
@@ -653,11 +865,15 @@ def _write_subject_remaining_sheet(workbook: Workbook, workspace_payload: dict):
             ]
             for column_index, value in enumerate(values, start=1):
                 sheet.cell(row=row, column=column_index, value=value)
+            icon_cell = sheet.cell(row=row, column=1)
+            _add_excel_subject_icon(sheet, icon_cell, option, display_size=16)
+            icon_cell.alignment = Alignment(horizontal="center", vertical="center")
+            sheet.row_dimensions[row].height = 22
             fill_color = "DCFCE7" if status == "Complete" else "FEE2E2" if status == "Teacher missing" else "FFF4E6"
-            sheet.cell(row=row, column=8).fill = PatternFill(start_color=fill_color, end_color=fill_color, fill_type="solid")
             sheet.cell(row=row, column=9).fill = PatternFill(start_color=fill_color, end_color=fill_color, fill_type="solid")
+            sheet.cell(row=row, column=10).fill = PatternFill(start_color=fill_color, end_color=fill_color, fill_type="solid")
     _style_excel_table_area(sheet, table_start, row, len(headers))
-    for column_index, width in enumerate([24, 10, 14, 30, 28, 14, 12, 12, 18], start=1):
+    for column_index, width in enumerate([8, 24, 10, 14, 30, 28, 14, 12, 12, 18], start=1):
         sheet.column_dimensions[get_column_letter(column_index)].width = width
     sheet.freeze_panes = "A5"
     sheet.auto_filter.ref = f"A{table_start}:{get_column_letter(len(headers))}{row}"
@@ -711,6 +927,32 @@ def _pdf_rgb(color_value: Any, fallback: str = "#0A4EA3") -> tuple[float, float,
     )
 
 
+def _build_pdf_image_asset(
+    name: str,
+    source_image: PillowImage.Image,
+    display_width: float,
+    display_height: float,
+    *,
+    export_scale: int = 3,
+) -> dict:
+    resized_width = max(int(round(display_width * export_scale)), 1)
+    resized_height = max(int(round(display_height * export_scale)), 1)
+    resized_image = source_image.convert("RGBA").resize(
+        (resized_width, resized_height),
+        PillowImage.Resampling.LANCZOS,
+    )
+    background = PillowImage.new("RGBA", resized_image.size, "WHITE")
+    composited = PillowImage.alpha_composite(background, resized_image).convert("RGB")
+    return {
+        "name": name,
+        "display_width": display_width,
+        "display_height": display_height,
+        "pixel_width": composited.width,
+        "pixel_height": composited.height,
+        "data": zlib.compress(composited.tobytes()),
+    }
+
+
 def _load_pdf_logo_assets() -> list[dict]:
     logo_assets = []
     for index, asset in enumerate(EXPORT_LOGO_ASSETS, start=1):
@@ -725,26 +967,14 @@ def _load_pdf_logo_assets() -> list[dict]:
                     asset["max_width"],
                     asset["max_height"],
                 )
-                export_scale = 3
-                resized_width = max(int(round(display_width * export_scale)), 1)
-                resized_height = max(int(round(display_height * export_scale)), 1)
-                resized_image = source_image.convert("RGBA").resize(
-                    (resized_width, resized_height),
-                    PillowImage.Resampling.LANCZOS,
+                logo_asset = _build_pdf_image_asset(
+                    f"Logo{index}",
+                    source_image,
+                    display_width,
+                    display_height,
                 )
-                background = PillowImage.new("RGBA", resized_image.size, "WHITE")
-                composited = PillowImage.alpha_composite(background, resized_image).convert("RGB")
-                logo_assets.append(
-                    {
-                        "name": f"Logo{index}",
-                        "display_width": display_width,
-                        "display_height": display_height,
-                        "pixel_width": composited.width,
-                        "pixel_height": composited.height,
-                        "data": zlib.compress(composited.tobytes()),
-                        "fallback": asset["fallback"],
-                    }
-                )
+                logo_asset["fallback"] = asset["fallback"]
+                logo_assets.append(logo_asset)
         except Exception:
             continue
     return logo_assets
@@ -770,6 +1000,7 @@ class _TimetablePdf:
         self.title = title
         self.subtitle = subtitle
         self.image_assets = _load_pdf_logo_assets()
+        self.subject_icon_asset_names: dict[tuple[str, str], str] = {}
         self.pages: list[list[str]] = []
         self.y = self.height - self.margin
         self.add_page()
@@ -852,6 +1083,33 @@ class _TimetablePdf:
                 asset["display_height"],
             )
             x += asset["display_width"] + gap
+
+    def subject_icon_name(self, entry: dict, *, display_size: float = 11) -> str:
+        icon_key = _resolve_subject_icon_key(
+            entry.get("subject_code", ""),
+            entry.get("subject_name", ""),
+        )
+        color_hex = _safe_excel_hex(entry.get("subject_color", EXCEL_BRAND_BLUE), EXCEL_BRAND_BLUE)
+        cache_key = (icon_key, color_hex)
+        if cache_key not in self.subject_icon_asset_names:
+            image_name = f"SubjectIcon{len(self.subject_icon_asset_names) + 1}"
+            subject_icon = _build_subject_icon_image(
+                entry.get("subject_code", ""),
+                entry.get("subject_name", ""),
+                color_hex,
+                pixel_size=96,
+            )
+            self.image_assets.append(
+                _build_pdf_image_asset(
+                    image_name,
+                    subject_icon,
+                    display_size,
+                    display_size,
+                    export_scale=4,
+                )
+            )
+            self.subject_icon_asset_names[cache_key] = image_name
+        return self.subject_icon_asset_names[cache_key]
 
     def paragraph(self, value: str, *, width: float = 720, size: float = 8, color: str = "#60728C"):
         words = str(value or "").split()
@@ -1045,7 +1303,21 @@ def _draw_pdf_timetable_grid(
             pdf.line(x, y, x + day_width, y, "#D8E5F4", 0.35)
             pdf.line(x, y, x, y + row_height, "#D8E5F4", 0.35)
             if top_line:
-                pdf.text(x + 4, y + row_height - 13, _pdf_truncate(top_line, max(10, int(day_width / 4.5))), size=6.4, color=text_color, bold=True)
+                text_x = x + 4
+                max_chars = max(10, int(day_width / 4.5))
+                if entry:
+                    icon_size = 10
+                    icon_y = y + row_height - 17
+                    pdf.image(
+                        pdf.subject_icon_name(entry, display_size=icon_size),
+                        x + 4,
+                        icon_y,
+                        icon_size,
+                        icon_size,
+                    )
+                    text_x = x + 17
+                    max_chars = max(8, int((day_width - 17) / 4.5))
+                pdf.text(text_x, y + row_height - 13, _pdf_truncate(top_line, max_chars), size=6.4, color=text_color, bold=True)
             if bottom_line:
                 pdf.text(x + 4, y + 8, _pdf_truncate(bottom_line, max(10, int(day_width / 4.5))), size=5.8, color="#60728C")
             x += day_width
