@@ -27,7 +27,7 @@ from database import engine, SessionLocal
 import models
 import auth
 from dependencies import get_db
-from routers import subjects, users, teachers, planning, timetable
+from routers import subjects, users, teachers, planning, timetable, academic_calendar
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
 from teacher_capacity import (
@@ -647,6 +647,13 @@ CONFIGURATION_MODULES = (
         "icon": "timetable",
         "description": "Define the school week, periods, and non-teaching timetable blocks.",
     },
+    {
+        "key": "academic-calendar",
+        "label": "Academic Calendar",
+        "href": "/system-configuration/calendar",
+        "icon": "calendar",
+        "description": "Configure calendar event types, colors, and icons for the active scope.",
+    },
 )
 
 
@@ -667,6 +674,7 @@ def _build_configuration_hub_stats(
     specialization_rows,
     active_year,
     timetable_settings_count,
+    calendar_event_type_count,
 ):
     return [
         {
@@ -703,6 +711,12 @@ def _build_configuration_hub_stats(
             "value": timetable_settings_count,
             "note": "Saved scope-based school day profiles",
         },
+        {
+            "label": "Calendar Event Types",
+            "icon": "calendar",
+            "value": calendar_event_type_count,
+            "note": "Academic calendar type definitions",
+        },
     ]
 
 
@@ -734,6 +748,7 @@ def _build_configuration_context(request: Request, db: Session, current_user):
         None,
     )
     timetable_settings_count = db.query(models.TimetableSetting).count()
+    calendar_event_type_count = db.query(models.CalendarEventType).count()
     return {
         "branch_rows": branch_rows,
         "branch_count": len(branch_rows),
@@ -744,6 +759,7 @@ def _build_configuration_context(request: Request, db: Session, current_user):
         "degree_rows": degree_rows,
         "specialization_rows": specialization_rows,
         "timetable_settings_count": timetable_settings_count,
+        "calendar_event_type_count": calendar_event_type_count,
         "configuration_modules": _get_configuration_modules("overview"),
         "configuration_stats": _build_configuration_hub_stats(
             branch_rows,
@@ -752,6 +768,7 @@ def _build_configuration_context(request: Request, db: Session, current_user):
             specialization_rows,
             active_year,
             timetable_settings_count,
+            calendar_event_type_count,
         ),
         "error_message": str(request.query_params.get("error", "") or "").strip(),
         "scoped_academic_year_id": scoped_academic_year_id,
@@ -7492,6 +7509,7 @@ app.include_router(users.router)
 app.include_router(teachers.router)
 app.include_router(planning.router)
 app.include_router(timetable.router)
+app.include_router(academic_calendar.router)
 
 # ---------------------------------------
 # ROOT (Login Page)

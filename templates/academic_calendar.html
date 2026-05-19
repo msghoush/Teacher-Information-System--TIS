@@ -1,0 +1,1265 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Academic Calendar | TIS{% endblock %}
+
+{% block page_header_actions %}
+{% if shell.can_manage_system_settings %}
+<a class="calendar-header-link" href="/system-configuration/calendar">{{ icon("settings", "shell-icon") }} Calendar Configuration</a>
+{% endif %}
+{% endblock %}
+
+{% block page_styles %}
+<style>
+    .calendar-header-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 34px;
+        padding: 7px 12px;
+        border: 1px solid #cfe0f4;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #17365d;
+        font-size: 12px;
+        font-weight: 800;
+        text-decoration: none;
+    }
+
+    .calendar-page {
+        display: grid;
+        gap: 14px;
+    }
+
+    .calendar-banner {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        font-size: 14px;
+        font-weight: 800;
+    }
+
+    .calendar-banner.is-error {
+        border: 1px solid #efc5bf;
+        background: #fff5f3;
+        color: #9f2d1f;
+    }
+
+    .calendar-banner.is-notice {
+        border: 1px solid #cfe0f4;
+        background: #f4f8ff;
+        color: #17365d;
+    }
+
+    .calendar-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .calendar-summary-card {
+        display: grid;
+        gap: 6px;
+        min-height: 112px;
+        padding: 14px;
+        border: 1px solid #d8e5f4;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #ffffff, #f8fbff);
+    }
+
+    .calendar-summary-card span {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #5d6d85;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .calendar-summary-card strong {
+        color: #17365d;
+        font-size: 28px;
+        line-height: 1;
+    }
+
+    .calendar-summary-card small {
+        color: #64748b;
+        font-size: 12px;
+        line-height: 1.35;
+    }
+
+    .calendar-toolbar,
+    .calendar-editor,
+    .calendar-workspace,
+    .calendar-panel {
+        border: 1px solid #d8e5f4;
+        border-radius: 16px;
+        background: #ffffff;
+    }
+
+    .calendar-toolbar {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
+    }
+
+    .toolbar-grid {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 10px;
+    }
+
+    .calendar-field {
+        display: grid;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .calendar-field.is-wide {
+        grid-column: span 2;
+    }
+
+    .calendar-field label {
+        color: #42526b;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .calendar-field input,
+    .calendar-field select,
+    .calendar-field textarea {
+        width: 100%;
+        min-width: 0;
+        border: 1px solid #c8d8ec;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #17365d;
+        font-size: 13px;
+    }
+
+    .calendar-field input,
+    .calendar-field select {
+        min-height: 40px;
+        padding: 8px 10px;
+    }
+
+    .calendar-field textarea {
+        min-height: 92px;
+        padding: 10px;
+        resize: vertical;
+    }
+
+    .calendar-field select[multiple] {
+        min-height: 118px;
+        padding: 7px;
+    }
+
+    .calendar-field input:focus,
+    .calendar-field select:focus,
+    .calendar-field textarea:focus {
+        outline: none;
+        border-color: #0a4ea3;
+        box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.12);
+    }
+
+    .calendar-check-field {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 40px;
+        color: #17365d;
+        font-size: 13px;
+        font-weight: 800;
+    }
+
+    .calendar-check-field input {
+        width: 16px;
+        height: 16px;
+    }
+
+    .toolbar-actions,
+    .editor-actions,
+    .dialog-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .calendar-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 38px;
+        padding: 8px 12px;
+        border: 1px solid #c8d8ec;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #17365d;
+        font-size: 13px;
+        font-weight: 800;
+        text-decoration: none;
+        cursor: pointer;
+    }
+
+    .calendar-btn.is-primary {
+        border-color: #0a4ea3;
+        background: #0a4ea3;
+        color: #ffffff;
+    }
+
+    .calendar-btn.is-danger {
+        border-color: #e7b9b3;
+        background: #fff5f3;
+        color: #9f2d1f;
+    }
+
+    .calendar-btn.is-muted {
+        background: #f7f9fc;
+        color: #56657a;
+    }
+
+    .calendar-editor {
+        display: grid;
+        gap: 12px;
+        padding: 14px;
+        background: linear-gradient(180deg, #ffffff, #f8fbff);
+    }
+
+    .calendar-editor summary {
+        cursor: pointer;
+        color: #17365d;
+        font-size: 17px;
+        font-weight: 900;
+    }
+
+    .event-form-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+    }
+
+    .calendar-workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 320px;
+        min-height: 680px;
+        overflow: hidden;
+    }
+
+    .calendar-main {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        min-width: 0;
+    }
+
+    .calendar-view-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 14px;
+        border-bottom: 1px solid #d8e5f4;
+    }
+
+    .calendar-view-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .calendar-view-title h2 {
+        margin: 0;
+        color: #17365d;
+        font-size: 21px;
+    }
+
+    .month-nav {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .month-nav a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border: 1px solid #cfe0f4;
+        border-radius: 10px;
+        color: #17365d;
+        text-decoration: none;
+    }
+
+    .month-grid {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        min-width: 0;
+    }
+
+    .weekday-cell {
+        padding: 9px 10px;
+        border-bottom: 1px solid #d8e5f4;
+        border-right: 1px solid #d8e5f4;
+        background: #f4f8ff;
+        color: #43546d;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .day-cell {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        min-height: 118px;
+        padding: 8px;
+        border-right: 1px solid #d8e5f4;
+        border-bottom: 1px solid #d8e5f4;
+        background: #ffffff;
+    }
+
+    .day-cell.is-muted {
+        background: #f8fafc;
+    }
+
+    .day-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 999px;
+        color: #17365d;
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+    .day-cell.is-today .day-number {
+        background: #0a4ea3;
+        color: #ffffff;
+    }
+
+    .day-events {
+        display: grid;
+        align-content: start;
+        gap: 5px;
+        min-width: 0;
+        padding-top: 6px;
+    }
+
+    .event-chip {
+        display: grid;
+        grid-template-columns: 16px minmax(0, 1fr);
+        align-items: center;
+        gap: 5px;
+        min-height: 28px;
+        width: 100%;
+        padding: 5px 7px;
+        border: 1px solid var(--event-border);
+        border-left: 4px solid var(--event-color);
+        border-radius: 8px;
+        background: var(--event-soft);
+        color: var(--event-text);
+        font-size: 11px;
+        font-weight: 850;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .event-chip span:last-child {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .calendar-type-icon,
+    .agenda-type-icon,
+    .detail-type-icon {
+        width: 16px;
+        height: 16px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .agenda-list {
+        display: grid;
+        gap: 8px;
+        padding: 14px;
+    }
+
+    .agenda-card {
+        display: grid;
+        grid-template-columns: 8px minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+        padding: 12px;
+        border: 1px solid var(--event-border);
+        border-radius: 12px;
+        background: var(--event-surface);
+    }
+
+    .agenda-marker {
+        width: 8px;
+        height: 52px;
+        border-radius: 999px;
+        background: var(--event-color);
+    }
+
+    .agenda-copy {
+        display: grid;
+        gap: 5px;
+        min-width: 0;
+    }
+
+    .agenda-copy h3 {
+        margin: 0;
+        color: #17365d;
+        font-size: 15px;
+    }
+
+    .agenda-copy p {
+        margin: 0;
+        color: #64748b;
+        font-size: 12px;
+        line-height: 1.4;
+    }
+
+    .agenda-meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .agenda-pill,
+    .detail-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        min-height: 24px;
+        padding: 4px 8px;
+        border: 1px solid #d8e5f4;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #43546d;
+        font-size: 11px;
+        font-weight: 800;
+    }
+
+    .agenda-open {
+        white-space: nowrap;
+    }
+
+    .empty-state {
+        display: grid;
+        place-items: center;
+        min-height: 260px;
+        padding: 22px;
+        color: #64748b;
+        text-align: center;
+    }
+
+    .calendar-panel {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        border-width: 0 0 0 1px;
+        border-radius: 0;
+        min-width: 0;
+    }
+
+    .detail-head {
+        display: grid;
+        gap: 8px;
+        padding: 14px;
+        border-bottom: 1px solid #d8e5f4;
+        background: #f8fbff;
+    }
+
+    .detail-head h2 {
+        margin: 0;
+        color: #17365d;
+        font-size: 19px;
+    }
+
+    .detail-body {
+        display: grid;
+        align-content: start;
+        gap: 12px;
+        padding: 14px;
+        overflow: auto;
+    }
+
+    .detail-row {
+        display: grid;
+        gap: 4px;
+    }
+
+    .detail-row span {
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .detail-row strong,
+    .detail-row p {
+        margin: 0;
+        color: #17365d;
+        font-size: 13px;
+        line-height: 1.45;
+    }
+
+    .detail-pill-row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .edit-dialog {
+        width: min(940px, calc(100vw - 28px));
+        border: 1px solid #d8e5f4;
+        border-radius: 16px;
+        padding: 0;
+        background: #ffffff;
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+    }
+
+    .edit-dialog::backdrop {
+        background: rgba(15, 23, 42, 0.36);
+    }
+
+    .dialog-shell {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+    }
+
+    .dialog-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid #d8e5f4;
+        padding-bottom: 12px;
+    }
+
+    .dialog-head h2 {
+        margin: 0;
+        color: #17365d;
+        font-size: 20px;
+    }
+
+    @media (max-width: 1180px) {
+        .calendar-summary-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .toolbar-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .event-form-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .calendar-workspace {
+            grid-template-columns: 1fr;
+        }
+
+        .calendar-panel {
+            border-left: 0;
+            border-top: 1px solid #d8e5f4;
+            border-radius: 0;
+        }
+    }
+
+    @media (max-width: 760px) {
+        .calendar-summary-grid,
+        .toolbar-grid,
+        .event-form-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .calendar-field.is-wide {
+            grid-column: auto;
+        }
+
+        .calendar-view-head {
+            align-items: flex-start;
+            flex-direction: column;
+        }
+
+        .month-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .weekday-cell {
+            display: none;
+        }
+
+        .day-cell {
+            min-height: 88px;
+            border-right: 0;
+        }
+
+        .agenda-card {
+            grid-template-columns: 6px minmax(0, 1fr);
+        }
+
+        .agenda-open {
+            grid-column: 2;
+            justify-content: flex-start;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="calendar-page">
+    {% if error_message %}
+    <div class="calendar-banner is-error">{{ icon("warning", "shell-icon") }} {{ error_message }}</div>
+    {% endif %}
+    {% if notice %}
+    <div class="calendar-banner is-notice">{{ icon("info", "shell-icon") }} {{ notice }}</div>
+    {% endif %}
+
+    <section class="calendar-summary-grid" aria-label="Calendar summary">
+        {% for card in summary_cards %}
+        <article class="calendar-summary-card">
+            <span>{{ icon(card.icon, "shell-icon") }} {{ card.label }}</span>
+            <strong>{{ card.value }}</strong>
+            <small>{{ card.note }}</small>
+        </article>
+        {% endfor %}
+    </section>
+
+    <form class="calendar-toolbar" method="get" action="/academic-calendar/">
+        <div class="toolbar-grid">
+            <div class="calendar-field">
+                <label for="calendar_view">View</label>
+                <select id="calendar_view" name="view">
+                    <option value="month" {% if calendar_view == "month" %}selected{% endif %}>Month</option>
+                    <option value="agenda" {% if calendar_view == "agenda" %}selected{% endif %}>Agenda</option>
+                </select>
+            </div>
+            <div class="calendar-field">
+                <label for="calendar_month">Month</label>
+                <input id="calendar_month" type="month" name="month" value="{{ filters.month }}">
+            </div>
+            <div class="calendar-field">
+                <label for="filter_event_type_id">Event Type</label>
+                <select id="filter_event_type_id" name="event_type_id">
+                    <option value="">All Types</option>
+                    {% for event_type in event_types %}
+                    <option value="{{ event_type.id }}" {% if filters.event_type_id == event_type.id %}selected{% endif %}>{{ event_type.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="calendar-field">
+                <label for="filter_status">Status</label>
+                <select id="filter_status" name="status">
+                    <option value="">All Statuses</option>
+                    {% for status in status_options %}
+                    <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="calendar-field">
+                <label for="filter_priority">Priority</label>
+                <select id="filter_priority" name="priority">
+                    <option value="">All Priorities</option>
+                    {% for priority in priority_options %}
+                    <option value="{{ priority }}" {% if filters.priority == priority %}selected{% endif %}>{{ priority }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="calendar-field">
+                <label for="filter_grade">Grade</label>
+                <select id="filter_grade" name="grade">
+                    <option value="">All Grades</option>
+                    {% for grade in grade_options %}
+                    <option value="{{ grade }}" {% if filters.grade == grade %}selected{% endif %}>{{ "KG" if grade == "KG" else "Grade " ~ grade }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="calendar-field">
+                <label for="filter_section_id">Section</label>
+                <select id="filter_section_id" name="section_id">
+                    <option value="">All Sections</option>
+                    {% for section in sections %}
+                    <option value="{{ section.id }}" {% if filters.section_id == section.id %}selected{% endif %}>{{ section.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="calendar-field">
+                <label for="filter_teacher_id">Teacher</label>
+                <select id="filter_teacher_id" name="teacher_id">
+                    <option value="">All Teachers</option>
+                    {% for teacher in teachers %}
+                    <option value="{{ teacher.id }}" {% if filters.teacher_id == teacher.id %}selected{% endif %}>{{ teacher.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="calendar-field">
+                <label for="filter_user_id">User</label>
+                <select id="filter_user_id" name="user_id">
+                    <option value="">All Users</option>
+                    {% for user_row in users %}
+                    <option value="{{ user_row.id }}" {% if filters.user_id == user_row.id %}selected{% endif %}>{{ user_row.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="calendar-field">
+                <label for="filter_start_date">Start Date</label>
+                <input id="filter_start_date" type="date" name="start_date" value="{{ filters.start_date }}">
+            </div>
+            <div class="calendar-field">
+                <label for="filter_end_date">End Date</label>
+                <input id="filter_end_date" type="date" name="end_date" value="{{ filters.end_date }}">
+            </div>
+            <div class="toolbar-actions">
+                <button class="calendar-btn is-primary" type="submit">{{ icon("search", "shell-icon") }} Apply</button>
+                <a class="calendar-btn is-muted" href="/academic-calendar/">{{ icon("clear", "shell-icon") }} Clear</a>
+            </div>
+        </div>
+    </form>
+
+    {% if can_manage_calendar %}
+    <details class="calendar-editor">
+        <summary>{{ icon("add", "shell-icon") }} New Calendar Event</summary>
+        <form method="post" action="/academic-calendar/events">
+            <input type="hidden" name="return_to" value="{{ return_to }}">
+            <div class="event-form-grid">
+                <div class="calendar-field is-wide">
+                    <label for="create_title">Title</label>
+                    <input id="create_title" name="title" maxlength="180" required>
+                </div>
+                <div class="calendar-field">
+                    <label for="create_event_type_id">Event Type</label>
+                    <select id="create_event_type_id" name="event_type_id">
+                        <option value="">Uncategorized</option>
+                        {% for event_type in active_event_types %}
+                        <option value="{{ event_type.id }}">{{ event_type.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="calendar-field">
+                    <label for="create_event_date">Date</label>
+                    <input id="create_event_date" type="date" name="event_date" value="{{ filters.start_date }}" required>
+                </div>
+                <label class="calendar-check-field">
+                    <input type="checkbox" name="all_day" value="1">
+                    All Day
+                </label>
+                <div class="calendar-field">
+                    <label for="create_start_time">Start Time</label>
+                    <input id="create_start_time" type="time" name="start_time">
+                </div>
+                <div class="calendar-field">
+                    <label for="create_end_time">End Time</label>
+                    <input id="create_end_time" type="time" name="end_time">
+                </div>
+                <div class="calendar-field">
+                    <label for="create_priority">Priority</label>
+                    <select id="create_priority" name="priority">
+                        {% for priority in priority_options %}
+                        <option value="{{ priority }}" {% if priority == "Normal" %}selected{% endif %}>{{ priority }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="calendar-field">
+                    <label for="create_status">Status</label>
+                    <select id="create_status" name="status">
+                        {% for status in status_options %}
+                        <option value="{{ status }}">{{ status }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="calendar-field">
+                    <label for="create_target_group">Target Group</label>
+                    <select id="create_target_group" name="target_group">
+                        {% for target_group in target_group_options %}
+                        <option value="{{ target_group }}">{{ target_group }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="calendar-field">
+                    <label for="create_target_grade">Target Grade</label>
+                    <select id="create_target_grade" name="target_grade">
+                        <option value="">No Grade</option>
+                        {% for grade in grade_options %}
+                        <option value="{{ grade }}">{{ "KG" if grade == "KG" else "Grade " ~ grade }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="calendar-field">
+                    <label for="create_target_section_id">Target Section</label>
+                    <select id="create_target_section_id" name="target_section_id">
+                        <option value="">No Section</option>
+                        {% for section in sections %}
+                        <option value="{{ section.id }}">{{ section.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="calendar-field">
+                    <label for="create_target_teacher_id">Target Teacher</label>
+                    <select id="create_target_teacher_id" name="target_teacher_id">
+                        <option value="">No Teacher</option>
+                        {% for teacher in teachers %}
+                        <option value="{{ teacher.id }}">{{ teacher.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="calendar-field">
+                    <label for="create_target_role">Role / Custom Target</label>
+                    <input id="create_target_role" name="target_role" maxlength="80">
+                </div>
+                <div class="calendar-field">
+                    <label for="create_recurrence_rule">Recurrence</label>
+                    <select id="create_recurrence_rule" name="recurrence_rule">
+                        {% for recurrence in recurrence_options %}
+                        <option value="{{ recurrence }}">{{ recurrence }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="calendar-field">
+                    <label for="create_recurrence_interval">Every</label>
+                    <input id="create_recurrence_interval" type="number" name="recurrence_interval" min="1" value="1">
+                </div>
+                <div class="calendar-field">
+                    <label for="create_recurrence_until">Until</label>
+                    <input id="create_recurrence_until" type="date" name="recurrence_until">
+                </div>
+                <div class="calendar-field is-wide">
+                    <label for="create_assigned_teacher_ids">Assigned Teachers</label>
+                    <select id="create_assigned_teacher_ids" name="assigned_teacher_ids" multiple>
+                        {% for teacher in teachers %}
+                        <option value="{{ teacher.id }}">{{ teacher.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="calendar-field is-wide">
+                    <label for="create_assigned_user_ids">Assigned Users</label>
+                    <select id="create_assigned_user_ids" name="assigned_user_ids" multiple>
+                        {% for user_row in users %}
+                        <option value="{{ user_row.id }}">{{ user_row.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="calendar-field is-wide">
+                    <label for="create_description">Description</label>
+                    <textarea id="create_description" name="description"></textarea>
+                </div>
+            </div>
+            <div class="editor-actions">
+                <button class="calendar-btn is-primary" type="submit">{{ icon("save", "shell-icon") }} Save Event</button>
+            </div>
+        </form>
+    </details>
+    {% endif %}
+
+    <section class="calendar-workspace">
+        <div class="calendar-main">
+            <div class="calendar-view-head">
+                <div class="calendar-view-title">
+                    {{ icon("calendar", "shell-icon") }}
+                    <h2>{{ selected_month_label }}</h2>
+                </div>
+                <div class="month-nav">
+                    <a href="/academic-calendar/?view={{ calendar_view }}&month={{ previous_month }}" aria-label="Previous month" style="transform: rotate(180deg);">{{ icon("chevron-right", "shell-icon") }}</a>
+                    <a href="/academic-calendar/?view={{ calendar_view }}&month={{ next_month }}" aria-label="Next month">{{ icon("chevron-right", "shell-icon") }}</a>
+                </div>
+            </div>
+
+            {% if calendar_view == "month" %}
+            <div class="month-grid">
+                {% for day_name in week_day_names %}
+                <div class="weekday-cell">{{ day_name }}</div>
+                {% endfor %}
+                {% for week in month_weeks %}
+                    {% for day in week %}
+                    <div class="day-cell {% if not day.in_month %}is-muted{% endif %} {% if day.is_today %}is-today{% endif %}">
+                        <span class="day-number">{{ day.day_number }}</span>
+                        <div class="day-events">
+                            {% for event in day.events %}
+                            <button
+                                class="event-chip"
+                                type="button"
+                                data-event-id="{{ event.id }}"
+                                style="--event-color: {{ event.type_color }}; --event-soft: {{ event.type_soft }}; --event-border: {{ event.type_border }}; --event-text: {{ event.type_text }};"
+                            >
+                                {{ icon(event.type_icon, "calendar-type-icon") }}
+                                <span>{{ event.title }}</span>
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="agenda-list">
+                {% if calendar_events %}
+                    {% for event in calendar_events %}
+                    <article
+                        class="agenda-card"
+                        style="--event-color: {{ event.type_color }}; --event-surface: {{ event.type_surface }}; --event-border: {{ event.type_border }};"
+                    >
+                        <span class="agenda-marker"></span>
+                        <div class="agenda-copy">
+                            <div class="agenda-meta">
+                                <span class="agenda-pill">{{ icon(event.type_icon, "agenda-type-icon") }} {{ event.type_name }}</span>
+                                <span class="agenda-pill">{{ event.status }}</span>
+                                <span class="agenda-pill">{{ event.priority }}</span>
+                            </div>
+                            <h3>{{ event.title }}</h3>
+                            <p>{{ event.date_label }} | {{ event.time_label }} | {{ event.target_label }}</p>
+                            <p>{{ event.assignment_summary }}</p>
+                        </div>
+                        <button class="calendar-btn agenda-open" type="button" data-event-id="{{ event.id }}">{{ icon("open", "shell-icon") }} Open</button>
+                    </article>
+                    {% endfor %}
+                {% else %}
+                <div class="empty-state">No calendar events match the selected filters.</div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+
+        <aside class="calendar-panel" aria-label="Event details">
+            <div class="detail-head">
+                <div class="detail-pill-row">
+                    <span class="detail-pill" id="detailType">{{ icon("calendar", "detail-type-icon") }} Calendar</span>
+                    <span class="detail-pill" id="detailStatus">Status</span>
+                </div>
+                <h2 id="detailTitle">Select an event</h2>
+            </div>
+            <div class="detail-body">
+                <div class="detail-row">
+                    <span>Date / Time</span>
+                    <strong id="detailDateTime">No event selected</strong>
+                </div>
+                <div class="detail-row">
+                    <span>Target</span>
+                    <strong id="detailTarget">-</strong>
+                </div>
+                <div class="detail-row">
+                    <span>Priority</span>
+                    <strong id="detailPriority">-</strong>
+                </div>
+                <div class="detail-row">
+                    <span>Assigned</span>
+                    <p id="detailAssigned">-</p>
+                </div>
+                <div class="detail-row">
+                    <span>Description</span>
+                    <p id="detailDescription">-</p>
+                </div>
+                {% if can_manage_calendar %}
+                <div class="editor-actions">
+                    <button class="calendar-btn" type="button" id="editSelectedEvent" disabled>{{ icon("edit", "shell-icon") }} Edit</button>
+                </div>
+                {% endif %}
+            </div>
+        </aside>
+    </section>
+
+    {% if can_manage_calendar %}
+    <dialog class="edit-dialog" id="editEventDialog">
+        <div class="dialog-shell">
+            <div class="dialog-head">
+                <h2>Edit Calendar Event</h2>
+                <button class="calendar-btn is-muted" type="button" data-close-dialog>{{ icon("close", "shell-icon") }} Close</button>
+            </div>
+            <form id="editEventForm" method="post">
+                <input type="hidden" name="return_to" value="{{ return_to }}">
+                <div class="event-form-grid">
+                    <div class="calendar-field is-wide">
+                        <label for="edit_title">Title</label>
+                        <input id="edit_title" name="title" maxlength="180" required>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_event_type_id">Event Type</label>
+                        <select id="edit_event_type_id" name="event_type_id">
+                            <option value="">Uncategorized</option>
+                            {% for event_type in event_types %}
+                            <option value="{{ event_type.id }}">{{ event_type.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_event_date">Date</label>
+                        <input id="edit_event_date" type="date" name="event_date" required>
+                    </div>
+                    <label class="calendar-check-field">
+                        <input id="edit_all_day" type="checkbox" name="all_day" value="1">
+                        All Day
+                    </label>
+                    <div class="calendar-field">
+                        <label for="edit_start_time">Start Time</label>
+                        <input id="edit_start_time" type="time" name="start_time">
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_end_time">End Time</label>
+                        <input id="edit_end_time" type="time" name="end_time">
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_priority">Priority</label>
+                        <select id="edit_priority" name="priority">
+                            {% for priority in priority_options %}
+                            <option value="{{ priority }}">{{ priority }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_status">Status</label>
+                        <select id="edit_status" name="status">
+                            {% for status in status_options %}
+                            <option value="{{ status }}">{{ status }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_target_group">Target Group</label>
+                        <select id="edit_target_group" name="target_group">
+                            {% for target_group in target_group_options %}
+                            <option value="{{ target_group }}">{{ target_group }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_target_grade">Target Grade</label>
+                        <select id="edit_target_grade" name="target_grade">
+                            <option value="">No Grade</option>
+                            {% for grade in grade_options %}
+                            <option value="{{ grade }}">{{ "KG" if grade == "KG" else "Grade " ~ grade }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_target_section_id">Target Section</label>
+                        <select id="edit_target_section_id" name="target_section_id">
+                            <option value="">No Section</option>
+                            {% for section in sections %}
+                            <option value="{{ section.id }}">{{ section.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_target_teacher_id">Target Teacher</label>
+                        <select id="edit_target_teacher_id" name="target_teacher_id">
+                            <option value="">No Teacher</option>
+                            {% for teacher in teachers %}
+                            <option value="{{ teacher.id }}">{{ teacher.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_target_role">Role / Custom Target</label>
+                        <input id="edit_target_role" name="target_role" maxlength="80">
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_recurrence_rule">Recurrence</label>
+                        <select id="edit_recurrence_rule" name="recurrence_rule">
+                            {% for recurrence in recurrence_options %}
+                            <option value="{{ recurrence }}">{{ recurrence }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_recurrence_interval">Every</label>
+                        <input id="edit_recurrence_interval" type="number" name="recurrence_interval" min="1" value="1">
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_recurrence_until">Until</label>
+                        <input id="edit_recurrence_until" type="date" name="recurrence_until">
+                    </div>
+                    <div class="calendar-field is-wide">
+                        <label for="edit_assigned_teacher_ids">Assigned Teachers</label>
+                        <select id="edit_assigned_teacher_ids" name="assigned_teacher_ids" multiple>
+                            {% for teacher in teachers %}
+                            <option value="{{ teacher.id }}">{{ teacher.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field is-wide">
+                        <label for="edit_assigned_user_ids">Assigned Users</label>
+                        <select id="edit_assigned_user_ids" name="assigned_user_ids" multiple>
+                            {% for user_row in users %}
+                            <option value="{{ user_row.id }}">{{ user_row.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field is-wide">
+                        <label for="edit_description">Description</label>
+                        <textarea id="edit_description" name="description"></textarea>
+                    </div>
+                </div>
+                <div class="dialog-actions">
+                    <button class="calendar-btn is-primary" type="submit">{{ icon("save", "shell-icon") }} Save Changes</button>
+                </div>
+            </form>
+            <form id="deleteEventForm" method="post">
+                <input type="hidden" name="return_to" value="{{ return_to }}">
+                <div class="dialog-actions">
+                    <button class="calendar-btn is-danger" type="submit">{{ icon("trash", "shell-icon") }} Delete Event</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+    const calendarEvents = {{ calendar_events | tojson }};
+    const eventsById = new Map(calendarEvents.map((eventItem) => [String(eventItem.id), eventItem]));
+    const selectedEventId = {{ selected_event_id | tojson }};
+    const canManageCalendar = {{ can_manage_calendar | tojson }};
+    let activeEvent = null;
+
+    const detailTitle = document.getElementById("detailTitle");
+    const detailType = document.getElementById("detailType");
+    const detailStatus = document.getElementById("detailStatus");
+    const detailDateTime = document.getElementById("detailDateTime");
+    const detailTarget = document.getElementById("detailTarget");
+    const detailPriority = document.getElementById("detailPriority");
+    const detailAssigned = document.getElementById("detailAssigned");
+    const detailDescription = document.getElementById("detailDescription");
+    const editButton = document.getElementById("editSelectedEvent");
+    const editDialog = document.getElementById("editEventDialog");
+    const editForm = document.getElementById("editEventForm");
+    const deleteForm = document.getElementById("deleteEventForm");
+
+    function setText(element, value) {
+        if (element) {
+            element.textContent = value || "-";
+        }
+    }
+
+    function setSelectValue(id, value) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.value = value === null || value === undefined ? "" : String(value);
+        }
+    }
+
+    function setMultiSelectValues(id, values) {
+        const element = document.getElementById(id);
+        const selectedValues = new Set((values || []).map((value) => String(value)));
+        if (!element) {
+            return;
+        }
+        Array.from(element.options).forEach((option) => {
+            option.selected = selectedValues.has(option.value);
+        });
+    }
+
+    function selectEvent(eventItem) {
+        if (!eventItem) {
+            return;
+        }
+        activeEvent = eventItem;
+        setText(detailTitle, eventItem.title);
+        setText(detailType, eventItem.type_name);
+        setText(detailStatus, eventItem.status);
+        setText(detailDateTime, `${eventItem.date_label} | ${eventItem.time_label}`);
+        setText(detailTarget, eventItem.target_label);
+        setText(detailPriority, eventItem.priority);
+        setText(detailAssigned, eventItem.assignment_summary);
+        setText(detailDescription, eventItem.description || "No description recorded.");
+        if (editButton) {
+            editButton.disabled = false;
+        }
+    }
+
+    function populateEditForm(eventItem) {
+        if (!eventItem || !editForm) {
+            return;
+        }
+        editForm.action = `/academic-calendar/events/${eventItem.id}`;
+        if (deleteForm) {
+            deleteForm.action = `/academic-calendar/events/${eventItem.id}/delete`;
+        }
+        document.getElementById("edit_title").value = eventItem.title || "";
+        setSelectValue("edit_event_type_id", eventItem.event_type_id);
+        document.getElementById("edit_event_date").value = eventItem.event_date || "";
+        document.getElementById("edit_all_day").checked = Boolean(eventItem.all_day);
+        document.getElementById("edit_start_time").value = eventItem.start_time || "";
+        document.getElementById("edit_end_time").value = eventItem.end_time || "";
+        setSelectValue("edit_priority", eventItem.priority || "Normal");
+        setSelectValue("edit_status", eventItem.status || "Planned");
+        setSelectValue("edit_target_group", eventItem.target_group || "All School");
+        setSelectValue("edit_target_grade", eventItem.target_grade);
+        setSelectValue("edit_target_section_id", eventItem.target_section_id);
+        setSelectValue("edit_target_teacher_id", eventItem.target_teacher_id);
+        document.getElementById("edit_target_role").value = eventItem.target_role || "";
+        setSelectValue("edit_recurrence_rule", eventItem.recurrence_rule || "None");
+        document.getElementById("edit_recurrence_interval").value = eventItem.recurrence_interval || 1;
+        document.getElementById("edit_recurrence_until").value = eventItem.recurrence_until || "";
+        document.getElementById("edit_description").value = eventItem.description || "";
+        setMultiSelectValues("edit_assigned_teacher_ids", eventItem.assigned_teacher_ids);
+        setMultiSelectValues("edit_assigned_user_ids", eventItem.assigned_user_ids);
+    }
+
+    document.querySelectorAll("[data-event-id]").forEach((button) => {
+        button.addEventListener("click", () => {
+            selectEvent(eventsById.get(String(button.dataset.eventId)));
+        });
+    });
+
+    if (editButton && canManageCalendar) {
+        editButton.addEventListener("click", () => {
+            if (!activeEvent) {
+                return;
+            }
+            populateEditForm(activeEvent);
+            if (editDialog && typeof editDialog.showModal === "function") {
+                editDialog.showModal();
+            } else if (editDialog) {
+                editDialog.removeAttribute("hidden");
+            }
+        });
+    }
+
+    document.querySelectorAll("[data-close-dialog]").forEach((button) => {
+        button.addEventListener("click", () => {
+            if (editDialog && typeof editDialog.close === "function") {
+                editDialog.close();
+            } else if (editDialog) {
+                editDialog.setAttribute("hidden", "hidden");
+            }
+        });
+    });
+
+    if (deleteForm) {
+        deleteForm.addEventListener("submit", (event) => {
+            if (!window.confirm("Delete this calendar event?")) {
+                event.preventDefault();
+            }
+        });
+    }
+
+    if (selectedEventId && eventsById.has(String(selectedEventId))) {
+        selectEvent(eventsById.get(String(selectedEventId)));
+    } else if (calendarEvents.length) {
+        selectEvent(calendarEvents[0]);
+    }
+</script>
+{% endblock %}

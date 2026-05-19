@@ -60,6 +60,113 @@ class SystemNotification(Base):
     resolved_by_user_id = Column(String(10))
 
 
+class CalendarEventType(Base):
+    __tablename__ = "calendar_event_types"
+    __table_args__ = (
+        UniqueConstraint(
+            "branch_id",
+            "academic_year_id",
+            "name",
+            name="uq_calendar_event_types_scope_name",
+        ),
+        Index("ix_calendar_event_types_scope", "branch_id", "academic_year_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
+    academic_year_id = Column(
+        Integer,
+        ForeignKey("academic_years.id"),
+        nullable=False,
+        index=True,
+    )
+    name = Column(String(120), nullable=False)
+    color = Column(String(7), nullable=False, default="#0A4EA3")
+    icon = Column(String(80), nullable=False, default="year")
+    is_active = Column(Boolean, nullable=False, default=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+
+
+class CalendarEvent(Base):
+    __tablename__ = "calendar_events"
+    __table_args__ = (
+        Index("ix_calendar_events_scope_date", "branch_id", "academic_year_id", "event_date"),
+        Index("ix_calendar_events_type", "event_type_id"),
+        Index("ix_calendar_events_status", "status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
+    academic_year_id = Column(
+        Integer,
+        ForeignKey("academic_years.id"),
+        nullable=False,
+        index=True,
+    )
+    event_type_id = Column(Integer, ForeignKey("calendar_event_types.id"), index=True)
+    title = Column(String(180), nullable=False)
+    event_date = Column(String(10), nullable=False, index=True)
+    start_time = Column(String(5))
+    end_time = Column(String(5))
+    all_day = Column(Boolean, nullable=False, default=False)
+    description = Column(Text)
+    target_group = Column(String(40), nullable=False, default="All School")
+    target_grade = Column(String(20))
+    target_section_id = Column(Integer, ForeignKey("planning_sections.id"))
+    target_teacher_id = Column(Integer, ForeignKey("teachers.id"))
+    target_role = Column(String(80))
+    priority = Column(String(20), nullable=False, default="Normal")
+    status = Column(String(20), nullable=False, default="Planned")
+    recurrence_rule = Column(String(40), nullable=False, default="None")
+    recurrence_interval = Column(Integer, nullable=False, default=1)
+    recurrence_until = Column(String(10))
+    created_by_user_id = Column(String(10), ForeignKey("users.user_id"))
+    updated_by_user_id = Column(String(10), ForeignKey("users.user_id"))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class CalendarEventAssignment(Base):
+    __tablename__ = "calendar_event_assignments"
+    __table_args__ = (
+        Index("ix_calendar_event_assignments_event", "calendar_event_id"),
+        Index("ix_calendar_event_assignments_teacher", "teacher_id"),
+        Index("ix_calendar_event_assignments_user", "user_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    calendar_event_id = Column(
+        Integer,
+        ForeignKey("calendar_events.id"),
+        nullable=False,
+        index=True,
+    )
+    teacher_id = Column(Integer, ForeignKey("teachers.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    assignment_role = Column(String(80))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class CalendarEventNotification(Base):
+    __tablename__ = "calendar_event_notifications"
+    __table_args__ = (
+        Index("ix_calendar_event_notifications_event", "calendar_event_id"),
+        Index("ix_calendar_event_notifications_notification", "system_notification_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    calendar_event_id = Column(
+        Integer,
+        ForeignKey("calendar_events.id"),
+        nullable=False,
+        index=True,
+    )
+    assignment_id = Column(Integer, ForeignKey("calendar_event_assignments.id"))
+    system_notification_id = Column(Integer, ForeignKey("system_notifications.id"))
+    notification_kind = Column(String(40), nullable=False, default="Assigned")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class Subject(Base):
     __tablename__ = "subjects"
     __table_args__ = (

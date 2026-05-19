@@ -1,0 +1,405 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Academic Calendar Configuration | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+    .config-page {
+        display: grid;
+        gap: 14px;
+    }
+
+    .error-banner,
+    .notice-banner {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        font-size: 14px;
+        font-weight: 800;
+    }
+
+    .error-banner {
+        border: 1px solid #efc5bf;
+        background: #fff5f3;
+        color: #9f2d1f;
+    }
+
+    .notice-banner {
+        border: 1px solid #d5e4f4;
+        background: #f4f8ff;
+        color: #17365d;
+    }
+
+    .config-nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .config-nav-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 34px;
+        padding: 7px 12px;
+        border: 1px solid #d6e3f3;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #23466f;
+        font-size: 12px;
+        font-weight: 800;
+        text-decoration: none;
+    }
+
+    .config-nav-link.is-active {
+        border-color: #b8d0ec;
+        background: #edf4ff;
+        color: #17365d;
+    }
+
+    .module-shell {
+        display: grid;
+        gap: 14px;
+        padding: 16px;
+        border: 1px solid #d8e5f4;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff, #f8fbff);
+    }
+
+    .module-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+    }
+
+    .module-copy {
+        display: grid;
+        gap: 5px;
+        max-width: 72ch;
+    }
+
+    .module-copy h2 {
+        margin: 0;
+        color: #17365d;
+        font-size: 24px;
+    }
+
+    .module-copy p {
+        margin: 0;
+        color: #60728c;
+        font-size: 13px;
+        line-height: 1.55;
+    }
+
+    .usage-pill,
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 26px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .usage-pill {
+        border: 1px solid #d7e4f4;
+        background: #ffffff;
+        color: #4f6480;
+    }
+
+    .status-pill {
+        border: 1px solid #cfe1f6;
+        background: #edf4ff;
+        color: #17365d;
+    }
+
+    .status-pill.is-muted {
+        border-color: #d9e1ec;
+        background: #f5f7fb;
+        color: #61738d;
+    }
+
+    .create-row {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) 130px 170px 110px auto;
+        gap: 8px;
+        align-items: end;
+        padding: 12px;
+        border: 1px solid #d8e5f4;
+        border-radius: 14px;
+        background: #ffffff;
+    }
+
+    .event-type-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .event-type-row {
+        display: grid;
+        grid-template-columns: 38px minmax(180px, 1fr) 120px 160px 100px 90px auto;
+        gap: 8px;
+        align-items: center;
+        padding: 10px;
+        border: 1px solid #d8e5f4;
+        border-radius: 14px;
+        background: #ffffff;
+    }
+
+    .type-swatch {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        color: #ffffff;
+        background: var(--event-color);
+    }
+
+    .type-icon {
+        width: 18px;
+        height: 18px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .field {
+        display: grid;
+        gap: 5px;
+        min-width: 0;
+    }
+
+    .field label {
+        color: #42526b;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .field input,
+    .field select {
+        width: 100%;
+        min-width: 0;
+        min-height: 38px;
+        padding: 8px 10px;
+        border: 1px solid #c8d8ec;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #17365d;
+        font-size: 13px;
+    }
+
+    .field input:focus,
+    .field select:focus {
+        outline: none;
+        border-color: #0a4ea3;
+        box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.12);
+    }
+
+    .active-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        color: #17365d;
+        font-size: 12px;
+        font-weight: 800;
+    }
+
+    .active-toggle input {
+        width: 16px;
+        height: 16px;
+    }
+
+    .row-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 36px;
+        padding: 7px 11px;
+        border: 1px solid #c8d8ec;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #17365d;
+        font-size: 12px;
+        font-weight: 800;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .btn.is-primary {
+        border-color: #0a4ea3;
+        background: #0a4ea3;
+        color: #ffffff;
+    }
+
+    .btn.is-danger {
+        border-color: #e7b9b3;
+        background: #fff5f3;
+        color: #9f2d1f;
+    }
+
+    .empty-state {
+        display: grid;
+        place-items: center;
+        min-height: 180px;
+        border: 1px dashed #c8d8ec;
+        border-radius: 14px;
+        color: #64748b;
+        background: #ffffff;
+        text-align: center;
+    }
+
+    @media (max-width: 1120px) {
+        .create-row,
+        .event-type-row {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .type-swatch {
+            grid-column: span 2;
+        }
+
+        .row-actions {
+            grid-column: span 2;
+            justify-content: flex-start;
+        }
+    }
+
+    @media (max-width: 680px) {
+        .create-row,
+        .event-type-row {
+            grid-template-columns: 1fr;
+        }
+
+        .type-swatch,
+        .row-actions {
+            grid-column: auto;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="config-page">
+    {% if error_message %}
+    <div class="error-banner">{{ icon("warning", "shell-icon") }} {{ error_message }}</div>
+    {% endif %}
+    {% if notice %}
+    <div class="notice-banner">{{ icon("info", "shell-icon") }} {{ notice }}</div>
+    {% endif %}
+
+    <nav class="config-nav" aria-label="Configuration modules">
+        {% for module in configuration_modules %}
+        <a class="config-nav-link {% if module.active %}is-active{% endif %}" href="{{ module.href }}">
+            {{ icon(module.icon, "shell-icon") }} {{ module.label }}
+        </a>
+        {% endfor %}
+    </nav>
+
+    <section class="module-shell">
+        <div class="module-head">
+            <div class="module-copy">
+                <h2>Academic Calendar Event Types</h2>
+                <p>Event types are scoped to the active branch and academic year, then used by the calendar for colors, icons, filters, and reporting cards.</p>
+            </div>
+            <span class="usage-pill">{{ calendar_event_types | length }} configured</span>
+        </div>
+
+        <form class="create-row" method="post" action="/system-configuration/calendar/event-types">
+            <input type="hidden" name="return_to" value="/system-configuration/calendar">
+            <div class="field">
+                <label for="create_event_type_name">Name</label>
+                <input id="create_event_type_name" name="name" maxlength="120" required>
+            </div>
+            <div class="field">
+                <label for="create_event_type_color">Color</label>
+                <input id="create_event_type_color" type="color" name="color" value="#0A4EA3">
+            </div>
+            <div class="field">
+                <label for="create_event_type_icon">Icon</label>
+                <select id="create_event_type_icon" name="icon">
+                    {% for icon_name in icon_options %}
+                    <option value="{{ icon_name }}">{{ icon_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="create_event_type_sort">Order</label>
+                <input id="create_event_type_sort" type="number" name="sort_order" value="0">
+            </div>
+            <button class="btn is-primary" type="submit">{{ icon("add", "shell-icon") }} Add Type</button>
+        </form>
+
+        <div class="event-type-list">
+            {% if calendar_event_types %}
+                {% for event_type in calendar_event_types %}
+                <form class="event-type-row" method="post" action="/system-configuration/calendar/event-types/{{ event_type.id }}">
+                    <input type="hidden" name="return_to" value="/system-configuration/calendar">
+                    <span class="type-swatch" style="--event-color: {{ event_type.color }};">{{ icon(event_type.icon, "type-icon") }}</span>
+                    <div class="field">
+                        <label for="type_name_{{ event_type.id }}">Name</label>
+                        <input id="type_name_{{ event_type.id }}" name="name" maxlength="120" value="{{ event_type.name }}" required>
+                    </div>
+                    <div class="field">
+                        <label for="type_color_{{ event_type.id }}">Color</label>
+                        <input id="type_color_{{ event_type.id }}" type="color" name="color" value="{{ event_type.color }}">
+                    </div>
+                    <div class="field">
+                        <label for="type_icon_{{ event_type.id }}">Icon</label>
+                        <select id="type_icon_{{ event_type.id }}" name="icon">
+                            {% for icon_name in icon_options %}
+                            <option value="{{ icon_name }}" {% if event_type.icon == icon_name %}selected{% endif %}>{{ icon_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="type_sort_{{ event_type.id }}">Order</label>
+                        <input id="type_sort_{{ event_type.id }}" type="number" name="sort_order" value="{{ event_type.sort_order }}">
+                    </div>
+                    <label class="active-toggle">
+                        <input type="checkbox" name="is_active" value="1" {% if event_type.is_active %}checked{% endif %}>
+                        Active
+                    </label>
+                    <div class="row-actions">
+                        <span class="status-pill {% if not event_type.is_active %}is-muted{% endif %}">{{ "Active" if event_type.is_active else "Inactive" }}</span>
+                        <span class="usage-pill">{{ event_type.usage_count }} events</span>
+                        <button class="btn is-primary" type="submit">{{ icon("save", "shell-icon") }} Save</button>
+                    </div>
+                </form>
+                <form class="row-actions" method="post" action="/system-configuration/calendar/event-types/{{ event_type.id }}/delete" onsubmit="return confirm('Delete this calendar event type?');">
+                    <input type="hidden" name="return_to" value="/system-configuration/calendar">
+                    <button class="btn is-danger" type="submit">{{ icon("trash", "shell-icon") }} {{ "Deactivate" if not event_type.can_delete else "Delete" }}</button>
+                </form>
+                {% endfor %}
+            {% else %}
+            <div class="empty-state">No calendar event types are configured yet.</div>
+            {% endif %}
+        </div>
+    </section>
+</section>
+{% endblock %}

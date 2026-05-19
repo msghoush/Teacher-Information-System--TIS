@@ -82,6 +82,12 @@ PAGE_META = {
         "intro": "Place section lessons into the weekly school grid using the current planning and timetable settings.",
         "icon": "timetable",
     },
+    "academic-calendar": {
+        "eyebrow": "Academic Calendar",
+        "title": "Academic Calendar",
+        "intro": "Plan assessments, school events, meetings, vacations, and assigned responsibilities in one scoped calendar.",
+        "icon": "calendar",
+    },
     "users": {
         "eyebrow": "Access Control",
         "title": "Users",
@@ -144,6 +150,12 @@ def _build_nav_items(
             "href": "/timetable/",
             "icon": "timetable",
             "active": is_active("/timetable"),
+        },
+        {
+            "label": "Academic Calendar",
+            "href": "/academic-calendar/",
+            "icon": "calendar",
+            "active": is_active("/academic-calendar"),
         },
         {
             "label": "Notification Center",
