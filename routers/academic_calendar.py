@@ -102,6 +102,7 @@ CALENDAR_MANAGE_ROLES = {
     auth.ROLE_EDITOR,
 }
 EVENT_STATUS_OPTIONS = ("Planned", "Confirmed", "In Progress", "Completed", "Cancelled")
+QUICK_STATUS_OPTIONS = ("Planned", "In Progress", "Completed")
 PRIORITY_OPTIONS = ("Low", "Normal", "High", "Urgent")
 TARGET_GROUP_OPTIONS = ("All School", "Grade", "Section", "Teacher", "Role", "Custom")
 RECURRENCE_OPTIONS = ("None", "Daily", "Weekly", "Monthly", "Yearly")
@@ -1571,6 +1572,7 @@ def academic_calendar_home(
             "all_sections_label": ALL_SECTIONS_LABEL,
             "all_sections_value": ALL_SECTIONS_VALUE,
             "status_options": EVENT_STATUS_OPTIONS,
+            "quick_status_options": QUICK_STATUS_OPTIONS,
             "priority_options": PRIORITY_OPTIONS,
             "target_group_options": TARGET_GROUP_OPTIONS,
             "recurrence_options": RECURRENCE_OPTIONS,
@@ -1805,6 +1807,59 @@ def update_calendar_event(
     )
     db.commit()
     return _redirect_with_query(safe_return_to, "notice", "Calendar event updated.")
+
+
+@router.post("/academic-calendar/events/{event_id}/status")
+def update_calendar_event_status(
+    event_id: int,
+    request: Request,
+    status: str = Form(""),
+    return_to: str = Form("/academic-calendar/"),
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_current_user_or_redirect(request, db)
+    if redirect_response:
+        return redirect_response
+    if not _can_manage_calendar(current_user):
+        return RedirectResponse(url="/dashboard", status_code=302)
+    safe_return_to = _safe_redirect_path(return_to)
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    _ensure_calendar_event_schema(db)
+    event = _get_event_for_scope(
+        db,
+        event_id=event_id,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
+    if not event:
+        return _redirect_with_query(safe_return_to, "error", "Calendar event was not found.")
+    normalized_status = _normalize_choice(status, QUICK_STATUS_OPTIONS, "")
+    if not normalized_status:
+        return _redirect_with_query(safe_return_to, "error", "Status change is not available.")
+    if event.status != normalized_status:
+        event.status = normalized_status
+        event.updated_by_user_id = getattr(current_user, "user_id", None)
+        event.updated_at = datetime.utcnow()
+        assignment_rows = db.query(models.CalendarEventAssignment).filter(
+            models.CalendarEventAssignment.calendar_event_id == event.id
+        ).all()
+        recipients = _resolve_notification_recipients(
+            db,
+            branch_id=branch_id,
+            teacher_ids=[row.teacher_id for row in assignment_rows if row.teacher_id],
+            user_ids=[row.user_id for row in assignment_rows if row.user_id],
+        )
+        event_type = _validate_event_type_id(db, event.event_type_id, branch_id, academic_year_id)
+        _create_calendar_notifications(
+            db,
+            event=event,
+            event_type_name=getattr(event_type, "name", None) or "Calendar Event",
+            recipients=recipients,
+            current_user=current_user,
+            kind="Status Updated",
+        )
+        db.commit()
+    return _redirect_with_query(safe_return_to, "notice", "Calendar event status updated.")
 
 
 @router.post("/academic-calendar/events/{event_id}/delete")

@@ -348,6 +348,14 @@
         background: #ffffff;
     }
 
+    .day-cell[data-date] {
+        cursor: pointer;
+    }
+
+    .day-cell[data-date]:hover {
+        box-shadow: inset 0 0 0 2px rgba(10, 78, 163, 0.12);
+    }
+
     .day-cell.is-muted {
         background: #f8fafc;
     }
@@ -633,6 +641,13 @@
         font-weight: 900;
     }
 
+    .month-event-meta {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        min-width: 0;
+    }
+
     .month-event-type {
         display: inline-flex;
         align-items: center;
@@ -647,6 +662,83 @@
         font-weight: 900;
         letter-spacing: 0.04em;
         text-transform: uppercase;
+    }
+
+    .month-event-status {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 4px 7px;
+        border: 1px solid #d8e5f4;
+        border-radius: 999px;
+        background: #ffffff;
+        color: #43546d;
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+
+    .month-event-status[data-status="Planned"] {
+        border-color: #bfd8ff;
+        background: #eef6ff;
+        color: #0a4ea3;
+    }
+
+    .month-event-status[data-status="In Progress"] {
+        border-color: #f6d59d;
+        background: #fff8e8;
+        color: #8a5700;
+    }
+
+    .month-event-status[data-status="Completed"] {
+        border-color: #bde7c9;
+        background: #eefbf2;
+        color: #176b35;
+    }
+
+    .month-status-form {
+        grid-column: 1 / -1;
+        cursor: default;
+    }
+
+    .status-toggle {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 5px;
+    }
+
+    .event-status-button {
+        min-width: 0;
+        min-height: 28px;
+        padding: 5px 6px;
+        border: 1px solid #d8e5f4;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #43546d;
+        font-size: 10px;
+        font-weight: 900;
+        line-height: 1.15;
+        cursor: pointer;
+    }
+
+    .event-status-button:hover,
+    .event-status-button.is-active {
+        border-color: #0a4ea3;
+        background: #eef6ff;
+        color: #0a4ea3;
+    }
+
+    .event-status-button[data-status="In Progress"].is-active {
+        border-color: #d99216;
+        background: #fff4db;
+        color: #8a5700;
+    }
+
+    .event-status-button[data-status="Completed"].is-active {
+        border-color: #46ad66;
+        background: #e9faef;
+        color: #176b35;
     }
 
     .month-event-empty {
@@ -1000,7 +1092,7 @@
                 {% endfor %}
                 {% for week in month_weeks %}
                     {% for day in week %}
-                    <div class="day-cell {% if not day.in_month %}is-muted{% endif %} {% if day.is_today %}is-today{% endif %}">
+                    <div class="day-cell {% if not day.in_month %}is-muted{% endif %} {% if day.is_today %}is-today{% endif %}" data-date="{{ day.iso }}">
                         <span class="day-number">{{ day.day_number }}</span>
                         <div class="day-events">
                             {% for event in day.events %}
@@ -1060,10 +1152,11 @@
             <div class="month-event-list">
                 {% if calendar_events %}
                     {% for event in calendar_events %}
-                    <button
+                    <article
                         class="month-event-card"
-                        type="button"
                         data-event-id="{{ event.id }}"
+                        role="button"
+                        tabindex="0"
                         style="--event-color: {{ event.type_color }}; --event-soft: {{ event.type_soft }}; --event-surface: {{ event.type_surface }}; --event-border: {{ event.type_border }}; --event-text: {{ event.type_text }};"
                     >
                         <span class="month-event-date">
@@ -1071,13 +1164,35 @@
                             <small>{{ event.duration_days }}d</small>
                         </span>
                         <span class="month-event-main">
-                            <span class="month-event-type">{{ icon(event.type_icon, "agenda-type-icon") }} {{ event.type_name }}</span>
+                            <span class="month-event-meta">
+                                <span class="month-event-type">{{ icon(event.type_icon, "agenda-type-icon") }} {{ event.type_name }}</span>
+                                <span class="month-event-status" data-status="{{ event.status }}">{{ event.status }}</span>
+                            </span>
                             <strong>{{ event.title }}</strong>
                             <small class="month-event-target">{{ event.target_label }}</small>
                             <small>{{ event.date_range_label }}</small>
-                            <small>{{ event.time_label }} | {{ event.status }}</small>
+                            <small>{{ event.time_label }}</small>
                         </span>
-                    </button>
+                        {% if can_manage_calendar %}
+                        <form class="month-status-form" method="post" action="/academic-calendar/events/{{ event.id }}/status">
+                            <input type="hidden" name="return_to" value="{{ return_to }}">
+                            <div class="status-toggle" aria-label="Change status for {{ event.title }}">
+                                {% for quick_status in quick_status_options %}
+                                <button
+                                    class="event-status-button {% if event.status == quick_status %}is-active{% endif %}"
+                                    type="submit"
+                                    name="status"
+                                    value="{{ quick_status }}"
+                                    data-status="{{ quick_status }}"
+                                    aria-pressed="{{ 'true' if event.status == quick_status else 'false' }}"
+                                >
+                                    {{ quick_status }}
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </form>
+                        {% endif %}
+                    </article>
                     {% endfor %}
                 {% else %}
                 <div class="empty-state month-event-empty">No events in this month yet.</div>
@@ -1514,6 +1629,33 @@
         }
     }
 
+    function openCreateEventDialog(dateValue = "") {
+        if (!createDialog || !canManageCalendar) {
+            return;
+        }
+        if (dateValue) {
+            if (createStartDate) {
+                createStartDate.value = dateValue;
+            }
+            if (createEndDate) {
+                createEndDate.value = dateValue;
+            }
+        }
+        syncEndDate(createStartDate, createEndDate);
+        syncTargetGroup(
+            createTargetGroup,
+            createTargetGrade,
+            createTargetSection,
+            createTargetTeacher,
+            createTargetRole
+        );
+        openDialog(createDialog);
+        const titleInput = document.getElementById("create_title");
+        if (titleInput) {
+            titleInput.focus();
+        }
+    }
+
     function selectEvent(eventItem, options = {}) {
         if (!eventItem) {
             return;
@@ -1572,32 +1714,51 @@
         setMultiSelectValues("edit_assigned_user_ids", eventItem.assigned_user_ids);
     }
 
-    document.querySelectorAll("[data-event-id]").forEach((button) => {
-        button.addEventListener("click", () => {
+    function isCardControlClick(event) {
+        return Boolean(event.target.closest("form, button, input, select, textarea, label, a"));
+    }
+
+    document.querySelectorAll("[data-event-id]").forEach((eventElement) => {
+        eventElement.addEventListener("click", (event) => {
+            if (eventElement.classList.contains("month-event-card") && isCardControlClick(event)) {
+                return;
+            }
             selectEvent(
-                eventsById.get(String(button.dataset.eventId)),
+                eventsById.get(String(eventElement.dataset.eventId)),
                 { openDialog: true }
             );
         });
+        if (eventElement.classList.contains("month-event-card")) {
+            eventElement.addEventListener("keydown", (event) => {
+                if (event.key !== "Enter" && event.key !== " ") {
+                    return;
+                }
+                if (isCardControlClick(event)) {
+                    return;
+                }
+                event.preventDefault();
+                selectEvent(
+                    eventsById.get(String(eventElement.dataset.eventId)),
+                    { openDialog: true }
+                );
+            });
+        }
     });
 
     if (createButton && createDialog && canManageCalendar) {
         createButton.addEventListener("click", () => {
-            syncEndDate(createStartDate, createEndDate);
-            syncTargetGroup(
-                createTargetGroup,
-                createTargetGrade,
-                createTargetSection,
-                createTargetTeacher,
-                createTargetRole
-            );
-            if (typeof createDialog.showModal === "function") {
-                createDialog.showModal();
-            } else {
-                createDialog.removeAttribute("hidden");
-            }
+            openCreateEventDialog();
         });
     }
+
+    document.querySelectorAll(".day-cell[data-date]").forEach((dayCell) => {
+        dayCell.addEventListener("dblclick", (event) => {
+            if (!canManageCalendar || event.target.closest("[data-event-id]")) {
+                return;
+            }
+            openCreateEventDialog(dayCell.dataset.date || "");
+        });
+    });
 
     if (createStartDate && createEndDate) {
         createStartDate.addEventListener("change", () => {
