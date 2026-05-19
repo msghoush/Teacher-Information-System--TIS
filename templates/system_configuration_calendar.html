@@ -251,6 +251,12 @@
         text-decoration: none;
     }
 
+    .btn.is-icon {
+        width: 36px;
+        min-width: 36px;
+        padding: 0;
+    }
+
     .btn.is-primary {
         border-color: #0a4ea3;
         background: #0a4ea3;
@@ -388,12 +394,19 @@
                     <div class="row-actions">
                         <span class="status-pill {% if not event_type.is_active %}is-muted{% endif %}">{{ "Active" if event_type.is_active else "Inactive" }}</span>
                         <span class="usage-pill">{{ event_type.usage_count }} events</span>
-                        <button class="btn is-primary" type="submit">{{ icon("save", "shell-icon") }} Save</button>
+                        <button class="btn is-primary is-icon" type="submit" aria-label="Save event type" title="Save event type">{{ icon("save", "shell-icon") }}</button>
+                        <button
+                            class="btn is-danger is-icon"
+                            type="submit"
+                            formaction="/system-configuration/calendar/event-types/{{ event_type.id }}/delete"
+                            formmethod="post"
+                            aria-label="{{ 'Deactivate' if not event_type.can_delete else 'Delete' }} event type"
+                            title="{{ 'Deactivate' if not event_type.can_delete else 'Delete' }} event type"
+                            onclick="return confirm('Delete this calendar event type?');"
+                        >
+                            {{ icon("trash", "shell-icon") }}
+                        </button>
                     </div>
-                </form>
-                <form class="row-actions" method="post" action="/system-configuration/calendar/event-types/{{ event_type.id }}/delete" onsubmit="return confirm('Delete this calendar event type?');">
-                    <input type="hidden" name="return_to" value="/system-configuration/calendar">
-                    <button class="btn is-danger" type="submit">{{ icon("trash", "shell-icon") }} {{ "Deactivate" if not event_type.can_delete else "Delete" }}</button>
                 </form>
                 {% endfor %}
             {% else %}
