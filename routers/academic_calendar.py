@@ -102,7 +102,6 @@ CALENDAR_MANAGE_ROLES = {
     auth.ROLE_EDITOR,
 }
 EVENT_STATUS_OPTIONS = ("Planned", "Confirmed", "In Progress", "Completed", "Cancelled")
-QUICK_STATUS_OPTIONS = ("Planned", "In Progress", "Completed")
 PRIORITY_OPTIONS = ("Low", "Normal", "High", "Urgent")
 TARGET_GROUP_OPTIONS = ("All School", "Grade", "Section", "Teacher", "Role", "Custom")
 RECURRENCE_OPTIONS = ("None", "Daily", "Weekly", "Monthly", "Yearly")
@@ -1572,7 +1571,6 @@ def academic_calendar_home(
             "all_sections_label": ALL_SECTIONS_LABEL,
             "all_sections_value": ALL_SECTIONS_VALUE,
             "status_options": EVENT_STATUS_OPTIONS,
-            "quick_status_options": QUICK_STATUS_OPTIONS,
             "priority_options": PRIORITY_OPTIONS,
             "target_group_options": TARGET_GROUP_OPTIONS,
             "recurrence_options": RECURRENCE_OPTIONS,
@@ -1833,7 +1831,7 @@ def update_calendar_event_status(
     )
     if not event:
         return _redirect_with_query(safe_return_to, "error", "Calendar event was not found.")
-    normalized_status = _normalize_choice(status, QUICK_STATUS_OPTIONS, "")
+    normalized_status = _normalize_choice(status, EVENT_STATUS_OPTIONS, "")
     if not normalized_status:
         return _redirect_with_query(safe_return_to, "error", "Status change is not available.")
     if event.status != normalized_status:

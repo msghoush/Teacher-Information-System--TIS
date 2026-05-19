@@ -685,6 +685,12 @@
         color: #0a4ea3;
     }
 
+    .month-event-status[data-status="Confirmed"] {
+        border-color: #b9d6ff;
+        background: #f0f7ff;
+        color: #174ea6;
+    }
+
     .month-event-status[data-status="In Progress"] {
         border-color: #f6d59d;
         background: #fff8e8;
@@ -697,6 +703,12 @@
         color: #176b35;
     }
 
+    .month-event-status[data-status="Cancelled"] {
+        border-color: #e7b9b3;
+        background: #fff5f3;
+        color: #9f2d1f;
+    }
+
     .month-status-form {
         grid-column: 1 / -1;
         cursor: default;
@@ -704,7 +716,7 @@
 
     .status-toggle {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
         gap: 5px;
     }
 
@@ -735,10 +747,22 @@
         color: #8a5700;
     }
 
+    .event-status-button[data-status="Confirmed"].is-active {
+        border-color: #5b9df6;
+        background: #eaf4ff;
+        color: #174ea6;
+    }
+
     .event-status-button[data-status="Completed"].is-active {
         border-color: #46ad66;
         background: #e9faef;
         color: #176b35;
+    }
+
+    .event-status-button[data-status="Cancelled"].is-active {
+        border-color: #cf5a4a;
+        background: #fff1ef;
+        color: #9f2d1f;
     }
 
     .month-event-empty {
@@ -1177,7 +1201,7 @@
                         <form class="month-status-form" method="post" action="/academic-calendar/events/{{ event.id }}/status">
                             <input type="hidden" name="return_to" value="{{ return_to }}">
                             <div class="status-toggle" aria-label="Change status for {{ event.title }}">
-                                {% for quick_status in quick_status_options %}
+                                {% for quick_status in status_options %}
                                 <button
                                     class="event-status-button {% if event.status == quick_status %}is-active{% endif %}"
                                     type="submit"
