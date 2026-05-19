@@ -6,11 +6,15 @@ import json
 import re
 from collections import defaultdict
 from datetime import date, datetime, timedelta
-from urllib.parse import quote_plus
+from io import BytesIO
+from pathlib import Path
+from typing import Any
+from urllib.parse import quote_plus, urlencode
 
 from fastapi import APIRouter, Depends, Form, Query, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from PIL import Image
 from sqlalchemy import inspect, or_, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -27,6 +31,12 @@ templates = Jinja2Templates(directory="templates")
 
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TIME_PATTERN = re.compile(r"^\d{2}:\d{2}$")
+STATIC_DIR = Path("static")
+CALENDAR_PDF_LOGOS = (
+    STATIC_DIR / "images" / "TIS_Logo_Adjusted.png",
+    STATIC_DIR / "images" / "andalus-logo-main.png",
+    STATIC_DIR / "images" / "cognia-logo.png",
+)
 
 DEFAULT_EVENT_TYPES = (
     {
@@ -328,6 +338,385 @@ def _safe_redirect_path(value: str, default: str = "/academic-calendar/") -> str
     if not cleaned or not cleaned.startswith("/") or cleaned.startswith("//"):
         return default
     return cleaned
+
+
+def _pdf_escape_text(value: Any) -> str:
+    text_value = str(value if value is not None else "")
+    text_value = (
+        text_value.replace("\u2022", "-")
+        .replace("\u2013", "-")
+        .replace("\u2014", "-")
+        .replace("\u00d7", "x")
+    )
+    text_value = text_value.encode("latin-1", "replace").decode("latin-1")
+    return text_value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _pdf_rgb(color_value: str, fallback: str = "#0A4EA3") -> tuple[float, float, float]:
+    cleaned = str(color_value or fallback).strip().lstrip("#")
+    if not re.fullmatch(r"[0-9A-Fa-f]{6}", cleaned):
+        cleaned = str(fallback).strip().lstrip("#")
+    return (
+        int(cleaned[0:2], 16) / 255,
+        int(cleaned[2:4], 16) / 255,
+        int(cleaned[4:6], 16) / 255,
+    )
+
+
+def _text_luminance(color_value: str) -> float:
+    r, g, b = _pdf_rgb(color_value, "#FFFFFF")
+    return (0.299 * r) + (0.587 * g) + (0.114 * b)
+
+
+def _pdf_text_color_for(fill_color: str) -> str:
+    return "#FFFFFF" if _text_luminance(fill_color) < 0.58 else "#11243F"
+
+
+def _wrap_pdf_text(value: Any, max_chars: int, max_lines: int | None = None) -> list[str]:
+    words = str(value or "").split()
+    if not words:
+        return []
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if len(candidate) > max_chars and current:
+            lines.append(current)
+            current = word
+            if max_lines and len(lines) >= max_lines:
+                break
+        else:
+            current = candidate
+    if current and (not max_lines or len(lines) < max_lines):
+        lines.append(current)
+    if max_lines and len(lines) == max_lines and len(" ".join(words)) > len(" ".join(lines)):
+        lines[-1] = f"{lines[-1][: max(0, max_chars - 3)].rstrip()}..."
+    return lines
+
+
+def _icon_label(icon_name: str, type_name: str = "") -> str:
+    icon = str(icon_name or "").strip().lower()
+    labels = {
+        "calendar": "CL",
+        "clipboard-check": "AS",
+        "check-circle": "QZ",
+        "exam": "EX",
+        "vacation": "VH",
+        "home": "HO",
+        "activity": "AC",
+        "meeting": "MT",
+        "teachers": "PL",
+        "deadline": "DL",
+        "visit": "VS",
+        "parent": "PA",
+        "task": "TK",
+        "warning": "!",
+        "info": "IN",
+    }
+    if icon in labels:
+        return labels[icon]
+    cleaned = re.sub(r"[^A-Za-z0-9]+", "", str(type_name or "EV"))
+    return (cleaned[:2] or "EV").upper()
+
+
+def _status_color(status: str) -> str:
+    return {
+        "Planned": "#0A4EA3",
+        "Confirmed": "#174EA6",
+        "In Progress": "#C47A00",
+        "Completed": "#176B35",
+        "Cancelled": "#9F2D1F",
+    }.get(str(status or ""), "#64748B")
+
+
+class _CalendarPdfReport:
+    width = 595.28
+    height = 841.89
+    margin = 38
+
+    def __init__(self, title: str, subtitle: str, logos: tuple[Path, ...] = ()):
+        self.title = title
+        self.subtitle = subtitle
+        self.logos = tuple(logos or ())
+        self.pages: list[list[str]] = []
+        self.images: dict[str, dict[str, Any]] = {}
+        self.y = self.height - self.margin
+        self.add_page()
+
+    def _current(self) -> list[str]:
+        return self.pages[-1]
+
+    def _text_command(
+        self,
+        x: float,
+        y: float,
+        value: Any,
+        size: float = 9,
+        color: str = "#11243F",
+        bold: bool = False,
+    ) -> str:
+        r, g, b = _pdf_rgb(color, "#11243F")
+        font = "/F2" if bold else "/F1"
+        return (
+            f"{r:.4f} {g:.4f} {b:.4f} rg\n"
+            f"BT {font} {size:.2f} Tf {x:.2f} {y:.2f} Td ({_pdf_escape_text(value)}) Tj ET\n"
+        )
+
+    def add_page(self):
+        self.pages.append([])
+        self.y = self.height - self.margin
+        self.text(self.margin, self.y, self.title, size=16, color="#0A4EA3", bold=True)
+        self.y -= 15
+        self.text(self.margin, self.y, self.subtitle, size=8, color="#536782")
+        logo_x = self.width - self.margin
+        for logo_path in reversed(self.logos):
+            image_size = self._image_size(logo_path)
+            if not image_size:
+                continue
+            image_width, image_height = image_size
+            target_height = 27
+            target_width = max(22, min(92, target_height * (image_width / max(image_height, 1))))
+            logo_x -= target_width
+            self.image(logo_path, logo_x, self.height - self.margin - 9, target_width, target_height)
+            logo_x -= 8
+        self.y -= 18
+        self.line(self.margin, self.y, self.width - self.margin, self.y, "#CAD9EA")
+        self.y -= 18
+
+    def _register_image(self, path: Path) -> dict[str, Any] | None:
+        image_path = Path(path)
+        key = str(image_path.resolve()) if image_path.exists() else str(image_path)
+        if key in self.images:
+            return self.images[key]
+        if not image_path.exists():
+            return None
+        try:
+            with Image.open(image_path) as raw_image:
+                image = raw_image.convert("RGBA")
+                background = Image.new("RGBA", image.size, (255, 255, 255, 255))
+                background.alpha_composite(image)
+                rgb_image = background.convert("RGB")
+                rgb_image.thumbnail((900, 260), Image.LANCZOS)
+                buffer = BytesIO()
+                rgb_image.save(buffer, format="JPEG", quality=88, optimize=True)
+                record = {
+                    "name": f"Im{len(self.images) + 1}",
+                    "data": buffer.getvalue(),
+                    "width": rgb_image.width,
+                    "height": rgb_image.height,
+                }
+        except Exception:
+            return None
+        self.images[key] = record
+        return record
+
+    def _image_size(self, path: Path) -> tuple[int, int] | None:
+        record = self._register_image(path)
+        if not record:
+            return None
+        return int(record["width"]), int(record["height"])
+
+    def image(self, path: Path, x: float, y: float, width: float, height: float):
+        record = self._register_image(path)
+        if not record:
+            return
+        self._current().append(
+            f"q {width:.2f} 0 0 {height:.2f} {x:.2f} {y:.2f} cm /{record['name']} Do Q\n"
+        )
+
+    def ensure_space(self, height: float):
+        if self.y - height < self.margin + 28:
+            self.add_page()
+
+    def text(
+        self,
+        x: float,
+        y: float,
+        value: Any,
+        size: float = 9,
+        color: str = "#11243F",
+        bold: bool = False,
+    ):
+        self._current().append(self._text_command(x, y, value, size=size, color=color, bold=bold))
+
+    def rect(self, x: float, y: float, width: float, height: float, fill: str, stroke: str | None = None):
+        r, g, b = _pdf_rgb(fill)
+        command = f"{r:.4f} {g:.4f} {b:.4f} rg\n{x:.2f} {y:.2f} {width:.2f} {height:.2f} re f\n"
+        if stroke:
+            sr, sg, sb = _pdf_rgb(stroke, "#CAD9EA")
+            command += (
+                f"{sr:.4f} {sg:.4f} {sb:.4f} RG\n0.7 w\n"
+                f"{x:.2f} {y:.2f} {width:.2f} {height:.2f} re S\n"
+            )
+        self._current().append(command)
+
+    def line(self, x1: float, y1: float, x2: float, y2: float, color: str = "#CAD9EA", width: float = 0.8):
+        r, g, b = _pdf_rgb(color, "#CAD9EA")
+        self._current().append(
+            f"{r:.4f} {g:.4f} {b:.4f} RG\n{width:.2f} w\n{x1:.2f} {y1:.2f} m {x2:.2f} {y2:.2f} l S\n"
+        )
+
+    def heading(self, value: str):
+        self.ensure_space(34)
+        self.text(self.margin, self.y, value, size=13, color="#0A4EA3", bold=True)
+        self.y -= 18
+
+    def paragraph(self, value: str, width: float = 500, size: float = 8.5, color: str = "#536782"):
+        max_chars = max(24, int(width / (size * 0.46)))
+        for line in _wrap_pdf_text(value, max_chars):
+            self.ensure_space(12)
+            self.text(self.margin, self.y, line, size=size, color=color)
+            self.y -= 11
+        self.y -= 3
+
+    def badge(self, x: float, y: float, label: str, color: str, width: float = 46, height: float = 16):
+        self.rect(x, y, width, height, color)
+        self.text(x + 5, y + 5, label[:18], size=6.6, color=_pdf_text_color_for(color), bold=True)
+
+    def kpi_grid(self, cards: list[tuple[str, str, str, str]]):
+        if not cards:
+            return
+        card_width = (self.width - (2 * self.margin) - 18) / 4
+        card_height = 52
+        for index, (label, value, note, color) in enumerate(cards):
+            if index % 4 == 0:
+                self.ensure_space(card_height + 12)
+                row_y = self.y - card_height
+            x = self.margin + (index % 4) * (card_width + 6)
+            self.rect(x, row_y, card_width, card_height, "#F8FBFF", "#D8E5F4")
+            self.rect(x, row_y, 5, card_height, color)
+            self.text(x + 10, row_y + 34, label, size=7, color="#536782", bold=True)
+            self.text(x + 10, row_y + 17, value, size=14, color=color, bold=True)
+            self.text(x + 10, row_y + 6, note[:28], size=6.2, color="#536782")
+            if index % 4 == 3:
+                self.y = row_y - 12
+        if len(cards) % 4:
+            self.y = row_y - 12
+
+    def event_card(self, event: dict):
+        description_lines = _wrap_pdf_text(event.get("description", ""), 76, max_lines=2)
+        card_height = 78 + (len(description_lines) * 10)
+        self.ensure_space(card_height + 8)
+        x = self.margin
+        y = self.y - card_height
+        width = self.width - (2 * self.margin)
+        event_color = event.get("type_color", "#0A4EA3")
+        self.rect(x, y, width, card_height, "#FFFFFF", "#D8E5F4")
+        self.rect(x, y, 6, card_height, event_color)
+        self.rect(x + 14, y + card_height - 38, 28, 28, event_color)
+        self.text(
+            x + 19,
+            y + card_height - 27,
+            _icon_label(event.get("type_icon", ""), event.get("type_name", "")),
+            size=8,
+            color=_pdf_text_color_for(event_color),
+            bold=True,
+        )
+        title = str(event.get("title", "") or "Calendar Event")
+        self.text(x + 50, y + card_height - 18, title[:62], size=10.5, color="#11243F", bold=True)
+        self.badge(x + 50, y + card_height - 38, str(event.get("type_name", "Event"))[:24], event_color, width=94)
+        status = str(event.get("status", "") or "Planned")
+        self.badge(x + width - 88, y + card_height - 27, status[:16], _status_color(status), width=76, height=17)
+        self.text(
+            x + 50,
+            y + card_height - 54,
+            str(event.get("date_range_label", "") or ""),
+            size=7.8,
+            color="#17365D",
+            bold=True,
+        )
+        self.text(
+            x + 50,
+            y + card_height - 67,
+            f"{event.get('time_label', 'Time not set')} | {event.get('target_label', 'All School')}",
+            size=7.5,
+            color="#536782",
+        )
+        desc_y = y + card_height - 80
+        for line in description_lines:
+            self.text(x + 50, desc_y, line, size=7.2, color="#536782")
+            desc_y -= 10
+        self.y = y - 8
+
+    def build(self) -> bytes:
+        for index, page in enumerate(self.pages, start=1):
+            page.append(
+                self._text_command(
+                    self.margin,
+                    24,
+                    f"Generated by TIS | Academic Calendar | Page {index}",
+                    size=7,
+                    color="#536782",
+                )
+            )
+        image_objects: list[tuple[str, bytes]] = []
+        for record in self.images.values():
+            image_objects.append(
+                (
+                    record["name"],
+                    (
+                        b"<< /Type /XObject /Subtype /Image /Width "
+                        + str(record["width"]).encode("ascii")
+                        + b" /Height "
+                        + str(record["height"]).encode("ascii")
+                        + b" /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length "
+                        + str(len(record["data"])).encode("ascii")
+                        + b" >>\nstream\n"
+                        + record["data"]
+                        + b"\nendstream"
+                    ),
+                )
+            )
+        content_streams = ["".join(page).encode("latin-1", "replace") for page in self.pages]
+        objects: list[bytes] = [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+        ]
+        image_object_numbers: dict[str, int] = {}
+        for name, image_object in image_objects:
+            image_object_numbers[name] = len(objects) + 1
+            objects.append(image_object)
+
+        kids: list[str] = []
+        page_objects: list[bytes] = []
+        for content in content_streams:
+            page_number = len(objects) + len(page_objects) + 1
+            content_number = page_number + 1
+            kids.append(f"{page_number} 0 R")
+            xobjects = " ".join(
+                f"/{name} {object_number} 0 R"
+                for name, object_number in image_object_numbers.items()
+            )
+            xobject_resource = f" /XObject << {xobjects} >>" if xobjects else ""
+            page_objects.append(
+                (
+                    f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {self.width:.2f} {self.height:.2f}] "
+                    f"/Resources << /Font << /F1 3 0 R /F2 4 0 R >>{xobject_resource} >> "
+                    f"/Contents {content_number} 0 R >>"
+                ).encode("latin-1")
+            )
+            page_objects.append(
+                b"<< /Length " + str(len(content)).encode("ascii") + b" >>\nstream\n" + content + b"\nendstream"
+            )
+        objects[1] = f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {len(kids)} >>".encode("latin-1")
+        objects.extend(page_objects)
+
+        pdf = b"%PDF-1.4\n"
+        offsets = [0]
+        for object_index, obj in enumerate(objects, start=1):
+            offsets.append(len(pdf))
+            pdf += f"{object_index} 0 obj\n".encode("ascii") + obj + b"\nendobj\n"
+        xref_offset = len(pdf)
+        pdf += f"xref\n0 {len(objects) + 1}\n".encode("ascii")
+        pdf += b"0000000000 65535 f \n"
+        for offset in offsets[1:]:
+            pdf += f"{offset:010d} 00000 n \n".encode("ascii")
+        pdf += (
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF"
+        ).encode("ascii")
+        return pdf
 
 
 def _ensure_calendar_event_schema(db: Session) -> None:
@@ -770,6 +1159,160 @@ def _build_month_grid(month_start: date, event_payloads):
             )
         weeks.append(week_payload)
     return weeks
+
+
+def _build_calendar_export_url(filters: dict, calendar_view: str) -> str:
+    params = {
+        "view": calendar_view,
+        "month": filters.get("month", ""),
+        "start_date": filters.get("start_date", ""),
+        "end_date": filters.get("end_date", ""),
+    }
+    for key in (
+        "event_type_id",
+        "status",
+        "priority",
+        "grade",
+        "section_id",
+        "teacher_id",
+        "user_id",
+    ):
+        value = filters.get(key)
+        if value:
+            params[key] = value
+    return f"/academic-calendar/export.pdf?{urlencode(params)}"
+
+
+def _calendar_report_period_label(filters: dict) -> str:
+    start_label = _format_date_label(filters.get("start_date", ""))
+    end_label = _format_date_label(filters.get("end_date", ""))
+    if start_label and end_label and start_label != end_label:
+        return f"{start_label} - {end_label}"
+    return start_label or end_label or "Selected period"
+
+
+def _event_is_parent_highlight(event_payload: dict) -> bool:
+    text_value = " ".join(
+        [
+            str(event_payload.get("type_name", "") or ""),
+            str(event_payload.get("title", "") or ""),
+            str(event_payload.get("description", "") or ""),
+        ]
+    ).lower()
+    return any(
+        keyword in text_value
+        for keyword in (
+            "exam",
+            "assessment",
+            "quiz",
+            "vacation",
+            "holiday",
+            "parent",
+            "meeting",
+            "deadline",
+            "visit",
+            "trip",
+        )
+    )
+
+
+def _build_calendar_pdf_filename(branch_name: str, academic_year_name: str, filters: dict) -> str:
+    base = f"academic_calendar_{branch_name}_{academic_year_name}_{filters.get('start_date', '')}_{filters.get('end_date', '')}"
+    cleaned = re.sub(r"[^A-Za-z0-9]+", "_", base).strip("_").lower()
+    return f"{cleaned or 'academic_calendar_report'}.pdf"
+
+
+def _build_academic_calendar_pdf_bytes(
+    *,
+    calendar_events: list[dict],
+    branch_name: str,
+    academic_year_name: str,
+    filters: dict,
+) -> bytes:
+    period_label = _calendar_report_period_label(filters)
+    subtitle = (
+        f"{branch_name} | Academic Year {academic_year_name} | "
+        f"{period_label} | Generated {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    )
+    pdf = _CalendarPdfReport(
+        "Parent Academic Calendar Report",
+        subtitle,
+        logos=CALENDAR_PDF_LOGOS,
+    )
+    pdf.paragraph(
+        "This parent-facing calendar report summarizes school activities, events, assessments, meetings, "
+        "vacations, deadlines, and visits for the selected calendar period."
+    )
+
+    total_events = len(calendar_events)
+    upcoming_events = sum(1 for event in calendar_events if event.get("status") not in {"Completed", "Cancelled"})
+    cancelled_events = sum(1 for event in calendar_events if event.get("status") == "Cancelled")
+    highlight_events = [event for event in calendar_events if _event_is_parent_highlight(event)]
+    all_school_events = sum(1 for event in calendar_events if event.get("target_group") == "All School")
+    pdf.kpi_grid(
+        [
+            ("Total Events", str(total_events), "Selected period", "#0A4EA3"),
+            ("Parent Highlights", str(len(highlight_events)), "Exams, meetings, trips", "#DB2777"),
+            ("Upcoming / Active", str(upcoming_events), "Not completed/cancelled", "#C47A00"),
+            ("All School", str(all_school_events), "Shared with everyone", "#0F766E"),
+            ("Cancelled", str(cancelled_events), "Marked cancelled", "#9F2D1F"),
+        ]
+    )
+
+    type_counts: dict[str, dict[str, Any]] = {}
+    for event in calendar_events:
+        type_name = str(event.get("type_name") or "Uncategorized")
+        row = type_counts.setdefault(
+            type_name,
+            {
+                "count": 0,
+                "color": event.get("type_color", "#64748B"),
+                "icon": event.get("type_icon", "info"),
+            },
+        )
+        row["count"] += 1
+    if type_counts:
+        pdf.heading("Event Type Summary")
+        x = pdf.margin
+        row_y = pdf.y - 24
+        max_x = pdf.width - pdf.margin
+        for type_name, row in sorted(type_counts.items(), key=lambda item: (-item[1]["count"], item[0])):
+            label = f"{_icon_label(row.get('icon', ''), type_name)} {type_name[:20]} ({row['count']})"
+            pill_width = min(150, max(70, len(label) * 4.7))
+            if x + pill_width > max_x:
+                pdf.y = row_y - 12
+                pdf.ensure_space(30)
+                x = pdf.margin
+                row_y = pdf.y - 24
+            pdf.badge(x, row_y, label, row.get("color", "#64748B"), width=pill_width, height=18)
+            x += pill_width + 7
+        pdf.y = row_y - 20
+
+    if highlight_events:
+        pdf.heading("Important Parent Highlights")
+        for event in highlight_events[:6]:
+            pdf.event_card(event)
+
+    grouped_events: dict[str, list[dict]] = defaultdict(list)
+    for event in calendar_events:
+        event_date = _date_from_iso(event.get("event_date", ""))
+        month_key = event_date.strftime("%B %Y") if event_date else "Undated Events"
+        grouped_events[month_key].append(event)
+
+    pdf.heading("Events By Month")
+    if not grouped_events:
+        pdf.paragraph("No calendar events were found for the selected period.")
+    else:
+        for month_label, events in grouped_events.items():
+            pdf.ensure_space(36)
+            pdf.text(pdf.margin, pdf.y, month_label, size=11, color="#17365D", bold=True)
+            pdf.y -= 13
+            pdf.line(pdf.margin, pdf.y, pdf.width - pdf.margin, pdf.y, "#D8E5F4", width=0.6)
+            pdf.y -= 10
+            for event in events:
+                pdf.event_card(event)
+
+    return pdf.build()
 
 
 def _build_filtered_event_query(
@@ -1581,6 +2124,7 @@ def academic_calendar_home(
             "selected_month_label": selected_month.strftime("%B %Y"),
             "previous_month": _month_link_value(selected_month, -1),
             "next_month": _month_link_value(selected_month, 1),
+            "pdf_export_url": _build_calendar_export_url(filters, filters["view"]),
             "summary_cards": _build_summary_cards(
                 db,
                 branch_id=branch_id,
@@ -1600,6 +2144,91 @@ def academic_calendar_home(
                 page_key="academic-calendar",
             ),
         },
+    )
+
+
+@router.get("/academic-calendar/export.pdf")
+def export_academic_calendar_pdf(
+    request: Request,
+    view: str = Query("month"),
+    month: str = Query(""),
+    event_type_id: str = Query(""),
+    status: str = Query(""),
+    priority: str = Query(""),
+    grade: str = Query(""),
+    section_id: str = Query(""),
+    teacher_id: str = Query(""),
+    user_id: str = Query(""),
+    start_date: str = Query(""),
+    end_date: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_current_user_or_redirect(request, db)
+    if redirect_response:
+        return redirect_response
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    if not branch_id or not academic_year_id:
+        return RedirectResponse(url="/dashboard?error=missing-scope", status_code=302)
+
+    _ensure_calendar_event_schema(db)
+    _ensure_default_event_types(db, branch_id, academic_year_id)
+    teachers, users, sections = _get_scope_options(db, branch_id, academic_year_id)
+    event_types = _get_event_types(
+        db,
+        branch_id,
+        academic_year_id,
+        include_inactive=True,
+    )
+    filters = _build_filter_payload(
+        month=month,
+        view=view,
+        event_type_id=event_type_id,
+        status=status,
+        priority=priority,
+        grade=grade,
+        section_id=section_id,
+        teacher_id=teacher_id,
+        user_id=user_id,
+        start_date=start_date,
+        end_date=end_date,
+        sections=sections,
+    )
+    query = _build_filtered_event_query(
+        db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+        filters=filters,
+    )
+    event_rows = query.order_by(
+        models.CalendarEvent.event_date.asc(),
+        models.CalendarEvent.start_time.asc(),
+        models.CalendarEvent.title.asc(),
+    ).all()
+    calendar_events = _build_event_payloads(
+        db,
+        event_rows,
+        event_types=event_types,
+        teachers=teachers,
+        users=users,
+        sections=sections,
+    )
+    branch_row = db.query(models.Branch).filter(models.Branch.id == branch_id).first()
+    academic_year_row = db.query(models.AcademicYear).filter(
+        models.AcademicYear.id == academic_year_id
+    ).first()
+    branch_name = getattr(branch_row, "name", None) or "School"
+    academic_year_name = getattr(academic_year_row, "year_name", None) or "Academic Year"
+    pdf_bytes = _build_academic_calendar_pdf_bytes(
+        calendar_events=calendar_events,
+        branch_name=branch_name,
+        academic_year_name=academic_year_name,
+        filters=filters,
+    )
+    filename = _build_calendar_pdf_filename(branch_name, academic_year_name, filters)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

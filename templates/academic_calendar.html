@@ -4,6 +4,7 @@
 {% block title %}Academic Calendar | TIS{% endblock %}
 
 {% block page_header_actions %}
+<a class="calendar-header-link" href="{{ pdf_export_url }}" target="_blank" rel="noopener">{{ icon("download", "shell-icon") }} Export PDF</a>
 {% if can_manage_calendar %}
 <button class="calendar-icon-btn" type="button" id="openCreateEventDialog" aria-label="New calendar event" title="New calendar event">{{ icon("add", "shell-icon") }}</button>
 {% endif %}
