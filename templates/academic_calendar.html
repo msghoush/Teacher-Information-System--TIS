@@ -244,7 +244,7 @@
 
     .calendar-workspace {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) 320px;
+        grid-template-columns: minmax(0, 1fr) 360px;
         min-height: 680px;
         overflow: hidden;
     }
@@ -357,18 +357,24 @@
         grid-template-columns: 16px minmax(0, 1fr);
         align-items: center;
         gap: 5px;
-        min-height: 28px;
+        min-height: 30px;
         width: 100%;
-        padding: 5px 7px;
+        padding: 5px 8px;
         border: 1px solid var(--event-border);
-        border-left: 4px solid var(--event-color);
-        border-radius: 8px;
+        border-left: 5px solid var(--event-color);
+        border-radius: 9px;
         background: var(--event-soft);
         color: var(--event-text);
         font-size: 11px;
         font-weight: 850;
         text-align: left;
         cursor: pointer;
+    }
+
+    .event-chip:hover,
+    .event-chip.is-active {
+        border-color: var(--event-color);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--event-color) 18%, transparent);
     }
 
     .event-chip span:last-child {
@@ -475,26 +481,164 @@
         min-width: 0;
     }
 
-    .detail-head {
-        display: grid;
-        gap: 8px;
+    .month-events-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
         padding: 14px;
         border-bottom: 1px solid #d8e5f4;
         background: #f8fbff;
     }
 
-    .detail-head h2 {
+    .month-events-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .month-events-title h2 {
         margin: 0;
         color: #17365d;
         font-size: 19px;
+    }
+
+    .month-events-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 34px;
+        height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: #0a4ea3;
+        color: #ffffff;
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+    .month-event-list {
+        display: grid;
+        align-content: start;
+        gap: 9px;
+        padding: 12px;
+        overflow: auto;
+    }
+
+    .month-event-card {
+        display: grid;
+        grid-template-columns: 48px minmax(0, 1fr);
+        gap: 10px;
+        width: 100%;
+        min-height: 74px;
+        padding: 10px;
+        border: 1px solid var(--event-border);
+        border-left: 6px solid var(--event-color);
+        border-radius: 12px;
+        background: var(--event-surface);
+        color: #17365d;
+        text-align: left;
+        cursor: pointer;
+        transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    .month-event-card:hover,
+    .month-event-card.is-active {
+        transform: translateY(-1px);
+        border-color: var(--event-color);
+        box-shadow: 0 10px 18px rgba(15, 23, 42, 0.1);
+    }
+
+    .month-event-date {
+        display: grid;
+        place-items: center;
+        align-self: start;
+        min-height: 52px;
+        border-radius: 10px;
+        background: var(--event-color);
+        color: #ffffff;
+    }
+
+    .month-event-date strong {
+        font-size: 19px;
+        line-height: 1;
+    }
+
+    .month-event-date small {
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .month-event-main {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .month-event-main strong {
+        overflow: hidden;
+        color: #17365d;
+        font-size: 14px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .month-event-main small {
+        overflow: hidden;
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 750;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .month-event-type {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        width: fit-content;
+        max-width: 100%;
+        padding: 4px 7px;
+        border-radius: 999px;
+        background: var(--event-soft);
+        color: var(--event-text);
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .month-event-empty {
+        min-height: 220px;
+        border: 1px dashed #c8d8ec;
+        border-radius: 14px;
+        background: #ffffff;
+    }
+
+    .detail-hero {
+        display: grid;
+        gap: 12px;
+        padding: 16px;
+        border-radius: 14px;
+        background: var(--event-surface);
+        border: 1px solid var(--event-border);
+        border-left: 8px solid var(--event-color);
+    }
+
+    .detail-hero h2 {
+        margin: 0;
+        color: #17365d;
+        font-size: 22px;
     }
 
     .detail-body {
         display: grid;
         align-content: start;
         gap: 12px;
-        padding: 14px;
-        overflow: auto;
+        padding: 2px 0 0;
     }
 
     .detail-row {
@@ -535,6 +679,10 @@
 
     .edit-dialog::backdrop {
         background: rgba(15, 23, 42, 0.36);
+    }
+
+    .edit-dialog.detail-dialog {
+        width: min(520px, calc(100vw - 28px));
     }
 
     .dialog-shell {
@@ -844,8 +992,48 @@
             {% endif %}
         </div>
 
-        <aside class="calendar-panel" aria-label="Event details">
-            <div class="detail-head">
+        <aside class="calendar-panel" aria-label="Monthly events">
+            <div class="month-events-head">
+                <div class="month-events-title">
+                    {{ icon("calendar", "shell-icon") }}
+                    <h2>Month Events</h2>
+                </div>
+                <span class="month-events-count">{{ calendar_events | length }}</span>
+            </div>
+            <div class="month-event-list">
+                {% if calendar_events %}
+                    {% for event in calendar_events %}
+                    <button
+                        class="month-event-card"
+                        type="button"
+                        data-event-id="{{ event.id }}"
+                        style="--event-color: {{ event.type_color }}; --event-soft: {{ event.type_soft }}; --event-surface: {{ event.type_surface }}; --event-border: {{ event.type_border }}; --event-text: {{ event.type_text }};"
+                    >
+                        <span class="month-event-date">
+                            <strong>{{ event.event_date[8:10] }}</strong>
+                            <small>{{ event.date_label[:3] }}</small>
+                        </span>
+                        <span class="month-event-main">
+                            <span class="month-event-type">{{ icon(event.type_icon, "agenda-type-icon") }} {{ event.type_name }}</span>
+                            <strong>{{ event.title }}</strong>
+                            <small>{{ event.time_label }} | {{ event.status }}</small>
+                        </span>
+                    </button>
+                    {% endfor %}
+                {% else %}
+                <div class="empty-state month-event-empty">No events in this month yet.</div>
+                {% endif %}
+            </div>
+        </aside>
+    </section>
+
+    <dialog class="edit-dialog detail-dialog" id="eventDetailDialog">
+        <div class="dialog-shell">
+            <div class="dialog-head">
+                <h2>Event Details</h2>
+                <button class="calendar-btn is-muted" type="button" data-close-dialog>{{ icon("close", "shell-icon") }} Close</button>
+            </div>
+            <div class="detail-hero" id="detailHero">
                 <div class="detail-pill-row">
                     <span class="detail-pill" id="detailType">{{ icon("calendar", "detail-type-icon") }} Calendar</span>
                     <span class="detail-pill" id="detailStatus">Status</span>
@@ -875,12 +1063,12 @@
                 </div>
                 {% if can_manage_calendar %}
                 <div class="editor-actions">
-                    <button class="calendar-btn" type="button" id="editSelectedEvent" disabled>{{ icon("edit", "shell-icon") }} Edit</button>
+                    <button class="calendar-btn" type="button" id="editSelectedEvent">{{ icon("edit", "shell-icon") }} Edit</button>
                 </div>
                 {% endif %}
             </div>
-        </aside>
-    </section>
+        </div>
+    </dialog>
 
     {% if can_manage_calendar %}
     <dialog class="edit-dialog" id="editEventDialog">
@@ -1038,6 +1226,8 @@
     let activeEvent = null;
 
     const detailTitle = document.getElementById("detailTitle");
+    const detailHero = document.getElementById("detailHero");
+    const detailDialog = document.getElementById("eventDetailDialog");
     const detailType = document.getElementById("detailType");
     const detailStatus = document.getElementById("detailStatus");
     const detailDateTime = document.getElementById("detailDateTime");
@@ -1076,11 +1266,48 @@
         });
     }
 
-    function selectEvent(eventItem) {
+    function markActiveEvent(eventItem) {
+        document.querySelectorAll("[data-event-id]").forEach((element) => {
+            element.classList.toggle(
+                "is-active",
+                Boolean(eventItem) && String(element.dataset.eventId) === String(eventItem.id)
+            );
+        });
+    }
+
+    function openDialog(dialog) {
+        if (!dialog) {
+            return;
+        }
+        if (typeof dialog.showModal === "function") {
+            dialog.showModal();
+        } else {
+            dialog.removeAttribute("hidden");
+        }
+    }
+
+    function closeDialog(dialog) {
+        if (!dialog) {
+            return;
+        }
+        if (typeof dialog.close === "function") {
+            dialog.close();
+        } else {
+            dialog.setAttribute("hidden", "hidden");
+        }
+    }
+
+    function selectEvent(eventItem, options = {}) {
         if (!eventItem) {
             return;
         }
         activeEvent = eventItem;
+        markActiveEvent(eventItem);
+        if (detailHero) {
+            detailHero.style.setProperty("--event-color", eventItem.type_color || "#0A4EA3");
+            detailHero.style.setProperty("--event-surface", eventItem.type_surface || "#F8FBFF");
+            detailHero.style.setProperty("--event-border", eventItem.type_border || "#D8E5F4");
+        }
         setText(detailTitle, eventItem.title);
         setText(detailType, eventItem.type_name);
         setText(detailStatus, eventItem.status);
@@ -1091,6 +1318,9 @@
         setText(detailDescription, eventItem.description || "No description recorded.");
         if (editButton) {
             editButton.disabled = false;
+        }
+        if (options.openDialog) {
+            openDialog(detailDialog);
         }
     }
 
@@ -1125,7 +1355,10 @@
 
     document.querySelectorAll("[data-event-id]").forEach((button) => {
         button.addEventListener("click", () => {
-            selectEvent(eventsById.get(String(button.dataset.eventId)));
+            selectEvent(
+                eventsById.get(String(button.dataset.eventId)),
+                { openDialog: true }
+            );
         });
     });
 
@@ -1145,22 +1378,15 @@
                 return;
             }
             populateEditForm(activeEvent);
-            if (editDialog && typeof editDialog.showModal === "function") {
-                editDialog.showModal();
-            } else if (editDialog) {
-                editDialog.removeAttribute("hidden");
-            }
+            closeDialog(detailDialog);
+            openDialog(editDialog);
         });
     }
 
     document.querySelectorAll("[data-close-dialog]").forEach((button) => {
         button.addEventListener("click", () => {
             const dialog = button.closest("dialog") || editDialog;
-            if (dialog && typeof dialog.close === "function") {
-                dialog.close();
-            } else if (dialog) {
-                dialog.setAttribute("hidden", "hidden");
-            }
+            closeDialog(dialog);
         });
     });
 
@@ -1173,9 +1399,10 @@
     }
 
     if (selectedEventId && eventsById.has(String(selectedEventId))) {
-        selectEvent(eventsById.get(String(selectedEventId)));
-    } else if (calendarEvents.length) {
-        selectEvent(calendarEvents[0]);
+        selectEvent(
+            eventsById.get(String(selectedEventId)),
+            { openDialog: true }
+        );
     }
 </script>
 {% endblock %}
