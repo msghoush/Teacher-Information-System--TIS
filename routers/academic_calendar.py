@@ -11,7 +11,7 @@ from urllib.parse import quote_plus
 from fastapi import APIRouter, Depends, Form, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import or_
+from sqlalchemy import inspect, or_, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -47,7 +47,7 @@ DEFAULT_EVENT_TYPES = (
     {
         "name": "Vacation / Holiday",
         "color": "#0EA5E9",
-        "icon": "vacation",
+        "icon": "home",
     },
     {
         "name": "Extracurricular Activity",
@@ -112,6 +112,7 @@ ICON_OPTIONS = (
     "check-circle",
     "exam",
     "vacation",
+    "home",
     "activity",
     "meeting",
     "teachers",
@@ -235,6 +236,48 @@ def _format_date_label(value: str) -> str:
     return parsed.strftime("%A, %d %B %Y")
 
 
+def _event_end_date_value(event) -> str:
+    start_value = _normalize_date(getattr(event, "event_date", "") or "")
+    end_value = _normalize_date(getattr(event, "end_date", "") or "")
+    if not start_value:
+        return end_value
+    if not end_value or end_value < start_value:
+        return start_value
+    return end_value
+
+
+def _build_date_range_label(start_value: str, end_value: str) -> str:
+    normalized_start = _normalize_date(start_value)
+    normalized_end = _normalize_date(end_value) or normalized_start
+    if not normalized_start:
+        return ""
+    if normalized_end <= normalized_start:
+        return _format_date_label(normalized_start)
+    return f"{_format_date_label(normalized_start)} - {_format_date_label(normalized_end)}"
+
+
+def _build_date_badge_label(start_value: str, end_value: str) -> str:
+    start_date = _date_from_iso(start_value)
+    end_date = _date_from_iso(end_value)
+    if not start_date:
+        return ""
+    if not end_date or end_date <= start_date:
+        return f"{start_date.day:02d}"
+    if start_date.month == end_date.month and start_date.year == end_date.year:
+        return f"{start_date.day:02d}-{end_date.day:02d}"
+    return f"{start_date.day:02d}+"
+
+
+def _calculate_duration_days(start_value: str, end_value: str) -> int:
+    start_date = _date_from_iso(start_value)
+    end_date = _date_from_iso(end_value)
+    if not start_date:
+        return 0
+    if not end_date or end_date < start_date:
+        return 1
+    return (end_date - start_date).days + 1
+
+
 def _date_from_iso(value: str) -> date | None:
     normalized = _normalize_date(value)
     if not normalized:
@@ -273,6 +316,30 @@ def _safe_redirect_path(value: str, default: str = "/academic-calendar/") -> str
     if not cleaned or not cleaned.startswith("/") or cleaned.startswith("//"):
         return default
     return cleaned
+
+
+def _ensure_calendar_event_schema(db: Session) -> None:
+    try:
+        inspector = inspect(db.bind)
+        table_names = set(inspector.get_table_names())
+        if "calendar_events" not in table_names:
+            return
+        column_names = {
+            column["name"]
+            for column in inspector.get_columns("calendar_events")
+        }
+        if "end_date" not in column_names:
+            db.execute(text("ALTER TABLE calendar_events ADD COLUMN end_date VARCHAR(10)"))
+        db.execute(
+            text(
+                "UPDATE calendar_events "
+                "SET end_date = event_date "
+                "WHERE end_date IS NULL OR TRIM(end_date) = ''"
+            )
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 def _redirect_with_query(path: str, key: str, message: str) -> RedirectResponse:
@@ -354,10 +421,24 @@ def _ensure_default_event_types(
         for row in existing_rows
         if _normalize_spaces(row.name)
     }
+    existing_by_name = {
+        _normalize_spaces(row.name).lower(): row
+        for row in existing_rows
+        if _normalize_spaces(row.name)
+    }
     created_any = False
+    updated_any = False
     for index, event_type in enumerate(DEFAULT_EVENT_TYPES, start=1):
         normalized_name = _normalize_spaces(event_type["name"])
         if normalized_name.lower() in existing_names:
+            existing_row = existing_by_name.get(normalized_name.lower())
+            if (
+                existing_row
+                and normalized_name.lower() == "vacation / holiday"
+                and str(existing_row.icon or "").strip().lower() in {"", "vacation"}
+            ):
+                existing_row.icon = event_type["icon"]
+                updated_any = True
             continue
         db.add(
             models.CalendarEventType(
@@ -371,7 +452,7 @@ def _ensure_default_event_types(
             )
         )
         created_any = True
-    if created_any:
+    if created_any or updated_any:
         try:
             db.commit()
         except IntegrityError:
@@ -562,6 +643,9 @@ def _serialize_event(
         }
     labels = sorted(set(assignment_payload.get("labels", [])))
     assigned_summary = ", ".join(labels) if labels else "No assigned users"
+    start_date_value = _normalize_date(event.event_date)
+    end_date_value = _event_end_date_value(event)
+    duration_days = _calculate_duration_days(start_date_value, end_date_value)
     return {
         "id": event.id,
         "title": event.title,
@@ -573,8 +657,14 @@ def _serialize_event(
         "type_border": type_payload["border"],
         "type_text": type_payload["text"],
         "type_icon": type_payload["icon"],
-        "event_date": event.event_date,
-        "date_label": _format_date_label(event.event_date),
+        "event_date": start_date_value,
+        "end_date": end_date_value,
+        "date_label": _format_date_label(start_date_value),
+        "end_date_label": _format_date_label(end_date_value),
+        "date_range_label": _build_date_range_label(start_date_value, end_date_value),
+        "date_badge_label": _build_date_badge_label(start_date_value, end_date_value),
+        "duration_days": duration_days,
+        "is_multi_day": duration_days > 1,
         "start_time": event.start_time or "",
         "end_time": event.end_time or "",
         "all_day": bool(event.all_day),
@@ -611,8 +701,33 @@ def _sort_event_payloads(event_payloads):
 
 def _build_month_grid(month_start: date, event_payloads):
     events_by_date = defaultdict(list)
+    month_start_iso, month_end_iso = _month_bounds(month_start)
+    month_end = _date_from_iso(month_end_iso)
     for event_payload in event_payloads:
-        events_by_date[event_payload["event_date"]].append(event_payload)
+        event_start = _date_from_iso(event_payload.get("event_date"))
+        event_end = _date_from_iso(event_payload.get("end_date")) or event_start
+        if not event_start:
+            continue
+        if not event_end or event_end < event_start:
+            event_end = event_start
+        visible_start = max(event_start, month_start)
+        visible_end = min(event_end, month_end or event_end)
+        if visible_start > visible_end:
+            continue
+        cursor = visible_start
+        while cursor <= visible_end:
+            occurrence = dict(event_payload)
+            occurrence["occurrence_date"] = cursor.isoformat()
+            if event_start == event_end:
+                occurrence["occurrence_kind"] = "single"
+            elif cursor == event_start:
+                occurrence["occurrence_kind"] = "start"
+            elif cursor == event_end:
+                occurrence["occurrence_kind"] = "end"
+            else:
+                occurrence["occurrence_kind"] = "middle"
+            events_by_date[cursor.isoformat()].append(occurrence)
+            cursor += timedelta(days=1)
 
     today_iso = date.today().isoformat()
     weeks = []
@@ -652,7 +767,13 @@ def _build_filtered_event_query(
     if filters["priority"]:
         query = query.filter(models.CalendarEvent.priority == filters["priority"])
     if filters["start_date"]:
-        query = query.filter(models.CalendarEvent.event_date >= filters["start_date"])
+        query = query.filter(
+            or_(
+                models.CalendarEvent.end_date == None,
+                models.CalendarEvent.end_date == "",
+                models.CalendarEvent.end_date >= filters["start_date"],
+            )
+        )
     if filters["end_date"]:
         query = query.filter(models.CalendarEvent.event_date <= filters["end_date"])
     if filters["grade"]:
@@ -697,6 +818,17 @@ def _week_bounds_for(day_value: date) -> tuple[str, str]:
     return start.isoformat(), end.isoformat()
 
 
+def _filter_events_overlapping(query, start_iso: str, end_iso: str):
+    return query.filter(
+        models.CalendarEvent.event_date <= end_iso,
+        or_(
+            models.CalendarEvent.end_date == None,
+            models.CalendarEvent.end_date == "",
+            models.CalendarEvent.end_date >= start_iso,
+        ),
+    )
+
+
 def _build_summary_cards(
     db: Session,
     *,
@@ -712,12 +844,17 @@ def _build_summary_cards(
         models.CalendarEvent.branch_id == branch_id,
         models.CalendarEvent.academic_year_id == academic_year_id,
     )
-    events_this_month = scoped_events.filter(
-        models.CalendarEvent.event_date >= month_start_iso,
-        models.CalendarEvent.event_date <= month_end_iso,
+    events_this_month = _filter_events_overlapping(
+        scoped_events,
+        month_start_iso,
+        month_end_iso,
     ).count()
     upcoming = scoped_events.filter(
-        models.CalendarEvent.event_date >= today_value.isoformat(),
+        or_(
+            models.CalendarEvent.end_date == None,
+            models.CalendarEvent.end_date == "",
+            models.CalendarEvent.end_date >= today_value.isoformat(),
+        ),
         models.CalendarEvent.status != "Cancelled",
     ).count()
     type_rows = _get_event_types(db, branch_id, academic_year_id, include_inactive=True)
@@ -729,9 +866,10 @@ def _build_summary_cards(
             for keyword in ("assessment", "quiz", "exam")
         )
     ]
-    assessment_query = scoped_events.filter(
-        models.CalendarEvent.event_date >= week_start_iso,
-        models.CalendarEvent.event_date <= week_end_iso,
+    assessment_query = _filter_events_overlapping(
+        scoped_events,
+        week_start_iso,
+        week_end_iso,
     )
     if assessment_type_ids:
         assessment_query = assessment_query.filter(
@@ -751,7 +889,7 @@ def _build_summary_cards(
             models.CalendarEvent.event_type_id.in_(holidays_type_ids)
         )
     pending = scoped_events.filter(
-        models.CalendarEvent.event_date < today_value.isoformat(),
+        models.CalendarEvent.end_date < today_value.isoformat(),
         models.CalendarEvent.status.in_(["Planned", "Confirmed", "In Progress"]),
     ).count()
 
@@ -806,7 +944,7 @@ def _build_summary_cards(
         {
             "label": "Holidays / Vacations",
             "value": holiday_query.count(),
-            "icon": "vacation",
+            "icon": "home",
             "note": "Configured calendar type",
         },
         {
@@ -934,6 +1072,7 @@ def _normalize_event_form_payload(
     title: str,
     event_type_id: str,
     event_date: str,
+    end_date: str,
     start_time: str,
     end_time: str,
     all_day: str,
@@ -971,7 +1110,15 @@ def _normalize_event_form_payload(
             parsed_event_type_id = None
     normalized_date = _normalize_date(event_date)
     if not normalized_date:
-        errors.append("Event date is required.")
+        errors.append("Start date is required.")
+    raw_end_date = str(end_date or "").strip()
+    normalized_end_date = _normalize_date(raw_end_date)
+    if raw_end_date and not normalized_end_date:
+        errors.append("End date must use YYYY-MM-DD format.")
+    if not normalized_end_date:
+        normalized_end_date = normalized_date
+    if normalized_date and normalized_end_date and normalized_end_date < normalized_date:
+        errors.append("End date must be on or after the start date.")
     is_all_day = _is_checked(all_day)
     normalized_start = _normalize_time(start_time)
     normalized_end = _normalize_time(end_time)
@@ -1064,6 +1211,7 @@ def _normalize_event_form_payload(
             "title": normalized_title,
             "event_type_id": parsed_event_type_id,
             "event_date": normalized_date,
+            "end_date": normalized_end_date,
             "start_time": normalized_start or None,
             "end_time": normalized_end or None,
             "all_day": is_all_day,
@@ -1177,11 +1325,14 @@ def _create_calendar_notifications(
     if not recipients:
         return
     time_label = _build_time_label(event)
-    detail_link = f"/academic-calendar/?event_id={event.id}&start_date={event.event_date}&end_date={event.event_date}"
+    event_end_date = _event_end_date_value(event)
+    date_range_label = _build_date_range_label(event.event_date, event_end_date)
+    detail_link = f"/academic-calendar/?event_id={event.id}&start_date={event.event_date}&end_date={event_end_date}"
     safe_link = html.escape(detail_link, quote=True)
     details = {
         "calendar_event_id": event.id,
         "event_date": event.event_date,
+        "end_date": event_end_date,
         "event_type": event_type_name,
         "time": time_label,
         "link": detail_link,
@@ -1193,7 +1344,7 @@ def _create_calendar_notifications(
             request_type="Academic Calendar",
             title=f"Calendar Event {kind}: {event.title}"[:160],
             message=(
-                f"{html.escape(event_type_name)} is scheduled on {html.escape(event.event_date)} "
+                f"{html.escape(event_type_name)} is scheduled for {html.escape(date_range_label)} "
                 f"({html.escape(time_label)}). Priority: {html.escape(event.priority)}. "
                 f"Status: {html.escape(event.status)}. "
                 f"<a href=\"{safe_link}\">Open calendar event</a>."
@@ -1256,6 +1407,7 @@ def academic_calendar_home(
     if not branch_id or not academic_year_id:
         return RedirectResponse(url="/dashboard?error=missing-scope", status_code=302)
 
+    _ensure_calendar_event_schema(db)
     _ensure_default_event_types(db, branch_id, academic_year_id)
     teachers, users, sections = _get_scope_options(db, branch_id, academic_year_id)
     event_types = _get_event_types(
@@ -1382,6 +1534,7 @@ def create_calendar_event(
     title: str = Form(""),
     event_type_id: str = Form(""),
     event_date: str = Form(""),
+    end_date: str = Form(""),
     start_time: str = Form(""),
     end_time: str = Form(""),
     all_day: str = Form(""),
@@ -1408,6 +1561,7 @@ def create_calendar_event(
         return RedirectResponse(url="/dashboard", status_code=302)
     safe_return_to = _safe_redirect_path(return_to)
     branch_id, academic_year_id = _get_scope_ids(current_user)
+    _ensure_calendar_event_schema(db)
     normalized = _normalize_event_form_payload(
         db=db,
         branch_id=branch_id,
@@ -1415,6 +1569,7 @@ def create_calendar_event(
         title=title,
         event_type_id=event_type_id,
         event_date=event_date,
+        end_date=end_date,
         start_time=start_time,
         end_time=end_time,
         all_day=all_day,
@@ -1480,6 +1635,7 @@ def update_calendar_event(
     title: str = Form(""),
     event_type_id: str = Form(""),
     event_date: str = Form(""),
+    end_date: str = Form(""),
     start_time: str = Form(""),
     end_time: str = Form(""),
     all_day: str = Form(""),
@@ -1506,6 +1662,7 @@ def update_calendar_event(
         return RedirectResponse(url="/dashboard", status_code=302)
     safe_return_to = _safe_redirect_path(return_to)
     branch_id, academic_year_id = _get_scope_ids(current_user)
+    _ensure_calendar_event_schema(db)
     event = _get_event_for_scope(
         db,
         event_id=event_id,
@@ -1522,6 +1679,7 @@ def update_calendar_event(
         title=title,
         event_type_id=event_type_id,
         event_date=event_date,
+        end_date=end_date,
         start_time=start_time,
         end_time=end_time,
         all_day=all_day,
@@ -1588,6 +1746,7 @@ def delete_calendar_event(
         return RedirectResponse(url="/dashboard", status_code=302)
     safe_return_to = _safe_redirect_path(return_to)
     branch_id, academic_year_id = _get_scope_ids(current_user)
+    _ensure_calendar_event_schema(db)
     event = _get_event_for_scope(
         db,
         event_id=event_id,
@@ -1613,6 +1772,7 @@ def _build_calendar_config_context(
     current_user,
 ):
     branch_id, academic_year_id = _get_scope_ids(current_user)
+    _ensure_calendar_event_schema(db)
     _ensure_default_event_types(db, branch_id, academic_year_id)
     event_types = _get_event_types(
         db,

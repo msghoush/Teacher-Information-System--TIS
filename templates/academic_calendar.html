@@ -377,6 +377,14 @@
         box-shadow: 0 0 0 2px color-mix(in srgb, var(--event-color) 18%, transparent);
     }
 
+    .event-chip[data-event-kind="middle"] {
+        border-left-color: color-mix(in srgb, var(--event-color) 58%, #ffffff);
+    }
+
+    .event-chip[data-event-kind="end"] {
+        background: linear-gradient(90deg, var(--event-soft), #ffffff);
+    }
+
     .event-chip span:last-child {
         overflow: hidden;
         text-overflow: ellipsis;
@@ -528,7 +536,7 @@
 
     .month-event-card {
         display: grid;
-        grid-template-columns: 48px minmax(0, 1fr);
+        grid-template-columns: 58px minmax(0, 1fr);
         gap: 10px;
         width: 100%;
         min-height: 74px;
@@ -561,7 +569,7 @@
     }
 
     .month-event-date strong {
-        font-size: 19px;
+        font-size: 17px;
         line-height: 1;
     }
 
@@ -809,8 +817,12 @@
                     </select>
                 </div>
                 <div class="calendar-field">
-                    <label for="create_event_date">Date</label>
+                    <label for="create_event_date">Start Date</label>
                     <input id="create_event_date" type="date" name="event_date" value="{{ filters.start_date }}" required>
+                </div>
+                <div class="calendar-field">
+                    <label for="create_end_date">End Date</label>
+                    <input id="create_end_date" type="date" name="end_date" value="{{ filters.start_date }}">
                 </div>
                 <label class="calendar-check-field">
                     <input type="checkbox" name="all_day" value="1">
@@ -950,6 +962,7 @@
                             {% for event in day.events %}
                             <button
                                 class="event-chip"
+                                data-event-kind="{{ event.occurrence_kind }}"
                                 type="button"
                                 data-event-id="{{ event.id }}"
                                 style="--event-color: {{ event.type_color }}; --event-soft: {{ event.type_soft }}; --event-border: {{ event.type_border }}; --event-text: {{ event.type_text }};"
@@ -979,7 +992,7 @@
                                 <span class="agenda-pill">{{ event.priority }}</span>
                             </div>
                             <h3>{{ event.title }}</h3>
-                            <p>{{ event.date_label }} | {{ event.time_label }} | {{ event.target_label }}</p>
+                            <p>{{ event.date_range_label }} | {{ event.time_label }} | {{ event.target_label }}</p>
                             <p>{{ event.assignment_summary }}</p>
                         </div>
                         <button class="calendar-btn agenda-open" type="button" data-event-id="{{ event.id }}">{{ icon("open", "shell-icon") }} Open</button>
@@ -1010,12 +1023,13 @@
                         style="--event-color: {{ event.type_color }}; --event-soft: {{ event.type_soft }}; --event-surface: {{ event.type_surface }}; --event-border: {{ event.type_border }}; --event-text: {{ event.type_text }};"
                     >
                         <span class="month-event-date">
-                            <strong>{{ event.event_date[8:10] }}</strong>
-                            <small>{{ event.date_label[:3] }}</small>
+                            <strong>{{ event.date_badge_label }}</strong>
+                            <small>{{ event.duration_days }}d</small>
                         </span>
                         <span class="month-event-main">
                             <span class="month-event-type">{{ icon(event.type_icon, "agenda-type-icon") }} {{ event.type_name }}</span>
                             <strong>{{ event.title }}</strong>
+                            <small>{{ event.date_range_label }}</small>
                             <small>{{ event.time_label }} | {{ event.status }}</small>
                         </span>
                     </button>
@@ -1080,20 +1094,141 @@
             <form id="editEventForm" method="post">
                 <input type="hidden" name="return_to" value="{{ return_to }}">
                 <div class="event-form-grid">
-                    <!-- ...existing event fields... -->
+                    <div class="calendar-field is-wide">
+                        <label for="edit_title">Title</label>
+                        <input id="edit_title" name="title" maxlength="180" required>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_event_type_id">Event Type</label>
+                        <select id="edit_event_type_id" name="event_type_id">
+                            <option value="">Uncategorized</option>
+                            {% for event_type in event_types %}
+                            <option value="{{ event_type.id }}">{{ event_type.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_event_date">Start Date</label>
+                        <input id="edit_event_date" type="date" name="event_date" required>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_end_date">End Date</label>
+                        <input id="edit_end_date" type="date" name="end_date">
+                    </div>
+                    <label class="calendar-check-field">
+                        <input id="edit_all_day" type="checkbox" name="all_day" value="1">
+                        All Day
+                    </label>
+                    <div class="calendar-field">
+                        <label for="edit_start_time">Start Time</label>
+                        <input id="edit_start_time" type="time" name="start_time">
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_end_time">End Time</label>
+                        <input id="edit_end_time" type="time" name="end_time">
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_priority">Priority</label>
+                        <select id="edit_priority" name="priority">
+                            {% for priority in priority_options %}
+                            <option value="{{ priority }}">{{ priority }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_status">Status</label>
+                        <select id="edit_status" name="status">
+                            {% for status in status_options %}
+                            <option value="{{ status }}">{{ status }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_target_group">Target Group</label>
+                        <select id="edit_target_group" name="target_group">
+                            {% for target_group in target_group_options %}
+                            <option value="{{ target_group }}">{{ target_group }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_target_grade">Target Grade</label>
+                        <select id="edit_target_grade" name="target_grade">
+                            <option value="">No Grade</option>
+                            {% for grade in grade_options %}
+                            <option value="{{ grade }}">{{ "KG" if grade == "KG" else "Grade " ~ grade }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_target_section_id">Target Section</label>
+                        <select id="edit_target_section_id" name="target_section_id">
+                            <option value="">No Section</option>
+                            {% for section in sections %}
+                            <option value="{{ section.id }}">{{ section.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_target_teacher_id">Target Teacher</label>
+                        <select id="edit_target_teacher_id" name="target_teacher_id">
+                            <option value="">No Teacher</option>
+                            {% for teacher in teachers %}
+                            <option value="{{ teacher.id }}">{{ teacher.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_target_role">Role / Custom Target</label>
+                        <input id="edit_target_role" name="target_role" maxlength="80">
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_recurrence_rule">Recurrence</label>
+                        <select id="edit_recurrence_rule" name="recurrence_rule">
+                            {% for recurrence in recurrence_options %}
+                            <option value="{{ recurrence }}">{{ recurrence }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_recurrence_interval">Every</label>
+                        <input id="edit_recurrence_interval" type="number" name="recurrence_interval" min="1" value="1">
+                    </div>
+                    <div class="calendar-field">
+                        <label for="edit_recurrence_until">Until</label>
+                        <input id="edit_recurrence_until" type="date" name="recurrence_until">
+                    </div>
+                    <div class="calendar-field is-wide">
+                        <label for="edit_assigned_teacher_ids">Assigned Teachers</label>
+                        <select id="edit_assigned_teacher_ids" name="assigned_teacher_ids" multiple>
+                            {% for teacher in teachers %}
+                            <option value="{{ teacher.id }}">{{ teacher.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="calendar-field is-wide">
+                        <label for="edit_assigned_user_ids">Assigned Users</label>
+                        <select id="edit_assigned_user_ids" name="assigned_user_ids" multiple>
+                            {% for user_row in users %}
+                            <option value="{{ user_row.id }}">{{ user_row.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                     <div class="calendar-field is-wide">
                         <label for="edit_description">Description</label>
                         <textarea id="edit_description" name="description"></textarea>
                     </div>
                 </div>
-                <div class="dialog-actions" style="display: flex; gap: 8px; align-items: center;">
-                    <button class="calendar-btn is-primary" type="submit" title="Save" style="padding: 6px 10px; min-width: 0;">{{ icon("save", "shell-icon") }}</button>
-                </form>
-                <form id="deleteEventForm" method="post" style="display: inline;">
-                    <input type="hidden" name="return_to" value="{{ return_to }}">
-                    <button class="calendar-btn is-danger" type="submit" title="Delete" style="padding: 6px 10px; min-width: 0;">{{ icon("trash", "shell-icon") }}</button>
-                </form>
+                <div class="dialog-actions">
+                    <button class="calendar-btn is-primary" type="submit">{{ icon("save", "shell-icon") }} Save Changes</button>
                 </div>
+            </form>
+            <form id="deleteEventForm" method="post">
+                <input type="hidden" name="return_to" value="{{ return_to }}">
+                <div class="dialog-actions">
+                    <button class="calendar-btn is-danger" type="submit">{{ icon("trash", "shell-icon") }} Delete Event</button>
+                </div>
+            </form>
         </div>
     </dialog>
     {% endif %}
@@ -1120,9 +1255,13 @@
     const detailDescription = document.getElementById("detailDescription");
     const createButton = document.getElementById("openCreateEventDialog");
     const createDialog = document.getElementById("createEventDialog");
+    const createStartDate = document.getElementById("create_event_date");
+    const createEndDate = document.getElementById("create_end_date");
     const editButton = document.getElementById("editSelectedEvent");
     const editDialog = document.getElementById("editEventDialog");
     const editForm = document.getElementById("editEventForm");
+    const editStartDate = document.getElementById("edit_event_date");
+    const editEndDate = document.getElementById("edit_end_date");
     const deleteForm = document.getElementById("deleteEventForm");
 
     function setText(element, value) {
@@ -1147,6 +1286,15 @@
         Array.from(element.options).forEach((option) => {
             option.selected = selectedValues.has(option.value);
         });
+    }
+
+    function syncEndDate(startInput, endInput) {
+        if (!startInput || !endInput || !startInput.value) {
+            return;
+        }
+        if (!endInput.value || endInput.value < startInput.value) {
+            endInput.value = startInput.value;
+        }
     }
 
     function markActiveEvent(eventItem) {
@@ -1194,7 +1342,7 @@
         setText(detailTitle, eventItem.title);
         setText(detailType, eventItem.type_name);
         setText(detailStatus, eventItem.status);
-        setText(detailDateTime, `${eventItem.date_label} | ${eventItem.time_label}`);
+        setText(detailDateTime, `${eventItem.date_range_label} | ${eventItem.time_label}`);
         setText(detailTarget, eventItem.target_label);
         setText(detailPriority, eventItem.priority);
         setText(detailAssigned, eventItem.assignment_summary);
@@ -1218,6 +1366,7 @@
         document.getElementById("edit_title").value = eventItem.title || "";
         setSelectValue("edit_event_type_id", eventItem.event_type_id);
         document.getElementById("edit_event_date").value = eventItem.event_date || "";
+        document.getElementById("edit_end_date").value = eventItem.end_date || eventItem.event_date || "";
         document.getElementById("edit_all_day").checked = Boolean(eventItem.all_day);
         document.getElementById("edit_start_time").value = eventItem.start_time || "";
         document.getElementById("edit_end_time").value = eventItem.end_time || "";
@@ -1247,11 +1396,24 @@
 
     if (createButton && createDialog && canManageCalendar) {
         createButton.addEventListener("click", () => {
+            syncEndDate(createStartDate, createEndDate);
             if (typeof createDialog.showModal === "function") {
                 createDialog.showModal();
             } else {
                 createDialog.removeAttribute("hidden");
             }
+        });
+    }
+
+    if (createStartDate && createEndDate) {
+        createStartDate.addEventListener("change", () => {
+            syncEndDate(createStartDate, createEndDate);
+        });
+    }
+
+    if (editStartDate && editEndDate) {
+        editStartDate.addEventListener("change", () => {
+            syncEndDate(editStartDate, editEndDate);
         });
     }
 

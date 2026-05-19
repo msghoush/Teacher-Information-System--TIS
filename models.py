@@ -106,6 +106,7 @@ class CalendarEvent(Base):
     event_type_id = Column(Integer, ForeignKey("calendar_event_types.id"), index=True)
     title = Column(String(180), nullable=False)
     event_date = Column(String(10), nullable=False, index=True)
+    end_date = Column(String(10), index=True)
     start_time = Column(String(5))
     end_time = Column(String(5))
     all_day = Column(Boolean, nullable=False, default=False)
