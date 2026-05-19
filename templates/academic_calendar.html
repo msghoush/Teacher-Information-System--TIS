@@ -92,25 +92,12 @@
         line-height: 1.35;
     }
 
-    .calendar-toolbar,
     .calendar-editor,
     .calendar-workspace,
     .calendar-panel {
         border: 1px solid #d8e5f4;
         border-radius: 16px;
         background: #ffffff;
-    }
-
-    .calendar-toolbar {
-        display: grid;
-        gap: 12px;
-        padding: 14px;
-    }
-
-    .toolbar-grid {
-        display: grid;
-        grid-template-columns: repeat(6, minmax(0, 1fr));
-        gap: 10px;
     }
 
     .calendar-field {
@@ -183,7 +170,6 @@
         height: 16px;
     }
 
-    .toolbar-actions,
     .editor-actions,
     .dialog-actions {
         display: flex;
@@ -569,10 +555,6 @@
             grid-template-columns: repeat(3, minmax(0, 1fr));
         }
 
-        .toolbar-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-        }
-
         .event-form-grid {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
@@ -590,7 +572,6 @@
 
     @media (max-width: 760px) {
         .calendar-summary-grid,
-        .toolbar-grid,
         .event-form-grid {
             grid-template-columns: 1fr;
         }
@@ -647,97 +628,6 @@
         </article>
         {% endfor %}
     </section>
-
-    <form class="calendar-toolbar" method="get" action="/academic-calendar/">
-        <div class="toolbar-grid">
-            <div class="calendar-field">
-                <label for="calendar_view">View</label>
-                <select id="calendar_view" name="view">
-                    <option value="month" {% if calendar_view == "month" %}selected{% endif %}>Month</option>
-                    <option value="agenda" {% if calendar_view == "agenda" %}selected{% endif %}>Agenda</option>
-                </select>
-            </div>
-            <div class="calendar-field">
-                <label for="calendar_month">Month</label>
-                <input id="calendar_month" type="month" name="month" value="{{ filters.month }}">
-            </div>
-            <div class="calendar-field">
-                <label for="filter_event_type_id">Event Type</label>
-                <select id="filter_event_type_id" name="event_type_id">
-                    <option value="">All Types</option>
-                    {% for event_type in event_types %}
-                    <option value="{{ event_type.id }}" {% if filters.event_type_id == event_type.id %}selected{% endif %}>{{ event_type.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="calendar-field">
-                <label for="filter_status">Status</label>
-                <select id="filter_status" name="status">
-                    <option value="">All Statuses</option>
-                    {% for status in status_options %}
-                    <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="calendar-field">
-                <label for="filter_priority">Priority</label>
-                <select id="filter_priority" name="priority">
-                    <option value="">All Priorities</option>
-                    {% for priority in priority_options %}
-                    <option value="{{ priority }}" {% if filters.priority == priority %}selected{% endif %}>{{ priority }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="calendar-field">
-                <label for="filter_grade">Grade</label>
-                <select id="filter_grade" name="grade">
-                    <option value="">All Grades</option>
-                    {% for grade in grade_options %}
-                    <option value="{{ grade }}" {% if filters.grade == grade %}selected{% endif %}>{{ "KG" if grade == "KG" else "Grade " ~ grade }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="calendar-field">
-                <label for="filter_section_id">Section</label>
-                <select id="filter_section_id" name="section_id">
-                    <option value="">All Sections</option>
-                    {% for section in sections %}
-                    <option value="{{ section.id }}" {% if filters.section_id == section.id %}selected{% endif %}>{{ section.label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="calendar-field">
-                <label for="filter_teacher_id">Teacher</label>
-                <select id="filter_teacher_id" name="teacher_id">
-                    <option value="">All Teachers</option>
-                    {% for teacher in teachers %}
-                    <option value="{{ teacher.id }}" {% if filters.teacher_id == teacher.id %}selected{% endif %}>{{ teacher.label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="calendar-field">
-                <label for="filter_user_id">User</label>
-                <select id="filter_user_id" name="user_id">
-                    <option value="">All Users</option>
-                    {% for user_row in users %}
-                    <option value="{{ user_row.id }}" {% if filters.user_id == user_row.id %}selected{% endif %}>{{ user_row.label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="calendar-field">
-                <label for="filter_start_date">Start Date</label>
-                <input id="filter_start_date" type="date" name="start_date" value="{{ filters.start_date }}">
-            </div>
-            <div class="calendar-field">
-                <label for="filter_end_date">End Date</label>
-                <input id="filter_end_date" type="date" name="end_date" value="{{ filters.end_date }}">
-            </div>
-            <div class="toolbar-actions">
-                <button class="calendar-btn is-primary" type="submit">{{ icon("search", "shell-icon") }} Apply</button>
-                <a class="calendar-btn is-muted" href="/academic-calendar/">{{ icon("clear", "shell-icon") }} Clear</a>
-            </div>
-        </div>
-    </form>
 
     {% if can_manage_calendar %}
     <details class="calendar-editor">
