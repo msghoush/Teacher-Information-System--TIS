@@ -569,11 +569,11 @@
 
     .month-event-card {
         display: grid;
-        grid-template-columns: 58px minmax(0, 1fr);
-        gap: 10px;
+        grid-template-columns: 54px minmax(0, 1fr) auto;
+        gap: 8px;
         width: 100%;
-        min-height: 74px;
-        padding: 10px;
+        min-height: 68px;
+        padding: 9px;
         border: 1px solid var(--event-border);
         border-left: 6px solid var(--event-color);
         border-radius: 12px;
@@ -595,7 +595,7 @@
         display: grid;
         place-items: center;
         align-self: start;
-        min-height: 52px;
+        min-height: 48px;
         border-radius: 10px;
         background: var(--event-color);
         color: #ffffff;
@@ -667,6 +667,7 @@
     .month-event-status {
         display: inline-flex;
         align-items: center;
+        gap: 5px;
         min-height: 24px;
         padding: 4px 7px;
         border: 1px solid #d8e5f4;
@@ -677,6 +678,17 @@
         font-weight: 900;
         text-transform: uppercase;
         white-space: nowrap;
+    }
+
+    .status-icon {
+        width: 14px;
+        height: 14px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex: 0 0 auto;
     }
 
     .month-event-status[data-status="Planned"] {
@@ -710,27 +722,69 @@
     }
 
     .month-status-form {
-        grid-column: 1 / -1;
+        position: relative;
+        align-self: start;
         cursor: default;
     }
 
-    .status-toggle {
+    .status-menu {
+        position: relative;
+    }
+
+    .status-menu summary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border: 1px solid #d8e5f4;
+        border-radius: 10px;
+        background: #ffffff;
+        color: #43546d;
+        cursor: pointer;
+        list-style: none;
+    }
+
+    .status-menu summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .status-menu[open] summary,
+    .status-menu summary:hover {
+        border-color: #0a4ea3;
+        background: #eef6ff;
+        color: #0a4ea3;
+    }
+
+    .status-menu-panel {
+        position: absolute;
+        right: 0;
+        top: 40px;
+        z-index: 15;
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
-        gap: 5px;
+        gap: 4px;
+        width: 184px;
+        padding: 6px;
+        border: 1px solid #c8d8ec;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16);
     }
 
     .event-status-button {
-        min-width: 0;
-        min-height: 28px;
-        padding: 5px 6px;
-        border: 1px solid #d8e5f4;
-        border-radius: 8px;
+        display: grid;
+        grid-template-columns: 18px minmax(0, 1fr);
+        align-items: center;
+        gap: 7px;
+        min-height: 32px;
+        padding: 6px 8px;
+        border: 1px solid transparent;
+        border-radius: 9px;
         background: #ffffff;
         color: #43546d;
-        font-size: 10px;
+        font-size: 11px;
         font-weight: 900;
-        line-height: 1.15;
+        text-align: left;
         cursor: pointer;
     }
 
@@ -1183,6 +1237,7 @@
                         tabindex="0"
                         style="--event-color: {{ event.type_color }}; --event-soft: {{ event.type_soft }}; --event-surface: {{ event.type_surface }}; --event-border: {{ event.type_border }}; --event-text: {{ event.type_text }};"
                     >
+                        {% set current_status_icon = "clipboard-check" if event.status == "Completed" else "check-circle" if event.status == "Confirmed" else "activity" if event.status == "In Progress" else "close" if event.status == "Cancelled" else "deadline" %}
                         <span class="month-event-date">
                             <strong>{{ event.date_badge_label }}</strong>
                             <small>{{ event.duration_days }}d</small>
@@ -1190,7 +1245,7 @@
                         <span class="month-event-main">
                             <span class="month-event-meta">
                                 <span class="month-event-type">{{ icon(event.type_icon, "agenda-type-icon") }} {{ event.type_name }}</span>
-                                <span class="month-event-status" data-status="{{ event.status }}">{{ event.status }}</span>
+                                <span class="month-event-status" data-status="{{ event.status }}">{{ icon(current_status_icon, "status-icon") }} {{ event.status }}</span>
                             </span>
                             <strong>{{ event.title }}</strong>
                             <small class="month-event-target">{{ event.target_label }}</small>
@@ -1200,8 +1255,13 @@
                         {% if can_manage_calendar %}
                         <form class="month-status-form" method="post" action="/academic-calendar/events/{{ event.id }}/status">
                             <input type="hidden" name="return_to" value="{{ return_to }}">
-                            <div class="status-toggle" aria-label="Change status for {{ event.title }}">
+                            <details class="status-menu">
+                                <summary aria-label="Change status for {{ event.title }}" title="Change status">
+                                    {{ icon(current_status_icon, "status-icon") }}
+                                </summary>
+                                <div class="status-menu-panel">
                                 {% for quick_status in status_options %}
+                                {% set quick_status_icon = "clipboard-check" if quick_status == "Completed" else "check-circle" if quick_status == "Confirmed" else "activity" if quick_status == "In Progress" else "close" if quick_status == "Cancelled" else "deadline" %}
                                 <button
                                     class="event-status-button {% if event.status == quick_status %}is-active{% endif %}"
                                     type="submit"
@@ -1210,10 +1270,11 @@
                                     data-status="{{ quick_status }}"
                                     aria-pressed="{{ 'true' if event.status == quick_status else 'false' }}"
                                 >
-                                    {{ quick_status }}
+                                    {{ icon(quick_status_icon, "status-icon") }} <span>{{ quick_status }}</span>
                                 </button>
                                 {% endfor %}
-                            </div>
+                                </div>
+                            </details>
                         </form>
                         {% endif %}
                     </article>
@@ -1781,6 +1842,28 @@
                 return;
             }
             openCreateEventDialog(dayCell.dataset.date || "");
+        });
+    });
+
+    document.querySelectorAll(".status-menu").forEach((menu) => {
+        menu.addEventListener("toggle", () => {
+            if (!menu.open) {
+                return;
+            }
+            document.querySelectorAll(".status-menu[open]").forEach((openMenu) => {
+                if (openMenu !== menu) {
+                    openMenu.open = false;
+                }
+            });
+        });
+    });
+
+    document.addEventListener("click", (event) => {
+        if (event.target.closest(".status-menu")) {
+            return;
+        }
+        document.querySelectorAll(".status-menu[open]").forEach((menu) => {
+            menu.open = false;
         });
     });
 
