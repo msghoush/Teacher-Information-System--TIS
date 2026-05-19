@@ -1146,14 +1146,16 @@ def _normalize_event_form_payload(
     parsed_section_id = _parse_int(target_section_id)
     parsed_teacher_id = _parse_int(target_teacher_id)
     if parsed_section_id:
-        section_exists = db.query(models.PlanningSection.id).filter(
+        section_row = db.query(models.PlanningSection).filter(
             models.PlanningSection.id == parsed_section_id,
             models.PlanningSection.branch_id == branch_id,
             models.PlanningSection.academic_year_id == academic_year_id,
         ).first()
-        if not section_exists:
+        if not section_row:
             errors.append("Selected section is not available in the active scope.")
             parsed_section_id = None
+        else:
+            normalized_grade = str(section_row.grade_level or normalized_grade or "").strip().upper()
     if parsed_teacher_id:
         teacher_exists = db.query(models.Teacher.id).filter(
             models.Teacher.id == parsed_teacher_id,
@@ -1195,6 +1197,15 @@ def _normalize_event_form_payload(
             ).all()
         }
         user_ids = sorted(valid_user_ids)
+
+    if parsed_section_id:
+        normalized_target_group = "Section"
+    elif normalized_grade:
+        normalized_target_group = "Grade"
+    elif parsed_teacher_id:
+        normalized_target_group = "Teacher"
+    elif _normalize_spaces(target_role) and normalized_target_group == "All School":
+        normalized_target_group = "Custom"
 
     if normalized_target_group != "Grade":
         normalized_grade = ""

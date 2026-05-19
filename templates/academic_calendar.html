@@ -603,6 +603,11 @@
         white-space: nowrap;
     }
 
+    .month-event-main .month-event-target {
+        color: #17365d;
+        font-weight: 900;
+    }
+
     .month-event-type {
         display: inline-flex;
         align-items: center;
@@ -800,7 +805,7 @@
                 <h2>New Calendar Event</h2>
                 <button class="calendar-btn is-muted" type="button" data-close-dialog>{{ icon("close", "shell-icon") }} Close</button>
             </div>
-        <form method="post" action="/academic-calendar/events">
+        <form id="createEventForm" method="post" action="/academic-calendar/events">
             <input type="hidden" name="return_to" value="{{ return_to }}">
             <div class="event-form-grid">
                 <div class="calendar-field is-wide">
@@ -1029,6 +1034,7 @@
                         <span class="month-event-main">
                             <span class="month-event-type">{{ icon(event.type_icon, "agenda-type-icon") }} {{ event.type_name }}</span>
                             <strong>{{ event.title }}</strong>
+                            <small class="month-event-target">{{ event.target_label }}</small>
                             <small>{{ event.date_range_label }}</small>
                             <small>{{ event.time_label }} | {{ event.status }}</small>
                         </span>
@@ -1255,13 +1261,24 @@
     const detailDescription = document.getElementById("detailDescription");
     const createButton = document.getElementById("openCreateEventDialog");
     const createDialog = document.getElementById("createEventDialog");
+    const createForm = document.getElementById("createEventForm");
     const createStartDate = document.getElementById("create_event_date");
     const createEndDate = document.getElementById("create_end_date");
+    const createTargetGroup = document.getElementById("create_target_group");
+    const createTargetGrade = document.getElementById("create_target_grade");
+    const createTargetSection = document.getElementById("create_target_section_id");
+    const createTargetTeacher = document.getElementById("create_target_teacher_id");
+    const createTargetRole = document.getElementById("create_target_role");
     const editButton = document.getElementById("editSelectedEvent");
     const editDialog = document.getElementById("editEventDialog");
     const editForm = document.getElementById("editEventForm");
     const editStartDate = document.getElementById("edit_event_date");
     const editEndDate = document.getElementById("edit_end_date");
+    const editTargetGroup = document.getElementById("edit_target_group");
+    const editTargetGrade = document.getElementById("edit_target_grade");
+    const editTargetSection = document.getElementById("edit_target_section_id");
+    const editTargetTeacher = document.getElementById("edit_target_teacher_id");
+    const editTargetRole = document.getElementById("edit_target_role");
     const deleteForm = document.getElementById("deleteEventForm");
 
     function setText(element, value) {
@@ -1295,6 +1312,37 @@
         if (!endInput.value || endInput.value < startInput.value) {
             endInput.value = startInput.value;
         }
+    }
+
+    function syncTargetGroup(groupInput, gradeInput, sectionInput, teacherInput, roleInput) {
+        if (!groupInput) {
+            return;
+        }
+        if (sectionInput && sectionInput.value) {
+            groupInput.value = "Section";
+            return;
+        }
+        if (gradeInput && gradeInput.value) {
+            groupInput.value = "Grade";
+            return;
+        }
+        if (teacherInput && teacherInput.value) {
+            groupInput.value = "Teacher";
+            return;
+        }
+        if (roleInput && roleInput.value.trim() && groupInput.value === "All School") {
+            groupInput.value = "Custom";
+        }
+    }
+
+    function bindTargetSync(groupInput, gradeInput, sectionInput, teacherInput, roleInput) {
+        const sync = () => syncTargetGroup(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
+        [gradeInput, sectionInput, teacherInput, roleInput].forEach((input) => {
+            if (input) {
+                input.addEventListener("change", sync);
+                input.addEventListener("input", sync);
+            }
+        });
     }
 
     function markActiveEvent(eventItem) {
@@ -1377,6 +1425,7 @@
         setSelectValue("edit_target_section_id", eventItem.target_section_id);
         setSelectValue("edit_target_teacher_id", eventItem.target_teacher_id);
         document.getElementById("edit_target_role").value = eventItem.target_role || "";
+        syncTargetGroup(editTargetGroup, editTargetGrade, editTargetSection, editTargetTeacher, editTargetRole);
         setSelectValue("edit_recurrence_rule", eventItem.recurrence_rule || "None");
         document.getElementById("edit_recurrence_interval").value = eventItem.recurrence_interval || 1;
         document.getElementById("edit_recurrence_until").value = eventItem.recurrence_until || "";
@@ -1397,6 +1446,13 @@
     if (createButton && createDialog && canManageCalendar) {
         createButton.addEventListener("click", () => {
             syncEndDate(createStartDate, createEndDate);
+            syncTargetGroup(
+                createTargetGroup,
+                createTargetGrade,
+                createTargetSection,
+                createTargetTeacher,
+                createTargetRole
+            );
             if (typeof createDialog.showModal === "function") {
                 createDialog.showModal();
             } else {
@@ -1414,6 +1470,45 @@
     if (editStartDate && editEndDate) {
         editStartDate.addEventListener("change", () => {
             syncEndDate(editStartDate, editEndDate);
+        });
+    }
+
+    bindTargetSync(
+        createTargetGroup,
+        createTargetGrade,
+        createTargetSection,
+        createTargetTeacher,
+        createTargetRole
+    );
+    bindTargetSync(
+        editTargetGroup,
+        editTargetGrade,
+        editTargetSection,
+        editTargetTeacher,
+        editTargetRole
+    );
+
+    if (createForm) {
+        createForm.addEventListener("submit", () => {
+            syncTargetGroup(
+                createTargetGroup,
+                createTargetGrade,
+                createTargetSection,
+                createTargetTeacher,
+                createTargetRole
+            );
+        });
+    }
+
+    if (editForm) {
+        editForm.addEventListener("submit", () => {
+            syncTargetGroup(
+                editTargetGroup,
+                editTargetGrade,
+                editTargetSection,
+                editTargetTeacher,
+                editTargetRole
+            );
         });
     }
 
