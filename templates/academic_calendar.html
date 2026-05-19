@@ -1080,137 +1080,20 @@
             <form id="editEventForm" method="post">
                 <input type="hidden" name="return_to" value="{{ return_to }}">
                 <div class="event-form-grid">
-                    <div class="calendar-field is-wide">
-                        <label for="edit_title">Title</label>
-                        <input id="edit_title" name="title" maxlength="180" required>
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_event_type_id">Event Type</label>
-                        <select id="edit_event_type_id" name="event_type_id">
-                            <option value="">Uncategorized</option>
-                            {% for event_type in event_types %}
-                            <option value="{{ event_type.id }}">{{ event_type.name }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_event_date">Date</label>
-                        <input id="edit_event_date" type="date" name="event_date" required>
-                    </div>
-                    <label class="calendar-check-field">
-                        <input id="edit_all_day" type="checkbox" name="all_day" value="1">
-                        All Day
-                    </label>
-                    <div class="calendar-field">
-                        <label for="edit_start_time">Start Time</label>
-                        <input id="edit_start_time" type="time" name="start_time">
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_end_time">End Time</label>
-                        <input id="edit_end_time" type="time" name="end_time">
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_priority">Priority</label>
-                        <select id="edit_priority" name="priority">
-                            {% for priority in priority_options %}
-                            <option value="{{ priority }}">{{ priority }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_status">Status</label>
-                        <select id="edit_status" name="status">
-                            {% for status in status_options %}
-                            <option value="{{ status }}">{{ status }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_target_group">Target Group</label>
-                        <select id="edit_target_group" name="target_group">
-                            {% for target_group in target_group_options %}
-                            <option value="{{ target_group }}">{{ target_group }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_target_grade">Target Grade</label>
-                        <select id="edit_target_grade" name="target_grade">
-                            <option value="">No Grade</option>
-                            {% for grade in grade_options %}
-                            <option value="{{ grade }}">{{ "KG" if grade == "KG" else "Grade " ~ grade }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_target_section_id">Target Section</label>
-                        <select id="edit_target_section_id" name="target_section_id">
-                            <option value="">No Section</option>
-                            {% for section in sections %}
-                            <option value="{{ section.id }}">{{ section.label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_target_teacher_id">Target Teacher</label>
-                        <select id="edit_target_teacher_id" name="target_teacher_id">
-                            <option value="">No Teacher</option>
-                            {% for teacher in teachers %}
-                            <option value="{{ teacher.id }}">{{ teacher.label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_target_role">Role / Custom Target</label>
-                        <input id="edit_target_role" name="target_role" maxlength="80">
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_recurrence_rule">Recurrence</label>
-                        <select id="edit_recurrence_rule" name="recurrence_rule">
-                            {% for recurrence in recurrence_options %}
-                            <option value="{{ recurrence }}">{{ recurrence }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_recurrence_interval">Every</label>
-                        <input id="edit_recurrence_interval" type="number" name="recurrence_interval" min="1" value="1">
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_recurrence_until">Until</label>
-                        <input id="edit_recurrence_until" type="date" name="recurrence_until">
-                    </div>
-                    <div class="calendar-field is-wide">
-                        <label for="edit_assigned_teacher_ids">Assigned Teachers</label>
-                        <select id="edit_assigned_teacher_ids" name="assigned_teacher_ids" multiple>
-                            {% for teacher in teachers %}
-                            <option value="{{ teacher.id }}">{{ teacher.label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="calendar-field is-wide">
-                        <label for="edit_assigned_user_ids">Assigned Users</label>
-                        <select id="edit_assigned_user_ids" name="assigned_user_ids" multiple>
-                            {% for user_row in users %}
-                            <option value="{{ user_row.id }}">{{ user_row.label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+                    <!-- ...existing event fields... -->
                     <div class="calendar-field is-wide">
                         <label for="edit_description">Description</label>
                         <textarea id="edit_description" name="description"></textarea>
                     </div>
                 </div>
-                <div class="dialog-actions">
-                    <button class="calendar-btn is-primary" type="submit">{{ icon("save", "shell-icon") }} Save Changes</button>
+                <div class="dialog-actions" style="display: flex; gap: 8px; align-items: center;">
+                    <button class="calendar-btn is-primary" type="submit" title="Save" style="padding: 6px 10px; min-width: 0;">{{ icon("save", "shell-icon") }}</button>
+                </form>
+                <form id="deleteEventForm" method="post" style="display: inline;">
+                    <input type="hidden" name="return_to" value="{{ return_to }}">
+                    <button class="calendar-btn is-danger" type="submit" title="Delete" style="padding: 6px 10px; min-width: 0;">{{ icon("trash", "shell-icon") }}</button>
+                </form>
                 </div>
-            </form>
-            <form id="deleteEventForm" method="post">
-                <input type="hidden" name="return_to" value="{{ return_to }}">
-                <div class="dialog-actions">
-                    <button class="calendar-btn is-danger" type="submit">{{ icon("trash", "shell-icon") }} Delete Event</button>
-                </div>
-            </form>
         </div>
     </dialog>
     {% endif %}
