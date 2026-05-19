@@ -1202,6 +1202,8 @@ def _normalize_event_form_payload(
         parsed_section_id = None
     if normalized_target_group != "Teacher":
         parsed_teacher_id = None
+    elif parsed_teacher_id:
+        teacher_ids = sorted(set(teacher_ids + [parsed_teacher_id]))
     if normalized_target_group not in {"Role", "Custom"}:
         target_role = ""
 
