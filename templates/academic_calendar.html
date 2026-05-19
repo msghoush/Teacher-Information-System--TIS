@@ -911,6 +911,7 @@
                     <label for="create_target_section_id">Target Section</label>
                     <select id="create_target_section_id" name="target_section_id">
                         <option value="">No Section</option>
+                        <option value="{{ all_sections_value }}">{{ all_sections_label }}</option>
                         {% for section in sections %}
                         <option value="{{ section.id }}">{{ section.label }}</option>
                         {% endfor %}
@@ -1208,6 +1209,7 @@
                         <label for="edit_target_section_id">Target Section</label>
                         <select id="edit_target_section_id" name="target_section_id">
                             <option value="">No Section</option>
+                            <option value="{{ all_sections_value }}">{{ all_sections_label }}</option>
                             {% for section in sections %}
                             <option value="{{ section.id }}">{{ section.label }}</option>
                             {% endfor %}
@@ -1268,16 +1270,14 @@
                         <textarea id="edit_description" name="description"></textarea>
                     </div>
                 </div>
-                <div class="dialog-actions">
-                    <button class="calendar-btn is-primary" type="submit">{{ icon("save", "shell-icon") }} Save Changes</button>
-                </div>
             </form>
             <form id="deleteEventForm" method="post">
                 <input type="hidden" name="return_to" value="{{ return_to }}">
-                <div class="dialog-actions">
-                    <button class="calendar-btn is-danger" type="submit">{{ icon("trash", "shell-icon") }} Delete Event</button>
-                </div>
             </form>
+            <div class="dialog-actions event-edit-actions">
+                <button class="calendar-btn is-primary" type="submit" form="editEventForm">{{ icon("save", "shell-icon") }} Save Changes</button>
+                <button class="calendar-btn is-danger" type="submit" form="deleteEventForm">{{ icon("trash", "shell-icon") }} Delete Event</button>
+            </div>
         </div>
     </dialog>
     {% endif %}
@@ -1290,6 +1290,8 @@
     const eventsById = new Map(calendarEvents.map((eventItem) => [String(eventItem.id), eventItem]));
     const selectedEventId = {{ selected_event_id | tojson }};
     const canManageCalendar = {{ can_manage_calendar | tojson }};
+    const allGradesValue = "All Grades";
+    const allSectionsValue = {{ all_sections_value | tojson }};
     let activeEvent = null;
 
     const detailTitle = document.getElementById("detailTitle");
@@ -1357,29 +1359,122 @@
         }
     }
 
+    function isAllGradeValue(value) {
+        return String(value || "") === allGradesValue;
+    }
+
+    function isAllSectionValue(value) {
+        return String(value || "") === allSectionsValue;
+    }
+
+    function setAllSchoolTarget(groupInput, gradeInput, sectionInput, teacherInput, roleInput) {
+        if (!groupInput) {
+            return;
+        }
+        groupInput.value = "All School";
+        if (gradeInput) {
+            gradeInput.value = allGradesValue;
+        }
+        if (sectionInput) {
+            sectionInput.value = allSectionsValue;
+        }
+        if (teacherInput) {
+            teacherInput.value = "";
+        }
+        if (roleInput) {
+            roleInput.value = "";
+        }
+    }
+
+    function applyTargetGroupChoice(groupInput, gradeInput, sectionInput, teacherInput, roleInput) {
+        if (!groupInput) {
+            return;
+        }
+        if (groupInput.value === "All School") {
+            setAllSchoolTarget(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
+            return;
+        }
+        if (sectionInput && isAllSectionValue(sectionInput.value)) {
+            sectionInput.value = "";
+        }
+        if (groupInput.value !== "Grade" && gradeInput && isAllGradeValue(gradeInput.value)) {
+            gradeInput.value = "";
+        }
+        if (groupInput.value !== "Teacher" && teacherInput) {
+            teacherInput.value = "";
+        }
+        if (!["Role", "Custom"].includes(groupInput.value) && roleInput) {
+            roleInput.value = "";
+        }
+    }
+
     function syncTargetGroup(groupInput, gradeInput, sectionInput, teacherInput, roleInput) {
         if (!groupInput) {
             return;
         }
-        if (sectionInput && sectionInput.value) {
+        if (teacherInput && teacherInput.value) {
+            groupInput.value = "Teacher";
+            if (gradeInput) {
+                gradeInput.value = "";
+            }
+            if (sectionInput) {
+                sectionInput.value = "";
+            }
+            if (roleInput) {
+                roleInput.value = "";
+            }
+            return;
+        }
+        if (roleInput && roleInput.value.trim() && groupInput.value === "All School") {
+            groupInput.value = "Custom";
+            if (gradeInput) {
+                gradeInput.value = "";
+            }
+            if (sectionInput) {
+                sectionInput.value = "";
+            }
+            if (teacherInput) {
+                teacherInput.value = "";
+            }
+            return;
+        }
+        if (sectionInput && sectionInput.value && !isAllSectionValue(sectionInput.value)) {
             groupInput.value = "Section";
+            if (gradeInput && isAllGradeValue(gradeInput.value)) {
+                gradeInput.value = "";
+            }
+            return;
+        }
+        if (gradeInput && gradeInput.value && !isAllGradeValue(gradeInput.value)) {
+            groupInput.value = "Grade";
+            if (sectionInput && isAllSectionValue(sectionInput.value)) {
+                sectionInput.value = "";
+            }
+            return;
+        }
+        if (
+            (sectionInput && isAllSectionValue(sectionInput.value)) ||
+            (gradeInput && isAllGradeValue(gradeInput.value) && groupInput.value !== "Grade")
+        ) {
+            setAllSchoolTarget(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
             return;
         }
         if (gradeInput && gradeInput.value) {
             groupInput.value = "Grade";
             return;
         }
-        if (teacherInput && teacherInput.value) {
-            groupInput.value = "Teacher";
-            return;
-        }
-        if (roleInput && roleInput.value.trim() && groupInput.value === "All School") {
-            groupInput.value = "Custom";
+        if (groupInput.value === "All School") {
+            setAllSchoolTarget(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
         }
     }
 
     function bindTargetSync(groupInput, gradeInput, sectionInput, teacherInput, roleInput) {
         const sync = () => syncTargetGroup(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
+        if (groupInput) {
+            groupInput.addEventListener("change", () => {
+                applyTargetGroupChoice(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
+            });
+        }
         [gradeInput, sectionInput, teacherInput, roleInput].forEach((input) => {
             if (input) {
                 input.addEventListener("change", sync);

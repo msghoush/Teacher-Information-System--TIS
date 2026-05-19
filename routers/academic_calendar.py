@@ -109,6 +109,15 @@ ALL_GRADES_VALUE = "All Grades"
 ALL_GRADES_ALIASES = {"ALL", "ALL GRADE", "ALL GRADES", "ALL_GRADES"}
 GRADE_OPTIONS = ["KG"] + [str(value) for value in range(1, 13)]
 TARGET_GRADE_OPTIONS = [ALL_GRADES_VALUE] + GRADE_OPTIONS
+ALL_SECTIONS_VALUE = "__all_sections__"
+ALL_SECTIONS_LABEL = "All Sections"
+ALL_SECTIONS_ALIASES = {
+    ALL_SECTIONS_VALUE.upper(),
+    "ALL",
+    "ALL SECTION",
+    "ALL SECTIONS",
+    "ALL_SECTIONS",
+}
 ICON_OPTIONS = (
     "calendar",
     "clipboard-check",
@@ -569,6 +578,8 @@ def _build_time_label(event) -> str:
 
 def _build_target_label(event, section_lookup, teacher_lookup) -> str:
     target_group = str(getattr(event, "target_group", "") or "All School").strip()
+    if target_group == "All School":
+        return "All School"
     if target_group == "Grade" and getattr(event, "target_grade", None):
         grade = str(event.target_grade)
         if grade.strip().upper() in ALL_GRADES_ALIASES:
@@ -651,6 +662,13 @@ def _serialize_event(
     start_date_value = _normalize_date(event.event_date)
     end_date_value = _event_end_date_value(event)
     duration_days = _calculate_duration_days(start_date_value, end_date_value)
+    target_group = event.target_group or "All School"
+    target_grade = event.target_grade or (
+        ALL_GRADES_VALUE if target_group == "All School" else ""
+    )
+    target_section_id = (
+        ALL_SECTIONS_VALUE if target_group == "All School" else event.target_section_id
+    )
     return {
         "id": event.id,
         "title": event.title,
@@ -675,9 +693,9 @@ def _serialize_event(
         "all_day": bool(event.all_day),
         "time_label": _build_time_label(event),
         "description": event.description or "",
-        "target_group": event.target_group or "All School",
-        "target_grade": event.target_grade or "",
-        "target_section_id": event.target_section_id,
+        "target_group": target_group,
+        "target_grade": target_grade,
+        "target_section_id": target_section_id,
         "target_teacher_id": event.target_teacher_id,
         "target_role": event.target_role or "",
         "target_label": _build_target_label(event, section_lookup, teacher_lookup),
@@ -792,17 +810,29 @@ def _build_filtered_event_query(
                 or_(
                     models.CalendarEvent.target_grade == filters["grade"],
                     models.CalendarEvent.target_grade == ALL_GRADES_VALUE,
+                    models.CalendarEvent.target_group == "All School",
                     models.CalendarEvent.target_section_id.in_(section_ids),
                 )
             )
         else:
             query = query.filter(
-                models.CalendarEvent.target_grade.in_(
-                    [filters["grade"], ALL_GRADES_VALUE]
+                or_(
+                    models.CalendarEvent.target_grade.in_(
+                        [filters["grade"], ALL_GRADES_VALUE]
+                    ),
+                    models.CalendarEvent.target_group == "All School",
                 )
             )
     if filters["section_id"]:
-        query = query.filter(models.CalendarEvent.target_section_id == filters["section_id"])
+        section_scope_filters = [
+            models.CalendarEvent.target_section_id == filters["section_id"],
+            models.CalendarEvent.target_grade == ALL_GRADES_VALUE,
+            models.CalendarEvent.target_group == "All School",
+        ]
+        section_grade = filters["section_grade_lookup"].get(filters["section_id"])
+        if section_grade:
+            section_scope_filters.append(models.CalendarEvent.target_grade == section_grade)
+        query = query.filter(or_(*section_scope_filters))
     if filters["teacher_id"]:
         assignment_event_ids = [
             row[0]
@@ -1160,7 +1190,9 @@ def _normalize_event_form_payload(
     ):
         errors.append("Target grade must be KG or a grade from 1 to 12.")
         normalized_grade = ""
-    parsed_section_id = _parse_int(target_section_id)
+    normalized_section_token = _normalize_spaces(target_section_id)
+    target_section_is_all = normalized_section_token.upper() in ALL_SECTIONS_ALIASES
+    parsed_section_id = None if target_section_is_all else _parse_int(target_section_id)
     parsed_teacher_id = _parse_int(target_teacher_id)
     if parsed_section_id:
         section_row = db.query(models.PlanningSection).filter(
@@ -1215,8 +1247,16 @@ def _normalize_event_form_payload(
         }
         user_ids = sorted(valid_user_ids)
 
-    if parsed_section_id:
+    if normalized_target_group == "All School":
+        normalized_grade = ALL_GRADES_VALUE
+        parsed_section_id = None
+        parsed_teacher_id = None
+        target_role = ""
+    elif parsed_section_id:
         normalized_target_group = "Section"
+    elif target_section_is_all:
+        normalized_target_group = "All School"
+        normalized_grade = ALL_GRADES_VALUE
     elif normalized_grade:
         normalized_target_group = "Grade"
     elif parsed_teacher_id:
@@ -1224,7 +1264,9 @@ def _normalize_event_form_payload(
     elif _normalize_spaces(target_role) and normalized_target_group == "All School":
         normalized_target_group = "Custom"
 
-    if normalized_target_group != "Grade":
+    if normalized_target_group == "All School":
+        normalized_grade = ALL_GRADES_VALUE
+    elif normalized_target_group != "Grade":
         normalized_grade = ""
     if normalized_target_group != "Section":
         parsed_section_id = None
@@ -1526,6 +1568,8 @@ def academic_calendar_home(
             "users": user_payloads,
             "grade_options": GRADE_OPTIONS,
             "target_grade_options": TARGET_GRADE_OPTIONS,
+            "all_sections_label": ALL_SECTIONS_LABEL,
+            "all_sections_value": ALL_SECTIONS_VALUE,
             "status_options": EVENT_STATUS_OPTIONS,
             "priority_options": PRIORITY_OPTIONS,
             "target_group_options": TARGET_GROUP_OPTIONS,
