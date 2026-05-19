@@ -569,7 +569,7 @@
 
     .month-event-card {
         display: grid;
-        grid-template-columns: 54px minmax(0, 1fr) auto;
+        grid-template-columns: 54px minmax(0, 1fr);
         gap: 8px;
         width: 100%;
         min-height: 68px;
@@ -723,7 +723,8 @@
 
     .month-status-form {
         position: relative;
-        align-self: start;
+        flex: 0 0 auto;
+        margin-left: auto;
         cursor: default;
     }
 
@@ -732,15 +733,6 @@
     }
 
     .status-menu summary {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 34px;
-        height: 34px;
-        border: 1px solid #d8e5f4;
-        border-radius: 10px;
-        background: #ffffff;
-        color: #43546d;
         cursor: pointer;
         list-style: none;
     }
@@ -759,7 +751,7 @@
     .status-menu-panel {
         position: absolute;
         right: 0;
-        top: 40px;
+        top: 30px;
         z-index: 15;
         display: grid;
         gap: 4px;
@@ -1242,41 +1234,42 @@
                             <strong>{{ event.date_badge_label }}</strong>
                             <small>{{ event.duration_days }}d</small>
                         </span>
-                        <span class="month-event-main">
-                            <span class="month-event-meta">
+                        <div class="month-event-main">
+                            <div class="month-event-meta">
                                 <span class="month-event-type">{{ icon(event.type_icon, "agenda-type-icon") }} {{ event.type_name }}</span>
-                                <span class="month-event-status" data-status="{{ event.status }}">{{ icon(current_status_icon, "status-icon") }} {{ event.status }}</span>
-                            </span>
+                                {% if can_manage_calendar %}
+                                <form class="month-status-form" method="post" action="/academic-calendar/events/{{ event.id }}/status">
+                                    <input type="hidden" name="return_to" value="{{ return_to }}">
+                                    <details class="status-menu">
+                                        <summary class="month-event-status" data-status="{{ event.status }}" aria-label="Change status for {{ event.title }}" title="Change status">
+                                            {{ icon(current_status_icon, "status-icon") }} <span>{{ event.status }}</span>
+                                        </summary>
+                                        <div class="status-menu-panel">
+                                        {% for quick_status in status_options %}
+                                        {% set quick_status_icon = "clipboard-check" if quick_status == "Completed" else "check-circle" if quick_status == "Confirmed" else "activity" if quick_status == "In Progress" else "close" if quick_status == "Cancelled" else "deadline" %}
+                                        <button
+                                            class="event-status-button {% if event.status == quick_status %}is-active{% endif %}"
+                                            type="submit"
+                                            name="status"
+                                            value="{{ quick_status }}"
+                                            data-status="{{ quick_status }}"
+                                            aria-pressed="{{ 'true' if event.status == quick_status else 'false' }}"
+                                        >
+                                            {{ icon(quick_status_icon, "status-icon") }} <span>{{ quick_status }}</span>
+                                        </button>
+                                        {% endfor %}
+                                        </div>
+                                    </details>
+                                </form>
+                                {% else %}
+                                <span class="month-event-status" data-status="{{ event.status }}">{{ icon(current_status_icon, "status-icon") }} <span>{{ event.status }}</span></span>
+                                {% endif %}
+                            </div>
                             <strong>{{ event.title }}</strong>
                             <small class="month-event-target">{{ event.target_label }}</small>
                             <small>{{ event.date_range_label }}</small>
                             <small>{{ event.time_label }}</small>
-                        </span>
-                        {% if can_manage_calendar %}
-                        <form class="month-status-form" method="post" action="/academic-calendar/events/{{ event.id }}/status">
-                            <input type="hidden" name="return_to" value="{{ return_to }}">
-                            <details class="status-menu">
-                                <summary aria-label="Change status for {{ event.title }}" title="Change status">
-                                    {{ icon(current_status_icon, "status-icon") }}
-                                </summary>
-                                <div class="status-menu-panel">
-                                {% for quick_status in status_options %}
-                                {% set quick_status_icon = "clipboard-check" if quick_status == "Completed" else "check-circle" if quick_status == "Confirmed" else "activity" if quick_status == "In Progress" else "close" if quick_status == "Cancelled" else "deadline" %}
-                                <button
-                                    class="event-status-button {% if event.status == quick_status %}is-active{% endif %}"
-                                    type="submit"
-                                    name="status"
-                                    value="{{ quick_status }}"
-                                    data-status="{{ quick_status }}"
-                                    aria-pressed="{{ 'true' if event.status == quick_status else 'false' }}"
-                                >
-                                    {{ icon(quick_status_icon, "status-icon") }} <span>{{ quick_status }}</span>
-                                </button>
-                                {% endfor %}
-                                </div>
-                            </details>
-                        </form>
-                        {% endif %}
+                        </div>
                     </article>
                     {% endfor %}
                 {% else %}
@@ -1864,6 +1857,72 @@
         }
         document.querySelectorAll(".status-menu[open]").forEach((menu) => {
             menu.open = false;
+        });
+    });
+
+    function applyPanelStatusUpdate(form, button) {
+        const card = form.closest(".month-event-card");
+        const eventId = card ? String(card.dataset.eventId || "") : "";
+        const newStatus = button.value;
+        const statusChip = form.querySelector(".month-event-status");
+        const buttonIcon = button.querySelector(".status-icon");
+        if (statusChip) {
+            statusChip.dataset.status = newStatus;
+            statusChip.innerHTML = "";
+            if (buttonIcon) {
+                statusChip.appendChild(buttonIcon.cloneNode(true));
+                statusChip.appendChild(document.createTextNode(" "));
+            }
+            const label = document.createElement("span");
+            label.textContent = newStatus;
+            statusChip.appendChild(label);
+        }
+        form.querySelectorAll(".event-status-button").forEach((statusButton) => {
+            const isActive = statusButton === button;
+            statusButton.classList.toggle("is-active", isActive);
+            statusButton.setAttribute("aria-pressed", isActive ? "true" : "false");
+        });
+        const menu = form.querySelector(".status-menu");
+        if (menu) {
+            menu.open = false;
+        }
+        const eventItem = eventsById.get(eventId);
+        if (eventItem) {
+            eventItem.status = newStatus;
+        }
+        if (activeEvent && String(activeEvent.id) === eventId) {
+            activeEvent.status = newStatus;
+            setText(detailStatus, newStatus);
+            setSelectValue("edit_status", newStatus);
+        }
+    }
+
+    document.querySelectorAll(".month-status-form").forEach((form) => {
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const button = event.submitter;
+            if (!button || !button.name) {
+                return;
+            }
+            button.disabled = true;
+            const formData = new FormData(form);
+            formData.set(button.name, button.value);
+            try {
+                const response = await fetch(form.action, {
+                    method: "POST",
+                    body: formData,
+                    credentials: "same-origin",
+                    headers: { "X-Requested-With": "fetch" },
+                });
+                if (!response.ok) {
+                    throw new Error("Status update failed");
+                }
+                applyPanelStatusUpdate(form, button);
+            } catch (error) {
+                window.alert("The event status could not be updated. Please try again.");
+            } finally {
+                button.disabled = false;
+            }
         });
     });
 
