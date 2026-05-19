@@ -242,6 +242,31 @@
         margin-top: 12px;
     }
 
+    .recurrence-field {
+        grid-column: span 2;
+    }
+
+    .recurrence-grid {
+        display: grid;
+        grid-template-columns: minmax(120px, 1fr) 86px minmax(130px, 1fr);
+        gap: 8px;
+        align-items: end;
+    }
+
+    .recurrence-control {
+        display: grid;
+        gap: 5px;
+        min-width: 0;
+    }
+
+    .recurrence-control-label {
+        color: #42526b;
+        font-size: 10px;
+        font-weight: 850;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
     .calendar-workspace {
         display: grid;
         grid-template-columns: minmax(0, 1fr) 360px;
@@ -749,6 +774,14 @@
             grid-column: auto;
         }
 
+        .recurrence-field {
+            grid-column: auto;
+        }
+
+        .recurrence-grid {
+            grid-template-columns: 1fr;
+        }
+
         .calendar-view-head {
             align-items: flex-start;
             flex-direction: column;
@@ -869,8 +902,8 @@
                     <label for="create_target_grade">Target Grade</label>
                     <select id="create_target_grade" name="target_grade">
                         <option value="">No Grade</option>
-                        {% for grade in grade_options %}
-                        <option value="{{ grade }}">{{ "KG" if grade == "KG" else "Grade " ~ grade }}</option>
+                        {% for grade in target_grade_options %}
+                        <option value="{{ grade }}">{{ grade if grade in ["KG", "All Grades"] else "Grade " ~ grade }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -896,21 +929,26 @@
                     <label for="create_target_role">Role / Custom Target</label>
                     <input id="create_target_role" name="target_role" maxlength="80">
                 </div>
-                <div class="calendar-field">
-                    <label for="create_recurrence_rule">Recurrence</label>
-                    <select id="create_recurrence_rule" name="recurrence_rule">
-                        {% for recurrence in recurrence_options %}
-                        <option value="{{ recurrence }}">{{ recurrence }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="calendar-field">
-                    <label for="create_recurrence_interval">Every</label>
-                    <input id="create_recurrence_interval" type="number" name="recurrence_interval" min="1" value="1">
-                </div>
-                <div class="calendar-field">
-                    <label for="create_recurrence_until">Until</label>
-                    <input id="create_recurrence_until" type="date" name="recurrence_until">
+                <div class="calendar-field recurrence-field">
+                    <label>Recurrence</label>
+                    <div class="recurrence-grid">
+                        <div class="recurrence-control">
+                            <span class="recurrence-control-label">Pattern</span>
+                            <select id="create_recurrence_rule" name="recurrence_rule">
+                                {% for recurrence in recurrence_options %}
+                                <option value="{{ recurrence }}">{{ recurrence }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="recurrence-control">
+                            <span class="recurrence-control-label">Every</span>
+                            <input id="create_recurrence_interval" type="number" name="recurrence_interval" min="1" value="1">
+                        </div>
+                        <div class="recurrence-control">
+                            <span class="recurrence-control-label">Until</span>
+                            <input id="create_recurrence_until" type="date" name="recurrence_until">
+                        </div>
+                    </div>
                 </div>
                 <div class="calendar-field is-wide">
                     <label for="create_assigned_teacher_ids">Assigned Teachers</label>
@@ -1161,8 +1199,8 @@
                         <label for="edit_target_grade">Target Grade</label>
                         <select id="edit_target_grade" name="target_grade">
                             <option value="">No Grade</option>
-                            {% for grade in grade_options %}
-                            <option value="{{ grade }}">{{ "KG" if grade == "KG" else "Grade " ~ grade }}</option>
+                            {% for grade in target_grade_options %}
+                            <option value="{{ grade }}">{{ grade if grade in ["KG", "All Grades"] else "Grade " ~ grade }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -1188,21 +1226,26 @@
                         <label for="edit_target_role">Role / Custom Target</label>
                         <input id="edit_target_role" name="target_role" maxlength="80">
                     </div>
-                    <div class="calendar-field">
-                        <label for="edit_recurrence_rule">Recurrence</label>
-                        <select id="edit_recurrence_rule" name="recurrence_rule">
-                            {% for recurrence in recurrence_options %}
-                            <option value="{{ recurrence }}">{{ recurrence }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_recurrence_interval">Every</label>
-                        <input id="edit_recurrence_interval" type="number" name="recurrence_interval" min="1" value="1">
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_recurrence_until">Until</label>
-                        <input id="edit_recurrence_until" type="date" name="recurrence_until">
+                    <div class="calendar-field recurrence-field">
+                        <label>Recurrence</label>
+                        <div class="recurrence-grid">
+                            <div class="recurrence-control">
+                                <span class="recurrence-control-label">Pattern</span>
+                                <select id="edit_recurrence_rule" name="recurrence_rule">
+                                    {% for recurrence in recurrence_options %}
+                                    <option value="{{ recurrence }}">{{ recurrence }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="recurrence-control">
+                                <span class="recurrence-control-label">Every</span>
+                                <input id="edit_recurrence_interval" type="number" name="recurrence_interval" min="1" value="1">
+                            </div>
+                            <div class="recurrence-control">
+                                <span class="recurrence-control-label">Until</span>
+                                <input id="edit_recurrence_until" type="date" name="recurrence_until">
+                            </div>
+                        </div>
                     </div>
                     <div class="calendar-field is-wide">
                         <label for="edit_assigned_teacher_ids">Assigned Teachers</label>

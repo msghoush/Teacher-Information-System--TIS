@@ -105,7 +105,10 @@ EVENT_STATUS_OPTIONS = ("Planned", "Confirmed", "In Progress", "Completed", "Can
 PRIORITY_OPTIONS = ("Low", "Normal", "High", "Urgent")
 TARGET_GROUP_OPTIONS = ("All School", "Grade", "Section", "Teacher", "Role", "Custom")
 RECURRENCE_OPTIONS = ("None", "Daily", "Weekly", "Monthly", "Yearly")
+ALL_GRADES_VALUE = "All Grades"
+ALL_GRADES_ALIASES = {"ALL", "ALL GRADE", "ALL GRADES", "ALL_GRADES"}
 GRADE_OPTIONS = ["KG"] + [str(value) for value in range(1, 13)]
+TARGET_GRADE_OPTIONS = [ALL_GRADES_VALUE] + GRADE_OPTIONS
 ICON_OPTIONS = (
     "calendar",
     "clipboard-check",
@@ -568,6 +571,8 @@ def _build_target_label(event, section_lookup, teacher_lookup) -> str:
     target_group = str(getattr(event, "target_group", "") or "All School").strip()
     if target_group == "Grade" and getattr(event, "target_grade", None):
         grade = str(event.target_grade)
+        if grade.strip().upper() in ALL_GRADES_ALIASES:
+            return ALL_GRADES_VALUE
         return "KG" if grade.upper() == "KG" else f"Grade {grade}"
     if target_group == "Section" and getattr(event, "target_section_id", None):
         return _build_section_label(section_lookup.get(event.target_section_id)) or "Section"
@@ -786,11 +791,16 @@ def _build_filtered_event_query(
             query = query.filter(
                 or_(
                     models.CalendarEvent.target_grade == filters["grade"],
+                    models.CalendarEvent.target_grade == ALL_GRADES_VALUE,
                     models.CalendarEvent.target_section_id.in_(section_ids),
                 )
             )
         else:
-            query = query.filter(models.CalendarEvent.target_grade == filters["grade"])
+            query = query.filter(
+                models.CalendarEvent.target_grade.in_(
+                    [filters["grade"], ALL_GRADES_VALUE]
+                )
+            )
     if filters["section_id"]:
         query = query.filter(models.CalendarEvent.target_section_id == filters["section_id"])
     if filters["teacher_id"]:
@@ -1137,10 +1147,17 @@ def _normalize_event_form_payload(
         TARGET_GROUP_OPTIONS,
         "All School",
     )
-    normalized_grade = _normalize_spaces(target_grade).upper()
+    raw_target_grade = _normalize_spaces(target_grade)
+    normalized_grade = raw_target_grade.upper()
     if normalized_grade in {"K", "KINDERGARTEN"}:
         normalized_grade = "KG"
-    if normalized_grade and normalized_grade not in GRADE_OPTIONS:
+    elif normalized_grade in ALL_GRADES_ALIASES:
+        normalized_grade = ALL_GRADES_VALUE
+    if (
+        normalized_grade
+        and normalized_grade != ALL_GRADES_VALUE
+        and normalized_grade not in GRADE_OPTIONS
+    ):
         errors.append("Target grade must be KG or a grade from 1 to 12.")
         normalized_grade = ""
     parsed_section_id = _parse_int(target_section_id)
@@ -1508,6 +1525,7 @@ def academic_calendar_home(
             "teachers": teacher_payloads,
             "users": user_payloads,
             "grade_options": GRADE_OPTIONS,
+            "target_grade_options": TARGET_GRADE_OPTIONS,
             "status_options": EVENT_STATUS_OPTIONS,
             "priority_options": PRIORITY_OPTIONS,
             "target_group_options": TARGET_GROUP_OPTIONS,
