@@ -4,6 +4,9 @@
 {% block title %}Academic Calendar | TIS{% endblock %}
 
 {% block page_header_actions %}
+{% if can_manage_calendar %}
+<button class="calendar-icon-btn" type="button" id="openCreateEventDialog" aria-label="New calendar event" title="New calendar event">{{ icon("add", "shell-icon") }}</button>
+{% endif %}
 {% if shell.can_manage_system_settings %}
 <a class="calendar-header-link" href="/system-configuration/calendar">{{ icon("settings", "shell-icon") }} Calendar Configuration</a>
 {% endif %}
@@ -24,6 +27,26 @@
         font-size: 12px;
         font-weight: 800;
         text-decoration: none;
+    }
+
+    .calendar-icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border: 1px solid #0a4ea3;
+        border-radius: 999px;
+        background: #0a4ea3;
+        color: #ffffff;
+        cursor: pointer;
+    }
+
+    .calendar-icon-btn:hover,
+    .calendar-icon-btn:focus {
+        outline: none;
+        background: #083f84;
+        box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.16);
     }
 
     .calendar-page {
@@ -92,7 +115,6 @@
         line-height: 1.35;
     }
 
-    .calendar-editor,
     .calendar-workspace,
     .calendar-panel {
         border: 1px solid #d8e5f4;
@@ -211,20 +233,6 @@
     .calendar-btn.is-muted {
         background: #f7f9fc;
         color: #56657a;
-    }
-
-    .calendar-editor {
-        display: grid;
-        gap: 12px;
-        padding: 14px;
-        background: linear-gradient(180deg, #ffffff, #f8fbff);
-    }
-
-    .calendar-editor summary {
-        cursor: pointer;
-        color: #17365d;
-        font-size: 17px;
-        font-weight: 900;
     }
 
     .event-form-grid {
@@ -630,8 +638,12 @@
     </section>
 
     {% if can_manage_calendar %}
-    <details class="calendar-editor">
-        <summary>{{ icon("add", "shell-icon") }} New Calendar Event</summary>
+    <dialog class="edit-dialog" id="createEventDialog">
+        <div class="dialog-shell">
+            <div class="dialog-head">
+                <h2>New Calendar Event</h2>
+                <button class="calendar-btn is-muted" type="button" data-close-dialog>{{ icon("close", "shell-icon") }} Close</button>
+            </div>
         <form method="post" action="/academic-calendar/events">
             <input type="hidden" name="return_to" value="{{ return_to }}">
             <div class="event-form-grid">
@@ -760,7 +772,8 @@
                 <button class="calendar-btn is-primary" type="submit">{{ icon("save", "shell-icon") }} Save Event</button>
             </div>
         </form>
-    </details>
+        </div>
+    </dialog>
     {% endif %}
 
     <section class="calendar-workspace">
@@ -1032,6 +1045,8 @@
     const detailPriority = document.getElementById("detailPriority");
     const detailAssigned = document.getElementById("detailAssigned");
     const detailDescription = document.getElementById("detailDescription");
+    const createButton = document.getElementById("openCreateEventDialog");
+    const createDialog = document.getElementById("createEventDialog");
     const editButton = document.getElementById("editSelectedEvent");
     const editDialog = document.getElementById("editEventDialog");
     const editForm = document.getElementById("editEventForm");
@@ -1114,6 +1129,16 @@
         });
     });
 
+    if (createButton && createDialog && canManageCalendar) {
+        createButton.addEventListener("click", () => {
+            if (typeof createDialog.showModal === "function") {
+                createDialog.showModal();
+            } else {
+                createDialog.removeAttribute("hidden");
+            }
+        });
+    }
+
     if (editButton && canManageCalendar) {
         editButton.addEventListener("click", () => {
             if (!activeEvent) {
@@ -1130,10 +1155,11 @@
 
     document.querySelectorAll("[data-close-dialog]").forEach((button) => {
         button.addEventListener("click", () => {
-            if (editDialog && typeof editDialog.close === "function") {
-                editDialog.close();
-            } else if (editDialog) {
-                editDialog.setAttribute("hidden", "hidden");
+            const dialog = button.closest("dialog") || editDialog;
+            if (dialog && typeof dialog.close === "function") {
+                dialog.close();
+            } else if (dialog) {
+                dialog.setAttribute("hidden", "hidden");
             }
         });
     });
