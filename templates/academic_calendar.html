@@ -1070,8 +1070,8 @@
                     </select>
                 </div>
                 <div class="calendar-field">
-                    <label for="create_target_grade">Target Grade</label>
-                    <select id="create_target_grade" name="target_grade">
+                    <label for="create_target_grade">Target Grades</label>
+                    <select id="create_target_grade" name="target_grade" multiple size="5">
                         <option value="">No Grade</option>
                         {% for grade in target_grade_options %}
                         <option value="{{ grade }}">{{ grade if grade in ["KG", "All Grades"] else "Grade " ~ grade }}</option>
@@ -1084,7 +1084,7 @@
                         <option value="">No Section</option>
                         <option value="{{ all_sections_value }}">{{ all_sections_label }}</option>
                         {% for section in sections %}
-                        <option value="{{ section.id }}">{{ section.label }}</option>
+                        <option value="{{ section.id }}" data-grade="{{ section.grade_level }}">{{ section.label }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -1275,7 +1275,7 @@
                                 {% endif %}
                             </div>
                             <strong>{{ event.title }}</strong>
-                            <small class="month-event-target">{{ event.target_label }}</small>
+                            <small class="month-event-target" title="{{ event.target_label }}">{{ event.target_label }}</small>
                             <small>{{ event.date_range_label }}</small>
                             <small>{{ event.time_label }}</small>
                         </div>
@@ -1399,8 +1399,8 @@
                         </select>
                     </div>
                     <div class="calendar-field">
-                        <label for="edit_target_grade">Target Grade</label>
-                        <select id="edit_target_grade" name="target_grade">
+                        <label for="edit_target_grade">Target Grades</label>
+                        <select id="edit_target_grade" name="target_grade" multiple size="5">
                             <option value="">No Grade</option>
                             {% for grade in target_grade_options %}
                             <option value="{{ grade }}">{{ grade if grade in ["KG", "All Grades"] else "Grade " ~ grade }}</option>
@@ -1413,7 +1413,7 @@
                             <option value="">No Section</option>
                             <option value="{{ all_sections_value }}">{{ all_sections_label }}</option>
                             {% for section in sections %}
-                            <option value="{{ section.id }}">{{ section.label }}</option>
+                            <option value="{{ section.id }}" data-grade="{{ section.grade_level }}">{{ section.label }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -1587,6 +1587,28 @@
         return hasSelectValue(input, (value) => value && !isAllSectionValue(value));
     }
 
+    function hasSpecificGradeValue(input) {
+        return hasSelectValue(input, (value) => value && !isAllGradeValue(value));
+    }
+
+    function getSelectedSectionGrades(sectionInput) {
+        if (!sectionInput) {
+            return [];
+        }
+        const grades = Array.from(sectionInput.selectedOptions)
+            .filter((option) => option.value && !isAllSectionValue(option.value))
+            .map((option) => option.dataset.grade || "")
+            .filter((grade) => grade);
+        return Array.from(new Set(grades));
+    }
+
+    function syncGradesFromSections(gradeInput, sectionInput) {
+        const sectionGrades = getSelectedSectionGrades(sectionInput);
+        if (gradeInput && sectionGrades.length) {
+            setSelectValues(gradeInput, sectionGrades);
+        }
+    }
+
     function removeSelectValue(input, valueToRemove) {
         const remainingValues = getSelectValues(input).filter((value) => value !== valueToRemove);
         setSelectValues(input, remainingValues);
@@ -1615,7 +1637,7 @@
         }
         groupInput.value = "All School";
         if (gradeInput) {
-            gradeInput.value = allGradesValue;
+            setSelectValues(gradeInput, [allGradesValue]);
         }
         if (sectionInput) {
             setSelectValues(sectionInput, [allSectionsValue]);
@@ -1636,11 +1658,23 @@
             setAllSchoolTarget(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
             return;
         }
+        if (gradeInput && hasSelectValue(gradeInput, isAllGradeValue)) {
+            removeSelectValue(gradeInput, allGradesValue);
+        }
         if (sectionInput && hasSelectValue(sectionInput, isAllSectionValue)) {
             removeSelectValue(sectionInput, allSectionsValue);
         }
-        if (groupInput.value !== "Grade" && gradeInput && isAllGradeValue(gradeInput.value)) {
-            gradeInput.value = "";
+        if (groupInput.value === "Grade") {
+            if (sectionInput) {
+                clearSelect(sectionInput);
+            }
+        } else if (groupInput.value === "Section") {
+            syncGradesFromSections(gradeInput, sectionInput);
+        } else if (gradeInput) {
+            clearSelect(gradeInput);
+        }
+        if (!["Grade", "Section"].includes(groupInput.value) && sectionInput) {
+            clearSelect(sectionInput);
         }
         if (groupInput.value !== "Teacher" && teacherInput) {
             teacherInput.value = "";
@@ -1657,7 +1691,7 @@
         if (teacherInput && teacherInput.value) {
             groupInput.value = "Teacher";
             if (gradeInput) {
-                gradeInput.value = "";
+                clearSelect(gradeInput);
             }
             if (sectionInput) {
                 clearSelect(sectionInput);
@@ -1670,7 +1704,7 @@
         if (roleInput && roleInput.value.trim() && groupInput.value === "All School") {
             groupInput.value = "Custom";
             if (gradeInput) {
-                gradeInput.value = "";
+                clearSelect(gradeInput);
             }
             if (sectionInput) {
                 clearSelect(sectionInput);
@@ -1682,14 +1716,18 @@
         }
         if (sectionInput && hasSpecificSectionValue(sectionInput)) {
             groupInput.value = "Section";
-            if (gradeInput && isAllGradeValue(gradeInput.value)) {
-                gradeInput.value = "";
+            if (gradeInput && hasSelectValue(gradeInput, isAllGradeValue)) {
+                removeSelectValue(gradeInput, allGradesValue);
             }
             removeSelectValue(sectionInput, allSectionsValue);
+            syncGradesFromSections(gradeInput, sectionInput);
             return;
         }
-        if (gradeInput && gradeInput.value && !isAllGradeValue(gradeInput.value)) {
+        if (gradeInput && hasSpecificGradeValue(gradeInput)) {
             groupInput.value = "Grade";
+            if (hasSelectValue(gradeInput, isAllGradeValue)) {
+                removeSelectValue(gradeInput, allGradesValue);
+            }
             if (sectionInput && hasSelectValue(sectionInput, isAllSectionValue)) {
                 removeSelectValue(sectionInput, allSectionsValue);
             }
@@ -1697,12 +1735,12 @@
         }
         if (
             (sectionInput && hasSelectValue(sectionInput, isAllSectionValue)) ||
-            (gradeInput && isAllGradeValue(gradeInput.value) && groupInput.value !== "Grade")
+            (gradeInput && hasSelectValue(gradeInput, isAllGradeValue))
         ) {
             setAllSchoolTarget(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
             return;
         }
-        if (gradeInput && gradeInput.value) {
+        if (gradeInput && getSelectValues(gradeInput).length) {
             groupInput.value = "Grade";
             return;
         }
@@ -1829,7 +1867,10 @@
         setSelectValue("edit_priority", eventItem.priority || "Normal");
         setSelectValue("edit_status", eventItem.status || "Planned");
         setSelectValue("edit_target_group", eventItem.target_group || "All School");
-        setSelectValue("edit_target_grade", eventItem.target_grade);
+        setMultiSelectValues(
+            "edit_target_grade",
+            eventItem.target_grade_ids || [eventItem.target_grade]
+        );
         setMultiSelectValues(
             "edit_target_section_id",
             eventItem.target_section_ids || [eventItem.target_section_id]

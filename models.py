@@ -148,6 +148,29 @@ class CalendarEventAssignment(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class CalendarEventGradeTarget(Base):
+    __tablename__ = "calendar_event_grade_targets"
+    __table_args__ = (
+        UniqueConstraint(
+            "calendar_event_id",
+            "grade_level",
+            name="uq_calendar_event_grade_targets_event_grade",
+        ),
+        Index("ix_calendar_event_grade_targets_event", "calendar_event_id"),
+        Index("ix_calendar_event_grade_targets_grade", "grade_level"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    calendar_event_id = Column(
+        Integer,
+        ForeignKey("calendar_events.id"),
+        nullable=False,
+        index=True,
+    )
+    grade_level = Column(String(20), nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class CalendarEventSectionTarget(Base):
     __tablename__ = "calendar_event_section_targets"
     __table_args__ = (
