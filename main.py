@@ -9358,8 +9358,7 @@ def update_branch(
             "Branch record not found.",
         )
 
-    base_return_to, _, _ = _safe_redirect_path(return_to).partition("#")
-    safe_return_to = f"{base_return_to}#branch-row-{branch_id}"
+    safe_return_to, _, _ = _safe_redirect_path(return_to).partition("#")
 
     cleaned_name = " ".join(str(name or "").split())
     normalized_region = _normalize_branch_region(region)
