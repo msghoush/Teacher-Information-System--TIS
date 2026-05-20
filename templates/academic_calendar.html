@@ -1157,26 +1157,13 @@
                 </div>
                 <input id="create_target_group" type="hidden" name="target_group" value="">
                 <div class="calendar-field">
-                    <label for="create_target_grade_picker">Target Grades</label>
-                    <select id="create_target_grade_picker" class="target-picker">
-                        <option value="">Select grade</option>
-                    </select>
-                    <select id="create_target_grade" class="target-multi-source" name="target_grade" multiple aria-hidden="true" tabindex="-1">
-                        <option value="">No Grade</option>
-                        {% for grade in target_grade_options %}
-                        <option value="{{ grade }}">{{ grade if grade in ["KG", "All Grades"] else "Grade " ~ grade }}</option>
-                        {% endfor %}
-                    </select>
-                    <div class="selection-chip-row" id="create_target_grade_chips" aria-live="polite" hidden></div>
-                </div>
-                <div class="calendar-field">
                     <label for="create_target_section_picker">Target Sections</label>
                     <select id="create_target_section_picker" class="target-picker">
                         <option value="">Select section</option>
                     </select>
                     <select id="create_target_section_id" class="target-multi-source" name="target_section_id" multiple aria-hidden="true" tabindex="-1">
                         <option value="">No Section</option>
-                        <option value="{{ all_sections_value }}">{{ all_sections_label }}</option>
+                        <option value="{{ all_sections_value }}">All Grades</option>
                         {% for section in sections %}
                         <option value="{{ section.id }}" data-grade="{{ section.grade_level }}">{{ section.label }}</option>
                         {% endfor %}
@@ -1510,7 +1497,7 @@
                         </select>
                         <select id="edit_target_section_id" class="target-multi-source" name="target_section_id" multiple aria-hidden="true" tabindex="-1">
                             <option value="">No Section</option>
-                            <option value="{{ all_sections_value }}">{{ all_sections_label }}</option>
+                            <option value="{{ all_sections_value }}">All Grades</option>
                             {% for section in sections %}
                             <option value="{{ section.id }}" data-grade="{{ section.grade_level }}">{{ section.label }}</option>
                             {% endfor %}
@@ -1617,11 +1604,11 @@
     const createStartDate = document.getElementById("create_event_date");
     const createEndDate = document.getElementById("create_end_date");
     const createTargetGroup = document.getElementById("create_target_group");
-    const createTargetGradePicker = document.getElementById("create_target_grade_picker");
-    const createTargetGrade = document.getElementById("create_target_grade");
+    const createTargetGradePicker = null;
+    const createTargetGrade = null;
     const createTargetSectionPicker = document.getElementById("create_target_section_picker");
     const createTargetSection = document.getElementById("create_target_section_id");
-    const createTargetGradeChips = document.getElementById("create_target_grade_chips");
+    const createTargetGradeChips = null;
     const createTargetSectionChips = document.getElementById("create_target_section_chips");
     const createTargetTeacher = document.getElementById("create_target_teacher_id");
     const createTargetRole = document.getElementById("create_target_role");
