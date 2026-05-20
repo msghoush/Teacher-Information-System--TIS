@@ -1602,11 +1602,41 @@
         return Array.from(new Set(grades));
     }
 
+    function getSpecificGradeValues(gradeInput) {
+        return getSelectValues(gradeInput).filter((value) => value && !isAllGradeValue(value));
+    }
+
+    function updateSectionOptionsForGrades(gradeInput, sectionInput) {
+        if (!sectionInput) {
+            return;
+        }
+        const selectedGrades = new Set(getSpecificGradeValues(gradeInput));
+        const shouldFilter = selectedGrades.size > 0;
+        Array.from(sectionInput.options).forEach((option) => {
+            if (!option.value || isAllSectionValue(option.value)) {
+                option.hidden = false;
+                option.disabled = false;
+                if (shouldFilter && isAllSectionValue(option.value)) {
+                    option.selected = false;
+                }
+                return;
+            }
+            const optionGrade = option.dataset.grade || "";
+            const isAvailable = !shouldFilter || selectedGrades.has(optionGrade);
+            option.hidden = !isAvailable;
+            option.disabled = !isAvailable;
+            if (!isAvailable) {
+                option.selected = false;
+            }
+        });
+    }
+
     function syncGradesFromSections(gradeInput, sectionInput) {
         const sectionGrades = getSelectedSectionGrades(sectionInput);
         if (gradeInput && sectionGrades.length) {
             setSelectValues(gradeInput, sectionGrades);
         }
+        updateSectionOptionsForGrades(gradeInput, sectionInput);
     }
 
     function removeSelectValue(input, valueToRemove) {
@@ -1642,6 +1672,7 @@
         if (sectionInput) {
             setSelectValues(sectionInput, [allSectionsValue]);
         }
+        updateSectionOptionsForGrades(gradeInput, sectionInput);
         if (teacherInput) {
             teacherInput.value = "";
         }
@@ -1656,6 +1687,7 @@
         }
         if (groupInput.value === "All School") {
             setAllSchoolTarget(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
+            updateSectionOptionsForGrades(gradeInput, sectionInput);
             return;
         }
         if (gradeInput && hasSelectValue(gradeInput, isAllGradeValue)) {
@@ -1673,6 +1705,7 @@
         } else if (gradeInput) {
             clearSelect(gradeInput);
         }
+        updateSectionOptionsForGrades(gradeInput, sectionInput);
         if (!["Grade", "Section"].includes(groupInput.value) && sectionInput) {
             clearSelect(sectionInput);
         }
@@ -1688,6 +1721,7 @@
         if (!groupInput) {
             return;
         }
+        updateSectionOptionsForGrades(gradeInput, sectionInput);
         if (teacherInput && teacherInput.value) {
             groupInput.value = "Teacher";
             if (gradeInput) {
@@ -1728,6 +1762,7 @@
             if (hasSelectValue(gradeInput, isAllGradeValue)) {
                 removeSelectValue(gradeInput, allGradesValue);
             }
+            updateSectionOptionsForGrades(gradeInput, sectionInput);
             if (sectionInput && hasSelectValue(sectionInput, isAllSectionValue)) {
                 removeSelectValue(sectionInput, allSectionsValue);
             }

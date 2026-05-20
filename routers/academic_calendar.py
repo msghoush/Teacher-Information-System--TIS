@@ -1153,6 +1153,12 @@ def _get_scope_options(db: Session, branch_id: int, academic_year_id: int):
     return teachers, users, sections
 
 
+def _get_open_planning_grade_options(sections) -> list[str]:
+    return [ALL_GRADES_VALUE] + _dedupe_sorted_grades(
+        [getattr(section, "grade_level", "") for section in sections]
+    )
+
+
 def _build_section_label(section) -> str:
     if not section:
         return ""
@@ -2262,6 +2268,23 @@ def _normalize_event_form_payload(
     if invalid_grade_values:
         errors.append("Target grades must be KG or grades from 1 to 12.")
     parsed_grade_values = _dedupe_sorted_grades(target_grade_values)
+    planning_grade_values = _dedupe_sorted_grades(
+        [
+            row[0]
+            for row in db.query(models.PlanningSection.grade_level).filter(
+                models.PlanningSection.branch_id == branch_id,
+                models.PlanningSection.academic_year_id == academic_year_id,
+            ).distinct().all()
+        ]
+    )
+    unavailable_grade_values = [
+        grade for grade in parsed_grade_values if grade not in planning_grade_values
+    ]
+    if unavailable_grade_values:
+        errors.append("Target grades must be opened in Planning first.")
+        parsed_grade_values = [
+            grade for grade in parsed_grade_values if grade in planning_grade_values
+        ]
     if parsed_grade_values:
         target_grade_is_all = False
     normalized_grade = parsed_grade_values[0] if len(parsed_grade_values) == 1 else ""
@@ -2691,9 +2714,11 @@ def academic_calendar_home(
             "id": section.id,
             "label": _build_section_label(section),
             "grade_level": str(section.grade_level or "").strip().upper(),
+            "class_status": str(section.class_status or "").strip() or "Current",
         }
         for section in sections
     ]
+    target_grade_options = _get_open_planning_grade_options(sections)
     teacher_payloads = [
         {
             "id": teacher.id,
@@ -2724,8 +2749,8 @@ def academic_calendar_home(
             "sections": section_payloads,
             "teachers": teacher_payloads,
             "users": user_payloads,
-            "grade_options": GRADE_OPTIONS,
-            "target_grade_options": TARGET_GRADE_OPTIONS,
+            "grade_options": target_grade_options,
+            "target_grade_options": target_grade_options,
             "all_sections_label": ALL_SECTIONS_LABEL,
             "all_sections_value": ALL_SECTIONS_VALUE,
             "status_options": EVENT_STATUS_OPTIONS,
