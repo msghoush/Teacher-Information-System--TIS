@@ -454,7 +454,7 @@
                         </td>
                     </tr>
                     {% for row in group_rows %}
-                    <tr class="branch-row {% if not row.status %}is-inactive{% endif %}" data-branch-row-id="{{ row.id }}">
+                    <tr id="branch-row-{{ row.id }}" class="branch-row {% if not row.status %}is-inactive{% endif %}" data-branch-row-id="{{ row.id }}">
                         <td>
                             <div class="branch-read branch-name">
                                 <strong>{{ row.name }}</strong>

@@ -458,20 +458,22 @@ def _safe_redirect_path(path: str) -> str:
 
 def _redirect_with_notice(path: str, notice: str):
     safe_path = _safe_redirect_path(path)
-    separator = "&" if "?" in safe_path else "?"
-    return RedirectResponse(
-        url=f"{safe_path}{separator}notice={quote_plus(str(notice or '').strip())}",
-        status_code=302,
-    )
+    base_path, _, fragment = safe_path.partition("#")
+    separator = "&" if "?" in base_path else "?"
+    url = f"{base_path}{separator}notice={quote_plus(str(notice or '').strip())}"
+    if fragment:
+        url = f"{url}#{fragment}"
+    return RedirectResponse(url=url, status_code=302)
 
 
 def _redirect_with_error(path: str, error: str):
     safe_path = _safe_redirect_path(path)
-    separator = "&" if "?" in safe_path else "?"
-    return RedirectResponse(
-        url=f"{safe_path}{separator}error={quote_plus(str(error or '').strip())}",
-        status_code=302,
-    )
+    base_path, _, fragment = safe_path.partition("#")
+    separator = "&" if "?" in base_path else "?"
+    url = f"{base_path}{separator}error={quote_plus(str(error or '').strip())}"
+    if fragment:
+        url = f"{url}#{fragment}"
+    return RedirectResponse(url=url, status_code=302)
 
 
 SAUDI_REGIONS = (
@@ -9355,6 +9357,9 @@ def update_branch(
             safe_return_to,
             "Branch record not found.",
         )
+
+    base_return_to, _, _ = _safe_redirect_path(return_to).partition("#")
+    safe_return_to = f"{base_return_to}#branch-row-{branch_id}"
 
     cleaned_name = " ".join(str(name or "").split())
     normalized_region = _normalize_branch_region(region)
