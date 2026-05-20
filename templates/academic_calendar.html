@@ -133,6 +133,10 @@
         grid-column: span 2;
     }
 
+    .calendar-field.is-full {
+        grid-column: 1 / -1;
+    }
+
     .calendar-field label {
         color: #42526b;
         font-size: 11px;
@@ -176,6 +180,20 @@
 
     .calendar-field select.target-picker {
         min-height: 40px;
+    }
+
+    .calendar-readonly-value {
+        display: flex;
+        align-items: center;
+        min-height: 40px;
+        min-width: 0;
+        padding: 8px 10px;
+        border: 1px solid #c8d8ec;
+        border-radius: 10px;
+        background: #f8fbff;
+        color: #17365d;
+        font-size: 13px;
+        font-weight: 800;
     }
 
     .selection-chip-row,
@@ -294,6 +312,11 @@
         justify-content: flex-end;
         gap: 8px;
         flex-wrap: wrap;
+    }
+
+    .editor-actions,
+    .event-edit-actions {
+        margin-top: 16px;
     }
 
     .calendar-btn {
@@ -1039,6 +1062,10 @@
             grid-column: auto;
         }
 
+        .calendar-field.is-full {
+            grid-column: auto;
+        }
+
         .recurrence-field {
             grid-column: auto;
         }
@@ -1106,7 +1133,7 @@
         <form id="createEventForm" method="post" action="/academic-calendar/events">
             <input type="hidden" name="return_to" value="{{ return_to }}">
             <div class="event-form-grid">
-                <div class="calendar-field is-wide">
+                <div class="calendar-field is-full">
                     <label for="create_title">Title</label>
                     <input id="create_title" name="title" maxlength="180" required>
                 </div>
@@ -1206,12 +1233,8 @@
                     <div class="selection-chip-row" id="create_assigned_teacher_chips" aria-live="polite" hidden></div>
                 </div>
                 <div class="calendar-field is-wide">
-                    <label for="create_assigned_user_ids">Assigned Users</label>
-                    <select id="create_assigned_user_ids" name="assigned_user_ids" multiple>
-                        {% for user_row in users %}
-                        <option value="{{ user_row.id }}">{{ user_row.label }}</option>
-                        {% endfor %}
-                    </select>
+                    <label>Created By</label>
+                    <div class="calendar-readonly-value">{{ current_user_label }}</div>
                 </div>
                 <div class="calendar-field is-wide">
                     <label for="create_description">Description</label>
@@ -1420,7 +1443,7 @@
             <form id="editEventForm" method="post">
                 <input type="hidden" name="return_to" value="{{ return_to }}">
                 <div class="event-form-grid">
-                    <div class="calendar-field is-wide">
+                    <div class="calendar-field is-full">
                         <label for="edit_title">Title</label>
                         <input id="edit_title" name="title" maxlength="180" required>
                     </div>
@@ -1551,12 +1574,8 @@
                         <div class="selection-chip-row" id="edit_assigned_teacher_chips" aria-live="polite" hidden></div>
                     </div>
                     <div class="calendar-field is-wide">
-                        <label for="edit_assigned_user_ids">Assigned Users</label>
-                        <select id="edit_assigned_user_ids" name="assigned_user_ids" multiple>
-                            {% for user_row in users %}
-                            <option value="{{ user_row.id }}">{{ user_row.label }}</option>
-                            {% endfor %}
-                        </select>
+                        <label>Created By</label>
+                        <div class="calendar-readonly-value" id="edit_created_by_label">{{ current_user_label }}</div>
                     </div>
                     <div class="calendar-field is-wide">
                         <label for="edit_description">Description</label>
@@ -1632,6 +1651,7 @@
     const editAssignedTeacherPicker = document.getElementById("edit_assigned_teacher_picker");
     const editAssignedTeachers = document.getElementById("edit_assigned_teacher_ids");
     const editAssignedTeacherChips = document.getElementById("edit_assigned_teacher_chips");
+    const editCreatedByLabel = document.getElementById("edit_created_by_label");
     const deleteForm = document.getElementById("deleteEventForm");
 
     function setText(element, value) {
@@ -2270,7 +2290,7 @@
         document.getElementById("edit_description").value = eventItem.description || "";
         setMultiSelectValues("edit_assigned_teacher_ids", eventItem.assigned_teacher_ids);
         refreshAssignedTeachers(editAssignedTeachers);
-        setMultiSelectValues("edit_assigned_user_ids", eventItem.assigned_user_ids);
+        setText(editCreatedByLabel, eventItem.created_by_label || "");
     }
 
     function isCardControlClick(event) {

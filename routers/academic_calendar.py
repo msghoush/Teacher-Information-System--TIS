@@ -1366,6 +1366,7 @@ def _serialize_event(
     type_lookup,
     section_lookup,
     teacher_lookup,
+    creator_lookup,
     assignment_payload,
     grade_target_payload,
     section_target_payload,
@@ -1388,6 +1389,13 @@ def _serialize_event(
         }
     labels = sorted(set(assignment_payload.get("labels", [])))
     assigned_summary = ", ".join(labels) if labels else "No assigned users"
+    created_by_user_id = str(getattr(event, "created_by_user_id", "") or "").strip()
+    creator = creator_lookup.get(created_by_user_id)
+    created_by_label = (
+        _build_user_display_name(creator)
+        if creator
+        else created_by_user_id or "Unknown user"
+    )
     start_date_value = _normalize_date(event.event_date)
     end_date_value = _event_end_date_value(event)
     duration_days = _calculate_duration_days(start_date_value, end_date_value)
@@ -1492,6 +1500,8 @@ def _serialize_event(
         "all_day": bool(event.all_day),
         "time_label": _build_time_label(event),
         "description": event.description or "",
+        "created_by_user_id": created_by_user_id,
+        "created_by_label": created_by_label,
         "target_group": target_group,
         "target_grade": target_grade,
         "target_grade_ids": target_grade_ids,
@@ -2099,6 +2109,11 @@ def _build_event_payloads(
     type_lookup = {event_type.id: event_type for event_type in event_types}
     teacher_lookup = {teacher.id: teacher for teacher in teachers}
     user_lookup = {user.id: user for user in users}
+    creator_lookup = {
+        str(user.user_id): user
+        for user in users
+        if str(getattr(user, "user_id", "") or "").strip()
+    }
     section_lookup = {section.id: section for section in sections}
     assignment_map = _build_assignment_map(db, event_ids, teacher_lookup, user_lookup)
     grade_target_map = _build_grade_target_map(db, event_ids)
@@ -2110,6 +2125,7 @@ def _build_event_payloads(
                 type_lookup=type_lookup,
                 section_lookup=section_lookup,
                 teacher_lookup=teacher_lookup,
+                creator_lookup=creator_lookup,
                 assignment_payload=assignment_map.get(event.id, {}),
                 grade_target_payload=grade_target_map.get(event.id, {}),
                 section_target_payload=section_target_map.get(event.id, {}),
@@ -2763,6 +2779,7 @@ def academic_calendar_home(
         {
             "request": request,
             "user": current_user,
+            "current_user_label": _build_user_display_name(current_user),
             "calendar_events": calendar_events,
             "calendar_events_json": json.dumps(calendar_events),
             "event_types": event_type_payloads,
