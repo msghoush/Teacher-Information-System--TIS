@@ -170,6 +170,14 @@
         padding: 7px;
     }
 
+    .calendar-field select.target-multi-source {
+        display: none;
+    }
+
+    .calendar-field select.target-picker {
+        min-height: 40px;
+    }
+
     .selection-chip-row,
     .month-target-chip-list {
         display: flex;
@@ -216,6 +224,26 @@
         border-color: #bfd8ff;
         background: #eef6ff;
         color: #0a4ea3;
+    }
+
+    button.selected-target-chip {
+        cursor: pointer;
+    }
+
+    button.selected-target-chip::after {
+        content: "x";
+        margin-left: 6px;
+        color: currentColor;
+        font-size: 10px;
+        font-weight: 900;
+        opacity: 0.7;
+    }
+
+    button.selected-target-chip:hover,
+    button.selected-target-chip:focus-visible {
+        border-color: #0a4ea3;
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(10, 78, 163, 0.12);
     }
 
     .month-target-chip-list {
@@ -1130,8 +1158,11 @@
                     </select>
                 </div>
                 <div class="calendar-field">
-                    <label for="create_target_grade">Target Grades</label>
-                    <select id="create_target_grade" name="target_grade" multiple size="5">
+                    <label for="create_target_grade_picker">Target Grades</label>
+                    <select id="create_target_grade_picker" class="target-picker">
+                        <option value="">Select grade</option>
+                    </select>
+                    <select id="create_target_grade" class="target-multi-source" name="target_grade" multiple aria-hidden="true" tabindex="-1">
                         <option value="">No Grade</option>
                         {% for grade in target_grade_options %}
                         <option value="{{ grade }}">{{ grade if grade in ["KG", "All Grades"] else "Grade " ~ grade }}</option>
@@ -1140,8 +1171,11 @@
                     <div class="selection-chip-row" id="create_target_grade_chips" aria-live="polite" hidden></div>
                 </div>
                 <div class="calendar-field">
-                    <label for="create_target_section_id">Target Sections</label>
-                    <select id="create_target_section_id" name="target_section_id" multiple size="5">
+                    <label for="create_target_section_picker">Target Sections</label>
+                    <select id="create_target_section_picker" class="target-picker">
+                        <option value="">Select section</option>
+                    </select>
+                    <select id="create_target_section_id" class="target-multi-source" name="target_section_id" multiple aria-hidden="true" tabindex="-1">
                         <option value="">No Section</option>
                         <option value="{{ all_sections_value }}">{{ all_sections_label }}</option>
                         {% for section in sections %}
@@ -1465,8 +1499,11 @@
                         </select>
                     </div>
                     <div class="calendar-field">
-                        <label for="edit_target_grade">Target Grades</label>
-                        <select id="edit_target_grade" name="target_grade" multiple size="5">
+                        <label for="edit_target_grade_picker">Target Grades</label>
+                        <select id="edit_target_grade_picker" class="target-picker">
+                            <option value="">Select grade</option>
+                        </select>
+                        <select id="edit_target_grade" class="target-multi-source" name="target_grade" multiple aria-hidden="true" tabindex="-1">
                             <option value="">No Grade</option>
                             {% for grade in target_grade_options %}
                             <option value="{{ grade }}">{{ grade if grade in ["KG", "All Grades"] else "Grade " ~ grade }}</option>
@@ -1475,8 +1512,11 @@
                         <div class="selection-chip-row" id="edit_target_grade_chips" aria-live="polite" hidden></div>
                     </div>
                     <div class="calendar-field">
-                        <label for="edit_target_section_id">Target Sections</label>
-                        <select id="edit_target_section_id" name="target_section_id" multiple size="5">
+                        <label for="edit_target_section_picker">Target Sections</label>
+                        <select id="edit_target_section_picker" class="target-picker">
+                            <option value="">Select section</option>
+                        </select>
+                        <select id="edit_target_section_id" class="target-multi-source" name="target_section_id" multiple aria-hidden="true" tabindex="-1">
                             <option value="">No Section</option>
                             <option value="{{ all_sections_value }}">{{ all_sections_label }}</option>
                             {% for section in sections %}
@@ -1580,7 +1620,9 @@
     const createStartDate = document.getElementById("create_event_date");
     const createEndDate = document.getElementById("create_end_date");
     const createTargetGroup = document.getElementById("create_target_group");
+    const createTargetGradePicker = document.getElementById("create_target_grade_picker");
     const createTargetGrade = document.getElementById("create_target_grade");
+    const createTargetSectionPicker = document.getElementById("create_target_section_picker");
     const createTargetSection = document.getElementById("create_target_section_id");
     const createTargetGradeChips = document.getElementById("create_target_grade_chips");
     const createTargetSectionChips = document.getElementById("create_target_section_chips");
@@ -1592,7 +1634,9 @@
     const editStartDate = document.getElementById("edit_event_date");
     const editEndDate = document.getElementById("edit_end_date");
     const editTargetGroup = document.getElementById("edit_target_group");
+    const editTargetGradePicker = document.getElementById("edit_target_grade_picker");
     const editTargetGrade = document.getElementById("edit_target_grade");
+    const editTargetSectionPicker = document.getElementById("edit_target_section_picker");
     const editTargetSection = document.getElementById("edit_target_section_id");
     const editTargetGradeChips = document.getElementById("edit_target_grade_chips");
     const editTargetSectionChips = document.getElementById("edit_target_section_chips");
@@ -1686,6 +1730,48 @@
         };
     }
 
+    function getTargetPickers(gradeInput) {
+        const isEdit = Boolean(gradeInput && gradeInput.id && gradeInput.id.startsWith("edit_"));
+        return {
+            grade: isEdit ? editTargetGradePicker : createTargetGradePicker,
+            section: isEdit ? editTargetSectionPicker : createTargetSectionPicker,
+        };
+    }
+
+    function getTargetContext(input) {
+        const isEdit = Boolean(input && input.id && input.id.startsWith("edit_"));
+        return {
+            group: isEdit ? editTargetGroup : createTargetGroup,
+            grade: isEdit ? editTargetGrade : createTargetGrade,
+            section: isEdit ? editTargetSection : createTargetSection,
+            teacher: isEdit ? editTargetTeacher : createTargetTeacher,
+            role: isEdit ? editTargetRole : createTargetRole,
+        };
+    }
+
+    function removeSelectedTargetValue(input, value) {
+        if (!input) {
+            return;
+        }
+        const remainingValues = getSelectValues(input).filter((selectedValue) => selectedValue !== value);
+        setSelectValues(input, remainingValues);
+        const context = getTargetContext(input);
+        syncTargetGroup(context.group, context.grade, context.section, context.teacher, context.role);
+        refreshTargetChips(context.grade, context.section);
+    }
+
+    function createTargetChip(input, option, kind) {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = `selected-target-chip is-${kind}`;
+        chip.textContent = option.textContent.trim();
+        chip.title = `Remove ${chip.textContent}`;
+        chip.addEventListener("click", () => {
+            removeSelectedTargetValue(input, option.value);
+        });
+        return chip;
+    }
+
     function renderSelectChips(input, container, kind) {
         if (!input || !container) {
             return;
@@ -1694,10 +1780,7 @@
         const options = Array.from(input.selectedOptions).filter((option) => option.value);
         container.hidden = options.length === 0;
         options.forEach((option) => {
-            const chip = document.createElement("span");
-            chip.className = `selected-target-chip is-${kind}`;
-            chip.textContent = option.textContent.trim();
-            container.appendChild(chip);
+            container.appendChild(createTargetChip(input, option, kind));
         });
     }
 
@@ -1709,10 +1792,7 @@
         Array.from(input.selectedOptions)
             .filter((option) => option.value)
             .forEach((option) => {
-                const chip = document.createElement("span");
-                chip.className = `selected-target-chip is-${kind}`;
-                chip.textContent = option.textContent.trim();
-                container.appendChild(chip);
+                container.appendChild(createTargetChip(input, option, kind));
                 count += 1;
             });
         return count;
@@ -1733,6 +1813,71 @@
         const containers = getTargetChipContainers(gradeInput);
         renderSelectChips(gradeInput, containers.grade, "grade");
         renderTargetSummaryChips(gradeInput, sectionInput, containers.section);
+        refreshTargetPickers(gradeInput, sectionInput);
+    }
+
+    function refreshPickerFromSource(sourceInput, pickerInput, placeholderText) {
+        if (!sourceInput || !pickerInput) {
+            return;
+        }
+        pickerInput.innerHTML = "";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = placeholderText;
+        pickerInput.appendChild(placeholder);
+        Array.from(sourceInput.options)
+            .filter((option) => option.value && !option.selected && !option.disabled && !option.hidden)
+            .forEach((option) => {
+                const clone = document.createElement("option");
+                clone.value = option.value;
+                clone.textContent = option.textContent.trim();
+                Array.from(option.attributes).forEach((attribute) => {
+                    if (attribute.name.startsWith("data-")) {
+                        clone.setAttribute(attribute.name, attribute.value);
+                    }
+                });
+                pickerInput.appendChild(clone);
+            });
+        pickerInput.value = "";
+    }
+
+    function refreshTargetPickers(gradeInput, sectionInput) {
+        const pickers = getTargetPickers(gradeInput);
+        refreshPickerFromSource(gradeInput, pickers.grade, "Select grade");
+        refreshPickerFromSource(sectionInput, pickers.section, "Select section");
+    }
+
+    function addSelectedTargetValue(input, value, allValue = "") {
+        if (!input || !value) {
+            return;
+        }
+        if (allValue && value === allValue) {
+            setSelectValues(input, [value]);
+            return;
+        }
+        const values = getSelectValues(input)
+            .filter((selectedValue) => !allValue || selectedValue !== allValue);
+        if (!values.includes(value)) {
+            values.push(value);
+        }
+        setSelectValues(input, values);
+    }
+
+    function bindTargetPicker(pickerInput, sourceInput, allValue = "") {
+        if (!pickerInput || !sourceInput) {
+            return;
+        }
+        pickerInput.addEventListener("change", () => {
+            const value = pickerInput.value;
+            if (!value) {
+                return;
+            }
+            addSelectedTargetValue(sourceInput, value, allValue);
+            pickerInput.value = "";
+            const context = getTargetContext(sourceInput);
+            syncTargetGroup(context.group, context.grade, context.section, context.teacher, context.role);
+            refreshTargetChips(context.grade, context.section);
+        });
     }
 
     function updateSectionOptionsForGrades(gradeInput, sectionInput) {
@@ -1743,8 +1888,9 @@
         const shouldFilter = selectedGrades.size > 0;
         Array.from(sectionInput.options).forEach((option) => {
             if (!option.value || isAllSectionValue(option.value)) {
-                option.hidden = false;
-                option.disabled = false;
+                const hideAllSections = shouldFilter && isAllSectionValue(option.value);
+                option.hidden = hideAllSections;
+                option.disabled = hideAllSections;
                 if (shouldFilter && isAllSectionValue(option.value)) {
                     option.selected = false;
                 }
@@ -2228,6 +2374,10 @@
         editTargetTeacher,
         editTargetRole
     );
+    bindTargetPicker(createTargetGradePicker, createTargetGrade, allGradesValue);
+    bindTargetPicker(createTargetSectionPicker, createTargetSection, allSectionsValue);
+    bindTargetPicker(editTargetGradePicker, editTargetGrade, allGradesValue);
+    bindTargetPicker(editTargetSectionPicker, editTargetSection, allSectionsValue);
     refreshTargetChips(createTargetGrade, createTargetSection);
     refreshTargetChips(editTargetGrade, editTargetSection);
 
