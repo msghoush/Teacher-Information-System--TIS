@@ -430,8 +430,8 @@ def _status_color(status: str) -> str:
 
 
 class _CalendarPdfReport:
-    width = 595.28
-    height = 841.89
+    width = 841.89
+    height = 595.28
     margin = 38
 
     def __init__(self, title: str, subtitle: str, logos: tuple[Path, ...] = ()):
@@ -439,6 +439,7 @@ class _CalendarPdfReport:
         self.subtitle = subtitle
         self.logos = tuple(logos or ())
         self.pages: list[list[str]] = []
+        self.annotations: list[list[dict[str, Any]]] = []
         self.images: dict[str, dict[str, Any]] = {}
         self.y = self.height - self.margin
         self.add_page()
@@ -464,6 +465,7 @@ class _CalendarPdfReport:
 
     def add_page(self):
         self.pages.append([])
+        self.annotations.append([])
         self.y = self.height - self.margin
         self.text(self.margin, self.y, self.title, size=16, color="#0A4EA3", bold=True)
         self.y -= 15
@@ -556,6 +558,132 @@ class _CalendarPdfReport:
             f"{r:.4f} {g:.4f} {b:.4f} RG\n{width:.2f} w\n{x1:.2f} {y1:.2f} m {x2:.2f} {y2:.2f} l S\n"
         )
 
+    def link(self, x: float, y: float, width: float, height: float, url: str):
+        cleaned = str(url or "").strip()
+        if not cleaned:
+            return
+        self.annotations[-1].append(
+            {
+                "x": x,
+                "y": y,
+                "width": width,
+                "height": height,
+                "url": cleaned,
+            }
+        )
+
+    def stroke_polyline(self, points: list[tuple[float, float]], color: str, width: float = 1.2):
+        if len(points) < 2:
+            return
+        r, g, b = _pdf_rgb(color, "#FFFFFF")
+        command = f"{r:.4f} {g:.4f} {b:.4f} RG\n{width:.2f} w\n"
+        first_x, first_y = points[0]
+        command += f"{first_x:.2f} {first_y:.2f} m\n"
+        for x, y in points[1:]:
+            command += f"{x:.2f} {y:.2f} l\n"
+        command += "S\n"
+        self._current().append(command)
+
+    def stroke_rect(self, x: float, y: float, width: float, height: float, color: str, line_width: float = 1.2):
+        r, g, b = _pdf_rgb(color, "#FFFFFF")
+        self._current().append(
+            f"{r:.4f} {g:.4f} {b:.4f} RG\n{line_width:.2f} w\n"
+            f"{x:.2f} {y:.2f} {width:.2f} {height:.2f} re S\n"
+        )
+
+    def circle(self, cx: float, cy: float, radius: float, stroke: str, fill: str | None = None, width: float = 1.2):
+        k = 0.5522847498
+        r = radius
+        sx, sy, sz = _pdf_rgb(stroke, "#FFFFFF")
+        command = ""
+        if fill:
+            fx, fy, fz = _pdf_rgb(fill, "#FFFFFF")
+            command += f"{fx:.4f} {fy:.4f} {fz:.4f} rg\n"
+        command += f"{sx:.4f} {sy:.4f} {sz:.4f} RG\n{width:.2f} w\n"
+        command += (
+            f"{cx + r:.2f} {cy:.2f} m\n"
+            f"{cx + r:.2f} {cy + k*r:.2f} {cx + k*r:.2f} {cy + r:.2f} {cx:.2f} {cy + r:.2f} c\n"
+            f"{cx - k*r:.2f} {cy + r:.2f} {cx - r:.2f} {cy + k*r:.2f} {cx - r:.2f} {cy:.2f} c\n"
+            f"{cx - r:.2f} {cy - k*r:.2f} {cx - k*r:.2f} {cy - r:.2f} {cx:.2f} {cy - r:.2f} c\n"
+            f"{cx + k*r:.2f} {cy - r:.2f} {cx + r:.2f} {cy - k*r:.2f} {cx + r:.2f} {cy:.2f} c\n"
+        )
+        command += "B\n" if fill else "S\n"
+        self._current().append(command)
+
+    def draw_icon(self, icon_name: str, x: float, y: float, size: float, color: str = "#FFFFFF"):
+        icon = str(icon_name or "info").strip().lower()
+        left = x
+        bottom = y
+        right = x + size
+        top = y + size
+        mid_x = x + (size / 2)
+        mid_y = y + (size / 2)
+        if icon in {"exam", "clipboard-check", "task"}:
+            self.stroke_rect(left + 3, bottom + 2, size - 6, size - 4, color)
+            self.stroke_polyline([(left + 6, top - 6), (right - 6, top - 6)], color)
+            if icon == "clipboard-check":
+                self.stroke_polyline([(left + 6, mid_y), (mid_x - 1, bottom + 6), (right - 5, top - 7)], color)
+            elif icon == "task":
+                self.stroke_polyline([(left + 6, mid_y + 1), (left + 8, mid_y - 1), (left + 12, mid_y + 4)], color)
+                self.stroke_polyline([(left + 13, mid_y + 2), (right - 5, mid_y + 2)], color)
+                self.stroke_polyline([(left + 6, bottom + 6), (left + 8, bottom + 4), (left + 12, bottom + 9)], color)
+                self.stroke_polyline([(left + 13, bottom + 7), (right - 5, bottom + 7)], color)
+            else:
+                self.stroke_polyline([(left + 6, mid_y + 1), (right - 5, mid_y + 1)], color)
+                self.stroke_polyline([(left + 6, bottom + 6), (right - 8, bottom + 6)], color)
+            return
+        if icon in {"calendar", "vacation", "home"}:
+            if icon in {"vacation", "home"}:
+                self.stroke_polyline([(left + 2, mid_y), (mid_x, top - 2), (right - 2, mid_y)], color)
+                self.stroke_polyline([(left + 5, mid_y), (left + 5, bottom + 3), (right - 5, bottom + 3), (right - 5, mid_y)], color)
+            else:
+                self.stroke_rect(left + 2, bottom + 3, size - 4, size - 6, color)
+                self.stroke_polyline([(left + 2, top - 7), (right - 2, top - 7)], color)
+                self.stroke_polyline([(left + 6, top - 3), (left + 6, top - 9)], color)
+                self.stroke_polyline([(right - 6, top - 3), (right - 6, top - 9)], color)
+            return
+        if icon in {"activity"}:
+            self.stroke_polyline(
+                [
+                    (left + 1, mid_y),
+                    (left + 5, mid_y),
+                    (left + 8, top - 4),
+                    (mid_x, bottom + 3),
+                    (right - 7, mid_y + 4),
+                    (right - 1, mid_y + 4),
+                ],
+                color,
+            )
+            return
+        if icon in {"meeting", "teachers", "parent"}:
+            self.circle(left + 6, top - 6, 3.0, color)
+            self.circle(right - 6, top - 6, 3.0, color)
+            self.stroke_polyline([(left + 2, bottom + 3), (left + 5, bottom + 8), (left + 9, bottom + 8), (left + 12, bottom + 3)], color)
+            self.stroke_polyline([(right - 12, bottom + 3), (right - 9, bottom + 8), (right - 5, bottom + 8), (right - 2, bottom + 3)], color)
+            if icon == "meeting":
+                self.stroke_rect(left + 4, bottom + 5, size - 8, 5, color, line_width=0.9)
+            return
+        if icon in {"deadline"}:
+            self.circle(mid_x, mid_y, (size / 2) - 2, color)
+            self.stroke_polyline([(mid_x, mid_y), (mid_x, top - 6), (right - 5, mid_y - 2)], color)
+            return
+        if icon in {"visit"}:
+            self.circle(mid_x - 2, mid_y + 2, size / 3, color)
+            self.stroke_polyline([(mid_x + 5, mid_y - 5), (right - 2, bottom + 2)], color)
+            return
+        if icon in {"check-circle"}:
+            self.circle(mid_x, mid_y, (size / 2) - 2, color)
+            self.stroke_polyline([(left + 5, mid_y), (mid_x - 1, bottom + 5), (right - 4, top - 5)], color)
+            return
+        if icon in {"warning"}:
+            self.stroke_polyline([(mid_x, top - 2), (left + 2, bottom + 2), (right - 2, bottom + 2), (mid_x, top - 2)], color)
+            self.stroke_polyline([(mid_x, top - 7), (mid_x, bottom + 7)], color)
+            self.circle(mid_x, bottom + 4, 0.8, color, fill=color)
+            return
+        self.circle(mid_x, mid_y, (size / 2) - 2, color)
+        self.stroke_polyline([(mid_x, mid_y - 4), (mid_x, mid_y + 2)], color)
+        self.circle(mid_x, top - 4, 0.8, color, fill=color)
+
     def heading(self, value: str):
         self.ensure_space(34)
         self.text(self.margin, self.y, value, size=13, color="#0A4EA3", bold=True)
@@ -573,29 +701,45 @@ class _CalendarPdfReport:
         self.rect(x, y, width, height, color)
         self.text(x + 5, y + 5, label[:18], size=6.6, color=_pdf_text_color_for(color), bold=True)
 
+    def icon_badge(
+        self,
+        x: float,
+        y: float,
+        label: str,
+        color: str,
+        icon_name: str,
+        width: float = 118,
+        height: float = 20,
+    ):
+        self.rect(x, y, width, height, color)
+        icon_color = _pdf_text_color_for(color)
+        self.draw_icon(icon_name, x + 5, y + 4, height - 8, icon_color)
+        self.text(x + height + 3, y + 7, label[:26], size=6.8, color=icon_color, bold=True)
+
     def kpi_grid(self, cards: list[tuple[str, str, str, str]]):
         if not cards:
             return
-        card_width = (self.width - (2 * self.margin) - 18) / 4
+        columns = 5
+        card_width = (self.width - (2 * self.margin) - ((columns - 1) * 6)) / columns
         card_height = 52
         for index, (label, value, note, color) in enumerate(cards):
-            if index % 4 == 0:
+            if index % columns == 0:
                 self.ensure_space(card_height + 12)
                 row_y = self.y - card_height
-            x = self.margin + (index % 4) * (card_width + 6)
+            x = self.margin + (index % columns) * (card_width + 6)
             self.rect(x, row_y, card_width, card_height, "#F8FBFF", "#D8E5F4")
             self.rect(x, row_y, 5, card_height, color)
             self.text(x + 10, row_y + 34, label, size=7, color="#536782", bold=True)
             self.text(x + 10, row_y + 17, value, size=14, color=color, bold=True)
             self.text(x + 10, row_y + 6, note[:28], size=6.2, color="#536782")
-            if index % 4 == 3:
+            if index % columns == columns - 1:
                 self.y = row_y - 12
-        if len(cards) % 4:
+        if len(cards) % columns:
             self.y = row_y - 12
 
     def event_card(self, event: dict):
-        description_lines = _wrap_pdf_text(event.get("description", ""), 76, max_lines=2)
-        card_height = 78 + (len(description_lines) * 10)
+        description_lines = _wrap_pdf_text(event.get("description", ""), 110, max_lines=2)
+        card_height = 66 + (len(description_lines) * 9)
         self.ensure_space(card_height + 8)
         x = self.margin
         y = self.y - card_height
@@ -603,39 +747,51 @@ class _CalendarPdfReport:
         event_color = event.get("type_color", "#0A4EA3")
         self.rect(x, y, width, card_height, "#FFFFFF", "#D8E5F4")
         self.rect(x, y, 6, card_height, event_color)
-        self.rect(x + 14, y + card_height - 38, 28, 28, event_color)
-        self.text(
-            x + 19,
-            y + card_height - 27,
-            _icon_label(event.get("type_icon", ""), event.get("type_name", "")),
-            size=8,
-            color=_pdf_text_color_for(event_color),
-            bold=True,
+        icon_x = x + 14
+        icon_y = y + card_height - 36
+        self.rect(icon_x, icon_y, 26, 26, event_color)
+        self.draw_icon(
+            event.get("type_icon", "info"),
+            icon_x + 5,
+            icon_y + 5,
+            16,
+            _pdf_text_color_for(event_color),
         )
         title = str(event.get("title", "") or "Calendar Event")
-        self.text(x + 50, y + card_height - 18, title[:62], size=10.5, color="#11243F", bold=True)
-        self.badge(x + 50, y + card_height - 38, str(event.get("type_name", "Event"))[:24], event_color, width=94)
+        self.text(x + 50, y + card_height - 17, title[:92], size=10.5, color="#11243F", bold=True)
+        self.icon_badge(
+            x + 50,
+            y + card_height - 38,
+            str(event.get("type_name", "Event"))[:25],
+            event_color,
+            event.get("type_icon", "info"),
+            width=132,
+            height=18,
+        )
         status = str(event.get("status", "") or "Planned")
         self.badge(x + width - 88, y + card_height - 27, status[:16], _status_color(status), width=76, height=17)
         self.text(
             x + 50,
-            y + card_height - 54,
+            y + card_height - 51,
             str(event.get("date_range_label", "") or ""),
             size=7.8,
             color="#17365D",
             bold=True,
         )
         self.text(
-            x + 50,
-            y + card_height - 67,
+            x + 305,
+            y + card_height - 51,
             f"{event.get('time_label', 'Time not set')} | {event.get('target_label', 'All School')}",
             size=7.5,
             color="#536782",
         )
-        desc_y = y + card_height - 80
+        if event.get("event_url"):
+            self.text(x + width - 80, y + 10, "Open in TIS", size=7, color="#0A4EA3", bold=True)
+            self.link(x, y, width, card_height, event.get("event_url", ""))
+        desc_y = y + card_height - 64
         for line in description_lines:
             self.text(x + 50, desc_y, line, size=7.2, color="#536782")
-            desc_y -= 10
+            desc_y -= 9
         self.y = y - 8
 
     def build(self) -> bytes:
@@ -681,25 +837,47 @@ class _CalendarPdfReport:
 
         kids: list[str] = []
         page_objects: list[bytes] = []
-        for content in content_streams:
+        for page_index, content in enumerate(content_streams):
             page_number = len(objects) + len(page_objects) + 1
             content_number = page_number + 1
+            page_annotations = self.annotations[page_index] if page_index < len(self.annotations) else []
+            annotation_numbers = [
+                content_number + 1 + annotation_index
+                for annotation_index, _ in enumerate(page_annotations)
+            ]
             kids.append(f"{page_number} 0 R")
             xobjects = " ".join(
                 f"/{name} {object_number} 0 R"
                 for name, object_number in image_object_numbers.items()
             )
             xobject_resource = f" /XObject << {xobjects} >>" if xobjects else ""
+            annots_resource = ""
+            if annotation_numbers:
+                annots_resource = " /Annots [" + " ".join(
+                    f"{number} 0 R" for number in annotation_numbers
+                ) + "]"
             page_objects.append(
                 (
                     f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {self.width:.2f} {self.height:.2f}] "
                     f"/Resources << /Font << /F1 3 0 R /F2 4 0 R >>{xobject_resource} >> "
-                    f"/Contents {content_number} 0 R >>"
+                    f"/Contents {content_number} 0 R{annots_resource} >>"
                 ).encode("latin-1")
             )
             page_objects.append(
                 b"<< /Length " + str(len(content)).encode("ascii") + b" >>\nstream\n" + content + b"\nendstream"
             )
+            for annotation in page_annotations:
+                x1 = float(annotation["x"])
+                y1 = float(annotation["y"])
+                x2 = x1 + float(annotation["width"])
+                y2 = y1 + float(annotation["height"])
+                url = _pdf_escape_text(annotation["url"])
+                page_objects.append(
+                    (
+                        f"<< /Type /Annot /Subtype /Link /Rect [{x1:.2f} {y1:.2f} {x2:.2f} {y2:.2f}] "
+                        f"/Border [0 0 0] /A << /S /URI /URI ({url}) >> >>"
+                    ).encode("latin-1")
+                )
         objects[1] = f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {len(kids)} >>".encode("latin-1")
         objects.extend(page_objects)
 
@@ -1222,13 +1400,47 @@ def _build_calendar_pdf_filename(branch_name: str, academic_year_name: str, filt
     return f"{cleaned or 'academic_calendar_report'}.pdf"
 
 
+def _calendar_month_report_url(base_url: str, month_value: str, filters: dict) -> str:
+    if not base_url:
+        return ""
+    params = {
+        "view": "month",
+        "month": month_value,
+        "start_date": filters.get("start_date", ""),
+        "end_date": filters.get("end_date", ""),
+    }
+    return f"{base_url.rstrip('/')}/academic-calendar/?{urlencode(params)}"
+
+
+def _calendar_event_report_url(base_url: str, event: dict, filters: dict) -> str:
+    if not base_url or not event.get("id"):
+        return ""
+    params = {
+        "event_id": event.get("id"),
+        "start_date": filters.get("start_date", event.get("event_date", "")),
+        "end_date": filters.get("end_date", event.get("end_date", "")),
+    }
+    event_date = _date_from_iso(event.get("event_date", ""))
+    if event_date:
+        params["month"] = event_date.strftime("%Y-%m")
+    return f"{base_url.rstrip('/')}/academic-calendar/?{urlencode(params)}"
+
+
 def _build_academic_calendar_pdf_bytes(
     *,
     calendar_events: list[dict],
     branch_name: str,
     academic_year_name: str,
     filters: dict,
+    base_url: str = "",
 ) -> bytes:
+    calendar_events = [
+        {
+            **event,
+            "event_url": _calendar_event_report_url(base_url, event, filters),
+        }
+        for event in calendar_events
+    ]
     period_label = _calendar_report_period_label(filters)
     subtitle = (
         f"{branch_name} | Academic Year {academic_year_name} | "
@@ -1243,6 +1455,13 @@ def _build_academic_calendar_pdf_bytes(
         "This parent-facing calendar report summarizes school activities, events, assessments, meetings, "
         "vacations, deadlines, and visits for the selected calendar period."
     )
+    if base_url:
+        open_label = "Open the live academic calendar in TIS"
+        open_y = pdf.y - 22
+        open_width = 172
+        pdf.icon_badge(pdf.margin, open_y, open_label, "#0A4EA3", "calendar", width=open_width, height=20)
+        pdf.link(pdf.margin, open_y, open_width, 20, f"{base_url.rstrip('/')}/academic-calendar/")
+        pdf.y = open_y - 14
 
     total_events = len(calendar_events)
     upcoming_events = sum(1 for event in calendar_events if event.get("status") not in {"Completed", "Cancelled"})
@@ -1277,14 +1496,54 @@ def _build_academic_calendar_pdf_bytes(
         row_y = pdf.y - 24
         max_x = pdf.width - pdf.margin
         for type_name, row in sorted(type_counts.items(), key=lambda item: (-item[1]["count"], item[0])):
-            label = f"{_icon_label(row.get('icon', ''), type_name)} {type_name[:20]} ({row['count']})"
-            pill_width = min(150, max(70, len(label) * 4.7))
+            label = f"{type_name[:22]} ({row['count']})"
+            pill_width = min(170, max(82, len(label) * 4.8 + 20))
             if x + pill_width > max_x:
                 pdf.y = row_y - 12
                 pdf.ensure_space(30)
                 x = pdf.margin
                 row_y = pdf.y - 24
-            pdf.badge(x, row_y, label, row.get("color", "#64748B"), width=pill_width, height=18)
+            pdf.icon_badge(
+                x,
+                row_y,
+                label,
+                row.get("color", "#64748B"),
+                row.get("icon", "info"),
+                width=pill_width,
+                height=20,
+            )
+            x += pill_width + 7
+        pdf.y = row_y - 20
+
+    grouped_events: dict[str, list[dict]] = defaultdict(list)
+    month_links: dict[str, str] = {}
+    for event in calendar_events:
+        event_date = _date_from_iso(event.get("event_date", ""))
+        month_key = event_date.strftime("%B %Y") if event_date else "Undated Events"
+        grouped_events[month_key].append(event)
+        if event_date:
+            month_links[month_key] = _calendar_month_report_url(
+                base_url,
+                event_date.strftime("%Y-%m"),
+                filters,
+            )
+
+    if grouped_events:
+        pdf.heading("Clickable Month Index")
+        x = pdf.margin
+        row_y = pdf.y - 24
+        max_x = pdf.width - pdf.margin
+        for month_label, events in grouped_events.items():
+            label = f"{month_label} ({len(events)})"
+            pill_width = min(150, max(82, len(label) * 4.7))
+            if x + pill_width > max_x:
+                pdf.y = row_y - 12
+                pdf.ensure_space(30)
+                x = pdf.margin
+                row_y = pdf.y - 24
+            pdf.icon_badge(x, row_y, label, "#0A4EA3", "calendar", width=pill_width, height=20)
+            if month_links.get(month_label):
+                pdf.link(x, row_y, pill_width, 20, month_links[month_label])
             x += pill_width + 7
         pdf.y = row_y - 20
 
@@ -1292,12 +1551,6 @@ def _build_academic_calendar_pdf_bytes(
         pdf.heading("Important Parent Highlights")
         for event in highlight_events[:6]:
             pdf.event_card(event)
-
-    grouped_events: dict[str, list[dict]] = defaultdict(list)
-    for event in calendar_events:
-        event_date = _date_from_iso(event.get("event_date", ""))
-        month_key = event_date.strftime("%B %Y") if event_date else "Undated Events"
-        grouped_events[month_key].append(event)
 
     pdf.heading("Events By Month")
     if not grouped_events:
@@ -2223,6 +2476,7 @@ def export_academic_calendar_pdf(
         branch_name=branch_name,
         academic_year_name=academic_year_name,
         filters=filters,
+        base_url=str(request.base_url).rstrip("/"),
     )
     filename = _build_calendar_pdf_filename(branch_name, academic_year_name, filters)
     return Response(
