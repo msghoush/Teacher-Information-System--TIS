@@ -217,6 +217,8 @@ def build_shell_context(
         available_scope_branches = db.query(models.Branch).filter(
             models.Branch.status == True
         ).order_by(models.Branch.name.asc()).all()
+        if branch and not branch.status and available_scope_branches:
+            branch = available_scope_branches[0]
         all_years = db.query(models.AcademicYear).order_by(
             models.AcademicYear.year_name.desc()
         ).all()
