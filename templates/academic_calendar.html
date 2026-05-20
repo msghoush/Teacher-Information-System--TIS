@@ -226,6 +226,12 @@
         color: #0a4ea3;
     }
 
+    .selected-target-chip.is-teacher {
+        border-color: #d8c7ff;
+        background: #f6f1ff;
+        color: #5b2cb5;
+    }
+
     button.selected-target-chip {
         cursor: pointer;
     }
@@ -1149,14 +1155,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="calendar-field">
-                    <label for="create_target_group">Target Group</label>
-                    <select id="create_target_group" name="target_group">
-                        {% for target_group in target_group_options %}
-                        <option value="{{ target_group }}">{{ target_group }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
+                <input id="create_target_group" type="hidden" name="target_group" value="">
                 <div class="calendar-field">
                     <label for="create_target_grade_picker">Target Grades</label>
                     <select id="create_target_grade_picker" class="target-picker">
@@ -1184,19 +1183,8 @@
                     </select>
                     <div class="selection-chip-row" id="create_target_section_chips" aria-live="polite" hidden></div>
                 </div>
-                <div class="calendar-field">
-                    <label for="create_target_teacher_id">Target Teacher</label>
-                    <select id="create_target_teacher_id" name="target_teacher_id">
-                        <option value="">No Teacher</option>
-                        {% for teacher in teachers %}
-                        <option value="{{ teacher.id }}">{{ teacher.label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="calendar-field">
-                    <label for="create_target_role">Role / Custom Target</label>
-                    <input id="create_target_role" name="target_role" maxlength="80">
-                </div>
+                <input id="create_target_teacher_id" type="hidden" name="target_teacher_id" value="">
+                <input id="create_target_role" type="hidden" name="target_role" value="">
                 <div class="calendar-field recurrence-field">
                     <label>Recurrence</label>
                     <div class="recurrence-grid">
@@ -1219,12 +1207,16 @@
                     </div>
                 </div>
                 <div class="calendar-field is-wide">
-                    <label for="create_assigned_teacher_ids">Assigned Teachers</label>
-                    <select id="create_assigned_teacher_ids" name="assigned_teacher_ids" multiple>
+                    <label for="create_assigned_teacher_picker">Assigned Teachers</label>
+                    <select id="create_assigned_teacher_picker" class="target-picker">
+                        <option value="">Select teacher</option>
+                    </select>
+                    <select id="create_assigned_teacher_ids" class="target-multi-source" name="assigned_teacher_ids" multiple aria-hidden="true" tabindex="-1">
                         {% for teacher in teachers %}
                         <option value="{{ teacher.id }}">{{ teacher.label }}</option>
                         {% endfor %}
                     </select>
+                    <div class="selection-chip-row" id="create_assigned_teacher_chips" aria-live="polite" hidden></div>
                 </div>
                 <div class="calendar-field is-wide">
                     <label for="create_assigned_user_ids">Assigned Users</label>
@@ -1560,12 +1552,16 @@
                         </div>
                     </div>
                     <div class="calendar-field is-wide">
-                        <label for="edit_assigned_teacher_ids">Assigned Teachers</label>
-                        <select id="edit_assigned_teacher_ids" name="assigned_teacher_ids" multiple>
+                        <label for="edit_assigned_teacher_picker">Assigned Teachers</label>
+                        <select id="edit_assigned_teacher_picker" class="target-picker">
+                            <option value="">Select teacher</option>
+                        </select>
+                        <select id="edit_assigned_teacher_ids" class="target-multi-source" name="assigned_teacher_ids" multiple aria-hidden="true" tabindex="-1">
                             {% for teacher in teachers %}
                             <option value="{{ teacher.id }}">{{ teacher.label }}</option>
                             {% endfor %}
                         </select>
+                        <div class="selection-chip-row" id="edit_assigned_teacher_chips" aria-live="polite" hidden></div>
                     </div>
                     <div class="calendar-field is-wide">
                         <label for="edit_assigned_user_ids">Assigned Users</label>
@@ -1602,6 +1598,7 @@
     const canManageCalendar = {{ can_manage_calendar | tojson }};
     const allGradesValue = "All Grades";
     const allSectionsValue = {{ all_sections_value | tojson }};
+    const allTeachersValue = "__all_teachers__";
     let activeEvent = null;
 
     const detailTitle = document.getElementById("detailTitle");
@@ -1628,6 +1625,9 @@
     const createTargetSectionChips = document.getElementById("create_target_section_chips");
     const createTargetTeacher = document.getElementById("create_target_teacher_id");
     const createTargetRole = document.getElementById("create_target_role");
+    const createAssignedTeacherPicker = document.getElementById("create_assigned_teacher_picker");
+    const createAssignedTeachers = document.getElementById("create_assigned_teacher_ids");
+    const createAssignedTeacherChips = document.getElementById("create_assigned_teacher_chips");
     const editButton = document.getElementById("editSelectedEvent");
     const editDialog = document.getElementById("editEventDialog");
     const editForm = document.getElementById("editEventForm");
@@ -1642,6 +1642,9 @@
     const editTargetSectionChips = document.getElementById("edit_target_section_chips");
     const editTargetTeacher = document.getElementById("edit_target_teacher_id");
     const editTargetRole = document.getElementById("edit_target_role");
+    const editAssignedTeacherPicker = document.getElementById("edit_assigned_teacher_picker");
+    const editAssignedTeachers = document.getElementById("edit_assigned_teacher_ids");
+    const editAssignedTeacherChips = document.getElementById("edit_assigned_teacher_chips");
     const deleteForm = document.getElementById("deleteEventForm");
 
     function setText(element, value) {
@@ -1880,37 +1883,109 @@
         });
     }
 
+    function getAssignedTeacherContext(input) {
+        const isEdit = Boolean(input && input.id && input.id.startsWith("edit_"));
+        return {
+            picker: isEdit ? editAssignedTeacherPicker : createAssignedTeacherPicker,
+            source: isEdit ? editAssignedTeachers : createAssignedTeachers,
+            chips: isEdit ? editAssignedTeacherChips : createAssignedTeacherChips,
+        };
+    }
+
+    function refreshAssignedTeacherPicker(sourceInput, pickerInput) {
+        if (!sourceInput || !pickerInput) {
+            return;
+        }
+        pickerInput.innerHTML = "";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Select teacher";
+        pickerInput.appendChild(placeholder);
+        const unselectedOptions = Array.from(sourceInput.options).filter(
+            (option) => option.value && !option.selected
+        );
+        if (unselectedOptions.length > 1) {
+            const allOption = document.createElement("option");
+            allOption.value = allTeachersValue;
+            allOption.textContent = "All Teachers";
+            pickerInput.appendChild(allOption);
+        }
+        unselectedOptions.forEach((option) => {
+            const clone = document.createElement("option");
+            clone.value = option.value;
+            clone.textContent = option.textContent.trim();
+            pickerInput.appendChild(clone);
+        });
+        pickerInput.value = "";
+    }
+
+    function renderAssignedTeacherChips(sourceInput, chipsContainer) {
+        if (!sourceInput || !chipsContainer) {
+            return;
+        }
+        chipsContainer.innerHTML = "";
+        const selectedOptions = Array.from(sourceInput.selectedOptions).filter((option) => option.value);
+        chipsContainer.hidden = selectedOptions.length === 0;
+        selectedOptions.forEach((option) => {
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "selected-target-chip is-teacher";
+            chip.textContent = option.textContent.trim();
+            chip.title = `Remove ${chip.textContent}`;
+            chip.addEventListener("click", () => {
+                const values = getSelectValues(sourceInput).filter((value) => value !== option.value);
+                setSelectValues(sourceInput, values);
+                refreshAssignedTeachers(sourceInput);
+            });
+            chipsContainer.appendChild(chip);
+        });
+    }
+
+    function refreshAssignedTeachers(sourceInput) {
+        const context = getAssignedTeacherContext(sourceInput);
+        renderAssignedTeacherChips(context.source, context.chips);
+        refreshAssignedTeacherPicker(context.source, context.picker);
+    }
+
+    function bindAssignedTeacherPicker(pickerInput, sourceInput) {
+        if (!pickerInput || !sourceInput) {
+            return;
+        }
+        pickerInput.addEventListener("change", () => {
+            const value = pickerInput.value;
+            if (!value) {
+                return;
+            }
+            if (value === allTeachersValue) {
+                setSelectValues(
+                    sourceInput,
+                    Array.from(sourceInput.options)
+                        .map((option) => option.value)
+                        .filter((optionValue) => optionValue)
+                );
+            } else {
+                const values = getSelectValues(sourceInput);
+                if (!values.includes(value)) {
+                    values.push(value);
+                }
+                setSelectValues(sourceInput, values);
+            }
+            pickerInput.value = "";
+            refreshAssignedTeachers(sourceInput);
+        });
+    }
+
     function updateSectionOptionsForGrades(gradeInput, sectionInput) {
         if (!sectionInput) {
             return;
         }
-        const selectedGrades = new Set(getSpecificGradeValues(gradeInput));
-        const shouldFilter = selectedGrades.size > 0;
         Array.from(sectionInput.options).forEach((option) => {
-            if (!option.value || isAllSectionValue(option.value)) {
-                const hideAllSections = shouldFilter && isAllSectionValue(option.value);
-                option.hidden = hideAllSections;
-                option.disabled = hideAllSections;
-                if (shouldFilter && isAllSectionValue(option.value)) {
-                    option.selected = false;
-                }
-                return;
-            }
-            const optionGrade = option.dataset.grade || "";
-            const isAvailable = !shouldFilter || selectedGrades.has(optionGrade);
-            option.hidden = !isAvailable;
-            option.disabled = !isAvailable;
-            if (!isAvailable) {
-                option.selected = false;
-            }
+            option.hidden = false;
+            option.disabled = false;
         });
     }
 
     function syncGradesFromSections(gradeInput, sectionInput) {
-        const sectionGrades = getSelectedSectionGrades(sectionInput);
-        if (gradeInput && sectionGrades.length) {
-            setSelectValues(gradeInput, sectionGrades);
-        }
         updateSectionOptionsForGrades(gradeInput, sectionInput);
     }
 
@@ -2029,8 +2104,8 @@
         }
         if (sectionInput && hasSpecificSectionValue(sectionInput)) {
             groupInput.value = "Section";
-            if (gradeInput && hasSelectValue(gradeInput, isAllGradeValue)) {
-                removeSelectValue(gradeInput, allGradesValue);
+            if (gradeInput) {
+                clearSelect(gradeInput);
             }
             removeSelectValue(sectionInput, allSectionsValue);
             syncGradesFromSections(gradeInput, sectionInput);
@@ -2043,8 +2118,8 @@
                 removeSelectValue(gradeInput, allGradesValue);
             }
             updateSectionOptionsForGrades(gradeInput, sectionInput);
-            if (sectionInput && hasSelectValue(sectionInput, isAllSectionValue)) {
-                removeSelectValue(sectionInput, allSectionsValue);
+            if (sectionInput) {
+                clearSelect(sectionInput);
             }
             refreshTargetChips(gradeInput, sectionInput);
             return;
@@ -2207,6 +2282,7 @@
         document.getElementById("edit_recurrence_until").value = eventItem.recurrence_until || "";
         document.getElementById("edit_description").value = eventItem.description || "";
         setMultiSelectValues("edit_assigned_teacher_ids", eventItem.assigned_teacher_ids);
+        refreshAssignedTeachers(editAssignedTeachers);
         setMultiSelectValues("edit_assigned_user_ids", eventItem.assigned_user_ids);
     }
 
@@ -2378,8 +2454,12 @@
     bindTargetPicker(createTargetSectionPicker, createTargetSection, allSectionsValue);
     bindTargetPicker(editTargetGradePicker, editTargetGrade, allGradesValue);
     bindTargetPicker(editTargetSectionPicker, editTargetSection, allSectionsValue);
+    bindAssignedTeacherPicker(createAssignedTeacherPicker, createAssignedTeachers);
+    bindAssignedTeacherPicker(editAssignedTeacherPicker, editAssignedTeachers);
     refreshTargetChips(createTargetGrade, createTargetSection);
     refreshTargetChips(editTargetGrade, editTargetSection);
+    refreshAssignedTeachers(createAssignedTeachers);
+    refreshAssignedTeachers(editAssignedTeachers);
 
     if (createForm) {
         createForm.addEventListener("submit", () => {
