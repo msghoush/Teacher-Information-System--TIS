@@ -577,6 +577,24 @@
                 clearEditState(rowId);
             });
         });
+
+        function scrollToBranchHash() {
+            var hash = window.location.hash;
+            if (!hash) {
+                return;
+            }
+            var target = document.querySelector(hash);
+            if (!target) {
+                return;
+            }
+            target.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", scrollToBranchHash);
+        } else {
+            scrollToBranchHash();
+        }
     })();
 </script>
 {% endblock %}
