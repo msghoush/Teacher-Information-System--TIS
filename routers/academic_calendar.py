@@ -903,6 +903,31 @@ def _ensure_calendar_event_schema(db: Session) -> None:
         table_names = set(inspector.get_table_names())
         if "calendar_events" not in table_names:
             return
+        if "calendar_event_section_targets" not in table_names:
+            db.execute(
+                text(
+                    "CREATE TABLE calendar_event_section_targets ("
+                    "id INTEGER PRIMARY KEY, "
+                    "calendar_event_id INTEGER NOT NULL REFERENCES calendar_events(id), "
+                    "section_id INTEGER NOT NULL REFERENCES planning_sections(id), "
+                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                    "CONSTRAINT uq_calendar_event_section_targets_event_section "
+                    "UNIQUE (calendar_event_id, section_id)"
+                    ")"
+                )
+            )
+            db.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_calendar_event_section_targets_event "
+                    "ON calendar_event_section_targets (calendar_event_id)"
+                )
+            )
+            db.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_calendar_event_section_targets_section "
+                    "ON calendar_event_section_targets (section_id)"
+                )
+            )
         column_names = {
             column["name"]
             for column in inspector.get_columns("calendar_events")
@@ -1164,6 +1189,19 @@ def _build_target_label(event, section_lookup, teacher_lookup) -> str:
     return target_group or "All School"
 
 
+def _build_section_target_label(section_ids: list[int], section_lookup: dict[int, object]) -> str:
+    labels = [
+        _build_section_label(section_lookup.get(section_id))
+        for section_id in section_ids
+    ]
+    labels = [label for label in labels if label]
+    if not labels:
+        return "Section"
+    if len(labels) <= 3:
+        return ", ".join(labels)
+    return f"{len(labels)} Sections"
+
+
 def _build_assignment_map(db: Session, event_ids, teacher_lookup, user_lookup):
     if not event_ids:
         return {}
@@ -1200,6 +1238,30 @@ def _build_assignment_map(db: Session, event_ids, teacher_lookup, user_lookup):
     return assignments_by_event
 
 
+def _build_section_target_map(db: Session, event_ids, section_lookup):
+    if not event_ids:
+        return {}
+    rows = db.query(models.CalendarEventSectionTarget).filter(
+        models.CalendarEventSectionTarget.calendar_event_id.in_(event_ids)
+    ).order_by(
+        models.CalendarEventSectionTarget.calendar_event_id.asc(),
+        models.CalendarEventSectionTarget.section_id.asc(),
+    ).all()
+    targets_by_event = defaultdict(
+        lambda: {
+            "section_ids": [],
+            "labels": [],
+        }
+    )
+    for row in rows:
+        payload = targets_by_event[row.calendar_event_id]
+        payload["section_ids"].append(row.section_id)
+        label = _build_section_label(section_lookup.get(row.section_id))
+        if label:
+            payload["labels"].append(label)
+    return targets_by_event
+
+
 def _serialize_event(
     event,
     *,
@@ -1207,6 +1269,7 @@ def _serialize_event(
     section_lookup,
     teacher_lookup,
     assignment_payload,
+    section_target_payload,
 ):
     event_type = type_lookup.get(event.event_type_id)
     if event_type:
@@ -1233,9 +1296,26 @@ def _serialize_event(
     target_grade = event.target_grade or (
         ALL_GRADES_VALUE if target_group == "All School" else ""
     )
-    target_section_id = (
-        ALL_SECTIONS_VALUE if target_group == "All School" else event.target_section_id
-    )
+    section_target_ids = sorted(set(section_target_payload.get("section_ids", [])))
+    if getattr(event, "target_section_id", None):
+        section_target_ids = sorted(set(section_target_ids + [event.target_section_id]))
+    if target_group == "All School":
+        target_section_id = ALL_SECTIONS_VALUE
+    else:
+        target_section_id = (
+            section_target_ids[0]
+            if section_target_ids
+            else event.target_section_id
+        )
+    if target_group == "All School":
+        target_section_ids = [ALL_SECTIONS_VALUE]
+        target_label = "All School"
+    elif target_group == "Section":
+        target_section_ids = section_target_ids
+        target_label = _build_section_target_label(section_target_ids, section_lookup)
+    else:
+        target_section_ids = []
+        target_label = _build_target_label(event, section_lookup, teacher_lookup)
     return {
         "id": event.id,
         "title": event.title,
@@ -1263,9 +1343,10 @@ def _serialize_event(
         "target_group": target_group,
         "target_grade": target_grade,
         "target_section_id": target_section_id,
+        "target_section_ids": target_section_ids,
         "target_teacher_id": event.target_teacher_id,
         "target_role": event.target_role or "",
-        "target_label": _build_target_label(event, section_lookup, teacher_lookup),
+        "target_label": target_label,
         "priority": event.priority or "Normal",
         "status": event.status or "Planned",
         "recurrence_rule": event.recurrence_rule or "None",
@@ -1601,14 +1682,20 @@ def _build_filtered_event_query(
             for section_id, grade in filters["section_grade_lookup"].items()
             if grade == filters["grade"]
         ]
+        section_target_event_ids = _event_ids_for_target_sections(db, section_ids)
         if section_ids:
-            query = query.filter(
-                or_(
-                    models.CalendarEvent.target_grade == filters["grade"],
-                    models.CalendarEvent.target_grade == ALL_GRADES_VALUE,
-                    models.CalendarEvent.target_group == "All School",
-                    models.CalendarEvent.target_section_id.in_(section_ids),
+            grade_scope_filters = [
+                models.CalendarEvent.target_grade == filters["grade"],
+                models.CalendarEvent.target_grade == ALL_GRADES_VALUE,
+                models.CalendarEvent.target_group == "All School",
+                models.CalendarEvent.target_section_id.in_(section_ids),
+            ]
+            if section_target_event_ids:
+                grade_scope_filters.append(
+                    models.CalendarEvent.id.in_(section_target_event_ids)
                 )
+            query = query.filter(
+                or_(*grade_scope_filters)
             )
         else:
             query = query.filter(
@@ -1620,11 +1707,19 @@ def _build_filtered_event_query(
                 )
             )
     if filters["section_id"]:
+        section_target_event_ids = _event_ids_for_target_sections(
+            db,
+            [filters["section_id"]],
+        )
         section_scope_filters = [
             models.CalendarEvent.target_section_id == filters["section_id"],
             models.CalendarEvent.target_grade == ALL_GRADES_VALUE,
             models.CalendarEvent.target_group == "All School",
         ]
+        if section_target_event_ids:
+            section_scope_filters.append(
+                models.CalendarEvent.id.in_(section_target_event_ids)
+            )
         section_grade = filters["section_grade_lookup"].get(filters["section_id"])
         if section_grade:
             section_scope_filters.append(models.CalendarEvent.target_grade == section_grade)
@@ -1646,6 +1741,18 @@ def _build_filtered_event_query(
         ]
         query = query.filter(models.CalendarEvent.id.in_(assignment_event_ids or [-1]))
     return query
+
+
+def _event_ids_for_target_sections(db: Session, section_ids: list[int]) -> list[int]:
+    if not section_ids:
+        return []
+    return [
+        row[0]
+        for row in db.query(models.CalendarEventSectionTarget.calendar_event_id)
+        .filter(models.CalendarEventSectionTarget.section_id.in_(section_ids))
+        .distinct()
+        .all()
+    ]
 
 
 def _week_bounds_for(day_value: date) -> tuple[str, str]:
@@ -1813,6 +1920,7 @@ def _build_event_payloads(
     user_lookup = {user.id: user for user in users}
     section_lookup = {section.id: section for section in sections}
     assignment_map = _build_assignment_map(db, event_ids, teacher_lookup, user_lookup)
+    section_target_map = _build_section_target_map(db, event_ids, section_lookup)
     return _sort_event_payloads(
         [
             _serialize_event(
@@ -1821,6 +1929,7 @@ def _build_event_payloads(
                 section_lookup=section_lookup,
                 teacher_lookup=teacher_lookup,
                 assignment_payload=assignment_map.get(event.id, {}),
+                section_target_payload=section_target_map.get(event.id, {}),
             )
             for event in events
         ]
@@ -1881,6 +1990,8 @@ def _build_filter_payload(
 
 
 def _normalize_id_list(values) -> list[int]:
+    if isinstance(values, (str, int)):
+        values = [values]
     parsed_ids = []
     for value in values or []:
         parsed_value = _parse_int(value)
@@ -1915,7 +2026,7 @@ def _normalize_event_form_payload(
     description: str,
     target_group: str,
     target_grade: str,
-    target_section_id: str,
+    target_section_id,
     target_teacher_id: str,
     target_role: str,
     priority: str,
@@ -1986,21 +2097,43 @@ def _normalize_event_form_payload(
     ):
         errors.append("Target grade must be KG or a grade from 1 to 12.")
         normalized_grade = ""
-    normalized_section_token = _normalize_spaces(target_section_id)
-    target_section_is_all = normalized_section_token.upper() in ALL_SECTIONS_ALIASES
-    parsed_section_id = None if target_section_is_all else _parse_int(target_section_id)
+    target_section_values = (
+        [target_section_id]
+        if isinstance(target_section_id, (str, int))
+        else list(target_section_id or [])
+    )
+    target_section_is_all = any(
+        _normalize_spaces(value).upper() in ALL_SECTIONS_ALIASES
+        for value in target_section_values
+    )
+    parsed_section_ids = _normalize_id_list(target_section_values)
+    if parsed_section_ids:
+        target_section_is_all = False
+    parsed_section_id = parsed_section_ids[0] if parsed_section_ids else None
     parsed_teacher_id = _parse_int(target_teacher_id)
-    if parsed_section_id:
-        section_row = db.query(models.PlanningSection).filter(
-            models.PlanningSection.id == parsed_section_id,
+    valid_section_rows = []
+    if parsed_section_ids:
+        valid_section_rows = db.query(models.PlanningSection).filter(
+            models.PlanningSection.id.in_(parsed_section_ids),
             models.PlanningSection.branch_id == branch_id,
             models.PlanningSection.academic_year_id == academic_year_id,
-        ).first()
-        if not section_row:
-            errors.append("Selected section is not available in the active scope.")
-            parsed_section_id = None
+        ).all()
+        valid_section_ids = sorted({section.id for section in valid_section_rows})
+        if len(valid_section_ids) != len(parsed_section_ids):
+            errors.append("One or more selected sections are not available in the active scope.")
+        parsed_section_ids = valid_section_ids
+        parsed_section_id = parsed_section_ids[0] if parsed_section_ids else None
+        section_grades = sorted(
+            {
+                str(section.grade_level or "").strip().upper()
+                for section in valid_section_rows
+                if section.id in parsed_section_ids
+            }
+        )
+        if len(section_grades) == 1:
+            normalized_grade = section_grades[0]
         else:
-            normalized_grade = str(section_row.grade_level or normalized_grade or "").strip().upper()
+            normalized_grade = ""
     if parsed_teacher_id:
         teacher_exists = db.query(models.Teacher.id).filter(
             models.Teacher.id == parsed_teacher_id,
@@ -2043,13 +2176,13 @@ def _normalize_event_form_payload(
         }
         user_ids = sorted(valid_user_ids)
 
-    if normalized_target_group == "All School":
+    if parsed_section_ids:
+        normalized_target_group = "Section"
+    elif normalized_target_group == "All School":
         normalized_grade = ALL_GRADES_VALUE
         parsed_section_id = None
         parsed_teacher_id = None
         target_role = ""
-    elif parsed_section_id:
-        normalized_target_group = "Section"
     elif target_section_is_all:
         normalized_target_group = "All School"
         normalized_grade = ALL_GRADES_VALUE
@@ -2066,6 +2199,9 @@ def _normalize_event_form_payload(
         normalized_grade = ""
     if normalized_target_group != "Section":
         parsed_section_id = None
+        parsed_section_ids = []
+    elif parsed_section_ids:
+        parsed_section_id = parsed_section_ids[0]
     if normalized_target_group != "Teacher":
         parsed_teacher_id = None
     elif parsed_teacher_id:
@@ -2096,6 +2232,7 @@ def _normalize_event_form_payload(
             "recurrence_until": normalized_recurrence_until or None,
             "assigned_teacher_ids": teacher_ids,
             "assigned_user_ids": user_ids,
+            "target_section_ids": parsed_section_ids,
         },
     }
 
@@ -2129,6 +2266,31 @@ def _sync_event_assignments(
             calendar_event_id=event.id,
             user_id=user_id,
             assignment_role=assignment_role,
+        )
+        db.add(row)
+        created_rows.append(row)
+    db.flush()
+    return created_rows
+
+
+def _sync_event_section_targets(
+    db: Session,
+    event,
+    *,
+    section_ids: list[int],
+):
+    existing_rows = db.query(models.CalendarEventSectionTarget).filter(
+        models.CalendarEventSectionTarget.calendar_event_id == event.id
+    ).all()
+    for row in existing_rows:
+        db.delete(row)
+    db.flush()
+
+    created_rows = []
+    for section_id in sorted(set(section_ids or [])):
+        row = models.CalendarEventSectionTarget(
+            calendar_event_id=event.id,
+            section_id=section_id,
         )
         db.add(row)
         created_rows.append(row)
@@ -2499,7 +2661,7 @@ def create_calendar_event(
     description: str = Form(""),
     target_group: str = Form("All School"),
     target_grade: str = Form(""),
-    target_section_id: str = Form(""),
+    target_section_id: list[str] = Form([]),
     target_teacher_id: str = Form(""),
     target_role: str = Form(""),
     priority: str = Form("Normal"),
@@ -2551,6 +2713,7 @@ def create_calendar_event(
     payload = normalized["payload"]
     teacher_ids = payload.pop("assigned_teacher_ids")
     user_ids = payload.pop("assigned_user_ids")
+    target_section_ids = payload.pop("target_section_ids")
     event = models.CalendarEvent(
         branch_id=branch_id,
         academic_year_id=academic_year_id,
@@ -2560,6 +2723,11 @@ def create_calendar_event(
     )
     db.add(event)
     db.flush()
+    _sync_event_section_targets(
+        db,
+        event,
+        section_ids=target_section_ids,
+    )
     _sync_event_assignments(
         db,
         event,
@@ -2600,7 +2768,7 @@ def update_calendar_event(
     description: str = Form(""),
     target_group: str = Form("All School"),
     target_grade: str = Form(""),
-    target_section_id: str = Form(""),
+    target_section_id: list[str] = Form([]),
     target_teacher_id: str = Form(""),
     target_role: str = Form(""),
     priority: str = Form("Normal"),
@@ -2660,10 +2828,16 @@ def update_calendar_event(
     payload = normalized["payload"]
     teacher_ids = payload.pop("assigned_teacher_ids")
     user_ids = payload.pop("assigned_user_ids")
+    target_section_ids = payload.pop("target_section_ids")
     for key, value in payload.items():
         setattr(event, key, value)
     event.updated_by_user_id = getattr(current_user, "user_id", None)
     event.updated_at = datetime.utcnow()
+    _sync_event_section_targets(
+        db,
+        event,
+        section_ids=target_section_ids,
+    )
     _sync_event_assignments(
         db,
         event,
@@ -2771,6 +2945,9 @@ def delete_calendar_event(
     ).delete(synchronize_session=False)
     db.query(models.CalendarEventAssignment).filter(
         models.CalendarEventAssignment.calendar_event_id == event.id
+    ).delete(synchronize_session=False)
+    db.query(models.CalendarEventSectionTarget).filter(
+        models.CalendarEventSectionTarget.calendar_event_id == event.id
     ).delete(synchronize_session=False)
     db.delete(event)
     db.commit()

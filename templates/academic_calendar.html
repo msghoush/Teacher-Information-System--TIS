@@ -1079,8 +1079,8 @@
                     </select>
                 </div>
                 <div class="calendar-field">
-                    <label for="create_target_section_id">Target Section</label>
-                    <select id="create_target_section_id" name="target_section_id">
+                    <label for="create_target_section_id">Target Sections</label>
+                    <select id="create_target_section_id" name="target_section_id" multiple size="5">
                         <option value="">No Section</option>
                         <option value="{{ all_sections_value }}">{{ all_sections_label }}</option>
                         {% for section in sections %}
@@ -1408,8 +1408,8 @@
                         </select>
                     </div>
                     <div class="calendar-field">
-                        <label for="edit_target_section_id">Target Section</label>
-                        <select id="edit_target_section_id" name="target_section_id">
+                        <label for="edit_target_section_id">Target Sections</label>
+                        <select id="edit_target_section_id" name="target_section_id" multiple size="5">
                             <option value="">No Section</option>
                             <option value="{{ all_sections_value }}">{{ all_sections_label }}</option>
                             {% for section in sections %}
@@ -1537,19 +1537,59 @@
     function setSelectValue(id, value) {
         const element = document.getElementById(id);
         if (element) {
-            element.value = value === null || value === undefined ? "" : String(value);
+            setSelectValues(element, value === null || value === undefined ? [] : [value]);
         }
     }
 
     function setMultiSelectValues(id, values) {
         const element = document.getElementById(id);
-        const selectedValues = new Set((values || []).map((value) => String(value)));
-        if (!element) {
+        setSelectValues(element, values || []);
+    }
+
+    function getSelectValues(input) {
+        if (!input) {
+            return [];
+        }
+        if (input.multiple) {
+            return Array.from(input.selectedOptions)
+                .map((option) => option.value)
+                .filter((value) => value !== "");
+        }
+        return input.value ? [input.value] : [];
+    }
+
+    function setSelectValues(input, values) {
+        if (!input) {
             return;
         }
-        Array.from(element.options).forEach((option) => {
-            option.selected = selectedValues.has(option.value);
-        });
+        const normalizedValues = (Array.isArray(values) ? values : [values])
+            .filter((value) => value !== null && value !== undefined)
+            .map((value) => String(value));
+        if (input.multiple) {
+            const selectedValues = new Set(normalizedValues);
+            Array.from(input.options).forEach((option) => {
+                option.selected = selectedValues.has(option.value);
+            });
+            return;
+        }
+        input.value = normalizedValues[0] || "";
+    }
+
+    function clearSelect(input) {
+        setSelectValues(input, []);
+    }
+
+    function hasSelectValue(input, predicate) {
+        return getSelectValues(input).some(predicate);
+    }
+
+    function hasSpecificSectionValue(input) {
+        return hasSelectValue(input, (value) => value && !isAllSectionValue(value));
+    }
+
+    function removeSelectValue(input, valueToRemove) {
+        const remainingValues = getSelectValues(input).filter((value) => value !== valueToRemove);
+        setSelectValues(input, remainingValues);
     }
 
     function syncEndDate(startInput, endInput) {
@@ -1578,7 +1618,7 @@
             gradeInput.value = allGradesValue;
         }
         if (sectionInput) {
-            sectionInput.value = allSectionsValue;
+            setSelectValues(sectionInput, [allSectionsValue]);
         }
         if (teacherInput) {
             teacherInput.value = "";
@@ -1596,8 +1636,8 @@
             setAllSchoolTarget(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
             return;
         }
-        if (sectionInput && isAllSectionValue(sectionInput.value)) {
-            sectionInput.value = "";
+        if (sectionInput && hasSelectValue(sectionInput, isAllSectionValue)) {
+            removeSelectValue(sectionInput, allSectionsValue);
         }
         if (groupInput.value !== "Grade" && gradeInput && isAllGradeValue(gradeInput.value)) {
             gradeInput.value = "";
@@ -1620,7 +1660,7 @@
                 gradeInput.value = "";
             }
             if (sectionInput) {
-                sectionInput.value = "";
+                clearSelect(sectionInput);
             }
             if (roleInput) {
                 roleInput.value = "";
@@ -1633,29 +1673,30 @@
                 gradeInput.value = "";
             }
             if (sectionInput) {
-                sectionInput.value = "";
+                clearSelect(sectionInput);
             }
             if (teacherInput) {
                 teacherInput.value = "";
             }
             return;
         }
-        if (sectionInput && sectionInput.value && !isAllSectionValue(sectionInput.value)) {
+        if (sectionInput && hasSpecificSectionValue(sectionInput)) {
             groupInput.value = "Section";
             if (gradeInput && isAllGradeValue(gradeInput.value)) {
                 gradeInput.value = "";
             }
+            removeSelectValue(sectionInput, allSectionsValue);
             return;
         }
         if (gradeInput && gradeInput.value && !isAllGradeValue(gradeInput.value)) {
             groupInput.value = "Grade";
-            if (sectionInput && isAllSectionValue(sectionInput.value)) {
-                sectionInput.value = "";
+            if (sectionInput && hasSelectValue(sectionInput, isAllSectionValue)) {
+                removeSelectValue(sectionInput, allSectionsValue);
             }
             return;
         }
         if (
-            (sectionInput && isAllSectionValue(sectionInput.value)) ||
+            (sectionInput && hasSelectValue(sectionInput, isAllSectionValue)) ||
             (gradeInput && isAllGradeValue(gradeInput.value) && groupInput.value !== "Grade")
         ) {
             setAllSchoolTarget(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
@@ -1789,7 +1830,10 @@
         setSelectValue("edit_status", eventItem.status || "Planned");
         setSelectValue("edit_target_group", eventItem.target_group || "All School");
         setSelectValue("edit_target_grade", eventItem.target_grade);
-        setSelectValue("edit_target_section_id", eventItem.target_section_id);
+        setMultiSelectValues(
+            "edit_target_section_id",
+            eventItem.target_section_ids || [eventItem.target_section_id]
+        );
         setSelectValue("edit_target_teacher_id", eventItem.target_teacher_id);
         document.getElementById("edit_target_role").value = eventItem.target_role || "";
         syncTargetGroup(editTargetGroup, editTargetGrade, editTargetSection, editTargetTeacher, editTargetRole);

@@ -148,6 +148,29 @@ class CalendarEventAssignment(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class CalendarEventSectionTarget(Base):
+    __tablename__ = "calendar_event_section_targets"
+    __table_args__ = (
+        UniqueConstraint(
+            "calendar_event_id",
+            "section_id",
+            name="uq_calendar_event_section_targets_event_section",
+        ),
+        Index("ix_calendar_event_section_targets_event", "calendar_event_id"),
+        Index("ix_calendar_event_section_targets_section", "section_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    calendar_event_id = Column(
+        Integer,
+        ForeignKey("calendar_events.id"),
+        nullable=False,
+        index=True,
+    )
+    section_id = Column(Integer, ForeignKey("planning_sections.id"), nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class CalendarEventNotification(Base):
     __tablename__ = "calendar_event_notifications"
     __table_args__ = (
