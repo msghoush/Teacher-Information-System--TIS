@@ -1420,11 +1420,20 @@ def _serialize_event(
         target_grade_ids = [ALL_GRADES_VALUE]
         target_section_ids = [ALL_SECTIONS_VALUE]
         target_label = "All School"
+        target_items = [{"kind": "school", "label": "All School"}]
     elif target_group == "Section":
         target_grade_ids = grade_target_values or section_grade_values
         target_grade = target_grade_ids[0] if target_grade_ids else ""
         target_section_ids = section_target_ids
         target_label = _build_section_target_label(section_target_ids, section_lookup)
+        target_items = [
+            {
+                "kind": "section",
+                "label": _build_section_label(section_lookup.get(section_id)),
+            }
+            for section_id in target_section_ids
+        ]
+        target_items = [item for item in target_items if item["label"]]
     elif target_group == "Grade":
         target_grade_ids = grade_target_values
         if (
@@ -1443,11 +1452,22 @@ def _serialize_event(
             if target_grade_ids == [ALL_GRADES_VALUE]
             else _build_grade_target_label(target_grade_ids)
         )
+        target_items = [
+            {
+                "kind": "grade",
+                "label": _build_grade_label(grade),
+            }
+            for grade in target_grade_ids
+        ]
+        target_items = [item for item in target_items if item["label"]]
     else:
         target_grade = ""
         target_grade_ids = []
         target_section_ids = []
         target_label = _build_target_label(event, section_lookup, teacher_lookup)
+        target_items = [{"kind": "target", "label": target_label}] if target_label else []
+    if not target_items and target_label:
+        target_items = [{"kind": "target", "label": target_label}]
     return {
         "id": event.id,
         "title": event.title,
@@ -1480,6 +1500,7 @@ def _serialize_event(
         "target_teacher_id": event.target_teacher_id,
         "target_role": event.target_role or "",
         "target_label": target_label,
+        "target_items": target_items,
         "priority": event.priority or "Normal",
         "status": event.status or "Planned",
         "recurrence_rule": event.recurrence_rule or "None",

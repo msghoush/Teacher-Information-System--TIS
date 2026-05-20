@@ -170,6 +170,66 @@
         padding: 7px;
     }
 
+    .selection-chip-row,
+    .month-target-chip-list {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 5px;
+        min-width: 0;
+    }
+
+    .selection-chip-row {
+        min-height: 24px;
+    }
+
+    .selection-chip-row[hidden] {
+        display: none;
+    }
+
+    .selected-target-chip,
+    .month-target-chip {
+        display: inline-flex;
+        align-items: center;
+        max-width: 100%;
+        min-height: 22px;
+        padding: 3px 7px;
+        border: 1px solid #c8d8ec;
+        border-radius: 999px;
+        background: #f8fbff;
+        color: #17365d;
+        font-size: 11px;
+        font-weight: 850;
+        line-height: 1.2;
+        white-space: nowrap;
+    }
+
+    .selected-target-chip.is-section,
+    .month-target-chip.is-section {
+        border-color: #bde7c9;
+        background: #eefbf2;
+        color: #176b35;
+    }
+
+    .selected-target-chip.is-grade,
+    .month-target-chip.is-grade {
+        border-color: #bfd8ff;
+        background: #eef6ff;
+        color: #0a4ea3;
+    }
+
+    .month-target-chip-list {
+        margin-top: 1px;
+    }
+
+    .month-target-chip {
+        min-height: 20px;
+        max-width: 100%;
+        overflow: hidden;
+        font-size: 10.5px;
+        text-overflow: ellipsis;
+    }
+
     .calendar-field input:focus,
     .calendar-field select:focus,
     .calendar-field textarea:focus {
@@ -1077,6 +1137,7 @@
                         <option value="{{ grade }}">{{ grade if grade in ["KG", "All Grades"] else "Grade " ~ grade }}</option>
                         {% endfor %}
                     </select>
+                    <div class="selection-chip-row" id="create_target_grade_chips" aria-live="polite" hidden></div>
                 </div>
                 <div class="calendar-field">
                     <label for="create_target_section_id">Target Sections</label>
@@ -1087,6 +1148,7 @@
                         <option value="{{ section.id }}" data-grade="{{ section.grade_level }}">{{ section.label }}</option>
                         {% endfor %}
                     </select>
+                    <div class="selection-chip-row" id="create_target_section_chips" aria-live="polite" hidden></div>
                 </div>
                 <div class="calendar-field">
                     <label for="create_target_teacher_id">Target Teacher</label>
@@ -1275,7 +1337,11 @@
                                 {% endif %}
                             </div>
                             <strong>{{ event.title }}</strong>
-                            <small class="month-event-target" title="{{ event.target_label }}">{{ event.target_label }}</small>
+                            <div class="month-target-chip-list" title="{{ event.target_label }}">
+                                {% for target_item in event.target_items %}
+                                <span class="month-target-chip is-{{ target_item.kind }}">{{ target_item.label }}</span>
+                                {% endfor %}
+                            </div>
                             <small>{{ event.date_range_label }}</small>
                             <small>{{ event.time_label }}</small>
                         </div>
@@ -1406,6 +1472,7 @@
                             <option value="{{ grade }}">{{ grade if grade in ["KG", "All Grades"] else "Grade " ~ grade }}</option>
                             {% endfor %}
                         </select>
+                        <div class="selection-chip-row" id="edit_target_grade_chips" aria-live="polite" hidden></div>
                     </div>
                     <div class="calendar-field">
                         <label for="edit_target_section_id">Target Sections</label>
@@ -1416,6 +1483,7 @@
                             <option value="{{ section.id }}" data-grade="{{ section.grade_level }}">{{ section.label }}</option>
                             {% endfor %}
                         </select>
+                        <div class="selection-chip-row" id="edit_target_section_chips" aria-live="polite" hidden></div>
                     </div>
                     <div class="calendar-field">
                         <label for="edit_target_teacher_id">Target Teacher</label>
@@ -1514,6 +1582,8 @@
     const createTargetGroup = document.getElementById("create_target_group");
     const createTargetGrade = document.getElementById("create_target_grade");
     const createTargetSection = document.getElementById("create_target_section_id");
+    const createTargetGradeChips = document.getElementById("create_target_grade_chips");
+    const createTargetSectionChips = document.getElementById("create_target_section_chips");
     const createTargetTeacher = document.getElementById("create_target_teacher_id");
     const createTargetRole = document.getElementById("create_target_role");
     const editButton = document.getElementById("editSelectedEvent");
@@ -1524,6 +1594,8 @@
     const editTargetGroup = document.getElementById("edit_target_group");
     const editTargetGrade = document.getElementById("edit_target_grade");
     const editTargetSection = document.getElementById("edit_target_section_id");
+    const editTargetGradeChips = document.getElementById("edit_target_grade_chips");
+    const editTargetSectionChips = document.getElementById("edit_target_section_chips");
     const editTargetTeacher = document.getElementById("edit_target_teacher_id");
     const editTargetRole = document.getElementById("edit_target_role");
     const deleteForm = document.getElementById("deleteEventForm");
@@ -1606,6 +1678,63 @@
         return getSelectValues(gradeInput).filter((value) => value && !isAllGradeValue(value));
     }
 
+    function getTargetChipContainers(gradeInput) {
+        const isEdit = Boolean(gradeInput && gradeInput.id && gradeInput.id.startsWith("edit_"));
+        return {
+            grade: isEdit ? editTargetGradeChips : createTargetGradeChips,
+            section: isEdit ? editTargetSectionChips : createTargetSectionChips,
+        };
+    }
+
+    function renderSelectChips(input, container, kind) {
+        if (!input || !container) {
+            return;
+        }
+        container.innerHTML = "";
+        const options = Array.from(input.selectedOptions).filter((option) => option.value);
+        container.hidden = options.length === 0;
+        options.forEach((option) => {
+            const chip = document.createElement("span");
+            chip.className = `selected-target-chip is-${kind}`;
+            chip.textContent = option.textContent.trim();
+            container.appendChild(chip);
+        });
+    }
+
+    function appendSelectChips(input, container, kind) {
+        if (!input || !container) {
+            return 0;
+        }
+        let count = 0;
+        Array.from(input.selectedOptions)
+            .filter((option) => option.value)
+            .forEach((option) => {
+                const chip = document.createElement("span");
+                chip.className = `selected-target-chip is-${kind}`;
+                chip.textContent = option.textContent.trim();
+                container.appendChild(chip);
+                count += 1;
+            });
+        return count;
+    }
+
+    function renderTargetSummaryChips(gradeInput, sectionInput, container) {
+        if (!container) {
+            return;
+        }
+        container.innerHTML = "";
+        const chipCount =
+            appendSelectChips(gradeInput, container, "grade") +
+            appendSelectChips(sectionInput, container, "section");
+        container.hidden = chipCount === 0;
+    }
+
+    function refreshTargetChips(gradeInput, sectionInput) {
+        const containers = getTargetChipContainers(gradeInput);
+        renderSelectChips(gradeInput, containers.grade, "grade");
+        renderTargetSummaryChips(gradeInput, sectionInput, containers.section);
+    }
+
     function updateSectionOptionsForGrades(gradeInput, sectionInput) {
         if (!sectionInput) {
             return;
@@ -1673,6 +1802,7 @@
             setSelectValues(sectionInput, [allSectionsValue]);
         }
         updateSectionOptionsForGrades(gradeInput, sectionInput);
+        refreshTargetChips(gradeInput, sectionInput);
         if (teacherInput) {
             teacherInput.value = "";
         }
@@ -1715,6 +1845,7 @@
         if (!["Role", "Custom"].includes(groupInput.value) && roleInput) {
             roleInput.value = "";
         }
+        refreshTargetChips(gradeInput, sectionInput);
     }
 
     function syncTargetGroup(groupInput, gradeInput, sectionInput, teacherInput, roleInput) {
@@ -1733,6 +1864,7 @@
             if (roleInput) {
                 roleInput.value = "";
             }
+            refreshTargetChips(gradeInput, sectionInput);
             return;
         }
         if (roleInput && roleInput.value.trim() && groupInput.value === "All School") {
@@ -1746,6 +1878,7 @@
             if (teacherInput) {
                 teacherInput.value = "";
             }
+            refreshTargetChips(gradeInput, sectionInput);
             return;
         }
         if (sectionInput && hasSpecificSectionValue(sectionInput)) {
@@ -1755,6 +1888,7 @@
             }
             removeSelectValue(sectionInput, allSectionsValue);
             syncGradesFromSections(gradeInput, sectionInput);
+            refreshTargetChips(gradeInput, sectionInput);
             return;
         }
         if (gradeInput && hasSpecificGradeValue(gradeInput)) {
@@ -1766,6 +1900,7 @@
             if (sectionInput && hasSelectValue(sectionInput, isAllSectionValue)) {
                 removeSelectValue(sectionInput, allSectionsValue);
             }
+            refreshTargetChips(gradeInput, sectionInput);
             return;
         }
         if (
@@ -1777,18 +1912,24 @@
         }
         if (gradeInput && getSelectValues(gradeInput).length) {
             groupInput.value = "Grade";
+            refreshTargetChips(gradeInput, sectionInput);
             return;
         }
         if (groupInput.value === "All School") {
             setAllSchoolTarget(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
         }
+        refreshTargetChips(gradeInput, sectionInput);
     }
 
     function bindTargetSync(groupInput, gradeInput, sectionInput, teacherInput, roleInput) {
-        const sync = () => syncTargetGroup(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
+        const sync = () => {
+            syncTargetGroup(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
+            refreshTargetChips(gradeInput, sectionInput);
+        };
         if (groupInput) {
             groupInput.addEventListener("change", () => {
                 applyTargetGroupChoice(groupInput, gradeInput, sectionInput, teacherInput, roleInput);
+                refreshTargetChips(gradeInput, sectionInput);
             });
         }
         [gradeInput, sectionInput, teacherInput, roleInput].forEach((input) => {
@@ -1850,6 +1991,7 @@
             createTargetTeacher,
             createTargetRole
         );
+        refreshTargetChips(createTargetGrade, createTargetSection);
         openDialog(createDialog);
         const titleInput = document.getElementById("create_title");
         if (titleInput) {
@@ -1913,6 +2055,7 @@
         setSelectValue("edit_target_teacher_id", eventItem.target_teacher_id);
         document.getElementById("edit_target_role").value = eventItem.target_role || "";
         syncTargetGroup(editTargetGroup, editTargetGrade, editTargetSection, editTargetTeacher, editTargetRole);
+        refreshTargetChips(editTargetGrade, editTargetSection);
         setSelectValue("edit_recurrence_rule", eventItem.recurrence_rule || "None");
         document.getElementById("edit_recurrence_interval").value = eventItem.recurrence_interval || 1;
         document.getElementById("edit_recurrence_until").value = eventItem.recurrence_until || "";
@@ -2085,6 +2228,8 @@
         editTargetTeacher,
         editTargetRole
     );
+    refreshTargetChips(createTargetGrade, createTargetSection);
+    refreshTargetChips(editTargetGrade, editTargetSection);
 
     if (createForm) {
         createForm.addEventListener("submit", () => {
