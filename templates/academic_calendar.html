@@ -1492,27 +1492,7 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="calendar-field">
-                        <label for="edit_target_group">Target Group</label>
-                        <select id="edit_target_group" name="target_group">
-                            {% for target_group in target_group_options %}
-                            <option value="{{ target_group }}">{{ target_group }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_target_grade_picker">Target Grades</label>
-                        <select id="edit_target_grade_picker" class="target-picker">
-                            <option value="">Select grade</option>
-                        </select>
-                        <select id="edit_target_grade" class="target-multi-source" name="target_grade" multiple aria-hidden="true" tabindex="-1">
-                            <option value="">No Grade</option>
-                            {% for grade in target_grade_options %}
-                            <option value="{{ grade }}">{{ grade if grade in ["KG", "All Grades"] else "Grade " ~ grade }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="selection-chip-row" id="edit_target_grade_chips" aria-live="polite" hidden></div>
-                    </div>
+                    <input id="edit_target_group" type="hidden" name="target_group" value="">
                     <div class="calendar-field">
                         <label for="edit_target_section_picker">Target Sections</label>
                         <select id="edit_target_section_picker" class="target-picker">
@@ -1527,19 +1507,8 @@
                         </select>
                         <div class="selection-chip-row" id="edit_target_section_chips" aria-live="polite" hidden></div>
                     </div>
-                    <div class="calendar-field">
-                        <label for="edit_target_teacher_id">Target Teacher</label>
-                        <select id="edit_target_teacher_id" name="target_teacher_id">
-                            <option value="">No Teacher</option>
-                            {% for teacher in teachers %}
-                            <option value="{{ teacher.id }}">{{ teacher.label }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="calendar-field">
-                        <label for="edit_target_role">Role / Custom Target</label>
-                        <input id="edit_target_role" name="target_role" maxlength="80">
-                    </div>
+                    <input id="edit_target_teacher_id" type="hidden" name="target_teacher_id" value="">
+                    <input id="edit_target_role" type="hidden" name="target_role" value="">
                     <div class="calendar-field recurrence-field">
                         <label>Recurrence</label>
                         <div class="recurrence-grid">
@@ -1732,16 +1701,18 @@
         return getSelectValues(gradeInput).filter((value) => value && !isAllGradeValue(value));
     }
 
-    function getTargetChipContainers(gradeInput) {
-        const isEdit = Boolean(gradeInput && gradeInput.id && gradeInput.id.startsWith("edit_"));
+    function getTargetChipContainers(gradeInput, sectionInput = null) {
+        const contextInput = gradeInput || sectionInput;
+        const isEdit = Boolean(contextInput && contextInput.id && contextInput.id.startsWith("edit_"));
         return {
             grade: isEdit ? editTargetGradeChips : createTargetGradeChips,
             section: isEdit ? editTargetSectionChips : createTargetSectionChips,
         };
     }
 
-    function getTargetPickers(gradeInput) {
-        const isEdit = Boolean(gradeInput && gradeInput.id && gradeInput.id.startsWith("edit_"));
+    function getTargetPickers(gradeInput, sectionInput = null) {
+        const contextInput = gradeInput || sectionInput;
+        const isEdit = Boolean(contextInput && contextInput.id && contextInput.id.startsWith("edit_"));
         return {
             grade: isEdit ? editTargetGradePicker : createTargetGradePicker,
             section: isEdit ? editTargetSectionPicker : createTargetSectionPicker,
@@ -1820,7 +1791,7 @@
     }
 
     function refreshTargetChips(gradeInput, sectionInput) {
-        const containers = getTargetChipContainers(gradeInput);
+        const containers = getTargetChipContainers(gradeInput, sectionInput);
         renderSelectChips(gradeInput, containers.grade, "grade");
         renderTargetSummaryChips(gradeInput, sectionInput, containers.section);
         refreshTargetPickers(gradeInput, sectionInput);
@@ -1852,7 +1823,7 @@
     }
 
     function refreshTargetPickers(gradeInput, sectionInput) {
-        const pickers = getTargetPickers(gradeInput);
+        const pickers = getTargetPickers(gradeInput, sectionInput);
         refreshPickerFromSource(gradeInput, pickers.grade, "Select grade");
         refreshPickerFromSource(sectionInput, pickers.section, "Select section");
     }
@@ -2271,7 +2242,7 @@
         document.getElementById("edit_end_time").value = eventItem.end_time || "";
         setSelectValue("edit_priority", eventItem.priority || "Normal");
         setSelectValue("edit_status", eventItem.status || "Planned");
-        setSelectValue("edit_target_group", eventItem.target_group || "All School");
+        setSelectValue("edit_target_group", "");
         setMultiSelectValues(
             "edit_target_grade",
             eventItem.target_grade_ids || [eventItem.target_grade]
@@ -2280,8 +2251,8 @@
             "edit_target_section_id",
             eventItem.target_section_ids || [eventItem.target_section_id]
         );
-        setSelectValue("edit_target_teacher_id", eventItem.target_teacher_id);
-        document.getElementById("edit_target_role").value = eventItem.target_role || "";
+        setSelectValue("edit_target_teacher_id", "");
+        document.getElementById("edit_target_role").value = "";
         syncTargetGroup(editTargetGroup, editTargetGrade, editTargetSection, editTargetTeacher, editTargetRole);
         refreshTargetChips(editTargetGrade, editTargetSection);
         setSelectValue("edit_recurrence_rule", eventItem.recurrence_rule || "None");
