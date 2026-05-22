@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Observations | TIS{% endblock %}
+
+{% block page_header_actions %}
+{% if can_create %}
+<a class="shell-btn shell-btn-primary" href="/observations/new">{{ icon("add", "shell-icon") }} New Observation</a>
+{% endif %}
+{% endblock %}
+
+{% block page_styles %}
+<style>
+.obs-wrap { display: grid; gap: 14px; }
+.shell-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px 12px; border: 1px solid #c6d4e8; border-radius: 8px; color: #1f2737; background: #fff; text-decoration: none; font-weight: 900; }
+.shell-btn-primary { border-color: #0a4ea3; background: #0a4ea3; color: #fff; }
+.obs-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.obs-kpi, .obs-panel { background: #fff; border: 1px solid #d8e2f0; border-radius: 8px; padding: 14px; }
+.obs-kpi span { display: block; color: #5d6b82; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.obs-kpi strong { display: block; margin-top: 6px; color: #1f2737; font-size: 24px; }
+.obs-table { width: 100%; border-collapse: collapse; }
+.obs-table th, .obs-table td { padding: 11px 10px; border-bottom: 1px solid #e3ebf6; text-align: left; vertical-align: middle; }
+.obs-table th { color: #48607f; font-size: 12px; text-transform: uppercase; }
+.teacher-main { display: flex; flex-direction: column; gap: 2px; }
+.teacher-main strong { color: #1f2737; }
+.teacher-main span { color: #5d6b82; font-size: 12px; }
+.progress-track { width: 100%; min-width: 140px; height: 8px; border-radius: 999px; background: #edf2f8; overflow: hidden; }
+.progress-fill { height: 100%; background: #0f766e; }
+.pill { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 9px; border-radius: 999px; background: #eef6ff; color: #0a4ea3; font-size: 12px; font-weight: 800; }
+.pill-warn { background: #fff7ed; color: #c2410c; }
+.pill-ok { background: #ecfdf3; color: #027a48; }
+.table-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.icon-action { width: 32px; height: 32px; border: 1px solid #c6d4e8; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: #48607f; background: #fff; }
+@media (max-width: 900px) {
+    .obs-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .obs-table { min-width: 780px; }
+    .obs-panel { overflow-x: auto; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="obs-wrap">
+    <section class="obs-kpis">
+        <div class="obs-kpi">
+            <span>Teachers</span>
+            <strong>{{ summary.teachers }}</strong>
+        </div>
+        <div class="obs-kpi">
+            <span>Formal Completed</span>
+            <strong>{{ summary.total_formal }}</strong>
+        </div>
+        <div class="obs-kpi">
+            <span>Formal Target</span>
+            <strong>{{ summary.total_required }}</strong>
+        </div>
+        <div class="obs-kpi">
+            <span>Completion</span>
+            <strong>{{ summary.completion_pct }}%</strong>
+        </div>
+    </section>
+
+    <section class="obs-panel">
+        <table class="obs-table">
+            <thead>
+                <tr>
+                    <th>Teacher</th>
+                    <th>Formal Progress</th>
+                    <th>Informal</th>
+                    <th>Average</th>
+                    <th>Latest</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>
+                        <div class="teacher-main">
+                            <strong>{{ row.teacher_name }}</strong>
+                            <span>{{ row.teacher.teacher_id }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="pill {% if row.remaining_formal == 0 %}pill-ok{% else %}pill-warn{% endif %}">
+                            {{ row.formal_count }} / {{ target }} formal
+                        </div>
+                        <div class="progress-track" aria-hidden="true">
+                            <div class="progress-fill" style="width: {{ row.progress_pct }}%;"></div>
+                        </div>
+                    </td>
+                    <td>{{ row.informal_count }}</td>
+                    <td>{% if row.average_score is not none %}{{ row.average_score }} / 5{% else %}-{% endif %}</td>
+                    <td>
+                        {% if row.latest %}
+                        <a href="/observations/{{ row.latest.id }}">{{ row.latest.observation_date }} - {{ row.latest.observation_type }}</a>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="table-actions">
+                            {% if can_create %}
+                            <a class="icon-action" href="/observations/new?teacher_id={{ row.teacher.id }}" title="New observation">{{ icon("add", "shell-icon") }}</a>
+                            {% endif %}
+                            {% if row.latest %}
+                            <a class="icon-action" href="/observations/{{ row.latest.id }}" title="Open latest">{{ icon("open", "shell-icon") }}</a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6">No teachers are available in the current branch and academic year.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+</div>
+{% endblock %}

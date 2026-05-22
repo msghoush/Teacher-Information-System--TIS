@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}New Observation | TIS{% endblock %}
+
+{% block page_header_actions %}
+<a class="shell-btn" href="/observations/">{{ icon("chevron-right", "shell-icon") }} Back</a>
+{% endblock %}
+
+{% block page_styles %}
+<style>
+.form-wrap { display: grid; gap: 14px; }
+.shell-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px 12px; border: 1px solid #c6d4e8; border-radius: 8px; color: #1f2737; background: #fff; text-decoration: none; font-weight: 900; }
+.form-panel { background: #fff; border: 1px solid #d8e2f0; border-radius: 8px; padding: 14px; }
+.meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.field { display: grid; gap: 5px; }
+.field label { color: #48607f; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.field input, .field select, .field textarea {
+    width: 100%; border: 1px solid #c6d4e8; border-radius: 8px; padding: 9px 10px; color: #1f2737; background: #fff;
+}
+.domain { border: 1px solid #d8e2f0; border-radius: 8px; overflow: hidden; background: #fff; }
+.domain-header { padding: 11px 13px; background: #f5f8fc; border-bottom: 1px solid #d8e2f0; font-weight: 900; color: #1f2737; }
+.criterion { display: grid; grid-template-columns: minmax(220px, 1fr) 330px; gap: 12px; padding: 13px; border-bottom: 1px solid #edf2f8; }
+.criterion:last-child { border-bottom: 0; }
+.criterion-title { margin: 0 0 7px; font-weight: 800; color: #1f2737; }
+.criterion-help { margin: 0; color: #5d6b82; font-size: 13px; line-height: 1.45; }
+.rating-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.rating-grid input { position: absolute; opacity: 0; pointer-events: none; }
+.rating-grid label {
+    min-height: 34px; border: 1px solid #c6d4e8; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: #48607f; font-weight: 900; background: #fff;
+}
+.rating-grid input:checked + label { background: #0a4ea3; color: #fff; border-color: #0a4ea3; }
+.evidence { margin-top: 8px; min-height: 72px; resize: vertical; }
+.form-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.submit-btn { border: 0; border-radius: 8px; background: #0a4ea3; color: #fff; padding: 10px 14px; font-weight: 900; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+@media (max-width: 1000px) {
+    .meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .criterion { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+    .meta-grid { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<form class="form-wrap" method="post" action="/observations/">
+    <section class="form-panel">
+        <div class="meta-grid">
+            <div class="field">
+                <label for="teacher_id">Evaluatee</label>
+                <select id="teacher_id" name="teacher_id" required>
+                    <option value="">Select teacher</option>
+                    {% for teacher in teachers %}
+                    {% set teacher_name = teacher.first_name ~ " " ~ (teacher.middle_name or "") ~ " " ~ teacher.last_name %}
+                    <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>{{ teacher_name }} - {{ teacher.teacher_id }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="observation_type">Type</label>
+                <select id="observation_type" name="observation_type" required>
+                    <option value="Formal">Formal</option>
+                    <option value="Informal">Informal</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="observation_date">Date</label>
+                <input id="observation_date" name="observation_date" type="date" value="{{ today }}" required>
+            </div>
+            <div class="field">
+                <label for="term">Term</label>
+                <select id="term" name="term">
+                    <option value="">Select term</option>
+                    <option value="1st">1st</option>
+                    <option value="2nd">2nd</option>
+                    <option value="3rd">3rd</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="grade">Grade</label>
+                <input id="grade" name="grade" placeholder="3">
+            </div>
+            <div class="field">
+                <label for="section">Section</label>
+                <input id="section" name="section" placeholder="A">
+            </div>
+            <div class="field">
+                <label for="period">Period</label>
+                <input id="period" name="period" placeholder="3">
+            </div>
+            <div class="field">
+                <label for="subject">Subject</label>
+                <input id="subject" name="subject" placeholder="Math">
+            </div>
+        </div>
+    </section>
+
+    {% for group in criteria_groups %}
+    <section class="domain">
+        <div class="domain-header">{{ group.domain_key }}. {{ group.domain_title }}</div>
+        {% for criterion in group.criteria %}
+        <div class="criterion">
+            <div>
+                <p class="criterion-title">{{ criterion.indicator_number }}. {{ criterion.title }}</p>
+                <p class="criterion-help">{{ criterion.guidelines }}</p>
+                <p class="criterion-help"><strong>Evidence:</strong> {{ criterion.evidence_examples }}</p>
+            </div>
+            <div>
+                <div class="rating-grid" aria-label="Rating for {{ criterion.title }}">
+                    {% for rating in ["NA", "0", "1", "2", "3", "4", "5"] %}
+                    <input id="rating_{{ criterion.id }}_{{ rating }}" type="radio" name="rating_{{ criterion.id }}" value="{{ rating }}" {% if rating == "NA" %}checked{% endif %}>
+                    <label for="rating_{{ criterion.id }}_{{ rating }}">{{ rating }}</label>
+                    {% endfor %}
+                </div>
+                <textarea class="evidence" name="evidence_{{ criterion.id }}" placeholder="Evidence observed for this criterion"></textarea>
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+    {% endfor %}
+
+    <section class="form-panel">
+        <div class="field">
+            <label for="evaluator_notes">Evaluator Notes / Key Strengths / Recommendations</label>
+            <textarea id="evaluator_notes" name="evaluator_notes" rows="5"></textarea>
+        </div>
+    </section>
+
+    <div class="form-actions">
+        <button class="submit-btn" type="submit">{{ icon("save", "shell-icon") }} Submit Observation</button>
+    </div>
+</form>
+{% endblock %}

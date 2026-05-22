@@ -27,7 +27,7 @@ from database import engine, SessionLocal
 import models
 import auth
 from dependencies import get_db
-from routers import subjects, users, teachers, planning, timetable, academic_calendar
+from routers import subjects, users, teachers, planning, timetable, academic_calendar, observations
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
 from teacher_capacity import (
@@ -7512,6 +7512,7 @@ app.include_router(teachers.router)
 app.include_router(planning.router)
 app.include_router(timetable.router)
 app.include_router(academic_calendar.router)
+app.include_router(observations.router)
 
 # ---------------------------------------
 # ROOT (Login Page)
@@ -11336,6 +11337,7 @@ def setup_initial_data():
     _seed_teacher_subject_allocations()
     _ensure_profile_photo_upload_dir()
     db = SessionLocal()
+    observations.ensure_observation_seed_data(db)
     _backfill_subject_colors(db)
     _migrate_profile_photos_to_database(db)
     admin_user_id = os.getenv("ADMIN_USER_ID", "2623252018")

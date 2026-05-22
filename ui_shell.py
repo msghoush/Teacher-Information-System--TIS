@@ -88,6 +88,12 @@ PAGE_META = {
         "intro": "Plan assessments, school events, meetings, vacations, and assigned responsibilities in one scoped calendar.",
         "icon": "calendar",
     },
+    "observations": {
+        "eyebrow": "Teacher Growth",
+        "title": "Observations",
+        "intro": "Track formal and informal observations, evidence, scoring, and feedback for every teacher.",
+        "icon": "clipboard-check",
+    },
     "users": {
         "eyebrow": "Access Control",
         "title": "Users",
@@ -156,6 +162,12 @@ def _build_nav_items(
             "href": "/academic-calendar/",
             "icon": "calendar",
             "active": is_active("/academic-calendar"),
+        },
+        {
+            "label": "Observations",
+            "href": "/observations/",
+            "icon": "clipboard-check",
+            "active": is_active("/observations"),
         },
         {
             "label": "Notification Center",

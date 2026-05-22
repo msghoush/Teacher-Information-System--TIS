@@ -346,6 +346,75 @@ class TeacherSectionAssignment(Base):
     subject_code = Column(String, nullable=False)
 
 
+class ObservationCriterion(Base):
+    __tablename__ = "observation_criteria"
+    __table_args__ = (
+        UniqueConstraint(
+            "domain_key",
+            "indicator_number",
+            name="uq_observation_criteria_domain_indicator",
+        ),
+        Index("ix_observation_criteria_sort", "sort_order"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    domain_key = Column(String(8), nullable=False)
+    domain_title = Column(String(160), nullable=False)
+    indicator_number = Column(Integer, nullable=False)
+    title = Column(Text, nullable=False)
+    guidelines = Column(Text, nullable=False, default="")
+    evidence_examples = Column(Text, nullable=False, default="")
+    sort_order = Column(Integer, nullable=False, default=0)
+    is_active = Column(Boolean, nullable=False, default=True)
+
+
+class Observation(Base):
+    __tablename__ = "observations"
+    __table_args__ = (
+        Index("ix_observations_teacher_scope", "teacher_id", "branch_id", "academic_year_id"),
+        Index("ix_observations_type_status", "observation_type", "status"),
+        Index("ix_observations_date", "observation_date"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False, index=True)
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False, index=True)
+    evaluator_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=False, index=True)
+    observation_type = Column(String(20), nullable=False, default="Formal")
+    observation_date = Column(String(10), nullable=False)
+    term = Column(String(20))
+    grade = Column(String(20))
+    section = Column(String(20))
+    period = Column(String(20))
+    subject = Column(String(120))
+    status = Column(String(20), nullable=False, default="Final")
+    overall_score = Column(String(20))
+    evaluator_notes = Column(Text)
+    evaluatee_notes = Column(Text)
+    smart_feedback = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class ObservationScore(Base):
+    __tablename__ = "observation_scores"
+    __table_args__ = (
+        UniqueConstraint(
+            "observation_id",
+            "criterion_id",
+            name="uq_observation_scores_observation_criterion",
+        ),
+        Index("ix_observation_scores_observation", "observation_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    observation_id = Column(Integer, ForeignKey("observations.id"), nullable=False, index=True)
+    criterion_id = Column(Integer, ForeignKey("observation_criteria.id"), nullable=False, index=True)
+    rating = Column(String(4), nullable=False, default="NA")
+    evidence = Column(Text)
+
+
 class PlanningSection(Base):
     __tablename__ = "planning_sections"
     __table_args__ = (
