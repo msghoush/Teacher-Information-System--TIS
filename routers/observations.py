@@ -1,10 +1,12 @@
 from collections import defaultdict
 from datetime import date, datetime, timezone
+import html
 import json
 import logging
+import traceback
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
@@ -222,6 +224,73 @@ def _context_keys(context: dict) -> list[str]:
     return sorted(key for key in context.keys() if key != "request")
 
 
+def _minimal_shell_context(notice: str = "") -> dict:
+    return {
+        "page_title": "Observations",
+        "page_icon": "clipboard-check",
+        "branch_name": "Debug Branch",
+        "academic_year_name": "Debug Year",
+        "nav_items": [],
+        "can_manage_system_settings": False,
+        "available_scope_branches": [],
+        "scoped_branch_id": None,
+        "user_image_url": "",
+        "user_initials": "U",
+        "user_name": "Debug User",
+        "role_label": "Debug",
+        "new_notification_count": 0,
+        "notice": notice,
+    }
+
+
+def _observation_debug_html(title: str, lines: list[str], status_code: int = 200):
+    body = "\n".join(f"<li>{html.escape(line)}</li>" for line in lines)
+    return HTMLResponse(
+        content=(
+            "<!doctype html><html><head><meta charset='utf-8'>"
+            f"<title>{html.escape(title)}</title>"
+            "<style>body{font-family:Arial,sans-serif;padding:24px;line-height:1.5}"
+            "pre{white-space:pre-wrap;background:#f6f8fa;border:1px solid #d0d7de;"
+            "padding:12px;border-radius:8px}</style></head><body>"
+            f"<h1>{html.escape(title)}</h1><ul>{body}</ul></body></html>"
+        ),
+        status_code=status_code,
+    )
+
+
+def _observation_error_html(route: str, stage: str, exc: Exception):
+    trace = traceback.format_exc()
+    logger.error(
+        "OBSERVATION DEBUG failed route=%s stage=%s error=%s\n%s",
+        route,
+        stage,
+        repr(exc),
+        trace,
+    )
+    return HTMLResponse(
+        content=(
+            "<!doctype html><html><head><meta charset='utf-8'>"
+            "<title>Observation Diagnostic</title>"
+            "<style>body{font-family:Arial,sans-serif;padding:24px;line-height:1.5}"
+            "pre{white-space:pre-wrap;background:#fff7ed;border:1px solid #fed7aa;"
+            "padding:12px;border-radius:8px}</style></head><body>"
+            "<h1>Observation module diagnostic</h1>"
+            "<p>The Observation page hit a controlled diagnostic fallback instead of a 500.</p>"
+            f"<p><strong>Route:</strong> {html.escape(route)}</p>"
+            f"<p><strong>Failing stage:</strong> {html.escape(stage)}</p>"
+            f"<p><strong>Exception:</strong> {html.escape(type(exc).__name__)}: {html.escape(str(exc))}</p>"
+            f"<pre>{html.escape(trace)}</pre>"
+            "</body></html>"
+        ),
+        status_code=200,
+    )
+
+
+def _log_observation_stage(stage: str, **details):
+    detail_text = " ".join(f"{key}={value}" for key, value in details.items())
+    logger.warning("OBSERVATION DEBUG stage=%s %s", stage, detail_text)
+
+
 def _criteria_by_domain(criteria):
     grouped = []
     current = None
@@ -350,49 +419,96 @@ def _teacher_observation_access_filter(query, db, current_user):
     return query.filter(models.Observation.teacher_id == teacher.id)
 
 
+@router.get("")
 @router.get("/")
 def observations_page(request: Request, db: Session = Depends(get_db)):
-    current_user = get_current_user(request, db)
-    if not current_user:
-        return RedirectResponse(url="/")
-
+    route = str(request.url.path)
+    debug_stage = str(request.query_params.get("debug_stage", "") or "").strip().lower()
+    stage = "1_route_minimal"
     try:
-        prepare_observation_module(db)
-        branch_id, academic_year_id = _get_scope_ids(current_user)
-        logger.warning(
-            "OBSERVATION DEBUG opened user_id=%s role=%s branch_id=%s academic_year_id=%s",
-            getattr(current_user, "user_id", ""),
-            auth.normalize_role(getattr(current_user, "role", "")),
-            branch_id,
-            academic_year_id,
-        )
+        _log_observation_stage(stage, route=route)
+        if debug_stage in {"1", "route", "minimal"}:
+            return _observation_debug_html(
+                "Observation module loaded",
+                ["Stage 1 passed: /observations route is registered and reachable."],
+            )
 
+        stage = "2_template_no_database"
+        template_context = {
+            "request": request,
+            "shell": _minimal_shell_context(),
+            "rows": [],
+            "can_create": False,
+            "target": FORMAL_OBSERVATION_TARGET,
+            "has_observations": False,
+            "summary": {
+                "teachers": 0,
+                "total_formal": 0,
+                "total_non_formal": 0,
+                "total_required": 0,
+                "completion_pct": 0,
+            },
+        }
+        templates.env.get_template("observations.html").render(template_context)
+        _log_observation_stage(stage, template="observations.html", keys=_context_keys(template_context))
+        if debug_stage in {"2", "template"}:
+            return templates.TemplateResponse("observations.html", template_context)
+
+        stage = "3_current_user_session"
+        current_user = get_current_user(request, db)
+        if not current_user:
+            _log_observation_stage(stage, authenticated=False)
+            return RedirectResponse(url="/")
+        branch_id, academic_year_id = _get_scope_ids(current_user)
+        _log_observation_stage(
+            stage,
+            authenticated=True,
+            user_id=getattr(current_user, "user_id", ""),
+            role=auth.normalize_role(getattr(current_user, "role", "")),
+            branch_id=branch_id,
+            academic_year_id=academic_year_id,
+        )
+        if debug_stage in {"3", "user", "session"}:
+            return _observation_debug_html(
+                "Observation user/session loaded",
+                [
+                    f"User ID: {getattr(current_user, 'user_id', '')}",
+                    f"Role: {auth.normalize_role(getattr(current_user, 'role', ''))}",
+                    f"Branch ID: {branch_id}",
+                    f"Academic year ID: {academic_year_id}",
+                ],
+            )
+
+        stage = "4_teacher_list"
+        prepare_observation_module(db)
         teachers_query = db.query(models.Teacher).filter(
             models.Teacher.branch_id == branch_id,
             models.Teacher.academic_year_id == academic_year_id,
         )
-        if _is_teacher_user(current_user):
-            current_teacher = _get_current_teacher(db, current_user)
-            teachers_query = teachers_query.filter(
-                models.Teacher.id == (current_teacher.id if current_teacher else -1)
-            )
-        teachers = teachers_query.order_by(models.Teacher.first_name.asc(), models.Teacher.last_name.asc()).all()
-
-        observation_rows = _teacher_observation_access_filter(
-            db.query(models.Observation).filter(
-                models.Observation.branch_id == branch_id,
-                models.Observation.academic_year_id == academic_year_id,
-            ),
-            db,
-            current_user,
+        teachers = teachers_query.order_by(
+            models.Teacher.first_name.asc(),
+            models.Teacher.last_name.asc(),
         ).all()
-        logger.warning(
-            "OBSERVATION DEBUG data_loaded user_id=%s teachers=%s observations=%s",
-            getattr(current_user, "user_id", ""),
-            len(teachers),
-            len(observation_rows),
-        )
+        _log_observation_stage(stage, teachers=len(teachers))
+        if debug_stage in {"4", "teachers"}:
+            return _observation_debug_html(
+                "Observation teacher list loaded",
+                [f"Teachers loaded: {len(teachers)}"],
+            )
 
+        stage = "5_observation_records"
+        observation_rows = db.query(models.Observation).filter(
+            models.Observation.branch_id == branch_id,
+            models.Observation.academic_year_id == academic_year_id,
+        ).all()
+        _log_observation_stage(stage, observations=len(observation_rows))
+        if debug_stage in {"5", "observations", "records"}:
+            return _observation_debug_html(
+                "Observation records loaded",
+                [f"Observation records loaded: {len(observation_rows)}"],
+            )
+
+        stage = "6_formal_non_formal_logic"
         observations_by_teacher = defaultdict(list)
         for observation in observation_rows:
             observations_by_teacher[observation.teacher_id].append(observation)
@@ -413,7 +529,11 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
                 for item in teacher_observations
                 if str(item.overall_score or "").replace(".", "", 1).isdigit()
             ]
-            latest = sorted(teacher_observations, key=lambda item: item.observation_date or "", reverse=True)
+            latest = sorted(
+                teacher_observations,
+                key=lambda item: item.observation_date or "",
+                reverse=True,
+            )
             rows.append(
                 {
                     "teacher": teacher,
@@ -426,21 +546,89 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
                     "latest": latest[0] if latest else None,
                 }
             )
-
         total_formal = sum(row["formal_count"] for row in rows)
         total_non_formal = sum(row["non_formal_count"] for row in rows)
         total_required = len(rows) * FORMAL_OBSERVATION_TARGET
+        _log_observation_stage(
+            stage,
+            rows=len(rows),
+            total_formal=total_formal,
+            total_non_formal=total_non_formal,
+            total_required=total_required,
+        )
+        if debug_stage in {"6", "counts", "logic"}:
+            return _observation_debug_html(
+                "Observation count logic loaded",
+                [
+                    f"Rows built: {len(rows)}",
+                    f"Formal observations: {total_formal}",
+                    f"Non-formal observations: {total_non_formal}",
+                    f"Formal target required: {total_required}",
+                ],
+            )
+
+        stage = "7_criteria_evidence"
+        criteria = db.query(models.ObservationCriterion).filter(
+            models.ObservationCriterion.is_active == True
+        ).order_by(models.ObservationCriterion.sort_order.asc()).all()
+        criteria_groups = _criteria_by_domain(criteria)
+        _log_observation_stage(stage, criteria=len(criteria), groups=len(criteria_groups))
+        if debug_stage in {"7", "criteria", "evidence"}:
+            return _observation_debug_html(
+                "Observation criteria loaded",
+                [
+                    f"Criteria loaded: {len(criteria)}",
+                    f"Criteria groups loaded: {len(criteria_groups)}",
+                ],
+            )
+
+        stage = "8_role_permissions_teacher_access"
+        if _is_teacher_user(current_user):
+            current_teacher = _get_current_teacher(db, current_user)
+            allowed_teacher_id = current_teacher.id if current_teacher else -1
+            rows = [
+                row for row in rows
+                if getattr(row["teacher"], "id", None) == allowed_teacher_id
+            ]
+            observation_rows = [
+                observation for observation in observation_rows
+                if observation.teacher_id == allowed_teacher_id
+            ]
+            total_formal = sum(row["formal_count"] for row in rows)
+            total_non_formal = sum(row["non_formal_count"] for row in rows)
+            total_required = len(rows) * FORMAL_OBSERVATION_TARGET
+        can_create = _can_create_observation(current_user)
+        shell_context = build_shell_context(
+            request,
+            db,
+            current_user,
+            page_key="observations",
+            notice=request.query_params.get("notice", ""),
+        )
+        _log_observation_stage(
+            stage,
+            role=auth.normalize_role(getattr(current_user, "role", "")),
+            can_create=can_create,
+            visible_rows=len(rows),
+            visible_observations=len(observation_rows),
+        )
+        if debug_stage in {"8", "permissions", "access"}:
+            return _observation_debug_html(
+                "Observation permissions loaded",
+                [
+                    f"Role: {auth.normalize_role(getattr(current_user, 'role', ''))}",
+                    f"Can create: {can_create}",
+                    f"Visible rows: {len(rows)}",
+                    f"Visible observations: {len(observation_rows)}",
+                ],
+            )
+
+        stage = "9_final_template"
         context = {
             "request": request,
-            "shell": build_shell_context(
-                request,
-                db,
-                current_user,
-                page_key="observations",
-                notice=request.query_params.get("notice", ""),
-            ),
+            "shell": shell_context,
             "rows": rows,
-            "can_create": _can_create_observation(current_user),
+            "can_create": can_create,
             "target": FORMAL_OBSERVATION_TARGET,
             "has_observations": bool(observation_rows),
             "summary": {
@@ -451,19 +639,11 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
                 "completion_pct": round((total_formal / total_required) * 100) if total_required else 0,
             },
         }
-        logger.warning(
-            "OBSERVATION DEBUG context user_id=%s keys=%s",
-            getattr(current_user, "user_id", ""),
-            _context_keys(context),
-        )
+        templates.env.get_template("observations.html").render(context)
+        _log_observation_stage(stage, template="observations.html", keys=_context_keys(context))
         return templates.TemplateResponse("observations.html", context)
-    except Exception:
-        logger.exception(
-            "Observation module failed user_id=%s role=%s",
-            getattr(current_user, "user_id", ""),
-            auth.normalize_role(getattr(current_user, "role", "")),
-        )
-        raise
+    except Exception as exc:
+        return _observation_error_html(route, stage, exc)
 
 
 @router.get("/new")
