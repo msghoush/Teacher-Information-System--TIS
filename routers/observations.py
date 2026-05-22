@@ -452,7 +452,7 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
         templates.env.get_template("observations.html").render(template_context)
         _log_observation_stage(stage, template="observations.html", keys=_context_keys(template_context))
         if debug_stage in {"2", "template"}:
-            return templates.TemplateResponse("observations.html", template_context)
+            return templates.TemplateResponse(request, "observations.html", template_context)
 
         stage = "3_current_user_session"
         current_user = get_current_user(request, db)
@@ -641,7 +641,7 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
         }
         templates.env.get_template("observations.html").render(context)
         _log_observation_stage(stage, template="observations.html", keys=_context_keys(context))
-        return templates.TemplateResponse("observations.html", context)
+        return templates.TemplateResponse(request, "observations.html", context)
     except Exception as exc:
         return _observation_error_html(route, stage, exc)
 
@@ -665,6 +665,7 @@ def new_observation_page(request: Request, teacher_id: int | None = None, db: Se
     ).order_by(models.ObservationCriterion.sort_order.asc()).all()
 
     return templates.TemplateResponse(
+        request,
         "observation_form.html",
         {
             "request": request,
@@ -795,6 +796,7 @@ def observation_detail_page(observation_id: int, request: Request, db: Session =
         feedback = _build_smart_feedback(score_rows, criteria_by_id)
 
     return templates.TemplateResponse(
+        request,
         "observation_detail.html",
         {
             "request": request,
