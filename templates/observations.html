@@ -29,6 +29,7 @@
 .pill { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 4px 9px; border-radius: 999px; background: #eef6ff; color: #0a4ea3; font-size: 12px; font-weight: 800; }
 .pill-warn { background: #fff7ed; color: #c2410c; }
 .pill-ok { background: #ecfdf3; color: #027a48; }
+.empty-note { margin: 12px 0 0; color: #5d6b82; font-weight: 700; }
 .table-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .icon-action { width: 32px; height: 32px; border: 1px solid #c6d4e8; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: #48607f; background: #fff; }
 @media (max-width: 900px) {
@@ -66,7 +67,7 @@
                 <tr>
                     <th>Teacher</th>
                     <th>Formal Progress</th>
-                    <th>Informal</th>
+                    <th>Non-formal</th>
                     <th>Average</th>
                     <th>Latest</th>
                     <th></th>
@@ -89,7 +90,7 @@
                             <div class="progress-fill" style="width: {{ row.progress_pct }}%;"></div>
                         </div>
                     </td>
-                    <td>{{ row.informal_count }}</td>
+                    <td>{{ row.non_formal_count }}</td>
                     <td>{% if row.average_score is not none %}{{ row.average_score }} / 5{% else %}-{% endif %}</td>
                     <td>
                         {% if row.latest %}
@@ -111,11 +112,14 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6">No teachers are available in the current branch and academic year.</td>
+                    <td colspan="6">No observations recorded yet.</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        {% if rows and not has_observations %}
+        <p class="empty-note">No observations recorded yet.</p>
+        {% endif %}
     </section>
 </div>
 {% endblock %}

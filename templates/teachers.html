@@ -3772,9 +3772,12 @@
                                 </td>
                                 <td>
                                     <div class="hours-status-cell">
+                                        {% set observation_counts = teacher_observation_counts.get(teacher.id, {"formal": 0, "non_formal": 0}) %}
                                         <span class="hours-status-chip {% if within_capacity %}is-good{% else %}is-danger{% endif %}">
                                             {{ "Within Capacity" if within_capacity else "Over Capacity" }}
                                         </span>
+                                        <span class="hours-status-note">Formal observations: {{ observation_counts.formal }} / 6</span>
+                                        <span class="hours-status-note">Non-formal observations: {{ observation_counts.non_formal }}</span>
                                         {% if teacher.is_new_teacher %}
                                         <span class="teacher-status-badge">New Teacher</span>
                                         {% endif %}

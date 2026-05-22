@@ -11336,6 +11336,7 @@ def setup_initial_data():
     _log_notification_schema_compatibility("startup")
     _seed_teacher_subject_allocations()
     _ensure_profile_photo_upload_dir()
+    observations.ensure_observation_schema()
     db = SessionLocal()
     observations.ensure_observation_seed_data(db)
     _backfill_subject_colors(db)

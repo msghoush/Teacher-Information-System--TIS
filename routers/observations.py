@@ -1,22 +1,25 @@
 from collections import defaultdict
 from datetime import date, datetime, timezone
 import json
+import logging
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 import auth
 import models
 from auth import get_current_user
+from database import engine
 from dependencies import get_db
 from ui_shell import build_shell_context
 
 
 router = APIRouter(prefix="/observations", tags=["Observations"])
 templates = Jinja2Templates(directory="templates")
+logger = logging.getLogger("tis.observations")
 
 FORMAL_OBSERVATION_TARGET = 6
 RATING_VALUES = {"0", "1", "2", "3", "4", "5"}
@@ -48,6 +51,92 @@ OBSERVATION_CRITERIA = [
     ("F", "Relationship Dimension", 2, "Cultivates learner cooperation, collaboration, and inclusivity", "Teacher promotes structured cooperation, collaborative learning, inclusivity, participation, and appreciation of strengths.", "Group work includes roles, peer support, and inclusive participation."),
     ("F", "Relationship Dimension", 3, "Preserves learners' dignity while attending to their individual needs", "Individual needs are addressed respectfully, discreetly, empathetically, and without stigma.", "Corrections are private, support is discreet, and learners are not embarrassed or singled out."),
 ]
+
+
+OBSERVATION_SCHEMA_COLUMNS = {
+    "observation_criteria": {
+        "id": "INTEGER",
+        "domain_key": "VARCHAR(8) NOT NULL DEFAULT ''",
+        "domain_title": "VARCHAR(160) NOT NULL DEFAULT ''",
+        "indicator_number": "INTEGER NOT NULL DEFAULT 0",
+        "title": "TEXT NOT NULL DEFAULT ''",
+        "guidelines": "TEXT NOT NULL DEFAULT ''",
+        "evidence_examples": "TEXT NOT NULL DEFAULT ''",
+        "sort_order": "INTEGER NOT NULL DEFAULT 0",
+        "is_active": "BOOLEAN NOT NULL DEFAULT TRUE",
+    },
+    "observations": {
+        "id": "INTEGER",
+        "branch_id": "INTEGER NOT NULL DEFAULT 0",
+        "academic_year_id": "INTEGER NOT NULL DEFAULT 0",
+        "teacher_id": "INTEGER NOT NULL DEFAULT 0",
+        "evaluator_user_id": "VARCHAR(10) NOT NULL DEFAULT ''",
+        "observation_type": "VARCHAR(20) NOT NULL DEFAULT 'Formal'",
+        "observation_date": "VARCHAR(10) NOT NULL DEFAULT ''",
+        "term": "VARCHAR(20)",
+        "grade": "VARCHAR(20)",
+        "section": "VARCHAR(20)",
+        "period": "VARCHAR(20)",
+        "subject": "VARCHAR(120)",
+        "status": "VARCHAR(20) NOT NULL DEFAULT 'Final'",
+        "overall_score": "VARCHAR(20)",
+        "evaluator_notes": "TEXT",
+        "evaluatee_notes": "TEXT",
+        "smart_feedback": "TEXT",
+        "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    },
+    "observation_scores": {
+        "id": "INTEGER",
+        "observation_id": "INTEGER NOT NULL DEFAULT 0",
+        "criterion_id": "INTEGER NOT NULL DEFAULT 0",
+        "rating": "VARCHAR(4) NOT NULL DEFAULT 'NA'",
+        "evidence": "TEXT",
+    },
+}
+
+
+def ensure_observation_schema():
+    models.Base.metadata.create_all(
+        bind=engine,
+        tables=[
+            models.ObservationCriterion.__table__,
+            models.Observation.__table__,
+            models.ObservationScore.__table__,
+        ],
+    )
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    if engine.dialect.name != "sqlite":
+        return
+
+    with engine.begin() as connection:
+        for table_name, column_sql_map in OBSERVATION_SCHEMA_COLUMNS.items():
+            if table_name not in existing_tables:
+                continue
+            existing_columns = {
+                column["name"]
+                for column in inspector.get_columns(table_name)
+            }
+            for column_name, column_sql in column_sql_map.items():
+                if column_name == "id" or column_name in existing_columns:
+                    continue
+                logger.warning(
+                    "Adding missing Observation schema column %s.%s",
+                    table_name,
+                    column_name,
+                )
+                connection.execute(
+                    text(
+                        f"ALTER TABLE {table_name} "
+                        f"ADD COLUMN {column_name} {column_sql}"
+                    )
+                )
+
+
+def prepare_observation_module(db: Session):
+    ensure_observation_schema()
+    ensure_observation_seed_data(db)
 
 
 def _get_scope_ids(current_user):
@@ -113,6 +202,24 @@ def ensure_observation_seed_data(db: Session):
             )
         )
     db.commit()
+
+
+def _normalize_observation_type(value: str) -> str:
+    cleaned = " ".join(str(value or "").replace("_", " ").split()).strip().lower()
+    if cleaned == "formal":
+        return "Formal"
+    if cleaned in {"informal", "non formal", "non-formal", "nonformal"}:
+        return "Non-formal"
+    return "Formal"
+
+
+def _is_non_formal_observation(observation) -> bool:
+    normalized = _normalize_observation_type(getattr(observation, "observation_type", ""))
+    return normalized == "Non-formal"
+
+
+def _context_keys(context: dict) -> list[str]:
+    return sorted(key for key in context.keys() if key != "request")
 
 
 def _criteria_by_domain(criteria):
@@ -249,60 +356,81 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
     if not current_user:
         return RedirectResponse(url="/")
 
-    ensure_observation_seed_data(db)
-    branch_id, academic_year_id = _get_scope_ids(current_user)
-    teachers_query = db.query(models.Teacher).filter(
-        models.Teacher.branch_id == branch_id,
-        models.Teacher.academic_year_id == academic_year_id,
-    )
-    if _is_teacher_user(current_user):
-        current_teacher = _get_current_teacher(db, current_user)
-        teachers_query = teachers_query.filter(
-            models.Teacher.id == (current_teacher.id if current_teacher else -1)
-        )
-    teachers = teachers_query.order_by(models.Teacher.first_name.asc(), models.Teacher.last_name.asc()).all()
-
-    observation_rows = _teacher_observation_access_filter(
-        db.query(models.Observation).filter(
-            models.Observation.branch_id == branch_id,
-            models.Observation.academic_year_id == academic_year_id,
-        ),
-        db,
-        current_user,
-    ).all()
-    observations_by_teacher = defaultdict(list)
-    for observation in observation_rows:
-        observations_by_teacher[observation.teacher_id].append(observation)
-
-    rows = []
-    for teacher in teachers:
-        teacher_observations = observations_by_teacher.get(teacher.id, [])
-        formal_count = sum(1 for item in teacher_observations if item.observation_type == "Formal")
-        informal_count = sum(1 for item in teacher_observations if item.observation_type == "Informal")
-        scored = [
-            float(item.overall_score)
-            for item in teacher_observations
-            if str(item.overall_score or "").replace(".", "", 1).isdigit()
-        ]
-        latest = sorted(teacher_observations, key=lambda item: item.observation_date or "", reverse=True)
-        rows.append(
-            {
-                "teacher": teacher,
-                "teacher_name": _teacher_name(teacher),
-                "formal_count": formal_count,
-                "informal_count": informal_count,
-                "remaining_formal": max(FORMAL_OBSERVATION_TARGET - formal_count, 0),
-                "progress_pct": min(round((formal_count / FORMAL_OBSERVATION_TARGET) * 100), 100),
-                "average_score": round(sum(scored) / len(scored), 2) if scored else None,
-                "latest": latest[0] if latest else None,
-            }
+    try:
+        prepare_observation_module(db)
+        branch_id, academic_year_id = _get_scope_ids(current_user)
+        logger.warning(
+            "OBSERVATION DEBUG opened user_id=%s role=%s branch_id=%s academic_year_id=%s",
+            getattr(current_user, "user_id", ""),
+            auth.normalize_role(getattr(current_user, "role", "")),
+            branch_id,
+            academic_year_id,
         )
 
-    total_formal = sum(row["formal_count"] for row in rows)
-    total_required = len(rows) * FORMAL_OBSERVATION_TARGET
-    return templates.TemplateResponse(
-        "observations.html",
-        {
+        teachers_query = db.query(models.Teacher).filter(
+            models.Teacher.branch_id == branch_id,
+            models.Teacher.academic_year_id == academic_year_id,
+        )
+        if _is_teacher_user(current_user):
+            current_teacher = _get_current_teacher(db, current_user)
+            teachers_query = teachers_query.filter(
+                models.Teacher.id == (current_teacher.id if current_teacher else -1)
+            )
+        teachers = teachers_query.order_by(models.Teacher.first_name.asc(), models.Teacher.last_name.asc()).all()
+
+        observation_rows = _teacher_observation_access_filter(
+            db.query(models.Observation).filter(
+                models.Observation.branch_id == branch_id,
+                models.Observation.academic_year_id == academic_year_id,
+            ),
+            db,
+            current_user,
+        ).all()
+        logger.warning(
+            "OBSERVATION DEBUG data_loaded user_id=%s teachers=%s observations=%s",
+            getattr(current_user, "user_id", ""),
+            len(teachers),
+            len(observation_rows),
+        )
+
+        observations_by_teacher = defaultdict(list)
+        for observation in observation_rows:
+            observations_by_teacher[observation.teacher_id].append(observation)
+
+        rows = []
+        for teacher in teachers:
+            teacher_observations = observations_by_teacher.get(teacher.id, [])
+            formal_count = sum(
+                1
+                for item in teacher_observations
+                if _normalize_observation_type(item.observation_type) == "Formal"
+            )
+            non_formal_count = sum(
+                1 for item in teacher_observations if _is_non_formal_observation(item)
+            )
+            scored = [
+                float(item.overall_score)
+                for item in teacher_observations
+                if str(item.overall_score or "").replace(".", "", 1).isdigit()
+            ]
+            latest = sorted(teacher_observations, key=lambda item: item.observation_date or "", reverse=True)
+            rows.append(
+                {
+                    "teacher": teacher,
+                    "teacher_name": _teacher_name(teacher),
+                    "formal_count": formal_count,
+                    "non_formal_count": non_formal_count,
+                    "remaining_formal": max(FORMAL_OBSERVATION_TARGET - formal_count, 0),
+                    "progress_pct": min(round((formal_count / FORMAL_OBSERVATION_TARGET) * 100), 100),
+                    "average_score": round(sum(scored) / len(scored), 2) if scored else None,
+                    "latest": latest[0] if latest else None,
+                }
+            )
+
+        total_formal = sum(row["formal_count"] for row in rows)
+        total_non_formal = sum(row["non_formal_count"] for row in rows)
+        total_required = len(rows) * FORMAL_OBSERVATION_TARGET
+        context = {
             "request": request,
             "shell": build_shell_context(
                 request,
@@ -314,14 +442,28 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
             "rows": rows,
             "can_create": _can_create_observation(current_user),
             "target": FORMAL_OBSERVATION_TARGET,
+            "has_observations": bool(observation_rows),
             "summary": {
                 "teachers": len(rows),
                 "total_formal": total_formal,
+                "total_non_formal": total_non_formal,
                 "total_required": total_required,
                 "completion_pct": round((total_formal / total_required) * 100) if total_required else 0,
             },
-        },
-    )
+        }
+        logger.warning(
+            "OBSERVATION DEBUG context user_id=%s keys=%s",
+            getattr(current_user, "user_id", ""),
+            _context_keys(context),
+        )
+        return templates.TemplateResponse("observations.html", context)
+    except Exception:
+        logger.exception(
+            "Observation module failed user_id=%s role=%s",
+            getattr(current_user, "user_id", ""),
+            auth.normalize_role(getattr(current_user, "role", "")),
+        )
+        raise
 
 
 @router.get("/new")
@@ -332,7 +474,7 @@ def new_observation_page(request: Request, teacher_id: int | None = None, db: Se
     if not _can_create_observation(current_user):
         return RedirectResponse(url="/observations")
 
-    ensure_observation_seed_data(db)
+    prepare_observation_module(db)
     branch_id, academic_year_id = _get_scope_ids(current_user)
     teachers = db.query(models.Teacher).filter(
         models.Teacher.branch_id == branch_id,
@@ -369,7 +511,7 @@ async def create_observation(request: Request, db: Session = Depends(get_db)):
     if not _can_create_observation(current_user):
         return RedirectResponse(url="/observations")
 
-    ensure_observation_seed_data(db)
+    prepare_observation_module(db)
     form = await request.form()
     branch_id, academic_year_id = _get_scope_ids(current_user)
     teacher_pk = _parse_int(form.get("teacher_id"))
@@ -381,9 +523,23 @@ async def create_observation(request: Request, db: Session = Depends(get_db)):
     if not teacher:
         return RedirectResponse(url="/observations/new?notice=Select+a+valid+teacher.", status_code=302)
 
-    observation_type = str(form.get("observation_type") or "Formal").strip().title()
-    if observation_type not in {"Formal", "Informal"}:
-        observation_type = "Formal"
+    observation_type = _normalize_observation_type(form.get("observation_type"))
+    if observation_type == "Formal":
+        formal_count = db.query(models.Observation).filter(
+            models.Observation.teacher_id == teacher.id,
+            models.Observation.branch_id == branch_id,
+            models.Observation.academic_year_id == academic_year_id,
+            models.Observation.observation_type == "Formal",
+        ).count()
+        if formal_count >= FORMAL_OBSERVATION_TARGET:
+            return RedirectResponse(
+                url=(
+                    "/observations/new?"
+                    f"teacher_id={teacher.id}&"
+                    "notice=This+teacher+already+has+6+formal+observations+for+the+year."
+                ),
+                status_code=302,
+            )
     observation = models.Observation(
         branch_id=branch_id,
         academic_year_id=academic_year_id,
@@ -423,7 +579,7 @@ async def create_observation(request: Request, db: Session = Depends(get_db)):
     feedback = _build_smart_feedback(score_rows, criteria_by_id)
     observation.overall_score = "" if feedback["overall"] is None else str(feedback["overall"])
     observation.smart_feedback = json.dumps(feedback)
-    observation.updated_at = datetime.utcnow()
+    observation.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
 
     return RedirectResponse(url=f"/observations/{observation.id}", status_code=302)

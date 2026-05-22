@@ -1181,6 +1181,35 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
     return allocation_map
 
 
+def _get_teacher_observation_count_map(db: Session, teachers, branch_id: int, academic_year_id: int):
+    teacher_ids = [teacher.id for teacher in teachers if getattr(teacher, "id", None)]
+    count_map = {
+        teacher_id: {"formal": 0, "non_formal": 0}
+        for teacher_id in teacher_ids
+    }
+    if not teacher_ids or not hasattr(models, "Observation"):
+        return count_map
+
+    observation_rows = db.query(models.Observation).filter(
+        models.Observation.teacher_id.in_(teacher_ids),
+        models.Observation.branch_id == branch_id,
+        models.Observation.academic_year_id == academic_year_id,
+    ).all()
+    for observation in observation_rows:
+        teacher_counts = count_map.setdefault(
+            observation.teacher_id,
+            {"formal": 0, "non_formal": 0},
+        )
+        observation_type = " ".join(
+            str(observation.observation_type or "").replace("_", " ").split()
+        ).strip().lower()
+        if observation_type == "formal":
+            teacher_counts["formal"] += 1
+        elif observation_type in {"informal", "non formal", "non-formal", "nonformal"}:
+            teacher_counts["non_formal"] += 1
+    return count_map
+
+
 @router.get("/auto-matching-data")
 def auto_matching_data(
     request: Request,
@@ -1253,6 +1282,12 @@ def _render_teachers_page(
         branch_id,
         academic_year_id,
     )
+    teacher_observation_counts = _get_teacher_observation_count_map(
+        db,
+        teachers,
+        branch_id,
+        academic_year_id,
+    )
     section_assignment_support = _get_section_options_by_subject(
         db=db,
         branch_id=branch_id,
@@ -1290,6 +1325,7 @@ def _render_teachers_page(
             "subject_alignment_keyword_groups": get_subject_alignment_keyword_groups_for_json(),
             "section_options_by_subject": section_assignment_support["section_options_by_subject"],
             "teacher_allocations": teacher_allocations,
+            "teacher_observation_counts": teacher_observation_counts,
             "can_modify": can_modify,
             "can_edit": can_edit,
             "can_delete": can_delete,
