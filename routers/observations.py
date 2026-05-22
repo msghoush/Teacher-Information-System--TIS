@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 import json
 
 from fastapi import APIRouter, Depends, Request
@@ -495,7 +495,7 @@ async def save_evaluatee_notes(observation_id: int, request: Request, db: Sessio
 
     form = await request.form()
     observation.evaluatee_notes = str(form.get("evaluatee_notes") or "").strip()
-    observation.updated_at = datetime.utcnow()
+    observation.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
     return RedirectResponse(url=f"/observations/{observation.id}?notice=Notes+saved", status_code=302)
 
