@@ -626,7 +626,6 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
         stage = "9_final_template"
         context = {
             "request": request,
-            "shell": shell_context,
             "rows": rows,
             "can_create": can_create,
             "target": FORMAL_OBSERVATION_TARGET,
@@ -638,6 +637,7 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
                 "total_required": total_required,
                 "completion_pct": round((total_formal / total_required) * 100) if total_required else 0,
             },
+            **shell_context,
         }
         templates.env.get_template("observations.html").render(context)
         _log_observation_stage(stage, template="observations.html", keys=_context_keys(context))
@@ -669,7 +669,7 @@ def new_observation_page(request: Request, teacher_id: int | None = None, db: Se
         "observation_form.html",
         {
             "request": request,
-            "shell": build_shell_context(
+            **build_shell_context(
                 request,
                 db,
                 current_user,
@@ -800,7 +800,7 @@ def observation_detail_page(observation_id: int, request: Request, db: Session =
         "observation_detail.html",
         {
             "request": request,
-            "shell": build_shell_context(
+            **build_shell_context(
                 request,
                 db,
                 current_user,
