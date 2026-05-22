@@ -64,6 +64,17 @@ def _teacher_name(teacher) -> str:
     return " ".join(part for part in parts if part).strip() or f"Teacher #{teacher.id}"
 
 
+def _teacher_choice_rows(teachers):
+    return [
+        {
+            "id": teacher.id,
+            "teacher_id": teacher.teacher_id or "",
+            "name": _teacher_name(teacher),
+        }
+        for teacher in teachers
+    ]
+
+
 def _is_teacher_user(current_user) -> bool:
     return auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_USER
 
@@ -342,7 +353,7 @@ def new_observation_page(request: Request, teacher_id: int | None = None, db: Se
                 page_key="observations",
                 notice=request.query_params.get("notice", ""),
             ),
-            "teachers": teachers,
+            "teachers": _teacher_choice_rows(teachers),
             "criteria_groups": _criteria_by_domain(criteria),
             "today": date.today().isoformat(),
             "selected_teacher_id": teacher_id,

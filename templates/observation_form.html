@@ -53,8 +53,7 @@
                 <select id="teacher_id" name="teacher_id" required>
                     <option value="">Select teacher</option>
                     {% for teacher in teachers %}
-                    {% set teacher_name = teacher.first_name ~ " " ~ (teacher.middle_name or "") ~ " " ~ teacher.last_name %}
-                    <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>{{ teacher_name }} - {{ teacher.teacher_id }}</option>
+                    <option value="{{ teacher.id }}" {% if selected_teacher_id == teacher.id %}selected{% endif %}>{{ teacher.name }} - {{ teacher.teacher_id }}</option>
                     {% endfor %}
                 </select>
             </div>

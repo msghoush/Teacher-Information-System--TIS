@@ -62,39 +62,50 @@
 
     <section class="result-panel">
         <h2>Smart Feedback</h2>
-        <p>{{ feedback.headline }}</p>
+        <p>{{ feedback.headline or "Observation feedback is being prepared." }}</p>
         <div class="feedback-grid">
             <div class="feedback-box">
                 <h3>Strengths</h3>
                 <ul>
-                    {% for item in feedback.strengths %}
+                    {% for item in feedback.strengths or [] %}
                     <li>{{ item }}</li>
+                    {% else %}
+                    <li>No strengths were generated for this observation yet.</li>
                     {% endfor %}
                 </ul>
             </div>
             <div class="feedback-box">
                 <h3>Growth Areas</h3>
                 <ul>
-                    {% for item in feedback.improvements %}
+                    {% for item in feedback.improvements or [] %}
                     <li>{{ item }}</li>
+                    {% else %}
+                    <li>No growth areas were generated for this observation yet.</li>
                     {% endfor %}
                 </ul>
             </div>
             <div class="feedback-box">
                 <h3>Next Steps</h3>
                 <ul>
-                    {% for item in feedback.next_steps %}
+                    {% for item in feedback.next_steps or [] %}
                     <li>{{ item }}</li>
+                    {% else %}
+                    <li>No next steps were generated for this observation yet.</li>
                     {% endfor %}
                 </ul>
             </div>
             <div class="feedback-box">
                 <h3>Domain Scores</h3>
                 <div class="domain-scores">
-                    {% for item in feedback.domain_summary %}
+                    {% for item in feedback.domain_summary or [] %}
                     <div class="domain-score">
                         <span>{{ item.domain_key }}. {{ item.domain_title }}</span>
                         <strong>{{ item.average }} / 5</strong>
+                    </div>
+                    {% else %}
+                    <div class="domain-score">
+                        <span>Domain scores</span>
+                        <strong>-</strong>
                     </div>
                     {% endfor %}
                 </div>
