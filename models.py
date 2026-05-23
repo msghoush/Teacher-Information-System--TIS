@@ -13,6 +13,25 @@ class Branch(Base):
     status = Column(Boolean, default=True)
 
 
+class BranchLogo(Base):
+    __tablename__ = "branch_logos"
+    __table_args__ = (
+        UniqueConstraint("branch_id", "slot_key", name="uq_branch_logos_branch_slot"),
+        Index("ix_branch_logos_branch", "branch_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
+    slot_key = Column(String(40), nullable=False)
+    label = Column(String(120), nullable=False)
+    image_path = Column(String(255), nullable=False)
+    content_type = Column(String(80))
+    sort_order = Column(Integer, nullable=False, default=0)
+    updated_by_user_id = Column(String(10))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class AcademicYear(Base):
     __tablename__ = "academic_years"
     id = Column(Integer, primary_key=True, index=True)

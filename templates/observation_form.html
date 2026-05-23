@@ -124,9 +124,9 @@ body.rubric-modal-open { overflow: hidden; }
             <span>{{ "Edit Observation" if observation else "New Observation" }}</span>
         </div>
         <div class="observation-logo-strip" aria-label="School logos">
-            <img class="observation-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Little Andalus International Schools logo">
-            <img class="observation-logo observation-logo-cognia" src="{{ url_for('static', path='images/cognia-logo.png') }}" alt="Cognia logo">
-            <img class="observation-logo observation-logo-main" src="{{ url_for('static', path='images/andalus-logo-main.png') }}" alt="Andalus International Schools main logo">
+            {% for logo in shell.school_logos %}
+            <img class="observation-logo {% if logo.slot_key == 'accreditation' %}observation-logo-cognia{% elif logo.slot_key == 'secondary' %}observation-logo-main{% endif %}" src="{{ logo.url }}" alt="{{ logo.label }} logo">
+            {% endfor %}
         </div>
     </section>
     <section class="observation-toolbar" aria-label="Observation completion summary">

@@ -33,7 +33,7 @@ from models import User, Branch, AcademicYear
 from teacher_capacity import (
     get_teacher_capacity_breakdown,
 )
-from ui_shell import build_shell_context
+from ui_shell import DEFAULT_SCHOOL_LOGO_SLOTS, build_shell_context, get_school_logo_slots
 from audit import (
     get_audit_log_path,
     get_audit_logger,
@@ -275,6 +275,9 @@ FAVICON_CACHE_HEADERS = {
 PROFILE_PHOTO_UPLOAD_DIR = os.path.join("static", "uploads", "profile_photos")
 PROFILE_PHOTO_RELATIVE_DIR = "uploads/profile_photos"
 PROFILE_PHOTO_MAX_BYTES = 3 * 1024 * 1024
+BRANCH_LOGO_UPLOAD_DIR = os.path.join("static", "uploads", "branch_logos")
+BRANCH_LOGO_RELATIVE_DIR = "uploads/branch_logos"
+BRANCH_LOGO_MAX_BYTES = 4 * 1024 * 1024
 MAJOR_ALIGNMENT_STOPWORDS = {
     "a",
     "an",
@@ -306,6 +309,13 @@ MAJOR_ALIGNMENT_STOPWORDS = {
 
 def _ensure_profile_photo_upload_dir():
     os.makedirs(PROFILE_PHOTO_UPLOAD_DIR, exist_ok=True)
+
+
+def _ensure_branch_logo_upload_dir(branch_id: int | None = None):
+    target_dir = BRANCH_LOGO_UPLOAD_DIR
+    if branch_id:
+        target_dir = os.path.join(target_dir, str(int(branch_id)))
+    os.makedirs(target_dir, exist_ok=True)
 
 
 def _ensure_subject_color_schema():
@@ -377,7 +387,37 @@ def _profile_photo_media_type_from_extension(extension: str) -> str:
     return "application/octet-stream"
 
 
+def _detect_branch_logo_extension(file_bytes: bytes, filename: str = "") -> str:
+    detected = _detect_profile_photo_extension(file_bytes)
+    if detected in {".png", ".jpg", ".jpeg", ".webp"}:
+        return detected
+
+    lowered_name = str(filename or "").lower()
+    if file_bytes[:512].lstrip().lower().startswith(b"<svg") or lowered_name.endswith(".svg"):
+        return ".svg"
+    if lowered_name.endswith(".jpeg"):
+        return ".jpg"
+    if lowered_name.endswith(".jpg"):
+        return ".jpg"
+    if lowered_name.endswith(".png"):
+        return ".png"
+    if lowered_name.endswith(".webp"):
+        return ".webp"
+    return ""
+
+
+def _branch_logo_media_type_from_extension(extension: str) -> str:
+    normalized_extension = str(extension or "").strip().lower()
+    if normalized_extension == ".svg":
+        return "image/svg+xml"
+    return _profile_photo_media_type_from_extension(normalized_extension)
+
+
 def _normalize_profile_photo_relative_path(relative_path: str) -> str:
+    return str(relative_path or "").replace("\\", "/").lstrip("/")
+
+
+def _normalize_branch_logo_relative_path(relative_path: str) -> str:
     return str(relative_path or "").replace("\\", "/").lstrip("/")
 
 
@@ -390,6 +430,24 @@ def _delete_profile_photo_file(relative_path: str):
         os.path.join("static", *normalized_relative_path.split("/"))
     )
     upload_root = os.path.abspath(PROFILE_PHOTO_UPLOAD_DIR)
+    if not absolute_path.startswith(upload_root):
+        return
+    if os.path.exists(absolute_path):
+        try:
+            os.remove(absolute_path)
+        except OSError:
+            return
+
+
+def _delete_branch_logo_file(relative_path: str):
+    normalized_relative_path = _normalize_branch_logo_relative_path(relative_path)
+    if not normalized_relative_path.startswith(f"{BRANCH_LOGO_RELATIVE_DIR}/"):
+        return
+
+    absolute_path = os.path.abspath(
+        os.path.join("static", *normalized_relative_path.split("/"))
+    )
+    upload_root = os.path.abspath(BRANCH_LOGO_UPLOAD_DIR)
     if not absolute_path.startswith(upload_root):
         return
     if os.path.exists(absolute_path):
@@ -613,6 +671,13 @@ CONFIGURATION_MODULES = (
         "href": "/system-configuration/branches",
         "icon": "branch",
         "description": "Manage branch records and status.",
+    },
+    {
+        "key": "school-logos",
+        "label": "School Logos",
+        "href": "/system-configuration/logos",
+        "icon": "upload",
+        "description": "Manage the three branch logo references used across TIS.",
     },
     {
         "key": "users",
@@ -8752,6 +8817,27 @@ def _build_timetable_settings_module_context(
     }
 
 
+def _build_school_logo_module_context(request: Request, db: Session):
+    branches = db.query(models.Branch).order_by(
+        models.Branch.status.desc(),
+        models.Branch.name.asc(),
+    ).all()
+    rows = []
+    for branch in branches:
+        rows.append(
+            {
+                "branch": branch,
+                "logos": get_school_logo_slots(request, db, branch.id),
+            }
+        )
+    return {
+        "logo_branch_rows": rows,
+        "logo_slots": list(DEFAULT_SCHOOL_LOGO_SLOTS),
+        "school_logo_notice": str(request.query_params.get("notice", "") or "").strip(),
+        "school_logo_error": str(request.query_params.get("error", "") or "").strip(),
+    }
+
+
 def _ensure_timetable_setting_scope_row(
     db: Session,
     branch_id: int,
@@ -8822,6 +8908,157 @@ def system_configuration_branches(
         active_module_key="branches",
         title="Branch Management",
         intro="Manage branch records in a compact operational table.",
+    )
+
+
+@app.get("/system-configuration/logos")
+def system_configuration_logos(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_configuration_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    return _render_configuration_template(
+        request=request,
+        db=db,
+        current_user=current_user,
+        template_name="system_configuration_logos.html",
+        active_module_key="school-logos",
+        title="School Logos",
+        intro="Manage branch-specific school logo references used across the system.",
+        extra_context=_build_school_logo_module_context(request, db),
+    )
+
+
+@app.post("/system-configuration/logos")
+async def save_system_configuration_logo(
+    request: Request,
+    branch_id: int = Form(...),
+    slot_key: str = Form(...),
+    label: str = Form(""),
+    logo_file: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_configuration_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    branch = db.query(models.Branch).filter(models.Branch.id == branch_id).first()
+    slot = next(
+        (item for item in DEFAULT_SCHOOL_LOGO_SLOTS if item["slot_key"] == slot_key),
+        None,
+    )
+    if not branch or not slot:
+        return RedirectResponse(
+            url="/system-configuration/logos?error=Select+a+valid+branch+and+logo+slot.",
+            status_code=302,
+        )
+
+    normalized_label = str(label or "").strip() or slot["label"]
+    existing_logo = db.query(models.BranchLogo).filter(
+        models.BranchLogo.branch_id == branch.id,
+        models.BranchLogo.slot_key == slot_key,
+    ).first()
+
+    file_bytes = b""
+    if logo_file and logo_file.filename:
+        file_bytes = await logo_file.read()
+
+    if not file_bytes:
+        if existing_logo:
+            existing_logo.label = normalized_label
+            existing_logo.updated_by_user_id = getattr(current_user, "user_id", None)
+            existing_logo.updated_at = datetime.utcnow()
+            db.commit()
+            return RedirectResponse(
+                url="/system-configuration/logos?notice=Logo+label+updated.",
+                status_code=302,
+            )
+        return RedirectResponse(
+            url="/system-configuration/logos?error=Choose+a+logo+file+to+upload.",
+            status_code=302,
+        )
+
+    if len(file_bytes) > BRANCH_LOGO_MAX_BYTES:
+        return RedirectResponse(
+            url="/system-configuration/logos?error=Logo+file+is+too+large.+Maximum+size+is+4+MB.",
+            status_code=302,
+        )
+
+    extension = _detect_branch_logo_extension(file_bytes, logo_file.filename)
+    if extension not in {".png", ".jpg", ".webp", ".svg"}:
+        return RedirectResponse(
+            url="/system-configuration/logos?error=Upload+a+PNG,+JPG,+WEBP,+or+SVG+logo.",
+            status_code=302,
+        )
+
+    _ensure_branch_logo_upload_dir(branch.id)
+    filename = f"{slot_key}_{int(time.time() * 1000)}{extension}"
+    relative_path = f"{BRANCH_LOGO_RELATIVE_DIR}/{branch.id}/{filename}"
+    absolute_path = os.path.abspath(os.path.join("static", *relative_path.split("/")))
+    upload_root = os.path.abspath(os.path.join(BRANCH_LOGO_UPLOAD_DIR, str(branch.id)))
+    if not absolute_path.startswith(upload_root):
+        return RedirectResponse(
+            url="/system-configuration/logos?error=Logo+upload+path+is+invalid.",
+            status_code=302,
+        )
+
+    with open(absolute_path, "wb") as output_file:
+        output_file.write(file_bytes)
+
+    if not existing_logo:
+        existing_logo = models.BranchLogo(
+            branch_id=branch.id,
+            slot_key=slot_key,
+            label=normalized_label,
+            image_path=relative_path,
+            content_type=_branch_logo_media_type_from_extension(extension),
+            sort_order=slot["sort_order"],
+            updated_by_user_id=getattr(current_user, "user_id", None),
+        )
+        db.add(existing_logo)
+    else:
+        old_path = existing_logo.image_path
+        existing_logo.label = normalized_label
+        existing_logo.image_path = relative_path
+        existing_logo.content_type = _branch_logo_media_type_from_extension(extension)
+        existing_logo.sort_order = slot["sort_order"]
+        existing_logo.updated_by_user_id = getattr(current_user, "user_id", None)
+        existing_logo.updated_at = datetime.utcnow()
+        _delete_branch_logo_file(old_path)
+
+    db.commit()
+    return RedirectResponse(
+        url="/system-configuration/logos?notice=Logo+updated.",
+        status_code=302,
+    )
+
+
+@app.post("/system-configuration/logos/reset")
+def reset_system_configuration_logo(
+    request: Request,
+    branch_id: int = Form(...),
+    slot_key: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_configuration_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    existing_logo = db.query(models.BranchLogo).filter(
+        models.BranchLogo.branch_id == branch_id,
+        models.BranchLogo.slot_key == slot_key,
+    ).first()
+    if existing_logo:
+        old_path = existing_logo.image_path
+        db.delete(existing_logo)
+        db.commit()
+        _delete_branch_logo_file(old_path)
+    return RedirectResponse(
+        url="/system-configuration/logos?notice=Logo+reset+to+default.",
+        status_code=302,
     )
 
 
@@ -11336,6 +11573,7 @@ def setup_initial_data():
     _log_notification_schema_compatibility("startup")
     _seed_teacher_subject_allocations()
     _ensure_profile_photo_upload_dir()
+    _ensure_branch_logo_upload_dir()
     observations.ensure_observation_schema()
     db = SessionLocal()
     observations.ensure_observation_seed_data(db)

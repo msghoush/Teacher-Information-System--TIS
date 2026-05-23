@@ -129,9 +129,9 @@
                 </div>
                 <div class="app-header-side">
                     <div class="header-brand-strip">
-                        <img class="header-school-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Little Andalus International Schools logo">
-                        <img class="header-cognia-logo" src="{{ url_for('static', path='images/cognia-logo.png') }}" alt="Cognia logo">
-                        <img class="header-school-logo-main" src="{{ url_for('static', path='images/andalus-logo-main.png') }}" alt="Andalus International Schools main logo">
+                        {% for logo in shell.school_logos %}
+                        <img class="{% if logo.slot_key == 'accreditation' %}header-cognia-logo{% elif logo.slot_key == 'secondary' %}header-school-logo-main{% else %}header-school-logo{% endif %}" src="{{ logo.url }}" alt="{{ logo.label }} logo">
+                        {% endfor %}
                     </div>
                     <div class="header-context-strip">
                         <div class="header-chip">

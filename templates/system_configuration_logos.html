@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}School Logos | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+    .config-page { display: grid; gap: 14px; }
+    .notice-banner,
+    .error-banner { display: inline-flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; font-size: 14px; font-weight: 800; }
+    .notice-banner { border: 1px solid #b7e4c7; background: #f0fff4; color: #027a48; }
+    .error-banner { border: 1px solid #efc5bf; background: #fff5f3; color: #9f2d1f; }
+    .config-nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .config-nav-link { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 12px; border: 1px solid #d6e3f3; border-radius: 999px; background: #fff; color: #23466f; font-size: 12px; font-weight: 800; text-decoration: none; }
+    .config-nav-link.is-active { border-color: #b8d0ec; background: #edf4ff; color: #17365d; }
+    .module-shell { display: grid; gap: 14px; padding: 16px; border: 1px solid #d8e5f4; border-radius: 18px; background: linear-gradient(180deg, #fff, #f8fbff); }
+    .module-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .module-copy { display: grid; gap: 5px; }
+    .module-copy h2 { margin: 0; color: #17365d; font-size: 24px; }
+    .module-copy p { margin: 0; color: #60728c; font-size: 13px; line-height: 1.5; }
+    .logo-branch-card { display: grid; gap: 12px; padding: 14px; border: 1px solid #d8e2f0; border-radius: 14px; background: #fff; }
+    .logo-branch-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .logo-branch-head h3 { margin: 0; color: #17365d; font-size: 18px; }
+    .status-pill { display: inline-flex; align-items: center; min-height: 26px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 900; background: #eef4fb; color: #48607f; }
+    .status-pill.is-success { background: #ecfdf3; color: #027a48; }
+    .logo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .logo-card { display: grid; gap: 10px; padding: 12px; border: 1px solid #d8e2f0; border-radius: 12px; background: #f8fbff; }
+    .logo-preview { display: flex; align-items: center; justify-content: center; min-height: 108px; border: 1px dashed #b8c9df; border-radius: 10px; background: #fff; }
+    .logo-preview img { max-width: 92%; max-height: 82px; object-fit: contain; }
+    .logo-meta { display: grid; gap: 3px; }
+    .logo-meta strong { color: #1f2737; }
+    .logo-meta span { color: #60728c; font-size: 12px; font-weight: 800; }
+    .logo-form { display: grid; gap: 8px; }
+    .logo-form label { color: #48607f; font-size: 12px; font-weight: 900; text-transform: uppercase; }
+    .logo-form input[type="text"],
+    .logo-form input[type="file"] { width: 100%; border: 1px solid #c6d4e8; border-radius: 8px; background: #fff; color: #1f2737; padding: 8px 9px; }
+    .logo-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .action-btn { min-height: 34px; border: 1px solid transparent; border-radius: 8px; padding: 7px 11px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 900; cursor: pointer; text-decoration: none; }
+    .action-btn-primary { background: #0a4ea3; color: #fff; }
+    .action-btn-secondary { border-color: #c6d4e8; background: #fff; color: #1f2737; }
+    .action-btn-danger { border-color: #efc5bf; background: #fff5f3; color: #9f2d1f; }
+    @media (max-width: 1100px) { .logo-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="config-page">
+    {% if school_logo_notice %}
+    <div class="notice-banner">{{ icon("check-circle", "icon") }} {{ school_logo_notice }}</div>
+    {% endif %}
+    {% if school_logo_error %}
+    <div class="error-banner">{{ icon("info", "icon") }} {{ school_logo_error }}</div>
+    {% endif %}
+
+    <nav class="config-nav" aria-label="Configuration modules">
+        {% for module in configuration_modules %}
+        <a class="config-nav-link {% if module.active %}is-active{% endif %}" href="{{ module.href }}">
+            {{ icon(module.icon, "icon") }} {{ module.label }}
+        </a>
+        {% endfor %}
+    </nav>
+
+    <section class="module-shell">
+        <div class="module-head">
+            <div class="module-copy">
+                <h2>Branch School Logos</h2>
+                <p>Each branch can replace the three logo references used by the shared system header and observation forms. If no custom logo is uploaded, TIS keeps using the current default logo.</p>
+            </div>
+        </div>
+
+        {% for row in logo_branch_rows %}
+        <article class="logo-branch-card">
+            <div class="logo-branch-head">
+                <h3>{{ row.branch.name }}</h3>
+                <span class="status-pill {% if row.branch.status %}is-success{% endif %}">{{ "Active" if row.branch.status else "Inactive" }}</span>
+            </div>
+            <div class="logo-grid">
+                {% for logo in row.logos %}
+                <section class="logo-card">
+                    <div class="logo-preview">
+                        <img src="{{ logo.url }}" alt="{{ logo.label }} logo">
+                    </div>
+                    <div class="logo-meta">
+                        <strong>{{ logo.label }}</strong>
+                        <span>{{ "Default system logo" if logo.is_default else "Branch custom logo" }}</span>
+                    </div>
+                    <form class="logo-form" method="post" action="/system-configuration/logos" enctype="multipart/form-data">
+                        <input type="hidden" name="branch_id" value="{{ row.branch.id }}">
+                        <input type="hidden" name="slot_key" value="{{ logo.slot_key }}">
+                        <label for="logo_label_{{ row.branch.id }}_{{ logo.slot_key }}">Logo label</label>
+                        <input id="logo_label_{{ row.branch.id }}_{{ logo.slot_key }}" type="text" name="label" value="{{ logo.label }}" required>
+                        <label for="logo_file_{{ row.branch.id }}_{{ logo.slot_key }}">Replace logo</label>
+                        <input id="logo_file_{{ row.branch.id }}_{{ logo.slot_key }}" type="file" name="logo_file" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml">
+                        <div class="logo-actions">
+                            {% if not logo.is_default %}
+                            <button class="action-btn action-btn-danger" type="submit" formaction="/system-configuration/logos/reset" onclick="return confirm('Reset this logo to the default system logo?');">{{ icon("trash", "icon") }} Reset</button>
+                            {% endif %}
+                            <button class="action-btn action-btn-primary" type="submit">{{ icon("upload", "icon") }} Save Logo</button>
+                        </div>
+                    </form>
+                </section>
+                {% endfor %}
+            </div>
+        </article>
+        {% else %}
+        <div class="logo-branch-card">No branches are configured yet.</div>
+        {% endfor %}
+    </section>
+</section>
+{% endblock %}

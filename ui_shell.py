@@ -8,6 +8,68 @@ import auth
 import models
 
 
+DEFAULT_SCHOOL_LOGO_SLOTS = (
+    {
+        "slot_key": "primary",
+        "label": "Little Andalus International Schools",
+        "path": "images/andalus-logo.png",
+        "class_name": "logo-primary",
+        "sort_order": 1,
+    },
+    {
+        "slot_key": "accreditation",
+        "label": "Cognia",
+        "path": "images/cognia-logo.png",
+        "class_name": "logo-accreditation",
+        "sort_order": 2,
+    },
+    {
+        "slot_key": "secondary",
+        "label": "Andalus International Schools",
+        "path": "images/andalus-logo-main.png",
+        "class_name": "logo-secondary",
+        "sort_order": 3,
+    },
+)
+
+
+def get_school_logo_slots(request, db: Session, branch_id: int | None) -> list[dict]:
+    configured_by_slot = {}
+    if branch_id:
+        try:
+            configured_rows = db.query(models.BranchLogo).filter(
+                models.BranchLogo.branch_id == int(branch_id)
+            ).all()
+            configured_by_slot = {
+                str(row.slot_key or "").strip(): row
+                for row in configured_rows
+                if str(row.slot_key or "").strip()
+            }
+        except Exception:
+            configured_by_slot = {}
+
+    logos = []
+    for default_slot in DEFAULT_SCHOOL_LOGO_SLOTS:
+        slot_key = default_slot["slot_key"]
+        configured = configured_by_slot.get(slot_key)
+        image_path = str(getattr(configured, "image_path", "") or "").replace("\\", "/").lstrip("/")
+        label = str(getattr(configured, "label", "") or "").strip() or default_slot["label"]
+        if not image_path:
+            image_path = default_slot["path"]
+        logos.append(
+            {
+                "slot_key": slot_key,
+                "label": label,
+                "path": image_path,
+                "url": str(request.url_for("static", path=image_path)),
+                "class_name": default_slot["class_name"],
+                "is_default": configured is None,
+                "sort_order": default_slot["sort_order"],
+            }
+        )
+    return logos
+
+
 def _build_user_initials(first_name: str = "", last_name: str = "", fallback_name: str = "") -> str:
     first = str(first_name or "").strip()
     last = str(last_name or "").strip()
@@ -284,5 +346,6 @@ def build_shell_context(
             "active_year_id": active_year_id,
             "notice": resolved_notice,
             "new_notification_count": new_notification_count,
+            "school_logos": get_school_logo_slots(request, db, getattr(branch, "id", scoped_branch_id)),
         }
     }
