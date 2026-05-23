@@ -9119,13 +9119,20 @@ def _build_school_management_context(request: Request, db: Session, current_user
     selected_school_group = context.get("selected_school_group")
     school_group_id = getattr(selected_school_group, "id", None)
     school_academic_year_rows = []
+    school_branch_rows = []
     if school_group_id:
         school_academic_year_rows = db.query(models.AcademicYear).filter(
             models.AcademicYear.school_group_id == school_group_id
         ).order_by(models.AcademicYear.year_name.desc()).all()
+        school_branch_rows = [
+            row
+            for row in _build_branch_configuration_rows(db)
+            if row.get("school_group_id") == school_group_id
+        ]
     return {
         **context,
         "school_academic_year_rows": school_academic_year_rows,
+        "school_branch_rows": school_branch_rows,
     }
 
 

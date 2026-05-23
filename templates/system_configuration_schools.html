@@ -30,11 +30,15 @@
 .action-btn-primary { background: #0a4ea3; color: #fff; }
 .action-btn-secondary { border-color: #c6d4e8; background: #fff; color: #1f2737; }
 .action-btn-danger { border-color: #efc5bf; background: #fff5f3; color: #9f2d1f; }
+.action-btn:disabled { opacity: .55; cursor: not-allowed; }
 .status-pill, .usage-pill { display: inline-flex; align-items: center; min-height: 26px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 900; background: #eef4fb; color: #48607f; }
 .status-pill.is-success { background: #ecfdf3; color: #027a48; }
 .data-table { width: 100%; border-collapse: collapse; }
 .data-table th, .data-table td { padding: 10px; border-bottom: 1px solid #e3ebf6; text-align: left; vertical-align: middle; }
 .data-table th { color: #48607f; font-size: 11px; text-transform: uppercase; }
+.table-field { display: grid; gap: 4px; min-width: 150px; }
+.table-field label { color: #60728c; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+.table-field input, .table-field select { width: 100%; min-width: 0; border: 1px solid #c6d4e8; border-radius: 8px; padding: 7px 8px; color: #1f2737; background: #fff; }
 .table-wrap { overflow-x: auto; border: 1px solid #d8e2f0; border-radius: 12px; }
 .logo-strip { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px dashed #b8c9df; border-radius: 12px; background: #f8fbff; }
 .logo-strip img { max-height: 56px; max-width: 180px; object-fit: contain; background: #fff; border-radius: 8px; padding: 6px; }
@@ -126,29 +130,54 @@
                 </form>
                 <div class="table-wrap">
                     <table class="data-table">
-                        <thead><tr><th>Branch</th><th>Region</th><th>Status</th><th>Usage</th><th></th></tr></thead>
+                        <thead><tr><th>Branch / Campus</th><th>Region</th><th>Status</th><th>Usage</th><th style="text-align:right;">Actions</th></tr></thead>
                         <tbody>
-                            {% for row in logo_branch_rows %}
-                            {% set branch = row.branch %}
+                            {% for branch_row in school_branch_rows %}
                             <tr>
-                                <td>{{ branch.name }}</td>
-                                <td>{{ branch.location or "-" }}</td>
-                                <td><span class="status-pill {% if branch.status %}is-success{% endif %}">{{ "Active" if branch.status else "Inactive" }}</span></td>
                                 <td>
-                                    {% set usage = branch_rows | selectattr("id", "equalto", branch.id) | list | first %}
-                                    {% if usage %}
-                                    <span class="usage-pill">{{ usage.usage_counts.users_count }} users</span>
-                                    <span class="usage-pill">{{ usage.usage_counts.teachers_count }} teachers</span>
-                                    {% else %}-{% endif %}
+                                    <form id="branch_edit_{{ branch_row.id }}" method="post" action="/system-configuration/branches/{{ branch_row.id }}">
+                                        <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
+                                    </form>
+                                    <div class="table-field">
+                                        <label for="branch_name_{{ branch_row.id }}">Name</label>
+                                        <input id="branch_name_{{ branch_row.id }}" name="name" value="{{ branch_row.name }}" form="branch_edit_{{ branch_row.id }}" required>
+                                    </div>
                                 </td>
                                 <td>
-                                    <form class="inline-actions" method="post" action="/system-configuration/branches/{{ branch.id }}">
-                                        <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
-                                        <input type="hidden" name="name" value="{{ branch.name }}">
-                                        <input type="hidden" name="region" value="{{ branch.location or 'Makkah Region' }}">
-                                        <input type="hidden" name="status" value="{{ 'inactive' if branch.status else 'active' }}">
-                                        <button class="action-btn action-btn-secondary" type="submit">{{ "Deactivate" if branch.status else "Activate" }}</button>
-                                    </form>
+                                    <div class="table-field">
+                                        <label for="branch_region_{{ branch_row.id }}">Region</label>
+                                        <select id="branch_region_{{ branch_row.id }}" name="region" form="branch_edit_{{ branch_row.id }}" required>
+                                            {% if branch_row.region and branch_row.region not in saudi_regions %}
+                                            <option value="{{ branch_row.region }}" selected>{{ branch_row.region }}</option>
+                                            {% endif %}
+                                            {% for region in saudi_regions %}
+                                            <option value="{{ region }}" {% if branch_row.region == region %}selected{% endif %}>{{ region }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="table-field">
+                                        <label for="branch_status_{{ branch_row.id }}">Status</label>
+                                        <select id="branch_status_{{ branch_row.id }}" name="status" form="branch_edit_{{ branch_row.id }}">
+                                            <option value="active" {% if branch_row.status %}selected{% endif %}>Active</option>
+                                            <option value="inactive" {% if not branch_row.status %}selected{% endif %}>Inactive</option>
+                                        </select>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="usage-pill">{{ branch_row.usage_counts.users_count }} users</span>
+                                    <span class="usage-pill">{{ branch_row.usage_counts.teachers_count }} teachers</span>
+                                    <span class="usage-pill">{{ branch_row.usage_counts.subjects_count }} subjects</span>
+                                </td>
+                                <td>
+                                    <div class="inline-actions" style="justify-content:flex-end;">
+                                        <button class="action-btn action-btn-primary" type="submit" form="branch_edit_{{ branch_row.id }}">{{ icon("save", "icon") }} Save</button>
+                                        <form method="post" action="/system-configuration/branches/{{ branch_row.id }}/delete" onsubmit="return confirm('Delete {{ branch_row.name }}? This only works when no users, subjects, teachers, or planning records are linked to it.');">
+                                            <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
+                                            <button class="action-btn action-btn-danger" type="submit" {% if not branch_row.can_delete %}disabled title="Delete locked: branch is in use or one active branch must remain."{% endif %}>{{ icon("trash", "icon") }} Delete</button>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                             {% else %}
