@@ -166,6 +166,29 @@ def _teacher_choice_rows(teachers):
     ]
 
 
+def _subject_choice_rows(subjects):
+    rows = []
+    for subject in subjects:
+        subject_code = str(subject.subject_code or "").strip()
+        subject_name = str(subject.subject_name or "").strip()
+        grade = str(subject.grade if subject.grade is not None else "").strip()
+        label_parts = []
+        if subject_code:
+            label_parts.append(subject_code)
+        if subject_name:
+            label_parts.append(subject_name)
+        label = " - ".join(label_parts) if label_parts else f"Subject #{subject.id}"
+        if grade:
+            label = f"{label} (Grade {grade})"
+        rows.append(
+            {
+                "value": subject_code or subject_name or label,
+                "label": label,
+            }
+        )
+    return rows
+
+
 def _is_teacher_user(current_user) -> bool:
     return auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_USER
 
@@ -660,6 +683,14 @@ def new_observation_page(request: Request, teacher_id: int | None = None, db: Se
         models.Teacher.branch_id == branch_id,
         models.Teacher.academic_year_id == academic_year_id,
     ).order_by(models.Teacher.first_name.asc(), models.Teacher.last_name.asc()).all()
+    subjects = db.query(models.Subject).filter(
+        models.Subject.branch_id == branch_id,
+        models.Subject.academic_year_id == academic_year_id,
+    ).order_by(
+        models.Subject.grade.asc(),
+        models.Subject.subject_code.asc(),
+        models.Subject.subject_name.asc(),
+    ).all()
     criteria = db.query(models.ObservationCriterion).filter(
         models.ObservationCriterion.is_active == True
     ).order_by(models.ObservationCriterion.sort_order.asc()).all()
@@ -677,6 +708,7 @@ def new_observation_page(request: Request, teacher_id: int | None = None, db: Se
                 notice=request.query_params.get("notice", ""),
             ),
             "teachers": _teacher_choice_rows(teachers),
+            "subjects": _subject_choice_rows(subjects),
             "criteria_groups": _criteria_by_domain(criteria),
             "today": date.today().isoformat(),
             "selected_teacher_id": teacher_id,

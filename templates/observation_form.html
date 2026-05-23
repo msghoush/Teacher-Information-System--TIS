@@ -20,23 +20,28 @@
 }
 .domain { border: 1px solid #d8e2f0; border-radius: 8px; overflow: hidden; background: #fff; }
 .domain-header { padding: 11px 13px; background: #f5f8fc; border-bottom: 1px solid #d8e2f0; font-weight: 900; color: #1f2737; }
-.criterion { display: grid; grid-template-columns: minmax(220px, 1fr) 330px; gap: 12px; padding: 13px; border-bottom: 1px solid #edf2f8; }
+.criterion { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(520px, 0.92fr); gap: 18px; padding: 16px 14px; border-bottom: 1px solid #edf2f8; align-items: start; }
 .criterion:last-child { border-bottom: 0; }
 .criterion-title { margin: 0 0 7px; font-weight: 800; color: #1f2737; }
 .criterion-help { margin: 0; color: #5d6b82; font-size: 13px; line-height: 1.45; }
-.rating-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.criterion-inputs { display: grid; grid-template-columns: minmax(220px, 280px) minmax(260px, 1fr); gap: 12px; align-items: start; }
+.rating-wrap { background: #f8fbff; border: 1px solid #dce7f5; border-radius: 8px; padding: 10px; }
+.rating-label, .evidence-label { display: block; margin-bottom: 7px; color: #48607f; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.rating-grid { display: grid; grid-template-columns: repeat(7, minmax(34px, 1fr)); gap: 5px; }
 .rating-grid input { position: absolute; opacity: 0; pointer-events: none; }
 .rating-grid label {
     min-height: 34px; border: 1px solid #c6d4e8; border-radius: 8px; display: flex; align-items: center; justify-content: center;
     cursor: pointer; color: #48607f; font-weight: 900; background: #fff;
 }
 .rating-grid input:checked + label { background: #0a4ea3; color: #fff; border-color: #0a4ea3; }
-.evidence { margin-top: 8px; min-height: 72px; resize: vertical; }
+.evidence-box { display: grid; }
+.evidence { min-height: 118px; resize: vertical; line-height: 1.4; }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .submit-btn { border: 0; border-radius: 8px; background: #0a4ea3; color: #fff; padding: 10px 14px; font-weight: 900; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 @media (max-width: 1000px) {
     .meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .criterion { grid-template-columns: 1fr; }
+    .criterion-inputs { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
     .meta-grid { grid-template-columns: 1fr; }
@@ -91,7 +96,12 @@
             </div>
             <div class="field">
                 <label for="subject">Subject</label>
-                <input id="subject" name="subject" placeholder="Math">
+                <select id="subject" name="subject">
+                    <option value="">Select subject</option>
+                    {% for subject in subjects %}
+                    <option value="{{ subject.value }}">{{ subject.label }}</option>
+                    {% endfor %}
+                </select>
             </div>
         </div>
     </section>
@@ -106,14 +116,20 @@
                 <p class="criterion-help">{{ criterion.guidelines }}</p>
                 <p class="criterion-help"><strong>Evidence:</strong> {{ criterion.evidence_examples }}</p>
             </div>
-            <div>
-                <div class="rating-grid" aria-label="Rating for {{ criterion.title }}">
-                    {% for rating in ["NA", "0", "1", "2", "3", "4", "5"] %}
-                    <input id="rating_{{ criterion.id }}_{{ rating }}" type="radio" name="rating_{{ criterion.id }}" value="{{ rating }}" {% if rating == "NA" %}checked{% endif %}>
-                    <label for="rating_{{ criterion.id }}_{{ rating }}">{{ rating }}</label>
-                    {% endfor %}
+            <div class="criterion-inputs">
+                <div class="rating-wrap">
+                    <span class="rating-label">Rating</span>
+                    <div class="rating-grid" aria-label="Rating for {{ criterion.title }}">
+                        {% for rating in ["NA", "0", "1", "2", "3", "4", "5"] %}
+                        <input id="rating_{{ criterion.id }}_{{ rating }}" type="radio" name="rating_{{ criterion.id }}" value="{{ rating }}" {% if rating == "NA" %}checked{% endif %}>
+                        <label for="rating_{{ criterion.id }}_{{ rating }}">{{ rating }}</label>
+                        {% endfor %}
+                    </div>
                 </div>
-                <textarea class="evidence" name="evidence_{{ criterion.id }}" placeholder="Evidence observed for this criterion"></textarea>
+                <div class="evidence-box">
+                    <label class="evidence-label" for="evidence_{{ criterion.id }}">Evidence observed</label>
+                    <textarea id="evidence_{{ criterion.id }}" class="evidence" name="evidence_{{ criterion.id }}" placeholder="Write the exact classroom evidence observed for this criterion."></textarea>
+                </div>
             </div>
         </div>
         {% endfor %}
