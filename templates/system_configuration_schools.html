@@ -21,6 +21,15 @@
 .school-main { display: grid; gap: 14px; padding: 14px; }
 .school-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid #e3ebf6; }
 .section-card { display: grid; gap: 12px; padding: 14px; box-shadow: none; }
+.collapsible-section { display: block; padding: 0; overflow: hidden; }
+.collapsible-section > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; }
+.collapsible-section > summary::-webkit-details-marker { display: none; }
+.collapsible-section[open] > summary { border-bottom: 1px solid #e3ebf6; }
+.collapsible-title { display: grid; gap: 3px; }
+.collapsible-title h3 { margin: 0; color: #17365d; }
+.collapsible-title p { margin: 0; color: #60728c; font-size: 13px; line-height: 1.45; }
+.collapsible-summary-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.collapsible-body { display: grid; gap: 12px; padding: 14px; }
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: end; }
 .form-grid.two { grid-template-columns: minmax(0, 1fr) auto; }
 .field { display: grid; gap: 6px; }
@@ -129,8 +138,18 @@
                 </form>
             </section>
 
-            <section class="section-card">
-                <h3>Branches</h3>
+            <details class="section-card collapsible-section" data-collapsible-branches>
+                <summary>
+                    <div class="collapsible-title">
+                        <h3>Branches</h3>
+                        <p>Collapsed by default so large schools stay easy to scan. Expand to add, filter, edit, or delete branches.</p>
+                    </div>
+                    <div class="collapsible-summary-actions">
+                        <span class="status-pill">{{ school_branch_rows|length }} branch{{ "" if school_branch_rows|length == 1 else "es" }}</span>
+                        <span class="action-btn action-btn-secondary" data-branch-collapse-label>Expand</span>
+                    </div>
+                </summary>
+                <div class="collapsible-body">
                 <form class="form-grid" method="post" action="/system-configuration/branches">
                     <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
                     <input type="hidden" name="school_group_id" value="{{ selected_school_group.id }}">
@@ -267,7 +286,8 @@
                         </tbody>
                     </table>
                 </div>
-            </section>
+                </div>
+            </details>
 
             <section class="section-card">
                 <h3>Academic Years</h3>
@@ -337,6 +357,21 @@
 
 {% block page_scripts %}
 <script>
+(() => {
+    const branchPanel = document.querySelector("[data-collapsible-branches]");
+    const toggleLabel = document.querySelector("[data-branch-collapse-label]");
+    if (!branchPanel || !toggleLabel) {
+        return;
+    }
+
+    const updateToggleLabel = () => {
+        toggleLabel.textContent = branchPanel.open ? "Collapse" : "Expand";
+    };
+
+    branchPanel.addEventListener("toggle", updateToggleLabel);
+    updateToggleLabel();
+})();
+
 (() => {
     const regionFilter = document.querySelector("[data-branch-region-filter]");
     const dataFilter = document.querySelector("[data-branch-data-filter]");
