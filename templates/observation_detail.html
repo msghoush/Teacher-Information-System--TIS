@@ -45,8 +45,15 @@
 .note-form button { margin-top: 8px; border: 0; border-radius: 8px; background: #0a4ea3; color: #fff; padding: 9px 13px; font-weight: 900; cursor: pointer; }
 .self-eval-form { display: grid; gap: 12px; }
 .self-criterion { display: grid; grid-template-columns: minmax(320px, 0.9fr) minmax(720px, 1.45fr); gap: 24px; padding: 14px 0; border-bottom: 1px solid #e3ebf6; }
-.self-criterion-title { margin: 0 0 6px; font-weight: 900; color: #1f2737; }
-.self-criterion-help { margin: 0; color: #5d6b82; font-size: 13px; line-height: 1.45; }
+.self-rubric-card { display: grid; gap: 10px; border-left: 4px solid #0a4ea3; border-radius: 8px; background: #f3f8ff; padding: 12px; box-shadow: inset 0 0 0 1px #dbeafe; }
+.self-criterion-title { margin: 0; font-weight: 900; color: #1f2737; line-height: 1.3; }
+.self-rubric-copy, .self-evidence-guide { border-radius: 8px; padding: 10px; }
+.self-rubric-copy { background: #fff; border: 1px solid #cfe0f5; }
+.self-evidence-guide { background: #fffaf0; border: 1px solid #f1c982; }
+.self-chip, .self-chip-evidence { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 900; text-transform: uppercase; margin-bottom: 6px; }
+.self-chip { background: #e7f0ff; color: #0a4ea3; }
+.self-chip-evidence { background: #fff1d6; color: #8a4b0f; }
+.self-criterion-help { margin: 0; color: #334155; font-size: 13px; line-height: 1.45; }
 .self-inputs { display: grid; grid-template-columns: minmax(420px, .95fr) minmax(360px, 1.05fr); gap: 20px; min-width: 0; }
 .self-rating { border: 1px solid #cfe0f5; border-radius: 8px; padding: 12px; background: #f4f8fd; min-width: 0; overflow: hidden; }
 .self-rating-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; width: 100%; }
@@ -169,10 +176,16 @@
                 {% for criterion in group.criteria %}
                 {% set self_score = self_evaluation_scores_by_criterion.get(criterion.id) %}
                 <div class="self-criterion">
-                    <div>
+                    <div class="self-rubric-card">
                         <p class="self-criterion-title">{{ criterion.indicator_number }}. {{ criterion.title }}</p>
-                        <p class="self-criterion-help">{{ criterion.guidelines }}</p>
-                        <p class="self-criterion-help"><strong>Evidence examples:</strong> {{ criterion.evidence_examples }}</p>
+                        <div class="self-rubric-copy">
+                            <span class="self-chip">Rubric Criteria</span>
+                            <p class="self-criterion-help">{{ criterion.guidelines }}</p>
+                        </div>
+                        <div class="self-evidence-guide">
+                            <span class="self-chip-evidence">Evidence Look-Fors</span>
+                            <p class="self-criterion-help">{{ criterion.evidence_examples }}</p>
+                        </div>
                     </div>
                     <div class="self-inputs">
                         <div class="self-rating">
