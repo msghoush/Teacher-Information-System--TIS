@@ -38,6 +38,19 @@
 .rating-pill { display: inline-flex; min-width: 36px; min-height: 28px; align-items: center; justify-content: center; border-radius: 999px; background: #eef6ff; color: #0a4ea3; font-weight: 900; }
 .note-form textarea { width: 100%; border: 1px solid #c6d4e8; border-radius: 8px; padding: 10px; min-height: 100px; resize: vertical; }
 .note-form button { margin-top: 8px; border: 0; border-radius: 8px; background: #0a4ea3; color: #fff; padding: 9px 13px; font-weight: 900; cursor: pointer; }
+.self-eval-form { display: grid; gap: 12px; }
+.self-criterion { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(520px, 1.15fr); gap: 18px; padding: 14px 0; border-bottom: 1px solid #e3ebf6; }
+.self-criterion-title { margin: 0 0 6px; font-weight: 900; color: #1f2737; }
+.self-criterion-help { margin: 0; color: #5d6b82; font-size: 13px; line-height: 1.45; }
+.self-inputs { display: grid; grid-template-columns: minmax(300px, .85fr) minmax(320px, 1.15fr); gap: 14px; min-width: 0; }
+.self-rating { border: 1px solid #dce7f5; border-radius: 8px; padding: 10px; background: #f8fbff; }
+.self-rating-grid { display: grid; grid-template-columns: repeat(7, minmax(42px, 1fr)); gap: 8px; }
+.self-rating-grid input { position: absolute; opacity: 0; pointer-events: none; }
+.self-rating-grid label { min-height: 38px; border: 1px solid #c6d4e8; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #48607f; background: #fff; font-weight: 900; }
+.self-rating-grid input:checked + label { background: #0a4ea3; color: #fff; border-color: #0a4ea3; }
+.self-evidence { display: grid; gap: 7px; border: 1px solid #f1c982; border-radius: 8px; background: #fffaf0; padding: 10px; }
+.self-evidence textarea { min-height: 110px; border-color: #e6b96f; background: #fffefb; }
+.self-label { display: block; margin-bottom: 7px; color: #48607f; font-size: 11px; font-weight: 900; text-transform: uppercase; }
 .signature-pad { width: 100%; height: 150px; display: block; border: 1px dashed #8fa6c3; border-radius: 8px; background: #fff; touch-action: none; }
 .signature-input { display: none; }
 .signature-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
@@ -50,7 +63,7 @@
 .signature-result img { width: 100%; max-height: 150px; object-fit: contain; border: 1px dashed #8fa6c3; border-radius: 8px; background: #fff; }
 .locked-note { color: #5d6b82; font-weight: 800; }
 @media (max-width: 900px) {
-    .result-band, .feedback-grid, .domain-scores, .signature-grid { grid-template-columns: 1fr; }
+    .result-band, .feedback-grid, .domain-scores, .signature-grid, .self-criterion, .self-inputs { grid-template-columns: 1fr; }
     .criteria-table { min-width: 760px; }
     .result-panel { overflow-x: auto; }
 }
@@ -203,30 +216,73 @@
                 </div>
             </div>
         </form>
+        {% elif can_self_evaluate and not self_evaluation_complete %}
+        <p class="locked-note">Complete and save the teacher self-evaluation below before signing.</p>
         {% endif %}
     </section>
 
     <section class="result-panel">
         <h2>Teacher Self-Evaluation</h2>
         {% if can_self_evaluate %}
-        <form class="note-form" method="post" action="/observations/{{ observation.id }}/self-evaluation">
-            <label>Reflection</label>
-            <textarea name="reflection">{{ self_evaluation.reflection if self_evaluation and self_evaluation.reflection else "" }}</textarea>
-            <label>Strengths</label>
-            <textarea name="strengths">{{ self_evaluation.strengths if self_evaluation and self_evaluation.strengths else "" }}</textarea>
-            <label>Growth Areas</label>
-            <textarea name="growth_areas">{{ self_evaluation.growth_areas if self_evaluation and self_evaluation.growth_areas else "" }}</textarea>
-            <label>Support Needed</label>
-            <textarea name="support_needed">{{ self_evaluation.support_needed if self_evaluation and self_evaluation.support_needed else "" }}</textarea>
+        <form class="note-form self-eval-form" method="post" action="/observations/{{ observation.id }}/self-evaluation">
+            {% for group in criteria_groups %}
+            <div>
+                <h3>{{ group.domain_key }}. {{ group.domain_title }}</h3>
+                {% for criterion in group.criteria %}
+                {% set self_score = self_evaluation_scores_by_criterion.get(criterion.id) %}
+                <div class="self-criterion">
+                    <div>
+                        <p class="self-criterion-title">{{ criterion.indicator_number }}. {{ criterion.title }}</p>
+                        <p class="self-criterion-help">{{ criterion.guidelines }}</p>
+                        <p class="self-criterion-help"><strong>Evidence examples:</strong> {{ criterion.evidence_examples }}</p>
+                    </div>
+                    <div class="self-inputs">
+                        <div class="self-rating">
+                            <span class="self-label">Self-rating</span>
+                            <div class="self-rating-grid">
+                                {% for rating in ["NA", "0", "1", "2", "3", "4", "5"] %}
+                                <input id="self_rating_{{ criterion.id }}_{{ rating }}" type="radio" name="self_rating_{{ criterion.id }}" value="{{ rating }}" {% if (self_score and self_score.rating == rating) or (not self_score and rating == "NA") %}checked{% endif %}>
+                                <label for="self_rating_{{ criterion.id }}_{{ rating }}">{{ rating }}</label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="self-evidence">
+                            <label class="self-label" for="self_evidence_{{ criterion.id }}">Self-evidence / reflection</label>
+                            <textarea id="self_evidence_{{ criterion.id }}" name="self_evidence_{{ criterion.id }}" placeholder="Write your own evidence, reflection, or context for this criterion.">{{ self_score.evidence if self_score and self_score.evidence else "" }}</textarea>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+            <label>Evaluatee Notes</label>
+            <textarea name="evaluatee_notes" placeholder="Add your final evaluatee notes after completing the self-evaluation.">{{ observation.evaluatee_notes or "" }}</textarea>
             <button type="submit">{{ icon("save", "shell-icon") }} Save Self-Evaluation</button>
         </form>
         {% elif self_evaluation %}
-        <div class="feedback-grid">
-            <div class="feedback-box"><h3>Reflection</h3><p>{{ self_evaluation.reflection or "-" }}</p></div>
-            <div class="feedback-box"><h3>Strengths</h3><p>{{ self_evaluation.strengths or "-" }}</p></div>
-            <div class="feedback-box"><h3>Growth Areas</h3><p>{{ self_evaluation.growth_areas or "-" }}</p></div>
-            <div class="feedback-box"><h3>Support Needed</h3><p>{{ self_evaluation.support_needed or "-" }}</p></div>
-        </div>
+        <table class="criteria-table">
+            <thead>
+                <tr>
+                    <th>Domain</th>
+                    <th>Criterion</th>
+                    <th>Self-rating</th>
+                    <th>Self-evidence</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for group in criteria_groups %}
+                {% for criterion in group.criteria %}
+                {% set self_score = self_evaluation_scores_by_criterion.get(criterion.id) %}
+                <tr>
+                    <td>{{ group.domain_key }}</td>
+                    <td>{{ criterion.title }}</td>
+                    <td><span class="rating-pill">{{ self_score.rating if self_score else "NA" }}</span></td>
+                    <td>{{ self_score.evidence if self_score and self_score.evidence else "-" }}</td>
+                </tr>
+                {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
         {% else %}
         <p>-</p>
         {% endif %}
@@ -234,14 +290,7 @@
 
     <section class="result-panel">
         <h2>Evaluatee Notes</h2>
-        {% if is_locked %}
-        <p class="locked-note">{{ observation.evaluatee_notes or "Observation is locked after signatures." }}</p>
-        {% else %}
-        <form class="note-form" method="post" action="/observations/{{ observation.id }}/evaluatee-notes">
-            <textarea name="evaluatee_notes">{{ observation.evaluatee_notes or "" }}</textarea>
-            <button type="submit">{{ icon("save", "shell-icon") }} Save Notes</button>
-        </form>
-        {% endif %}
+        <p class="locked-note">{{ observation.evaluatee_notes or "-" }}</p>
     </section>
 </div>
 <script>

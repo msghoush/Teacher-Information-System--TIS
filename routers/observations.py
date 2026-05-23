@@ -109,6 +109,13 @@ OBSERVATION_SCHEMA_COLUMNS = {
         "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
         "updated_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
     },
+    "observation_self_evaluation_scores": {
+        "id": "INTEGER",
+        "self_evaluation_id": "INTEGER NOT NULL DEFAULT 0",
+        "criterion_id": "INTEGER NOT NULL DEFAULT 0",
+        "rating": "VARCHAR(4) NOT NULL DEFAULT 'NA'",
+        "evidence": "TEXT",
+    },
 }
 
 
@@ -120,6 +127,7 @@ def ensure_observation_schema():
             models.Observation.__table__,
             models.ObservationScore.__table__,
             models.ObservationSelfEvaluation.__table__,
+            models.ObservationSelfEvaluationScore.__table__,
         ],
     )
     inspector = inspect(engine)
@@ -429,6 +437,21 @@ def _notify_evaluator_teacher_signed(db: Session, observation, teacher):
             f"<a href=\"{link}\">Open observation</a>."
         ),
         details=f"observation:{observation.id}:teacher_signed",
+    )
+
+
+def _notify_evaluator_self_evaluation_saved(db: Session, observation, teacher):
+    link = _observation_link(observation.id)
+    return _create_observation_notification(
+        db,
+        recipient_user_id=observation.evaluator_user_id,
+        requesting_user_id=str(getattr(teacher, "teacher_id", "") or ""),
+        title="Teacher completed self-evaluation",
+        message=(
+            f"{_teacher_name(teacher)} completed the self-evaluation and evaluatee notes. "
+            f"<a href=\"{link}\">Open observation</a>."
+        ),
+        details=f"observation:{observation.id}:self_evaluation_saved",
     )
 
 
@@ -1197,6 +1220,16 @@ async def delete_observation(observation_id: int, request: Request, db: Session 
     if not observation or not _can_delete_observation(current_user, observation):
         return RedirectResponse(url="/observations")
     db.query(models.ObservationScore).filter(models.ObservationScore.observation_id == observation.id).delete()
+    self_eval_ids = [
+        row.id
+        for row in db.query(models.ObservationSelfEvaluation.id).filter(
+            models.ObservationSelfEvaluation.observation_id == observation.id
+        ).all()
+    ]
+    if self_eval_ids:
+        db.query(models.ObservationSelfEvaluationScore).filter(
+            models.ObservationSelfEvaluationScore.self_evaluation_id.in_(self_eval_ids)
+        ).delete(synchronize_session=False)
     db.query(models.ObservationSelfEvaluation).filter(models.ObservationSelfEvaluation.observation_id == observation.id).delete()
     db.delete(observation)
     db.commit()
@@ -1234,15 +1267,32 @@ def observation_detail_page(observation_id: int, request: Request, db: Session =
     self_evaluation = db.query(models.ObservationSelfEvaluation).filter(
         models.ObservationSelfEvaluation.observation_id == observation.id
     ).first()
+    self_evaluation_scores_by_criterion = {}
+    if self_evaluation:
+        self_evaluation_scores_by_criterion = {
+            score.criterion_id: score
+            for score in db.query(models.ObservationSelfEvaluationScore).filter(
+                models.ObservationSelfEvaluationScore.self_evaluation_id == self_evaluation.id
+            ).all()
+        }
     current_teacher = _get_current_teacher(db, current_user) if _is_teacher_user(current_user) else None
+    self_evaluation_complete = bool(
+        self_evaluation
+        and any(score.rating != "NA" for score in self_evaluation_scores_by_criterion.values())
+    )
     can_teacher_sign = bool(
         current_teacher
         and current_teacher.id == observation.teacher_id
         and observation.evaluator_signature_data
         and not observation.teacher_signature_data
         and not _observation_is_locked(observation)
+        and self_evaluation_complete
     )
-    can_self_evaluate = bool(current_teacher and current_teacher.id == observation.teacher_id)
+    can_self_evaluate = bool(
+        current_teacher
+        and current_teacher.id == observation.teacher_id
+        and not _observation_is_locked(observation)
+    )
 
     return templates.TemplateResponse(
         request,
@@ -1263,6 +1313,8 @@ def observation_detail_page(observation_id: int, request: Request, db: Session =
             "scores_by_criterion": scores_by_criterion,
             "feedback": feedback,
             "self_evaluation": self_evaluation,
+            "self_evaluation_scores_by_criterion": self_evaluation_scores_by_criterion,
+            "self_evaluation_complete": self_evaluation_complete,
             "is_locked": _observation_is_locked(observation),
             "can_edit_observation": _can_edit_observation(current_user, observation),
             "can_delete_observation": _can_delete_observation(current_user, observation),
@@ -1285,6 +1337,18 @@ async def save_teacher_signature(observation_id: int, request: Request, db: Sess
         return RedirectResponse(url=f"/observations/{observation.id}?notice=Observation+is+already+locked.", status_code=302)
     if not observation.evaluator_signature_data:
         return RedirectResponse(url=f"/observations/{observation.id}?notice=Evaluator+signature+is+required+before+teacher+signature.", status_code=302)
+    self_evaluation = db.query(models.ObservationSelfEvaluation).filter(
+        models.ObservationSelfEvaluation.observation_id == observation.id,
+        models.ObservationSelfEvaluation.teacher_id == current_teacher.id,
+    ).first()
+    if not self_evaluation:
+        return RedirectResponse(url=f"/observations/{observation.id}?notice=Complete+self-evaluation+before+signing.", status_code=302)
+    has_self_rating = db.query(models.ObservationSelfEvaluationScore.id).filter(
+        models.ObservationSelfEvaluationScore.self_evaluation_id == self_evaluation.id,
+        models.ObservationSelfEvaluationScore.rating != "NA",
+    ).first()
+    if not has_self_rating:
+        return RedirectResponse(url=f"/observations/{observation.id}?notice=Rate+at+least+one+self-evaluation+criterion+before+signing.", status_code=302)
     form = await request.form()
     signature_data = str(form.get("teacher_signature_data") or "").strip()
     if not signature_data:
@@ -1319,11 +1383,37 @@ async def save_self_evaluation(observation_id: int, request: Request, db: Sessio
             teacher_id=current_teacher.id,
         )
         db.add(self_evaluation)
-    self_evaluation.reflection = str(form.get("reflection") or "").strip()
-    self_evaluation.strengths = str(form.get("strengths") or "").strip()
-    self_evaluation.growth_areas = str(form.get("growth_areas") or "").strip()
-    self_evaluation.support_needed = str(form.get("support_needed") or "").strip()
+        db.flush()
+    self_evaluation.reflection = str(form.get("evaluatee_notes") or "").strip()
+    self_evaluation.strengths = ""
+    self_evaluation.growth_areas = ""
+    self_evaluation.support_needed = ""
     self_evaluation.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    observation.evaluatee_notes = self_evaluation.reflection
+    observation.updated_at = self_evaluation.updated_at
+
+    criteria = db.query(models.ObservationCriterion).filter(
+        models.ObservationCriterion.is_active == True
+    ).order_by(models.ObservationCriterion.sort_order.asc()).all()
+    existing_scores = {
+        score.criterion_id: score
+        for score in db.query(models.ObservationSelfEvaluationScore).filter(
+            models.ObservationSelfEvaluationScore.self_evaluation_id == self_evaluation.id
+        ).all()
+    }
+    for criterion in criteria:
+        raw_rating = str(form.get(f"self_rating_{criterion.id}") or "NA").strip().upper()
+        rating = raw_rating if raw_rating == "NA" or raw_rating in RATING_VALUES else "NA"
+        score = existing_scores.get(criterion.id)
+        if not score:
+            score = models.ObservationSelfEvaluationScore(
+                self_evaluation_id=self_evaluation.id,
+                criterion_id=criterion.id,
+            )
+            db.add(score)
+        score.rating = rating
+        score.evidence = str(form.get(f"self_evidence_{criterion.id}") or "").strip()
+    _notify_evaluator_self_evaluation_saved(db, observation, current_teacher)
     db.commit()
     return RedirectResponse(url=f"/observations/{observation.id}?notice=Self-evaluation+saved", status_code=302)
 

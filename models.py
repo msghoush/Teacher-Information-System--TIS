@@ -440,6 +440,24 @@ class ObservationSelfEvaluation(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class ObservationSelfEvaluationScore(Base):
+    __tablename__ = "observation_self_evaluation_scores"
+    __table_args__ = (
+        UniqueConstraint(
+            "self_evaluation_id",
+            "criterion_id",
+            name="uq_observation_self_eval_scores_eval_criterion",
+        ),
+        Index("ix_observation_self_eval_scores_eval", "self_evaluation_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    self_evaluation_id = Column(Integer, ForeignKey("observation_self_evaluations.id"), nullable=False, index=True)
+    criterion_id = Column(Integer, ForeignKey("observation_criteria.id"), nullable=False, index=True)
+    rating = Column(String(4), nullable=False, default="NA")
+    evidence = Column(Text)
+
+
 class PlanningSection(Base):
     __tablename__ = "planning_sections"
     __table_args__ = (
