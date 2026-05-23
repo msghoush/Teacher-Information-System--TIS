@@ -166,12 +166,18 @@ def _teacher_choice_rows(teachers):
     ]
 
 
-def _subject_choice_rows(subjects):
+def _subject_choice_rows(subjects, teacher_subject_map=None):
+    teacher_subject_map = teacher_subject_map or {}
     rows = []
     for subject in subjects:
         subject_code = str(subject.subject_code or "").strip()
         subject_name = str(subject.subject_name or "").strip()
         grade = str(subject.grade if subject.grade is not None else "").strip()
+        assigned_teacher_ids = sorted(
+            teacher_id
+            for teacher_id, subject_codes in teacher_subject_map.items()
+            if subject_code and subject_code in subject_codes
+        )
         label_parts = []
         if subject_code:
             label_parts.append(subject_code)
@@ -184,9 +190,36 @@ def _subject_choice_rows(subjects):
             {
                 "value": subject_code or subject_name or label,
                 "label": label,
+                "subject_code": subject_code,
+                "grade": grade,
+                "assigned_teacher_ids": ",".join(str(teacher_id) for teacher_id in assigned_teacher_ids),
             }
         )
     return rows
+
+
+def _teacher_subject_code_map(db: Session, teachers):
+    teacher_ids = [teacher.id for teacher in teachers if getattr(teacher, "id", None)]
+    subject_map = {
+        teacher_id: set()
+        for teacher_id in teacher_ids
+    }
+    if not teacher_ids:
+        return subject_map
+
+    allocation_rows = db.query(models.TeacherSubjectAllocation).filter(
+        models.TeacherSubjectAllocation.teacher_id.in_(teacher_ids)
+    ).all()
+    for allocation in allocation_rows:
+        code = str(allocation.subject_code or "").strip()
+        if code:
+            subject_map.setdefault(allocation.teacher_id, set()).add(code)
+
+    for teacher in teachers:
+        code = str(getattr(teacher, "subject_code", "") or "").strip()
+        if code:
+            subject_map.setdefault(teacher.id, set()).add(code)
+    return subject_map
 
 
 def _is_teacher_user(current_user) -> bool:
@@ -691,6 +724,7 @@ def new_observation_page(request: Request, teacher_id: int | None = None, db: Se
         models.Subject.subject_code.asc(),
         models.Subject.subject_name.asc(),
     ).all()
+    teacher_subject_map = _teacher_subject_code_map(db, teachers)
     criteria = db.query(models.ObservationCriterion).filter(
         models.ObservationCriterion.is_active == True
     ).order_by(models.ObservationCriterion.sort_order.asc()).all()
@@ -708,7 +742,7 @@ def new_observation_page(request: Request, teacher_id: int | None = None, db: Se
                 notice=request.query_params.get("notice", ""),
             ),
             "teachers": _teacher_choice_rows(teachers),
-            "subjects": _subject_choice_rows(subjects),
+            "subjects": _subject_choice_rows(subjects, teacher_subject_map),
             "criteria_groups": _criteria_by_domain(criteria),
             "today": date.today().isoformat(),
             "selected_teacher_id": teacher_id,

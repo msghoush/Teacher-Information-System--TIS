@@ -12,14 +12,25 @@
 .form-wrap { display: grid; gap: 14px; }
 .shell-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px 12px; border: 1px solid #c6d4e8; border-radius: 8px; color: #1f2737; background: #fff; text-decoration: none; font-weight: 900; }
 .form-panel { background: #fff; border: 1px solid #d8e2f0; border-radius: 8px; padding: 14px; }
+.observation-toolbar { position: sticky; top: 0; z-index: 4; display: grid; grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(120px, 170px)); gap: 10px; align-items: stretch; background: rgba(237, 244, 252, 0.96); border: 1px solid #c9d8ea; border-radius: 8px; padding: 10px; backdrop-filter: blur(8px); }
+.toolbar-card { background: #fff; border: 1px solid #d8e2f0; border-radius: 8px; padding: 10px; }
+.toolbar-card span { display: block; color: #48607f; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.toolbar-card strong { display: block; margin-top: 4px; color: #1f2737; font-size: 20px; }
+.progress-track { height: 8px; margin-top: 8px; border-radius: 999px; background: #e7edf5; overflow: hidden; }
+.progress-fill { display: block; width: 0%; height: 100%; background: #0a4ea3; transition: width 160ms ease; }
 .meta-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .field { display: grid; gap: 5px; }
 .field label { color: #48607f; font-size: 12px; font-weight: 800; text-transform: uppercase; }
 .field input, .field select, .field textarea {
     width: 100%; border: 1px solid #c6d4e8; border-radius: 8px; padding: 9px 10px; color: #1f2737; background: #fff;
 }
+.subject-helper { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 7px; color: #5d6b82; font-size: 12px; }
+.subject-helper label { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; color: #48607f; text-transform: none; }
+.subject-helper input { width: auto; }
 .domain { border: 1px solid #d8e2f0; border-radius: 8px; overflow: hidden; background: #fff; }
-.domain-header { padding: 11px 13px; background: #f5f8fc; border-bottom: 1px solid #d8e2f0; font-weight: 900; color: #1f2737; }
+.domain-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 13px; background: #f5f8fc; border-bottom: 1px solid #d8e2f0; font-weight: 900; color: #1f2737; cursor: pointer; }
+.domain-header::-webkit-details-marker { display: none; }
+.domain-summary-meta { color: #5d6b82; font-size: 12px; font-weight: 800; }
 .criterion { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(520px, 0.92fr); gap: 18px; padding: 16px 14px; border-bottom: 1px solid #edf2f8; align-items: start; }
 .criterion:last-child { border-bottom: 0; }
 .criterion-title { margin: 0 0 7px; font-weight: 800; color: #1f2737; }
@@ -39,11 +50,13 @@
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .submit-btn { border: 0; border-radius: 8px; background: #0a4ea3; color: #fff; padding: 10px 14px; font-weight: 900; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 @media (max-width: 1000px) {
+    .observation-toolbar { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .criterion { grid-template-columns: 1fr; }
     .criterion-inputs { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
+    .observation-toolbar { grid-template-columns: 1fr; }
     .meta-grid { grid-template-columns: 1fr; }
 }
 </style>
@@ -51,6 +64,26 @@
 
 {% block content %}
 <form class="form-wrap" method="post" action="/observations/">
+    <section class="observation-toolbar" aria-label="Observation completion summary">
+        <div class="toolbar-card">
+            <span>Completion</span>
+            <strong id="completionText">0 / 25</strong>
+            <div class="progress-track" aria-hidden="true"><span id="completionFill" class="progress-fill"></span></div>
+        </div>
+        <div class="toolbar-card">
+            <span>Average Score</span>
+            <strong id="averageScore">-</strong>
+        </div>
+        <div class="toolbar-card">
+            <span>Selected Subject</span>
+            <strong id="selectedSubjectText">-</strong>
+        </div>
+        <div class="toolbar-card">
+            <span>Evidence Notes</span>
+            <strong id="evidenceCount">0</strong>
+        </div>
+    </section>
+
     <section class="form-panel">
         <div class="meta-grid">
             <div class="field">
@@ -99,18 +132,25 @@
                 <select id="subject" name="subject">
                     <option value="">Select subject</option>
                     {% for subject in subjects %}
-                    <option value="{{ subject.value }}">{{ subject.label }}</option>
+                    <option value="{{ subject.value }}" data-teachers="{{ subject.assigned_teacher_ids }}" data-grade="{{ subject.grade }}">{{ subject.label }}</option>
                     {% endfor %}
                 </select>
+                <div class="subject-helper">
+                    <label><input id="assignedSubjectsOnly" type="checkbox"> show subjects assigned to selected teacher</label>
+                    <span id="subjectHelperText">{{ subjects | length }} system subjects available</span>
+                </div>
             </div>
         </div>
     </section>
 
     {% for group in criteria_groups %}
-    <section class="domain">
-        <div class="domain-header">{{ group.domain_key }}. {{ group.domain_title }}</div>
+    <details class="domain" open data-domain>
+        <summary class="domain-header">
+            <span>{{ group.domain_key }}. {{ group.domain_title }}</span>
+            <span class="domain-summary-meta" data-domain-meta>0 / {{ group.criteria | length }} rated</span>
+        </summary>
         {% for criterion in group.criteria %}
-        <div class="criterion">
+        <div class="criterion" data-criterion>
             <div>
                 <p class="criterion-title">{{ criterion.indicator_number }}. {{ criterion.title }}</p>
                 <p class="criterion-help">{{ criterion.guidelines }}</p>
@@ -121,19 +161,19 @@
                     <span class="rating-label">Rating</span>
                     <div class="rating-grid" aria-label="Rating for {{ criterion.title }}">
                         {% for rating in ["NA", "0", "1", "2", "3", "4", "5"] %}
-                        <input id="rating_{{ criterion.id }}_{{ rating }}" type="radio" name="rating_{{ criterion.id }}" value="{{ rating }}" {% if rating == "NA" %}checked{% endif %}>
+                        <input id="rating_{{ criterion.id }}_{{ rating }}" type="radio" name="rating_{{ criterion.id }}" value="{{ rating }}" {% if rating == "NA" %}checked{% endif %} data-rating>
                         <label for="rating_{{ criterion.id }}_{{ rating }}">{{ rating }}</label>
                         {% endfor %}
                     </div>
                 </div>
                 <div class="evidence-box">
                     <label class="evidence-label" for="evidence_{{ criterion.id }}">Evidence observed</label>
-                    <textarea id="evidence_{{ criterion.id }}" class="evidence" name="evidence_{{ criterion.id }}" placeholder="Write the exact classroom evidence observed for this criterion."></textarea>
+                    <textarea id="evidence_{{ criterion.id }}" class="evidence" name="evidence_{{ criterion.id }}" placeholder="Write the exact classroom evidence observed for this criterion." data-evidence></textarea>
                 </div>
             </div>
         </div>
         {% endfor %}
-    </section>
+    </details>
     {% endfor %}
 
     <section class="form-panel">
@@ -147,4 +187,111 @@
         <button class="submit-btn" type="submit">{{ icon("save", "shell-icon") }} Submit Observation</button>
     </div>
 </form>
+
+<script>
+(() => {
+    const teacherSelect = document.getElementById("teacher_id");
+    const subjectSelect = document.getElementById("subject");
+    const assignedOnly = document.getElementById("assignedSubjectsOnly");
+    const subjectHelperText = document.getElementById("subjectHelperText");
+    const selectedSubjectText = document.getElementById("selectedSubjectText");
+    const completionText = document.getElementById("completionText");
+    const completionFill = document.getElementById("completionFill");
+    const averageScore = document.getElementById("averageScore");
+    const evidenceCount = document.getElementById("evidenceCount");
+    const criteria = Array.from(document.querySelectorAll("[data-criterion]"));
+    const subjectOptions = Array.from(subjectSelect ? subjectSelect.options : []);
+
+    function selectedRating(criterion) {
+        return criterion.querySelector("[data-rating]:checked");
+    }
+
+    function updateSummary() {
+        let rated = 0;
+        let scoreTotal = 0;
+        let scoreCount = 0;
+        let evidenceFilled = 0;
+
+        criteria.forEach((criterion) => {
+            const rating = selectedRating(criterion);
+            const value = rating ? rating.value : "NA";
+            if (value !== "NA") {
+                rated += 1;
+                scoreTotal += Number(value);
+                scoreCount += 1;
+            }
+            const evidence = criterion.querySelector("[data-evidence]");
+            if (evidence && evidence.value.trim()) {
+                evidenceFilled += 1;
+            }
+        });
+
+        completionText.textContent = `${rated} / ${criteria.length}`;
+        completionFill.style.width = criteria.length ? `${Math.round((rated / criteria.length) * 100)}%` : "0%";
+        averageScore.textContent = scoreCount ? `${(scoreTotal / scoreCount).toFixed(2)} / 5` : "-";
+        evidenceCount.textContent = String(evidenceFilled);
+
+        document.querySelectorAll("[data-domain]").forEach((domain) => {
+            const domainCriteria = Array.from(domain.querySelectorAll("[data-criterion]"));
+            const domainRated = domainCriteria.filter((criterion) => {
+                const rating = selectedRating(criterion);
+                return rating && rating.value !== "NA";
+            }).length;
+            const meta = domain.querySelector("[data-domain-meta]");
+            if (meta) {
+                meta.textContent = `${domainRated} / ${domainCriteria.length} rated`;
+            }
+        });
+
+        if (subjectSelect && selectedSubjectText) {
+            const selected = subjectSelect.options[subjectSelect.selectedIndex];
+            selectedSubjectText.textContent = selected && selected.value ? selected.textContent.trim() : "-";
+        }
+    }
+
+    function updateSubjectFilter() {
+        if (!subjectSelect || !teacherSelect || !assignedOnly) {
+            return;
+        }
+        const teacherId = teacherSelect.value;
+        let visibleCount = 0;
+        subjectOptions.forEach((option, index) => {
+            if (index === 0) {
+                option.hidden = false;
+                return;
+            }
+            const assignedTeachers = (option.dataset.teachers || "").split(",").filter(Boolean);
+            const isVisible = !assignedOnly.checked || !teacherId || assignedTeachers.includes(teacherId);
+            option.hidden = !isVisible;
+            if (isVisible) {
+                visibleCount += 1;
+            }
+        });
+        if (subjectSelect.selectedOptions[0] && subjectSelect.selectedOptions[0].hidden) {
+            subjectSelect.value = "";
+        }
+        const total = Math.max(subjectOptions.length - 1, 0);
+        subjectHelperText.textContent = assignedOnly.checked
+            ? `${visibleCount} assigned subjects shown from ${total} system subjects`
+            : `${total} system subjects available`;
+        updateSummary();
+    }
+
+    document.addEventListener("change", (event) => {
+        if (event.target.matches("[data-rating], #subject")) {
+            updateSummary();
+        }
+        if (event.target === teacherSelect || event.target === assignedOnly) {
+            updateSubjectFilter();
+        }
+    });
+    document.addEventListener("input", (event) => {
+        if (event.target.matches("[data-evidence]")) {
+            updateSummary();
+        }
+    });
+    updateSubjectFilter();
+    updateSummary();
+})();
+</script>
 {% endblock %}
