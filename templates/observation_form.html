@@ -14,6 +14,13 @@
 .app-header { display: none !important; }
 .page-stage { padding: 0 !important; }
 {% endif %}
+.observation-form-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #d8e2f0; border-radius: 8px; background: #fff; box-shadow: 0 10px 26px rgba(15, 23, 42, .06); }
+.observation-form-title { display: flex; align-items: center; gap: 10px; min-width: 0; color: #073a7d; font-size: 20px; font-weight: 900; }
+.observation-form-title .shell-icon { color: #0a4ea3; }
+.observation-logo-strip { display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-width: 0; }
+.observation-logo { display: block; height: 38px; width: auto; object-fit: contain; }
+.observation-logo-cognia { height: 34px; }
+.observation-logo-main { height: 42px; }
 .observation-toolbar { position: sticky; top: 0; z-index: 4; display: grid; grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(120px, 170px)); gap: 10px; align-items: stretch; background: rgba(237, 244, 252, 0.96); border: 1px solid #c9d8ea; border-radius: 8px; padding: 10px; backdrop-filter: blur(8px); }
 .toolbar-card { background: #fff; border: 1px solid #d8e2f0; border-radius: 8px; padding: 10px; }
 .toolbar-card span { display: block; color: #48607f; font-size: 11px; font-weight: 900; text-transform: uppercase; }
@@ -96,6 +103,11 @@ body.rubric-modal-open { overflow: hidden; }
     .signature-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
+    .observation-form-head { align-items: flex-start; flex-direction: column; }
+    .observation-logo-strip { justify-content: flex-start; flex-wrap: wrap; }
+    .observation-logo { height: 30px; }
+    .observation-logo-cognia { height: 28px; }
+    .observation-logo-main { height: 34px; }
     .observation-toolbar { grid-template-columns: 1fr; }
     .meta-grid { grid-template-columns: 1fr; }
     .rating-grid { grid-template-columns: repeat(4, minmax(46px, 1fr)); }
@@ -106,6 +118,17 @@ body.rubric-modal-open { overflow: hidden; }
 {% block content %}
 <form class="form-wrap" method="post" action="{{ form_action or '/observations/' }}">
     <input type="hidden" name="modal_mode" value="{{ 1 if modal_mode else 0 }}">
+    <section class="observation-form-head" aria-label="Observation form header">
+        <div class="observation-form-title">
+            {{ icon("clipboard-check", "shell-icon") }}
+            <span>{{ "Edit Observation" if observation else "New Observation" }}</span>
+        </div>
+        <div class="observation-logo-strip" aria-label="School logos">
+            <img class="observation-logo" src="{{ url_for('static', path='images/andalus-logo.png') }}" alt="Little Andalus International Schools logo">
+            <img class="observation-logo observation-logo-cognia" src="{{ url_for('static', path='images/cognia-logo.png') }}" alt="Cognia logo">
+            <img class="observation-logo observation-logo-main" src="{{ url_for('static', path='images/andalus-logo-main.png') }}" alt="Andalus International Schools main logo">
+        </div>
+    </section>
     <section class="observation-toolbar" aria-label="Observation completion summary">
         <div class="toolbar-card">
             <span>Completion</span>
