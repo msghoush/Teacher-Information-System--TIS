@@ -26,33 +26,515 @@ logger = logging.getLogger("tis.observations")
 FORMAL_OBSERVATION_TARGET = 6
 RATING_VALUES = {"0", "1", "2", "3", "4", "5"}
 
-OBSERVATION_CRITERIA = [
-    ("A", "Planning and Preparation", 1, "Develops a focused and logically staged lesson with clearly stated and appropriate lesson objectives", "Objectives are clear, measurable, logically sequenced, relevant to curriculum, differentiated, feasible, and supported by prepared resources.", "Objectives are visible and explained; activities flow from review to practice; examples connect to real life; materials support different learners."),
-    ("A", "Planning and Preparation", 2, "Lesson is aligned with the weekly plan", "Lesson aligns with the weekly plan, curriculum scope, prior/future learning, pacing, adaptation, and assessment checks.", "Teacher connects to previous and future lessons; pacing follows the plan; exit slips or similar checks confirm learning."),
-    ("B", "Culture/Climate Dimension", 1, "Fosters an environment that embraces all learners", "The classroom demonstrates inclusivity, belonging, respect for diversity, and support for all learners.", "Teacher uses students' names, values contributions, displays inclusive materials, and structures participation for all learners."),
-    ("B", "Culture/Climate Dimension", 2, "Treats each learner equitably", "Interactions, participation, praise, expectations, rewards, and discipline are fair, consistent, and bias-free.", "Teacher rotates participation, distributes praise fairly, and applies rules consistently."),
-    ("B", "Culture/Climate Dimension", 3, "Encourages learners to share their opinions without fear of negative comments from their peers", "The teacher establishes safe dialogue norms, encourages academic risk-taking, and addresses ridicule immediately.", "Students share ideas openly, mistakes are treated as learning opportunities, and debate norms protect all voices."),
-    ("B", "Culture/Climate Dimension", 4, "Creates enthusiasm for the learning at hand", "Teacher energy, engagement strategies, curiosity, and celebration of progress create enthusiasm for learning.", "Teacher opens with a hook, uses expressive delivery, praises effort, and displays student work."),
-    ("C", "Learning Dimension", 1, "Communicates clear explanations about the activities or tasks", "Instructions are clear, step-by-step, connected to objectives, proactive about confusion, and checked for understanding.", "Teacher states task steps, uses board/visual supports, rephrases when needed, and asks students to restate instructions."),
-    ("C", "Learning Dimension", 2, "Implements lessons and/or activities that stimulate learners to use higher order thinking skills", "Tasks require analysis, evaluation, creation, open-ended thinking, justification, discussion, debate, or problem-solving.", "Students compare methods, justify reasoning, design experiments, or respond to open-ended questions."),
-    ("C", "Learning Dimension", 3, "Delivers lessons that are relatable to the learners or aligned to their interests", "Instruction connects content to learners' experiences, interests, culture, age, environment, and real-life application.", "Examples reflect students' lives, hobbies, current issues, or authentic applications."),
-    ("C", "Learning Dimension", 4, "Monitors learners' understanding of the content and/or the acquisition of skills", "Teacher uses questioning, observation, formative assessment, self/peer assessment, and correction of misconceptions.", "Teacher circulates, checks work, uses exit slips or whiteboards, and reteaches when repeated errors appear."),
-    ("C", "Learning Dimension", 5, "Adapts instruction and/or activities to meet individual learner's needs", "Instruction adjusts tasks, groups, modalities, entry points, choices, and support based on learner needs.", "Learners receive differentiated texts, visuals, grouping, assignment choices, or extension tasks."),
-    ("C", "Learning Dimension", 6, "Provides learners with purposeful feedback about their progress and/or needs", "Feedback is timely, specific, constructive, balanced, actionable, and encourages reflection.", "Teacher gives specific oral/written feedback and students act on it through revision or reflection."),
-    ("D", "Essentials Dimension", 1, "Delivers and/or facilitates the lesson with knowledge and confidence", "Teacher demonstrates subject command, accurate explanations, confident delivery, and anticipation of misconceptions.", "Teacher explains accurately, connects concepts, answers questions, and maintains student attention."),
-    ("D", "Essentials Dimension", 2, "Communicates and upholds high expectations for learners' behaviors to maximize their learning and well-being", "Behavior expectations are clear, consistent, fair, reinforced positively, and connected to learning and well-being.", "Students know routines and expectations; teacher redirects calmly and reinforces positive behavior."),
-    ("D", "Essentials Dimension", 3, "Facilitates use of resources that support learners' needs", "Resources align with objectives and learner needs, are inclusive, age-appropriate, safe, and purposeful.", "Teacher uses visuals, manipulatives, technology, or lab resources with clear guidance."),
-    ("D", "Essentials Dimension", 4, "Implements instructional strategies that actively engage learners", "Instruction uses student-centered strategies, collaboration, varied methods, and active thinking beyond passive listening.", "Students work in pairs, use whiteboards, debate, role play, or solve problems collaboratively."),
-    ("D", "Essentials Dimension", 5, "Manages the learning time in an efficient and optimal manner", "Lesson time is used effectively through prompt starts, smooth transitions, focus, balanced pacing, and flexible adjustments.", "Teacher uses timers, keeps transitions short, minimizes wasted time, and has extension tasks ready."),
-    ("E", "Agency Dimension", 1, "Empowers learners to be responsible for the learning at hand", "Learners take ownership through independence, inquiry, reflection, accountability, and self-directed learning strategies.", "Students set goals, collect/submit work responsibly, use journals, or solve while the teacher guides."),
-    ("E", "Agency Dimension", 2, "Gives learners choices about the learning activities or tasks", "Learners receive meaningful options in assignments, projects, methods, or ways to demonstrate understanding.", "Students choose formats, texts, partners, or task pathways while still meeting objectives."),
-    ("E", "Agency Dimension", 3, "Provides assistance for learners to navigate and monitor their learning progress", "Teacher supports goal setting, progress tracking, reflection, identification of strengths, and overcoming challenges.", "Students use checklists, trackers, conferences, journals, or progress charts."),
-    ("E", "Agency Dimension", 4, "Encourages learners to persevere with or seek challenging activities or tasks", "Teacher promotes resilience, effort, productive struggle, scaffolding, challenge, and mistakes as learning.", "Students attempt difficult tasks, try again after errors, and reflect on how they overcame difficulty."),
-    ("E", "Agency Dimension", 5, "Builds learners' growth mindset and self-efficacy", "Teacher encourages positive self-talk, effort, learning from mistakes, long-term goals, and belief in improvement.", "Teacher highlights persistence; students use growth language and set improvement goals."),
-    ("F", "Relationship Dimension", 1, "Promotes respectful and caring interactions toward and between learners", "Teacher models and reinforces respect, care, empathy, safety, support, and positive interactions.", "Interactions are warm and respectful; students feel safe; negative peer interactions are addressed."),
-    ("F", "Relationship Dimension", 2, "Cultivates learner cooperation, collaboration, and inclusivity", "Teacher promotes structured cooperation, collaborative learning, inclusivity, participation, and appreciation of strengths.", "Group work includes roles, peer support, and inclusive participation."),
-    ("F", "Relationship Dimension", 3, "Preserves learners' dignity while attending to their individual needs", "Individual needs are addressed respectfully, discreetly, empathetically, and without stigma.", "Corrections are private, support is discreet, and learners are not embarrassed or singled out."),
-]
+OBSERVATION_CRITERIA = [{'domain_key': 'A',
+  'domain_title': 'Planning and Preparation',
+  'indicator_number': 1,
+  'title': 'Develops a focused and logically staged lesson with clearly stated and appropriate lesson objectives',
+  'guidelines': '- Clarity of Objectives: Objectives are clearly stated, measurable, and aligned with what students are expected to learn. '
+                '- Logical Sequencing: Lesson follows a structured order (prior knowledge → new input → practice → application). - '
+                'Relevance: Objectives connect to curriculum standards while also being meaningful for learners. - Differentiation: Plans '
+                'include strategies for diverse abilities, learning styles, and needs. - Feasibility and Resources: Objectives are '
+                'realistic within the time and achievable with prepared resources.',
+  'evidence_examples': '- Teacher writes objectives on the board and explains them in student-friendly language; students can restate them '
+                       'in their own words. - Activities flow smoothly from review to independent work; students are not confused. - '
+                       'Teacher relates fractions to pizza sharing; students make real-life connections. - Struggling learners use '
+                       'fraction tiles; advanced learners solve mixed-number problems. - Worksheets, visuals, and digital tools are '
+                       'prepared in advance to support objectives.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'No objectives are stated; lesson lacks structure or clarity.',
+                         '1': 'Objectives are vague or overly broad; sequencing is disorganized; activities appear disconnected.',
+                         '2': 'Objectives are partially clear but not fully measurable; lesson shows some sequencing but limited '
+                              'connection to prior knowledge or student needs.',
+                         '3': 'Objectives are clear and measurable; lesson follows a mostly logical sequence (review → new input → '
+                              'practice → application); some differentiation is attempted.',
+                         '4': 'Objectives are very clear, student-friendly, measurable, and aligned to curriculum; sequencing flows '
+                              'logically with smooth transitions; activities are relevant and differentiated for diverse learners.',
+                         '5': 'Objectives are crystal clear, innovative, and inspiring; sequencing is seamless; activities show '
+                              'creativity, strong differentiation, and real-life connections; students can restate objectives in their own '
+                              'words. Supported by proof: lesson plan, board notes, or student responses.'}},
+ {'domain_key': 'A',
+  'domain_title': 'Planning and Preparation',
+  'indicator_number': 2,
+  'title': 'Lesson is aligned with the weekly plan',
+  'guidelines': '- Consistency with Curriculum: Lesson aligns with broader curriculum and weekly plan. - Connection to Previous and Future '
+                'Lessons: Links are made to past lessons and previews of upcoming content. - Pacing: Lesson timing aligns with the weekly '
+                'plan for balanced coverage. - Adaptability: Teacher adjusts while keeping weekly goals intact. - Assessment Integration: '
+                'Lesson includes informal or formal checks for understanding.',
+  'evidence_examples': '- Teacher reviews comparing fractions (past) and previews comparing unlike denominators (future). - Pacing is '
+                       'structured: 10 min review → 20 min new learning → 10 min practice → 5 min reflection. - Teacher adapts if students '
+                       'struggle but still meets weekly goals. - Students complete exit slips to demonstrate understanding.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Lesson shows no alignment to the weekly plan or curriculum scope; pacing is off track.',
+                         '1': 'Limited evidence of alignment; lesson loosely connects to curriculum but lacks continuity or pacing.',
+                         '2': 'Some alignment with the weekly plan; lesson partially connects to previous or future lessons but '
+                              'inconsistently; pacing may be uneven.',
+                         '3': 'Lesson is clearly aligned to the weekly plan and curriculum; connects to prior knowledge and builds toward '
+                              'future content; pacing is mostly appropriate.',
+                         '4': 'Lesson is fully aligned with curriculum and weekly scope; pacing is smooth and balanced; clear links to '
+                              'prior/future learning are established; assessment is integrated.',
+                         '5': 'Lesson demonstrates excellent alignment and continuity across unit/weekly plan; pacing is dynamic yet '
+                              'efficient; links to past and future learning are explicit; assessments and adaptation strategies enrich '
+                              'continuity. Supported by proof: weekly plan reference, student work, assessments.'}},
+ {'domain_key': 'B',
+  'domain_title': 'Culture/Climate Dimension',
+  'indicator_number': 1,
+  'title': 'Fosters an environment that embraces all learners',
+  'guidelines': '- Inclusivity and Belonging: Every learner feels accepted and valued regardless of background, ability, or style. - '
+                'Respect for Diversity: Materials, discussions, and examples reflect cultural sensitivity. - Support for All Learners: '
+                'Instruction makes every student feel capable of success.',
+  'evidence_examples': '- Teacher uses students’ names and acknowledges contributions. - Displays include diverse cultures, genders, and '
+                       'abilities. - Group work is structured so all learners participate. - Teacher adapts examples to reflect students’ '
+                       'lives.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Teacher shows no attempt to build an inclusive classroom; some students feel excluded or ignored.',
+                         '1': 'Teacher inconsistently acknowledges students; inclusivity is minimal; classroom may reflect bias or '
+                              'favoritism.',
+                         '2': 'Teacher attempts inclusivity but with limited strategies; some students feel valued, others less so.',
+                         '3': 'Teacher creates a generally inclusive environment; students are acknowledged and feel welcome; classroom '
+                              'climate is mostly positive.',
+                         '4': 'Teacher deliberately integrates inclusive practices; students consistently feel respected and represented; '
+                              'classroom materials reflect diversity.',
+                         '5': 'Teacher creates a classroom culture where every learner feels celebrated; inclusivity is deeply embedded '
+                              '(language, materials, group work, discussions); learners actively model respect for diversity. Supported by '
+                              'proof: classroom displays, group activities, student feedback.'}},
+ {'domain_key': 'B',
+  'domain_title': 'Culture/Climate Dimension',
+  'indicator_number': 2,
+  'title': 'Treats each learner equitably',
+  'guidelines': '- Fairness in Interaction: All students have equal opportunities to participate. - Consistency: Expectations, rewards, '
+                'and discipline are applied fairly. - Bias-Free Approach: No favoritism, stereotypes, or unequal treatment.',
+  'evidence_examples': '- Teacher rotates who answers questions. - Praise is distributed fairly based on effort and achievement. - Rules '
+                       'are enforced equally for all students.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Teacher applies rules, praise, or discipline unfairly; favoritism or bias is evident.',
+                         '1': 'Attempts fairness but is inconsistent; some learners receive more attention or opportunities than others.',
+                         '2': 'Some improvement in fairness; teacher distributes praise, questions, and support unevenly but with partial '
+                              'awareness.',
+                         '3': 'Teacher treats students fairly and applies rules consistently; most learners feel equally valued.',
+                         '4': 'Teacher consistently demonstrates fairness and impartiality; all learners are given equal opportunities to '
+                              'participate, contribute, and access resources.',
+                         '5': 'Teacher actively models equity and advocates for fairness; classroom culture ensures all learners feel '
+                              'equally important; students demonstrate fairness in peer interactions. Supported by proof: observer notes, '
+                              'student participation records, discipline logs.'}},
+ {'domain_key': 'B',
+  'domain_title': 'Culture/Climate Dimension',
+  'indicator_number': 3,
+  'title': 'Encourages learners to share their opinions without fear of negative comments from their peers',
+  'guidelines': '- Safe Learning Environment: Students feel safe to express themselves. - Respectful Dialogue: Norms for respectful '
+                'discussions are established. - Risk-Taking Encouraged: Learners share even if answers are not perfect.',
+  'evidence_examples': '- Teacher says: “In this classroom, all ideas are welcome.” - Mistakes are treated as learning opportunities. - '
+                       'Teacher addresses ridicule immediately. - Debates include acknowledgment of all viewpoints.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Teacher does not encourage learners to share; classroom feels unsafe for student voice.',
+                         '1': 'Limited encouragement of student voice; some students hesitate to share due to peer reactions.',
+                         '2': 'Teacher occasionally fosters open discussion but struggles to prevent ridicule or negativity.',
+                         '3': 'Teacher encourages learners to share opinions; respectful dialogue is promoted; negative comments are '
+                              'addressed when they arise.',
+                         '4': 'Teacher actively fosters a safe environment where learners feel comfortable expressing opinions; respectful '
+                              'dialogue is consistently enforced.',
+                         '5': 'Teacher creates a culture of trust and openness; all voices are valued; learners support and encourage each '
+                              'other’s contributions; mistakes are celebrated as learning opportunities. Supported by proof: student '
+                              'discussions, observation notes, peer interactions.'}},
+ {'domain_key': 'B',
+  'domain_title': 'Culture/Climate Dimension',
+  'indicator_number': 4,
+  'title': 'Creates enthusiasm for the learning at hand',
+  'guidelines': '- Teacher Energy and Attitude: Models excitement and passion. - Engagement Strategies: Lessons spark curiosity. - '
+                'Celebration of Success: Recognizes student effort and progress.',
+  'evidence_examples': '- Teacher begins with a thought-provoking question or real-world scenario. - Voice, body language, and expressions '
+                       'show enthusiasm. - Teacher praises effort and posts student work on the wall.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Teacher shows little or no enthusiasm; students appear disengaged or uninterested.',
+                         '1': 'Teacher occasionally shows energy but inconsistently; limited impact on student motivation.',
+                         '2': 'Teacher demonstrates some enthusiasm; students are somewhat engaged but inconsistently.',
+                         '3': 'Teacher models enthusiasm through tone, energy, and relevant examples; students show interest and '
+                              'participate.',
+                         '4': 'Teacher consistently uses engaging strategies, celebrates student success, and inspires active '
+                              'participation; learners demonstrate curiosity.',
+                         '5': 'Teacher’s enthusiasm is contagious; learners are highly motivated, excited, and take ownership of their '
+                              'learning; classroom energy is consistently positive and inspiring. Supported by proof: student engagement '
+                              'levels, observer notes, lesson recordings.'}},
+ {'domain_key': 'C',
+  'domain_title': 'Learning Dimension',
+  'indicator_number': 1,
+  'title': 'Communicates clear explanations about the activities or tasks',
+  'guidelines': '- Provides step-by-step instructions using clear, simple, and direct language. - Connects activities to the overall '
+                'lesson objectives so students understand why they are doing them. - Anticipates areas of confusion and proactively '
+                'clarifies. - Checks for understanding before moving on.',
+  'evidence_examples': '- Teacher says: “First, work with your partner to solve question one. Then, we’ll discuss as a group.” - '
+                       'Instructions are repeated or rephrased for clarity. - Teacher asks: “Who can explain what we’re supposed to do?” '
+                       'to confirm understanding. - Visual aids (written steps on the board) support verbal instructions.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Teacher does not provide instructions; students are confused.',
+                         '1': 'Instructions are vague, incomplete, or unclear; little connection to objectives.',
+                         '2': 'Instructions are sometimes clear but inconsistent; students require repeated clarification.',
+                         '3': 'Instructions are generally clear and step-by-step; most students understand the tasks.',
+                         '4': 'Instructions are consistently clear, concise, and connected to objectives; misunderstandings are rare.',
+                         '5': 'Instructions are crystal clear, scaffolded, and supported by visuals/examples; students can restate '
+                              'instructions independently. Supported by proof: lesson observation, student feedback.'}},
+ {'domain_key': 'C',
+  'domain_title': 'Learning Dimension',
+  'indicator_number': 2,
+  'title': 'Implements lessons and/or activities that stimulate learners to use higher order thinking skills',
+  'guidelines': '- Designs tasks that require analysis, evaluation, and creation, not just recall. - Uses open-ended and thought-provoking '
+                'questions. - Encourages learners to justify their reasoning. - Provides opportunities for discussion, debate, and '
+                'problem-solving.',
+  'evidence_examples': '- Students compare two different problem-solving methods and explain which is more efficient. - Teacher asks: “Why '
+                       'do you think this character acted that way? What would you have done differently?” - In science, students design '
+                       'their own experiment instead of only following steps.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Activities require only rote recall or passive learning; no evidence of higher-order thinking.',
+                         '1': 'Limited use of open-ended questions or tasks; higher-order thinking rarely encouraged.',
+                         '2': 'Some activities encourage analysis/evaluation but inconsistently; limited student engagement.',
+                         '3': 'Activities regularly include opportunities for analysis, application, or problem-solving.',
+                         '4': 'Activities consistently require higher-order thinking (analysis, evaluation, creation); students are '
+                              'actively engaged in deeper discussions.',
+                         '5': 'Activities foster creativity, innovation, and independent inquiry; learners pose their own critical '
+                              'questions and engage in sophisticated reasoning. Supported by proof: student work samples, class '
+                              'discussions.'}},
+ {'domain_key': 'C',
+  'domain_title': 'Learning Dimension',
+  'indicator_number': 3,
+  'title': 'Delivers lessons that are relatable to the learners or aligned to their interests',
+  'guidelines': '- Connects content to learners’ personal experiences and cultural backgrounds. - Uses real-life examples relevant to age, '
+                'interests, and environment. - Highlights applications of content to everyday life. - Adapts instruction to reflect '
+                'learners’ passions and hobbies.',
+  'evidence_examples': '- Math lesson includes calculating sports statistics for students who enjoy football. - History lesson connects '
+                       'past events to current issues in the community. - Teacher asks students to share examples from their lives that '
+                       'connect to the lesson.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'No attempt to connect lessons to student interests, experiences, or context.',
+                         '1': 'Occasional attempt to relate content but mostly irrelevant or superficial.',
+                         '2': 'Some lessons connect to learners’ lives or interests, but inconsistently.',
+                         '3': 'Lessons are often connected to learners’ experiences; students show interest and engagement.',
+                         '4': 'Lessons are consistently relatable, using real-world and culturally relevant examples that connect with '
+                              'learners’ passions.',
+                         '5': 'Lessons are deeply meaningful; learners see personal relevance and make their own connections; enthusiasm '
+                              'and motivation are highly evident. Supported by proof: lesson plans, student reflections, engagement '
+                              'observations.'}},
+ {'domain_key': 'C',
+  'domain_title': 'Learning Dimension',
+  'indicator_number': 4,
+  'title': 'Monitors learners’ understanding of the content and/or the acquisition of skills',
+  'guidelines': '- Uses questioning and observation to check comprehension during lessons. - Employs formative assessments (exit slips, '
+                'quizzes, mini whiteboards). - Encourages self-assessment and peer feedback. - Provides corrective support when '
+                'misconceptions arise.',
+  'evidence_examples': '- Teacher circulates the classroom, checking students’ work and asking questions. - At the end of the lesson, '
+                       'students complete a 2-minute exit slip summarizing the main idea. - Peer-review activities allow learners to give '
+                       'each other feedback. - Teacher re-explains a concept when noticing repeated errors.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'No checks for understanding; teacher is unaware of students’ progress.',
+                         '1': 'Minimal attempts to check understanding; feedback is absent or very limited.',
+                         '2': 'Some monitoring occurs, but inconsistently; misconceptions are sometimes overlooked.',
+                         '3': 'Teacher regularly checks for understanding through questioning, observation, or quick assessments; feedback '
+                              'is provided.',
+                         '4': 'Monitoring is systematic; teacher uses varied strategies (exit slips, peer checks, questioning) to adjust '
+                              'instruction.',
+                         '5': 'Monitoring is continuous, adaptive, and student-centered; learners also self-assess and peer-assess; '
+                              'feedback is timely and actionable. Supported by proof: assessment tools, observation notes, student '
+                              'feedback.'}},
+ {'domain_key': 'C',
+  'domain_title': 'Learning Dimension',
+  'indicator_number': 5,
+  'title': 'Adapts instruction and/or activities that meet individual learner’s needs',
+  'guidelines': '- Adjusts tasks based on student ability and progress. - Provides multiple entry points to the same concept (visual, '
+                'auditory, kinesthetic). - Groups students flexibly (pairs, small groups, whole class). - Offers choices in assignments '
+                'and tasks.',
+  'evidence_examples': '- Struggling readers get simplified texts with visuals, while advanced readers tackle primary sources. - Teacher '
+                       'allows choice between writing a report, making a poster, or giving a short presentation. - During group work, '
+                       'teacher rearranges groups to support peer learning.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'No evidence of adaptation; instruction is one-size-fits-all.',
+                         '1': 'Minimal differentiation; some learners are left behind or unchallenged.',
+                         '2': 'Some adaptation occurs, but limited in scope; not all learners are supported.',
+                         '3': 'Instruction is adapted for groups of learners; differentiated strategies are used to support and challenge '
+                              'most students.',
+                         '4': 'Instruction is consistently adapted to meet varied needs; teacher uses flexible grouping, scaffolding, and '
+                              'choice.',
+                         '5': 'Instruction is highly personalized; students take ownership of differentiated pathways; learning is '
+                              'inclusive, equitable, and challenging for all. Supported by proof: lesson plan differentiation notes, '
+                              'observation records, student work.'}},
+ {'domain_key': 'C',
+  'domain_title': 'Learning Dimension',
+  'indicator_number': 6,
+  'title': 'Provides learners with purposeful feedback about their progress and/or needs',
+  'guidelines': '- Gives feedback that is timely, specific, and constructive. - Balances praise with areas for improvement. - Provides '
+                'feedback in written, oral, or digital form. - Encourages learners to act on feedback and reflect.',
+  'evidence_examples': '- Teacher writes: “Great use of vocabulary—next time, add more evidence from the text.” - During class, teacher '
+                       'says: “I like how you explained your reasoning. Can you expand on it?” - Students keep reflection journals to '
+                       'track feedback and improvement. - Teacher conferences with students individually to discuss progress.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'No feedback is given; learners have no awareness of progress.',
+                         '1': 'Feedback is rare, vague, or generic (e.g., “Good job”).',
+                         '2': 'Some feedback is provided but not always specific or timely; limited impact on learning.',
+                         '3': 'Feedback is clear, specific, and mostly timely; learners use it to improve.',
+                         '4': 'Feedback is consistent, purposeful, and growth-oriented; students act on it effectively.',
+                         '5': 'Feedback is highly impactful—timely, constructive, and learner-centered; students reflect, track progress, '
+                              'and set goals based on feedback. Supported by proof: written feedback samples, student reflection '
+                              'journals.'}},
+ {'domain_key': 'D',
+  'domain_title': 'Essentials Dimension',
+  'indicator_number': 1,
+  'title': 'Delivers and/or facilitates the lesson with knowledge and confidence',
+  'guidelines': '- Demonstrates strong command of subject matter and communicates concepts clearly. - Uses accurate examples and '
+                'explanations. - Speaks with confidence, clarity, and appropriate tone. - Anticipates students’ questions and responds '
+                'effectively. - Connects new learning to broader concepts for deeper understanding.',
+  'evidence_examples': '- Teacher explains a math process step-by-step without hesitation and connects it to real-world use (e.g., '
+                       'budgeting). - In science, the teacher anticipates a common misconception and clarifies before it arises. - Teacher '
+                       'uses confident body language, clear voice projection, and maintains student attention.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Teacher shows little or no subject knowledge; explanations are unclear or inaccurate.',
+                         '1': 'Teacher demonstrates limited subject knowledge; frequent inaccuracies; lacks confidence in delivery.',
+                         '2': 'Teacher demonstrates partial knowledge; explanations are sometimes correct but lack depth.',
+                         '3': 'Teacher demonstrates good subject knowledge and confidence; explanations are clear and mostly accurate.',
+                         '4': 'Teacher demonstrates strong command of subject matter; explanations are confident, accurate, and connected '
+                              'to broader concepts.',
+                         '5': 'Teacher demonstrates mastery and enthusiasm; explanations are insightful, accurate, and inspiring; teacher '
+                              'anticipates misconceptions and extends learning creatively. Supported by proof: lesson observation, student '
+                              'responses.'}},
+ {'domain_key': 'D',
+  'domain_title': 'Essentials Dimension',
+  'indicator_number': 2,
+  'title': 'Communicates and upholds high expectations for learners’ behaviors to maximize their learning and well-being',
+  'guidelines': '- Clearly states behavioral expectations at the start of the year/lesson. - Uses consistent routines and fair enforcement '
+                'of rules. - Encourages responsibility for self-discipline and respect. - Promotes positive behavior through '
+                'reinforcement. - Links behavior expectations to academic success and well-being.',
+  'evidence_examples': '- Teacher says: “In this class, we listen while others speak.” and follows through if interrupted. - Students know '
+                       'routines for entering class, transitioning, and asking questions. - Teacher praises positive behaviors (e.g., '
+                       'teamwork, focus) and redirects misbehavior calmly and consistently.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'No behavior expectations are set; classroom is disorganized; learning time is lost.',
+                         '1': 'Expectations are vague or inconsistently enforced; students are sometimes unclear about boundaries.',
+                         '2': 'Some behavior expectations are communicated but inconsistently upheld; classroom management is uneven.',
+                         '3': 'Teacher communicates clear expectations; applies rules fairly; classroom is orderly and conducive to '
+                              'learning.',
+                         '4': 'Expectations are consistently upheld; teacher reinforces positive behaviors; students feel safe and '
+                              'respected.',
+                         '5': 'Expectations are deeply embedded in class culture; students take responsibility for their own and peers’ '
+                              'behavior; high levels of respect, responsibility, and self-regulation are evident. Supported by proof: '
+                              'observation notes, student behavior records.'}},
+ {'domain_key': 'D',
+  'domain_title': 'Essentials Dimension',
+  'indicator_number': 3,
+  'title': 'Facilitates use of resources that support learners’ needs',
+  'guidelines': '- Selects resources that align with lesson objectives and student needs. - Provides access to a variety of tools (print, '
+                'digital, manipulatives). - Ensures resources are safe, age-appropriate, and inclusive. - Uses technology effectively to '
+                'enhance learning (not distract). - Models correct and safe use of materials.',
+  'evidence_examples': '- Students use tablets for interactive practice, but tasks remain purposeful and guided. - In science, students '
+                       'use lab equipment with clear safety instructions. - The teacher prepares visuals, charts, and manipulatives for '
+                       'learners who need extra support.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Teacher provides no or irrelevant resources; students lack tools for learning.',
+                         '1': 'Limited resources are used; resources are sometimes misaligned or inappropriate.',
+                         '2': 'Some resources are used but not consistently effective or engaging.',
+                         '3': 'Teacher selects appropriate resources aligned to objectives; students benefit from them.',
+                         '4': 'Resources are consistently purposeful, age-appropriate, inclusive, and enhance learning; technology is used '
+                              'meaningfully.',
+                         '5': 'Resources are highly engaging, diverse, and personalized to learners’ needs; students skillfully use '
+                              'resources independently; technology integration is seamless and innovative. Supported by proof: resource '
+                              'lists, classroom observation, student work.'}},
+ {'domain_key': 'D',
+  'domain_title': 'Essentials Dimension',
+  'indicator_number': 4,
+  'title': 'Implements instructional strategies that actively engage learners',
+  'guidelines': '- Employs student-centered strategies that promote participation. - Uses group activities, peer collaboration, and '
+                'discussions. - Varies instructional methods (visual, auditory, kinesthetic). - Balances teacher talk with student '
+                'interaction. - Designs tasks that require active thinking and doing, not just listening.',
+  'evidence_examples': '- Students work in pairs to solve problems and share solutions with the class. - Teacher uses think-pair-share, '
+                       'role plays, and cooperative games. - Learners use whiteboards to answer questions simultaneously. - Class '
+                       'discussions involve students debating, not only listening to the teacher.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Instruction is lecture-dominated; students are passive and disengaged.',
+                         '1': 'Teacher attempts limited strategies but engagement is low; few students participate.',
+                         '2': 'Some student-centered strategies are used; engagement varies; limited peer interaction.',
+                         '3': 'Teacher uses a variety of strategies (discussion, collaboration, visual aids) that engage most learners.',
+                         '4': 'Instructional strategies are consistently active and student-centered; learners are highly engaged and '
+                              'participate meaningfully.',
+                         '5': 'Strategies are dynamic, innovative, and deeply interactive; learners drive discussions, collaborate, and '
+                              'problem-solve independently; engagement is sustained at a high level. Supported by proof: lesson '
+                              'observation, student engagement evidence.'}},
+ {'domain_key': 'D',
+  'domain_title': 'Essentials Dimension',
+  'indicator_number': 5,
+  'title': 'Manages the learning time in an efficient and optimal manner',
+  'guidelines': '- Begins lessons promptly and uses time effectively. - Provides smooth transitions between activities. - Keeps learners '
+                'focused with minimal disruptions. - Balances time for explanation, practice, and reflection. - Adjusts pacing flexibly to '
+                'maintain learning momentum.',
+  'evidence_examples': '- Teacher uses a timer to manage group activity time. - Transitions are efficient: students move from group work '
+                       'to whole-class discussion in under a minute. - Minimal time is wasted on non-instructional tasks. - If students '
+                       'finish early, teacher has extension tasks ready.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Lesson is disorganized; significant time is lost; objectives are not met.',
+                         '1': 'Teacher shows limited ability to manage time; frequent disruptions or long transitions.',
+                         '2': 'Some activities run efficiently but time is unevenly managed; pacing is inconsistent.',
+                         '3': 'Teacher manages time effectively; transitions are smooth; objectives are mostly achieved within the '
+                              'allotted time.',
+                         '4': 'Teacher consistently maximizes learning time; pacing is balanced; transitions are efficient; little time is '
+                              'wasted.',
+                         '5': 'Time management is exemplary; lessons are dynamic yet efficient; transitions are seamless; extension tasks '
+                              'ensure all time is used productively. Supported by proof: observation notes, lesson timing records.'}},
+ {'domain_key': 'E',
+  'domain_title': 'Agency Dimension',
+  'indicator_number': 1,
+  'title': 'Empowers learners to be responsible for the learning at hand',
+  'guidelines': '- Encourages students to take ownership of their work and learning process. - Provides opportunities for independent and '
+                'inquiry-based learning. - Guides learners to reflect on their choices and outcomes. - Promotes accountability for '
+                'completing tasks. - Models strategies for self-directed learning.',
+  'evidence_examples': '- Teacher says: “You are the problem-solvers today; I will only guide.” - Students keep learning journals to track '
+                       'their progress. - Learners set their own mini-goals for the lesson. - Students are responsible for collecting and '
+                       'submitting their work without reminders.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Teacher takes full control; learners are passive; no ownership of learning.',
+                         '1': 'Learners are rarely encouraged to take responsibility; limited opportunities for independence.',
+                         '2': 'Some attempts to promote responsibility; few students take initiative.',
+                         '3': 'Teacher encourages learners to take responsibility through goal setting or task ownership; most students '
+                              'respond positively.',
+                         '4': 'Learners are consistently empowered to own their learning; reflection and self-direction are built into '
+                              'lessons.',
+                         '5': 'Learners demonstrate strong autonomy, self-regulation, and accountability; students track their own goals '
+                              'and progress independently. Supported by proof: student reflections, self-assessments, observation notes.'}},
+ {'domain_key': 'E',
+  'domain_title': 'Agency Dimension',
+  'indicator_number': 2,
+  'title': 'Gives learners choices about the learning activities or tasks',
+  'guidelines': '- Offers options in assignments, projects, or learning methods. - Encourages student voice in decision-making for '
+                'activities. - Provides flexibility in how learners demonstrate understanding. - Promotes autonomy while ensuring '
+                'objectives are met.',
+  'evidence_examples': '- Students choose between writing an essay, creating a poster, or recording a video to show understanding. - '
+                       'During reading, students select from a set of leveled texts. - Teacher asks: “Would you like to work individually '
+                       'or in pairs on this task?”',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'No choices are given; all students follow the same rigid approach.',
+                         '1': 'Minimal choice provided (e.g., choosing partners), but not meaningful to learning.',
+                         '2': 'Some opportunities for choice exist but are limited in scope.',
+                         '3': 'Teacher provides learners with meaningful options in activities or formats of demonstrating learning.',
+                         '4': 'Choices are consistently integrated; learners select tasks that align with their interests, learning '
+                              'styles, or strengths.',
+                         '5': 'Choice is embedded in classroom culture; learners design parts of their own tasks, projects, or '
+                              'assessments; autonomy leads to deeper engagement. Supported by proof: lesson plans with choice options, '
+                              'student work samples.'}},
+ {'domain_key': 'E',
+  'domain_title': 'Agency Dimension',
+  'indicator_number': 3,
+  'title': 'Provides assistance for learners to navigate and monitor their learning progress',
+  'guidelines': '- Teaches strategies for goal setting and self-monitoring. - Provides tools (charts, trackers, apps) for learners to '
+                'track growth. - Encourages reflection on strengths and areas for improvement. - Supports learners in identifying and '
+                'overcoming challenges.',
+  'evidence_examples': '- Students use progress charts to record quiz scores and improvements. - Teacher facilitates short one-on-one '
+                       'conferences to discuss learning goals. - Students reflect in journals: “What did I do well today? What can I '
+                       'improve?” - Learners use checklists to ensure tasks are completed correctly.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'No guidance on progress; students have no idea how they are performing.',
+                         '1': 'Limited feedback or tools are provided for tracking progress.',
+                         '2': 'Some strategies (e.g., checklists or reminders) are used, but not consistently.',
+                         '3': 'Teacher regularly provides guidance (trackers, reflections, conferences) to help students monitor learning.',
+                         '4': 'Monitoring tools and strategies are embedded; learners are supported in reflecting and adjusting their '
+                              'efforts.',
+                         '5': 'Learners independently track progress, set goals, and reflect on growth; teacher scaffolds advanced '
+                              'self-monitoring strategies. Supported by proof: student trackers, progress charts, reflection journals.'}},
+ {'domain_key': 'E',
+  'domain_title': 'Agency Dimension',
+  'indicator_number': 4,
+  'title': 'Encourages learners to persevere with or seek challenging activities or tasks',
+  'guidelines': '- Promotes resilience by praising effort and persistence. - Provides scaffolding when learners struggle but encourages '
+                'them to persist. - Reinforces that mistakes are part of learning. - Challenges students with higher-level tasks when '
+                'appropriate.',
+  'evidence_examples': '- Teacher says: “This is difficult, but I know you can figure it out—try one more way.” - Students attempt '
+                       'challenging math problems even after initial errors. - Learners reflect on how they overcame difficulties in a '
+                       'project. - Advanced learners choose extension tasks beyond the core lesson.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Learners are not encouraged to try challenging tasks; mistakes are discouraged.',
+                         '1': 'Teacher occasionally acknowledges effort but avoids pushing learners beyond comfort zones.',
+                         '2': 'Some encouragement is provided, but learners often give up when tasks are difficult.',
+                         '3': 'Teacher promotes resilience by encouraging learners to keep trying and praising effort.',
+                         '4': 'Perseverance is consistently encouraged; mistakes are reframed as learning opportunities; challenging tasks '
+                              'are normalized.',
+                         '5': 'Learners actively embrace challenges, seek out difficult tasks, and persist with enthusiasm; classroom '
+                              'culture celebrates resilience and growth. Supported by proof: observation notes, student reflections, work '
+                              'samples.'}},
+ {'domain_key': 'E',
+  'domain_title': 'Agency Dimension',
+  'indicator_number': 5,
+  'title': 'Builds learners’ growth mindset and self-efficacy',
+  'guidelines': '- Encourages positive self-talk and belief in abilities. - Recognizes effort as well as achievement. - Promotes learning '
+                'from mistakes rather than fearing them. - Supports long-term goal setting and resilience.',
+  'evidence_examples': '- Teacher highlights effort: “I like how you kept trying different methods.” - Students use statements like “I can '
+                       'improve with practice” instead of “I’m not good at this.” - Mistakes are analyzed together: “What can we learn '
+                       'from this error?” - Learners set long-term goals, such as improving reading fluency by semester’s end.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Teacher conveys fixed mindset messages (e.g., “Some students just can’t do this”).',
+                         '1': 'Occasional encouragement but messages reinforce ability over effort.',
+                         '2': 'Some growth mindset language is used; students show partial belief in improvement.',
+                         '3': 'Teacher consistently reinforces growth mindset language and encourages self-belief; learners show '
+                              'confidence in progress.',
+                         '4': 'Growth mindset and self-efficacy are strongly cultivated; learners demonstrate confidence and resilience '
+                              'when facing challenges.',
+                         '5': 'Learners consistently apply growth mindset principles independently; they believe in their abilities, '
+                              'support peers, and set ambitious goals. Supported by proof: student reflections, classroom dialogue, '
+                              'observation records.'}},
+ {'domain_key': 'F',
+  'domain_title': 'Relationship Dimension',
+  'indicator_number': 1,
+  'title': 'Promotes respectful and caring interactions toward and between learners',
+  'guidelines': '- Models respect through tone, body language, and choice of words. - Builds positive teacher–student relationships. - '
+                'Encourages empathy and kindness in peer interactions. - Addresses disrespect promptly and constructively. - Creates a '
+                'classroom culture of trust and mutual care.',
+  'evidence_examples': '- Teacher greets students warmly at the door and uses their names. - Students thank each other for contributions '
+                       'during group work. - Teacher says: “I appreciate how you explained that politely.” - Any unkind behavior is '
+                       'addressed calmly but firmly.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Teacher does not model or encourage respect; interactions may be harsh, dismissive, or negative.',
+                         '1': 'Teacher occasionally demonstrates respect, but interactions are inconsistent; negative peer interactions '
+                              'are not addressed.',
+                         '2': 'Some respectful interactions are encouraged, but not all learners feel valued.',
+                         '3': 'Teacher models respectful and caring behavior; learners generally feel safe and supported.',
+                         '4': 'Respect and care are consistently modeled and reinforced; classroom culture is positive and trusting.',
+                         '5': 'Respect and care are deeply embedded; teacher and students consistently model empathy, kindness, and '
+                              'support; learners actively maintain a respectful community. Supported by proof: observation notes, student '
+                              'behavior, classroom dialogue.'}},
+ {'domain_key': 'F',
+  'domain_title': 'Relationship Dimension',
+  'indicator_number': 2,
+  'title': 'Cultivates learner cooperation, collaboration, and inclusivity',
+  'guidelines': '- Designs learning tasks that require teamwork and cooperation. - Ensures inclusive participation from all learners. - '
+                'Promotes peer support and shared responsibility. - Encourages learners to value each other’s strengths. - Acts as a '
+                'facilitator rather than dominating group work.',
+  'evidence_examples': '- Teacher assigns group projects with rotating roles (leader, recorder, presenter). - Students with different '
+                       'abilities are paired strategically to support one another. - Learners use cooperative games or problem-solving '
+                       'tasks that require teamwork. - Teacher observes groups, guiding only when needed.',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'No evidence of cooperative or inclusive practices; classroom is competitive or isolating.',
+                         '1': 'Minimal cooperation or inclusivity is promoted; only a few students participate.',
+                         '2': 'Some group work or cooperative learning occurs, but inclusivity is uneven.',
+                         '3': 'Teacher promotes cooperation and collaboration through structured group activities; most learners '
+                              'participate.',
+                         '4': 'Cooperative learning is consistent and inclusive; learners value each other’s strengths and collaborate '
+                              'effectively.',
+                         '5': 'Collaboration and inclusivity are part of classroom culture; learners take initiative in supporting peers, '
+                              'ensuring everyone is included. Supported by proof: group work records, observation notes, student '
+                              'reflections.'}},
+ {'domain_key': 'F',
+  'domain_title': 'Relationship Dimension',
+  'indicator_number': 3,
+  'title': 'Preserves learners’ dignity while attending to their individual needs',
+  'guidelines': '- Provides support discreetly to avoid embarrassment. - Communicates with empathy and maturity when correcting learners. '
+                '- Maintains high expectations while offering accommodations. - Protects students from ridicule or negative labeling. - '
+                'Ensures every learner feels valued regardless of ability level.',
+  'evidence_examples': '- Teacher quietly checks in with a struggling student instead of pointing it out in front of peers. - When '
+                       'redirecting behavior, teacher speaks privately or uses non-verbal signals. - Assignments are differentiated '
+                       'without making students feel singled out. - Teacher acknowledges effort: “I know this was challenging, but you '
+                       'worked hard through it.”',
+  'rubric_descriptors': {'NA': 'Not Applicable',
+                         '0': 'Learners’ needs are ignored or addressed in a way that embarrasses or singles them out.',
+                         '1': 'Teacher attempts to support learners but occasionally compromises their dignity.',
+                         '2': 'Some individual support is provided respectfully, but not consistently.',
+                         '3': 'Teacher attends to learners’ needs while maintaining their dignity; corrections are discreet and '
+                              'respectful.',
+                         '4': 'Teacher consistently supports learners with empathy and discretion; individual needs are addressed without '
+                              'stigma.',
+                         '5': 'Learners’ dignity is central to classroom practice; teacher creates a culture of empathy where peers also '
+                              'respect and protect each other’s dignity. Supported by proof: observation notes, teacher-student '
+                              'interactions, student feedback.'}}]
 
 
 OBSERVATION_SCHEMA_COLUMNS = {
@@ -64,6 +546,7 @@ OBSERVATION_SCHEMA_COLUMNS = {
         "title": "TEXT NOT NULL DEFAULT ''",
         "guidelines": "TEXT NOT NULL DEFAULT ''",
         "evidence_examples": "TEXT NOT NULL DEFAULT ''",
+        "rubric_descriptors": "TEXT NOT NULL DEFAULT '{}'",
         "sort_order": "INTEGER NOT NULL DEFAULT 0",
         "is_active": "BOOLEAN NOT NULL DEFAULT TRUE",
     },
@@ -456,22 +939,36 @@ def _notify_evaluator_self_evaluation_saved(db: Session, observation, teacher):
 
 
 def ensure_observation_seed_data(db: Session):
-    existing_count = db.query(models.ObservationCriterion).count()
-    if existing_count:
-        return
     for index, item in enumerate(OBSERVATION_CRITERIA, start=1):
-        domain_key, domain_title, indicator_number, title, guidelines, evidence = item
-        db.add(
-            models.ObservationCriterion(
-                domain_key=domain_key,
-                domain_title=domain_title,
-                indicator_number=indicator_number,
-                title=title,
-                guidelines=guidelines,
-                evidence_examples=evidence,
-                sort_order=index,
+        criterion = db.query(models.ObservationCriterion).filter(
+            models.ObservationCriterion.domain_key == item["domain_key"],
+            models.ObservationCriterion.indicator_number == item["indicator_number"],
+        ).first()
+        if not criterion:
+            criterion = models.ObservationCriterion(
+                domain_key=item["domain_key"],
+                indicator_number=item["indicator_number"],
             )
+            db.add(criterion)
+        criterion.domain_title = item["domain_title"]
+        criterion.title = item["title"]
+        criterion.guidelines = item["guidelines"]
+        criterion.evidence_examples = item["evidence_examples"]
+        criterion.rubric_descriptors = json.dumps(
+            item["rubric_descriptors"],
+            ensure_ascii=False,
         )
+        criterion.sort_order = index
+        criterion.is_active = True
+    active_keys = {
+        (item["domain_key"], item["indicator_number"])
+        for item in OBSERVATION_CRITERIA
+    }
+    existing = db.query(models.ObservationCriterion).all()
+    for criterion in existing:
+        if (criterion.domain_key, criterion.indicator_number) not in active_keys:
+            criterion.is_active = False
+    db.commit()
     db.commit()
 
 

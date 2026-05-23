@@ -364,6 +364,7 @@ class ObservationCriterion(Base):
     title = Column(Text, nullable=False)
     guidelines = Column(Text, nullable=False, default="")
     evidence_examples = Column(Text, nullable=False, default="")
+    rubric_descriptors = Column(Text, nullable=False, default="{}")
     sort_order = Column(Integer, nullable=False, default=0)
     is_active = Column(Boolean, nullable=False, default=True)
 
