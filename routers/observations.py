@@ -336,6 +336,102 @@ def _can_delete_observation(current_user, observation) -> bool:
     return not _observation_is_locked(observation) or _can_override_locked_observation(current_user)
 
 
+def _observation_link(observation_id: int) -> str:
+    return f"/observations/{observation_id}"
+
+
+def _find_teacher_user(db: Session, teacher):
+    teacher_user_id = str(getattr(teacher, "teacher_id", "") or "").strip()
+    if not teacher_user_id:
+        return None
+    return db.query(models.User).filter(
+        models.User.user_id == teacher_user_id,
+        models.User.is_active == True,
+    ).first()
+
+
+def _notification_exists(db: Session, recipient_user_id: str, request_type: str, details: str) -> bool:
+    return db.query(models.SystemNotification.id).filter(
+        models.SystemNotification.recipient_user_id == recipient_user_id,
+        models.SystemNotification.request_type == request_type,
+        models.SystemNotification.details == details,
+        models.SystemNotification.status != "Resolved",
+    ).first() is not None
+
+
+def _create_observation_notification(
+    db: Session,
+    recipient_user_id: str,
+    requesting_user_id: str,
+    title: str,
+    message: str,
+    details: str,
+):
+    recipient_user_id = str(recipient_user_id or "").strip()
+    if not recipient_user_id:
+        return None
+    request_type = "Observation"
+    if _notification_exists(db, recipient_user_id, request_type, details):
+        return None
+    notification = models.SystemNotification(
+        recipient_user_id=recipient_user_id,
+        requesting_user_id=str(requesting_user_id or "").strip(),
+        request_type=request_type,
+        title=title,
+        message=message,
+        details=details,
+        status="New",
+        recipient_scope="User",
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    db.add(notification)
+    logger.warning(
+        "OBSERVATION DEBUG notification created recipient=%s requester=%s details=%s",
+        recipient_user_id,
+        requesting_user_id,
+        details,
+    )
+    return notification
+
+
+def _notify_teacher_observation_ready(db: Session, teacher, observation, current_user):
+    teacher_user = _find_teacher_user(db, teacher)
+    if not teacher_user:
+        logger.warning(
+            "OBSERVATION DEBUG notification skipped no active teacher user teacher_id=%s observation_id=%s",
+            getattr(teacher, "teacher_id", ""),
+            getattr(observation, "id", ""),
+        )
+        return None
+    link = _observation_link(observation.id)
+    return _create_observation_notification(
+        db,
+        recipient_user_id=teacher_user.user_id,
+        requesting_user_id=getattr(current_user, "user_id", ""),
+        title="Observation ready for review and signature",
+        message=(
+            "A new observation has been submitted for your review and signature. "
+            f"<a href=\"{link}\">Open observation</a>."
+        ),
+        details=f"observation:{observation.id}:teacher_signature_required",
+    )
+
+
+def _notify_evaluator_teacher_signed(db: Session, observation, teacher):
+    link = _observation_link(observation.id)
+    return _create_observation_notification(
+        db,
+        recipient_user_id=observation.evaluator_user_id,
+        requesting_user_id=str(getattr(teacher, "teacher_id", "") or ""),
+        title="Teacher signed observation",
+        message=(
+            f"{_teacher_name(teacher)} signed the observation. The observation is now locked. "
+            f"<a href=\"{link}\">Open observation</a>."
+        ),
+        details=f"observation:{observation.id}:teacher_signed",
+    )
+
+
 def ensure_observation_seed_data(db: Session):
     existing_count = db.query(models.ObservationCriterion).count()
     if existing_count:
@@ -956,6 +1052,8 @@ async def create_observation(request: Request, db: Session = Depends(get_db)):
     observation.overall_score = "" if feedback["overall"] is None else str(feedback["overall"])
     observation.smart_feedback = json.dumps(feedback)
     observation.updated_at = now
+    if observation.evaluator_signature_data:
+        _notify_teacher_observation_ready(db, teacher, observation, current_user)
     db.commit()
 
     if str(form.get("modal_mode") or "") == "1":
@@ -1053,6 +1151,7 @@ async def update_observation(observation_id: int, request: Request, db: Session 
     observation.period = str(form.get("period") or "").strip()
     observation.subject = str(form.get("subject") or "").strip()
     observation.evaluator_notes = str(form.get("evaluator_notes") or "").strip()
+    had_evaluator_signature = bool(observation.evaluator_signature_data)
     evaluator_signature_data = str(form.get("evaluator_signature_data") or "").strip()
     if evaluator_signature_data:
         observation.evaluator_signature_data = evaluator_signature_data
@@ -1080,6 +1179,8 @@ async def update_observation(observation_id: int, request: Request, db: Session 
     observation.overall_score = "" if feedback["overall"] is None else str(feedback["overall"])
     observation.smart_feedback = json.dumps(feedback)
     observation.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    if observation.evaluator_signature_data and not had_evaluator_signature:
+        _notify_teacher_observation_ready(db, teacher, observation, current_user)
     db.commit()
 
     if str(form.get("modal_mode") or "") == "1":
@@ -1193,6 +1294,7 @@ async def save_teacher_signature(observation_id: int, request: Request, db: Sess
     observation.status = "Locked"
     observation.locked_at = now
     observation.updated_at = now
+    _notify_evaluator_teacher_signed(db, observation, current_teacher)
     db.commit()
     return RedirectResponse(url=f"/observations/{observation.id}?notice=Observation+signed+and+locked.", status_code=302)
 
