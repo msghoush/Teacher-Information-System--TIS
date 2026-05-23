@@ -48,6 +48,13 @@
     cursor: pointer; color: #48607f; font-weight: 900; background: #fff; white-space: nowrap; font-size: 14px; line-height: 1;
 }
 .rating-grid input:checked + label { background: #0a4ea3; color: #fff; border-color: #0a4ea3; }
+.rating-grid input[value="NA"]:checked + label { background: #475467; border-color: #475467; color: #fff; }
+.rating-grid input[value="0"]:checked + label { background: #b42318; border-color: #b42318; color: #fff; }
+.rating-grid input[value="1"]:checked + label { background: #d92d20; border-color: #d92d20; color: #fff; }
+.rating-grid input[value="2"]:checked + label { background: #f79009; border-color: #f79009; color: #111827; }
+.rating-grid input[value="3"]:checked + label { background: #fdb022; border-color: #fdb022; color: #111827; }
+.rating-grid input[value="4"]:checked + label { background: #12b76a; border-color: #12b76a; color: #052e1a; }
+.rating-grid input[value="5"]:checked + label { background: #027a48; border-color: #027a48; color: #fff; }
 .evidence-box { display: grid; padding: 12px; border: 1px solid #f1c982; border-radius: 8px; background: #fffaf0; min-width: 0; }
 .evidence-label { color: #8a4b0f; }
 .evidence { min-height: 136px; resize: vertical; line-height: 1.4; border-color: #e6b96f !important; background: #fffefb !important; }
@@ -69,9 +76,18 @@
 .rubric-info-head h3 { margin: 0; color: #1f2737; font-size: 18px; }
 .rubric-info-close { width: 34px; height: 34px; border: 1px solid #c6d4e8; border-radius: 8px; background: #fff; cursor: pointer; }
 .rubric-info-body { display: grid; gap: 10px; padding: 14px 16px 16px; }
-.rubric-scale-row { display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: start; padding: 10px; border: 1px solid #d8e2f0; border-radius: 8px; background: #f8fbff; }
+.rubric-scale-row { display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: start; width: 100%; padding: 10px; border: 1px solid #d8e2f0; border-radius: 8px; background: #f8fbff; color: #1f2737; text-align: left; cursor: pointer; font: inherit; }
+.rubric-scale-row:hover { border-color: #0a4ea3; background: #eef6ff; box-shadow: 0 8px 22px rgba(10, 78, 163, .12); }
 .rubric-scale-score { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; border-radius: 999px; background: #0a4ea3; color: #fff; font-weight: 900; }
+.rubric-score-na { background: #475467; }
+.rubric-score-0 { background: #b42318; }
+.rubric-score-1 { background: #d92d20; }
+.rubric-score-2 { background: #f79009; color: #111827; }
+.rubric-score-3 { background: #fdb022; color: #111827; }
+.rubric-score-4 { background: #12b76a; color: #052e1a; }
+.rubric-score-5 { background: #027a48; }
 .evidence-practice-card { border: 1px solid #f1c982; border-radius: 8px; background: #fffaf0; padding: 12px; color: #334155; line-height: 1.55; }
+body.rubric-modal-open { overflow: hidden; }
 @media (max-width: 1000px) {
     .observation-toolbar { position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -191,7 +207,7 @@
             <div class="criterion-rubric">
                 <p class="criterion-title">{{ criterion.indicator_number }}. {{ criterion.title }}</p>
                 <div class="criterion-tools">
-                    <button class="criterion-tool" type="button" data-view-rubric data-title="{{ criterion.title }}" data-rubric="{{ criterion.rubric_descriptors or '{}' }}">View Rubric</button>
+                    <button class="criterion-tool" type="button" data-view-rubric data-title="{{ criterion.title }}" data-rubric="{{ criterion.rubric_descriptors or '{}' }}" data-target-rating-name="rating_{{ criterion.id }}">View Rubric</button>
                     <button class="criterion-tool criterion-tool-evidence" type="button" data-view-evidence data-title="{{ criterion.title }}" data-evidence-guide="{{ criterion.evidence_examples }}">View Evidence</button>
                 </div>
             </div>
@@ -275,6 +291,7 @@
     const infoModal = document.getElementById("rubricInfoModal");
     const infoTitle = document.getElementById("rubricInfoTitle");
     const infoBody = document.getElementById("rubricInfoBody");
+    let previousBodyOverflow = "";
 
     function selectedRating(criterion) {
         return criterion.querySelector("[data-rating]:checked");
@@ -321,6 +338,32 @@
             const selected = subjectSelect.options[subjectSelect.selectedIndex];
             selectedSubjectText.textContent = selected && selected.value ? selected.textContent.trim() : "-";
         }
+    }
+
+    function openInfoModal() {
+        previousBodyOverflow = document.body.style.overflow;
+        document.body.classList.add("rubric-modal-open");
+        infoModal.classList.add("is-open");
+        infoModal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeInfoModal() {
+        infoModal.classList.remove("is-open");
+        infoModal.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("rubric-modal-open");
+        document.body.style.overflow = previousBodyOverflow;
+    }
+
+    function selectRatingFromRubric(targetName, score) {
+        if (!targetName || !score) {
+            return;
+        }
+        const input = Array.from(document.querySelectorAll(`input[name="${targetName}"]`)).find((candidate) => candidate.value === score);
+        if (!input) {
+            return;
+        }
+        input.checked = true;
+        input.dispatchEvent(new Event("change", { bubbles: true }));
     }
 
     function updateSubjectFilter() {
@@ -520,6 +563,7 @@
         const rubricButton = event.target.closest("[data-view-rubric]");
         if (rubricButton) {
             const title = rubricButton.dataset.title || "Rubric";
+            const targetName = rubricButton.dataset.targetRatingName || "";
             let descriptors = {};
             try {
                 descriptors = JSON.parse(rubricButton.dataset.rubric || "{}");
@@ -528,24 +572,26 @@
             }
             infoTitle.textContent = title;
             infoBody.innerHTML = ["NA", "0", "1", "2", "3", "4", "5"].map((score) => `
-                <div class="rubric-scale-row">
-                    <span class="rubric-scale-score">${score}</span>
+                <button class="rubric-scale-row" type="button" data-select-rubric-score="${score}" data-target-rating-name="${targetName}">
+                    <span class="rubric-scale-score rubric-score-${score.toLowerCase()}">${score}</span>
                     <div>${descriptors[score] || "-"}</div>
-                </div>
+                </button>
             `).join("");
-            infoModal.classList.add("is-open");
-            infoModal.setAttribute("aria-hidden", "false");
+            openInfoModal();
         }
         const evidenceButton = event.target.closest("[data-view-evidence]");
         if (evidenceButton) {
             infoTitle.textContent = evidenceButton.dataset.title || "Evidence";
             infoBody.innerHTML = `<div class="evidence-practice-card">${evidenceButton.dataset.evidenceGuide || "-"}</div>`;
-            infoModal.classList.add("is-open");
-            infoModal.setAttribute("aria-hidden", "false");
+            openInfoModal();
+        }
+        const scoreButton = event.target.closest("[data-select-rubric-score]");
+        if (scoreButton) {
+            selectRatingFromRubric(scoreButton.dataset.targetRatingName, scoreButton.dataset.selectRubricScore);
+            closeInfoModal();
         }
         if (event.target.closest("[data-close-rubric-info]") || event.target === infoModal) {
-            infoModal.classList.remove("is-open");
-            infoModal.setAttribute("aria-hidden", "true");
+            closeInfoModal();
         }
         const clearButton = event.target.closest("[data-clear-signature]");
         if (!clearButton) {
