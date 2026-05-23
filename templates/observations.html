@@ -3,17 +3,9 @@
 
 {% block title %}Observations | TIS{% endblock %}
 
-{% block page_header_actions %}
-{% if can_create %}
-<a class="shell-btn shell-btn-primary" href="/observations/new">{{ icon("add", "shell-icon") }} New Observation</a>
-{% endif %}
-{% endblock %}
-
 {% block page_styles %}
 <style>
 .obs-wrap { display: grid; gap: 14px; }
-.shell-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px 12px; border: 1px solid #c6d4e8; border-radius: 8px; color: #1f2737; background: #fff; text-decoration: none; font-weight: 900; }
-.shell-btn-primary { border-color: #0a4ea3; background: #0a4ea3; color: #fff; }
 .obs-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .obs-kpi, .obs-panel { background: #fff; border: 1px solid #d8e2f0; border-radius: 8px; padding: 14px; }
 .obs-kpi span { display: block; color: #5d6b82; font-size: 12px; font-weight: 700; text-transform: uppercase; }

@@ -24,9 +24,7 @@
 .field input, .field select, .field textarea {
     width: 100%; border: 1px solid #c6d4e8; border-radius: 8px; padding: 9px 10px; color: #1f2737; background: #fff;
 }
-.subject-helper { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 7px; color: #5d6b82; font-size: 12px; }
-.subject-helper label { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; color: #48607f; text-transform: none; }
-.subject-helper input { width: auto; }
+.subject-helper { margin-top: 7px; color: #5d6b82; font-size: 12px; font-weight: 800; }
 .domain { border: 1px solid #d8e2f0; border-radius: 8px; overflow: hidden; background: #fff; }
 .domain-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 13px; background: #f5f8fc; border-bottom: 1px solid #d8e2f0; font-weight: 900; color: #1f2737; cursor: pointer; }
 .domain-header::-webkit-details-marker { display: none; }
@@ -130,15 +128,12 @@
             <div class="field">
                 <label for="subject">Subject</label>
                 <select id="subject" name="subject">
-                    <option value="">Select subject</option>
+                    <option value="">Select teacher first</option>
                     {% for subject in subjects %}
                     <option value="{{ subject.value }}" data-teachers="{{ subject.assigned_teacher_ids }}" data-grade="{{ subject.grade }}">{{ subject.label }}</option>
                     {% endfor %}
                 </select>
-                <div class="subject-helper">
-                    <label><input id="assignedSubjectsOnly" type="checkbox"> show subjects assigned to selected teacher</label>
-                    <span id="subjectHelperText">{{ subjects | length }} system subjects available</span>
-                </div>
+                <div id="subjectHelperText" class="subject-helper">Select a teacher to see assigned subjects.</div>
             </div>
         </div>
     </section>
@@ -192,7 +187,6 @@
 (() => {
     const teacherSelect = document.getElementById("teacher_id");
     const subjectSelect = document.getElementById("subject");
-    const assignedOnly = document.getElementById("assignedSubjectsOnly");
     const subjectHelperText = document.getElementById("subjectHelperText");
     const selectedSubjectText = document.getElementById("selectedSubjectText");
     const completionText = document.getElementById("completionText");
@@ -250,7 +244,7 @@
     }
 
     function updateSubjectFilter() {
-        if (!subjectSelect || !teacherSelect || !assignedOnly) {
+        if (!subjectSelect || !teacherSelect) {
             return;
         }
         const teacherId = teacherSelect.value;
@@ -258,22 +252,27 @@
         subjectOptions.forEach((option, index) => {
             if (index === 0) {
                 option.hidden = false;
+                option.textContent = teacherId ? "Select assigned subject" : "Select teacher first";
                 return;
             }
             const assignedTeachers = (option.dataset.teachers || "").split(",").filter(Boolean);
-            const isVisible = !assignedOnly.checked || !teacherId || assignedTeachers.includes(teacherId);
+            const isVisible = Boolean(teacherId) && assignedTeachers.includes(teacherId);
             option.hidden = !isVisible;
             if (isVisible) {
                 visibleCount += 1;
             }
         });
-        if (subjectSelect.selectedOptions[0] && subjectSelect.selectedOptions[0].hidden) {
+        if (!teacherId || (subjectSelect.selectedOptions[0] && subjectSelect.selectedOptions[0].hidden)) {
             subjectSelect.value = "";
         }
         const total = Math.max(subjectOptions.length - 1, 0);
-        subjectHelperText.textContent = assignedOnly.checked
-            ? `${visibleCount} assigned subjects shown from ${total} system subjects`
-            : `${total} system subjects available`;
+        if (!teacherId) {
+            subjectHelperText.textContent = "Select a teacher to see assigned subjects.";
+        } else if (visibleCount) {
+            subjectHelperText.textContent = `${visibleCount} assigned subjects for the selected teacher.`;
+        } else {
+            subjectHelperText.textContent = `No assigned subjects found for this teacher. Check the teacher profile assignments.`;
+        }
         updateSummary();
     }
 
@@ -281,7 +280,7 @@
         if (event.target.matches("[data-rating], #subject")) {
             updateSummary();
         }
-        if (event.target === teacherSelect || event.target === assignedOnly) {
+        if (event.target === teacherSelect) {
             updateSubjectFilter();
         }
     });
