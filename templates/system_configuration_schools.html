@@ -70,6 +70,9 @@
 .usage-chip.has-data.records { border-color: #d4c5ff; background: #f5f3ff; }
 .usage-chip.has-data.records strong, .usage-chip.has-data.records span { color: #5b21b6; }
 .delete-note { display: block; margin-top: 6px; color: #64748b; font-size: 11px; font-weight: 800; text-align: right; }
+.danger-zone { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px solid #efc5bf; border-radius: 12px; background: #fffafa; }
+.danger-zone strong { display: block; color: #9f2d1f; }
+.danger-zone span { color: #64748b; font-size: 12px; font-weight: 800; }
 .logo-strip { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px dashed #b8c9df; border-radius: 12px; background: #f8fbff; }
 .logo-strip img { max-height: 56px; max-width: 180px; object-fit: contain; background: #fff; border-radius: 8px; padding: 6px; }
 @media (max-width: 1050px) { .school-layout, .form-grid, .form-grid.two { grid-template-columns: 1fr; } .school-list { position: static; } .usage-grid { grid-template-columns: repeat(2, minmax(90px, 1fr)); } .usage-stack { min-width: 260px; } }
@@ -136,6 +139,20 @@
                     </div>
                     <button class="action-btn action-btn-primary" type="submit">{{ icon("save", "icon") }} Save School</button>
                 </form>
+                <div class="danger-zone">
+                    <div>
+                        <strong>Delete School</strong>
+                        {% if school_delete_summary.can_delete %}
+                        <span>This will remove the school and its {{ school_delete_summary.branch_count }} empty branch{{ "" if school_delete_summary.branch_count == 1 else "es" }}.</span>
+                        {% else %}
+                        <span>Locked: {{ school_delete_summary.reason or "school data is still linked" }}.</span>
+                        {% endif %}
+                    </div>
+                    <form method="post" action="/system-configuration/schools/{{ selected_school_group.id }}/delete" onsubmit="return confirm('Delete {{ selected_school_group.name }} permanently? This cannot be undone.');">
+                        <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
+                        <button class="action-btn action-btn-danger" type="submit" {% if not school_delete_summary.can_delete %}disabled title="Delete locked: {{ school_delete_summary.reason or 'school data is still linked' }}"{% endif %}>{{ icon("trash", "icon") }} Delete School</button>
+                    </form>
+                </div>
             </section>
 
             <details class="section-card collapsible-section" data-collapsible-branches>

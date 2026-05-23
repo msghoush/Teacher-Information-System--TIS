@@ -684,6 +684,67 @@ def _build_branch_configuration_rows(
     return branch_rows
 
 
+def _build_school_delete_summary(db: Session, school_group_id: int | None) -> dict[str, object]:
+    if not school_group_id:
+        return {
+            "can_delete": False,
+            "reason": "No school selected.",
+            "branch_count": 0,
+            "academic_years_count": 0,
+            "school_logos_count": 0,
+            "branch_logos_count": 0,
+            "linked_records_count": 0,
+        }
+
+    branch_ids = [
+        branch_id
+        for (branch_id,) in db.query(models.Branch.id).filter(
+            models.Branch.school_group_id == school_group_id
+        ).all()
+    ]
+    branch_usage_counts = {
+        branch_id: _branch_usage_counts(db, branch_id)
+        for branch_id in branch_ids
+    }
+    linked_records_count = sum(
+        int(count or 0)
+        for usage_counts in branch_usage_counts.values()
+        for count in usage_counts.values()
+    )
+    academic_years_count = db.query(models.AcademicYear).filter(
+        models.AcademicYear.school_group_id == school_group_id
+    ).count()
+    school_logos_count = db.query(models.SchoolGroupLogo).filter(
+        models.SchoolGroupLogo.school_group_id == school_group_id
+    ).count()
+    branch_logos_count = 0
+    if branch_ids:
+        branch_logos_count = db.query(models.BranchLogo).filter(
+            models.BranchLogo.branch_id.in_(branch_ids)
+        ).count()
+    school_count = db.query(models.SchoolGroup).count()
+
+    blockers = []
+    if school_count <= 1:
+        blockers.append("at least one school must remain")
+    if linked_records_count:
+        blockers.append(f"{linked_records_count} linked branch records")
+    if academic_years_count:
+        blockers.append(f"{academic_years_count} academic years")
+    if school_logos_count or branch_logos_count:
+        blockers.append(f"{school_logos_count + branch_logos_count} logo records")
+
+    return {
+        "can_delete": not blockers,
+        "reason": "; ".join(blockers),
+        "branch_count": len(branch_ids),
+        "academic_years_count": academic_years_count,
+        "school_logos_count": school_logos_count,
+        "branch_logos_count": branch_logos_count,
+        "linked_records_count": linked_records_count,
+    }
+
+
 def _ensure_default_school_group(db: Session):
     school_group = db.query(models.SchoolGroup).filter(
         models.SchoolGroup.name == DEFAULT_SCHOOL_GROUP_NAME
@@ -9133,6 +9194,7 @@ def _build_school_management_context(request: Request, db: Session, current_user
         **context,
         "school_academic_year_rows": school_academic_year_rows,
         "school_branch_rows": school_branch_rows,
+        "school_delete_summary": _build_school_delete_summary(db, school_group_id),
     }
 
 
@@ -9234,6 +9296,45 @@ def update_school_group(
     return _redirect_with_notice(
         f"/system-configuration/schools?school_group_id={school_group.id}",
         "School information updated.",
+    )
+
+
+@app.post("/system-configuration/schools/{school_group_id}/delete")
+def delete_school_group(
+    school_group_id: int,
+    request: Request,
+    return_to: str = Form("/system-configuration/schools"),
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_configuration_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    safe_return_to = _safe_redirect_path(return_to)
+    school_group = db.query(models.SchoolGroup).filter(
+        models.SchoolGroup.id == school_group_id
+    ).first()
+    if not school_group:
+        return _redirect_with_error(safe_return_to, "School/organization record not found.")
+
+    delete_summary = _build_school_delete_summary(db, school_group_id)
+    if not delete_summary["can_delete"]:
+        reason = str(delete_summary.get("reason") or "the school still has linked data")
+        return _redirect_with_error(
+            safe_return_to,
+            f"This school cannot be deleted because {reason}. Deactivate it instead.",
+        )
+
+    db.query(models.Branch).filter(
+        models.Branch.school_group_id == school_group_id
+    ).delete(synchronize_session=False)
+    db.delete(school_group)
+    db.commit()
+    _ensure_default_school_group(db)
+
+    return _redirect_with_notice(
+        "/system-configuration/schools",
+        "School deleted successfully.",
     )
 
 
