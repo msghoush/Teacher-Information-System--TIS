@@ -40,6 +40,10 @@
 .table-field label { color: #60728c; font-size: 10px; font-weight: 900; text-transform: uppercase; }
 .table-field input, .table-field select { width: 100%; min-width: 0; border: 1px solid #c6d4e8; border-radius: 8px; padding: 7px 8px; color: #1f2737; background: #fff; }
 .table-wrap { overflow-x: auto; border: 1px solid #d8e2f0; border-radius: 12px; }
+.branch-filter-bar { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; padding: 10px; border: 1px solid #d8e2f0; border-radius: 12px; background: #f8fbff; }
+.branch-filter-bar .field { min-width: min(280px, 100%); }
+.branch-filter-summary { color: #60728c; font-size: 12px; font-weight: 900; }
+.empty-filter-row td { color: #60728c; font-weight: 800; text-align: center; background: #fbfdff; }
 .logo-strip { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px dashed #b8c9df; border-radius: 12px; background: #f8fbff; }
 .logo-strip img { max-height: 56px; max-width: 180px; object-fit: contain; background: #fff; border-radius: 8px; padding: 6px; }
 @media (max-width: 1050px) { .school-layout, .form-grid, .form-grid.two { grid-template-columns: 1fr; } .school-list { position: static; } }
@@ -128,12 +132,26 @@
                     </div>
                     <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Add Branch</button>
                 </form>
+                {% if school_branch_rows %}
+                <div class="branch-filter-bar" aria-label="Branch filters">
+                    <div class="field">
+                        <label for="branch_region_filter">Filter Branches by Region</label>
+                        <select id="branch_region_filter" data-branch-region-filter>
+                            <option value="">All regions</option>
+                            {% for region in saudi_regions %}
+                            <option value="{{ region }}">{{ region }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <span class="branch-filter-summary" data-branch-filter-summary>{{ school_branch_rows|length }} branch{{ "" if school_branch_rows|length == 1 else "es" }} shown</span>
+                </div>
+                {% endif %}
                 <div class="table-wrap">
                     <table class="data-table">
                         <thead><tr><th>Branch / Campus</th><th>Region</th><th>Status</th><th>Usage</th><th style="text-align:right;">Actions</th></tr></thead>
                         <tbody>
                             {% for branch_row in school_branch_rows %}
-                            <tr>
+                            <tr data-branch-row data-branch-region="{{ branch_row.region or '' }}">
                                 <td>
                                     <form id="branch_edit_{{ branch_row.id }}" method="post" action="/system-configuration/branches/{{ branch_row.id }}">
                                         <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
@@ -183,6 +201,9 @@
                             {% else %}
                             <tr><td colspan="5">No branches exist yet. A default branch will be created automatically.</td></tr>
                             {% endfor %}
+                            {% if school_branch_rows %}
+                            <tr class="empty-filter-row" data-branch-empty-filter hidden><td colspan="5">No branches match this region filter.</td></tr>
+                            {% endif %}
                         </tbody>
                     </table>
                 </div>
@@ -252,4 +273,42 @@
         </main>
     </section>
 </section>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(() => {
+    const filter = document.querySelector("[data-branch-region-filter]");
+    const rows = Array.from(document.querySelectorAll("[data-branch-row]"));
+    const summary = document.querySelector("[data-branch-filter-summary]");
+    const emptyRow = document.querySelector("[data-branch-empty-filter]");
+
+    if (!filter || !rows.length) {
+        return;
+    }
+
+    const applyRegionFilter = () => {
+        const selectedRegion = filter.value;
+        let visibleCount = 0;
+
+        rows.forEach((row) => {
+            const matchesRegion = !selectedRegion || row.dataset.branchRegion === selectedRegion;
+            row.hidden = !matchesRegion;
+            if (matchesRegion) {
+                visibleCount += 1;
+            }
+        });
+
+        if (summary) {
+            summary.textContent = `${visibleCount} branch${visibleCount === 1 ? "" : "es"} shown`;
+        }
+        if (emptyRow) {
+            emptyRow.hidden = visibleCount !== 0;
+        }
+    };
+
+    filter.addEventListener("change", applyRegionFilter);
+    applyRegionFilter();
+})();
+</script>
 {% endblock %}
