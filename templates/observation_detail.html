@@ -155,77 +155,8 @@
     </section>
 
     <section class="result-panel">
-        <h2>Criteria Results</h2>
-        <table class="criteria-table">
-            <thead>
-                <tr>
-                    <th>Domain</th>
-                    <th>Criterion</th>
-                    <th>Rating</th>
-                    <th>Evidence</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for group in criteria_groups %}
-                {% for criterion in group.criteria %}
-                {% set score = scores_by_criterion.get(criterion.id) %}
-                <tr>
-                    <td>{{ group.domain_key }}</td>
-                    <td>{{ criterion.title }}</td>
-                    <td><span class="rating-pill">{{ score.rating if score else "NA" }}</span></td>
-                    <td>{{ score.evidence if score and score.evidence else "-" }}</td>
-                </tr>
-                {% endfor %}
-                {% endfor %}
-            </tbody>
-        </table>
-    </section>
-
-    <section class="result-panel">
         <h2>Evaluator Notes</h2>
         <p>{{ observation.evaluator_notes or "-" }}</p>
-    </section>
-
-    <section class="result-panel">
-        <h2>Signatures</h2>
-        <div class="signature-grid">
-            <div class="signature-result">
-                <span>Teacher Signature</span>
-                {% if observation.teacher_signature_data %}
-                <img src="{{ observation.teacher_signature_data }}" alt="Teacher signature">
-                {% else %}
-                <p>-</p>
-                {% endif %}
-            </div>
-            <div class="signature-result">
-                <span>Evaluator Signature</span>
-                {% if observation.evaluator_signature_data %}
-                <img src="{{ observation.evaluator_signature_data }}" alt="Evaluator signature">
-                {% else %}
-                <p>-</p>
-                {% endif %}
-            </div>
-        </div>
-        {% if is_locked %}
-        <p class="locked-note">This observation is locked after teacher and evaluator signatures.</p>
-        {% endif %}
-        {% if can_teacher_sign %}
-        <form method="post" action="/observations/{{ observation.id }}/teacher-signature" data-signature-form>
-            <div class="signature-result">
-                <span>Add Teacher Signature</span>
-                <canvas class="signature-pad" data-signature-pad></canvas>
-                <input class="signature-input" type="hidden" name="teacher_signature_data" data-signature-input>
-                <div class="signature-actions">
-                    <button class="signature-button signature-button-secondary" type="button" data-clear-signature>Clear</button>
-                    <button class="signature-button" type="submit">{{ icon("save", "shell-icon") }} Sign and Lock</button>
-                </div>
-            </div>
-        </form>
-        {% elif can_self_evaluate and not self_evaluation_complete %}
-        <p class="locked-note">Complete and save the teacher self-evaluation below before signing.</p>
-        {% elif can_update_evaluatee_notes %}
-        <p class="locked-note">Review the side-by-side evaluation, update evaluatee notes if needed, then sign to lock.</p>
-        {% endif %}
     </section>
 
     <section class="result-panel">
@@ -318,6 +249,48 @@
         </form>
         {% else %}
         <p class="locked-note">{{ observation.evaluatee_notes or "-" }}</p>
+        {% endif %}
+    </section>
+
+    <section class="result-panel">
+        <h2>Signatures</h2>
+        <div class="signature-grid">
+            <div class="signature-result">
+                <span>Evaluator Signature</span>
+                {% if observation.evaluator_signature_data %}
+                <img src="{{ observation.evaluator_signature_data }}" alt="Evaluator signature">
+                {% else %}
+                <p>-</p>
+                {% endif %}
+            </div>
+            <div class="signature-result">
+                <span>Teacher Signature</span>
+                {% if observation.teacher_signature_data %}
+                <img src="{{ observation.teacher_signature_data }}" alt="Teacher signature">
+                {% else %}
+                <p>-</p>
+                {% endif %}
+            </div>
+        </div>
+        {% if is_locked %}
+        <p class="locked-note">This observation is locked after teacher and evaluator signatures.</p>
+        {% endif %}
+        {% if can_teacher_sign %}
+        <form method="post" action="/observations/{{ observation.id }}/teacher-signature" data-signature-form>
+            <div class="signature-result">
+                <span>Add Teacher Signature</span>
+                <canvas class="signature-pad" data-signature-pad></canvas>
+                <input class="signature-input" type="hidden" name="teacher_signature_data" data-signature-input>
+                <div class="signature-actions">
+                    <button class="signature-button signature-button-secondary" type="button" data-clear-signature>Clear</button>
+                    <button class="signature-button" type="submit">{{ icon("save", "shell-icon") }} Sign and Lock</button>
+                </div>
+            </div>
+        </form>
+        {% elif can_self_evaluate and not self_evaluation_complete %}
+        <p class="locked-note">Complete and save the teacher self-evaluation before signing.</p>
+        {% elif can_update_evaluatee_notes %}
+        <p class="locked-note">Review the side-by-side evaluation, update evaluatee notes if needed, then sign to lock.</p>
         {% endif %}
     </section>
 </div>
