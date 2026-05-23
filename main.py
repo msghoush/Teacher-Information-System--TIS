@@ -11937,9 +11937,6 @@ def _ensure_gender_branches(db: Session):
                 if rename_candidate.name != boys_name:
                     rename_candidate.name = boys_name
                     branch_changes = True
-                if not rename_candidate.status:
-                    rename_candidate.status = True
-                    branch_changes = True
                 boys_row = rename_candidate
                 branches_by_name.setdefault(boys_key, []).append(boys_row)
             else:
@@ -11952,9 +11949,6 @@ def _ensure_gender_branches(db: Session):
                 db.flush()
                 branch_changes = True
                 branches_by_name.setdefault(boys_key, []).append(boys_row)
-        elif not boys_row.status:
-            boys_row.status = True
-            branch_changes = True
 
         if not girls_row:
             rename_candidate = legacy_rows.pop(0) if legacy_rows else None
@@ -11968,9 +11962,6 @@ def _ensure_gender_branches(db: Session):
                 if rename_candidate.name != girls_name:
                     rename_candidate.name = girls_name
                     branch_changes = True
-                if not rename_candidate.status:
-                    rename_candidate.status = True
-                    branch_changes = True
                 girls_row = rename_candidate
                 branches_by_name.setdefault(girls_key, []).append(girls_row)
             else:
@@ -11983,9 +11974,6 @@ def _ensure_gender_branches(db: Session):
                 db.flush()
                 branch_changes = True
                 branches_by_name.setdefault(girls_key, []).append(girls_row)
-        elif not girls_row.status:
-            girls_row.status = True
-            branch_changes = True
 
         for legacy_row in legacy_rows:
             if legacy_row.id in data_branch_ids:
