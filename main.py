@@ -277,7 +277,10 @@ PROFILE_PHOTO_RELATIVE_DIR = "uploads/profile_photos"
 PROFILE_PHOTO_MAX_BYTES = 3 * 1024 * 1024
 BRANCH_LOGO_UPLOAD_DIR = os.path.join("static", "uploads", "branch_logos")
 BRANCH_LOGO_RELATIVE_DIR = "uploads/branch_logos"
+SCHOOL_GROUP_LOGO_UPLOAD_DIR = os.path.join("static", "uploads", "school_group_logos")
+SCHOOL_GROUP_LOGO_RELATIVE_DIR = "uploads/school_group_logos"
 BRANCH_LOGO_MAX_BYTES = 4 * 1024 * 1024
+DEFAULT_SCHOOL_GROUP_NAME = "Al Andalus Schools"
 MAJOR_ALIGNMENT_STOPWORDS = {
     "a",
     "an",
@@ -316,6 +319,36 @@ def _ensure_branch_logo_upload_dir(branch_id: int | None = None):
     if branch_id:
         target_dir = os.path.join(target_dir, str(int(branch_id)))
     os.makedirs(target_dir, exist_ok=True)
+
+
+def _ensure_school_group_logo_upload_dir(school_group_id: int | None = None):
+    target_dir = SCHOOL_GROUP_LOGO_UPLOAD_DIR
+    if school_group_id:
+        target_dir = os.path.join(target_dir, str(int(school_group_id)))
+    os.makedirs(target_dir, exist_ok=True)
+
+
+def _ensure_school_group_schema():
+    inspector = inspect(engine)
+    table_names = set(inspector.get_table_names())
+    if "school_groups" not in table_names:
+        models.SchoolGroup.__table__.create(bind=engine, checkfirst=True)
+    if "school_group_logos" not in table_names:
+        models.SchoolGroupLogo.__table__.create(bind=engine, checkfirst=True)
+
+    branch_columns = {
+        column["name"]
+        for column in inspector.get_columns("branches")
+    } if "branches" in table_names else set()
+    if "branches" in table_names and "school_group_id" not in branch_columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE branches ADD COLUMN school_group_id INTEGER"))
+            try:
+                connection.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_branches_school_group_id ON branches (school_group_id)")
+                )
+            except Exception:
+                pass
 
 
 def _ensure_subject_color_schema():
@@ -448,6 +481,24 @@ def _delete_branch_logo_file(relative_path: str):
         os.path.join("static", *normalized_relative_path.split("/"))
     )
     upload_root = os.path.abspath(BRANCH_LOGO_UPLOAD_DIR)
+    if not absolute_path.startswith(upload_root):
+        return
+    if os.path.exists(absolute_path):
+        try:
+            os.remove(absolute_path)
+        except OSError:
+            return
+
+
+def _delete_school_group_logo_file(relative_path: str):
+    normalized_relative_path = _normalize_branch_logo_relative_path(relative_path)
+    if not normalized_relative_path.startswith(f"{SCHOOL_GROUP_LOGO_RELATIVE_DIR}/"):
+        return
+
+    absolute_path = os.path.abspath(
+        os.path.join("static", *normalized_relative_path.split("/"))
+    )
+    upload_root = os.path.abspath(SCHOOL_GROUP_LOGO_UPLOAD_DIR)
     if not absolute_path.startswith(upload_root):
         return
     if os.path.exists(absolute_path):
@@ -616,6 +667,33 @@ def _build_branch_configuration_rows(
         )
 
     return branch_rows
+
+
+def _ensure_default_school_group(db: Session):
+    school_group = db.query(models.SchoolGroup).filter(
+        models.SchoolGroup.name == DEFAULT_SCHOOL_GROUP_NAME
+    ).first()
+    if not school_group:
+        school_group = models.SchoolGroup(
+            name=DEFAULT_SCHOOL_GROUP_NAME,
+            status=True,
+        )
+        db.add(school_group)
+        db.flush()
+
+    changed = False
+    branches_without_group = db.query(models.Branch).filter(
+        models.Branch.school_group_id.is_(None)
+    ).all()
+    for branch in branches_without_group:
+        branch.school_group_id = school_group.id
+        changed = True
+
+    if changed:
+        school_group.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(school_group)
+    return school_group
 
 
 def _normalize_qualification_label(value: str) -> str:
@@ -8756,6 +8834,16 @@ def _get_configuration_access(request: Request, db: Session):
     return current_user, None
 
 
+def _get_school_branding_access(request: Request, db: Session):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return None, RedirectResponse(url="/", status_code=302)
+    role = auth.normalize_role(getattr(current_user, "role", ""))
+    if not (auth.can_manage_system_settings(current_user) or role == auth.ROLE_ADMINISTRATOR):
+        return None, RedirectResponse(url="/dashboard", status_code=302)
+    return current_user, None
+
+
 def _render_configuration_template(
     *,
     request: Request,
@@ -8817,22 +8905,111 @@ def _build_timetable_settings_module_context(
     }
 
 
-def _build_school_logo_module_context(request: Request, db: Session):
-    branches = db.query(models.Branch).order_by(
-        models.Branch.status.desc(),
-        models.Branch.name.asc(),
-    ).all()
-    rows = []
-    for branch in branches:
-        rows.append(
-            {
-                "branch": branch,
-                "logos": get_school_logo_slots(request, db, branch.id),
-            }
+def _logo_source_label(source: str) -> str:
+    if source == "branch":
+        return "Branch override"
+    if source == "school_group":
+        return "School group logo"
+    return "System default logo"
+
+
+def _get_user_school_group_id(db: Session, current_user) -> int | None:
+    branch_id = getattr(current_user, "branch_id", None)
+    if not branch_id:
+        return None
+    branch = db.query(models.Branch).filter(models.Branch.id == branch_id).first()
+    return getattr(branch, "school_group_id", None) if branch else None
+
+
+def _build_school_logo_module_context(
+    request: Request,
+    db: Session,
+    current_user,
+    *,
+    administrator_mode: bool = False,
+):
+    can_manage_all = auth.can_manage_system_settings(current_user)
+    user_school_group_id = _get_user_school_group_id(db, current_user)
+
+    school_groups_query = db.query(models.SchoolGroup).order_by(
+        models.SchoolGroup.status.desc(),
+        models.SchoolGroup.name.asc(),
+    )
+    if not can_manage_all:
+        if not user_school_group_id:
+            school_groups = []
+        else:
+            school_groups = school_groups_query.filter(
+                models.SchoolGroup.id == user_school_group_id
+            ).all()
+    else:
+        school_groups = school_groups_query.all()
+
+    requested_group_id = request.query_params.get("school_group_id")
+    selected_group = None
+    if requested_group_id and can_manage_all:
+        try:
+            requested_group_id_int = int(requested_group_id)
+        except ValueError:
+            requested_group_id_int = None
+        selected_group = next(
+            (group for group in school_groups if group.id == requested_group_id_int),
+            None,
         )
+    if not selected_group and school_groups:
+        selected_group = school_groups[0]
+
+    branch_rows = []
+    if selected_group:
+        branch_query = db.query(models.Branch).filter(
+            models.Branch.school_group_id == selected_group.id
+        ).order_by(models.Branch.status.desc(), models.Branch.name.asc())
+        if not can_manage_all:
+            branch_query = branch_query.filter(models.Branch.id == current_user.branch_id)
+        for branch in branch_query.all():
+            branch_rows.append(
+                {
+                    "branch": branch,
+                    "logos": [
+                        {
+                            **logo,
+                            "source_label": _logo_source_label(logo.get("source")),
+                        }
+                        for logo in get_school_logo_slots(request, db, branch.id)
+                    ],
+                }
+            )
+
+    group_logos = []
+    if selected_group:
+        group_logos = [
+            {
+                **logo,
+                "source_label": _logo_source_label(logo.get("source")),
+            }
+            for logo in get_school_logo_slots(
+                request,
+                db,
+                None,
+                school_group_id=selected_group.id,
+            )
+        ]
+
     return {
-        "logo_branch_rows": rows,
+        "logo_school_groups": school_groups,
+        "selected_school_group": selected_group,
+        "group_logos": group_logos,
+        "logo_branch_rows": branch_rows,
         "logo_slots": list(DEFAULT_SCHOOL_LOGO_SLOTS),
+        "can_manage_all_logo_scopes": can_manage_all,
+        "administrator_branding_mode": administrator_mode,
+        "logo_return_to": (
+            "/school-branding"
+            if administrator_mode
+            else f"/system-configuration/logos?school_group_id={selected_group.id}"
+            if selected_group
+            else "/system-configuration/logos"
+        ),
         "school_logo_notice": str(request.query_params.get("notice", "") or "").strip(),
         "school_logo_error": str(request.query_params.get("error", "") or "").strip(),
     }
@@ -8927,40 +9104,107 @@ def system_configuration_logos(
         template_name="system_configuration_logos.html",
         active_module_key="school-logos",
         title="School Logos",
-        intro="Manage branch-specific school logo references used across the system.",
-        extra_context=_build_school_logo_module_context(request, db),
+        intro="Manage school-group logos and branch logo overrides used across the system.",
+        extra_context=_build_school_logo_module_context(request, db, current_user),
+    )
+
+
+@app.get("/school-branding")
+def school_branding(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_school_branding_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    return templates.TemplateResponse(
+        request,
+        "system_configuration_logos.html",
+        {
+            "request": request,
+            "user": current_user,
+            "saudi_regions": SAUDI_REGIONS,
+            **_build_configuration_context(request, db, current_user),
+            **_build_school_logo_module_context(
+                request,
+                db,
+                current_user,
+                administrator_mode=not auth.can_manage_system_settings(current_user),
+            ),
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="school-branding",
+                title="School Branding",
+                intro="Manage the logo references for your school subscription.",
+            ),
+        },
     )
 
 
 @app.post("/system-configuration/logos")
 async def save_system_configuration_logo(
     request: Request,
-    branch_id: int = Form(...),
+    scope_type: str = Form("branch"),
+    school_group_id: int | None = Form(None),
+    branch_id: int | None = Form(None),
     slot_key: str = Form(...),
     label: str = Form(""),
+    return_to: str = Form("/system-configuration/logos"),
     logo_file: UploadFile | None = File(None),
     db: Session = Depends(get_db),
 ):
-    current_user, redirect_response = _get_configuration_access(request, db)
+    current_user, redirect_response = _get_school_branding_access(request, db)
     if redirect_response:
         return redirect_response
 
-    branch = db.query(models.Branch).filter(models.Branch.id == branch_id).first()
+    can_manage_all = auth.can_manage_system_settings(current_user)
+    normalized_scope_type = str(scope_type or "branch").strip().lower()
+    if normalized_scope_type not in {"school_group", "branch"}:
+        return _redirect_with_error(return_to, "Select a valid logo scope.")
+
     slot = next(
         (item for item in DEFAULT_SCHOOL_LOGO_SLOTS if item["slot_key"] == slot_key),
         None,
     )
-    if not branch or not slot:
-        return RedirectResponse(
-            url="/system-configuration/logos?error=Select+a+valid+branch+and+logo+slot.",
-            status_code=302,
-        )
+    if not slot:
+        return _redirect_with_error(return_to, "Select a valid logo slot.")
+
+    user_school_group_id = _get_user_school_group_id(db, current_user)
+    branch = None
+    school_group = None
+    if normalized_scope_type == "school_group":
+        if not school_group_id:
+            return _redirect_with_error(return_to, "Select a valid school group.")
+        school_group = db.query(models.SchoolGroup).filter(
+            models.SchoolGroup.id == school_group_id
+        ).first()
+        if not school_group:
+            return _redirect_with_error(return_to, "Select a valid school group.")
+        if not can_manage_all and school_group.id != user_school_group_id:
+            return RedirectResponse(url="/dashboard", status_code=302)
+    else:
+        if not branch_id:
+            return _redirect_with_error(return_to, "Select a valid branch.")
+        branch = db.query(models.Branch).filter(models.Branch.id == branch_id).first()
+        if not branch:
+            return _redirect_with_error(return_to, "Select a valid branch.")
+        if not can_manage_all and branch.id != current_user.branch_id:
+            return RedirectResponse(url="/dashboard", status_code=302)
 
     normalized_label = str(label or "").strip() or slot["label"]
-    existing_logo = db.query(models.BranchLogo).filter(
-        models.BranchLogo.branch_id == branch.id,
-        models.BranchLogo.slot_key == slot_key,
-    ).first()
+    if normalized_scope_type == "school_group":
+        existing_logo = db.query(models.SchoolGroupLogo).filter(
+            models.SchoolGroupLogo.school_group_id == school_group.id,
+            models.SchoolGroupLogo.slot_key == slot_key,
+        ).first()
+    else:
+        existing_logo = db.query(models.BranchLogo).filter(
+            models.BranchLogo.branch_id == branch.id,
+            models.BranchLogo.slot_key == slot_key,
+        ).first()
 
     file_bytes = b""
     if logo_file and logo_file.filename:
@@ -8972,52 +9216,51 @@ async def save_system_configuration_logo(
             existing_logo.updated_by_user_id = getattr(current_user, "user_id", None)
             existing_logo.updated_at = datetime.utcnow()
             db.commit()
-            return RedirectResponse(
-                url="/system-configuration/logos?notice=Logo+label+updated.",
-                status_code=302,
-            )
-        return RedirectResponse(
-            url="/system-configuration/logos?error=Choose+a+logo+file+to+upload.",
-            status_code=302,
-        )
+            return _redirect_with_notice(return_to, "Logo label updated.")
+        return _redirect_with_error(return_to, "Choose a logo file to upload.")
 
     if len(file_bytes) > BRANCH_LOGO_MAX_BYTES:
-        return RedirectResponse(
-            url="/system-configuration/logos?error=Logo+file+is+too+large.+Maximum+size+is+4+MB.",
-            status_code=302,
-        )
+        return _redirect_with_error(return_to, "Logo file is too large. Maximum size is 4 MB.")
 
     extension = _detect_branch_logo_extension(file_bytes, logo_file.filename)
     if extension not in {".png", ".jpg", ".webp", ".svg"}:
-        return RedirectResponse(
-            url="/system-configuration/logos?error=Upload+a+PNG,+JPG,+WEBP,+or+SVG+logo.",
-            status_code=302,
-        )
+        return _redirect_with_error(return_to, "Upload a PNG, JPG, WEBP, or SVG logo.")
 
-    _ensure_branch_logo_upload_dir(branch.id)
     filename = f"{slot_key}_{int(time.time() * 1000)}{extension}"
-    relative_path = f"{BRANCH_LOGO_RELATIVE_DIR}/{branch.id}/{filename}"
+    if normalized_scope_type == "school_group":
+        _ensure_school_group_logo_upload_dir(school_group.id)
+        relative_path = f"{SCHOOL_GROUP_LOGO_RELATIVE_DIR}/{school_group.id}/{filename}"
+        upload_root = os.path.abspath(os.path.join(SCHOOL_GROUP_LOGO_UPLOAD_DIR, str(school_group.id)))
+    else:
+        _ensure_branch_logo_upload_dir(branch.id)
+        relative_path = f"{BRANCH_LOGO_RELATIVE_DIR}/{branch.id}/{filename}"
+        upload_root = os.path.abspath(os.path.join(BRANCH_LOGO_UPLOAD_DIR, str(branch.id)))
     absolute_path = os.path.abspath(os.path.join("static", *relative_path.split("/")))
-    upload_root = os.path.abspath(os.path.join(BRANCH_LOGO_UPLOAD_DIR, str(branch.id)))
     if not absolute_path.startswith(upload_root):
-        return RedirectResponse(
-            url="/system-configuration/logos?error=Logo+upload+path+is+invalid.",
-            status_code=302,
-        )
+        return _redirect_with_error(return_to, "Logo upload path is invalid.")
 
     with open(absolute_path, "wb") as output_file:
         output_file.write(file_bytes)
 
     if not existing_logo:
-        existing_logo = models.BranchLogo(
-            branch_id=branch.id,
-            slot_key=slot_key,
-            label=normalized_label,
-            image_path=relative_path,
-            content_type=_branch_logo_media_type_from_extension(extension),
-            sort_order=slot["sort_order"],
-            updated_by_user_id=getattr(current_user, "user_id", None),
-        )
+        logo_payload = {
+            "slot_key": slot_key,
+            "label": normalized_label,
+            "image_path": relative_path,
+            "content_type": _branch_logo_media_type_from_extension(extension),
+            "sort_order": slot["sort_order"],
+            "updated_by_user_id": getattr(current_user, "user_id", None),
+        }
+        if normalized_scope_type == "school_group":
+            existing_logo = models.SchoolGroupLogo(
+                school_group_id=school_group.id,
+                **logo_payload,
+            )
+        else:
+            existing_logo = models.BranchLogo(
+                branch_id=branch.id,
+                **logo_payload,
+            )
         db.add(existing_logo)
     else:
         old_path = existing_logo.image_path
@@ -9027,39 +9270,59 @@ async def save_system_configuration_logo(
         existing_logo.sort_order = slot["sort_order"]
         existing_logo.updated_by_user_id = getattr(current_user, "user_id", None)
         existing_logo.updated_at = datetime.utcnow()
-        _delete_branch_logo_file(old_path)
+        if normalized_scope_type == "school_group":
+            _delete_school_group_logo_file(old_path)
+        else:
+            _delete_branch_logo_file(old_path)
 
     db.commit()
-    return RedirectResponse(
-        url="/system-configuration/logos?notice=Logo+updated.",
-        status_code=302,
-    )
+    return _redirect_with_notice(return_to, "Logo updated.")
 
 
 @app.post("/system-configuration/logos/reset")
 def reset_system_configuration_logo(
     request: Request,
-    branch_id: int = Form(...),
+    scope_type: str = Form("branch"),
+    school_group_id: int | None = Form(None),
+    branch_id: int | None = Form(None),
     slot_key: str = Form(...),
+    return_to: str = Form("/system-configuration/logos"),
     db: Session = Depends(get_db),
 ):
-    current_user, redirect_response = _get_configuration_access(request, db)
+    current_user, redirect_response = _get_school_branding_access(request, db)
     if redirect_response:
         return redirect_response
 
-    existing_logo = db.query(models.BranchLogo).filter(
-        models.BranchLogo.branch_id == branch_id,
-        models.BranchLogo.slot_key == slot_key,
-    ).first()
+    can_manage_all = auth.can_manage_system_settings(current_user)
+    normalized_scope_type = str(scope_type or "branch").strip().lower()
+    user_school_group_id = _get_user_school_group_id(db, current_user)
+    existing_logo = None
+    delete_file = _delete_branch_logo_file
+    if normalized_scope_type == "school_group":
+        if not school_group_id:
+            return _redirect_with_error(return_to, "Select a valid school group.")
+        if not can_manage_all and school_group_id != user_school_group_id:
+            return RedirectResponse(url="/dashboard", status_code=302)
+        existing_logo = db.query(models.SchoolGroupLogo).filter(
+            models.SchoolGroupLogo.school_group_id == school_group_id,
+            models.SchoolGroupLogo.slot_key == slot_key,
+        ).first()
+        delete_file = _delete_school_group_logo_file
+    else:
+        if not branch_id:
+            return _redirect_with_error(return_to, "Select a valid branch.")
+        if not can_manage_all and branch_id != current_user.branch_id:
+            return RedirectResponse(url="/dashboard", status_code=302)
+        existing_logo = db.query(models.BranchLogo).filter(
+            models.BranchLogo.branch_id == branch_id,
+            models.BranchLogo.slot_key == slot_key,
+        ).first()
     if existing_logo:
         old_path = existing_logo.image_path
         db.delete(existing_logo)
         db.commit()
-        _delete_branch_logo_file(old_path)
-    return RedirectResponse(
-        url="/system-configuration/logos?notice=Logo+reset+to+default.",
-        status_code=302,
-    )
+        delete_file(old_path)
+    return _redirect_with_notice(return_to, "Logo reset.")
 
 
 @app.get("/system-configuration/degrees")
@@ -9554,11 +9817,18 @@ def create_branch(
             "A branch with that name already exists.",
         )
 
+    school_group = db.query(models.SchoolGroup).filter(
+        models.SchoolGroup.name == DEFAULT_SCHOOL_GROUP_NAME
+    ).first()
+    if not school_group:
+        school_group = _ensure_default_school_group(db)
+
     db.add(
         models.Branch(
             name=cleaned_name,
             location=normalized_region,
             status=True,
+            school_group_id=getattr(school_group, "id", None),
         )
     )
     db.commit()
@@ -11567,6 +11837,7 @@ def setup_initial_data():
     _ensure_teacher_scope_schema()
     _ensure_subject_scope_schema()
     _ensure_subject_color_schema()
+    _ensure_school_group_schema()
     _ensure_teacher_subject_allocation_columns()
     _ensure_timetable_non_teaching_block_columns()
     _ensure_system_notifications_table_columns()
@@ -11574,6 +11845,7 @@ def setup_initial_data():
     _seed_teacher_subject_allocations()
     _ensure_profile_photo_upload_dir()
     _ensure_branch_logo_upload_dir()
+    _ensure_school_group_logo_upload_dir()
     observations.ensure_observation_schema()
     db = SessionLocal()
     observations.ensure_observation_seed_data(db)
@@ -11585,6 +11857,7 @@ def setup_initial_data():
     admin_position = os.getenv("ADMIN_POSITION", "Developer")
 
     default_branch = _ensure_gender_branches(db)
+    _ensure_default_school_group(db)
 
     if not default_branch:
         default_branch = db.query(Branch).filter(

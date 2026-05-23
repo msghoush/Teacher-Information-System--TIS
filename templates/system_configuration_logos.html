@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% from "_app_icons.html" import icon %}
 
-{% block title %}School Logos | TIS{% endblock %}
+{% block title %}{% if administrator_branding_mode %}School Branding{% else %}School Logos{% endif %} | TIS{% endblock %}
 
 {% block page_styles %}
 <style>
-    .config-page { display: grid; gap: 14px; }
+    .branding-page { display: grid; gap: 14px; }
     .notice-banner,
     .error-banner { display: inline-flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; font-size: 14px; font-weight: 800; }
     .notice-banner { border: 1px solid #b7e4c7; background: #f0fff4; color: #027a48; }
@@ -13,38 +13,90 @@
     .config-nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .config-nav-link { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 12px; border: 1px solid #d6e3f3; border-radius: 999px; background: #fff; color: #23466f; font-size: 12px; font-weight: 800; text-decoration: none; }
     .config-nav-link.is-active { border-color: #b8d0ec; background: #edf4ff; color: #17365d; }
-    .module-shell { display: grid; gap: 14px; padding: 16px; border: 1px solid #d8e5f4; border-radius: 18px; background: linear-gradient(180deg, #fff, #f8fbff); }
-    .module-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-    .module-copy { display: grid; gap: 5px; }
-    .module-copy h2 { margin: 0; color: #17365d; font-size: 24px; }
-    .module-copy p { margin: 0; color: #60728c; font-size: 13px; line-height: 1.5; }
-    .logo-branch-card { display: grid; gap: 12px; padding: 14px; border: 1px solid #d8e2f0; border-radius: 14px; background: #fff; }
-    .logo-branch-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-    .logo-branch-head h3 { margin: 0; color: #17365d; font-size: 18px; }
+    .branding-shell { display: grid; grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); gap: 14px; align-items: start; }
+    .group-panel,
+    .editor-panel { border: 1px solid #d8e2f0; border-radius: 14px; background: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .06); }
+    .group-panel { padding: 12px; position: sticky; top: 12px; }
+    .panel-head { display: grid; gap: 4px; padding: 2px 2px 12px; }
+    .panel-head h2,
+    .panel-head h3 { margin: 0; color: #17365d; }
+    .panel-head p { margin: 0; color: #60728c; font-size: 13px; line-height: 1.45; }
+    .group-list { display: grid; gap: 8px; max-height: 60vh; overflow: auto; padding-right: 3px; }
+    .group-link { display: grid; gap: 3px; padding: 10px; border: 1px solid #d8e2f0; border-radius: 10px; color: #1f2737; text-decoration: none; background: #f8fbff; }
+    .group-link.is-active { border-color: #0a4ea3; background: #edf4ff; }
+    .group-link strong { font-size: 14px; }
+    .group-link span { color: #60728c; font-size: 12px; font-weight: 800; }
+    .editor-panel { display: grid; gap: 14px; padding: 14px; }
+    .editor-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid #e3ebf6; }
+    .editor-title h2 { margin: 0; color: #17365d; font-size: 24px; }
     .status-pill { display: inline-flex; align-items: center; min-height: 26px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 900; background: #eef4fb; color: #48607f; }
     .status-pill.is-success { background: #ecfdf3; color: #027a48; }
+    .section-card { display: grid; gap: 12px; padding: 12px; border: 1px solid #d8e2f0; border-radius: 12px; background: #f8fbff; }
+    .section-card h3 { margin: 0; color: #17365d; font-size: 18px; }
+    .section-card p { margin: 0; color: #60728c; font-size: 13px; line-height: 1.45; }
     .logo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-    .logo-card { display: grid; gap: 10px; padding: 12px; border: 1px solid #d8e2f0; border-radius: 12px; background: #f8fbff; }
-    .logo-preview { display: flex; align-items: center; justify-content: center; min-height: 108px; border: 1px dashed #b8c9df; border-radius: 10px; background: #fff; }
-    .logo-preview img { max-width: 92%; max-height: 82px; object-fit: contain; }
+    .logo-card { display: grid; gap: 10px; padding: 12px; border: 1px solid #d8e2f0; border-radius: 12px; background: #fff; min-width: 0; }
+    .logo-preview { display: flex; align-items: center; justify-content: center; min-height: 96px; border: 1px dashed #b8c9df; border-radius: 10px; background: #fff; }
+    .logo-preview img { max-width: 92%; max-height: 76px; object-fit: contain; }
     .logo-meta { display: grid; gap: 3px; }
-    .logo-meta strong { color: #1f2737; }
+    .logo-meta strong { color: #1f2737; overflow-wrap: anywhere; }
     .logo-meta span { color: #60728c; font-size: 12px; font-weight: 800; }
     .logo-form { display: grid; gap: 8px; }
     .logo-form label { color: #48607f; font-size: 12px; font-weight: 900; text-transform: uppercase; }
     .logo-form input[type="text"],
-    .logo-form input[type="file"] { width: 100%; border: 1px solid #c6d4e8; border-radius: 8px; background: #fff; color: #1f2737; padding: 8px 9px; }
+    .logo-form input[type="file"] { width: 100%; border: 1px solid #c6d4e8; border-radius: 8px; background: #fff; color: #1f2737; padding: 8px 9px; min-width: 0; }
     .logo-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
     .action-btn { min-height: 34px; border: 1px solid transparent; border-radius: 8px; padding: 7px 11px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 900; cursor: pointer; text-decoration: none; }
     .action-btn-primary { background: #0a4ea3; color: #fff; }
-    .action-btn-secondary { border-color: #c6d4e8; background: #fff; color: #1f2737; }
     .action-btn-danger { border-color: #efc5bf; background: #fff5f3; color: #9f2d1f; }
-    @media (max-width: 1100px) { .logo-grid { grid-template-columns: 1fr; } }
+    details.branch-overrides { border: 1px solid #d8e2f0; border-radius: 12px; background: #fff; overflow: hidden; }
+    details.branch-overrides summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; cursor: pointer; color: #17365d; font-weight: 900; background: #f5f8fc; }
+    .branch-override-body { display: grid; gap: 12px; padding: 12px; }
+    @media (max-width: 1180px) {
+        .branding-shell { grid-template-columns: 1fr; }
+        .group-panel { position: static; }
+        .group-list { max-height: none; }
+    }
+    @media (max-width: 900px) {
+        .logo-grid { grid-template-columns: 1fr; }
+    }
 </style>
 {% endblock %}
 
+{% macro logo_editor_cards(logos, scope_type, scope_id_name, scope_id_value, allow_reset) %}
+<div class="logo-grid">
+    {% for logo in logos %}
+    <section class="logo-card">
+        <div class="logo-preview">
+            <img src="{{ logo.url }}" alt="{{ logo.label }} logo">
+        </div>
+        <div class="logo-meta">
+            <strong>{{ logo.label }}</strong>
+            <span>{{ logo.source_label }}</span>
+        </div>
+        <form class="logo-form" method="post" action="/system-configuration/logos" enctype="multipart/form-data">
+            <input type="hidden" name="return_to" value="{{ logo_return_to }}">
+            <input type="hidden" name="scope_type" value="{{ scope_type }}">
+            <input type="hidden" name="{{ scope_id_name }}" value="{{ scope_id_value }}">
+            <input type="hidden" name="slot_key" value="{{ logo.slot_key }}">
+            <label for="{{ scope_type }}_label_{{ scope_id_value }}_{{ logo.slot_key }}">Logo label</label>
+            <input id="{{ scope_type }}_label_{{ scope_id_value }}_{{ logo.slot_key }}" type="text" name="label" value="{{ logo.label }}" required>
+            <label for="{{ scope_type }}_file_{{ scope_id_value }}_{{ logo.slot_key }}">Replace logo</label>
+            <input id="{{ scope_type }}_file_{{ scope_id_value }}_{{ logo.slot_key }}" type="file" name="logo_file" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml">
+            <div class="logo-actions">
+                {% if allow_reset and logo.source == scope_type %}
+                <button class="action-btn action-btn-danger" type="submit" formaction="/system-configuration/logos/reset" onclick="return confirm('Reset this logo?');">{{ icon("trash", "icon") }} Reset</button>
+                {% endif %}
+                <button class="action-btn action-btn-primary" type="submit">{{ icon("upload", "icon") }} Save</button>
+            </div>
+        </form>
+    </section>
+    {% endfor %}
+</div>
+{% endmacro %}
+
 {% block content %}
-<section class="config-page">
+<section class="branding-page">
     {% if school_logo_notice %}
     <div class="notice-banner">{{ icon("check-circle", "icon") }} {{ school_logo_notice }}</div>
     {% endif %}
@@ -52,6 +104,7 @@
     <div class="error-banner">{{ icon("info", "icon") }} {{ school_logo_error }}</div>
     {% endif %}
 
+    {% if not administrator_branding_mode %}
     <nav class="config-nav" aria-label="Configuration modules">
         {% for module in configuration_modules %}
         <a class="config-nav-link {% if module.active %}is-active{% endif %}" href="{{ module.href }}">
@@ -59,52 +112,69 @@
         </a>
         {% endfor %}
     </nav>
+    {% endif %}
 
-    <section class="module-shell">
-        <div class="module-head">
-            <div class="module-copy">
-                <h2>Branch School Logos</h2>
-                <p>Each branch can replace the three logo references used by the shared system header and observation forms. If no custom logo is uploaded, TIS keeps using the current default logo.</p>
+    <section class="branding-shell">
+        {% if can_manage_all_logo_scopes %}
+        <aside class="group-panel">
+            <div class="panel-head">
+                <h3>School Groups</h3>
+                <p>Select one subscriber container, then edit its shared logos.</p>
             </div>
-        </div>
-
-        {% for row in logo_branch_rows %}
-        <article class="logo-branch-card">
-            <div class="logo-branch-head">
-                <h3>{{ row.branch.name }}</h3>
-                <span class="status-pill {% if row.branch.status %}is-success{% endif %}">{{ "Active" if row.branch.status else "Inactive" }}</span>
-            </div>
-            <div class="logo-grid">
-                {% for logo in row.logos %}
-                <section class="logo-card">
-                    <div class="logo-preview">
-                        <img src="{{ logo.url }}" alt="{{ logo.label }} logo">
-                    </div>
-                    <div class="logo-meta">
-                        <strong>{{ logo.label }}</strong>
-                        <span>{{ "Default system logo" if logo.is_default else "Branch custom logo" }}</span>
-                    </div>
-                    <form class="logo-form" method="post" action="/system-configuration/logos" enctype="multipart/form-data">
-                        <input type="hidden" name="branch_id" value="{{ row.branch.id }}">
-                        <input type="hidden" name="slot_key" value="{{ logo.slot_key }}">
-                        <label for="logo_label_{{ row.branch.id }}_{{ logo.slot_key }}">Logo label</label>
-                        <input id="logo_label_{{ row.branch.id }}_{{ logo.slot_key }}" type="text" name="label" value="{{ logo.label }}" required>
-                        <label for="logo_file_{{ row.branch.id }}_{{ logo.slot_key }}">Replace logo</label>
-                        <input id="logo_file_{{ row.branch.id }}_{{ logo.slot_key }}" type="file" name="logo_file" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml">
-                        <div class="logo-actions">
-                            {% if not logo.is_default %}
-                            <button class="action-btn action-btn-danger" type="submit" formaction="/system-configuration/logos/reset" onclick="return confirm('Reset this logo to the default system logo?');">{{ icon("trash", "icon") }} Reset</button>
-                            {% endif %}
-                            <button class="action-btn action-btn-primary" type="submit">{{ icon("upload", "icon") }} Save Logo</button>
-                        </div>
-                    </form>
-                </section>
+            <div class="group-list">
+                {% for group in logo_school_groups %}
+                <a class="group-link {% if selected_school_group and group.id == selected_school_group.id %}is-active{% endif %}" href="/system-configuration/logos?school_group_id={{ group.id }}">
+                    <strong>{{ group.name }}</strong>
+                    <span>{{ "Active" if group.status else "Inactive" }}</span>
+                </a>
                 {% endfor %}
             </div>
-        </article>
-        {% else %}
-        <div class="logo-branch-card">No branches are configured yet.</div>
-        {% endfor %}
+        </aside>
+        {% endif %}
+
+        <main class="editor-panel">
+            {% if selected_school_group %}
+            <div class="editor-title">
+                <div>
+                    <h2>{{ selected_school_group.name }}</h2>
+                    <span class="status-pill {% if selected_school_group.status %}is-success{% endif %}">{{ "Active school group" if selected_school_group.status else "Inactive school group" }}</span>
+                </div>
+            </div>
+
+            <section class="section-card">
+                <div>
+                    <h3>Shared School Group Logos</h3>
+                    <p>Branches inside this school group inherit these logos automatically unless a branch override is added.</p>
+                </div>
+                {{ logo_editor_cards(group_logos, "school_group", "school_group_id", selected_school_group.id, true) }}
+            </section>
+
+            {% if logo_branch_rows %}
+            <details class="branch-overrides">
+                <summary>
+                    <span>Branch Logo Overrides</span>
+                    <span class="status-pill">{{ logo_branch_rows|length }} branch{{ "" if logo_branch_rows|length == 1 else "es" }}</span>
+                </summary>
+                <div class="branch-override-body">
+                    {% for row in logo_branch_rows %}
+                    <section class="section-card">
+                        <div>
+                            <h3>{{ row.branch.name }}</h3>
+                            <p>Optional branch-specific logos. Leave blank to inherit the school group logos.</p>
+                        </div>
+                        {{ logo_editor_cards(row.logos, "branch", "branch_id", row.branch.id, true) }}
+                    </section>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endif %}
+            {% else %}
+            <section class="section-card">
+                <h3>No school group available</h3>
+                <p>Create or assign a school group before configuring logos.</p>
+            </section>
+            {% endif %}
+        </main>
     </section>
 </section>
 {% endblock %}

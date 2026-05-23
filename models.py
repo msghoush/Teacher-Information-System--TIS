@@ -8,9 +8,39 @@ from database import Base
 class Branch(Base):
     __tablename__ = "branches"
     id = Column(Integer, primary_key=True, index=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), index=True)
     name = Column(String, nullable=False)
     location = Column(String)
     status = Column(Boolean, default=True)
+
+
+class SchoolGroup(Base):
+    __tablename__ = "school_groups"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(160), nullable=False, unique=True)
+    status = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class SchoolGroupLogo(Base):
+    __tablename__ = "school_group_logos"
+    __table_args__ = (
+        UniqueConstraint("school_group_id", "slot_key", name="uq_school_group_logos_group_slot"),
+        Index("ix_school_group_logos_group", "school_group_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    slot_key = Column(String(40), nullable=False)
+    label = Column(String(120), nullable=False)
+    image_path = Column(String(255), nullable=False)
+    content_type = Column(String(80))
+    sort_order = Column(Integer, nullable=False, default=0)
+    updated_by_user_id = Column(String(10))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
 class BranchLogo(Base):

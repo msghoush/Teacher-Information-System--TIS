@@ -33,10 +33,34 @@ DEFAULT_SCHOOL_LOGO_SLOTS = (
 )
 
 
-def get_school_logo_slots(request, db: Session, branch_id: int | None) -> list[dict]:
+def _logo_payload(request, *, slot_key: str, label: str, image_path: str, class_name: str, sort_order: int, source: str) -> dict:
+    normalized_path = str(image_path or "").replace("\\", "/").lstrip("/")
+    return {
+        "slot_key": slot_key,
+        "label": label,
+        "path": normalized_path,
+        "url": str(request.url_for("static", path=normalized_path)),
+        "class_name": class_name,
+        "is_default": source == "default",
+        "source": source,
+        "sort_order": sort_order,
+    }
+
+
+def get_school_logo_slots(
+    request,
+    db: Session,
+    branch_id: int | None,
+    school_group_id: int | None = None,
+) -> list[dict]:
     configured_by_slot = {}
+    group_configured_by_slot = {}
+    resolved_group_id = school_group_id
     if branch_id:
         try:
+            branch = db.query(models.Branch).filter(models.Branch.id == int(branch_id)).first()
+            if branch and not resolved_group_id:
+                resolved_group_id = getattr(branch, "school_group_id", None)
             configured_rows = db.query(models.BranchLogo).filter(
                 models.BranchLogo.branch_id == int(branch_id)
             ).all()
@@ -47,25 +71,38 @@ def get_school_logo_slots(request, db: Session, branch_id: int | None) -> list[d
             }
         except Exception:
             configured_by_slot = {}
+    if resolved_group_id:
+        try:
+            group_rows = db.query(models.SchoolGroupLogo).filter(
+                models.SchoolGroupLogo.school_group_id == int(resolved_group_id)
+            ).all()
+            group_configured_by_slot = {
+                str(row.slot_key or "").strip(): row
+                for row in group_rows
+                if str(row.slot_key or "").strip()
+            }
+        except Exception:
+            group_configured_by_slot = {}
 
     logos = []
     for default_slot in DEFAULT_SCHOOL_LOGO_SLOTS:
         slot_key = default_slot["slot_key"]
         configured = configured_by_slot.get(slot_key)
-        image_path = str(getattr(configured, "image_path", "") or "").replace("\\", "/").lstrip("/")
-        label = str(getattr(configured, "label", "") or "").strip() or default_slot["label"]
-        if not image_path:
-            image_path = default_slot["path"]
+        group_configured = group_configured_by_slot.get(slot_key)
+        source = "branch" if configured else "school_group" if group_configured else "default"
+        row = configured or group_configured
+        image_path = str(getattr(row, "image_path", "") or "").replace("\\", "/").lstrip("/") or default_slot["path"]
+        label = str(getattr(row, "label", "") or "").strip() or default_slot["label"]
         logos.append(
-            {
-                "slot_key": slot_key,
-                "label": label,
-                "path": image_path,
-                "url": str(request.url_for("static", path=image_path)),
-                "class_name": default_slot["class_name"],
-                "is_default": configured is None,
-                "sort_order": default_slot["sort_order"],
-            }
+            _logo_payload(
+                request,
+                slot_key=slot_key,
+                label=label,
+                image_path=image_path,
+                class_name=default_slot["class_name"],
+                sort_order=default_slot["sort_order"],
+                source=source,
+            )
         )
     return logos
 
@@ -174,6 +211,12 @@ PAGE_META = {
         "intro": "Manage branches, academic years, and future system-level modules from one controlled workspace.",
         "icon": "settings",
     },
+    "school-branding": {
+        "eyebrow": "School Setup",
+        "title": "School Branding",
+        "intro": "Manage the logo references for your school subscription.",
+        "icon": "upload",
+    },
 }
 
 
@@ -181,6 +224,7 @@ def _build_nav_items(
     current_path: str,
     can_manage_users: bool,
     can_manage_system_settings: bool,
+    can_manage_school_branding: bool = False,
     new_notification_count: int = 0,
 ):
     def is_active(target: str) -> bool:
@@ -249,6 +293,15 @@ def _build_nav_items(
                 "active": is_active("/system-configuration"),
             }
         )
+    elif can_manage_school_branding:
+        items.append(
+            {
+                "label": "School Branding",
+                "href": "/school-branding",
+                "icon": "upload",
+                "active": is_active("/school-branding"),
+            }
+        )
 
     return items
 
@@ -281,6 +334,10 @@ def build_shell_context(
 
     can_manage_system_settings = auth.can_manage_system_settings(current_user)
     can_manage_users = auth.can_manage_users(current_user)
+    can_manage_school_branding = (
+        can_manage_system_settings
+        or auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_ADMINISTRATOR
+    )
     meta = PAGE_META.get(page_key, {})
 
     available_scope_branches = []
@@ -329,6 +386,7 @@ def build_shell_context(
                 request.url.path,
                 can_manage_users,
                 can_manage_system_settings,
+                can_manage_school_branding,
                 new_notification_count,
             ),
             "user_name": f"{current_user.first_name} {current_user.last_name}".strip(),
@@ -339,6 +397,7 @@ def build_shell_context(
             "academic_year_name": academic_year.year_name if academic_year else "Not assigned",
             "can_manage_system_settings": can_manage_system_settings,
             "can_manage_users": can_manage_users,
+            "can_manage_school_branding": can_manage_school_branding,
             "available_scope_branches": available_scope_branches,
             "all_years": all_years,
             "scoped_branch_id": scoped_branch_id,
