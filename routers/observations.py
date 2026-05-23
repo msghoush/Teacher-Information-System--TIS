@@ -84,6 +84,9 @@ OBSERVATION_SCHEMA_COLUMNS = {
         "overall_score": "VARCHAR(20)",
         "evaluator_notes": "TEXT",
         "evaluatee_notes": "TEXT",
+        "teacher_signature_data": "TEXT",
+        "evaluator_signature_data": "TEXT",
+        "locked_at": "DATETIME",
         "smart_feedback": "TEXT",
         "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
         "updated_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
@@ -153,6 +156,14 @@ def _teacher_name(teacher) -> str:
         return "Unknown Teacher"
     parts = [teacher.first_name, teacher.middle_name, teacher.last_name]
     return " ".join(part for part in parts if part).strip() or f"Teacher #{teacher.id}"
+
+
+def _user_display_name(user) -> str:
+    parts = [
+        str(getattr(user, "first_name", "") or "").strip(),
+        str(getattr(user, "last_name", "") or "").strip(),
+    ]
+    return " ".join(part for part in parts if part) or str(getattr(user, "user_id", "") or "Current User")
 
 
 def _teacher_choice_rows(teachers):
@@ -628,13 +639,28 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
             models.ObservationCriterion.is_active == True
         ).order_by(models.ObservationCriterion.sort_order.asc()).all()
         criteria_groups = _criteria_by_domain(criteria)
-        _log_observation_stage(stage, criteria=len(criteria), groups=len(criteria_groups))
+        subjects = db.query(models.Subject).filter(
+            models.Subject.branch_id == branch_id,
+            models.Subject.academic_year_id == academic_year_id,
+        ).order_by(
+            models.Subject.grade.asc(),
+            models.Subject.subject_code.asc(),
+            models.Subject.subject_name.asc(),
+        ).all()
+        teacher_subject_map = _teacher_subject_code_map(db, teachers)
+        _log_observation_stage(
+            stage,
+            criteria=len(criteria),
+            groups=len(criteria_groups),
+            subjects=len(subjects),
+        )
         if debug_stage in {"7", "criteria", "evidence"}:
             return _observation_debug_html(
                 "Observation criteria loaded",
                 [
                     f"Criteria loaded: {len(criteria)}",
                     f"Criteria groups loaded: {len(criteria_groups)}",
+                    f"Subjects loaded: {len(subjects)}",
                 ],
             )
 
@@ -693,6 +719,12 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
                 "total_required": total_required,
                 "completion_pct": round((total_formal / total_required) * 100) if total_required else 0,
             },
+            "teachers": _teacher_choice_rows(teachers),
+            "subjects": _subject_choice_rows(subjects, teacher_subject_map),
+            "criteria_groups": criteria_groups,
+            "today": date.today().isoformat(),
+            "selected_teacher_id": None,
+            "evaluator_display_name": _user_display_name(current_user),
             **shell_context,
         }
         templates.env.get_template("observations.html").render(context)
@@ -746,6 +778,8 @@ def new_observation_page(request: Request, teacher_id: int | None = None, db: Se
             "criteria_groups": _criteria_by_domain(criteria),
             "today": date.today().isoformat(),
             "selected_teacher_id": teacher_id,
+            "evaluator_display_name": _user_display_name(current_user),
+            "modal_mode": str(request.query_params.get("modal", "") or "") == "1",
         },
     )
 
@@ -787,6 +821,11 @@ async def create_observation(request: Request, db: Session = Depends(get_db)):
                 ),
                 status_code=302,
             )
+    teacher_signature_data = str(form.get("teacher_signature_data") or "").strip()
+    evaluator_signature_data = str(form.get("evaluator_signature_data") or "").strip()
+    is_locked = bool(teacher_signature_data and evaluator_signature_data)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
     observation = models.Observation(
         branch_id=branch_id,
         academic_year_id=academic_year_id,
@@ -799,9 +838,12 @@ async def create_observation(request: Request, db: Session = Depends(get_db)):
         section=str(form.get("section") or "").strip(),
         period=str(form.get("period") or "").strip(),
         subject=str(form.get("subject") or "").strip(),
-        status="Final",
+        status="Locked" if is_locked else "Final",
         evaluator_notes=str(form.get("evaluator_notes") or "").strip(),
         evaluatee_notes="",
+        teacher_signature_data=teacher_signature_data,
+        evaluator_signature_data=evaluator_signature_data,
+        locked_at=now if is_locked else None,
     )
     db.add(observation)
     db.flush()
@@ -826,9 +868,20 @@ async def create_observation(request: Request, db: Session = Depends(get_db)):
     feedback = _build_smart_feedback(score_rows, criteria_by_id)
     observation.overall_score = "" if feedback["overall"] is None else str(feedback["overall"])
     observation.smart_feedback = json.dumps(feedback)
-    observation.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    observation.updated_at = now
     db.commit()
 
+    if str(form.get("modal_mode") or "") == "1":
+        return HTMLResponse(
+            content=(
+                "<!doctype html><html><body>"
+                "<script>"
+                "window.parent.postMessage({type:'observation-created'}, '*');"
+                "</script>"
+                "Observation saved."
+                "</body></html>"
+            )
+        )
     return RedirectResponse(url=f"/observations/{observation.id}", status_code=302)
 
 
@@ -879,6 +932,7 @@ def observation_detail_page(observation_id: int, request: Request, db: Session =
             "criteria_groups": _criteria_by_domain(criteria),
             "scores_by_criterion": scores_by_criterion,
             "feedback": feedback,
+            "is_locked": bool(observation.locked_at or observation.status == "Locked"),
         },
     )
 
@@ -896,6 +950,11 @@ async def save_evaluatee_notes(observation_id: int, request: Request, db: Sessio
     ).first()
     if not observation:
         return RedirectResponse(url="/observations")
+    if observation.locked_at or observation.status == "Locked":
+        return RedirectResponse(
+            url=f"/observations/{observation.id}?notice=Observation+is+locked+after+signatures.",
+            status_code=302,
+        )
 
     form = await request.form()
     observation.evaluatee_notes = str(form.get("evaluatee_notes") or "").strip()

@@ -3,15 +3,17 @@
 
 {% block title %}New Observation | TIS{% endblock %}
 
-{% block page_header_actions %}
-<a class="shell-btn" href="/observations/">{{ icon("chevron-right", "shell-icon") }} Back</a>
-{% endblock %}
-
 {% block page_styles %}
 <style>
 .form-wrap { display: grid; gap: 14px; }
-.shell-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px 12px; border: 1px solid #c6d4e8; border-radius: 8px; color: #1f2737; background: #fff; text-decoration: none; font-weight: 900; }
 .form-panel { background: #fff; border: 1px solid #d8e2f0; border-radius: 8px; padding: 14px; }
+{% if modal_mode %}
+.app-shell { display: block; min-height: 100vh; }
+.app-sidebar, .shell-header { display: none !important; }
+.app-main { margin: 0 !important; padding: 14px !important; }
+.app-header { display: none !important; }
+.page-stage { padding: 0 !important; }
+{% endif %}
 .observation-toolbar { position: sticky; top: 0; z-index: 4; display: grid; grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(120px, 170px)); gap: 10px; align-items: stretch; background: rgba(237, 244, 252, 0.96); border: 1px solid #c9d8ea; border-radius: 8px; padding: 10px; backdrop-filter: blur(8px); }
 .toolbar-card { background: #fff; border: 1px solid #d8e2f0; border-radius: 8px; padding: 10px; }
 .toolbar-card span { display: block; color: #48607f; font-size: 11px; font-weight: 900; text-transform: uppercase; }
@@ -29,22 +31,31 @@
 .domain-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 13px; background: #f5f8fc; border-bottom: 1px solid #d8e2f0; font-weight: 900; color: #1f2737; cursor: pointer; }
 .domain-header::-webkit-details-marker { display: none; }
 .domain-summary-meta { color: #5d6b82; font-size: 12px; font-weight: 800; }
-.criterion { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(520px, 0.92fr); gap: 18px; padding: 16px 14px; border-bottom: 1px solid #edf2f8; align-items: start; }
+.criterion { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(560px, 0.95fr); gap: 18px; padding: 16px 14px; border-bottom: 1px solid #edf2f8; align-items: start; }
 .criterion:last-child { border-bottom: 0; }
+.criterion-rubric { border-left: 4px solid #0a4ea3; border-radius: 8px; background: #f8fbff; padding: 12px; }
 .criterion-title { margin: 0 0 7px; font-weight: 800; color: #1f2737; }
 .criterion-help { margin: 0; color: #5d6b82; font-size: 13px; line-height: 1.45; }
-.criterion-inputs { display: grid; grid-template-columns: minmax(220px, 280px) minmax(260px, 1fr); gap: 12px; align-items: start; }
+.criterion-inputs { display: grid; grid-template-columns: minmax(300px, 0.8fr) minmax(320px, 1.2fr); gap: 12px; align-items: stretch; }
 .rating-wrap { background: #f8fbff; border: 1px solid #dce7f5; border-radius: 8px; padding: 10px; }
 .rating-label, .evidence-label { display: block; margin-bottom: 7px; color: #48607f; font-size: 11px; font-weight: 900; text-transform: uppercase; }
-.rating-grid { display: grid; grid-template-columns: repeat(7, minmax(34px, 1fr)); gap: 5px; }
+.rating-grid { display: grid; grid-template-columns: repeat(7, minmax(40px, 1fr)); gap: 7px; }
 .rating-grid input { position: absolute; opacity: 0; pointer-events: none; }
 .rating-grid label {
-    min-height: 34px; border: 1px solid #c6d4e8; border-radius: 8px; display: flex; align-items: center; justify-content: center;
-    cursor: pointer; color: #48607f; font-weight: 900; background: #fff;
+    min-width: 40px; min-height: 38px; border: 1px solid #c6d4e8; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: #48607f; font-weight: 900; background: #fff; white-space: nowrap;
 }
 .rating-grid input:checked + label { background: #0a4ea3; color: #fff; border-color: #0a4ea3; }
-.evidence-box { display: grid; }
-.evidence { min-height: 118px; resize: vertical; line-height: 1.4; }
+.evidence-box { display: grid; padding: 10px; border: 1px solid #f1c982; border-radius: 8px; background: #fffaf0; }
+.evidence-label { color: #8a4b0f; }
+.evidence { min-height: 136px; resize: vertical; line-height: 1.4; border-color: #e6b96f !important; background: #fffefb !important; }
+.signature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.signature-card { border: 1px solid #d8e2f0; border-radius: 8px; background: #f8fbff; padding: 12px; }
+.signature-card h3 { margin: 0 0 8px; color: #1f2737; font-size: 15px; }
+.signature-pad { width: 100%; height: 150px; display: block; border: 1px dashed #8fa6c3; border-radius: 8px; background: #fff; touch-action: none; }
+.signature-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; color: #5d6b82; font-size: 12px; font-weight: 800; }
+.clear-signature { border: 1px solid #c6d4e8; border-radius: 8px; background: #fff; color: #1f2737; padding: 7px 10px; font-weight: 900; cursor: pointer; }
+.lock-note { margin: 10px 0 0; color: #48607f; font-size: 12px; font-weight: 800; }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .submit-btn { border: 0; border-radius: 8px; background: #0a4ea3; color: #fff; padding: 10px 14px; font-weight: 900; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 @media (max-width: 1000px) {
@@ -52,16 +63,19 @@
     .meta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .criterion { grid-template-columns: 1fr; }
     .criterion-inputs { grid-template-columns: 1fr; }
+    .signature-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
     .observation-toolbar { grid-template-columns: 1fr; }
     .meta-grid { grid-template-columns: 1fr; }
+    .rating-grid { grid-template-columns: repeat(4, minmax(46px, 1fr)); }
 }
 </style>
 {% endblock %}
 
 {% block content %}
 <form class="form-wrap" method="post" action="/observations/">
+    <input type="hidden" name="modal_mode" value="{{ 1 if modal_mode else 0 }}">
     <section class="observation-toolbar" aria-label="Observation completion summary">
         <div class="toolbar-card">
             <span>Completion</span>
@@ -99,6 +113,10 @@
                     <option value="Formal">Formal</option>
                     <option value="Non-formal">Non-formal</option>
                 </select>
+            </div>
+            <div class="field">
+                <label for="evaluator_name">Evaluator</label>
+                <input id="evaluator_name" name="evaluator_name" value="{{ evaluator_display_name }}" readonly>
             </div>
             <div class="field">
                 <label for="observation_date">Date</label>
@@ -146,7 +164,7 @@
         </summary>
         {% for criterion in group.criteria %}
         <div class="criterion" data-criterion>
-            <div>
+            <div class="criterion-rubric">
                 <p class="criterion-title">{{ criterion.indicator_number }}. {{ criterion.title }}</p>
                 <p class="criterion-help">{{ criterion.guidelines }}</p>
                 <p class="criterion-help"><strong>Evidence:</strong> {{ criterion.evidence_examples }}</p>
@@ -178,6 +196,30 @@
         </div>
     </section>
 
+    <section class="form-panel">
+        <div class="signature-grid">
+            <div class="signature-card">
+                <h3>Teacher Signature</h3>
+                <canvas class="signature-pad" data-signature-pad="teacher"></canvas>
+                <input type="hidden" name="teacher_signature_data" data-signature-input="teacher">
+                <div class="signature-actions">
+                    <span>Teacher signs after reviewing the observation.</span>
+                    <button class="clear-signature" type="button" data-clear-signature="teacher">Clear</button>
+                </div>
+            </div>
+            <div class="signature-card">
+                <h3>Evaluator Signature</h3>
+                <canvas class="signature-pad" data-signature-pad="evaluator"></canvas>
+                <input type="hidden" name="evaluator_signature_data" data-signature-input="evaluator">
+                <div class="signature-actions">
+                    <span>Evaluator signature finalizes the record.</span>
+                    <button class="clear-signature" type="button" data-clear-signature="evaluator">Clear</button>
+                </div>
+            </div>
+        </div>
+        <p class="lock-note">When both signatures are present, this observation is saved as locked.</p>
+    </section>
+
     <div class="form-actions">
         <button class="submit-btn" type="submit">{{ icon("save", "shell-icon") }} Submit Observation</button>
     </div>
@@ -185,6 +227,7 @@
 
 <script>
 (() => {
+    const form = document.querySelector(".form-wrap");
     const teacherSelect = document.getElementById("teacher_id");
     const subjectSelect = document.getElementById("subject");
     const subjectHelperText = document.getElementById("subjectHelperText");
@@ -195,6 +238,7 @@
     const evidenceCount = document.getElementById("evidenceCount");
     const criteria = Array.from(document.querySelectorAll("[data-criterion]"));
     const subjectOptions = Array.from(subjectSelect ? subjectSelect.options : []);
+    const signatureState = new Map();
 
     function selectedRating(criterion) {
         return criterion.querySelector("[data-rating]:checked");
@@ -289,6 +333,111 @@
             updateSummary();
         }
     });
+
+    function setupSignaturePad(canvas) {
+        const key = canvas.dataset.signaturePad;
+        const input = document.querySelector(`[data-signature-input="${key}"]`);
+        const context = canvas.getContext("2d");
+        let drawing = false;
+        let hasInk = false;
+
+        function resize() {
+            const previous = hasInk && input ? input.value : "";
+            const rect = canvas.getBoundingClientRect();
+            const scale = window.devicePixelRatio || 1;
+            canvas.width = Math.max(Math.round(rect.width * scale), 1);
+            canvas.height = Math.max(Math.round(rect.height * scale), 1);
+            context.setTransform(scale, 0, 0, scale, 0, 0);
+            context.lineWidth = 2;
+            context.lineCap = "round";
+            context.lineJoin = "round";
+            context.strokeStyle = "#102a43";
+            if (previous) {
+                const image = new Image();
+                image.onload = () => context.drawImage(image, 0, 0, rect.width, rect.height);
+                image.src = previous;
+            }
+        }
+
+        function point(event) {
+            const rect = canvas.getBoundingClientRect();
+            const source = event.touches ? event.touches[0] : event;
+            return {
+                x: source.clientX - rect.left,
+                y: source.clientY - rect.top,
+            };
+        }
+
+        function begin(event) {
+            event.preventDefault();
+            drawing = true;
+            const start = point(event);
+            context.beginPath();
+            context.moveTo(start.x, start.y);
+        }
+
+        function move(event) {
+            if (!drawing) {
+                return;
+            }
+            event.preventDefault();
+            const next = point(event);
+            context.lineTo(next.x, next.y);
+            context.stroke();
+            hasInk = true;
+        }
+
+        function end() {
+            if (!drawing) {
+                return;
+            }
+            drawing = false;
+            if (hasInk && input) {
+                input.value = canvas.toDataURL("image/png");
+            }
+        }
+
+        function clear() {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            hasInk = false;
+            if (input) {
+                input.value = "";
+            }
+        }
+
+        canvas.addEventListener("mousedown", begin);
+        canvas.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", end);
+        canvas.addEventListener("touchstart", begin, { passive: false });
+        canvas.addEventListener("touchmove", move, { passive: false });
+        canvas.addEventListener("touchend", end);
+        resize();
+        signatureState.set(key, { canvas, input, resize, clear, get hasInk() { return hasInk; } });
+    }
+
+    document.querySelectorAll("[data-signature-pad]").forEach(setupSignaturePad);
+    window.addEventListener("resize", () => {
+        signatureState.forEach((pad) => pad.resize());
+    });
+    document.addEventListener("click", (event) => {
+        const clearButton = event.target.closest("[data-clear-signature]");
+        if (!clearButton) {
+            return;
+        }
+        const pad = signatureState.get(clearButton.dataset.clearSignature);
+        if (pad) {
+            pad.clear();
+        }
+    });
+    if (form) {
+        form.addEventListener("submit", () => {
+            signatureState.forEach((pad) => {
+                if (pad.hasInk && pad.input) {
+                    pad.input.value = pad.canvas.toDataURL("image/png");
+                }
+            });
+        });
+    }
     updateSubjectFilter();
     updateSummary();
 })();

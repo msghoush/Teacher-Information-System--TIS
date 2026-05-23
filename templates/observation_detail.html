@@ -12,7 +12,7 @@
 .detail-wrap { display: grid; gap: 14px; }
 .shell-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px 12px; border: 1px solid #c6d4e8; border-radius: 8px; color: #1f2737; background: #fff; text-decoration: none; font-weight: 900; }
 .result-band, .result-panel { background: #fff; border: 1px solid #d8e2f0; border-radius: 8px; padding: 14px; }
-.result-band { display: grid; grid-template-columns: 1.4fr repeat(3, minmax(120px, .45fr)); gap: 12px; align-items: center; }
+.result-band { display: grid; grid-template-columns: 1.4fr repeat(4, minmax(120px, .45fr)); gap: 12px; align-items: center; }
 .result-title strong { display: block; color: #1f2737; font-size: 22px; }
 .result-title span, .metric span { color: #5d6b82; font-size: 12px; font-weight: 800; text-transform: uppercase; }
 .metric strong { display: block; margin-top: 4px; color: #1f2737; font-size: 22px; }
@@ -30,8 +30,14 @@
 .rating-pill { display: inline-flex; min-width: 36px; min-height: 28px; align-items: center; justify-content: center; border-radius: 999px; background: #eef6ff; color: #0a4ea3; font-weight: 900; }
 .note-form textarea { width: 100%; border: 1px solid #c6d4e8; border-radius: 8px; padding: 10px; min-height: 100px; resize: vertical; }
 .note-form button { margin-top: 8px; border: 0; border-radius: 8px; background: #0a4ea3; color: #fff; padding: 9px 13px; font-weight: 900; cursor: pointer; }
+.lock-pill { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 10px; border-radius: 999px; background: #ecfdf3; color: #027a48; font-weight: 900; }
+.signature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.signature-result { border: 1px solid #d8e2f0; border-radius: 8px; background: #f8fbff; padding: 12px; }
+.signature-result span { display: block; margin-bottom: 8px; color: #48607f; font-size: 12px; font-weight: 900; text-transform: uppercase; }
+.signature-result img { width: 100%; max-height: 150px; object-fit: contain; border: 1px dashed #8fa6c3; border-radius: 8px; background: #fff; }
+.locked-note { color: #5d6b82; font-weight: 800; }
 @media (max-width: 900px) {
-    .result-band, .feedback-grid, .domain-scores { grid-template-columns: 1fr; }
+    .result-band, .feedback-grid, .domain-scores, .signature-grid { grid-template-columns: 1fr; }
     .criteria-table { min-width: 760px; }
     .result-panel { overflow-x: auto; }
 }
@@ -57,6 +63,10 @@
         <div class="metric">
             <span>Class</span>
             <strong>{% if observation.grade or observation.section %}{{ observation.grade }}{{ observation.section }}{% else %}-{% endif %}</strong>
+        </div>
+        <div class="metric">
+            <span>Status</span>
+            <strong>{% if is_locked %}<span class="lock-pill">Locked</span>{% else %}{{ observation.status or "Final" }}{% endif %}</strong>
         </div>
     </section>
 
@@ -146,11 +156,40 @@
     </section>
 
     <section class="result-panel">
+        <h2>Signatures</h2>
+        <div class="signature-grid">
+            <div class="signature-result">
+                <span>Teacher Signature</span>
+                {% if observation.teacher_signature_data %}
+                <img src="{{ observation.teacher_signature_data }}" alt="Teacher signature">
+                {% else %}
+                <p>-</p>
+                {% endif %}
+            </div>
+            <div class="signature-result">
+                <span>Evaluator Signature</span>
+                {% if observation.evaluator_signature_data %}
+                <img src="{{ observation.evaluator_signature_data }}" alt="Evaluator signature">
+                {% else %}
+                <p>-</p>
+                {% endif %}
+            </div>
+        </div>
+        {% if is_locked %}
+        <p class="locked-note">This observation is locked after teacher and evaluator signatures.</p>
+        {% endif %}
+    </section>
+
+    <section class="result-panel">
         <h2>Evaluatee Notes</h2>
+        {% if is_locked %}
+        <p class="locked-note">{{ observation.evaluatee_notes or "Observation is locked after signatures." }}</p>
+        {% else %}
         <form class="note-form" method="post" action="/observations/{{ observation.id }}/evaluatee-notes">
             <textarea name="evaluatee_notes">{{ observation.evaluatee_notes or "" }}</textarea>
             <button type="submit">{{ icon("save", "shell-icon") }} Save Notes</button>
         </form>
+        {% endif %}
     </section>
 </div>
 {% endblock %}
