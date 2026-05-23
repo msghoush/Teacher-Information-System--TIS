@@ -36,6 +36,11 @@
 .criteria-table th, .criteria-table td { padding: 10px; border-bottom: 1px solid #e3ebf6; text-align: left; vertical-align: top; }
 .criteria-table th { color: #48607f; font-size: 12px; text-transform: uppercase; }
 .rating-pill { display: inline-flex; min-width: 36px; min-height: 28px; align-items: center; justify-content: center; border-radius: 999px; background: #eef6ff; color: #0a4ea3; font-weight: 900; }
+.rating-pill-self { background: #fff7ed; color: #c2410c; }
+.comparison-evidence { display: grid; gap: 8px; }
+.comparison-evidence-item { border: 1px solid #d8e2f0; border-radius: 8px; padding: 8px; background: #f8fbff; }
+.comparison-evidence-item strong { display: block; margin-bottom: 4px; color: #48607f; font-size: 11px; text-transform: uppercase; }
+.comparison-evidence-item.is-self { border-color: #f1c982; background: #fffaf0; }
 .note-form textarea { width: 100%; border: 1px solid #c6d4e8; border-radius: 8px; padding: 10px; min-height: 100px; resize: vertical; }
 .note-form button { margin-top: 8px; border: 0; border-radius: 8px; background: #0a4ea3; color: #fff; padding: 9px 13px; font-weight: 900; cursor: pointer; }
 .self-eval-form { display: grid; gap: 12px; }
@@ -218,6 +223,8 @@
         </form>
         {% elif can_self_evaluate and not self_evaluation_complete %}
         <p class="locked-note">Complete and save the teacher self-evaluation below before signing.</p>
+        {% elif can_update_evaluatee_notes %}
+        <p class="locked-note">Review the side-by-side evaluation, update evaluatee notes if needed, then sign to lock.</p>
         {% endif %}
     </section>
 
@@ -265,19 +272,33 @@
                 <tr>
                     <th>Domain</th>
                     <th>Criterion</th>
+                    <th>Evaluator Rating</th>
                     <th>Self-rating</th>
-                    <th>Self-evidence</th>
+                    <th>Evidence Comparison</th>
                 </tr>
             </thead>
             <tbody>
                 {% for group in criteria_groups %}
                 {% for criterion in group.criteria %}
                 {% set self_score = self_evaluation_scores_by_criterion.get(criterion.id) %}
+                {% set evaluator_score = scores_by_criterion.get(criterion.id) %}
                 <tr>
                     <td>{{ group.domain_key }}</td>
                     <td>{{ criterion.title }}</td>
-                    <td><span class="rating-pill">{{ self_score.rating if self_score else "NA" }}</span></td>
-                    <td>{{ self_score.evidence if self_score and self_score.evidence else "-" }}</td>
+                    <td><span class="rating-pill">{{ evaluator_score.rating if evaluator_score else "NA" }}</span></td>
+                    <td><span class="rating-pill rating-pill-self">{{ self_score.rating if self_score else "NA" }}</span></td>
+                    <td>
+                        <div class="comparison-evidence">
+                            <div class="comparison-evidence-item">
+                                <strong>Evaluator evidence</strong>
+                                {{ evaluator_score.evidence if evaluator_score and evaluator_score.evidence else "-" }}
+                            </div>
+                            <div class="comparison-evidence-item is-self">
+                                <strong>Teacher self-evidence</strong>
+                                {{ self_score.evidence if self_score and self_score.evidence else "-" }}
+                            </div>
+                        </div>
+                    </td>
                 </tr>
                 {% endfor %}
                 {% endfor %}
@@ -290,7 +311,14 @@
 
     <section class="result-panel">
         <h2>Evaluatee Notes</h2>
+        {% if can_update_evaluatee_notes %}
+        <form class="note-form" method="post" action="/observations/{{ observation.id }}/evaluatee-notes">
+            <textarea name="evaluatee_notes">{{ observation.evaluatee_notes or "" }}</textarea>
+            <button type="submit">{{ icon("save", "shell-icon") }} Save Evaluatee Notes</button>
+        </form>
+        {% else %}
         <p class="locked-note">{{ observation.evaluatee_notes or "-" }}</p>
+        {% endif %}
     </section>
 </div>
 <script>

@@ -1292,6 +1292,13 @@ def observation_detail_page(observation_id: int, request: Request, db: Session =
         current_teacher
         and current_teacher.id == observation.teacher_id
         and not _observation_is_locked(observation)
+        and not self_evaluation_complete
+    )
+    can_update_evaluatee_notes = bool(
+        current_teacher
+        and current_teacher.id == observation.teacher_id
+        and not _observation_is_locked(observation)
+        and self_evaluation_complete
     )
 
     return templates.TemplateResponse(
@@ -1320,6 +1327,7 @@ def observation_detail_page(observation_id: int, request: Request, db: Session =
             "can_delete_observation": _can_delete_observation(current_user, observation),
             "can_teacher_sign": can_teacher_sign,
             "can_self_evaluate": can_self_evaluate,
+            "can_update_evaluatee_notes": can_update_evaluatee_notes,
         },
     )
 
