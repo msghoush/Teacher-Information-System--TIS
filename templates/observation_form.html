@@ -31,19 +31,19 @@
 .domain-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 13px; background: #f5f8fc; border-bottom: 1px solid #d8e2f0; font-weight: 900; color: #1f2737; cursor: pointer; }
 .domain-header::-webkit-details-marker { display: none; }
 .domain-summary-meta { color: #5d6b82; font-size: 12px; font-weight: 800; }
-.criterion { display: grid; grid-template-columns: minmax(360px, 1.1fr) minmax(680px, 1.4fr); gap: 24px; padding: 18px 14px; border-bottom: 1px solid #edf2f8; align-items: start; }
+.criterion { display: grid; grid-template-columns: minmax(340px, 0.9fr) minmax(760px, 1.5fr); gap: 26px; padding: 18px 14px; border-bottom: 1px solid #edf2f8; align-items: start; }
 .criterion:last-child { border-bottom: 0; }
-.criterion-rubric { border-left: 4px solid #0a4ea3; border-radius: 8px; background: #f8fbff; padding: 12px; }
+.criterion-rubric { border-left: 4px solid #0a4ea3; border-radius: 8px; background: #f3f8ff; padding: 12px; box-shadow: inset 0 0 0 1px #dbeafe; }
 .criterion-title { margin: 0 0 7px; font-weight: 800; color: #1f2737; }
 .criterion-help { margin: 0; color: #5d6b82; font-size: 13px; line-height: 1.45; }
-.criterion-inputs { display: grid; grid-template-columns: minmax(340px, 0.9fr) minmax(360px, 1.1fr); gap: 18px; align-items: stretch; min-width: 0; }
-.rating-wrap { background: #f8fbff; border: 1px solid #dce7f5; border-radius: 8px; padding: 10px; }
+.criterion-inputs { display: grid; grid-template-columns: minmax(420px, 0.95fr) minmax(360px, 1.05fr); gap: 22px; align-items: stretch; min-width: 0; }
+.rating-wrap { background: #f4f8fd; border: 1px solid #cfe0f5; border-radius: 8px; padding: 12px; min-width: 0; overflow: hidden; }
 .rating-label, .evidence-label { display: block; margin-bottom: 7px; color: #48607f; font-size: 11px; font-weight: 900; text-transform: uppercase; }
-.rating-grid { display: grid; grid-template-columns: repeat(7, minmax(44px, 1fr)); gap: 8px; }
+.rating-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; width: 100%; }
 .rating-grid input { position: absolute; opacity: 0; pointer-events: none; }
 .rating-grid label {
-    min-width: 40px; min-height: 38px; border: 1px solid #c6d4e8; border-radius: 8px; display: flex; align-items: center; justify-content: center;
-    cursor: pointer; color: #48607f; font-weight: 900; background: #fff; white-space: nowrap;
+    min-width: 0; min-height: 38px; border: 1px solid #c6d4e8; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: #48607f; font-weight: 900; background: #fff; white-space: nowrap; font-size: 14px; line-height: 1;
 }
 .rating-grid input:checked + label { background: #0a4ea3; color: #fff; border-color: #0a4ea3; }
 .evidence-box { display: grid; padding: 12px; border: 1px solid #f1c982; border-radius: 8px; background: #fffaf0; min-width: 0; }
@@ -147,7 +147,12 @@
             </div>
             <div class="field">
                 <label for="period">Period</label>
-                <input id="period" name="period" value="{{ observation.period if observation else '' }}" placeholder="3">
+                <select id="period" name="period">
+                    <option value="">Select period</option>
+                    {% for item in ["Period 1", "Period 2", "Period 3", "Period 4", "Period 5", "Period 6", "Period 7", "Period 8"] %}
+                    <option value="{{ item }}" {% if observation and observation.period == item %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="field">
                 <label for="subject">Subject</label>
