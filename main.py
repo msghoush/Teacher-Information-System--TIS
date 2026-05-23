@@ -758,6 +758,10 @@ def _ensure_default_school_group(db: Session):
             legacy_group.updated_at = datetime.utcnow()
             school_group = legacy_group
     if not school_group:
+        school_group = db.query(models.SchoolGroup).order_by(
+            models.SchoolGroup.id.asc()
+        ).first()
+    if not school_group:
         school_group = models.SchoolGroup(
             name=DEFAULT_SCHOOL_GROUP_NAME,
             status=True,
@@ -9292,7 +9296,6 @@ def update_school_group(
     school_group.status = str(status or "").strip().lower() != "inactive"
     school_group.updated_at = datetime.utcnow()
     db.commit()
-    _ensure_default_school_group(db)
     return _redirect_with_notice(
         f"/system-configuration/schools?school_group_id={school_group.id}",
         "School information updated.",
