@@ -112,8 +112,6 @@ def ensure_observation_schema():
     )
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
-    if engine.dialect.name != "sqlite":
-        return
 
     with engine.begin() as connection:
         for table_name, column_sql_map in OBSERVATION_SCHEMA_COLUMNS.items():
@@ -131,12 +129,20 @@ def ensure_observation_schema():
                     table_name,
                     column_name,
                 )
+                column_sql = _dialect_column_sql(column_sql, engine.dialect.name)
+                add_column_prefix = "ADD COLUMN IF NOT EXISTS" if engine.dialect.name == "postgresql" else "ADD COLUMN"
                 connection.execute(
                     text(
                         f"ALTER TABLE {table_name} "
-                        f"ADD COLUMN {column_name} {column_sql}"
+                        f"{add_column_prefix} {column_name} {column_sql}"
                     )
                 )
+
+
+def _dialect_column_sql(column_sql: str, dialect_name: str) -> str:
+    if dialect_name != "postgresql":
+        return column_sql
+    return column_sql.replace("DATETIME", "TIMESTAMP")
 
 
 def prepare_observation_module(db: Session):
