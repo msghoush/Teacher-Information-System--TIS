@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}School Management | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+.school-page { display: grid; gap: 14px; }
+.error-banner { display: inline-flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid #efc5bf; border-radius: 12px; background: #fff5f3; color: #9f2d1f; font-weight: 800; }
+.config-nav, .school-tabs, .inline-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.config-nav-link, .school-tab { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 12px; border: 1px solid #d6e3f3; border-radius: 999px; background: #fff; color: #23466f; font-size: 12px; font-weight: 800; text-decoration: none; }
+.config-nav-link.is-active, .school-tab.is-active { border-color: #b8d0ec; background: #edf4ff; color: #17365d; }
+.school-layout { display: grid; grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.school-list, .school-main, .section-card { border: 1px solid #d8e2f0; border-radius: 14px; background: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .06); }
+.school-list { display: grid; gap: 10px; padding: 12px; position: sticky; top: 12px; }
+.school-list h2, .school-main h2, .section-card h3 { margin: 0; color: #17365d; }
+.school-list p, .school-main p, .section-card p { margin: 0; color: #60728c; font-size: 13px; line-height: 1.45; }
+.school-link { display: grid; gap: 3px; padding: 10px; border: 1px solid #d8e2f0; border-radius: 10px; color: #1f2737; text-decoration: none; background: #f8fbff; }
+.school-link.is-active { border-color: #0a4ea3; background: #edf4ff; }
+.school-link span { color: #60728c; font-size: 12px; font-weight: 800; }
+.school-main { display: grid; gap: 14px; padding: 14px; }
+.school-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid #e3ebf6; }
+.section-card { display: grid; gap: 12px; padding: 14px; box-shadow: none; }
+.form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.form-grid.two { grid-template-columns: minmax(0, 1fr) auto; }
+.field { display: grid; gap: 6px; }
+.field label { color: #48607f; font-size: 12px; font-weight: 900; text-transform: uppercase; }
+.field input, .field select { width: 100%; min-width: 0; border: 1px solid #c6d4e8; border-radius: 8px; padding: 9px 10px; color: #1f2737; background: #fff; }
+.action-btn { min-height: 36px; border: 1px solid transparent; border-radius: 8px; padding: 8px 12px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 900; cursor: pointer; text-decoration: none; }
+.action-btn-primary { background: #0a4ea3; color: #fff; }
+.action-btn-secondary { border-color: #c6d4e8; background: #fff; color: #1f2737; }
+.action-btn-danger { border-color: #efc5bf; background: #fff5f3; color: #9f2d1f; }
+.status-pill, .usage-pill { display: inline-flex; align-items: center; min-height: 26px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 900; background: #eef4fb; color: #48607f; }
+.status-pill.is-success { background: #ecfdf3; color: #027a48; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th, .data-table td { padding: 10px; border-bottom: 1px solid #e3ebf6; text-align: left; vertical-align: middle; }
+.data-table th { color: #48607f; font-size: 11px; text-transform: uppercase; }
+.table-wrap { overflow-x: auto; border: 1px solid #d8e2f0; border-radius: 12px; }
+.logo-strip { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px dashed #b8c9df; border-radius: 12px; background: #f8fbff; }
+.logo-strip img { max-height: 56px; max-width: 180px; object-fit: contain; background: #fff; border-radius: 8px; padding: 6px; }
+@media (max-width: 1050px) { .school-layout, .form-grid, .form-grid.two { grid-template-columns: 1fr; } .school-list { position: static; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="school-page">
+    {% if error_message %}
+    <div class="error-banner">{{ icon("warning", "icon") }} {{ error_message }}</div>
+    {% endif %}
+
+    <nav class="config-nav" aria-label="Configuration modules">
+        {% for module in configuration_modules %}
+        <a class="config-nav-link {% if module.active %}is-active{% endif %}" href="{{ module.href }}">
+            {{ icon(module.icon, "icon") }} {{ module.label }}
+        </a>
+        {% endfor %}
+    </nav>
+
+    <section class="school-layout">
+        <aside class="school-list">
+            <div>
+                <h2>Schools</h2>
+                <p>Subscriber containers for branches, years, branding, and access.</p>
+            </div>
+            {% for school in logo_school_groups %}
+            <a class="school-link {% if selected_school_group and school.id == selected_school_group.id %}is-active{% endif %}" href="/system-configuration/schools?school_group_id={{ school.id }}">
+                <strong>{{ school.name }}</strong>
+                <span>{{ "Active" if school.status else "Inactive" }}</span>
+            </a>
+            {% endfor %}
+            <form class="field" method="post" action="/system-configuration/schools">
+                <label for="new_school_name">New School / Organization</label>
+                <input id="new_school_name" name="name" placeholder="School name" required>
+                <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Create School</button>
+            </form>
+        </aside>
+
+        <main class="school-main">
+            {% if selected_school_group %}
+            <div class="school-header">
+                <div>
+                    <h2>{{ selected_school_group.name }}</h2>
+                    <p>School organization container. Future subscriptions will create this container, a default branch, admin account, and default year automatically.</p>
+                </div>
+                <span class="status-pill {% if selected_school_group.status %}is-success{% endif %}">{{ "Active" if selected_school_group.status else "Inactive" }}</span>
+            </div>
+
+            <section class="section-card">
+                <h3>School Information</h3>
+                <form class="form-grid" method="post" action="/system-configuration/schools/{{ selected_school_group.id }}">
+                    <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
+                    <div class="field">
+                        <label for="school_name">School / Organization Name</label>
+                        <input id="school_name" name="name" value="{{ selected_school_group.name }}" required>
+                    </div>
+                    <div class="field">
+                        <label for="school_status">Status</label>
+                        <select id="school_status" name="status">
+                            <option value="active" {% if selected_school_group.status %}selected{% endif %}>Active</option>
+                            <option value="inactive" {% if not selected_school_group.status %}selected{% endif %}>Inactive</option>
+                        </select>
+                    </div>
+                    <button class="action-btn action-btn-primary" type="submit">{{ icon("save", "icon") }} Save School</button>
+                </form>
+            </section>
+
+            <section class="section-card">
+                <h3>Branches</h3>
+                <form class="form-grid" method="post" action="/system-configuration/branches">
+                    <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
+                    <input type="hidden" name="school_group_id" value="{{ selected_school_group.id }}">
+                    <div class="field">
+                        <label for="branch_name">Branch Name</label>
+                        <input id="branch_name" name="name" placeholder="Branch name" required>
+                    </div>
+                    <div class="field">
+                        <label for="branch_region">Region</label>
+                        <select id="branch_region" name="region" required>
+                            <option value="" selected disabled>Select region</option>
+                            {% for region in saudi_regions %}
+                            <option value="{{ region }}">{{ region }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Add Branch</button>
+                </form>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead><tr><th>Branch</th><th>Region</th><th>Status</th><th>Usage</th><th></th></tr></thead>
+                        <tbody>
+                            {% for row in logo_branch_rows %}
+                            {% set branch = row.branch %}
+                            <tr>
+                                <td>{{ branch.name }}</td>
+                                <td>{{ branch.location or "-" }}</td>
+                                <td><span class="status-pill {% if branch.status %}is-success{% endif %}">{{ "Active" if branch.status else "Inactive" }}</span></td>
+                                <td>
+                                    {% set usage = branch_rows | selectattr("id", "equalto", branch.id) | list | first %}
+                                    {% if usage %}
+                                    <span class="usage-pill">{{ usage.usage_counts.users_count }} users</span>
+                                    <span class="usage-pill">{{ usage.usage_counts.teachers_count }} teachers</span>
+                                    {% else %}-{% endif %}
+                                </td>
+                                <td>
+                                    <form class="inline-actions" method="post" action="/system-configuration/branches/{{ branch.id }}">
+                                        <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
+                                        <input type="hidden" name="name" value="{{ branch.name }}">
+                                        <input type="hidden" name="region" value="{{ branch.location or 'Makkah Region' }}">
+                                        <input type="hidden" name="status" value="{{ 'inactive' if branch.status else 'active' }}">
+                                        <button class="action-btn action-btn-secondary" type="submit">{{ "Deactivate" if branch.status else "Activate" }}</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5">No branches exist yet. A default branch will be created automatically.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="section-card">
+                <h3>Academic Years</h3>
+                <form class="form-grid two" method="post" action="/developer/open-academic-year">
+                    <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
+                    <input type="hidden" name="school_group_id" value="{{ selected_school_group.id }}">
+                    <div class="field">
+                        <label for="school_year_name">Open New Academic Year</label>
+                        <input id="school_year_name" name="year_name" placeholder="YYYY-YYYY" required>
+                    </div>
+                    <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Open Year</button>
+                </form>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead><tr><th>Academic Year</th><th>Status</th><th></th></tr></thead>
+                        <tbody>
+                            {% for year in school_academic_year_rows %}
+                            <tr>
+                                <td>{{ year.year_name }}</td>
+                                <td><span class="status-pill {% if year.is_active %}is-success{% endif %}">{{ "Current" if year.is_active else "Inactive" }}</span></td>
+                                <td>
+                                    {% if not year.is_active %}
+                                    <form method="post" action="/admin/current-year">
+                                        <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
+                                        <input type="hidden" name="academic_year_id" value="{{ year.id }}">
+                                        <button class="action-btn action-btn-secondary" type="submit">Set Current</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="3">No academic years exist yet for this school.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="section-card">
+                <h3>School Branding / Logo</h3>
+                <p>These shared logos apply to all branches in the school unless a branch override is added.</p>
+                <div class="logo-strip">
+                    {% for logo in group_logos %}
+                    <img src="{{ logo.url }}" alt="{{ logo.label }} logo" title="{{ logo.label }}">
+                    {% endfor %}
+                </div>
+                <div class="inline-actions">
+                    <a class="action-btn action-btn-secondary" href="/system-configuration/logos?school_group_id={{ selected_school_group.id }}">{{ icon("upload", "icon") }} Edit Branding</a>
+                </div>
+            </section>
+
+            <section class="section-card">
+                <h3>School Admins / Access</h3>
+                <p>This area is reserved for subscription onboarding. Later, creating a subscription will automatically create the school, default branch, admin account, and default academic year.</p>
+                <a class="action-btn action-btn-secondary" href="/users">{{ icon("users", "icon") }} Manage Users</a>
+            </section>
+            {% else %}
+            <section class="section-card">
+                <h3>No School Selected</h3>
+                <p>Create a school/organization to start setting up branches, years, branding, and administrators.</p>
+            </section>
+            {% endif %}
+        </main>
+    </section>
+</section>
+{% endblock %}

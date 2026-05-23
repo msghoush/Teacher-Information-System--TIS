@@ -328,6 +328,10 @@ def build_shell_context(
     branch = db.query(models.Branch).filter(
         models.Branch.id == scoped_branch_id
     ).first()
+    scoped_school_group_id = getattr(branch, "school_group_id", None)
+    school_group = db.query(models.SchoolGroup).filter(
+        models.SchoolGroup.id == scoped_school_group_id
+    ).first() if scoped_school_group_id else None
     academic_year = db.query(models.AcademicYear).filter(
         models.AcademicYear.id == scoped_academic_year_id
     ).first()
@@ -345,17 +349,32 @@ def build_shell_context(
     active_year_id = None
 
     if can_manage_system_settings:
-        available_scope_branches = db.query(models.Branch).filter(
+        available_scope_branch_query = db.query(models.Branch).filter(
             models.Branch.status == True
-        ).order_by(models.Branch.name.asc()).all()
+        )
+        if scoped_school_group_id:
+            available_scope_branch_query = available_scope_branch_query.filter(
+                models.Branch.school_group_id == scoped_school_group_id
+            )
+        available_scope_branches = available_scope_branch_query.order_by(models.Branch.name.asc()).all()
         if branch and not branch.status and available_scope_branches:
             branch = available_scope_branches[0]
-        all_years = db.query(models.AcademicYear).order_by(
+        all_years_query = db.query(models.AcademicYear)
+        if scoped_school_group_id:
+            all_years_query = all_years_query.filter(
+                models.AcademicYear.school_group_id == scoped_school_group_id
+            )
+        all_years = all_years_query.order_by(
             models.AcademicYear.year_name.desc()
         ).all()
-        active_year = db.query(models.AcademicYear).filter(
+        active_year_query = db.query(models.AcademicYear).filter(
             models.AcademicYear.is_active == True
-        ).first()
+        )
+        if scoped_school_group_id:
+            active_year_query = active_year_query.filter(
+                models.AcademicYear.school_group_id == scoped_school_group_id
+            )
+        active_year = active_year_query.first()
         active_year_id = active_year.id if active_year else None
 
     effective_role = getattr(current_user, "effective_role", None) or getattr(current_user, "role", "")
@@ -394,6 +413,8 @@ def build_shell_context(
             "user_image_url": profile_image_url,
             "user_initials": profile_initials,
             "branch_name": branch.name if branch else "Not assigned",
+            "school_group_name": school_group.name if school_group else "Not assigned",
+            "school_group_id": scoped_school_group_id,
             "academic_year_name": academic_year.year_name if academic_year else "Not assigned",
             "can_manage_system_settings": can_manage_system_settings,
             "can_manage_users": can_manage_users,

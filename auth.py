@@ -213,9 +213,21 @@ def get_current_user(
     elif parsed_branch_id and parsed_branch_id == user.branch_id:
         scoped_branch_id = parsed_branch_id
 
-    active_year = db.query(models.AcademicYear).filter(
+    scoped_school_group_id = None
+    if scoped_branch_id:
+        scoped_branch = db.query(models.Branch).filter(
+            models.Branch.id == scoped_branch_id
+        ).first()
+        scoped_school_group_id = getattr(scoped_branch, "school_group_id", None) if scoped_branch else None
+
+    active_year_query = db.query(models.AcademicYear).filter(
         models.AcademicYear.is_active == True
-    ).first()
+    )
+    if scoped_school_group_id:
+        active_year_query = active_year_query.filter(
+            models.AcademicYear.school_group_id == scoped_school_group_id
+        )
+    active_year = active_year_query.first()
 
     can_all_year_scope = can_access_all_years(user)
     if can_all_year_scope and parsed_year_id:

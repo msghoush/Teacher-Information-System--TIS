@@ -65,6 +65,7 @@ class BranchLogo(Base):
 class AcademicYear(Base):
     __tablename__ = "academic_years"
     id = Column(Integer, primary_key=True, index=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), index=True)
     year_name = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
 

@@ -280,7 +280,7 @@ BRANCH_LOGO_RELATIVE_DIR = "uploads/branch_logos"
 SCHOOL_GROUP_LOGO_UPLOAD_DIR = os.path.join("static", "uploads", "school_group_logos")
 SCHOOL_GROUP_LOGO_RELATIVE_DIR = "uploads/school_group_logos"
 BRANCH_LOGO_MAX_BYTES = 4 * 1024 * 1024
-DEFAULT_SCHOOL_GROUP_NAME = "Al Andalus Schools"
+DEFAULT_SCHOOL_GROUP_NAME = "Al-Andalus Schools"
 MAJOR_ALIGNMENT_STOPWORDS = {
     "a",
     "an",
@@ -346,6 +346,20 @@ def _ensure_school_group_schema():
             try:
                 connection.execute(
                     text("CREATE INDEX IF NOT EXISTS ix_branches_school_group_id ON branches (school_group_id)")
+                )
+            except Exception:
+                pass
+
+    academic_year_columns = {
+        column["name"]
+        for column in inspector.get_columns("academic_years")
+    } if "academic_years" in table_names else set()
+    if "academic_years" in table_names and "school_group_id" not in academic_year_columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE academic_years ADD COLUMN school_group_id INTEGER"))
+            try:
+                connection.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_academic_years_school_group_id ON academic_years (school_group_id)")
                 )
             except Exception:
                 pass
@@ -655,6 +669,7 @@ def _build_branch_configuration_rows(
         branch_rows.append(
             {
                 "id": branch.id,
+                "school_group_id": getattr(branch, "school_group_id", None),
                 "name": str(branch.name or "").strip(),
                 "region": normalized_region or saved_region,
                 "status": bool(branch.status),
@@ -674,6 +689,14 @@ def _ensure_default_school_group(db: Session):
         models.SchoolGroup.name == DEFAULT_SCHOOL_GROUP_NAME
     ).first()
     if not school_group:
+        legacy_group = db.query(models.SchoolGroup).filter(
+            models.SchoolGroup.name.in_(["Al Andalus Schools", "Andalus Schools"])
+        ).first()
+        if legacy_group:
+            legacy_group.name = DEFAULT_SCHOOL_GROUP_NAME
+            legacy_group.updated_at = datetime.utcnow()
+            school_group = legacy_group
+    if not school_group:
         school_group = models.SchoolGroup(
             name=DEFAULT_SCHOOL_GROUP_NAME,
             status=True,
@@ -688,6 +711,29 @@ def _ensure_default_school_group(db: Session):
     for branch in branches_without_group:
         branch.school_group_id = school_group.id
         changed = True
+
+    academic_years_without_group = db.query(models.AcademicYear).filter(
+        models.AcademicYear.school_group_id.is_(None)
+    ).all()
+    for academic_year in academic_years_without_group:
+        academic_year.school_group_id = school_group.id
+        changed = True
+
+    all_school_groups = db.query(models.SchoolGroup).all()
+    for item in all_school_groups:
+        has_branch = db.query(models.Branch).filter(
+            models.Branch.school_group_id == item.id
+        ).first()
+        if not has_branch:
+            db.add(
+                models.Branch(
+                    school_group_id=item.id,
+                    name=item.name,
+                    location="Makkah Region",
+                    status=True,
+                )
+            )
+            changed = True
 
     if changed:
         school_group.updated_at = datetime.utcnow()
@@ -744,18 +790,11 @@ CONFIGURATION_MODULES = (
         "description": "Open the configuration hub.",
     },
     {
-        "key": "branches",
-        "label": "Branches",
-        "href": "/system-configuration/branches",
+        "key": "school-management",
+        "label": "School Management",
+        "href": "/system-configuration/schools",
         "icon": "branch",
-        "description": "Manage branch records and status.",
-    },
-    {
-        "key": "school-logos",
-        "label": "School Logos",
-        "href": "/system-configuration/logos",
-        "icon": "upload",
-        "description": "Manage the three branch logo references used across TIS.",
+        "description": "Manage schools, branches, academic years, branding, and access foundations.",
     },
     {
         "key": "users",
@@ -777,13 +816,6 @@ CONFIGURATION_MODULES = (
         "href": "/system-configuration/specializations",
         "icon": "subjects",
         "description": "Manage majors and teaching specializations.",
-    },
-    {
-        "key": "academic-years",
-        "label": "Academic Years",
-        "href": "/system-configuration/academic-years",
-        "icon": "year",
-        "description": "Open and switch live academic years.",
     },
     {
         "key": "timetable-settings",
@@ -813,6 +845,7 @@ def _get_configuration_modules(active_key: str) -> list[dict[str, object]]:
 
 
 def _build_configuration_hub_stats(
+    school_group_rows,
     branch_rows,
     academic_year_rows,
     degree_rows,
@@ -822,6 +855,12 @@ def _build_configuration_hub_stats(
     calendar_event_type_count,
 ):
     return [
+        {
+            "label": "Schools",
+            "icon": "branch",
+            "value": len(school_group_rows),
+            "note": "Organization containers",
+        },
         {
             "label": "Branches",
             "icon": "branch",
@@ -876,6 +915,10 @@ def _build_configuration_context(request: Request, db: Session, current_user):
         db,
         scoped_branch_id=scoped_branch_id,
     )
+    school_group_rows = db.query(models.SchoolGroup).order_by(
+        models.SchoolGroup.status.desc(),
+        models.SchoolGroup.name.asc(),
+    ).all()
     academic_year_rows = db.query(models.AcademicYear).order_by(
         models.AcademicYear.year_name.desc()
     ).all()
@@ -896,6 +939,8 @@ def _build_configuration_context(request: Request, db: Session, current_user):
     calendar_event_type_count = db.query(models.CalendarEventType).count()
     return {
         "branch_rows": branch_rows,
+        "school_group_rows": school_group_rows,
+        "school_group_count": len(school_group_rows),
         "branch_count": len(branch_rows),
         "active_branch_count": sum(1 for row in branch_rows if row["status"]),
         "inactive_branch_count": sum(1 for row in branch_rows if not row["status"]),
@@ -907,6 +952,7 @@ def _build_configuration_context(request: Request, db: Session, current_user):
         "calendar_event_type_count": calendar_event_type_count,
         "configuration_modules": _get_configuration_modules("overview"),
         "configuration_stats": _build_configuration_hub_stats(
+            school_group_rows,
             branch_rows,
             academic_year_rows,
             degree_rows,
@@ -9068,6 +9114,122 @@ def system_configuration(
     )
 
 
+def _build_school_management_context(request: Request, db: Session, current_user):
+    context = _build_school_logo_module_context(request, db, current_user)
+    selected_school_group = context.get("selected_school_group")
+    school_group_id = getattr(selected_school_group, "id", None)
+    school_academic_year_rows = []
+    if school_group_id:
+        school_academic_year_rows = db.query(models.AcademicYear).filter(
+            models.AcademicYear.school_group_id == school_group_id
+        ).order_by(models.AcademicYear.year_name.desc()).all()
+    return {
+        **context,
+        "school_academic_year_rows": school_academic_year_rows,
+    }
+
+
+@app.get("/system-configuration/schools")
+def system_configuration_schools(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_configuration_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    return _render_configuration_template(
+        request=request,
+        db=db,
+        current_user=current_user,
+        template_name="system_configuration_schools.html",
+        active_module_key="school-management",
+        title="School Management",
+        intro="Manage school organizations, branches, academic years, branding, access, and subscription-ready setup.",
+        extra_context=_build_school_management_context(request, db, current_user),
+    )
+
+
+@app.post("/system-configuration/schools")
+def create_school_group(
+    request: Request,
+    name: str = Form(...),
+    return_to: str = Form("/system-configuration/schools"),
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_configuration_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    cleaned_name = " ".join(str(name or "").split())
+    if not cleaned_name:
+        return _redirect_with_error(return_to, "School/organization name is required.")
+
+    existing = db.query(models.SchoolGroup).filter(
+        func.lower(models.SchoolGroup.name) == cleaned_name.lower()
+    ).first()
+    if existing:
+        return _redirect_with_error(return_to, "A school/organization with that name already exists.")
+
+    school_group = models.SchoolGroup(name=cleaned_name, status=True)
+    db.add(school_group)
+    db.flush()
+    db.add(
+        models.Branch(
+            school_group_id=school_group.id,
+            name=cleaned_name,
+            location="Makkah Region",
+            status=True,
+        )
+    )
+    db.commit()
+    return _redirect_with_notice(
+        f"/system-configuration/schools?school_group_id={school_group.id}",
+        "School created with a default branch.",
+    )
+
+
+@app.post("/system-configuration/schools/{school_group_id}")
+def update_school_group(
+    school_group_id: int,
+    request: Request,
+    name: str = Form(...),
+    status: str = Form("active"),
+    return_to: str = Form("/system-configuration/schools"),
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_configuration_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    school_group = db.query(models.SchoolGroup).filter(
+        models.SchoolGroup.id == school_group_id
+    ).first()
+    if not school_group:
+        return _redirect_with_error(return_to, "School/organization record not found.")
+
+    cleaned_name = " ".join(str(name or "").split())
+    if not cleaned_name:
+        return _redirect_with_error(return_to, "School/organization name is required.")
+
+    duplicate = db.query(models.SchoolGroup).filter(
+        func.lower(models.SchoolGroup.name) == cleaned_name.lower(),
+        models.SchoolGroup.id != school_group_id,
+    ).first()
+    if duplicate:
+        return _redirect_with_error(return_to, "Another school/organization already uses that name.")
+
+    school_group.name = cleaned_name
+    school_group.status = str(status or "").strip().lower() != "inactive"
+    school_group.updated_at = datetime.utcnow()
+    db.commit()
+    _ensure_default_school_group(db)
+    return _redirect_with_notice(
+        f"/system-configuration/schools?school_group_id={school_group.id}",
+        "School information updated.",
+    )
+
+
 @app.get("/system-configuration/branches")
 def system_configuration_branches(
     request: Request,
@@ -9076,6 +9238,7 @@ def system_configuration_branches(
     current_user, redirect_response = _get_configuration_access(request, db)
     if redirect_response:
         return redirect_response
+    return RedirectResponse(url="/system-configuration/schools", status_code=302)
 
     return _render_configuration_template(
         request=request,
@@ -9102,7 +9265,7 @@ def system_configuration_logos(
         db=db,
         current_user=current_user,
         template_name="system_configuration_logos.html",
-        active_module_key="school-logos",
+        active_module_key="school-management",
         title="School Logos",
         intro="Manage school-group logos and branch logo overrides used across the system.",
         extra_context=_build_school_logo_module_context(request, db, current_user),
@@ -9395,6 +9558,7 @@ def system_configuration_academic_years(
     current_user, redirect_response = _get_configuration_access(request, db)
     if redirect_response:
         return redirect_response
+    return RedirectResponse(url="/system-configuration/schools", status_code=302)
 
     return _render_configuration_template(
         request=request,
@@ -9785,6 +9949,7 @@ def create_branch(
     request: Request,
     name: str = Form(...),
     region: str = Form(""),
+    school_group_id: int | None = Form(None),
     return_to: str = Form("/system-configuration/branches"),
     db: Session = Depends(get_db),
 ):
@@ -9817,9 +9982,15 @@ def create_branch(
             "A branch with that name already exists.",
         )
 
-    school_group = db.query(models.SchoolGroup).filter(
-        models.SchoolGroup.name == DEFAULT_SCHOOL_GROUP_NAME
-    ).first()
+    school_group = None
+    if school_group_id:
+        school_group = db.query(models.SchoolGroup).filter(
+            models.SchoolGroup.id == school_group_id
+        ).first()
+    if not school_group:
+        school_group = db.query(models.SchoolGroup).filter(
+            models.SchoolGroup.name == DEFAULT_SCHOOL_GROUP_NAME
+        ).first()
     if not school_group:
         school_group = _ensure_default_school_group(db)
 
@@ -10181,10 +10352,11 @@ def set_current_year(
             status_code=302,
         )
 
-    db.query(models.AcademicYear).update(
-        {models.AcademicYear.is_active: False},
-        synchronize_session=False
-    )
+    target_group_id = getattr(target_year, "school_group_id", None)
+    deactivate_query = db.query(models.AcademicYear)
+    if target_group_id:
+        deactivate_query = deactivate_query.filter(models.AcademicYear.school_group_id == target_group_id)
+    deactivate_query.update({models.AcademicYear.is_active: False}, synchronize_session=False)
     target_year.is_active = True
     db.commit()
 
@@ -10208,6 +10380,7 @@ def set_current_year(
 def open_new_academic_year(
     request: Request,
     year_name: str = Form(...),
+    school_group_id: int | None = Form(None),
     return_to: str = Form("/dashboard"),
     db: Session = Depends(get_db)
 ):
@@ -10222,23 +10395,28 @@ def open_new_academic_year(
             "Academic year names must use the YYYY-YYYY format.",
         )
 
-    existing_year = db.query(models.AcademicYear).filter(
+    selected_group_id = school_group_id or _get_user_school_group_id(db, current_user)
+    existing_query = db.query(models.AcademicYear).filter(
         models.AcademicYear.year_name == cleaned_year_name
-    ).first()
+    )
+    if selected_group_id:
+        existing_query = existing_query.filter(models.AcademicYear.school_group_id == selected_group_id)
+    existing_year = existing_query.first()
     if existing_year:
         target_year = existing_year
-        db.query(models.AcademicYear).update(
-            {models.AcademicYear.is_active: False},
-            synchronize_session=False
-        )
+        deactivate_query = db.query(models.AcademicYear)
+        if selected_group_id:
+            deactivate_query = deactivate_query.filter(models.AcademicYear.school_group_id == selected_group_id)
+        deactivate_query.update({models.AcademicYear.is_active: False}, synchronize_session=False)
         target_year.is_active = True
         db.commit()
     else:
-        db.query(models.AcademicYear).update(
-            {models.AcademicYear.is_active: False},
-            synchronize_session=False
-        )
+        deactivate_query = db.query(models.AcademicYear)
+        if selected_group_id:
+            deactivate_query = deactivate_query.filter(models.AcademicYear.school_group_id == selected_group_id)
+        deactivate_query.update({models.AcademicYear.is_active: False}, synchronize_session=False)
         target_year = models.AcademicYear(
+            school_group_id=selected_group_id,
             year_name=cleaned_year_name,
             is_active=True
         )
@@ -11867,6 +12045,7 @@ def setup_initial_data():
         default_branch = db.query(Branch).filter(
             Branch.status == True
         ).order_by(Branch.id.asc()).first()
+    default_school_group_id = getattr(default_branch, "school_group_id", None)
 
     legacy_position_map = {
         "Education Excelency": "Education Excellence",
@@ -11890,6 +12069,7 @@ def setup_initial_data():
 
     if not academic_year:
         academic_year = AcademicYear(
+            school_group_id=default_school_group_id,
             year_name="2025-2026",
             is_active=True
         )
@@ -11902,6 +12082,8 @@ def setup_initial_data():
         ).first()
         if not active_year:
             academic_year.is_active = True
+            if not getattr(academic_year, "school_group_id", None):
+                academic_year.school_group_id = default_school_group_id
             db.commit()
 
     # Create Admin User if not exists

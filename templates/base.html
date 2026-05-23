@@ -26,7 +26,14 @@
                     <div class="scope-pill">
                         {{ icon("branch", "shell-icon") }}
                         <div>
-                            <span>Branch Scope</span>
+                            <span>School</span>
+                            <strong>{{ shell.school_group_name }}</strong>
+                        </div>
+                    </div>
+                    <div class="scope-pill">
+                        {{ icon("branch", "shell-icon") }}
+                        <div>
+                            <span>Branch / Campus</span>
                             <strong>{{ shell.branch_name }}</strong>
                         </div>
                     </div>
@@ -65,12 +72,12 @@
                 <h3 class="sidebar-section-title">Configuration</h3>
                 <div class="sidebar-config">
                     <div class="sidebar-config-card">
-                        <h4 class="sidebar-card-title">Change Branch</h4>
-                        <p>Switch branch scope without leaving the current screen.</p>
+                        <h4 class="sidebar-card-title">Change Branch / Campus</h4>
+                        <p>Switch branch scope inside the selected school.</p>
                         <form class="sidebar-config-row" method="post" action="/scope/branch">
                             <input type="hidden" name="return_to" value="{{ request.url.path }}">
                             <div>
-                                <label for="sidebar_scope_branch_id">Branch Scope</label>
+                                <label for="sidebar_scope_branch_id">Branch / Campus</label>
                                 <select id="sidebar_scope_branch_id" name="branch_id" required>
                                     {% for branch_item in shell.available_scope_branches %}
                                     <option value="{{ branch_item.id }}" {% if shell.scoped_branch_id == branch_item.id %}selected{% endif %}>{{ branch_item.name }}</option>
@@ -135,7 +142,11 @@
                     </div>
                     <div class="header-context-strip">
                         <div class="header-chip">
-                            <span>{{ icon("branch", "shell-icon") }} Branch</span>
+                            <span>{{ icon("branch", "shell-icon") }} School</span>
+                            <strong>{{ shell.school_group_name }}</strong>
+                        </div>
+                        <div class="header-chip">
+                            <span>{{ icon("branch", "shell-icon") }} Branch / Campus</span>
                             <strong>{{ shell.branch_name }}</strong>
                         </div>
                         <div class="header-chip">
