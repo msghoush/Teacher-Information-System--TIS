@@ -4,6 +4,14 @@
 {% block title %}Observation Result | TIS{% endblock %}
 
 {% block page_header_actions %}
+{% if can_edit_observation %}
+<a class="shell-btn" href="/observations/{{ observation.id }}/edit">{{ icon("edit", "shell-icon") }} Edit</a>
+{% endif %}
+{% if can_delete_observation %}
+<form method="post" action="/observations/{{ observation.id }}/delete" onsubmit="return confirm('Delete this observation?');">
+    <button class="shell-btn" type="submit">{{ icon("trash", "shell-icon") }} Delete</button>
+</form>
+{% endif %}
 <a class="shell-btn" href="/observations/">{{ icon("chevron-right", "shell-icon") }} Back</a>
 {% endblock %}
 
@@ -30,6 +38,11 @@
 .rating-pill { display: inline-flex; min-width: 36px; min-height: 28px; align-items: center; justify-content: center; border-radius: 999px; background: #eef6ff; color: #0a4ea3; font-weight: 900; }
 .note-form textarea { width: 100%; border: 1px solid #c6d4e8; border-radius: 8px; padding: 10px; min-height: 100px; resize: vertical; }
 .note-form button { margin-top: 8px; border: 0; border-radius: 8px; background: #0a4ea3; color: #fff; padding: 9px 13px; font-weight: 900; cursor: pointer; }
+.signature-pad { width: 100%; height: 150px; display: block; border: 1px dashed #8fa6c3; border-radius: 8px; background: #fff; touch-action: none; }
+.signature-input { display: none; }
+.signature-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.signature-button { border: 0; border-radius: 8px; background: #0a4ea3; color: #fff; padding: 9px 13px; font-weight: 900; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.signature-button-secondary { border: 1px solid #c6d4e8; background: #fff; color: #1f2737; }
 .lock-pill { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 10px; border-radius: 999px; background: #ecfdf3; color: #027a48; font-weight: 900; }
 .signature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .signature-result { border: 1px solid #d8e2f0; border-radius: 8px; background: #f8fbff; padding: 12px; }
@@ -178,6 +191,45 @@
         {% if is_locked %}
         <p class="locked-note">This observation is locked after teacher and evaluator signatures.</p>
         {% endif %}
+        {% if can_teacher_sign %}
+        <form method="post" action="/observations/{{ observation.id }}/teacher-signature" data-signature-form>
+            <div class="signature-result">
+                <span>Add Teacher Signature</span>
+                <canvas class="signature-pad" data-signature-pad></canvas>
+                <input class="signature-input" type="hidden" name="teacher_signature_data" data-signature-input>
+                <div class="signature-actions">
+                    <button class="signature-button signature-button-secondary" type="button" data-clear-signature>Clear</button>
+                    <button class="signature-button" type="submit">{{ icon("save", "shell-icon") }} Sign and Lock</button>
+                </div>
+            </div>
+        </form>
+        {% endif %}
+    </section>
+
+    <section class="result-panel">
+        <h2>Teacher Self-Evaluation</h2>
+        {% if can_self_evaluate %}
+        <form class="note-form" method="post" action="/observations/{{ observation.id }}/self-evaluation">
+            <label>Reflection</label>
+            <textarea name="reflection">{{ self_evaluation.reflection if self_evaluation and self_evaluation.reflection else "" }}</textarea>
+            <label>Strengths</label>
+            <textarea name="strengths">{{ self_evaluation.strengths if self_evaluation and self_evaluation.strengths else "" }}</textarea>
+            <label>Growth Areas</label>
+            <textarea name="growth_areas">{{ self_evaluation.growth_areas if self_evaluation and self_evaluation.growth_areas else "" }}</textarea>
+            <label>Support Needed</label>
+            <textarea name="support_needed">{{ self_evaluation.support_needed if self_evaluation and self_evaluation.support_needed else "" }}</textarea>
+            <button type="submit">{{ icon("save", "shell-icon") }} Save Self-Evaluation</button>
+        </form>
+        {% elif self_evaluation %}
+        <div class="feedback-grid">
+            <div class="feedback-box"><h3>Reflection</h3><p>{{ self_evaluation.reflection or "-" }}</p></div>
+            <div class="feedback-box"><h3>Strengths</h3><p>{{ self_evaluation.strengths or "-" }}</p></div>
+            <div class="feedback-box"><h3>Growth Areas</h3><p>{{ self_evaluation.growth_areas or "-" }}</p></div>
+            <div class="feedback-box"><h3>Support Needed</h3><p>{{ self_evaluation.support_needed or "-" }}</p></div>
+        </div>
+        {% else %}
+        <p>-</p>
+        {% endif %}
     </section>
 
     <section class="result-panel">
@@ -192,4 +244,50 @@
         {% endif %}
     </section>
 </div>
+<script>
+(() => {
+    const canvas = document.querySelector("[data-signature-pad]");
+    const input = document.querySelector("[data-signature-input]");
+    if (!canvas || !input) {
+        return;
+    }
+    const context = canvas.getContext("2d");
+    let drawing = false;
+    let hasInk = false;
+    function resize() {
+        const rect = canvas.getBoundingClientRect();
+        const scale = window.devicePixelRatio || 1;
+        canvas.width = Math.max(Math.round(rect.width * scale), 1);
+        canvas.height = Math.max(Math.round(rect.height * scale), 1);
+        context.setTransform(scale, 0, 0, scale, 0, 0);
+        context.lineWidth = 2;
+        context.lineCap = "round";
+        context.strokeStyle = "#102a43";
+    }
+    function point(event) {
+        const rect = canvas.getBoundingClientRect();
+        const source = event.touches ? event.touches[0] : event;
+        return { x: source.clientX - rect.left, y: source.clientY - rect.top };
+    }
+    function begin(event) { event.preventDefault(); drawing = true; const p = point(event); context.beginPath(); context.moveTo(p.x, p.y); }
+    function move(event) { if (!drawing) return; event.preventDefault(); const p = point(event); context.lineTo(p.x, p.y); context.stroke(); hasInk = true; input.value = canvas.toDataURL("image/png"); }
+    function end() { drawing = false; if (hasInk) input.value = canvas.toDataURL("image/png"); }
+    canvas.addEventListener("mousedown", begin);
+    canvas.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", end);
+    canvas.addEventListener("touchstart", begin, { passive: false });
+    canvas.addEventListener("touchmove", move, { passive: false });
+    canvas.addEventListener("touchend", end);
+    document.addEventListener("click", (event) => {
+        if (!event.target.closest("[data-clear-signature]")) return;
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        hasInk = false;
+        input.value = "";
+    });
+    document.querySelector("[data-signature-form]")?.addEventListener("submit", () => {
+        if (hasInk) input.value = canvas.toDataURL("image/png");
+    });
+    resize();
+})();
+</script>
 {% endblock %}

@@ -31,27 +31,29 @@
 .domain-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 13px; background: #f5f8fc; border-bottom: 1px solid #d8e2f0; font-weight: 900; color: #1f2737; cursor: pointer; }
 .domain-header::-webkit-details-marker { display: none; }
 .domain-summary-meta { color: #5d6b82; font-size: 12px; font-weight: 800; }
-.criterion { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(560px, 0.95fr); gap: 18px; padding: 16px 14px; border-bottom: 1px solid #edf2f8; align-items: start; }
+.criterion { display: grid; grid-template-columns: minmax(360px, 1.1fr) minmax(680px, 1.4fr); gap: 24px; padding: 18px 14px; border-bottom: 1px solid #edf2f8; align-items: start; }
 .criterion:last-child { border-bottom: 0; }
 .criterion-rubric { border-left: 4px solid #0a4ea3; border-radius: 8px; background: #f8fbff; padding: 12px; }
 .criterion-title { margin: 0 0 7px; font-weight: 800; color: #1f2737; }
 .criterion-help { margin: 0; color: #5d6b82; font-size: 13px; line-height: 1.45; }
-.criterion-inputs { display: grid; grid-template-columns: minmax(300px, 0.8fr) minmax(320px, 1.2fr); gap: 12px; align-items: stretch; }
+.criterion-inputs { display: grid; grid-template-columns: minmax(340px, 0.9fr) minmax(360px, 1.1fr); gap: 18px; align-items: stretch; min-width: 0; }
 .rating-wrap { background: #f8fbff; border: 1px solid #dce7f5; border-radius: 8px; padding: 10px; }
 .rating-label, .evidence-label { display: block; margin-bottom: 7px; color: #48607f; font-size: 11px; font-weight: 900; text-transform: uppercase; }
-.rating-grid { display: grid; grid-template-columns: repeat(7, minmax(40px, 1fr)); gap: 7px; }
+.rating-grid { display: grid; grid-template-columns: repeat(7, minmax(44px, 1fr)); gap: 8px; }
 .rating-grid input { position: absolute; opacity: 0; pointer-events: none; }
 .rating-grid label {
     min-width: 40px; min-height: 38px; border: 1px solid #c6d4e8; border-radius: 8px; display: flex; align-items: center; justify-content: center;
     cursor: pointer; color: #48607f; font-weight: 900; background: #fff; white-space: nowrap;
 }
 .rating-grid input:checked + label { background: #0a4ea3; color: #fff; border-color: #0a4ea3; }
-.evidence-box { display: grid; padding: 10px; border: 1px solid #f1c982; border-radius: 8px; background: #fffaf0; }
+.evidence-box { display: grid; padding: 12px; border: 1px solid #f1c982; border-radius: 8px; background: #fffaf0; min-width: 0; }
 .evidence-label { color: #8a4b0f; }
 .evidence { min-height: 136px; resize: vertical; line-height: 1.4; border-color: #e6b96f !important; background: #fffefb !important; }
 .signature-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.signature-grid-single { grid-template-columns: minmax(0, 1fr); }
 .signature-card { border: 1px solid #d8e2f0; border-radius: 8px; background: #f8fbff; padding: 12px; }
 .signature-card h3 { margin: 0 0 8px; color: #1f2737; font-size: 15px; }
+.signature-preview { width: 100%; max-height: 120px; object-fit: contain; border: 1px dashed #8fa6c3; border-radius: 8px; background: #fff; margin-bottom: 10px; }
 .signature-pad { width: 100%; height: 150px; display: block; border: 1px dashed #8fa6c3; border-radius: 8px; background: #fff; touch-action: none; }
 .signature-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; color: #5d6b82; font-size: 12px; font-weight: 800; }
 .clear-signature { border: 1px solid #c6d4e8; border-radius: 8px; background: #fff; color: #1f2737; padding: 7px 10px; font-weight: 900; cursor: pointer; }
@@ -74,7 +76,7 @@
 {% endblock %}
 
 {% block content %}
-<form class="form-wrap" method="post" action="/observations/">
+<form class="form-wrap" method="post" action="{{ form_action or '/observations/' }}">
     <input type="hidden" name="modal_mode" value="{{ 1 if modal_mode else 0 }}">
     <section class="observation-toolbar" aria-label="Observation completion summary">
         <div class="toolbar-card">
@@ -110,8 +112,8 @@
             <div class="field">
                 <label for="observation_type">Type</label>
                 <select id="observation_type" name="observation_type" required>
-                    <option value="Formal">Formal</option>
-                    <option value="Non-formal">Non-formal</option>
+                    <option value="Formal" {% if observation and observation.observation_type == "Formal" %}selected{% endif %}>Formal</option>
+                    <option value="Non-formal" {% if observation and observation.observation_type == "Non-formal" %}selected{% endif %}>Non-formal</option>
                 </select>
             </div>
             <div class="field">
@@ -120,35 +122,39 @@
             </div>
             <div class="field">
                 <label for="observation_date">Date</label>
-                <input id="observation_date" name="observation_date" type="date" value="{{ today }}" required>
+                <input id="observation_date" name="observation_date" type="date" value="{{ observation.observation_date if observation else today }}" required>
             </div>
             <div class="field">
                 <label for="term">Term</label>
                 <select id="term" name="term">
                     <option value="">Select term</option>
-                    <option value="1st">1st</option>
-                    <option value="2nd">2nd</option>
-                    <option value="3rd">3rd</option>
+                    <option value="1st" {% if observation and observation.term == "1st" %}selected{% endif %}>1st</option>
+                    <option value="2nd" {% if observation and observation.term == "2nd" %}selected{% endif %}>2nd</option>
+                    <option value="3rd" {% if observation and observation.term == "3rd" %}selected{% endif %}>3rd</option>
                 </select>
             </div>
             <div class="field">
                 <label for="grade">Grade</label>
-                <input id="grade" name="grade" placeholder="3">
+                <select id="grade" name="grade" data-current-value="{{ observation.grade if observation else '' }}">
+                    <option value="">Select teacher first</option>
+                </select>
             </div>
             <div class="field">
                 <label for="section">Section</label>
-                <input id="section" name="section" placeholder="A">
+                <select id="section" name="section" data-current-value="{{ observation.section if observation else '' }}">
+                    <option value="">Select grade first</option>
+                </select>
             </div>
             <div class="field">
                 <label for="period">Period</label>
-                <input id="period" name="period" placeholder="3">
+                <input id="period" name="period" value="{{ observation.period if observation else '' }}" placeholder="3">
             </div>
             <div class="field">
                 <label for="subject">Subject</label>
                 <select id="subject" name="subject">
                     <option value="">Select teacher first</option>
                     {% for subject in subjects %}
-                    <option value="{{ subject.value }}" data-teachers="{{ subject.assigned_teacher_ids }}" data-grade="{{ subject.grade }}">{{ subject.label }}</option>
+                    <option value="{{ subject.value }}" data-teachers="{{ subject.assigned_teacher_ids }}" data-grade="{{ subject.grade }}" {% if observation and observation.subject == subject.value %}selected{% endif %}>{{ subject.label }}</option>
                     {% endfor %}
                 </select>
                 <div id="subjectHelperText" class="subject-helper">Select a teacher to see assigned subjects.</div>
@@ -164,6 +170,7 @@
         </summary>
         {% for criterion in group.criteria %}
         <div class="criterion" data-criterion>
+            {% set score = scores_by_criterion.get(criterion.id) if scores_by_criterion is defined else none %}
             <div class="criterion-rubric">
                 <p class="criterion-title">{{ criterion.indicator_number }}. {{ criterion.title }}</p>
                 <p class="criterion-help">{{ criterion.guidelines }}</p>
@@ -174,14 +181,14 @@
                     <span class="rating-label">Rating</span>
                     <div class="rating-grid" aria-label="Rating for {{ criterion.title }}">
                         {% for rating in ["NA", "0", "1", "2", "3", "4", "5"] %}
-                        <input id="rating_{{ criterion.id }}_{{ rating }}" type="radio" name="rating_{{ criterion.id }}" value="{{ rating }}" {% if rating == "NA" %}checked{% endif %} data-rating>
+                        <input id="rating_{{ criterion.id }}_{{ rating }}" type="radio" name="rating_{{ criterion.id }}" value="{{ rating }}" {% if (score and score.rating == rating) or (not score and rating == "NA") %}checked{% endif %} data-rating>
                         <label for="rating_{{ criterion.id }}_{{ rating }}">{{ rating }}</label>
                         {% endfor %}
                     </div>
                 </div>
                 <div class="evidence-box">
                     <label class="evidence-label" for="evidence_{{ criterion.id }}">Evidence observed</label>
-                    <textarea id="evidence_{{ criterion.id }}" class="evidence" name="evidence_{{ criterion.id }}" placeholder="Write the exact classroom evidence observed for this criterion." data-evidence></textarea>
+                    <textarea id="evidence_{{ criterion.id }}" class="evidence" name="evidence_{{ criterion.id }}" placeholder="Write the exact classroom evidence observed for this criterion." data-evidence>{{ score.evidence if score and score.evidence else "" }}</textarea>
                 </div>
             </div>
         </div>
@@ -192,23 +199,17 @@
     <section class="form-panel">
         <div class="field">
             <label for="evaluator_notes">Evaluator Notes / Key Strengths / Recommendations</label>
-            <textarea id="evaluator_notes" name="evaluator_notes" rows="5"></textarea>
+            <textarea id="evaluator_notes" name="evaluator_notes" rows="5">{{ observation.evaluator_notes if observation and observation.evaluator_notes else "" }}</textarea>
         </div>
     </section>
 
     <section class="form-panel">
-        <div class="signature-grid">
-            <div class="signature-card">
-                <h3>Teacher Signature</h3>
-                <canvas class="signature-pad" data-signature-pad="teacher"></canvas>
-                <input type="hidden" name="teacher_signature_data" data-signature-input="teacher">
-                <div class="signature-actions">
-                    <span>Teacher signs after reviewing the observation.</span>
-                    <button class="clear-signature" type="button" data-clear-signature="teacher">Clear</button>
-                </div>
-            </div>
+        <div class="signature-grid signature-grid-single">
             <div class="signature-card">
                 <h3>Evaluator Signature</h3>
+                {% if observation and observation.evaluator_signature_data %}
+                <img class="signature-preview" src="{{ observation.evaluator_signature_data }}" alt="Evaluator signature">
+                {% endif %}
                 <canvas class="signature-pad" data-signature-pad="evaluator"></canvas>
                 <input type="hidden" name="evaluator_signature_data" data-signature-input="evaluator">
                 <div class="signature-actions">
@@ -217,11 +218,11 @@
                 </div>
             </div>
         </div>
-        <p class="lock-note">When both signatures are present, this observation is saved as locked.</p>
+        <p class="lock-note">The teacher signs later from the view-only observation page. The record locks after both signatures are present.</p>
     </section>
 
     <div class="form-actions">
-        <button class="submit-btn" type="submit">{{ icon("save", "shell-icon") }} Submit Observation</button>
+        <button class="submit-btn" type="submit">{{ icon("save", "shell-icon") }} {{ "Update Observation" if observation else "Submit Observation" }}</button>
     </div>
 </form>
 
@@ -230,6 +231,8 @@
     const form = document.querySelector(".form-wrap");
     const teacherSelect = document.getElementById("teacher_id");
     const subjectSelect = document.getElementById("subject");
+    const gradeSelect = document.getElementById("grade");
+    const sectionSelect = document.getElementById("section");
     const subjectHelperText = document.getElementById("subjectHelperText");
     const selectedSubjectText = document.getElementById("selectedSubjectText");
     const completionText = document.getElementById("completionText");
@@ -238,6 +241,7 @@
     const evidenceCount = document.getElementById("evidenceCount");
     const criteria = Array.from(document.querySelectorAll("[data-criterion]"));
     const subjectOptions = Array.from(subjectSelect ? subjectSelect.options : []);
+    const teacherSections = {{ teacher_sections | default({}) | tojson }};
     const signatureState = new Map();
 
     function selectedRating(criterion) {
@@ -320,12 +324,73 @@
         updateSummary();
     }
 
+    function resetSelect(select, placeholder) {
+        if (!select) {
+            return;
+        }
+        select.innerHTML = "";
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = placeholder;
+        select.appendChild(option);
+    }
+
+    function updateGradeSectionOptions() {
+        if (!teacherSelect || !gradeSelect || !sectionSelect) {
+            return;
+        }
+        const teacherId = teacherSelect.value;
+        const rows = teacherSections[teacherId] || [];
+        const currentGrade = gradeSelect.dataset.currentValue || "";
+        const currentSection = sectionSelect.dataset.currentValue || "";
+        resetSelect(gradeSelect, teacherId ? "Select assigned grade" : "Select teacher first");
+        const grades = Array.from(new Set(rows.map((row) => row.grade).filter(Boolean))).sort((left, right) => String(left).localeCompare(String(right), undefined, { numeric: true }));
+        grades.forEach((grade) => {
+            const option = document.createElement("option");
+            option.value = grade;
+            option.textContent = `Grade ${grade}`;
+            if (grade === currentGrade) {
+                option.selected = true;
+            }
+            gradeSelect.appendChild(option);
+        });
+        updateSectionOptions();
+    }
+
+    function updateSectionOptions() {
+        if (!teacherSelect || !gradeSelect || !sectionSelect) {
+            return;
+        }
+        const teacherId = teacherSelect.value;
+        const grade = gradeSelect.value;
+        const currentSection = sectionSelect.dataset.currentValue || "";
+        resetSelect(sectionSelect, grade ? "Select assigned section" : "Select grade first");
+        const rows = (teacherSections[teacherId] || []).filter((row) => row.grade === grade);
+        const sections = Array.from(new Set(rows.map((row) => row.section).filter(Boolean))).sort((left, right) => String(left).localeCompare(String(right), undefined, { numeric: true }));
+        sections.forEach((section) => {
+            const option = document.createElement("option");
+            option.value = section;
+            option.textContent = section;
+            if (section === currentSection) {
+                option.selected = true;
+            }
+            sectionSelect.appendChild(option);
+        });
+    }
+
     document.addEventListener("change", (event) => {
         if (event.target.matches("[data-rating], #subject")) {
             updateSummary();
         }
         if (event.target === teacherSelect) {
             updateSubjectFilter();
+            gradeSelect.dataset.currentValue = "";
+            sectionSelect.dataset.currentValue = "";
+            updateGradeSectionOptions();
+        }
+        if (event.target === gradeSelect) {
+            sectionSelect.dataset.currentValue = "";
+            updateSectionOptions();
         }
     });
     document.addEventListener("input", (event) => {
@@ -439,6 +504,7 @@
         });
     }
     updateSubjectFilter();
+    updateGradeSectionOptions();
     updateSummary();
 })();
 </script>

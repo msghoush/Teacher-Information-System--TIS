@@ -418,6 +418,28 @@ class ObservationScore(Base):
     evidence = Column(Text)
 
 
+class ObservationSelfEvaluation(Base):
+    __tablename__ = "observation_self_evaluations"
+    __table_args__ = (
+        UniqueConstraint(
+            "observation_id",
+            "teacher_id",
+            name="uq_observation_self_evaluations_observation_teacher",
+        ),
+        Index("ix_observation_self_evaluations_observation", "observation_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    observation_id = Column(Integer, ForeignKey("observations.id"), nullable=False, index=True)
+    teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False, index=True)
+    reflection = Column(Text)
+    strengths = Column(Text)
+    growth_areas = Column(Text)
+    support_needed = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class PlanningSection(Base):
     __tablename__ = "planning_sections"
     __table_args__ = (

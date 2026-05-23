@@ -98,6 +98,17 @@ OBSERVATION_SCHEMA_COLUMNS = {
         "rating": "VARCHAR(4) NOT NULL DEFAULT 'NA'",
         "evidence": "TEXT",
     },
+    "observation_self_evaluations": {
+        "id": "INTEGER",
+        "observation_id": "INTEGER NOT NULL DEFAULT 0",
+        "teacher_id": "INTEGER NOT NULL DEFAULT 0",
+        "reflection": "TEXT",
+        "strengths": "TEXT",
+        "growth_areas": "TEXT",
+        "support_needed": "TEXT",
+        "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    },
 }
 
 
@@ -108,6 +119,7 @@ def ensure_observation_schema():
             models.ObservationCriterion.__table__,
             models.Observation.__table__,
             models.ObservationScore.__table__,
+            models.ObservationSelfEvaluation.__table__,
         ],
     )
     inspector = inspect(engine)
@@ -239,6 +251,50 @@ def _teacher_subject_code_map(db: Session, teachers):
     return subject_map
 
 
+def _teacher_section_choice_rows(db: Session, teachers):
+    teacher_ids = [teacher.id for teacher in teachers if getattr(teacher, "id", None)]
+    section_map = {teacher_id: [] for teacher_id in teacher_ids}
+    if not teacher_ids:
+        return section_map
+
+    assignment_rows = db.query(
+        models.TeacherSectionAssignment.teacher_id,
+        models.TeacherSectionAssignment.subject_code,
+        models.PlanningSection.id,
+        models.PlanningSection.grade_level,
+        models.PlanningSection.section_name,
+    ).join(
+        models.PlanningSection,
+        models.PlanningSection.id == models.TeacherSectionAssignment.planning_section_id,
+    ).filter(
+        models.TeacherSectionAssignment.teacher_id.in_(teacher_ids)
+    ).order_by(
+        models.PlanningSection.grade_level.asc(),
+        models.PlanningSection.section_name.asc(),
+    ).all()
+
+    seen = set()
+    for teacher_id, subject_code, section_id, grade_level, section_name in assignment_rows:
+        key = (teacher_id, section_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        grade = str(grade_level or "").strip()
+        section = str(section_name or "").strip()
+        if not grade or not section:
+            continue
+        section_map.setdefault(teacher_id, []).append(
+            {
+                "id": section_id,
+                "grade": grade,
+                "section": section,
+                "label": f"Grade {grade} - {section}",
+                "subject_code": str(subject_code or "").strip(),
+            }
+        )
+    return section_map
+
+
 def _is_teacher_user(current_user) -> bool:
     return auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_USER
 
@@ -257,6 +313,27 @@ def _get_current_teacher(db: Session, current_user):
 
 def _can_create_observation(current_user) -> bool:
     return auth.can_modify_data(current_user) and not _is_teacher_user(current_user)
+
+
+def _can_override_locked_observation(current_user) -> bool:
+    role = auth.normalize_role(getattr(current_user, "role", ""))
+    return role in {auth.ROLE_DEVELOPER, auth.ROLE_ADMINISTRATOR}
+
+
+def _observation_is_locked(observation) -> bool:
+    return bool(getattr(observation, "locked_at", None) or getattr(observation, "status", "") == "Locked")
+
+
+def _can_edit_observation(current_user, observation) -> bool:
+    if not auth.can_edit_data(current_user) or _is_teacher_user(current_user):
+        return False
+    return not _observation_is_locked(observation) or _can_override_locked_observation(current_user)
+
+
+def _can_delete_observation(current_user, observation) -> bool:
+    if not auth.can_delete_data(current_user) or _is_teacher_user(current_user):
+        return False
+    return not _observation_is_locked(observation) or _can_override_locked_observation(current_user)
 
 
 def ensure_observation_seed_data(db: Session):
@@ -617,6 +694,8 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
                     "progress_pct": min(round((formal_count / FORMAL_OBSERVATION_TARGET) * 100), 100),
                     "average_score": round(sum(scored) / len(scored), 2) if scored else None,
                     "latest": latest[0] if latest else None,
+                    "can_edit_latest": _can_edit_observation(current_user, latest[0]) if latest else False,
+                    "can_delete_latest": _can_delete_observation(current_user, latest[0]) if latest else False,
                 }
             )
         total_formal = sum(row["formal_count"] for row in rows)
@@ -654,6 +733,7 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
             models.Subject.subject_name.asc(),
         ).all()
         teacher_subject_map = _teacher_subject_code_map(db, teachers)
+        teacher_section_map = _teacher_section_choice_rows(db, teachers)
         _log_observation_stage(
             stage,
             criteria=len(criteria),
@@ -727,6 +807,7 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
             },
             "teachers": _teacher_choice_rows(teachers),
             "subjects": _subject_choice_rows(subjects, teacher_subject_map),
+            "teacher_sections": {str(key): value for key, value in teacher_section_map.items()},
             "criteria_groups": criteria_groups,
             "today": date.today().isoformat(),
             "selected_teacher_id": None,
@@ -763,6 +844,7 @@ def new_observation_page(request: Request, teacher_id: int | None = None, db: Se
         models.Subject.subject_name.asc(),
     ).all()
     teacher_subject_map = _teacher_subject_code_map(db, teachers)
+    teacher_section_map = _teacher_section_choice_rows(db, teachers)
     criteria = db.query(models.ObservationCriterion).filter(
         models.ObservationCriterion.is_active == True
     ).order_by(models.ObservationCriterion.sort_order.asc()).all()
@@ -781,6 +863,7 @@ def new_observation_page(request: Request, teacher_id: int | None = None, db: Se
             ),
             "teachers": _teacher_choice_rows(teachers),
             "subjects": _subject_choice_rows(subjects, teacher_subject_map),
+            "teacher_sections": {str(key): value for key, value in teacher_section_map.items()},
             "criteria_groups": _criteria_by_domain(criteria),
             "today": date.today().isoformat(),
             "selected_teacher_id": teacher_id,
@@ -827,9 +910,7 @@ async def create_observation(request: Request, db: Session = Depends(get_db)):
                 ),
                 status_code=302,
             )
-    teacher_signature_data = str(form.get("teacher_signature_data") or "").strip()
     evaluator_signature_data = str(form.get("evaluator_signature_data") or "").strip()
-    is_locked = bool(teacher_signature_data and evaluator_signature_data)
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     observation = models.Observation(
@@ -844,12 +925,12 @@ async def create_observation(request: Request, db: Session = Depends(get_db)):
         section=str(form.get("section") or "").strip(),
         period=str(form.get("period") or "").strip(),
         subject=str(form.get("subject") or "").strip(),
-        status="Locked" if is_locked else "Final",
+        status="Final",
         evaluator_notes=str(form.get("evaluator_notes") or "").strip(),
         evaluatee_notes="",
-        teacher_signature_data=teacher_signature_data,
+        teacher_signature_data="",
         evaluator_signature_data=evaluator_signature_data,
-        locked_at=now if is_locked else None,
+        locked_at=None,
     )
     db.add(observation)
     db.flush()
@@ -891,6 +972,136 @@ async def create_observation(request: Request, db: Session = Depends(get_db)):
     return RedirectResponse(url=f"/observations/{observation.id}", status_code=302)
 
 
+@router.get("/{observation_id}/edit")
+def edit_observation_page(observation_id: int, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    observation = db.query(models.Observation).filter(models.Observation.id == observation_id).first()
+    if not observation or not _can_edit_observation(current_user, observation):
+        return RedirectResponse(url="/observations")
+
+    prepare_observation_module(db)
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    teachers = db.query(models.Teacher).filter(
+        models.Teacher.branch_id == branch_id,
+        models.Teacher.academic_year_id == academic_year_id,
+    ).order_by(models.Teacher.first_name.asc(), models.Teacher.last_name.asc()).all()
+    subjects = db.query(models.Subject).filter(
+        models.Subject.branch_id == branch_id,
+        models.Subject.academic_year_id == academic_year_id,
+    ).order_by(models.Subject.grade.asc(), models.Subject.subject_code.asc(), models.Subject.subject_name.asc()).all()
+    criteria = db.query(models.ObservationCriterion).filter(
+        models.ObservationCriterion.is_active == True
+    ).order_by(models.ObservationCriterion.sort_order.asc()).all()
+    score_rows = db.query(models.ObservationScore).filter(
+        models.ObservationScore.observation_id == observation.id
+    ).all()
+    teacher_subject_map = _teacher_subject_code_map(db, teachers)
+    teacher_section_map = _teacher_section_choice_rows(db, teachers)
+
+    return templates.TemplateResponse(
+        request,
+        "observation_form.html",
+        {
+            "request": request,
+            **build_shell_context(request, db, current_user, page_key="observations", notice=request.query_params.get("notice", "")),
+            "teachers": _teacher_choice_rows(teachers),
+            "subjects": _subject_choice_rows(subjects, teacher_subject_map),
+            "teacher_sections": {str(key): value for key, value in teacher_section_map.items()},
+            "criteria_groups": _criteria_by_domain(criteria),
+            "scores_by_criterion": {score.criterion_id: score for score in score_rows},
+            "today": observation.observation_date or date.today().isoformat(),
+            "selected_teacher_id": observation.teacher_id,
+            "evaluator_display_name": _user_display_name(current_user),
+            "modal_mode": str(request.query_params.get("modal", "") or "") == "1",
+            "observation": observation,
+            "form_action": f"/observations/{observation.id}/edit",
+        },
+    )
+
+
+@router.post("/{observation_id}/edit")
+async def update_observation(observation_id: int, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    observation = db.query(models.Observation).filter(models.Observation.id == observation_id).first()
+    if not observation or not _can_edit_observation(current_user, observation):
+        return RedirectResponse(url="/observations")
+
+    prepare_observation_module(db)
+    form = await request.form()
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    teacher_pk = _parse_int(form.get("teacher_id"))
+    teacher = db.query(models.Teacher).filter(
+        models.Teacher.id == teacher_pk,
+        models.Teacher.branch_id == branch_id,
+        models.Teacher.academic_year_id == academic_year_id,
+    ).first()
+    if not teacher:
+        return RedirectResponse(url=f"/observations/{observation.id}/edit?notice=Select+a+valid+teacher.", status_code=302)
+
+    observation.teacher_id = teacher.id
+    observation.observation_type = _normalize_observation_type(form.get("observation_type"))
+    observation.observation_date = str(form.get("observation_date") or date.today().isoformat())[:10]
+    observation.term = str(form.get("term") or "").strip()
+    observation.grade = str(form.get("grade") or "").strip()
+    observation.section = str(form.get("section") or "").strip()
+    observation.period = str(form.get("period") or "").strip()
+    observation.subject = str(form.get("subject") or "").strip()
+    observation.evaluator_notes = str(form.get("evaluator_notes") or "").strip()
+    evaluator_signature_data = str(form.get("evaluator_signature_data") or "").strip()
+    if evaluator_signature_data:
+        observation.evaluator_signature_data = evaluator_signature_data
+
+    criteria = db.query(models.ObservationCriterion).filter(
+        models.ObservationCriterion.is_active == True
+    ).order_by(models.ObservationCriterion.sort_order.asc()).all()
+    existing_scores = {
+        score.criterion_id: score
+        for score in db.query(models.ObservationScore).filter(models.ObservationScore.observation_id == observation.id).all()
+    }
+    score_rows = []
+    for criterion in criteria:
+        raw_rating = str(form.get(f"rating_{criterion.id}") or "NA").strip().upper()
+        rating = raw_rating if raw_rating == "NA" or raw_rating in RATING_VALUES else "NA"
+        score = existing_scores.get(criterion.id)
+        if not score:
+            score = models.ObservationScore(observation_id=observation.id, criterion_id=criterion.id)
+            db.add(score)
+        score.rating = rating
+        score.evidence = str(form.get(f"evidence_{criterion.id}") or "").strip()
+        score_rows.append(score)
+
+    feedback = _build_smart_feedback(score_rows, {criterion.id: criterion for criterion in criteria})
+    observation.overall_score = "" if feedback["overall"] is None else str(feedback["overall"])
+    observation.smart_feedback = json.dumps(feedback)
+    observation.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.commit()
+
+    if str(form.get("modal_mode") or "") == "1":
+        return HTMLResponse("<script>window.parent.postMessage({type:'observation-created'}, '*');</script>Observation saved.")
+    return RedirectResponse(url=f"/observations/{observation.id}?notice=Observation+updated", status_code=302)
+
+
+@router.post("/{observation_id}/delete")
+async def delete_observation(observation_id: int, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+    observation = db.query(models.Observation).filter(models.Observation.id == observation_id).first()
+    if not observation or not _can_delete_observation(current_user, observation):
+        return RedirectResponse(url="/observations")
+    db.query(models.ObservationScore).filter(models.ObservationScore.observation_id == observation.id).delete()
+    db.query(models.ObservationSelfEvaluation).filter(models.ObservationSelfEvaluation.observation_id == observation.id).delete()
+    db.delete(observation)
+    db.commit()
+    return RedirectResponse(url="/observations?notice=Observation+deleted", status_code=302)
+
+
 @router.get("/{observation_id}")
 def observation_detail_page(observation_id: int, request: Request, db: Session = Depends(get_db)):
     current_user = get_current_user(request, db)
@@ -919,6 +1130,18 @@ def observation_detail_page(observation_id: int, request: Request, db: Session =
         feedback = json.loads(observation.smart_feedback or "{}")
     except json.JSONDecodeError:
         feedback = _build_smart_feedback(score_rows, criteria_by_id)
+    self_evaluation = db.query(models.ObservationSelfEvaluation).filter(
+        models.ObservationSelfEvaluation.observation_id == observation.id
+    ).first()
+    current_teacher = _get_current_teacher(db, current_user) if _is_teacher_user(current_user) else None
+    can_teacher_sign = bool(
+        current_teacher
+        and current_teacher.id == observation.teacher_id
+        and observation.evaluator_signature_data
+        and not observation.teacher_signature_data
+        and not _observation_is_locked(observation)
+    )
+    can_self_evaluate = bool(current_teacher and current_teacher.id == observation.teacher_id)
 
     return templates.TemplateResponse(
         request,
@@ -938,9 +1161,69 @@ def observation_detail_page(observation_id: int, request: Request, db: Session =
             "criteria_groups": _criteria_by_domain(criteria),
             "scores_by_criterion": scores_by_criterion,
             "feedback": feedback,
-            "is_locked": bool(observation.locked_at or observation.status == "Locked"),
+            "self_evaluation": self_evaluation,
+            "is_locked": _observation_is_locked(observation),
+            "can_edit_observation": _can_edit_observation(current_user, observation),
+            "can_delete_observation": _can_delete_observation(current_user, observation),
+            "can_teacher_sign": can_teacher_sign,
+            "can_self_evaluate": can_self_evaluate,
         },
     )
+
+
+@router.post("/{observation_id}/teacher-signature")
+async def save_teacher_signature(observation_id: int, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+    current_teacher = _get_current_teacher(db, current_user)
+    observation = db.query(models.Observation).filter(models.Observation.id == observation_id).first()
+    if not current_teacher or not observation or observation.teacher_id != current_teacher.id:
+        return RedirectResponse(url="/observations")
+    if _observation_is_locked(observation):
+        return RedirectResponse(url=f"/observations/{observation.id}?notice=Observation+is+already+locked.", status_code=302)
+    if not observation.evaluator_signature_data:
+        return RedirectResponse(url=f"/observations/{observation.id}?notice=Evaluator+signature+is+required+before+teacher+signature.", status_code=302)
+    form = await request.form()
+    signature_data = str(form.get("teacher_signature_data") or "").strip()
+    if not signature_data:
+        return RedirectResponse(url=f"/observations/{observation.id}?notice=Add+teacher+signature+first.", status_code=302)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    observation.teacher_signature_data = signature_data
+    observation.status = "Locked"
+    observation.locked_at = now
+    observation.updated_at = now
+    db.commit()
+    return RedirectResponse(url=f"/observations/{observation.id}?notice=Observation+signed+and+locked.", status_code=302)
+
+
+@router.post("/{observation_id}/self-evaluation")
+async def save_self_evaluation(observation_id: int, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+    current_teacher = _get_current_teacher(db, current_user)
+    observation = db.query(models.Observation).filter(models.Observation.id == observation_id).first()
+    if not current_teacher or not observation or observation.teacher_id != current_teacher.id:
+        return RedirectResponse(url="/observations")
+    form = await request.form()
+    self_evaluation = db.query(models.ObservationSelfEvaluation).filter(
+        models.ObservationSelfEvaluation.observation_id == observation.id,
+        models.ObservationSelfEvaluation.teacher_id == current_teacher.id,
+    ).first()
+    if not self_evaluation:
+        self_evaluation = models.ObservationSelfEvaluation(
+            observation_id=observation.id,
+            teacher_id=current_teacher.id,
+        )
+        db.add(self_evaluation)
+    self_evaluation.reflection = str(form.get("reflection") or "").strip()
+    self_evaluation.strengths = str(form.get("strengths") or "").strip()
+    self_evaluation.growth_areas = str(form.get("growth_areas") or "").strip()
+    self_evaluation.support_needed = str(form.get("support_needed") or "").strip()
+    self_evaluation.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.commit()
+    return RedirectResponse(url=f"/observations/{observation.id}?notice=Self-evaluation+saved", status_code=302)
 
 
 @router.post("/{observation_id}/evaluatee-notes")

@@ -27,8 +27,11 @@
 .obs-modal { position: fixed; inset: 0; z-index: 80; display: none; align-items: center; justify-content: center; padding: 22px; background: rgba(15, 23, 42, 0.48); }
 .obs-modal.is-open { display: flex; }
 .obs-modal-panel { width: min(1480px, 96vw); height: min(900px, 92vh); display: grid; grid-template-rows: auto 1fr; overflow: hidden; border-radius: 10px; background: #eef5fc; box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28); }
+.obs-modal.is-fullscreen { padding: 0; }
+.obs-modal.is-fullscreen .obs-modal-panel { width: 100vw; height: 100vh; border-radius: 0; }
 .obs-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: #fff; border-bottom: 1px solid #d8e2f0; }
 .obs-modal-title { color: #1f2737; font-weight: 900; }
+.obs-modal-tools { display: inline-flex; gap: 8px; }
 .obs-modal-close { width: 36px; height: 36px; border: 1px solid #c6d4e8; border-radius: 8px; background: #fff; color: #1f2737; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .obs-modal-frame { width: 100%; height: 100%; border: 0; background: #eef5fc; }
 @media (max-width: 900px) {
@@ -107,6 +110,14 @@
                             {% endif %}
                             {% if row.latest %}
                             <a class="icon-action" href="/observations/{{ row.latest.id }}" title="Open latest">{{ icon("open", "shell-icon") }}</a>
+                            {% if row.can_edit_latest %}
+                            <button class="icon-action" type="button" data-open-observation-modal data-edit-url="/observations/{{ row.latest.id }}/edit" title="Edit latest">{{ icon("edit", "shell-icon") }}</button>
+                            {% endif %}
+                            {% if row.can_delete_latest %}
+                            <form method="post" action="/observations/{{ row.latest.id }}/delete" onsubmit="return confirm('Delete this observation?');">
+                                <button class="icon-action" type="submit" title="Delete latest">{{ icon("trash", "shell-icon") }}</button>
+                            </form>
+                            {% endif %}
                             {% endif %}
                         </div>
                     </td>
@@ -129,7 +140,10 @@
     <div class="obs-modal-panel" role="dialog" aria-modal="true" aria-label="New observation form">
         <div class="obs-modal-head">
             <div class="obs-modal-title">New Observation</div>
-            <button class="obs-modal-close" type="button" data-close-observation-modal aria-label="Close observation form">{{ icon("close", "shell-icon") }}</button>
+            <div class="obs-modal-tools">
+                <button class="obs-modal-close" type="button" data-toggle-observation-fullscreen aria-label="Maximize observation form">{{ icon("open", "shell-icon") }}</button>
+                <button class="obs-modal-close" type="button" data-close-observation-modal aria-label="Close observation form">{{ icon("close", "shell-icon") }}</button>
+            </div>
         </div>
         <iframe class="obs-modal-frame" id="observationModalFrame" title="New observation form"></iframe>
     </div>
@@ -141,18 +155,19 @@
     if (!modal || !frame) {
         return;
     }
-    function openModal(teacherId) {
+    function openModal(teacherId, editUrl = "") {
         const params = new URLSearchParams({ modal: "1" });
         if (teacherId) {
             params.set("teacher_id", teacherId);
         }
-        frame.src = `/observations/new?${params.toString()}`;
+        frame.src = editUrl ? `${editUrl}?${params.toString()}` : `/observations/new?${params.toString()}`;
         modal.classList.add("is-open");
         modal.setAttribute("aria-hidden", "false");
         document.body.style.overflow = "hidden";
     }
     function closeModal(refresh = false) {
         modal.classList.remove("is-open");
+        modal.classList.remove("is-fullscreen");
         modal.setAttribute("aria-hidden", "true");
         frame.src = "about:blank";
         document.body.style.overflow = "";
@@ -163,7 +178,10 @@
     document.addEventListener("click", (event) => {
         const opener = event.target.closest("[data-open-observation-modal]");
         if (opener) {
-            openModal(opener.dataset.teacherId || "");
+            openModal(opener.dataset.teacherId || "", opener.dataset.editUrl || "");
+        }
+        if (event.target.closest("[data-toggle-observation-fullscreen]")) {
+            modal.classList.toggle("is-fullscreen");
         }
         if (event.target.closest("[data-close-observation-modal]")) {
             closeModal(false);
