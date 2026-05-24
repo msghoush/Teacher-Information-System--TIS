@@ -2732,6 +2732,60 @@
             line-height: 1.35;
         }
 
+        .performance-guide {
+            margin-top: 10px;
+            border: 1px solid #d8e2f0;
+            border-radius: 12px;
+            background: #f8fbff;
+            overflow: hidden;
+        }
+
+        .performance-guide summary {
+            cursor: pointer;
+            padding: 10px 12px;
+            color: #073a7d;
+            font-size: 13px;
+            font-weight: 900;
+            list-style: none;
+        }
+
+        .performance-guide summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .performance-guide-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(150px, 1fr));
+            gap: 8px;
+            padding: 0 12px 12px;
+        }
+
+        .performance-guide-item {
+            border: 1px solid #d8e2f0;
+            border-radius: 10px;
+            background: #fff;
+            padding: 9px;
+            display: grid;
+            gap: 4px;
+        }
+
+        .performance-guide-item strong {
+            color: #1f3759;
+            font-size: 12px;
+        }
+
+        .performance-guide-item span {
+            color: #5d6b82;
+            font-size: 11px;
+            line-height: 1.35;
+        }
+
+        @media (max-width: 1100px) {
+            .performance-guide-grid {
+                grid-template-columns: repeat(2, minmax(150px, 1fr));
+            }
+        }
+
         .teacher-status-badge {
             display: inline-flex;
             align-items: center;
@@ -3675,6 +3729,31 @@
                             {% endif %}
                         </div>
                         <p>Review teacher capability, real section teaching load, and workload settings.</p>
+                        <details class="performance-guide">
+                            <summary>Performance Band Guide</summary>
+                            <div class="performance-guide-grid">
+                                <div class="performance-guide-item">
+                                    <strong>90-100% | Exceptional</strong>
+                                    <span>Model practice. Keep, recognize, and consider for mentoring others.</span>
+                                </div>
+                                <div class="performance-guide-item">
+                                    <strong>80-89% | Strong</strong>
+                                    <span>Strong teacher performance. Keep with normal professional growth.</span>
+                                </div>
+                                <div class="performance-guide-item">
+                                    <strong>70-79% | Meets Expectations</strong>
+                                    <span>Acceptable performance with targeted coaching in identified areas.</span>
+                                </div>
+                                <div class="performance-guide-item">
+                                    <strong>60-69% | Needs Improvement</strong>
+                                    <span>Improvement plan and close follow-up required before final decision.</span>
+                                </div>
+                                <div class="performance-guide-item">
+                                    <strong>Below 60% | Alarming</strong>
+                                    <span>Leadership review required. Continuation needs major improvement evidence.</span>
+                                </div>
+                            </div>
+                        </details>
                     </div>
                     <input id="teacherSearch" class="search" type="text" placeholder="Search by ID, name, subject, or qualification">
                 </div>

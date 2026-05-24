@@ -1233,28 +1233,34 @@ def _performance_band(percentage, is_final: bool) -> dict:
             "recommendation": "Formal evaluator observations have not been scored yet.",
         }
     prefix = "" if is_final else "Provisional: "
+    if percentage >= 90:
+        return {
+            "label": f"{prefix}Exceptional Performance",
+            "class_name": "is-strong",
+            "recommendation": "Keep and recognize. This teacher can mentor others and model exceptional practice." if is_final else "Current evaluator scores are exceptional. Complete the full six-observation cycle before final decision.",
+        }
     if percentage >= 80:
         return {
             "label": f"{prefix}Strong Performance",
-            "class_name": "is-strong",
-            "recommendation": "Keep and recognize. This teacher can be used as a model for strong practice." if is_final else "Current evaluator scores are strong. Complete the full six-observation cycle before final decision.",
+            "class_name": "is-meets",
+            "recommendation": "Keep. Continue normal professional growth and refinement." if is_final else "Current evaluator scores are strong. Continue the observation cycle and regular development.",
         }
-    if percentage >= 60:
+    if percentage >= 70:
         return {
             "label": f"{prefix}Meets Expectations",
             "class_name": "is-meets",
-            "recommendation": "Keep with regular coaching and targeted development." if is_final else "Current evaluator scores meet expectations. Continue the observation cycle and coaching.",
+            "recommendation": "Keep conditionally with targeted coaching in identified growth areas." if is_final else "Current evaluator scores meet expectations, with coaching still needed before final decision.",
         }
-    if percentage >= 40:
+    if percentage >= 60:
         return {
             "label": f"{prefix}Needs Improvement",
             "class_name": "is-warning",
-            "recommendation": "Improvement plan and follow-up observations are required." if is_final else "Current evaluator scores show concern. Start support early before the final cycle closes.",
+            "recommendation": "Improvement plan and close follow-up are required before renewal or continuation decision." if is_final else "Current evaluator scores need improvement. Start support early before the final cycle closes.",
         }
     return {
         "label": f"{prefix}Alarming Performance",
         "class_name": "is-danger",
-        "recommendation": "Leadership review required before continuation or renewal decision." if is_final else "Current evaluator scores are alarming. Leadership should review support urgently.",
+        "recommendation": "Leadership review required. Continuation is not recommended without major improvement evidence." if is_final else "Current evaluator scores are alarming. Leadership should review support urgently.",
     }
 
 
