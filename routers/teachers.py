@@ -50,6 +50,7 @@ NAME_PATTERN = re.compile(r"^[A-Za-z][A-Za-z\s'\-]*$")
 STANDARD_MAX_HOURS = 24
 SECTION_ASSIGNMENT_SEPARATOR = "::"
 HIRING_PLAN_POOL_LOGIC_VERSION = 21
+FORMAL_OBSERVATION_TARGET = 6
 
 
 def _get_scope_ids(current_user):
@@ -1210,6 +1211,168 @@ def _get_teacher_observation_count_map(db: Session, teachers, branch_id: int, ac
     return count_map
 
 
+def _normalize_observation_type(value: str) -> str:
+    return " ".join(str(value or "").replace("_", " ").replace("-", " ").split()).strip().lower()
+
+
+def _parse_observation_score(value):
+    try:
+        score = float(str(value or "").strip())
+    except (TypeError, ValueError):
+        return None
+    if score < 0 or score > 5:
+        return None
+    return score
+
+
+def _performance_band(percentage, is_final: bool) -> dict:
+    if percentage is None:
+        return {
+            "label": "No evaluator score",
+            "class_name": "is-neutral",
+            "recommendation": "Formal evaluator observations have not been scored yet.",
+        }
+    prefix = "" if is_final else "Provisional: "
+    if percentage >= 80:
+        return {
+            "label": f"{prefix}Strong Performance",
+            "class_name": "is-strong",
+            "recommendation": "Keep and recognize. This teacher can be used as a model for strong practice." if is_final else "Current evaluator scores are strong. Complete the full six-observation cycle before final decision.",
+        }
+    if percentage >= 60:
+        return {
+            "label": f"{prefix}Meets Expectations",
+            "class_name": "is-meets",
+            "recommendation": "Keep with regular coaching and targeted development." if is_final else "Current evaluator scores meet expectations. Continue the observation cycle and coaching.",
+        }
+    if percentage >= 40:
+        return {
+            "label": f"{prefix}Needs Improvement",
+            "class_name": "is-warning",
+            "recommendation": "Improvement plan and follow-up observations are required." if is_final else "Current evaluator scores show concern. Start support early before the final cycle closes.",
+        }
+    return {
+        "label": f"{prefix}Alarming Performance",
+        "class_name": "is-danger",
+        "recommendation": "Leadership review required before continuation or renewal decision." if is_final else "Current evaluator scores are alarming. Leadership should review support urgently.",
+    }
+
+
+def _teacher_observation_trend(scored_formal_observations) -> dict:
+    if len(scored_formal_observations) < 2:
+        return {"label": "Not enough data", "class_name": "is-neutral"}
+    first_score = scored_formal_observations[0]["score"]
+    latest_score = scored_formal_observations[-1]["score"]
+    delta = round(latest_score - first_score, 2)
+    if delta >= 0.35:
+        return {"label": f"Improving (+{delta})", "class_name": "is-strong"}
+    if delta <= -0.35:
+        return {"label": f"Declining ({delta})", "class_name": "is-danger"}
+    return {"label": "Stable", "class_name": "is-meets"}
+
+
+def _get_teacher_observation_performance_map(db: Session, teachers, branch_id: int, academic_year_id: int):
+    teacher_ids = [teacher.id for teacher in teachers if getattr(teacher, "id", None)]
+    performance_map = {
+        teacher_id: {
+            "formal": 0,
+            "non_formal": 0,
+            "scored_formal": 0,
+            "target": FORMAL_OBSERVATION_TARGET,
+            "remaining": FORMAL_OBSERVATION_TARGET,
+            "progress_pct": 0,
+            "average_score": None,
+            "percentage": None,
+            "latest_score": None,
+            "latest_date": "",
+            "band_label": "No evaluator score",
+            "band_class": "is-neutral",
+            "trend_label": "Not enough data",
+            "trend_class": "is-neutral",
+            "recommendation": "Formal evaluator observations have not been scored yet.",
+            "is_final_cycle": False,
+        }
+        for teacher_id in teacher_ids
+    }
+    if not teacher_ids or not hasattr(models, "Observation"):
+        return performance_map
+
+    observation_rows = db.query(models.Observation).filter(
+        models.Observation.teacher_id.in_(teacher_ids),
+        models.Observation.branch_id == branch_id,
+        models.Observation.academic_year_id == academic_year_id,
+    ).order_by(
+        models.Observation.observation_date.asc(),
+        models.Observation.created_at.asc(),
+        models.Observation.id.asc(),
+    ).all()
+    formal_scores_by_teacher = defaultdict(list)
+    for observation in observation_rows:
+        teacher_data = performance_map.setdefault(
+            observation.teacher_id,
+            {
+                "formal": 0,
+                "non_formal": 0,
+                "scored_formal": 0,
+                "target": FORMAL_OBSERVATION_TARGET,
+                "remaining": FORMAL_OBSERVATION_TARGET,
+                "progress_pct": 0,
+                "average_score": None,
+                "percentage": None,
+                "latest_score": None,
+                "latest_date": "",
+                "band_label": "No evaluator score",
+                "band_class": "is-neutral",
+                "trend_label": "Not enough data",
+                "trend_class": "is-neutral",
+                "recommendation": "Formal evaluator observations have not been scored yet.",
+                "is_final_cycle": False,
+            },
+        )
+        observation_type = _normalize_observation_type(observation.observation_type)
+        if observation_type == "formal":
+            teacher_data["formal"] += 1
+            score = _parse_observation_score(observation.overall_score)
+            if score is not None:
+                formal_scores_by_teacher[observation.teacher_id].append(
+                    {
+                        "score": score,
+                        "date": str(observation.observation_date or ""),
+                        "id": observation.id,
+                    }
+                )
+        elif observation_type in {"informal", "non formal", "nonformal"}:
+            teacher_data["non_formal"] += 1
+
+    for teacher_id, teacher_data in performance_map.items():
+        scored_formal = formal_scores_by_teacher.get(teacher_id, [])[-FORMAL_OBSERVATION_TARGET:]
+        teacher_data["scored_formal"] = len(scored_formal)
+        teacher_data["remaining"] = max(FORMAL_OBSERVATION_TARGET - teacher_data["formal"], 0)
+        teacher_data["progress_pct"] = min(round((teacher_data["formal"] / FORMAL_OBSERVATION_TARGET) * 100), 100)
+        teacher_data["is_final_cycle"] = len(scored_formal) >= FORMAL_OBSERVATION_TARGET
+        if scored_formal:
+            average_score = round(sum(item["score"] for item in scored_formal) / len(scored_formal), 2)
+            percentage = round((average_score / 5) * 100)
+            band = _performance_band(percentage, teacher_data["is_final_cycle"])
+            trend = _teacher_observation_trend(scored_formal)
+            teacher_data.update(
+                {
+                    "average_score": average_score,
+                    "percentage": percentage,
+                    "latest_score": scored_formal[-1]["score"],
+                    "latest_date": scored_formal[-1]["date"],
+                    "band_label": band["label"],
+                    "band_class": band["class_name"],
+                    "trend_label": trend["label"],
+                    "trend_class": trend["class_name"],
+                    "recommendation": band["recommendation"],
+                }
+            )
+        elif teacher_data["formal"]:
+            teacher_data["recommendation"] = "Formal observations exist, but evaluator overall scores are missing."
+    return performance_map
+
+
 @router.get("/auto-matching-data")
 def auto_matching_data(
     request: Request,
@@ -1282,7 +1445,7 @@ def _render_teachers_page(
         branch_id,
         academic_year_id,
     )
-    teacher_observation_counts = _get_teacher_observation_count_map(
+    teacher_observation_performance = _get_teacher_observation_performance_map(
         db,
         teachers,
         branch_id,
@@ -1325,7 +1488,8 @@ def _render_teachers_page(
             "subject_alignment_keyword_groups": get_subject_alignment_keyword_groups_for_json(),
             "section_options_by_subject": section_assignment_support["section_options_by_subject"],
             "teacher_allocations": teacher_allocations,
-            "teacher_observation_counts": teacher_observation_counts,
+            "teacher_observation_counts": teacher_observation_performance,
+            "teacher_observation_performance": teacher_observation_performance,
             "can_modify": can_modify,
             "can_edit": can_edit,
             "can_delete": can_delete,

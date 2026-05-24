@@ -2611,6 +2611,127 @@
             line-height: 1.3;
         }
 
+        .performance-card {
+            min-width: 230px;
+            display: grid;
+            gap: 8px;
+            padding: 10px;
+            border: 1px solid #d8e2f0;
+            border-radius: 12px;
+            background: #f8fbff;
+        }
+
+        .performance-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .performance-score {
+            display: grid;
+            gap: 1px;
+        }
+
+        .performance-score strong {
+            color: #073a7d;
+            font-size: 20px;
+            line-height: 1;
+        }
+
+        .performance-score span {
+            color: #5d6b82;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .performance-band {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 5px 9px;
+            border-radius: 999px;
+            border: 1px solid #c5d3e8;
+            background: #fff;
+            color: #2f4f75;
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        .performance-band.is-strong,
+        .performance-band.is-meets {
+            border-color: #add9c2;
+            background: #ecfaf3;
+            color: #067647;
+        }
+
+        .performance-band.is-warning {
+            border-color: #f1c982;
+            background: #fff8e7;
+            color: #92400e;
+        }
+
+        .performance-band.is-danger {
+            border-color: #f3b2b2;
+            background: #fff1f1;
+            color: #b42318;
+        }
+
+        .performance-track {
+            height: 8px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: #e8eef7;
+        }
+
+        .performance-fill {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #b42318, #f79009, #12b76a);
+        }
+
+        .performance-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .performance-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 7px;
+            border-radius: 999px;
+            background: #fff;
+            border: 1px solid #d8e2f0;
+            color: #48607f;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .performance-chip.is-strong {
+            border-color: #add9c2;
+            background: #ecfaf3;
+            color: #067647;
+        }
+
+        .performance-chip.is-danger {
+            border-color: #f3b2b2;
+            background: #fff1f1;
+            color: #b42318;
+        }
+
+        .performance-recommendation {
+            margin: 0;
+            color: #334155;
+            font-size: 11px;
+            line-height: 1.35;
+        }
+
         .teacher-status-badge {
             display: inline-flex;
             align-items: center;
@@ -3572,6 +3693,7 @@
                                 <th>Teacher</th>
                                 <th>Coverage</th>
                                 <th>Capacity Snapshot</th>
+                                <th>Observation Performance</th>
                                 <th>Status</th>
                                 {% if can_edit or can_delete %}
                                 <th>Actions</th>
@@ -3771,12 +3893,33 @@
                                     </div>
                                 </td>
                                 <td>
+                                    {% set performance = teacher_observation_performance.get(teacher.id, {"formal": 0, "non_formal": 0, "target": 6, "progress_pct": 0, "average_score": none, "percentage": none, "band_label": "No evaluator score", "band_class": "is-neutral", "trend_label": "Not enough data", "trend_class": "is-neutral", "recommendation": "Formal evaluator observations have not been scored yet."}) %}
+                                    <div class="performance-card">
+                                        <div class="performance-head">
+                                            <div class="performance-score">
+                                                <strong>{% if performance.percentage is not none %}{{ performance.percentage }}%{% else %}-{% endif %}</strong>
+                                                <span>{% if performance.average_score is not none %}{{ performance.average_score }} / 5 evaluator avg{% else %}Evaluator average{% endif %}</span>
+                                            </div>
+                                            <span class="performance-band {{ performance.band_class }}">{{ performance.band_label }}</span>
+                                        </div>
+                                        <div class="performance-track" aria-label="Observation performance percentage">
+                                            <span class="performance-fill" style="width: {{ performance.percentage if performance.percentage is not none else 0 }}%;"></span>
+                                        </div>
+                                        <div class="performance-meta">
+                                            <span class="performance-chip">Formal {{ performance.formal }} / {{ performance.target }}</span>
+                                            <span class="performance-chip">Scored {{ performance.scored_formal }}</span>
+                                            <span class="performance-chip {{ performance.trend_class }}">{{ performance.trend_label }}</span>
+                                        </div>
+                                        <p class="performance-recommendation">{{ performance.recommendation }}</p>
+                                    </div>
+                                </td>
+                                <td>
                                     <div class="hours-status-cell">
                                         {% set observation_counts = teacher_observation_counts.get(teacher.id, {"formal": 0, "non_formal": 0}) %}
                                         <span class="hours-status-chip {% if within_capacity %}is-good{% else %}is-danger{% endif %}">
                                             {{ "Within Capacity" if within_capacity else "Over Capacity" }}
                                         </span>
-                                        <span class="hours-status-note">Formal observations: {{ observation_counts.formal }} / 6</span>
+                                        <span class="hours-status-note">Formal observations: {{ observation_counts.formal }} / {{ observation_counts.target or 6 }}</span>
                                         <span class="hours-status-note">Non-formal observations: {{ observation_counts.non_formal }}</span>
                                         {% if teacher.is_new_teacher %}
                                         <span class="teacher-status-badge">New Teacher</span>
