@@ -875,6 +875,35 @@ def _observation_export_state(db: Session, observation) -> dict:
     }
 
 
+def _formal_observations_for_teacher(db: Session, teacher_id: int, branch_id: int, academic_year_id: int):
+    return db.query(models.Observation).filter(
+        models.Observation.teacher_id == teacher_id,
+        models.Observation.branch_id == branch_id,
+        models.Observation.academic_year_id == academic_year_id,
+        models.Observation.observation_type == "Formal",
+    ).order_by(
+        models.Observation.observation_date.asc(),
+        models.Observation.created_at.asc(),
+        models.Observation.id.asc(),
+    ).all()
+
+
+def _teacher_cycle_export_state(db: Session, teacher_id: int, branch_id: int, academic_year_id: int) -> dict:
+    formal_observations = _formal_observations_for_teacher(db, teacher_id, branch_id, academic_year_id)
+    finalized_observations = [
+        observation
+        for observation in formal_observations
+        if _observation_export_state(db, observation)["can_export"]
+    ]
+    return {
+        "formal_observations": formal_observations,
+        "finalized_observations": finalized_observations,
+        "formal_count": len(formal_observations),
+        "finalized_count": len(finalized_observations),
+        "can_export": len(finalized_observations) >= FORMAL_OBSERVATION_TARGET,
+    }
+
+
 def _observation_link(observation_id: int) -> str:
     return f"/observations/{observation_id}"
 
@@ -1563,6 +1592,196 @@ def _build_observation_pdf_report(
     return buffer.getvalue()
 
 
+def _build_teacher_cycle_pdf_report(
+    request: Request,
+    db: Session,
+    teacher,
+    observations,
+    criteria,
+) -> bytes:
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import inch
+        from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    except ImportError as exc:
+        raise RuntimeError("PDF export dependency is not installed. Install reportlab.") from exc
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=30,
+        leftMargin=30,
+        topMargin=32,
+        bottomMargin=32,
+        title=f"Observation Cycle Report - {_teacher_name(teacher)}",
+    )
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="CycleTitle", parent=styles["Title"], fontSize=19, leading=23, textColor=colors.HexColor("#073a7d"), spaceAfter=7))
+    styles.add(ParagraphStyle(name="SectionTitle", parent=styles["Heading2"], fontSize=13, leading=16, textColor=colors.HexColor("#073a7d"), spaceBefore=10, spaceAfter=7))
+    styles.add(ParagraphStyle(name="BodySmall", parent=styles["BodyText"], fontSize=8.2, leading=10.5))
+    styles.add(ParagraphStyle(name="BodyTiny", parent=styles["BodyText"], fontSize=7.2, leading=8.8))
+    styles.add(ParagraphStyle(name="Badge", parent=styles["BodyText"], alignment=TA_CENTER, fontSize=9, leading=11, textColor=colors.HexColor("#027a48")))
+
+    first_observation = observations[0]
+    branch = db.query(models.Branch).filter(models.Branch.id == first_observation.branch_id).first()
+    school_group = None
+    if branch and getattr(branch, "school_group_id", None):
+        school_group = db.query(models.SchoolGroup).filter(models.SchoolGroup.id == branch.school_group_id).first()
+    school_name = _clean_pdf_text(getattr(school_group, "name", ""), "School")
+    branch_name = _clean_pdf_text(getattr(branch, "name", ""), "Branch")
+    display_timezone_name = _request_timezone_name(request)
+    generated_at_display = _format_pdf_datetime(datetime.now(timezone.utc), display_timezone_name)
+
+    logo_flowables = []
+    for logo in get_school_logo_slots(request, db, first_observation.branch_id, getattr(school_group, "id", None))[:3]:
+        logo_path = _logo_static_path(logo)
+        if not logo_path:
+            continue
+        try:
+            logo_image = Image(logo_path, width=0.96 * inch, height=0.36 * inch, kind="proportional")
+            logo_image.hAlign = "CENTER"
+            logo_flowables.append(logo_image)
+        except Exception:
+            continue
+    logo_strip = None
+    if logo_flowables:
+        logo_strip = Table([logo_flowables], colWidths=[1.02 * inch] * len(logo_flowables), hAlign="RIGHT")
+        logo_strip.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 2),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ]))
+
+    story = []
+    header_left = [
+        Paragraph("Teacher Observation Cycle Report", styles["CycleTitle"]),
+        Paragraph(f"{_pdf_markup(school_name)} | {_pdf_markup(branch_name)}", styles["BodySmall"]),
+        Paragraph(f"{len(observations)} Formal Observations Finalized", styles["Badge"]),
+    ]
+    header_table = Table(
+        [[header_left, logo_strip or Paragraph(_pdf_markup(school_name), styles["BodySmall"])]],
+        colWidths=[3.75 * inch, 3.2 * inch],
+    )
+    header_table.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#d8e2f0")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e3ebf6")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+        ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#f8fbff")),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 9))
+
+    scores = []
+    for observation in observations:
+        try:
+            scores.append(float(str(observation.overall_score or "").strip()))
+        except ValueError:
+            continue
+    average = round(sum(scores) / len(scores), 2) if scores else None
+    percentage = round((average / 5) * 100) if average is not None else None
+    summary_rows = [
+        ["Teacher", _teacher_name(teacher), "Formal Observations", f"{len(observations)} / {FORMAL_OBSERVATION_TARGET}"],
+        ["Average Score", f"{average if average is not None else '-'} / 5", "Percentage", f"{percentage if percentage is not None else '-'}%"],
+        ["Cycle Status", "Completed & Locked", "Generated", generated_at_display],
+    ]
+    summary_table = Table(summary_rows, colWidths=[1.2 * inch, 2.3 * inch, 1.35 * inch, 2.1 * inch])
+    summary_table.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#d8e2f0")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e3ebf6")),
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#eef6ff")),
+        ("BACKGROUND", (2, 0), (2, -1), colors.HexColor("#eef6ff")),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8.2),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(summary_table)
+
+    story.append(Paragraph("Observation Cycle Summary", styles["SectionTitle"]))
+    overview_rows = [["#", "Date", "Subject", "Grade", "Evaluator", "Score", "Status"]]
+    for index, observation in enumerate(observations, start=1):
+        evaluator = db.query(models.User).filter(models.User.user_id == observation.evaluator_user_id).first()
+        overview_rows.append([
+            str(index),
+            _clean_pdf_text(observation.observation_date),
+            _clean_pdf_text(observation.subject),
+            f"{_clean_pdf_text(observation.grade)} {_clean_pdf_text(observation.section, '')}".strip(),
+            _user_display_name(evaluator) if evaluator else _clean_pdf_text(observation.evaluator_user_id),
+            f"{_clean_pdf_text(observation.overall_score)} / 5",
+            "Locked",
+        ])
+    overview_table = Table(overview_rows, colWidths=[0.3 * inch, 0.75 * inch, 1.1 * inch, 0.55 * inch, 1.45 * inch, 0.65 * inch, 0.65 * inch], repeatRows=1)
+    overview_table.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#d8e2f0")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e3ebf6")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#073a7d")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 7.2),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(overview_table)
+
+    criteria_by_id = {criterion.id: criterion for criterion in criteria}
+    for index, observation in enumerate(observations, start=1):
+        story.append(Paragraph(f"Observation {index}: {_clean_pdf_text(observation.observation_date)} | {_pdf_markup(observation.subject)}", styles["SectionTitle"]))
+        score_rows = db.query(models.ObservationScore).filter(
+            models.ObservationScore.observation_id == observation.id
+        ).all()
+        scores_by_criterion = {score.criterion_id: score for score in score_rows}
+        detail_rows = [["Domain", "Indicator", "Rating", "Evidence"]]
+        for criterion in criteria:
+            score = scores_by_criterion.get(criterion.id)
+            rating = _clean_pdf_text(getattr(score, "rating", "NA"), "NA")
+            detail_rows.append([
+                _clean_pdf_text(criterion.domain_key),
+                Paragraph(f"{criterion.indicator_number}. {_pdf_markup(criterion.title)}", styles["BodyTiny"]),
+                Paragraph(f"<b>{_pdf_markup(rating)}</b><br/>{_pdf_markup(_rating_level(rating))}", styles["BodyTiny"]),
+                Paragraph(_pdf_markup(getattr(score, "evidence", "")), styles["BodyTiny"]),
+            ])
+        detail_table = Table(detail_rows, colWidths=[0.55 * inch, 2.65 * inch, 0.85 * inch, 2.95 * inch], repeatRows=1)
+        detail_table.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#d8e2f0")),
+            ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e3ebf6")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f3f8ff")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 7.1),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(detail_table)
+        if observation.evaluator_notes:
+            story.append(Paragraph(f"<b>Evaluator notes:</b> {_pdf_markup(observation.evaluator_notes)}", styles["BodySmall"]))
+        if observation.evaluatee_notes:
+            story.append(Paragraph(f"<b>Teacher notes:</b> {_pdf_markup(observation.evaluatee_notes)}", styles["BodySmall"]))
+        story.append(Spacer(1, 4))
+
+    def _draw_footer(canvas, doc_obj):
+        canvas.saveState()
+        canvas.setFont("Helvetica-Bold", 30)
+        canvas.setFillColor(colors.HexColor("#eef6ff"))
+        canvas.translate(300, 410)
+        canvas.rotate(35)
+        canvas.drawCentredString(0, 0, "FORMAL OBSERVATION CYCLE")
+        canvas.restoreState()
+        canvas.saveState()
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(colors.HexColor("#48607f"))
+        canvas.drawString(30, 18, f"Generated by TIS on {generated_at_display}")
+        canvas.drawRightString(565, 18, f"Page {doc_obj.page}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
+    return buffer.getvalue()
+
+
 def _teacher_observation_access_filter(query, db, current_user):
     if not _is_teacher_user(current_user):
         return query
@@ -1687,7 +1906,7 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
                 key=lambda item: item.observation_date or "",
                 reverse=True,
             )
-            latest_export_state = _observation_export_state(db, latest[0]) if latest else {}
+            cycle_export_state = _teacher_cycle_export_state(db, teacher.id, branch_id, academic_year_id)
             rows.append(
                 {
                     "teacher": teacher,
@@ -1700,7 +1919,8 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
                     "latest": latest[0] if latest else None,
                     "can_edit_latest": _can_edit_observation(current_user, latest[0]) if latest else False,
                     "can_delete_latest": _can_delete_observation(current_user, latest[0]) if latest else False,
-                    "can_export_latest": bool(latest_export_state.get("can_export")),
+                    "can_export_cycle": bool(cycle_export_state.get("can_export")),
+                    "cycle_export_count": cycle_export_state.get("finalized_count", 0),
                 }
             )
         total_formal = sum(row["formal_count"] for row in rows)
@@ -2120,6 +2340,62 @@ async def delete_observation(observation_id: int, request: Request, db: Session 
     db.delete(observation)
     db.commit()
     return RedirectResponse(url="/observations?notice=Observation+deleted", status_code=302)
+
+
+@router.get("/teacher/{teacher_id}/export/pdf")
+def export_teacher_observation_cycle_pdf(teacher_id: int, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    teacher = db.query(models.Teacher).filter(
+        models.Teacher.id == teacher_id,
+        models.Teacher.branch_id == branch_id,
+        models.Teacher.academic_year_id == academic_year_id,
+    ).first()
+    if not teacher:
+        return RedirectResponse(url="/observations")
+    if _is_teacher_user(current_user):
+        current_teacher = _get_current_teacher(db, current_user)
+        if not current_teacher or current_teacher.id != teacher.id:
+            return RedirectResponse(url="/observations")
+
+    cycle_state = _teacher_cycle_export_state(db, teacher.id, branch_id, academic_year_id)
+    if not cycle_state["can_export"]:
+        return Response(
+            "Teacher observation cycle PDF export is available only after six formal observations "
+            "are finalized and locked with evaluator signature, teacher self-observation, and teacher signature.",
+            status_code=403,
+            media_type="text/plain",
+        )
+
+    criteria = db.query(models.ObservationCriterion).filter(
+        models.ObservationCriterion.is_active == True
+    ).order_by(models.ObservationCriterion.sort_order.asc()).all()
+    try:
+        pdf_bytes = _build_teacher_cycle_pdf_report(
+            request,
+            db,
+            teacher,
+            cycle_state["finalized_observations"][-FORMAL_OBSERVATION_TARGET:],
+            criteria,
+        )
+    except RuntimeError as exc:
+        return Response(str(exc), status_code=503, media_type="text/plain")
+    except Exception as exc:
+        logger.exception("Teacher observation cycle PDF export failed teacher_id=%s", teacher.id)
+        return Response(f"Teacher observation cycle PDF export failed: {exc}", status_code=500, media_type="text/plain")
+
+    safe_teacher_name = "".join(
+        ch for ch in _teacher_name(teacher).replace(" ", "_") if ch.isalnum() or ch in {"_", "-"}
+    ) or f"teacher_{teacher.id}"
+    filename = f"observation_cycle_{safe_teacher_name}.pdf"
+    return Response(
+        pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{observation_id}/export/pdf")

@@ -110,8 +110,8 @@
                             {% endif %}
                             {% if row.latest %}
                             <a class="icon-action" href="/observations/{{ row.latest.id }}" title="Open latest">{{ icon("open", "shell-icon") }}</a>
-                            {% if row.can_export_latest %}
-                            <a class="icon-action" href="/observations/{{ row.latest.id }}/export/pdf" title="Export finalized PDF">{{ icon("download", "shell-icon") }}</a>
+                            {% if row.can_export_cycle %}
+                            <a class="icon-action" href="/observations/teacher/{{ row.teacher.id }}/export/pdf" title="Export all finalized formal observations">{{ icon("download", "shell-icon") }}</a>
                             {% endif %}
                             {% if row.can_edit_latest %}
                             <button class="icon-action" type="button" data-open-observation-modal data-edit-url="/observations/{{ row.latest.id }}/edit" title="Edit latest">{{ icon("edit", "shell-icon") }}</button>
