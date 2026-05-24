@@ -225,6 +225,7 @@ def _build_nav_items(
     can_manage_users: bool,
     can_manage_system_settings: bool,
     can_manage_school_branding: bool = False,
+    can_manage_role_permissions: bool = False,
     new_notification_count: int = 0,
 ):
     def is_active(target: str) -> bool:
@@ -302,6 +303,15 @@ def _build_nav_items(
                 "active": is_active("/school-branding"),
             }
         )
+    if can_manage_role_permissions and not can_manage_system_settings:
+        items.append(
+            {
+                "label": "Role Permissions",
+                "href": "/system-configuration/role-permissions",
+                "icon": "shield",
+                "active": is_active("/system-configuration/role-permissions"),
+            }
+        )
 
     return items
 
@@ -339,6 +349,10 @@ def build_shell_context(
     can_manage_system_settings = auth.can_manage_system_settings(current_user)
     can_manage_users = auth.can_manage_users(current_user)
     can_manage_school_branding = (
+        can_manage_system_settings
+        or auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_ADMINISTRATOR
+    )
+    can_manage_role_permissions = (
         can_manage_system_settings
         or auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_ADMINISTRATOR
     )
@@ -406,6 +420,7 @@ def build_shell_context(
                 can_manage_users,
                 can_manage_system_settings,
                 can_manage_school_branding,
+                can_manage_role_permissions,
                 new_notification_count,
             ),
             "user_name": f"{current_user.first_name} {current_user.last_name}".strip(),
@@ -419,6 +434,7 @@ def build_shell_context(
             "can_manage_system_settings": can_manage_system_settings,
             "can_manage_users": can_manage_users,
             "can_manage_school_branding": can_manage_school_branding,
+            "can_manage_role_permissions": can_manage_role_permissions,
             "available_scope_branches": available_scope_branches,
             "all_years": all_years,
             "scoped_branch_id": scoped_branch_id,

@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Role Permissions | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+.permissions-page { display: grid; gap: 14px; }
+.error-banner, .notice-banner { display: inline-flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; font-weight: 800; }
+.error-banner { border: 1px solid #efc5bf; background: #fff5f3; color: #9f2d1f; }
+.notice-banner { border: 1px solid #b8ead2; background: #ecfdf3; color: #027a48; }
+.config-nav, .role-tabs, .permission-toolbar, .permission-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.config-nav-link, .role-tab { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 12px; border: 1px solid #d6e3f3; border-radius: 999px; background: #fff; color: #23466f; font-size: 12px; font-weight: 900; text-decoration: none; }
+.config-nav-link.is-active, .role-tab.is-active { border-color: #b8d0ec; background: #edf4ff; color: #17365d; }
+.permissions-shell { display: grid; grid-template-columns: minmax(250px, 320px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.permission-card { border: 1px solid #d8e2f0; border-radius: 14px; background: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .06); }
+.permission-side, .permission-main { display: grid; gap: 12px; padding: 14px; }
+.permission-side h2, .permission-main h2, .permission-group h3 { margin: 0; color: #17365d; }
+.permission-side p, .permission-main p { margin: 0; color: #60728c; font-size: 13px; line-height: 1.45; }
+.scope-form { display: grid; gap: 8px; }
+.field { display: grid; gap: 6px; }
+.field label { color: #48607f; font-size: 12px; font-weight: 900; text-transform: uppercase; }
+.field select { width: 100%; min-width: 0; border: 1px solid #c6d4e8; border-radius: 8px; padding: 9px 10px; color: #1f2737; background: #fff; }
+.summary-grid { display: grid; gap: 8px; }
+.summary-row { display: grid; gap: 4px; padding: 10px; border: 1px solid #d8e2f0; border-radius: 10px; background: #f8fbff; }
+.summary-row strong { color: #17365d; }
+.summary-row span { color: #60728c; font-size: 12px; font-weight: 800; }
+.progress-bar { height: 7px; border-radius: 999px; background: #e8eef6; overflow: hidden; }
+.progress-bar i { display: block; height: 100%; border-radius: inherit; background: #0a4ea3; }
+.permission-main-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.permission-status { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 10px; border-radius: 999px; background: #edf4ff; color: #0a4ea3; font-size: 12px; font-weight: 900; }
+.permission-groups { display: grid; gap: 10px; }
+.permission-group { border: 1px solid #d8e2f0; border-radius: 12px; overflow: hidden; }
+.permission-group summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; background: #f8fbff; }
+.permission-group summary::-webkit-details-marker { display: none; }
+.permission-group h3 { font-size: 15px; }
+.permission-group-count { color: #60728c; font-size: 12px; font-weight: 900; }
+.permission-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px; }
+.permission-check { display: flex; align-items: flex-start; gap: 8px; min-height: 44px; padding: 10px; border: 1px solid #e1e9f4; border-radius: 10px; background: #fff; color: #1f2737; font-size: 13px; font-weight: 800; line-height: 1.3; }
+.permission-check input { margin-top: 2px; width: 16px; height: 16px; accent-color: #0a4ea3; }
+.permission-check small { display: block; color: #60728c; font-size: 11px; font-weight: 700; }
+.action-btn { min-height: 36px; border: 1px solid transparent; border-radius: 8px; padding: 8px 12px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 900; cursor: pointer; text-decoration: none; }
+.action-btn-primary { background: #0a4ea3; color: #fff; }
+.action-btn-secondary { border-color: #c6d4e8; background: #fff; color: #1f2737; }
+.action-btn:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 1050px) { .permissions-shell, .permission-list { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="permissions-page">
+    {% if error_message %}
+    <div class="error-banner">{{ icon("warning", "icon") }} {{ error_message }}</div>
+    {% endif %}
+    {% if notice_message %}
+    <div class="notice-banner">{{ icon("check-circle", "icon") }} {{ notice_message }}</div>
+    {% endif %}
+
+    <nav class="config-nav" aria-label="Configuration modules">
+        {% for module in configuration_modules %}
+        <a class="config-nav-link {% if module.active %}is-active{% endif %}" href="{{ module.href }}">
+            {{ icon(module.icon, "icon") }} {{ module.label }}
+        </a>
+        {% endfor %}
+    </nav>
+
+    <section class="permissions-shell">
+        <aside class="permission-card permission-side">
+            <div>
+                <h2>Role Packages</h2>
+                <p>Open a role, review the detailed access, then save the permission package used when assigning that role to a user.</p>
+            </div>
+
+            <nav class="role-tabs" aria-label="Roles">
+                {% for role_item in managed_roles %}
+                    {% if role_item in editable_roles or role_item == selected_permission_role %}
+                    <a class="role-tab {% if role_item == selected_permission_role %}is-active{% endif %}" href="/system-configuration/role-permissions?role={{ role_item | urlencode }}{% if selected_permission_scope == 'global' %}&scope=global{% elif selected_permission_school_group_id %}&school_group_id={{ selected_permission_school_group_id }}{% endif %}">
+                        {{ icon("shield", "icon") }} {{ role_item }}
+                    </a>
+                    {% endif %}
+                {% endfor %}
+            </nav>
+
+            <form class="scope-form" method="get" action="/system-configuration/role-permissions">
+                <input type="hidden" name="role" value="{{ selected_permission_role }}">
+                {% if can_manage_all_role_permissions %}
+                <div class="field">
+                    <label for="scope">Permission Scope</label>
+                    <select id="scope" name="scope" onchange="this.form.submit()">
+                        <option value="global" {% if selected_permission_scope == 'global' %}selected{% endif %}>Global defaults</option>
+                        <option value="school" {% if selected_permission_scope == 'school' %}selected{% endif %}>Selected school</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="school_group_id">School</label>
+                    <select id="school_group_id" name="school_group_id" onchange="this.form.submit()" {% if selected_permission_scope == 'global' %}disabled{% endif %}>
+                        {% for school in role_permission_school_groups %}
+                        <option value="{{ school.id }}" {% if selected_permission_school_group_id == school.id %}selected{% endif %}>{{ school.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% elif selected_permission_school_group %}
+                <div class="summary-row">
+                    <strong>{{ selected_permission_school_group.name }}</strong>
+                    <span>School permission scope</span>
+                </div>
+                {% endif %}
+            </form>
+
+            <div class="summary-grid">
+                {% for role_item, summary in role_permission_summary_map.items() %}
+                <div class="summary-row">
+                    <strong>{{ role_item }}</strong>
+                    <span>{{ summary.allowed_count }} / {{ summary.total_count }} permissions enabled</span>
+                    <div class="progress-bar"><i style="width: {{ (summary.allowed_count / summary.total_count * 100) if summary.total_count else 0 }}%;"></i></div>
+                </div>
+                {% endfor %}
+            </div>
+        </aside>
+
+        <main class="permission-card permission-main">
+            <div class="permission-main-head">
+                <div>
+                    <h2>{{ selected_permission_role }} Permissions</h2>
+                    <p>{% if selected_permission_scope == 'global' %}Global default package used when no school override exists.{% else %}School-specific package{% if selected_permission_school_group %} for {{ selected_permission_school_group.name }}{% endif %}.{% endif %}</p>
+                </div>
+                <span class="permission-status">{{ role_permission_payload.allowed_count }} / {{ role_permission_payload.total_count }} enabled</span>
+            </div>
+
+            {% if selected_permission_role == "Developer" %}
+            <div class="notice-banner">{{ icon("shield", "icon") }} Developer always has full system access and cannot be restricted.</div>
+            {% endif %}
+
+            <form method="post" action="/system-configuration/role-permissions">
+                <input type="hidden" name="role" value="{{ selected_permission_role }}">
+                <input type="hidden" name="scope_type" value="{{ selected_permission_scope }}">
+                {% if selected_permission_school_group_id %}
+                <input type="hidden" name="school_group_id" value="{{ selected_permission_school_group_id }}">
+                {% endif %}
+
+                <div class="permission-actions">
+                    <button class="action-btn action-btn-secondary" type="button" data-permission-select-all {% if not can_edit_selected_role_permissions %}disabled{% endif %}>Select All</button>
+                    <button class="action-btn action-btn-secondary" type="button" data-permission-clear-all {% if not can_edit_selected_role_permissions %}disabled{% endif %}>Clear All</button>
+                    <button class="action-btn action-btn-primary" type="submit" {% if not can_edit_selected_role_permissions %}disabled{% endif %}>{{ icon("save", "icon") }} Save Permissions</button>
+                </div>
+
+                <section class="permission-groups">
+                    {% for group in role_permission_payload.groups %}
+                    <details class="permission-group" open>
+                        <summary>
+                            <h3>{{ group.label }}</h3>
+                            <span class="permission-group-count">{{ group.allowed_count }} / {{ group.total_count }}</span>
+                        </summary>
+                        <div class="permission-list">
+                            {% for permission in group.permissions %}
+                            <label class="permission-check">
+                                <input type="checkbox" name="permission_keys" value="{{ permission.key }}" {% if permission.allowed %}checked{% endif %} {% if not can_edit_selected_role_permissions %}disabled{% endif %}>
+                                <span>
+                                    {{ permission.label }}
+                                    <small>{{ permission.key }}</small>
+                                </span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </details>
+                    {% endfor %}
+                </section>
+            </form>
+        </main>
+    </section>
+</section>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(() => {
+    const selectAll = document.querySelector("[data-permission-select-all]");
+    const clearAll = document.querySelector("[data-permission-clear-all]");
+    const checks = Array.from(document.querySelectorAll('input[name="permission_keys"]'));
+
+    if (selectAll) {
+        selectAll.addEventListener("click", () => {
+            checks.forEach((check) => {
+                if (!check.disabled) {
+                    check.checked = true;
+                }
+            });
+        });
+    }
+    if (clearAll) {
+        clearAll.addEventListener("click", () => {
+            checks.forEach((check) => {
+                if (!check.disabled) {
+                    check.checked = false;
+                }
+            });
+        });
+    }
+})();
+</script>
+{% endblock %}

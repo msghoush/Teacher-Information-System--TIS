@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 import auth
 import models
+import permission_registry
 from dependencies import get_db
 from auth import get_current_user, get_password_hash
 from ui_shell import build_shell_context
@@ -19,6 +20,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 templates = Jinja2Templates(directory="templates")
 
 POSITIONS = [
+    "Teacher",
     "Academic Supervisor",
     "Principal",
     "Vice Principal",
@@ -35,7 +37,6 @@ POSITION_ALIASES = {
 ROLE_CHOICES = [
     auth.ROLE_DEVELOPER,
     auth.ROLE_ADMINISTRATOR,
-    auth.ROLE_EDITOR,
     auth.ROLE_USER,
     auth.ROLE_LIMITED,
 ]
@@ -59,11 +60,59 @@ def _get_user_roles_for_creator(current_user):
     if role == auth.ROLE_ADMINISTRATOR:
         return [
             auth.ROLE_ADMINISTRATOR,
-            auth.ROLE_EDITOR,
             auth.ROLE_USER,
             auth.ROLE_LIMITED,
         ]
-    return [auth.ROLE_EDITOR, auth.ROLE_USER, auth.ROLE_LIMITED]
+    return [auth.ROLE_USER, auth.ROLE_LIMITED]
+
+
+def _get_user_school_group_id(db: Session, current_user) -> int | None:
+    branch_id = getattr(current_user, "scope_branch_id", None) or getattr(current_user, "branch_id", None)
+    if not branch_id:
+        return None
+    branch = db.query(models.Branch).filter(models.Branch.id == branch_id).first()
+    return getattr(branch, "school_group_id", None) if branch else None
+
+
+def _get_role_permission_rows(db: Session, role: str, school_group_id: int | None = None):
+    query = db.query(models.RolePermission).filter(models.RolePermission.role == role)
+    if school_group_id is None:
+        query = query.filter(models.RolePermission.school_group_id.is_(None))
+    else:
+        query = query.filter(models.RolePermission.school_group_id == school_group_id)
+    return query.all()
+
+
+def _get_allowed_permission_keys(db: Session, role: str, school_group_id: int | None = None) -> set[str]:
+    normalized_role = permission_registry.normalize_managed_role(role)
+    if normalized_role == auth.ROLE_DEVELOPER:
+        return set(permission_registry.ALL_PERMISSION_KEYS)
+    allowed_keys = permission_registry.get_default_permissions_for_role(normalized_role)
+    for permission_row in _get_role_permission_rows(db, normalized_role, None):
+        if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
+            if permission_row.is_allowed:
+                allowed_keys.add(permission_row.permission_key)
+            else:
+                allowed_keys.discard(permission_row.permission_key)
+    if school_group_id:
+        for permission_row in _get_role_permission_rows(db, normalized_role, school_group_id):
+            if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
+                if permission_row.is_allowed:
+                    allowed_keys.add(permission_row.permission_key)
+                else:
+                    allowed_keys.discard(permission_row.permission_key)
+    return allowed_keys
+
+
+def _build_role_permission_summary_map(db: Session, current_user):
+    school_group_id = _get_user_school_group_id(db, current_user)
+    return {
+        role: permission_registry.build_role_permission_payload(
+            role,
+            _get_allowed_permission_keys(db, role, school_group_id),
+        )
+        for role in permission_registry.MANAGED_ROLES
+    }
 
 
 def _get_available_branches(db: Session, current_user):
@@ -185,6 +234,7 @@ def _render_edit_user_page(
             "user_row": user_row,
             "positions": POSITIONS,
             "role_choices": role_choices,
+            "role_permission_summary_map": _build_role_permission_summary_map(db, current_user),
             "can_set_inactive": selected_role != auth.ROLE_DEVELOPER,
             "available_branches": _get_available_branches(db, current_user),
             "error": error,
@@ -249,6 +299,7 @@ def _render_users_page(
             "branch_map": branch_map,
             "positions": POSITIONS,
             "role_choices": _get_user_roles_for_creator(current_user),
+            "role_permission_summary_map": _build_role_permission_summary_map(db, current_user),
             "available_branches": available_branches,
             "error": error,
             "success": success,

@@ -232,6 +232,47 @@
             grid-column: 1 / -1;
         }
 
+        .role-permission-preview {
+            grid-column: 1 / -1;
+            display: grid;
+            gap: 10px;
+            padding: 12px;
+            border: 1px solid #d8e2f0;
+            border-radius: 12px;
+            background: #f8fbff;
+        }
+
+        .role-permission-preview h3 {
+            margin: 0;
+            color: #17365d;
+            font-size: 14px;
+        }
+
+        .role-permission-preview p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .role-permission-groups {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .role-permission-chip {
+            display: inline-flex;
+            align-items: center;
+            min-height: 28px;
+            padding: 5px 9px;
+            border: 1px solid #cbd9eb;
+            border-radius: 999px;
+            background: #fff;
+            color: #17365d;
+            font-size: 11px;
+            font-weight: 900;
+        }
+
         .btn-save {
             margin-top: 12px;
             border: none;
@@ -741,6 +782,11 @@
                                 {% endfor %}
                             </select>
                         </div>
+                        <div class="role-permission-preview" data-role-permission-preview>
+                            <h3>Role Permissions</h3>
+                            <p data-role-permission-summary>Select a role to see the permission package before creating the user.</p>
+                            <div class="role-permission-groups" data-role-permission-groups></div>
+                        </div>
                         <div class="field">
                             <label for="branch_id">Branch</label>
                             <select id="branch_id" name="branch_id" required>
@@ -898,10 +944,14 @@
 
 {% block page_scripts %}
 <script>
+const rolePermissionSummaryMap = {{ role_permission_summary_map | tojson }};
 const searchInput = document.getElementById("usersSearch");
         const rows = Array.from(document.querySelectorAll(".user-row"));
         const noResult = document.getElementById("noUsersResult");
         const userIdInput = document.getElementById("user_id");
+        const roleSelect = document.getElementById("role");
+        const rolePermissionSummary = document.querySelector("[data-role-permission-summary]");
+        const rolePermissionGroups = document.querySelector("[data-role-permission-groups]");
         const createUserForm = document.getElementById("createUserForm");
         const selectableUsers = Array.from(document.querySelectorAll(".bulk-select-item"));
         const bulkSelectAll = document.getElementById("bulkSelectAll");
@@ -1047,6 +1097,36 @@ const searchInput = document.getElementById("usersSearch");
             });
         }
 
+        const renderRolePermissions = () => {
+            if (!roleSelect || !rolePermissionSummary || !rolePermissionGroups) {
+                return;
+            }
+
+            const selectedRole = roleSelect.value || "";
+            const roleSummary = rolePermissionSummaryMap[selectedRole];
+            rolePermissionGroups.innerHTML = "";
+            if (!roleSummary) {
+                rolePermissionSummary.textContent = "Select a role to see the permission package before creating the user.";
+                return;
+            }
+
+            rolePermissionSummary.textContent = `${selectedRole}: ${roleSummary.allowed_count} of ${roleSummary.total_count} detailed permissions enabled.`;
+            (roleSummary.groups || []).forEach((group) => {
+                if (!group.allowed_count) {
+                    return;
+                }
+                const chip = document.createElement("span");
+                chip.className = "role-permission-chip";
+                chip.textContent = `${group.label}: ${group.allowed_count}/${group.total_count}`;
+                rolePermissionGroups.appendChild(chip);
+            });
+        };
+
+        if (roleSelect) {
+            roleSelect.addEventListener("change", renderRolePermissions);
+            renderRolePermissions();
+        }
+
         if (searchInput && rows.length > 0) {
             searchInput.addEventListener("input", () => {
                 const term = searchInput.value.trim().toLowerCase();
@@ -1093,6 +1173,7 @@ const searchInput = document.getElementById("usersSearch");
                         field.selectedIndex = 0;
                     }
                 });
+                renderRolePermissions();
             });
         }
     </script>

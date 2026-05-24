@@ -43,6 +43,23 @@ class SchoolGroupLogo(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class RolePermission(Base):
+    __tablename__ = "role_permissions"
+    __table_args__ = (
+        Index("ix_role_permissions_scope_role", "school_group_id", "role"),
+        Index("ix_role_permissions_key", "permission_key"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), index=True)
+    role = Column(String(50), nullable=False, index=True)
+    permission_key = Column(String(120), nullable=False, index=True)
+    is_allowed = Column(Boolean, nullable=False, default=False)
+    updated_by_user_id = Column(String(10))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class BranchLogo(Base):
     __tablename__ = "branch_logos"
     __table_args__ = (

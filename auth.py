@@ -10,6 +10,12 @@ ROLE_ADMINISTRATOR = "Administrator"
 ROLE_EDITOR = "Editor"
 ROLE_USER = "User"
 ROLE_LIMITED = "Limited Access"
+ROLE_MANAGED_CHOICES = (
+    ROLE_DEVELOPER,
+    ROLE_ADMINISTRATOR,
+    ROLE_USER,
+    ROLE_LIMITED,
+)
 POSITION_EDUCATION_EXCELLENCE = "Education Excellence"
 INACTIVE_ACCOUNT_MESSAGE = "Your account is currently inactive. Please contact the system developer."
 

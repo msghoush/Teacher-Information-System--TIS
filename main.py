@@ -26,6 +26,7 @@ from openpyxl.utils import get_column_letter
 from database import engine, SessionLocal
 import models
 import auth
+import permission_registry
 from dependencies import get_db
 from routers import subjects, users, teachers, planning, timetable, academic_calendar, observations
 from auth import get_password_hash
@@ -379,6 +380,10 @@ def _ensure_subject_color_schema():
 
     with engine.begin() as connection:
         connection.execute(text("ALTER TABLE subjects ADD COLUMN color VARCHAR(7)"))
+
+
+def _ensure_role_permission_schema():
+    models.RolePermission.__table__.create(bind=engine, checkfirst=True)
 
 
 def _backfill_subject_colors(db: Session):
@@ -745,6 +750,128 @@ def _build_school_delete_summary(db: Session, school_group_id: int | None) -> di
     }
 
 
+def _get_role_permission_rows(
+    db: Session,
+    role: str,
+    school_group_id: int | None = None,
+) -> list[models.RolePermission]:
+    normalized_role = permission_registry.normalize_managed_role(role)
+    if not normalized_role:
+        return []
+
+    query = db.query(models.RolePermission).filter(
+        models.RolePermission.role == normalized_role
+    )
+    if school_group_id is None:
+        query = query.filter(models.RolePermission.school_group_id.is_(None))
+    else:
+        query = query.filter(models.RolePermission.school_group_id == school_group_id)
+    return query.all()
+
+
+def _get_allowed_permission_keys(
+    db: Session,
+    role: str,
+    school_group_id: int | None = None,
+) -> set[str]:
+    normalized_role = permission_registry.normalize_managed_role(role)
+    if not normalized_role:
+        return set()
+    if normalized_role == auth.ROLE_DEVELOPER:
+        return set(permission_registry.ALL_PERMISSION_KEYS)
+
+    allowed_keys = permission_registry.get_default_permissions_for_role(normalized_role)
+    for permission_row in _get_role_permission_rows(db, normalized_role, None):
+        if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
+            if permission_row.is_allowed:
+                allowed_keys.add(permission_row.permission_key)
+            else:
+                allowed_keys.discard(permission_row.permission_key)
+    if school_group_id:
+        for permission_row in _get_role_permission_rows(db, normalized_role, school_group_id):
+            if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
+                if permission_row.is_allowed:
+                    allowed_keys.add(permission_row.permission_key)
+                else:
+                    allowed_keys.discard(permission_row.permission_key)
+    return allowed_keys
+
+
+def _build_role_permission_payload(
+    db: Session,
+    role: str,
+    school_group_id: int | None = None,
+) -> dict:
+    allowed_keys = _get_allowed_permission_keys(db, role, school_group_id)
+    return permission_registry.build_role_permission_payload(role, allowed_keys)
+
+
+def _build_role_permission_summary_map(
+    db: Session,
+    school_group_id: int | None = None,
+) -> dict[str, dict[str, object]]:
+    return {
+        role: _build_role_permission_payload(db, role, school_group_id)
+        for role in permission_registry.MANAGED_ROLES
+    }
+
+
+def _set_role_permission_rows(
+    db: Session,
+    *,
+    role: str,
+    allowed_keys: set[str],
+    school_group_id: int | None,
+    updated_by_user_id: str | None,
+):
+    normalized_role = permission_registry.normalize_managed_role(role)
+    if not normalized_role or normalized_role == auth.ROLE_DEVELOPER:
+        return
+
+    valid_keys = set(permission_registry.ALL_PERMISSION_KEYS)
+    allowed_keys = allowed_keys & valid_keys
+    existing_rows = {
+        row.permission_key: row
+        for row in _get_role_permission_rows(db, normalized_role, school_group_id)
+    }
+    now = datetime.utcnow()
+    for permission_key in valid_keys:
+        is_allowed = permission_key in allowed_keys
+        row = existing_rows.get(permission_key)
+        if row:
+            row.is_allowed = is_allowed
+            row.updated_by_user_id = updated_by_user_id
+            row.updated_at = now
+        else:
+            db.add(
+                models.RolePermission(
+                    school_group_id=school_group_id,
+                    role=normalized_role,
+                    permission_key=permission_key,
+                    is_allowed=is_allowed,
+                    updated_by_user_id=updated_by_user_id,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+
+
+def _seed_global_role_permissions(db: Session):
+    for role in permission_registry.MANAGED_ROLES:
+        if role == auth.ROLE_DEVELOPER:
+            continue
+        if _get_role_permission_rows(db, role, None):
+            continue
+        _set_role_permission_rows(
+            db,
+            role=role,
+            allowed_keys=permission_registry.get_default_permissions_for_role(role),
+            school_group_id=None,
+            updated_by_user_id="system",
+        )
+    db.commit()
+
+
 def _ensure_default_school_group(db: Session):
     school_group = db.query(models.SchoolGroup).filter(
         models.SchoolGroup.name == DEFAULT_SCHOOL_GROUP_NAME
@@ -867,6 +994,13 @@ CONFIGURATION_MODULES = (
         "href": "/users",
         "icon": "users",
         "description": "Manage user accounts, roles, and active status.",
+    },
+    {
+        "key": "role-permissions",
+        "label": "Role Permissions",
+        "href": "/system-configuration/role-permissions",
+        "icon": "shield",
+        "description": "Assign detailed TIS permissions to each access role.",
     },
     {
         "key": "degrees",
@@ -8955,6 +9089,16 @@ def _get_school_branding_access(request: Request, db: Session):
     return current_user, None
 
 
+def _get_role_permissions_access(request: Request, db: Session):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return None, RedirectResponse(url="/", status_code=302)
+    role = auth.normalize_role(getattr(current_user, "role", ""))
+    if not (auth.can_manage_system_settings(current_user) or role == auth.ROLE_ADMINISTRATOR):
+        return None, RedirectResponse(url="/dashboard", status_code=302)
+    return current_user, None
+
+
 def _render_configuration_template(
     *,
     request: Request,
@@ -9200,6 +9344,155 @@ def _build_school_management_context(request: Request, db: Session, current_user
         "school_branch_rows": school_branch_rows,
         "school_delete_summary": _build_school_delete_summary(db, school_group_id),
     }
+
+
+def _build_role_permissions_context(request: Request, db: Session, current_user):
+    can_manage_all = auth.can_manage_system_settings(current_user)
+    user_school_group_id = _get_user_school_group_id(db, current_user)
+    school_groups = db.query(models.SchoolGroup).order_by(
+        models.SchoolGroup.status.desc(),
+        models.SchoolGroup.name.asc(),
+    ).all()
+
+    requested_role = request.query_params.get("role", auth.ROLE_ADMINISTRATOR)
+    selected_role = permission_registry.normalize_managed_role(requested_role) or auth.ROLE_ADMINISTRATOR
+    if selected_role == auth.ROLE_DEVELOPER and not can_manage_all:
+        selected_role = auth.ROLE_ADMINISTRATOR
+
+    requested_scope = str(request.query_params.get("scope", "") or "").strip().lower()
+    requested_group_id = request.query_params.get("school_group_id")
+    selected_school_group = None
+    selected_school_group_id = None
+    if can_manage_all and requested_scope == "global":
+        selected_school_group_id = None
+    else:
+        if can_manage_all and requested_group_id:
+            try:
+                selected_school_group_id = int(requested_group_id)
+            except ValueError:
+                selected_school_group_id = None
+        else:
+            selected_school_group_id = user_school_group_id
+        if selected_school_group_id:
+            selected_school_group = next(
+                (school for school in school_groups if school.id == selected_school_group_id),
+                None,
+            )
+        if not selected_school_group and school_groups and not can_manage_all:
+            selected_school_group = school_groups[0]
+            selected_school_group_id = selected_school_group.id
+
+    editable_roles = [
+        role for role in permission_registry.MANAGED_ROLES
+        if can_manage_all or role != auth.ROLE_DEVELOPER
+    ]
+    permission_payload = _build_role_permission_payload(
+        db,
+        selected_role,
+        selected_school_group_id,
+    )
+
+    return {
+        "permission_groups": permission_registry.PERMISSION_GROUPS,
+        "managed_roles": permission_registry.MANAGED_ROLES,
+        "editable_roles": editable_roles,
+        "selected_permission_role": selected_role,
+        "selected_permission_school_group": selected_school_group,
+        "selected_permission_school_group_id": selected_school_group_id,
+        "selected_permission_scope": "global" if selected_school_group_id is None else "school",
+        "role_permission_payload": permission_payload,
+        "role_permission_summary_map": _build_role_permission_summary_map(
+            db,
+            selected_school_group_id,
+        ),
+        "role_permission_school_groups": school_groups,
+        "can_manage_all_role_permissions": can_manage_all,
+        "can_edit_selected_role_permissions": selected_role != auth.ROLE_DEVELOPER,
+        "notice_message": str(request.query_params.get("notice", "") or "").strip(),
+    }
+
+
+@app.get("/system-configuration/role-permissions")
+def system_configuration_role_permissions(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_role_permissions_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    return _render_configuration_template(
+        request=request,
+        db=db,
+        current_user=current_user,
+        template_name="system_configuration_role_permissions.html",
+        active_module_key="role-permissions",
+        title="Role Permissions",
+        intro="Assign detailed TIS permissions to each role package before giving that role to users.",
+        extra_context=_build_role_permissions_context(request, db, current_user),
+    )
+
+
+@app.post("/system-configuration/role-permissions")
+def update_role_permissions(
+    request: Request,
+    role: str = Form(...),
+    scope_type: str = Form("school"),
+    school_group_id: int | None = Form(None),
+    permission_keys: list[str] = Form([]),
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_role_permissions_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    can_manage_all = auth.can_manage_system_settings(current_user)
+    selected_role = permission_registry.normalize_managed_role(role)
+    if not selected_role:
+        return _redirect_with_error(
+            "/system-configuration/role-permissions",
+            "Select a valid role.",
+        )
+    if selected_role == auth.ROLE_DEVELOPER:
+        return _redirect_with_error(
+            "/system-configuration/role-permissions?role=Developer&scope=global",
+            "Developer permissions are always full access and cannot be restricted.",
+        )
+
+    target_school_group_id = None
+    if can_manage_all and str(scope_type or "").strip().lower() == "global":
+        target_school_group_id = None
+    else:
+        target_school_group_id = school_group_id or _get_user_school_group_id(db, current_user)
+        if not target_school_group_id:
+            return _redirect_with_error(
+                "/system-configuration/role-permissions",
+                "No school context was found for these permissions.",
+            )
+        if not can_manage_all and target_school_group_id != _get_user_school_group_id(db, current_user):
+            return RedirectResponse(url="/dashboard", status_code=302)
+
+    allowed_keys = {
+        key for key in permission_keys
+        if key in permission_registry.PERMISSION_LABELS
+    }
+    _set_role_permission_rows(
+        db,
+        role=selected_role,
+        allowed_keys=allowed_keys,
+        school_group_id=target_school_group_id,
+        updated_by_user_id=getattr(current_user, "user_id", None),
+    )
+    db.commit()
+
+    if target_school_group_id is None:
+        return_to = f"/system-configuration/role-permissions?role={quote_plus(selected_role)}&scope=global"
+    else:
+        return_to = (
+            f"/system-configuration/role-permissions?role={quote_plus(selected_role)}"
+            f"&school_group_id={target_school_group_id}"
+        )
+    return _redirect_with_notice(return_to, f"{selected_role} permissions updated.")
 
 
 @app.get("/system-configuration/schools")
@@ -12115,6 +12408,7 @@ def setup_initial_data():
     _ensure_subject_scope_schema()
     _ensure_subject_color_schema()
     _ensure_school_group_schema()
+    _ensure_role_permission_schema()
     _ensure_teacher_subject_allocation_columns()
     _ensure_timetable_non_teaching_block_columns()
     _ensure_system_notifications_table_columns()
@@ -12126,6 +12420,7 @@ def setup_initial_data():
     observations.ensure_observation_schema()
     db = SessionLocal()
     observations.ensure_observation_seed_data(db)
+    _seed_global_role_permissions(db)
     _backfill_subject_colors(db)
     _migrate_profile_photos_to_database(db)
     admin_user_id = os.getenv("ADMIN_USER_ID", "2623252018")

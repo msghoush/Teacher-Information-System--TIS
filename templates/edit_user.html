@@ -177,6 +177,47 @@
             grid-column: 1 / -1;
         }
 
+        .role-permission-preview {
+            grid-column: 1 / -1;
+            display: grid;
+            gap: 10px;
+            padding: 12px;
+            border: 1px solid #d8e2f0;
+            border-radius: 12px;
+            background: #f8fbff;
+        }
+
+        .role-permission-preview h3 {
+            margin: 0;
+            color: #17365d;
+            font-size: 14px;
+        }
+
+        .role-permission-preview p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .role-permission-groups {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .role-permission-chip {
+            display: inline-flex;
+            align-items: center;
+            min-height: 28px;
+            padding: 5px 9px;
+            border: 1px solid #cbd9eb;
+            border-radius: 999px;
+            background: #fff;
+            color: #17365d;
+            font-size: 11px;
+            font-weight: 900;
+        }
+
         label {
             font-size: 13px;
             color: #415068;
@@ -304,6 +345,11 @@
                         {% endfor %}
                     </select>
                 </div>
+                <div class="role-permission-preview" data-role-permission-preview>
+                    <h3>Role Permissions</h3>
+                    <p data-role-permission-summary>Review the permission package before saving this role.</p>
+                    <div class="role-permission-groups" data-role-permission-groups></div>
+                </div>
                 <div class="field">
                     <label for="branch_id">Branch</label>
                     <select id="branch_id" name="branch_id" required>
@@ -337,10 +383,13 @@
 
 {% block page_scripts %}
 <script>
+const rolePermissionSummaryMap = {{ role_permission_summary_map | tojson }};
 const userIdInput = document.getElementById("user_id");
     const roleSelect = document.getElementById("role");
     const statusSelect = document.getElementById("is_active");
     const statusDeveloperHint = document.getElementById("statusDeveloperHint");
+    const rolePermissionSummary = document.querySelector("[data-role-permission-summary]");
+    const rolePermissionGroups = document.querySelector("[data-role-permission-groups]");
 
         if (userIdInput) {
             userIdInput.addEventListener("input", () => {
@@ -370,10 +419,39 @@ const userIdInput = document.getElementById("user_id");
             }
         };
 
+        const renderRolePermissions = () => {
+            if (!roleSelect || !rolePermissionSummary || !rolePermissionGroups) {
+                return;
+            }
+
+            const selectedRole = roleSelect.value || "";
+            const roleSummary = rolePermissionSummaryMap[selectedRole];
+            rolePermissionGroups.innerHTML = "";
+            if (!roleSummary) {
+                rolePermissionSummary.textContent = "Review the permission package before saving this role.";
+                return;
+            }
+
+            rolePermissionSummary.textContent = `${selectedRole}: ${roleSummary.allowed_count} of ${roleSummary.total_count} detailed permissions enabled.`;
+            (roleSummary.groups || []).forEach((group) => {
+                if (!group.allowed_count) {
+                    return;
+                }
+                const chip = document.createElement("span");
+                chip.className = "role-permission-chip";
+                chip.textContent = `${group.label}: ${group.allowed_count}/${group.total_count}`;
+                rolePermissionGroups.appendChild(chip);
+            });
+        };
+
         if (roleSelect) {
-            roleSelect.addEventListener("change", syncDeveloperStatusRule);
+            roleSelect.addEventListener("change", () => {
+                syncDeveloperStatusRule();
+                renderRolePermissions();
+            });
         }
 
         syncDeveloperStatusRule();
+        renderRolePermissions();
     </script>
 {% endblock %}
