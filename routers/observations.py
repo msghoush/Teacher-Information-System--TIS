@@ -1,12 +1,15 @@
 from collections import defaultdict
+from io import BytesIO
+import base64
 from datetime import date, datetime, timezone
 import html
 import json
 import logging
+import os
 import traceback
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
@@ -16,7 +19,7 @@ import models
 from auth import get_current_user
 from database import engine
 from dependencies import get_db
-from ui_shell import build_shell_context
+from ui_shell import build_shell_context, get_school_logo_slots
 
 
 router = APIRouter(prefix="/observations", tags=["Observations"])
@@ -827,6 +830,49 @@ def _can_delete_observation(current_user, observation) -> bool:
     return not _observation_is_locked(observation) or _can_override_locked_observation(current_user)
 
 
+def _get_self_evaluation_bundle(db: Session, observation):
+    if not observation:
+        return None, {}
+    self_evaluation = db.query(models.ObservationSelfEvaluation).filter(
+        models.ObservationSelfEvaluation.observation_id == observation.id
+    ).first()
+    if not self_evaluation:
+        return None, {}
+    scores = {
+        score.criterion_id: score
+        for score in db.query(models.ObservationSelfEvaluationScore).filter(
+            models.ObservationSelfEvaluationScore.self_evaluation_id == self_evaluation.id
+        ).all()
+    }
+    return self_evaluation, scores
+
+
+def _self_evaluation_has_rating(self_scores_by_criterion: dict) -> bool:
+    return any(
+        str(getattr(score, "rating", "") or "").strip().upper() != "NA"
+        for score in self_scores_by_criterion.values()
+    )
+
+
+def _observation_export_state(db: Session, observation) -> dict:
+    self_evaluation, self_scores_by_criterion = _get_self_evaluation_bundle(db, observation)
+    self_evaluation_complete = bool(
+        self_evaluation and _self_evaluation_has_rating(self_scores_by_criterion)
+    )
+    evaluator_signed = bool(getattr(observation, "evaluator_signature_data", None))
+    teacher_signed = bool(getattr(observation, "teacher_signature_data", None))
+    locked = _observation_is_locked(observation)
+    return {
+        "self_evaluation": self_evaluation,
+        "self_scores_by_criterion": self_scores_by_criterion,
+        "self_evaluation_complete": self_evaluation_complete,
+        "evaluator_signed": evaluator_signed,
+        "teacher_signed": teacher_signed,
+        "locked": locked,
+        "can_export": bool(locked and evaluator_signed and teacher_signed and self_evaluation_complete),
+    }
+
+
 def _observation_link(observation_id: int) -> str:
     return f"/observations/{observation_id}"
 
@@ -1176,6 +1222,282 @@ def _next_steps(overall, growth_domains):
     return steps
 
 
+def _rating_level(rating) -> str:
+    value = str(rating or "NA").strip().upper()
+    return {
+        "NA": "Not Applicable",
+        "0": "Not Demonstrated",
+        "1": "Limited",
+        "2": "Developing",
+        "3": "Proficient",
+        "4": "Strong",
+        "5": "Excellent",
+    }.get(value, "Not Rated")
+
+
+def _clean_pdf_text(value, fallback: str = "-") -> str:
+    text_value = str(value or "").strip()
+    return text_value if text_value else fallback
+
+
+def _pdf_markup(value, fallback: str = "-") -> str:
+    return html.escape(_clean_pdf_text(value, fallback))
+
+
+def _logo_static_path(logo: dict) -> str | None:
+    relative_path = str((logo or {}).get("path") or "").replace("\\", "/").lstrip("/")
+    if not relative_path:
+        return None
+    local_path = os.path.join(os.getcwd(), "static", *relative_path.split("/"))
+    return local_path if os.path.exists(local_path) else None
+
+
+def _signature_image_flowable(signature_data: str, *, width: int = 190, height: int = 70):
+    if not signature_data:
+        return None
+    try:
+        data = str(signature_data or "").strip()
+        if "," in data:
+            data = data.split(",", 1)[1]
+        image_bytes = BytesIO(base64.b64decode(data))
+        from reportlab.platypus import Image
+
+        image = Image(image_bytes, width=width, height=height)
+        image.hAlign = "LEFT"
+        return image
+    except Exception:
+        return None
+
+
+def _build_observation_pdf_report(
+    request: Request,
+    db: Session,
+    observation,
+    teacher,
+    evaluator,
+    criteria,
+    score_rows,
+    self_evaluation,
+    self_scores_by_criterion,
+    feedback: dict,
+) -> bytes:
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import inch
+        from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    except ImportError as exc:
+        raise RuntimeError("PDF export dependency is not installed. Install reportlab.") from exc
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=32,
+        leftMargin=32,
+        topMargin=34,
+        bottomMargin=34,
+        title=f"Observation Report - {_teacher_name(teacher)}",
+    )
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name="ReportTitle", parent=styles["Title"], fontSize=20, leading=24, textColor=colors.HexColor("#073a7d"), spaceAfter=8))
+    styles.add(ParagraphStyle(name="SectionTitle", parent=styles["Heading2"], fontSize=13, leading=16, textColor=colors.HexColor("#073a7d"), spaceBefore=10, spaceAfter=7))
+    styles.add(ParagraphStyle(name="BodySmall", parent=styles["BodyText"], fontSize=8.5, leading=11))
+    styles.add(ParagraphStyle(name="BodyTiny", parent=styles["BodyText"], fontSize=7.7, leading=9.5))
+    styles.add(ParagraphStyle(name="Badge", parent=styles["BodyText"], alignment=TA_CENTER, fontSize=9, leading=11, textColor=colors.HexColor("#027a48")))
+
+    story = []
+    branch = db.query(models.Branch).filter(models.Branch.id == observation.branch_id).first()
+    school_group = None
+    if branch and getattr(branch, "school_group_id", None):
+        school_group = db.query(models.SchoolGroup).filter(models.SchoolGroup.id == branch.school_group_id).first()
+    school_name = _clean_pdf_text(getattr(school_group, "name", ""), "School")
+    branch_name = _clean_pdf_text(getattr(branch, "name", ""), "Branch")
+
+    logo_flowables = []
+    for logo in get_school_logo_slots(request, db, observation.branch_id, getattr(school_group, "id", None))[:3]:
+        logo_path = _logo_static_path(logo)
+        if not logo_path:
+            continue
+        try:
+            image = Image(logo_path, width=1.15 * inch, height=0.45 * inch, kind="proportional")
+            image.hAlign = "RIGHT"
+            logo_flowables.append(image)
+        except Exception:
+            continue
+
+    header_left = [
+        Paragraph("Teacher Observation Report", styles["ReportTitle"]),
+        Paragraph(f"{_pdf_markup(school_name)} | {_pdf_markup(branch_name)}", styles["BodySmall"]),
+        Paragraph("Finalized & Locked", styles["Badge"]),
+    ]
+    header_table = Table(
+        [[header_left, logo_flowables or [Paragraph(_pdf_markup(school_name), styles["BodySmall"])]]],
+        colWidths=[3.7 * inch, 3.3 * inch],
+    )
+    header_table.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#d8e2f0")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e3ebf6")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#f8fbff")),
+        ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#f8fbff")),
+    ]))
+    story.append(header_table)
+    story.append(Spacer(1, 10))
+
+    evaluator_name = _user_display_name(evaluator) if evaluator else _clean_pdf_text(observation.evaluator_user_id)
+    info_rows = [
+        ["Teacher", _teacher_name(teacher), "Evaluator", evaluator_name],
+        ["Subject", _clean_pdf_text(observation.subject), "Grade / Section", f"{_clean_pdf_text(observation.grade)} {_clean_pdf_text(observation.section, '')}".strip()],
+        ["Observation Date", _clean_pdf_text(observation.observation_date), "Type / Term", f"{_clean_pdf_text(observation.observation_type)} | {_clean_pdf_text(observation.term)}"],
+        ["Overall Score", f"{_clean_pdf_text(observation.overall_score)} / 5", "Finalized", _clean_pdf_text(observation.locked_at)],
+    ]
+    info_table = Table(info_rows, colWidths=[1.15 * inch, 2.35 * inch, 1.2 * inch, 2.3 * inch])
+    info_table.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#d8e2f0")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e3ebf6")),
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#eef6ff")),
+        ("BACKGROUND", (2, 0), (2, -1), colors.HexColor("#eef6ff")),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(info_table)
+
+    score_by_criterion = {score.criterion_id: score for score in score_rows}
+    criteria_by_id = {criterion.id: criterion for criterion in criteria}
+    overall, domain_summary, _, _ = _compute_scores(score_rows, criteria_by_id)
+    story.append(Paragraph("Overall Summary", styles["SectionTitle"]))
+    summary_table = Table(
+        [["Overall", f"{overall if overall is not None else '-'} / 5"], ["Status", "Completed & Locked"], ["Self-Observation", "Completed"]],
+        colWidths=[1.3 * inch, 1.45 * inch],
+    )
+    summary_table.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#d8e2f0")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e3ebf6")),
+        ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#eef6ff")),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+    ]))
+    domain_rows = [["Domain", "Average"]]
+    for item in domain_summary:
+        domain_rows.append([f"{item['domain_key']}. {item['domain_title']}", f"{item['average']} / 5"])
+    if len(domain_rows) == 1:
+        domain_rows.append(["Domain scores", "-"])
+    domain_table = Table(domain_rows, colWidths=[2.6 * inch, 1.15 * inch])
+    domain_table.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#d8e2f0")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e3ebf6")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#073a7d")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+    ]))
+    story.append(Table([[summary_table, domain_table]], colWidths=[2.9 * inch, 4.05 * inch]))
+
+    story.append(Paragraph("Observation Domains And Evidence", styles["SectionTitle"]))
+    for group in _criteria_by_domain(criteria):
+        story.append(Paragraph(f"{group['domain_key']}. {group['domain_title']}", styles["SectionTitle"]))
+        rows = [["Indicator", "Evaluator", "Teacher", "Evidence / Comments"]]
+        for criterion in group["criteria"]:
+            evaluator_score = score_by_criterion.get(criterion.id)
+            self_score = self_scores_by_criterion.get(criterion.id)
+            evaluator_rating = _clean_pdf_text(getattr(evaluator_score, "rating", "NA"), "NA")
+            self_rating = _clean_pdf_text(getattr(self_score, "rating", "NA"), "NA")
+            rows.append([
+                Paragraph(f"{criterion.indicator_number}. {_pdf_markup(criterion.title)}", styles["BodyTiny"]),
+                Paragraph(f"<b>{_pdf_markup(evaluator_rating)}</b><br/>{_pdf_markup(_rating_level(evaluator_rating))}", styles["BodyTiny"]),
+                Paragraph(f"<b>{_pdf_markup(self_rating)}</b><br/>{_pdf_markup(_rating_level(self_rating))}", styles["BodyTiny"]),
+                Paragraph(
+                    f"<b>Evaluator evidence:</b> {_pdf_markup(getattr(evaluator_score, 'evidence', ''))}<br/>"
+                    f"<b>Teacher self-evidence:</b> {_pdf_markup(getattr(self_score, 'evidence', ''))}",
+                    styles["BodyTiny"],
+                ),
+            ])
+        table = Table(rows, colWidths=[2.45 * inch, 0.85 * inch, 0.85 * inch, 2.85 * inch], repeatRows=1)
+        table.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#d8e2f0")),
+            ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e3ebf6")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f3f8ff")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 7.8),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("BACKGROUND", (1, 1), (1, -1), colors.HexColor("#eef6ff")),
+            ("BACKGROUND", (2, 1), (2, -1), colors.HexColor("#fff7ed")),
+        ]))
+        story.append(table)
+        story.append(Spacer(1, 5))
+
+    story.append(Paragraph("Evaluator Notes", styles["SectionTitle"]))
+    story.append(Paragraph(_pdf_markup(observation.evaluator_notes), styles["BodySmall"]))
+    story.append(Paragraph("Teacher Self-Reflection And Evaluatee Notes", styles["SectionTitle"]))
+    story.append(Paragraph(_pdf_markup(getattr(self_evaluation, "reflection", None) or observation.evaluatee_notes), styles["BodySmall"]))
+
+    if feedback:
+        story.append(Paragraph("Smart Feedback", styles["SectionTitle"]))
+        story.append(Paragraph(_pdf_markup(feedback.get("headline")), styles["BodySmall"]))
+        feedback_rows = [["Strengths", "Growth Opportunities", "Recommended Next Steps"]]
+        feedback_rows.append([
+            Paragraph("<br/>".join(_pdf_markup(item) for item in feedback.get("strengths", [])[:4]) or "-", styles["BodyTiny"]),
+            Paragraph("<br/>".join(_pdf_markup(item) for item in feedback.get("improvements", [])[:4]) or "-", styles["BodyTiny"]),
+            Paragraph("<br/>".join(_pdf_markup(item) for item in feedback.get("next_steps", [])[:4]) or "-", styles["BodyTiny"]),
+        ])
+        feedback_table = Table(feedback_rows, colWidths=[2.25 * inch, 2.25 * inch, 2.25 * inch])
+        feedback_table.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#d8e2f0")),
+            ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e3ebf6")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#073a7d")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(feedback_table)
+
+    evaluator_signature = _signature_image_flowable(observation.evaluator_signature_data)
+    teacher_signature = _signature_image_flowable(observation.teacher_signature_data)
+    signature_rows = [
+        ["Evaluator Signature", "Teacher Signature"],
+        [evaluator_signature or Paragraph("Signature on file", styles["BodySmall"]), teacher_signature or Paragraph("Signature on file", styles["BodySmall"])],
+        [f"Signed: {_clean_pdf_text(observation.updated_at)}", f"Signed and locked: {_clean_pdf_text(observation.locked_at)}"],
+    ]
+    signature_table = Table(signature_rows, colWidths=[3.45 * inch, 3.45 * inch])
+    signature_table.setStyle(TableStyle([
+        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#d8e2f0")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e3ebf6")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f8fbff")),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+    ]))
+    story.append(Paragraph("Signatures And Acknowledgment", styles["SectionTitle"]))
+    story.append(signature_table)
+    story.append(Paragraph(
+        "This report is generated from a locked observation record after evaluator submission, teacher self-observation, and both digital signatures.",
+        styles["BodyTiny"],
+    ))
+
+    def _draw_footer(canvas, doc_obj):
+        canvas.saveState()
+        canvas.setFont("Helvetica-Bold", 32)
+        canvas.setFillColor(colors.HexColor("#eef6ff"))
+        canvas.translate(300, 410)
+        canvas.rotate(35)
+        canvas.drawCentredString(0, 0, "FINALIZED & LOCKED")
+        canvas.restoreState()
+        canvas.saveState()
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(colors.HexColor("#48607f"))
+        canvas.drawString(32, 18, f"Generated by TIS on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+        canvas.drawRightString(563, 18, f"Page {doc_obj.page}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
+    return buffer.getvalue()
+
+
 def _teacher_observation_access_filter(query, db, current_user):
     if not _is_teacher_user(current_user):
         return query
@@ -1300,6 +1622,7 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
                 key=lambda item: item.observation_date or "",
                 reverse=True,
             )
+            latest_export_state = _observation_export_state(db, latest[0]) if latest else {}
             rows.append(
                 {
                     "teacher": teacher,
@@ -1312,6 +1635,7 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
                     "latest": latest[0] if latest else None,
                     "can_edit_latest": _can_edit_observation(current_user, latest[0]) if latest else False,
                     "can_delete_latest": _can_delete_observation(current_user, latest[0]) if latest else False,
+                    "can_export_latest": bool(latest_export_state.get("can_export")),
                 }
             )
         total_formal = sum(row["formal_count"] for row in rows)
@@ -1733,6 +2057,74 @@ async def delete_observation(observation_id: int, request: Request, db: Session 
     return RedirectResponse(url="/observations?notice=Observation+deleted", status_code=302)
 
 
+@router.get("/{observation_id}/export/pdf")
+def export_observation_pdf(observation_id: int, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    observation = _teacher_observation_access_filter(
+        db.query(models.Observation).filter(models.Observation.id == observation_id),
+        db,
+        current_user,
+    ).first()
+    if not observation:
+        return RedirectResponse(url="/observations")
+
+    export_state = _observation_export_state(db, observation)
+    if not export_state["can_export"]:
+        return Response(
+            "Observation PDF export is available only after the evaluator has signed, "
+            "the teacher has completed the self-observation, the teacher has signed, "
+            "and the observation is locked.",
+            status_code=403,
+            media_type="text/plain",
+        )
+
+    teacher = db.query(models.Teacher).filter(models.Teacher.id == observation.teacher_id).first()
+    evaluator = db.query(models.User).filter(models.User.user_id == observation.evaluator_user_id).first()
+    criteria = db.query(models.ObservationCriterion).filter(
+        models.ObservationCriterion.is_active == True
+    ).order_by(models.ObservationCriterion.sort_order.asc()).all()
+    criteria_by_id = {criterion.id: criterion for criterion in criteria}
+    score_rows = db.query(models.ObservationScore).filter(
+        models.ObservationScore.observation_id == observation.id
+    ).all()
+    try:
+        feedback = json.loads(observation.smart_feedback or "{}")
+    except json.JSONDecodeError:
+        feedback = _build_smart_feedback(score_rows, criteria_by_id)
+
+    try:
+        pdf_bytes = _build_observation_pdf_report(
+            request,
+            db,
+            observation,
+            teacher,
+            evaluator,
+            criteria,
+            score_rows,
+            export_state["self_evaluation"],
+            export_state["self_scores_by_criterion"],
+            feedback,
+        )
+    except RuntimeError as exc:
+        return Response(str(exc), status_code=503, media_type="text/plain")
+    except Exception as exc:
+        logger.exception("Observation PDF export failed observation_id=%s", observation.id)
+        return Response(f"Observation PDF export failed: {exc}", status_code=500, media_type="text/plain")
+
+    safe_teacher_name = "".join(
+        ch for ch in _teacher_name(teacher).replace(" ", "_") if ch.isalnum() or ch in {"_", "-"}
+    ) or f"teacher_{observation.teacher_id}"
+    filename = f"observation_{safe_teacher_name}_{observation.id}.pdf"
+    return Response(
+        pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/{observation_id}")
 def observation_detail_page(observation_id: int, request: Request, db: Session = Depends(get_db)):
     current_user = get_current_user(request, db)
@@ -1761,22 +2153,11 @@ def observation_detail_page(observation_id: int, request: Request, db: Session =
         feedback = json.loads(observation.smart_feedback or "{}")
     except json.JSONDecodeError:
         feedback = _build_smart_feedback(score_rows, criteria_by_id)
-    self_evaluation = db.query(models.ObservationSelfEvaluation).filter(
-        models.ObservationSelfEvaluation.observation_id == observation.id
-    ).first()
-    self_evaluation_scores_by_criterion = {}
-    if self_evaluation:
-        self_evaluation_scores_by_criterion = {
-            score.criterion_id: score
-            for score in db.query(models.ObservationSelfEvaluationScore).filter(
-                models.ObservationSelfEvaluationScore.self_evaluation_id == self_evaluation.id
-            ).all()
-        }
+    export_state = _observation_export_state(db, observation)
+    self_evaluation = export_state["self_evaluation"]
+    self_evaluation_scores_by_criterion = export_state["self_scores_by_criterion"]
     current_teacher = _get_current_teacher(db, current_user) if _is_teacher_user(current_user) else None
-    self_evaluation_complete = bool(
-        self_evaluation
-        and any(score.rating != "NA" for score in self_evaluation_scores_by_criterion.values())
-    )
+    self_evaluation_complete = export_state["self_evaluation_complete"]
     can_teacher_sign = bool(
         current_teacher
         and current_teacher.id == observation.teacher_id
@@ -1822,6 +2203,7 @@ def observation_detail_page(observation_id: int, request: Request, db: Session =
             "is_locked": _observation_is_locked(observation),
             "can_edit_observation": _can_edit_observation(current_user, observation),
             "can_delete_observation": _can_delete_observation(current_user, observation),
+            "can_export_observation": export_state["can_export"],
             "can_teacher_sign": can_teacher_sign,
             "can_self_evaluate": can_self_evaluate,
             "can_update_evaluatee_notes": can_update_evaluatee_notes,
