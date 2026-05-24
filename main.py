@@ -792,9 +792,9 @@ def _get_allowed_permission_keys(
             if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
                 if permission_row.is_allowed:
                     allowed_keys.add(permission_row.permission_key)
-                else:
-                    allowed_keys.discard(permission_row.permission_key)
-    return allowed_keys
+            else:
+                allowed_keys.discard(permission_row.permission_key)
+    return allowed_keys - permission_registry.DEVELOPER_ONLY_PERMISSION_KEYS
 
 
 def _build_role_permission_payload(
@@ -830,6 +830,8 @@ def _set_role_permission_rows(
 
     valid_keys = set(permission_registry.ALL_PERMISSION_KEYS)
     allowed_keys = allowed_keys & valid_keys
+    if normalized_role != auth.ROLE_DEVELOPER:
+        allowed_keys -= permission_registry.DEVELOPER_ONLY_PERMISSION_KEYS
     existing_rows = {
         row.permission_key: row
         for row in _get_role_permission_rows(db, normalized_role, school_group_id)

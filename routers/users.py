@@ -99,9 +99,9 @@ def _get_allowed_permission_keys(db: Session, role: str, school_group_id: int | 
             if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
                 if permission_row.is_allowed:
                     allowed_keys.add(permission_row.permission_key)
-                else:
-                    allowed_keys.discard(permission_row.permission_key)
-    return allowed_keys
+            else:
+                allowed_keys.discard(permission_row.permission_key)
+    return allowed_keys - permission_registry.DEVELOPER_ONLY_PERMISSION_KEYS
 
 
 def _build_role_permission_summary_map(db: Session, current_user):

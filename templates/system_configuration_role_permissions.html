@@ -35,8 +35,10 @@
 .permission-group summary::-webkit-details-marker { display: none; }
 .permission-group h3 { font-size: 15px; }
 .permission-group-count { color: #60728c; font-size: 12px; font-weight: 900; }
+.developer-only-badge { display: inline-flex; width: fit-content; margin-top: 4px; padding: 3px 7px; border-radius: 999px; background: #fff7ed; color: #c2410c; font-size: 10px; font-weight: 900; text-transform: uppercase; }
 .permission-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px; }
 .permission-check { display: flex; align-items: flex-start; gap: 8px; min-height: 44px; padding: 10px; border: 1px solid #e1e9f4; border-radius: 10px; background: #fff; color: #1f2737; font-size: 13px; font-weight: 800; line-height: 1.3; }
+.permission-check.is-developer-only { border-color: #f8d4aa; background: #fffaf5; }
 .permission-check input { margin-top: 2px; width: 16px; height: 16px; accent-color: #0a4ea3; }
 .permission-check small { display: block; color: #60728c; font-size: 11px; font-weight: 700; }
 .action-btn { min-height: 36px; border: 1px solid transparent; border-radius: 8px; padding: 8px 12px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 900; cursor: pointer; text-decoration: none; }
@@ -129,6 +131,8 @@
 
             {% if selected_permission_role == "Developer" %}
             <div class="notice-banner">{{ icon("shield", "icon") }} Developer always has full system access and cannot be restricted.</div>
+            {% else %}
+            <div class="notice-banner">{{ icon("shield", "icon") }} Developer-only permissions are protected and cannot be assigned to this role.</div>
             {% endif %}
 
             <form method="post" action="/system-configuration/role-permissions">
@@ -146,18 +150,21 @@
 
                 <section class="permission-groups">
                     {% for group in role_permission_payload.groups %}
-                    <details class="permission-group" open>
+                    <details class="permission-group">
                         <summary>
                             <h3>{{ group.label }}</h3>
                             <span class="permission-group-count">{{ group.allowed_count }} / {{ group.total_count }}</span>
                         </summary>
                         <div class="permission-list">
                             {% for permission in group.permissions %}
-                            <label class="permission-check">
-                                <input type="checkbox" name="permission_keys" value="{{ permission.key }}" {% if permission.allowed %}checked{% endif %} {% if not can_edit_selected_role_permissions %}disabled{% endif %}>
+                            <label class="permission-check {% if permission.developer_only %}is-developer-only{% endif %}">
+                                <input type="checkbox" name="permission_keys" value="{{ permission.key }}" {% if permission.allowed %}checked{% endif %} {% if not can_edit_selected_role_permissions or not permission.assignable %}disabled{% endif %}>
                                 <span>
                                     {{ permission.label }}
                                     <small>{{ permission.key }}</small>
+                                    {% if permission.developer_only %}
+                                    <b class="developer-only-badge">Developer only</b>
+                                    {% endif %}
                                 </span>
                             </label>
                             {% endfor %}

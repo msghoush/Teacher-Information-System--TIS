@@ -18,6 +18,7 @@ PERMISSION_GROUPS = (
             ("dashboard.view_branch_summary", "View branch summary"),
             ("dashboard.view_reports", "View dashboard reports"),
             ("dashboard.export_reports", "Export dashboard reports"),
+            ("dashboard.view_all_schools", "View all-school dashboard"),
         ),
     },
     {
@@ -29,12 +30,14 @@ PERMISSION_GROUPS = (
             ("users.edit_profile", "Edit user profile"),
             ("users.assign_position", "Assign position"),
             ("users.assign_role", "Assign role"),
+            ("users.assign_developer_role", "Assign Developer role"),
             ("users.assign_branch", "Assign branch"),
             ("users.activate_deactivate", "Activate/deactivate users"),
             ("users.reset_password", "Reset user password"),
             ("users.delete", "Delete users"),
             ("users.bulk_delete", "Bulk delete users"),
             ("users.manage_profile_photo", "Manage profile photo"),
+            ("users.manage_developer_accounts", "Manage Developer accounts"),
         ),
     },
     {
@@ -50,6 +53,7 @@ PERMISSION_GROUPS = (
             ("teachers.manage_qualifications", "Manage teacher qualifications"),
             ("teachers.manage_capacity", "Manage capacity and extra hours"),
             ("teachers.copy_year_data", "Copy teachers between years"),
+            ("teachers.import", "Import teacher data"),
             ("teachers.export", "Export teacher data"),
         ),
     },
@@ -63,6 +67,7 @@ PERMISSION_GROUPS = (
             ("subjects.delete", "Delete subjects"),
             ("subjects.copy_year_data", "Copy subjects between years"),
             ("subjects.manage_colors", "Manage subject colors"),
+            ("subjects.import", "Import subjects"),
             ("subjects.export", "Export subjects"),
         ),
     },
@@ -77,6 +82,7 @@ PERMISSION_GROUPS = (
             ("planning.assign_teacher", "Assign teachers to sections"),
             ("planning.manage_homeroom", "Manage homeroom ownership"),
             ("planning.copy_year_data", "Copy planning between years"),
+            ("planning.import", "Import planning data"),
             ("planning.export", "Export planning"),
         ),
     },
@@ -90,6 +96,7 @@ PERMISSION_GROUPS = (
             ("timetable.delete", "Delete timetable entries"),
             ("timetable.manage_blocks", "Manage non-teaching blocks"),
             ("timetable.manage_settings", "Manage timetable settings"),
+            ("timetable.publish", "Publish timetable"),
             ("timetable.export", "Export timetable"),
         ),
     },
@@ -122,6 +129,7 @@ PERMISSION_GROUPS = (
             ("observations.self_evaluate", "Complete teacher self-evaluation"),
             ("observations.unlock", "Unlock locked observations"),
             ("observations.view_reports", "View observation reports"),
+            ("observations.export_reports", "Export observation reports"),
             ("observations.manage_templates", "Manage rubric templates"),
         ),
     },
@@ -143,6 +151,7 @@ PERMISSION_GROUPS = (
             ("schools.create", "Create schools"),
             ("schools.edit", "Edit school information"),
             ("schools.delete", "Delete schools"),
+            ("schools.manage_all_schools", "Manage all schools"),
             ("branches.create", "Create branches"),
             ("branches.edit", "Edit branches"),
             ("branches.activate_deactivate", "Activate/deactivate branches"),
@@ -163,6 +172,22 @@ PERMISSION_GROUPS = (
             ("configuration.manage_specializations", "Manage specialization options"),
             ("configuration.view_audit_log", "View audit log"),
             ("configuration.export_audit_log", "Export audit log"),
+            ("configuration.manage_global_defaults", "Manage global configuration defaults"),
+        ),
+    },
+    {
+        "key": "system_owner",
+        "label": "System Owner",
+        "permissions": (
+            ("system_owner.full_access", "Full system owner access"),
+            ("system_owner.switch_all_schools", "Switch into any school"),
+            ("system_owner.manage_subscriptions", "Manage SaaS subscriptions"),
+            ("system_owner.create_subscription_school", "Create school from subscription"),
+            ("system_owner.manage_global_role_permissions", "Manage global role permissions"),
+            ("system_owner.manage_developer_accounts", "Manage Developer accounts"),
+            ("system_owner.run_startup_repairs", "Run startup/schema repairs"),
+            ("system_owner.view_cross_school_audit", "View cross-school audit"),
+            ("system_owner.export_cross_school_data", "Export cross-school data"),
         ),
     },
 )
@@ -178,13 +203,32 @@ PERMISSION_LABELS = {
 ALL_PERMISSION_KEYS = tuple(PERMISSION_LABELS.keys())
 
 
+DEVELOPER_ONLY_PERMISSION_KEYS = {
+    "dashboard.view_all_schools",
+    "users.assign_developer_role",
+    "users.manage_developer_accounts",
+    "schools.manage_all_schools",
+    "configuration.export_audit_log",
+    "configuration.manage_global_defaults",
+    "system_owner.full_access",
+    "system_owner.switch_all_schools",
+    "system_owner.manage_subscriptions",
+    "system_owner.create_subscription_school",
+    "system_owner.manage_global_role_permissions",
+    "system_owner.manage_developer_accounts",
+    "system_owner.run_startup_repairs",
+    "system_owner.view_cross_school_audit",
+    "system_owner.export_cross_school_data",
+}
+
+
 DEFAULT_ROLE_PERMISSIONS = {
     auth.ROLE_DEVELOPER: set(ALL_PERMISSION_KEYS),
     auth.ROLE_ADMINISTRATOR: {
         key
         for key in ALL_PERMISSION_KEYS
-        if not key.startswith("schools.delete")
-        and not key.startswith("configuration.export_audit_log")
+        if key not in DEVELOPER_ONLY_PERMISSION_KEYS
+        and not key.startswith("schools.delete")
     },
     auth.ROLE_USER: {
         "dashboard.view",
@@ -232,20 +276,25 @@ def get_default_permissions_for_role(role: str) -> set[str]:
         return set()
     if normalized == auth.ROLE_DEVELOPER:
         return set(ALL_PERMISSION_KEYS)
-    return set(DEFAULT_ROLE_PERMISSIONS.get(normalized, set()))
+    return set(DEFAULT_ROLE_PERMISSIONS.get(normalized, set())) - DEVELOPER_ONLY_PERMISSION_KEYS
 
 
 def build_role_permission_payload(role: str, allowed_keys: set[str] | None = None) -> dict:
     normalized = normalize_managed_role(role)
     allowed = set(allowed_keys or get_default_permissions_for_role(normalized))
+    if normalized != auth.ROLE_DEVELOPER:
+        allowed -= DEVELOPER_ONLY_PERMISSION_KEYS
     groups = []
     for group in PERMISSION_GROUPS:
         permissions = []
         for permission_key, permission_label in group["permissions"]:
+            developer_only = permission_key in DEVELOPER_ONLY_PERMISSION_KEYS
             permissions.append(
                 {
                     "key": permission_key,
                     "label": permission_label,
+                    "developer_only": developer_only,
+                    "assignable": normalized == auth.ROLE_DEVELOPER or not developer_only,
                     "allowed": permission_key in allowed,
                 }
             )
