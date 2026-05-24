@@ -1372,11 +1372,22 @@ def _build_observation_pdf_report(
         if not logo_path:
             continue
         try:
-            image = Image(logo_path, width=1.15 * inch, height=0.45 * inch, kind="proportional")
-            image.hAlign = "RIGHT"
+            image = Image(logo_path, width=0.96 * inch, height=0.36 * inch, kind="proportional")
+            image.hAlign = "CENTER"
             logo_flowables.append(image)
         except Exception:
             continue
+    logo_strip = None
+    if logo_flowables:
+        logo_strip = Table([logo_flowables], colWidths=[1.02 * inch] * len(logo_flowables), hAlign="RIGHT")
+        logo_strip.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 2),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+        ]))
 
     header_left = [
         Paragraph("Teacher Observation Report", styles["ReportTitle"]),
@@ -1384,13 +1395,14 @@ def _build_observation_pdf_report(
         Paragraph("Finalized & Locked", styles["Badge"]),
     ]
     header_table = Table(
-        [[header_left, logo_flowables or [Paragraph(_pdf_markup(school_name), styles["BodySmall"])]]],
+        [[header_left, logo_strip or Paragraph(_pdf_markup(school_name), styles["BodySmall"])]],
         colWidths=[3.7 * inch, 3.3 * inch],
     )
     header_table.setStyle(TableStyle([
         ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#d8e2f0")),
         ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e3ebf6")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
         ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#f8fbff")),
         ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#f8fbff")),
     ]))
