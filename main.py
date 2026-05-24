@@ -5,7 +5,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text, func
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import html
 import io
 import json
@@ -8117,7 +8118,38 @@ def _render_notification_error_fallback(
     return HTMLResponse(content=html_content, status_code=500)
 
 
-def _format_notification_timestamp(value, fallback: str = "Unknown") -> str:
+DEFAULT_DISPLAY_TIMEZONE = "Asia/Riyadh"
+
+
+def _resolve_display_timezone(timezone_name: str):
+    raw_timezone = str(timezone_name or "").strip() or DEFAULT_DISPLAY_TIMEZONE
+    try:
+        return raw_timezone, ZoneInfo(raw_timezone)
+    except ZoneInfoNotFoundError:
+        if raw_timezone == "Asia/Riyadh":
+            return raw_timezone, timezone(timedelta(hours=3), name="KSA")
+        return DEFAULT_DISPLAY_TIMEZONE, timezone(timedelta(hours=3), name="KSA")
+
+
+def _get_request_timezone(request: Request | None) -> str:
+    raw_timezone = ""
+    if request is not None:
+        raw_timezone = str(request.cookies.get("tis_timezone", "") or "").strip()
+    timezone_name, _ = _resolve_display_timezone(raw_timezone)
+    return timezone_name
+
+
+def _timezone_label(timezone_name: str) -> str:
+    if timezone_name == "Asia/Riyadh":
+        return "KSA"
+    return timezone_name
+
+
+def _format_notification_timestamp(
+    value,
+    fallback: str = "Unknown",
+    timezone_name: str = DEFAULT_DISPLAY_TIMEZONE,
+) -> str:
     if not value:
         return fallback
 
@@ -8131,7 +8163,11 @@ def _format_notification_timestamp(value, fallback: str = "Unknown") -> str:
         except ValueError:
             return cleaned
 
-    return parsed_value.strftime("%d %b %Y %H:%M")
+    if parsed_value.tzinfo is None:
+        parsed_value = parsed_value.replace(tzinfo=timezone.utc)
+    target_timezone_name, target_timezone = _resolve_display_timezone(timezone_name)
+    localized_value = parsed_value.astimezone(target_timezone)
+    return f"{localized_value.strftime('%d %b %Y %H:%M')} {_timezone_label(target_timezone_name)}"
 
 
 def _build_user_display(user_id: str, user=None) -> str:
@@ -8510,13 +8546,21 @@ def notification_center(
                 models.User.is_active == True
             ).order_by(models.User.first_name.asc(), models.User.last_name.asc()).all()
 
+        user_timezone = _get_request_timezone(request)
         template_context = {
             "request": request,
             "current_user": current_user,
             "messages": messages,
             "selected_status": selected_status,
             "notification_counts": counts,
-            "format_notification_timestamp": _format_notification_timestamp,
+            "user_timezone": user_timezone,
+            "format_notification_timestamp": (
+                lambda value, fallback="Unknown": _format_notification_timestamp(
+                    value,
+                    fallback,
+                    user_timezone,
+                )
+            ),
             "status_options": [
                 NOTIFICATION_STATUS_NEW,
                 NOTIFICATION_STATUS_SEEN,
@@ -8768,6 +8812,7 @@ def notification_detail(
             sender_user = db.query(models.User).filter(
                 models.User.user_id == notification.requesting_user_id
             ).first()
+        user_timezone = _get_request_timezone(request)
 
         _notification_logger().info(
             "TIS notification detail opened user_id=%s notification_id=%s status=%s request_type=%s",
@@ -8783,7 +8828,14 @@ def notification_detail(
             "notification": notification,
             "resolved_by_user": resolved_by_user,
             "sender_user": sender_user,
-            "format_notification_timestamp": _format_notification_timestamp,
+            "user_timezone": user_timezone,
+            "format_notification_timestamp": (
+                lambda value, fallback="Unknown": _format_notification_timestamp(
+                    value,
+                    fallback,
+                    user_timezone,
+                )
+            ),
             **build_shell_context(
                 request,
                 db,

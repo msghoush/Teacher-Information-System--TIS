@@ -197,6 +197,23 @@
 
     {% block page_scripts %}{% endblock %}
     <script>
+        (() => {
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            if (!timezone) {
+                return;
+            }
+            const cookieName = "tis_timezone";
+            const currentCookie = document.cookie
+                .split("; ")
+                .find((item) => item.startsWith(`${cookieName}=`));
+            const currentValue = currentCookie ? decodeURIComponent(currentCookie.split("=").slice(1).join("=")) : "";
+            if (currentValue === timezone) {
+                return;
+            }
+            const maxAge = 60 * 60 * 24 * 365;
+            document.cookie = `${cookieName}=${encodeURIComponent(timezone)}; path=/; max-age=${maxAge}; samesite=lax`;
+        })();
+
         const sidebarProfilePhotoInputs = Array.from(
             document.querySelectorAll("[data-auto-submit-file-input]")
         );

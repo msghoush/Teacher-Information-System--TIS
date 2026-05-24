@@ -8,3 +8,4 @@ python-jose
 jinja2
 openpyxl
 pillow
+tzdata

@@ -184,6 +184,10 @@
                 <strong>{{ format_notification_timestamp(notification.created_at, "Unknown") }}</strong>
             </div>
             <div class="notification-field">
+                <span>Display Timezone</span>
+                <strong>{{ user_timezone }}</strong>
+            </div>
+            <div class="notification-field">
                 <span>Seen</span>
                 <strong>{{ format_notification_timestamp(notification.seen_at, "Not yet") }}</strong>
             </div>

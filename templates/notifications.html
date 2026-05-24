@@ -196,6 +196,7 @@
         {% for option in status_options %}
         <a class="msg-filter {% if selected_status == option %}is-active{% endif %}" href="/notifications?status={{ option }}">{{ option }} {{ notification_counts.get(option, 0) }}</a>
         {% endfor %}
+        <span class="msg-filter">Time: {{ user_timezone }}</span>
     </nav>
 
     <div class="msg-list">
