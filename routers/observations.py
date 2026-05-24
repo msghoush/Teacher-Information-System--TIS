@@ -1,12 +1,13 @@
 from collections import defaultdict
 from io import BytesIO
 import base64
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import html
 import json
 import logging
 import os
 import traceback
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -28,6 +29,7 @@ logger = logging.getLogger("tis.observations")
 
 FORMAL_OBSERVATION_TARGET = 6
 RATING_VALUES = {"0", "1", "2", "3", "4", "5"}
+DEFAULT_DISPLAY_TIMEZONE = "Asia/Riyadh"
 
 OBSERVATION_CRITERIA = [{'domain_key': 'A',
   'domain_title': 'Planning and Preparation',
@@ -1240,6 +1242,52 @@ def _clean_pdf_text(value, fallback: str = "-") -> str:
     return text_value if text_value else fallback
 
 
+def _resolve_display_timezone(timezone_name: str):
+    raw_timezone = str(timezone_name or "").strip() or DEFAULT_DISPLAY_TIMEZONE
+    try:
+        return raw_timezone, ZoneInfo(raw_timezone)
+    except ZoneInfoNotFoundError:
+        if raw_timezone == DEFAULT_DISPLAY_TIMEZONE:
+            return raw_timezone, timezone(timedelta(hours=3), name="KSA")
+        return DEFAULT_DISPLAY_TIMEZONE, timezone(timedelta(hours=3), name="KSA")
+
+
+def _request_timezone_name(request: Request | None) -> str:
+    raw_timezone = ""
+    if request:
+        raw_timezone = str(request.cookies.get("tis_timezone", "") or "").strip()
+    timezone_name, _ = _resolve_display_timezone(raw_timezone)
+    return timezone_name
+
+
+def _timezone_label(timezone_name: str) -> str:
+    if timezone_name == DEFAULT_DISPLAY_TIMEZONE:
+        return "KSA"
+    return timezone_name
+
+
+def _format_pdf_datetime(value, timezone_name: str, fallback: str = "-") -> str:
+    if not value:
+        return fallback
+    if isinstance(value, str):
+        raw_value = value.strip()
+        if not raw_value:
+            return fallback
+        try:
+            parsed_value = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+        except ValueError:
+            return raw_value
+    else:
+        parsed_value = value
+    if not isinstance(parsed_value, datetime):
+        return str(value)
+    if parsed_value.tzinfo is None:
+        parsed_value = parsed_value.replace(tzinfo=timezone.utc)
+    resolved_name, target_timezone = _resolve_display_timezone(timezone_name)
+    localized_value = parsed_value.astimezone(target_timezone)
+    return f"{localized_value.strftime('%d %b %Y %H:%M')} {_timezone_label(resolved_name)}"
+
+
 def _pdf_markup(value, fallback: str = "-") -> str:
     return html.escape(_clean_pdf_text(value, fallback))
 
@@ -1315,6 +1363,8 @@ def _build_observation_pdf_report(
         school_group = db.query(models.SchoolGroup).filter(models.SchoolGroup.id == branch.school_group_id).first()
     school_name = _clean_pdf_text(getattr(school_group, "name", ""), "School")
     branch_name = _clean_pdf_text(getattr(branch, "name", ""), "Branch")
+    display_timezone_name = _request_timezone_name(request)
+    generated_at_display = _format_pdf_datetime(datetime.now(timezone.utc), display_timezone_name)
 
     logo_flowables = []
     for logo in get_school_logo_slots(request, db, observation.branch_id, getattr(school_group, "id", None))[:3]:
@@ -1352,7 +1402,7 @@ def _build_observation_pdf_report(
         ["Teacher", _teacher_name(teacher), "Evaluator", evaluator_name],
         ["Subject", _clean_pdf_text(observation.subject), "Grade / Section", f"{_clean_pdf_text(observation.grade)} {_clean_pdf_text(observation.section, '')}".strip()],
         ["Observation Date", _clean_pdf_text(observation.observation_date), "Type / Term", f"{_clean_pdf_text(observation.observation_type)} | {_clean_pdf_text(observation.term)}"],
-        ["Overall Score", f"{_clean_pdf_text(observation.overall_score)} / 5", "Finalized", _clean_pdf_text(observation.locked_at)],
+        ["Overall Score", f"{_clean_pdf_text(observation.overall_score)} / 5", "Finalized", _format_pdf_datetime(observation.locked_at, display_timezone_name)],
     ]
     info_table = Table(info_rows, colWidths=[1.15 * inch, 2.35 * inch, 1.2 * inch, 2.3 * inch])
     info_table.setStyle(TableStyle([
@@ -1461,7 +1511,10 @@ def _build_observation_pdf_report(
     signature_rows = [
         ["Evaluator Signature", "Teacher Signature"],
         [evaluator_signature or Paragraph("Signature on file", styles["BodySmall"]), teacher_signature or Paragraph("Signature on file", styles["BodySmall"])],
-        [f"Signed: {_clean_pdf_text(observation.updated_at)}", f"Signed and locked: {_clean_pdf_text(observation.locked_at)}"],
+        [
+            f"Signed: {_format_pdf_datetime(observation.updated_at, display_timezone_name)}",
+            f"Signed and locked: {_format_pdf_datetime(observation.locked_at, display_timezone_name)}",
+        ],
     ]
     signature_table = Table(signature_rows, colWidths=[3.45 * inch, 3.45 * inch])
     signature_table.setStyle(TableStyle([
@@ -1490,7 +1543,7 @@ def _build_observation_pdf_report(
         canvas.saveState()
         canvas.setFont("Helvetica", 7)
         canvas.setFillColor(colors.HexColor("#48607f"))
-        canvas.drawString(32, 18, f"Generated by TIS on {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+        canvas.drawString(32, 18, f"Generated by TIS on {generated_at_display}")
         canvas.drawRightString(563, 18, f"Page {doc_obj.page}")
         canvas.restoreState()
 
