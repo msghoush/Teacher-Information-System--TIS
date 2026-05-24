@@ -214,6 +214,32 @@
             document.cookie = `${cookieName}=${encodeURIComponent(timezone)}; path=/; max-age=${maxAge}; samesite=lax`;
         })();
 
+        (() => {
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Riyadh";
+            const formatter = new Intl.DateTimeFormat(undefined, {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+                timeZone: timezone,
+            });
+            const timezoneLabel = timezone === "Asia/Riyadh" ? "KSA" : timezone;
+
+            document.querySelectorAll("[data-tis-local-time][data-utc-timestamp]").forEach((item) => {
+                const utcTimestamp = item.getAttribute("data-utc-timestamp");
+                if (!utcTimestamp) {
+                    return;
+                }
+                const parsed = new Date(utcTimestamp);
+                if (Number.isNaN(parsed.getTime())) {
+                    return;
+                }
+                item.textContent = `${formatter.format(parsed)} ${timezoneLabel}`;
+            });
+        })();
+
         const sidebarProfilePhotoInputs = Array.from(
             document.querySelectorAll("[data-auto-submit-file-input]")
         );

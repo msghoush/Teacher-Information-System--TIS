@@ -8170,6 +8170,23 @@ def _format_notification_timestamp(
     return f"{localized_value.strftime('%d %b %Y %H:%M')} {_timezone_label(target_timezone_name)}"
 
 
+def _notification_timestamp_iso(value) -> str:
+    if not value:
+        return ""
+    parsed_value = value
+    if not isinstance(parsed_value, datetime):
+        cleaned = str(value or "").strip()
+        if not cleaned:
+            return ""
+        try:
+            parsed_value = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+        except ValueError:
+            return ""
+    if parsed_value.tzinfo is None:
+        parsed_value = parsed_value.replace(tzinfo=timezone.utc)
+    return parsed_value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 def _build_user_display(user_id: str, user=None) -> str:
     if not user:
         return f"User ID {user_id} (not found in system)"
@@ -8561,6 +8578,7 @@ def notification_center(
                     user_timezone,
                 )
             ),
+            "notification_timestamp_iso": _notification_timestamp_iso,
             "status_options": [
                 NOTIFICATION_STATUS_NEW,
                 NOTIFICATION_STATUS_SEEN,
@@ -8836,6 +8854,7 @@ def notification_detail(
                     user_timezone,
                 )
             ),
+            "notification_timestamp_iso": _notification_timestamp_iso,
             **build_shell_context(
                 request,
                 db,

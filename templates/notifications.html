@@ -208,7 +208,7 @@
                     <p class="msg-meta">
                         {{ msg.request_type }}
                         {% if msg.requesting_user_id %} &middot; From User ID {{ msg.requesting_user_id }}{% endif %}
-                        &middot; {{ format_notification_timestamp(msg.created_at, "Unknown time") }}
+                        &middot; <time data-tis-local-time data-utc-timestamp="{{ notification_timestamp_iso(msg.created_at) }}">{{ format_notification_timestamp(msg.created_at, "Unknown time") }}</time>
                     </p>
                     {% if msg.message %}
                     <p class="msg-preview">{{ msg.message | striptags }}</p>

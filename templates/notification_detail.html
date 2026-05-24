@@ -181,7 +181,7 @@
             </div>
             <div class="notification-field">
                 <span>Received</span>
-                <strong>{{ format_notification_timestamp(notification.created_at, "Unknown") }}</strong>
+                <strong><time data-tis-local-time data-utc-timestamp="{{ notification_timestamp_iso(notification.created_at) }}">{{ format_notification_timestamp(notification.created_at, "Unknown") }}</time></strong>
             </div>
             <div class="notification-field">
                 <span>Display Timezone</span>
@@ -189,12 +189,12 @@
             </div>
             <div class="notification-field">
                 <span>Seen</span>
-                <strong>{{ format_notification_timestamp(notification.seen_at, "Not yet") }}</strong>
+                <strong><time data-tis-local-time data-utc-timestamp="{{ notification_timestamp_iso(notification.seen_at) }}">{{ format_notification_timestamp(notification.seen_at, "Not yet") }}</time></strong>
             </div>
             {% if notification.resolved_at %}
             <div class="notification-field">
                 <span>Resolved</span>
-                <strong>{{ format_notification_timestamp(notification.resolved_at, "Unknown") }}</strong>
+                <strong><time data-tis-local-time data-utc-timestamp="{{ notification_timestamp_iso(notification.resolved_at) }}">{{ format_notification_timestamp(notification.resolved_at, "Unknown") }}</time></strong>
             </div>
             <div class="notification-field">
                 <span>Resolved By</span>
