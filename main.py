@@ -8681,6 +8681,39 @@ def compose_message_form(
     )
 
 
+@app.post("/notifications/mark-all-read")
+def mark_all_notifications_read(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    _ensure_system_notifications_table_columns()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    updated_count = db.query(models.SystemNotification).filter(
+        models.SystemNotification.recipient_user_id == current_user.user_id,
+        models.SystemNotification.status == NOTIFICATION_STATUS_NEW,
+    ).update(
+        {
+            models.SystemNotification.status: NOTIFICATION_STATUS_SEEN,
+            models.SystemNotification.seen_at: now,
+        },
+        synchronize_session=False,
+    )
+    db.commit()
+    _notification_logger().info(
+        "TIS notification: marked all read user_id=%s count=%s",
+        current_user.user_id,
+        updated_count,
+    )
+    return RedirectResponse(
+        url=f"/notifications?notice={updated_count}%20message(s)%20marked%20as%20read.",
+        status_code=302,
+    )
+
+
 @app.post("/notifications/compose")
 def send_message(
     request: Request,
@@ -8936,13 +8969,13 @@ def mark_notification_resolved(
     notification.resolved_by_user_id = current_user.user_id
     db.commit()
     logging.info(
-        "TIS notification: marked resolved id=%s user_id=%s",
+        "TIS notification: marked done id=%s user_id=%s",
         notification.id,
         current_user.user_id,
     )
 
     return RedirectResponse(
-        url=f"/notifications/{notification.id}?notice=Message%20marked%20resolved.",
+        url=f"/notifications/{notification.id}?notice=Message%20marked%20done.",
         status_code=302,
     )
 
