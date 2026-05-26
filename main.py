@@ -8260,6 +8260,83 @@ def _get_notification_counts(db: Session, user_id: str) -> dict:
     return counts
 
 
+def _notification_group_key(notification) -> str:
+    details = str(getattr(notification, "details", "") or "").strip()
+    observation_match = re.match(r"^observation:(\d+):", details)
+    if observation_match:
+        return f"observation:{observation_match.group(1)}"
+    return f"single:{getattr(notification, 'id', '')}"
+
+
+def _notification_group_matches(notification, group_key: str) -> bool:
+    normalized_key = str(group_key or "").strip()
+    if normalized_key.startswith("single:"):
+        return normalized_key == f"single:{getattr(notification, 'id', '')}"
+    if normalized_key.startswith("observation:"):
+        return str(getattr(notification, "details", "") or "").strip().startswith(f"{normalized_key}:")
+    return False
+
+
+def _notification_preview_text(value: str) -> str:
+    text_value = re.sub(r"<[^>]+>", " ", str(value or ""))
+    return " ".join(html.unescape(text_value).split())
+
+
+def _build_notification_groups(messages: list) -> list[dict]:
+    grouped: dict[str, dict] = {}
+    for notification in messages:
+        group_key = _notification_group_key(notification)
+        group = grouped.get(group_key)
+        if not group:
+            group = {
+                "key": group_key,
+                "latest": notification,
+                "title": notification.title,
+                "request_type": notification.request_type,
+                "items": [],
+                "count": 0,
+                "new_count": 0,
+                "seen_count": 0,
+                "done_count": 0,
+                "status_label": "Seen",
+                "status_class": "",
+                "preview": "",
+                "is_grouped": group_key.startswith("observation:"),
+            }
+            if group["is_grouped"]:
+                group["title"] = "Observation updates"
+            grouped[group_key] = group
+        group["items"].append(notification)
+        group["count"] += 1
+        if notification.status == NOTIFICATION_STATUS_NEW:
+            group["new_count"] += 1
+        elif notification.status == NOTIFICATION_STATUS_RESOLVED:
+            group["done_count"] += 1
+        else:
+            group["seen_count"] += 1
+
+    for group in grouped.values():
+        latest = group["latest"]
+        if group["new_count"]:
+            group["status_label"] = "New"
+            group["status_class"] = "is-new"
+        elif group["done_count"] == group["count"]:
+            group["status_label"] = "Done"
+            group["status_class"] = "is-resolved"
+        else:
+            group["status_label"] = "Seen"
+            group["status_class"] = ""
+        latest_preview = _notification_preview_text(getattr(latest, "message", ""))
+        if group["is_grouped"] and group["count"] > 1:
+            group["preview"] = (
+                f"{group['count']} related observation notifications. "
+                f"Latest: {latest_preview or latest.title}"
+            )
+        else:
+            group["preview"] = latest_preview
+    return list(grouped.values())
+
+
 def _get_user_notification_or_redirect(
     db: Session,
     current_user,
@@ -8541,6 +8618,7 @@ def notification_center(
             models.SystemNotification.created_at.desc(),
             models.SystemNotification.id.desc(),
         ).limit(MESSAGE_PAGE_SIZE).all()
+        notification_groups = _build_notification_groups(messages)
         counts = _get_notification_counts(db, current_user.user_id)
         _notification_logger().info(
             (
@@ -8568,6 +8646,7 @@ def notification_center(
             "request": request,
             "current_user": current_user,
             "messages": messages,
+            "notification_groups": notification_groups,
             "selected_status": selected_status,
             "notification_counts": counts,
             "user_timezone": user_timezone,
@@ -8710,6 +8789,56 @@ def mark_all_notifications_read(
     )
     return RedirectResponse(
         url=f"/notifications?notice={updated_count}%20message(s)%20marked%20as%20read.",
+        status_code=302,
+    )
+
+
+@app.post("/notifications/group-action")
+def update_notification_group(
+    request: Request,
+    group_key: str = Form(...),
+    action: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    normalized_action = str(action or "").strip().lower()
+    if normalized_action not in {"read", "done"}:
+        return RedirectResponse(url="/notifications?notice=Unknown%20notification%20action.", status_code=302)
+
+    _ensure_system_notifications_table_columns()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    notifications = db.query(models.SystemNotification).filter(
+        models.SystemNotification.recipient_user_id == current_user.user_id,
+    ).all()
+    updated_count = 0
+    for notification in notifications:
+        if not _notification_group_matches(notification, group_key):
+            continue
+        if normalized_action == "read" and notification.status == NOTIFICATION_STATUS_NEW:
+            notification.status = NOTIFICATION_STATUS_SEEN
+            notification.seen_at = now
+            updated_count += 1
+        elif normalized_action == "done" and notification.status != NOTIFICATION_STATUS_RESOLVED:
+            notification.status = NOTIFICATION_STATUS_RESOLVED
+            if not notification.seen_at:
+                notification.seen_at = now
+            notification.resolved_at = now
+            notification.resolved_by_user_id = current_user.user_id
+            updated_count += 1
+    db.commit()
+    _notification_logger().info(
+        "TIS notification: group action user_id=%s group_key=%s action=%s count=%s",
+        current_user.user_id,
+        group_key,
+        normalized_action,
+        updated_count,
+    )
+    notice = "marked%20as%20read" if normalized_action == "read" else "marked%20done"
+    return RedirectResponse(
+        url=f"/notifications?notice={updated_count}%20message(s)%20{notice}.",
         status_code=302,
     )
 
