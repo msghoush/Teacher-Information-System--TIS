@@ -193,12 +193,10 @@
             </div>
             {% if notification.resolved_at %}
             <div class="notification-field">
-                <span>Done</span>
-                <strong><time data-tis-local-time data-utc-timestamp="{{ notification_timestamp_iso(notification.resolved_at) }}">{{ format_notification_timestamp(notification.resolved_at, "Unknown") }}</time></strong>
-            </div>
-            <div class="notification-field">
-                <span>Done By</span>
+                <span>Completion</span>
                 <strong>
+                    Done on <time data-tis-local-time data-utc-timestamp="{{ notification_timestamp_iso(notification.resolved_at) }}">{{ format_notification_timestamp(notification.resolved_at, "Unknown") }}</time><br>
+                    By
                     {% if resolved_by_user %}
                         {{ resolved_by_user.first_name }} {{ resolved_by_user.last_name }} ({{ resolved_by_user.user_id }})
                     {% elif notification.resolved_by_user_id %}
