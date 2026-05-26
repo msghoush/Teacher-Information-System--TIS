@@ -8350,6 +8350,34 @@ def _notification_preview_text(value: str) -> str:
     return " ".join(html.unescape(text_value).split())
 
 
+def _user_notification_display_map(db: Session, messages: list) -> dict:
+    user_ids = {
+        str(value or "").strip()
+        for notification in messages
+        for value in (
+            getattr(notification, "recipient_user_id", ""),
+            getattr(notification, "requesting_user_id", ""),
+            getattr(notification, "resolved_by_user_id", ""),
+        )
+        if str(value or "").strip()
+    }
+    if not user_ids:
+        return {}
+    users = db.query(models.User).filter(models.User.user_id.in_(user_ids)).all()
+    display_map = {}
+    for user in users:
+        name = " ".join(
+            part
+            for part in [
+                str(getattr(user, "first_name", "") or "").strip(),
+                str(getattr(user, "last_name", "") or "").strip(),
+            ]
+            if part
+        ).strip()
+        display_map[user.user_id] = name or str(user.username or user.user_id)
+    return display_map
+
+
 def _build_notification_groups(messages: list) -> list[dict]:
     grouped: dict[str, dict] = {}
     for notification in messages:
@@ -8700,6 +8728,7 @@ def notification_center(
             models.SystemNotification.created_at.desc(),
             models.SystemNotification.id.desc(),
         ).limit(MESSAGE_PAGE_SIZE).all()
+        user_display_map = _user_notification_display_map(db, messages)
         notification_groups = _build_notification_groups(messages)
         counts = _get_notification_counts(db, current_user.user_id)
         _notification_logger().info(
@@ -8729,6 +8758,7 @@ def notification_center(
             "current_user": current_user,
             "messages": messages,
             "notification_groups": notification_groups,
+            "user_display_map": user_display_map,
             "selected_status": selected_status,
             "selected_box": selected_box,
             "notification_counts": counts,

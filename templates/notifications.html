@@ -17,7 +17,7 @@
 {% block page_styles %}
 <style>
 .msg-page {
-    max-width: 1180px;
+    max-width: 1240px;
     margin: 0 auto;
     display: grid;
     gap: 14px;
@@ -94,10 +94,12 @@
     text-decoration: none;
     color: inherit;
     transition: box-shadow 0.15s;
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.04);
 }
 
 .msg-card:hover {
-    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    border-color: #b9cbe3;
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.09);
 }
 
 .msg-card.is-new {
@@ -126,7 +128,8 @@
 .msg-card h2 {
     margin: 0;
     color: var(--app-brand-deep);
-    font-size: 17px;
+    font-size: 18px;
+    line-height: 1.2;
 }
 
 .msg-meta {
@@ -315,9 +318,9 @@
                     <p class="msg-meta">
                         {{ group.request_type }}
                         {% if selected_box == "sent" %}
-                            &middot; To User ID {{ msg.recipient_user_id }}
+                            &middot; To {{ user_display_map.get(msg.recipient_user_id, "User ID " ~ msg.recipient_user_id) }}
                         {% elif msg.requesting_user_id %}
-                            &middot; From User ID {{ msg.requesting_user_id }}
+                            &middot; From {{ user_display_map.get(msg.requesting_user_id, "User ID " ~ msg.requesting_user_id) }}
                         {% endif %}
                         &middot; <time data-tis-local-time data-utc-timestamp="{{ notification_timestamp_iso(msg.created_at) }}">{{ format_notification_timestamp(msg.created_at, "Unknown time") }}</time>
                     </p>
