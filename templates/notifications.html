@@ -4,6 +4,11 @@
 {% block title %}Notification Center | TIS{% endblock %}
 
 {% block page_header_actions %}
+{% if notification_counts.get("New", 0) %}
+<form method="post" action="/notifications/mark-all-read">
+    <button class="shell-action" type="submit">{{ icon("check-circle", "shell-icon") }} Mark all as read</button>
+</form>
+{% endif %}
 {% if can_compose %}
 <a class="shell-action" href="/notifications/compose">{{ icon("add", "shell-icon") }} Compose Message</a>
 {% endif %}
@@ -186,7 +191,7 @@
             <strong>{{ notification_counts.get("Seen", 0) }}</strong>
         </div>
         <div class="msg-stat">
-            <span>Resolved</span>
+            <span>Done</span>
             <strong>{{ notification_counts.get("Resolved", 0) }}</strong>
         </div>
     </div>
@@ -194,7 +199,7 @@
     <nav class="msg-filters" aria-label="Message filters">
         <a class="msg-filter {% if not selected_status %}is-active{% endif %}" href="/notifications">All</a>
         {% for option in status_options %}
-        <a class="msg-filter {% if selected_status == option %}is-active{% endif %}" href="/notifications?status={{ option }}">{{ option }} {{ notification_counts.get(option, 0) }}</a>
+        <a class="msg-filter {% if selected_status == option %}is-active{% endif %}" href="/notifications?status={{ option }}">{{ "Done" if option == "Resolved" else option }} {{ notification_counts.get(option, 0) }}</a>
         {% endfor %}
         <span class="msg-filter">Time: {{ user_timezone }}</span>
     </nav>
@@ -214,7 +219,7 @@
                     <p class="msg-preview">{{ msg.message | striptags }}</p>
                     {% endif %}
                 </div>
-                <span class="msg-status {% if msg.status == 'New' %}is-new{% elif msg.status == 'Resolved' %}is-resolved{% endif %}">{{ msg.status }}</span>
+                <span class="msg-status {% if msg.status == 'New' %}is-new{% elif msg.status == 'Resolved' %}is-resolved{% endif %}">{{ "Done" if msg.status == "Resolved" else msg.status }}</span>
             </a>
             {% endfor %}
         {% else %}

@@ -159,7 +159,7 @@
             <div>
                 <h2>{{ notification.title }}</h2>
             </div>
-            <span class="notification-status {% if notification.status == 'New' %}is-new{% elif notification.status == 'Resolved' %}is-resolved{% endif %}">{{ notification.status }}</span>
+            <span class="notification-status {% if notification.status == 'New' %}is-new{% elif notification.status == 'Resolved' %}is-resolved{% endif %}">{{ "Done" if notification.status == "Resolved" else notification.status }}</span>
         </div>
 
         <div class="notification-fields">
@@ -193,11 +193,11 @@
             </div>
             {% if notification.resolved_at %}
             <div class="notification-field">
-                <span>Resolved</span>
+                <span>Done</span>
                 <strong><time data-tis-local-time data-utc-timestamp="{{ notification_timestamp_iso(notification.resolved_at) }}">{{ format_notification_timestamp(notification.resolved_at, "Unknown") }}</time></strong>
             </div>
             <div class="notification-field">
-                <span>Resolved By</span>
+                <span>Done By</span>
                 <strong>
                     {% if resolved_by_user %}
                         {{ resolved_by_user.first_name }} {{ resolved_by_user.last_name }} ({{ resolved_by_user.user_id }})
@@ -229,7 +229,7 @@
         <div class="notification-actions">
             {% if notification.status != "Resolved" %}
             <form method="post" action="/notifications/{{ notification.id }}/resolved">
-                <button class="notification-action is-resolve" type="submit">{{ icon("save", "icon") }} Mark Resolved</button>
+                <button class="notification-action is-resolve" type="submit">{{ icon("save", "icon") }} Mark as Done</button>
             </form>
             {% endif %}
         </div>
