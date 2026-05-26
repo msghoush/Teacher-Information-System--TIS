@@ -7957,6 +7957,7 @@ NOTIFICATION_TYPE_MESSAGE = "Message"
 NOTIFICATION_SCOPE_USER = "User"
 NOTIFICATION_SCOPE_ALL = "All"
 MESSAGE_PAGE_SIZE = 50
+NOTIFICATION_AUTO_ARCHIVE_DAYS = 90
 
 
 def _notification_logger():
@@ -8232,6 +8233,58 @@ def _create_system_notification(
     return notification
 
 
+def _auto_archive_old_notifications(db: Session, user_id: str) -> int:
+    _ensure_system_notifications_table_columns()
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=NOTIFICATION_AUTO_ARCHIVE_DAYS)
+    updated_count = 0
+    recipient_rows = db.query(models.SystemNotification).filter(
+        models.SystemNotification.recipient_user_id == user_id,
+        models.SystemNotification.recipient_archived_at.is_(None),
+        models.SystemNotification.created_at < cutoff,
+    ).all()
+    for notification in recipient_rows:
+        notification.recipient_archived_at = cutoff
+        notification.recipient_archived_by_user_id = "system"
+        updated_count += 1
+
+    requester_rows = db.query(models.SystemNotification).filter(
+        models.SystemNotification.requesting_user_id == user_id,
+        models.SystemNotification.requester_archived_at.is_(None),
+        models.SystemNotification.created_at < cutoff,
+    ).all()
+    for notification in requester_rows:
+        notification.requester_archived_at = cutoff
+        notification.requester_archived_by_user_id = "system"
+        updated_count += 1
+    if updated_count:
+        db.commit()
+    return updated_count
+
+
+def _base_notification_query_for_box(db: Session, user_id: str, box: str):
+    normalized_box = str(box or "inbox").strip().lower()
+    if normalized_box == "sent":
+        return db.query(models.SystemNotification).filter(
+            models.SystemNotification.requesting_user_id == user_id,
+            models.SystemNotification.requester_archived_at.is_(None),
+        )
+    if normalized_box == "archive":
+        return db.query(models.SystemNotification).filter(
+            (
+                (models.SystemNotification.recipient_user_id == user_id)
+                & (models.SystemNotification.recipient_archived_at.isnot(None))
+            )
+            | (
+                (models.SystemNotification.requesting_user_id == user_id)
+                & (models.SystemNotification.requester_archived_at.isnot(None))
+            )
+        )
+    return db.query(models.SystemNotification).filter(
+        models.SystemNotification.recipient_user_id == user_id,
+        models.SystemNotification.recipient_archived_at.is_(None),
+    )
+
+
 def _get_notification_counts(db: Session, user_id: str) -> dict:
     _ensure_system_notifications_table_columns()
     counts = {
@@ -8243,7 +8296,8 @@ def _get_notification_counts(db: Session, user_id: str) -> dict:
         models.SystemNotification.status,
         func.count(models.SystemNotification.id),
     ).filter(
-        models.SystemNotification.recipient_user_id == user_id
+        models.SystemNotification.recipient_user_id == user_id,
+        models.SystemNotification.recipient_archived_at.is_(None),
     ).group_by(
         models.SystemNotification.status
     ).all()
@@ -8257,6 +8311,20 @@ def _get_notification_counts(db: Session, user_id: str) -> dict:
             NOTIFICATION_STATUS_RESOLVED,
         )
     )
+    counts["Sent"] = db.query(func.count(models.SystemNotification.id)).filter(
+        models.SystemNotification.requesting_user_id == user_id,
+        models.SystemNotification.requester_archived_at.is_(None),
+    ).scalar() or 0
+    counts["Archived"] = db.query(func.count(models.SystemNotification.id)).filter(
+        (
+            (models.SystemNotification.recipient_user_id == user_id)
+            & (models.SystemNotification.recipient_archived_at.isnot(None))
+        )
+        | (
+            (models.SystemNotification.requesting_user_id == user_id)
+            & (models.SystemNotification.requester_archived_at.isnot(None))
+        )
+    ).scalar() or 0
     return counts
 
 
@@ -8345,7 +8413,10 @@ def _get_user_notification_or_redirect(
     _ensure_system_notifications_table_columns()
     notification = db.query(models.SystemNotification).filter(
         models.SystemNotification.id == notification_id,
-        models.SystemNotification.recipient_user_id == current_user.user_id,
+        (
+            (models.SystemNotification.recipient_user_id == current_user.user_id)
+            | (models.SystemNotification.requesting_user_id == current_user.user_id)
+        ),
     ).first()
     if not notification:
         return None, RedirectResponse(
@@ -8582,12 +8653,14 @@ async def forgot_password(
 def notification_center(
     request: Request,
     status: str = Query(""),
+    box: str = Query("inbox"),
     db: Session = Depends(get_db),
 ):
     current_user = None
     messages = []
     counts = {}
     selected_status = ""
+    selected_box = "inbox"
     template_context = None
     try:
         _ensure_system_notifications_table_columns()
@@ -8598,6 +8671,17 @@ def notification_center(
                 request.url.path,
             )
             return RedirectResponse(url="/", status_code=302)
+        archived_count = _auto_archive_old_notifications(db, current_user.user_id)
+        if archived_count:
+            _notification_logger().info(
+                "TIS notification: auto-archived old messages user_id=%s count=%s",
+                current_user.user_id,
+                archived_count,
+            )
+
+        selected_box = str(box or "inbox").strip().lower()
+        if selected_box not in {"inbox", "sent", "archive"}:
+            selected_box = "inbox"
 
         allowed_statuses = {
             NOTIFICATION_STATUS_NEW,
@@ -8608,9 +8692,7 @@ def notification_center(
         if selected_status not in allowed_statuses:
             selected_status = ""
 
-        query = db.query(models.SystemNotification).filter(
-            models.SystemNotification.recipient_user_id == current_user.user_id
-        )
+        query = _base_notification_query_for_box(db, current_user.user_id, selected_box)
         if selected_status:
             query = query.filter(models.SystemNotification.status == selected_status)
 
@@ -8648,6 +8730,7 @@ def notification_center(
             "messages": messages,
             "notification_groups": notification_groups,
             "selected_status": selected_status,
+            "selected_box": selected_box,
             "notification_counts": counts,
             "user_timezone": user_timezone,
             "format_notification_timestamp": (
@@ -8687,6 +8770,7 @@ def notification_center(
             "handler": "notification_center",
             "user_id": user_id,
             "selected_status": selected_status or "All",
+            "selected_box": selected_box,
             "messages_count": len(messages),
             "notification_total_count": safe_total_count,
             "template_context_keys": context_keys,
@@ -8774,6 +8858,7 @@ def mark_all_notifications_read(
     updated_count = db.query(models.SystemNotification).filter(
         models.SystemNotification.recipient_user_id == current_user.user_id,
         models.SystemNotification.status == NOTIFICATION_STATUS_NEW,
+        models.SystemNotification.recipient_archived_at.is_(None),
     ).update(
         {
             models.SystemNotification.status: NOTIFICATION_STATUS_SEEN,
@@ -8798,6 +8883,7 @@ def update_notification_group(
     request: Request,
     group_key: str = Form(...),
     action: str = Form(...),
+    box: str = Form("inbox"),
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
@@ -8805,14 +8891,20 @@ def update_notification_group(
         return RedirectResponse(url="/", status_code=302)
 
     normalized_action = str(action or "").strip().lower()
-    if normalized_action not in {"read", "done"}:
+    if normalized_action not in {"read", "done", "archive"}:
         return RedirectResponse(url="/notifications?notice=Unknown%20notification%20action.", status_code=302)
+    normalized_box = str(box or "inbox").strip().lower()
+    if normalized_box not in {"inbox", "sent", "archive"}:
+        normalized_box = "inbox"
+    if normalized_action in {"read", "done"} and normalized_box != "inbox":
+        return RedirectResponse(
+            url=f"/notifications?box={normalized_box}&notice=Only%20the%20recipient%20can%20mark%20a%20task%20read%20or%20done.",
+            status_code=302,
+        )
 
     _ensure_system_notifications_table_columns()
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    notifications = db.query(models.SystemNotification).filter(
-        models.SystemNotification.recipient_user_id == current_user.user_id,
-    ).all()
+    notifications = _base_notification_query_for_box(db, current_user.user_id, normalized_box).all()
     updated_count = 0
     for notification in notifications:
         if not _notification_group_matches(notification, group_key):
@@ -8828,6 +8920,14 @@ def update_notification_group(
             notification.resolved_at = now
             notification.resolved_by_user_id = current_user.user_id
             updated_count += 1
+        elif normalized_action == "archive":
+            if normalized_box == "sent":
+                notification.requester_archived_at = now
+                notification.requester_archived_by_user_id = current_user.user_id
+            else:
+                notification.recipient_archived_at = now
+                notification.recipient_archived_by_user_id = current_user.user_id
+            updated_count += 1
     db.commit()
     _notification_logger().info(
         "TIS notification: group action user_id=%s group_key=%s action=%s count=%s",
@@ -8836,9 +8936,14 @@ def update_notification_group(
         normalized_action,
         updated_count,
     )
-    notice = "marked%20as%20read" if normalized_action == "read" else "marked%20done"
+    if normalized_action == "read":
+        notice = "marked%20as%20read"
+    elif normalized_action == "done":
+        notice = "marked%20done"
+    else:
+        notice = "archived"
     return RedirectResponse(
-        url=f"/notifications?notice={updated_count}%20message(s)%20{notice}.",
+        url=f"/notifications?box={normalized_box}&notice={updated_count}%20message(s)%20{notice}.",
         status_code=302,
     )
 
@@ -8970,8 +9075,9 @@ def notification_detail(
             )
             return redirect_response
 
-        # Auto-mark as seen when opened
-        if notification.status == NOTIFICATION_STATUS_NEW:
+        is_recipient = notification.recipient_user_id == current_user.user_id
+        # Auto-mark as seen only for the assigned recipient.
+        if is_recipient and notification.status == NOTIFICATION_STATUS_NEW:
             notification.status = NOTIFICATION_STATUS_SEEN
             notification.seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
             db.commit()
@@ -9008,6 +9114,15 @@ def notification_detail(
             "notification": notification,
             "resolved_by_user": resolved_by_user,
             "sender_user": sender_user,
+            "is_recipient": is_recipient,
+            "can_mark_done": bool(is_recipient and notification.status != NOTIFICATION_STATUS_RESOLVED),
+            "can_archive_notification": bool(
+                (is_recipient and not notification.recipient_archived_at)
+                or (
+                    notification.requesting_user_id == current_user.user_id
+                    and not notification.requester_archived_at
+                )
+            ),
             "user_timezone": user_timezone,
             "format_notification_timestamp": (
                 lambda value, fallback="Unknown": _format_notification_timestamp(
@@ -9089,6 +9204,11 @@ def mark_notification_resolved(
     )
     if redirect_response:
         return redirect_response
+    if notification.recipient_user_id != current_user.user_id:
+        return RedirectResponse(
+            url=f"/notifications/{notification.id}?notice=Only%20the%20assigned%20recipient%20can%20mark%20this%20task%20done.",
+            status_code=302,
+        )
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     notification.status = NOTIFICATION_STATUS_RESOLVED
@@ -9105,6 +9225,42 @@ def mark_notification_resolved(
 
     return RedirectResponse(
         url=f"/notifications/{notification.id}?notice=Message%20marked%20done.",
+        status_code=302,
+    )
+
+
+@app.post("/notifications/{notification_id}/archive")
+def archive_notification(
+    notification_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+
+    notification, redirect_response = _get_user_notification_or_redirect(
+        db,
+        current_user,
+        notification_id,
+    )
+    if redirect_response:
+        return redirect_response
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    archived = False
+    if notification.recipient_user_id == current_user.user_id and not notification.recipient_archived_at:
+        notification.recipient_archived_at = now
+        notification.recipient_archived_by_user_id = current_user.user_id
+        archived = True
+    if notification.requesting_user_id == current_user.user_id and not notification.requester_archived_at:
+        notification.requester_archived_at = now
+        notification.requester_archived_by_user_id = current_user.user_id
+        archived = True
+    if archived:
+        db.commit()
+    return RedirectResponse(
+        url="/notifications?notice=Message%20archived.",
         status_code=302,
     )
 
@@ -11822,6 +11978,22 @@ def _ensure_system_notifications_table_columns():
         "resolved_by_user_id",
         "resolved_by_user_id VARCHAR(10)",
     )
+    add_column_if_missing(
+        "recipient_archived_at",
+        f"recipient_archived_at {datetime_type}",
+    )
+    add_column_if_missing(
+        "recipient_archived_by_user_id",
+        "recipient_archived_by_user_id VARCHAR(10)",
+    )
+    add_column_if_missing(
+        "requester_archived_at",
+        f"requester_archived_at {datetime_type}",
+    )
+    add_column_if_missing(
+        "requester_archived_by_user_id",
+        "requester_archived_by_user_id VARCHAR(10)",
+    )
 
     created_at_missing_predicate = (
         "created_at IS NULL"
@@ -11838,6 +12010,14 @@ def _ensure_system_notifications_table_columns():
             (
                 "resolved_at",
                 "resolved_at = '' OR (resolved_at IS NOT NULL AND datetime(resolved_at) IS NULL)",
+            ),
+            (
+                "recipient_archived_at",
+                "recipient_archived_at = '' OR (recipient_archived_at IS NOT NULL AND datetime(recipient_archived_at) IS NULL)",
+            ),
+            (
+                "requester_archived_at",
+                "requester_archived_at = '' OR (requester_archived_at IS NOT NULL AND datetime(requester_archived_at) IS NULL)",
             ),
         ]
 

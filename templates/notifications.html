@@ -4,7 +4,7 @@
 {% block title %}Notification Center | TIS{% endblock %}
 
 {% block page_header_actions %}
-{% if notification_counts.get("New", 0) %}
+{% if selected_box == "inbox" and notification_counts.get("New", 0) %}
 <form method="post" action="/notifications/mark-all-read">
     <button class="shell-action" type="submit">{{ icon("check-circle", "shell-icon") }} Mark all as read</button>
 </form>
@@ -25,7 +25,7 @@
 
 .msg-summary {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 10px;
 }
 
@@ -282,12 +282,22 @@
             <span>Done</span>
             <strong>{{ notification_counts.get("Resolved", 0) }}</strong>
         </div>
+        <div class="msg-stat">
+            <span>Sent</span>
+            <strong>{{ notification_counts.get("Sent", 0) }}</strong>
+        </div>
+        <div class="msg-stat">
+            <span>Archived</span>
+            <strong>{{ notification_counts.get("Archived", 0) }}</strong>
+        </div>
     </div>
 
     <nav class="msg-filters" aria-label="Message filters">
-        <a class="msg-filter {% if not selected_status %}is-active{% endif %}" href="/notifications">All</a>
+        <a class="msg-filter {% if selected_box == 'inbox' and not selected_status %}is-active{% endif %}" href="/notifications">Inbox</a>
+        <a class="msg-filter {% if selected_box == 'sent' %}is-active{% endif %}" href="/notifications?box=sent">Sent {{ notification_counts.get("Sent", 0) }}</a>
+        <a class="msg-filter {% if selected_box == 'archive' %}is-active{% endif %}" href="/notifications?box=archive">Archive {{ notification_counts.get("Archived", 0) }}</a>
         {% for option in status_options %}
-        <a class="msg-filter {% if selected_status == option %}is-active{% endif %}" href="/notifications?status={{ option }}">{{ "Done" if option == "Resolved" else option }} {{ notification_counts.get(option, 0) }}</a>
+        <a class="msg-filter {% if selected_box == 'inbox' and selected_status == option %}is-active{% endif %}" href="/notifications?status={{ option }}">{{ "Done" if option == "Resolved" else option }} {{ notification_counts.get(option, 0) }}</a>
         {% endfor %}
         <span class="msg-filter">Time: {{ user_timezone }}</span>
     </nav>
@@ -304,7 +314,11 @@
                     <h2>{{ group.title }}</h2>
                     <p class="msg-meta">
                         {{ group.request_type }}
-                        {% if msg.requesting_user_id %} &middot; From User ID {{ msg.requesting_user_id }}{% endif %}
+                        {% if selected_box == "sent" %}
+                            &middot; To User ID {{ msg.recipient_user_id }}
+                        {% elif msg.requesting_user_id %}
+                            &middot; From User ID {{ msg.requesting_user_id }}
+                        {% endif %}
                         &middot; <time data-tis-local-time data-utc-timestamp="{{ notification_timestamp_iso(msg.created_at) }}">{{ format_notification_timestamp(msg.created_at, "Unknown time") }}</time>
                     </p>
                     {% if group.preview %}
@@ -326,18 +340,28 @@
                     <span class="msg-status {{ group.status_class }}">{{ group.status_label }}</span>
                     <div class="msg-action-row">
                         <a class="msg-action msg-action-primary" href="/notifications/{{ msg.id }}">Open</a>
-                        {% if group.new_count %}
+                        {% if selected_box == "inbox" and group.new_count %}
                         <form method="post" action="/notifications/group-action">
                             <input type="hidden" name="group_key" value="{{ group.key }}">
                             <input type="hidden" name="action" value="read">
+                            <input type="hidden" name="box" value="{{ selected_box }}">
                             <button class="msg-action" type="submit">Mark read</button>
                         </form>
                         {% endif %}
-                        {% if group.done_count < group.count %}
+                        {% if selected_box == "inbox" and group.done_count < group.count %}
                         <form method="post" action="/notifications/group-action">
                             <input type="hidden" name="group_key" value="{{ group.key }}">
                             <input type="hidden" name="action" value="done">
+                            <input type="hidden" name="box" value="{{ selected_box }}">
                             <button class="msg-action msg-action-done" type="submit">Done</button>
+                        </form>
+                        {% endif %}
+                        {% if selected_box != "archive" %}
+                        <form method="post" action="/notifications/group-action">
+                            <input type="hidden" name="group_key" value="{{ group.key }}">
+                            <input type="hidden" name="action" value="archive">
+                            <input type="hidden" name="box" value="{{ selected_box }}">
+                            <button class="msg-action" type="submit">Archive</button>
                         </form>
                         {% endif %}
                     </div>

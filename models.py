@@ -125,6 +125,10 @@ class SystemNotification(Base):
     seen_at = Column(DateTime)
     resolved_at = Column(DateTime)
     resolved_by_user_id = Column(String(10))
+    recipient_archived_at = Column(DateTime)
+    recipient_archived_by_user_id = Column(String(10))
+    requester_archived_at = Column(DateTime)
+    requester_archived_by_user_id = Column(String(10))
 
 
 class CalendarEventType(Base):
