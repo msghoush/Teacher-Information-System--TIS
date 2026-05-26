@@ -79,18 +79,18 @@
 
 .msg-list {
     display: grid;
-    gap: 10px;
+    gap: 12px;
 }
 
 .msg-card {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 12px;
-    align-items: center;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: start;
     border: 1px solid var(--app-line);
     border-radius: 8px;
     background: #fff;
-    padding: 14px;
+    padding: 14px 15px;
     text-decoration: none;
     color: inherit;
     transition: box-shadow 0.15s;
@@ -103,6 +103,24 @@
 .msg-card.is-new {
     border-color: rgba(199, 154, 20, 0.65);
     background: #fffaf0;
+}
+
+.msg-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--app-brand);
+    background: #eef6ff;
+    border: 1px solid #d8e7fb;
+}
+
+.msg-card.is-new .msg-icon {
+    color: #7a4b00;
+    background: #fff1cc;
+    border-color: #f1d485;
 }
 
 .msg-card h2 {
@@ -129,6 +147,26 @@
     overflow: hidden;
 }
 
+.msg-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.msg-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid #d8e2f0;
+    background: #f8fbff;
+    color: #48607f;
+    font-size: 11px;
+    font-weight: 800;
+}
+
 .msg-status {
     display: inline-flex;
     align-items: center;
@@ -153,6 +191,44 @@
     color: #065f46;
 }
 
+.msg-actions {
+    display: grid;
+    justify-items: end;
+    gap: 8px;
+}
+
+.msg-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 7px;
+}
+
+.msg-action {
+    min-height: 30px;
+    padding: 6px 10px;
+    border: 1px solid var(--app-line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--app-brand-deep);
+    font-size: 12px;
+    font-weight: 900;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.msg-action-primary {
+    border-color: transparent;
+    background: var(--app-brand);
+    color: #fff;
+}
+
+.msg-action-done {
+    border-color: #add9c2;
+    background: #ecfaf3;
+    color: #067647;
+}
+
 .msg-empty {
     border: 1px dashed var(--app-line-strong);
     border-radius: 8px;
@@ -170,6 +246,18 @@
     .msg-card {
         grid-template-columns: 1fr;
         align-items: start;
+    }
+
+    .msg-icon {
+        display: none;
+    }
+
+    .msg-actions {
+        justify-items: start;
+    }
+
+    .msg-action-row {
+        justify-content: flex-start;
     }
 }
 </style>
@@ -205,22 +293,56 @@
     </nav>
 
     <div class="msg-list">
-        {% if messages %}
-            {% for msg in messages %}
-            <a class="msg-card {% if msg.status == 'New' %}is-new{% endif %}" href="/notifications/{{ msg.id }}">
+        {% if notification_groups %}
+            {% for group in notification_groups %}
+            {% set msg = group.latest %}
+            <article class="msg-card {% if group.new_count %}is-new{% endif %}">
+                <div class="msg-icon" aria-hidden="true">
+                    {{ icon("notifications", "shell-icon") }}
+                </div>
                 <div>
-                    <h2>{{ msg.title }}</h2>
+                    <h2>{{ group.title }}</h2>
                     <p class="msg-meta">
-                        {{ msg.request_type }}
+                        {{ group.request_type }}
                         {% if msg.requesting_user_id %} &middot; From User ID {{ msg.requesting_user_id }}{% endif %}
                         &middot; <time data-tis-local-time data-utc-timestamp="{{ notification_timestamp_iso(msg.created_at) }}">{{ format_notification_timestamp(msg.created_at, "Unknown time") }}</time>
                     </p>
-                    {% if msg.message %}
-                    <p class="msg-preview">{{ msg.message | striptags }}</p>
+                    {% if group.preview %}
+                    <p class="msg-preview">{{ group.preview }}</p>
                     {% endif %}
+                    <div class="msg-badges">
+                        {% if group.count > 1 %}
+                        <span class="msg-badge">{{ group.count }} related messages</span>
+                        {% endif %}
+                        {% if group.new_count %}
+                        <span class="msg-badge">{{ group.new_count }} unread</span>
+                        {% endif %}
+                        {% if group.done_count %}
+                        <span class="msg-badge">{{ group.done_count }} done</span>
+                        {% endif %}
+                    </div>
                 </div>
-                <span class="msg-status {% if msg.status == 'New' %}is-new{% elif msg.status == 'Resolved' %}is-resolved{% endif %}">{{ "Done" if msg.status == "Resolved" else msg.status }}</span>
-            </a>
+                <div class="msg-actions">
+                    <span class="msg-status {{ group.status_class }}">{{ group.status_label }}</span>
+                    <div class="msg-action-row">
+                        <a class="msg-action msg-action-primary" href="/notifications/{{ msg.id }}">Open</a>
+                        {% if group.new_count %}
+                        <form method="post" action="/notifications/group-action">
+                            <input type="hidden" name="group_key" value="{{ group.key }}">
+                            <input type="hidden" name="action" value="read">
+                            <button class="msg-action" type="submit">Mark read</button>
+                        </form>
+                        {% endif %}
+                        {% if group.done_count < group.count %}
+                        <form method="post" action="/notifications/group-action">
+                            <input type="hidden" name="group_key" value="{{ group.key }}">
+                            <input type="hidden" name="action" value="done">
+                            <button class="msg-action msg-action-done" type="submit">Done</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </article>
             {% endfor %}
         {% else %}
             <div class="msg-empty">No messages match this view.</div>
