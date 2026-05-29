@@ -2398,6 +2398,104 @@ def export_teacher_observation_cycle_pdf(teacher_id: int, request: Request, db: 
     )
 
 
+@router.get("/teacher/{teacher_id}/history")
+def teacher_observation_history_page(teacher_id: int, request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    prepare_observation_module(db)
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    teacher = db.query(models.Teacher).filter(
+        models.Teacher.id == teacher_id,
+        models.Teacher.branch_id == branch_id,
+        models.Teacher.academic_year_id == academic_year_id,
+    ).first()
+    if not teacher:
+        return RedirectResponse(url="/observations")
+    if _is_teacher_user(current_user):
+        current_teacher = _get_current_teacher(db, current_user)
+        if not current_teacher or current_teacher.id != teacher.id:
+            return RedirectResponse(url="/observations")
+
+    observations = db.query(models.Observation).filter(
+        models.Observation.teacher_id == teacher.id,
+        models.Observation.branch_id == branch_id,
+        models.Observation.academic_year_id == academic_year_id,
+    ).order_by(
+        models.Observation.observation_date.desc(),
+        models.Observation.created_at.desc(),
+        models.Observation.id.desc(),
+    ).all()
+    formal_observations = [
+        observation
+        for observation in reversed(observations)
+        if _normalize_observation_type(observation.observation_type) == "Formal"
+    ]
+    formal_cycle_number = {
+        observation.id: index
+        for index, observation in enumerate(formal_observations, start=1)
+    }
+    evaluator_ids = {
+        str(observation.evaluator_user_id or "").strip()
+        for observation in observations
+        if str(observation.evaluator_user_id or "").strip()
+    }
+    evaluators = {
+        str(user.user_id): user
+        for user in db.query(models.User).filter(models.User.user_id.in_(evaluator_ids)).all()
+    } if evaluator_ids else {}
+
+    rows = []
+    for observation in observations:
+        normalized_type = _normalize_observation_type(observation.observation_type)
+        evaluator = evaluators.get(str(observation.evaluator_user_id or "").strip())
+        export_state = _observation_export_state(db, observation)
+        rows.append(
+            {
+                "observation": observation,
+                "type": normalized_type,
+                "cycle_number": formal_cycle_number.get(observation.id),
+                "evaluator_name": _user_display_name(evaluator) if evaluator else str(observation.evaluator_user_id or "-"),
+                "is_locked": _observation_is_locked(observation),
+                "can_export": export_state["can_export"],
+                "can_edit": _can_edit_observation(current_user, observation),
+                "can_delete": _can_delete_observation(current_user, observation),
+            }
+        )
+
+    cycle_state = _teacher_cycle_export_state(db, teacher.id, branch_id, academic_year_id)
+    non_formal_count = sum(1 for row in rows if row["type"] == "Non-formal")
+    locked_count = sum(1 for row in rows if row["is_locked"])
+    return templates.TemplateResponse(
+        request,
+        "observation_history.html",
+        {
+            "request": request,
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="observations",
+                notice=request.query_params.get("notice", ""),
+            ),
+            "teacher": teacher,
+            "teacher_name": _teacher_name(teacher),
+            "rows": rows,
+            "target": FORMAL_OBSERVATION_TARGET,
+            "can_create": _can_create_observation(current_user),
+            "can_export_cycle": cycle_state["can_export"],
+            "summary": {
+                "total": len(rows),
+                "formal": len(formal_observations),
+                "non_formal": non_formal_count,
+                "locked": locked_count,
+                "cycle_finalized": cycle_state["finalized_count"],
+            },
+        },
+    )
+
+
 @router.get("/{observation_id}/export/pdf")
 def export_observation_pdf(observation_id: int, request: Request, db: Session = Depends(get_db)):
     current_user = get_current_user(request, db)

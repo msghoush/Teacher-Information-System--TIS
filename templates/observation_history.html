@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Observation History | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+.history-wrap { display: grid; gap: 14px; }
+.history-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 16px; border: 1px solid #d8e2f0; border-radius: 8px; background: #fff; }
+.history-head h2 { margin: 0; color: #17365d; font-size: 21px; }
+.history-head p { margin: 5px 0 0; color: #5d6b82; font-size: 13px; }
+.history-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.history-button { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 7px 11px; border: 1px solid #c6d4e8; border-radius: 8px; background: #fff; color: #35557f; font-size: 12px; font-weight: 800; text-decoration: none; }
+.history-button.is-primary { border-color: #0a56ad; background: #0a56ad; color: #fff; }
+.history-button.is-disabled { color: #8492a8; background: #f6f8fb; cursor: not-allowed; }
+.history-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.history-kpi, .history-panel { padding: 14px; border: 1px solid #d8e2f0; border-radius: 8px; background: #fff; }
+.history-kpi span { display: block; color: #5d6b82; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.history-kpi strong { display: block; margin-top: 5px; color: #17365d; font-size: 23px; }
+.history-table { width: 100%; border-collapse: collapse; }
+.history-table th, .history-table td { padding: 11px 9px; border-bottom: 1px solid #e3ebf6; text-align: left; vertical-align: middle; }
+.history-table th { color: #48607f; font-size: 11px; text-transform: uppercase; }
+.history-table td { color: #29384f; font-size: 13px; }
+.history-table tr:last-child td { border-bottom: 0; }
+.history-cycle { display: grid; gap: 3px; }
+.history-cycle strong { color: #17365d; }
+.history-cycle span { color: #5d6b82; font-size: 12px; }
+.history-pill { display: inline-flex; width: fit-content; align-items: center; min-height: 25px; padding: 3px 8px; border-radius: 999px; border: 1px solid #c8d8ef; background: #eff6ff; color: #0a4ea3; font-size: 11px; font-weight: 800; }
+.history-pill.is-locked { border-color: #b8dec7; background: #ecfdf3; color: #067647; }
+.history-pill.is-open { border-color: #f0cc93; background: #fff8e7; color: #92400e; }
+.history-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.history-icon { width: 31px; height: 31px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #c6d4e8; border-radius: 8px; background: #fff; color: #48607f; text-decoration: none; cursor: pointer; }
+.history-icon.is-danger { color: #b42318; }
+.history-empty { padding: 26px 12px; color: #5d6b82; text-align: center; font-weight: 700; }
+@media (max-width: 900px) {
+    .history-head { flex-direction: column; }
+    .history-actions { justify-content: flex-start; }
+    .history-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .history-panel { overflow-x: auto; }
+    .history-table { min-width: 860px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="history-wrap">
+    <section class="history-head">
+        <div>
+            <h2>{{ teacher_name }}</h2>
+            <p>Complete observation record for the selected academic year. Formal observations are numbered across the six-observation cycle.</p>
+        </div>
+        <div class="history-actions">
+            <a class="history-button" href="/observations">{{ icon("chevron-right", "shell-icon") }} Observations</a>
+            {% if can_export_cycle %}
+            <a class="history-button is-primary" href="/observations/teacher/{{ teacher.id }}/export/pdf">{{ icon("download", "shell-icon") }} Export formal cycle PDF</a>
+            {% else %}
+            <span class="history-button is-disabled" title="Available after six formal observations are finalized and locked">{{ icon("download", "shell-icon") }} Cycle PDF after 6 finalized</span>
+            {% endif %}
+        </div>
+    </section>
+
+    <section class="history-kpis">
+        <div class="history-kpi"><span>All Observations</span><strong>{{ summary.total }}</strong></div>
+        <div class="history-kpi"><span>Formal Cycle</span><strong>{{ summary.formal }} / {{ target }}</strong></div>
+        <div class="history-kpi"><span>Non-formal</span><strong>{{ summary.non_formal }}</strong></div>
+        <div class="history-kpi"><span>Finalized & Locked</span><strong>{{ summary.locked }}</strong></div>
+    </section>
+
+    <section class="history-panel">
+        <table class="history-table">
+            <thead>
+                <tr>
+                    <th>Observation</th>
+                    <th>Date</th>
+                    <th>Subject</th>
+                    <th>Grade / Section</th>
+                    <th>Evaluator</th>
+                    <th>Score</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>
+                        <div class="history-cycle">
+                            <strong>{{ row.type }}</strong>
+                            {% if row.cycle_number %}
+                            <span>Formal Observation {{ row.cycle_number }} of {{ target }}</span>
+                            {% else %}
+                            <span>Additional classroom record</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>{{ row.observation.observation_date or "-" }}</td>
+                    <td>{{ row.observation.subject or "-" }}</td>
+                    <td>{{ row.observation.grade or "-" }} / {{ row.observation.section or "-" }}</td>
+                    <td>{{ row.evaluator_name }}</td>
+                    <td>{% if row.observation.overall_score %}{{ row.observation.overall_score }} / 5{% else %}-{% endif %}</td>
+                    <td>
+                        <span class="history-pill {% if row.is_locked %}is-locked{% else %}is-open{% endif %}">
+                            {{ "Finalized & Locked" if row.is_locked else (row.observation.status or "Open") }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="history-row-actions">
+                            <a class="history-icon" href="/observations/{{ row.observation.id }}" title="Open observation">{{ icon("open", "shell-icon") }}</a>
+                            {% if row.can_export %}
+                            <a class="history-icon" href="/observations/{{ row.observation.id }}/export/pdf" title="Export this finalized observation PDF">{{ icon("download", "shell-icon") }}</a>
+                            {% endif %}
+                            {% if row.can_edit %}
+                            <a class="history-icon" href="/observations/{{ row.observation.id }}/edit" title="Edit observation">{{ icon("edit", "shell-icon") }}</a>
+                            {% endif %}
+                            {% if row.can_delete %}
+                            <form method="post" action="/observations/{{ row.observation.id }}/delete" onsubmit="return confirm('Delete this observation?');">
+                                <button class="history-icon is-danger" type="submit" title="Delete observation">{{ icon("trash", "shell-icon") }}</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td class="history-empty" colspan="8">No observations recorded yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+</div>
+{% endblock %}
