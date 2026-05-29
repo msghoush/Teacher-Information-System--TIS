@@ -111,7 +111,7 @@
                             <a class="icon-action" href="/observations/teacher/{{ row.teacher.id }}/history" title="View complete observation history">{{ icon("table", "shell-icon") }}</a>
                             {% if row.latest %}
                             <a class="icon-action" href="/observations/{{ row.latest.id }}" title="Open latest">{{ icon("open", "shell-icon") }}</a>
-                            <a class="icon-action" href="/observations/teacher/{{ row.teacher.id }}/export/pdf" title="Export observations recorded so far">{{ icon("download", "shell-icon") }}</a>
+                            <a class="icon-action" href="/observations/teacher/{{ row.teacher.id }}/export/pdf" title="Export finalized and locked observations completed so far">{{ icon("download", "shell-icon") }}</a>
                             {% if row.can_edit_latest %}
                             <button class="icon-action" type="button" data-open-observation-modal data-edit-url="/observations/{{ row.latest.id }}/edit" title="Edit latest">{{ icon("edit", "shell-icon") }}</button>
                             {% endif %}

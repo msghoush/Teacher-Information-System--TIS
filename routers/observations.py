@@ -1626,7 +1626,7 @@ def _build_teacher_cycle_pdf_report(
         leftMargin=30,
         topMargin=32,
         bottomMargin=32,
-        title=f"Observation Progress Report - {_teacher_name(teacher)}",
+        title=f"Finalized Observation Report - {_teacher_name(teacher)}",
     )
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name="CycleTitle", parent=styles["Title"], fontSize=19, leading=23, textColor=colors.HexColor("#073a7d"), spaceAfter=7))
@@ -1677,9 +1677,9 @@ def _build_teacher_cycle_pdf_report(
     finalized_count = sum(1 for observation in observations if _observation_is_locked(observation))
     cycle_status = "Completed" if formal_count >= FORMAL_OBSERVATION_TARGET else "In Progress"
     header_left = [
-        Paragraph("Teacher Observation Progress Report", styles["CycleTitle"]),
+        Paragraph("Teacher Finalized Observation Report", styles["CycleTitle"]),
         Paragraph(f"{_pdf_markup(school_name)} | {_pdf_markup(branch_name)}", styles["BodySmall"]),
-        Paragraph(f"{len(observations)} Observations Recorded | {formal_count} / {FORMAL_OBSERVATION_TARGET} Formal", styles["Badge"]),
+        Paragraph(f"{len(observations)} Finalized & Locked Observations | {formal_count} / {FORMAL_OBSERVATION_TARGET} Formal", styles["Badge"]),
     ]
     header_table = Table(
         [[header_left, logo_strip or Paragraph(_pdf_markup(school_name), styles["BodySmall"])]],
@@ -1707,7 +1707,7 @@ def _build_teacher_cycle_pdf_report(
         ["Teacher", _teacher_name(teacher), "Formal Observations", f"{formal_count} / {FORMAL_OBSERVATION_TARGET}"],
         ["Average Score", f"{average if average is not None else '-'} / 5", "Percentage", f"{percentage if percentage is not None else '-'}%"],
         ["Cycle Status", cycle_status, "Finalized & Locked", str(finalized_count)],
-        ["Generated", generated_at_display, "All Records", str(len(observations))],
+        ["Generated", generated_at_display, "Official Records", str(len(observations))],
     ]
     summary_table = Table(summary_rows, colWidths=[1.2 * inch, 2.3 * inch, 1.35 * inch, 2.1 * inch])
     summary_table.setStyle(TableStyle([
@@ -1782,6 +1782,30 @@ def _build_teacher_cycle_pdf_report(
             story.append(Paragraph(f"<b>Evaluator notes:</b> {_pdf_markup(observation.evaluator_notes)}", styles["BodySmall"]))
         if observation.evaluatee_notes:
             story.append(Paragraph(f"<b>Teacher notes:</b> {_pdf_markup(observation.evaluatee_notes)}", styles["BodySmall"]))
+        evaluator_signature = _signature_image_flowable(observation.evaluator_signature_data, width=170, height=58)
+        teacher_signature = _signature_image_flowable(observation.teacher_signature_data, width=170, height=58)
+        signature_rows = [
+            ["Evaluator Signature", "Teacher Signature"],
+            [
+                evaluator_signature or Paragraph("Signature on file", styles["BodySmall"]),
+                teacher_signature or Paragraph("Signature on file", styles["BodySmall"]),
+            ],
+            [
+                f"Signed: {_format_pdf_datetime(observation.updated_at, display_timezone_name)}",
+                f"Signed and locked: {_format_pdf_datetime(observation.locked_at, display_timezone_name)}",
+            ],
+        ]
+        signature_table = Table(signature_rows, colWidths=[3.45 * inch, 3.45 * inch])
+        signature_table.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#d8e2f0")),
+            ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e3ebf6")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f8fbff")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 7.8),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+        story.append(Paragraph("Signatures", styles["SectionTitle"]))
+        story.append(signature_table)
         story.append(Spacer(1, 4))
 
     def _draw_footer(canvas, doc_obj):
@@ -1790,7 +1814,7 @@ def _build_teacher_cycle_pdf_report(
         canvas.setFillColor(colors.HexColor("#eef6ff"))
         canvas.translate(300, 410)
         canvas.rotate(35)
-        canvas.drawCentredString(0, 0, "OBSERVATION PROGRESS REPORT")
+        canvas.drawCentredString(0, 0, "FINALIZED OBSERVATION REPORT")
         canvas.restoreState()
         canvas.saveState()
         canvas.setFont("Helvetica", 7)
@@ -2382,7 +2406,7 @@ def export_teacher_observation_cycle_pdf(teacher_id: int, request: Request, db: 
         if not current_teacher or current_teacher.id != teacher.id:
             return RedirectResponse(url="/observations")
 
-    observations = db.query(models.Observation).filter(
+    recorded_observations = db.query(models.Observation).filter(
         models.Observation.teacher_id == teacher.id,
         models.Observation.branch_id == branch_id,
         models.Observation.academic_year_id == academic_year_id,
@@ -2391,9 +2415,16 @@ def export_teacher_observation_cycle_pdf(teacher_id: int, request: Request, db: 
         models.Observation.created_at.asc(),
         models.Observation.id.asc(),
     ).all()
+    observations = [
+        observation
+        for observation in recorded_observations
+        if _observation_export_state(db, observation)["can_export"]
+    ]
     if not observations:
         return Response(
-            "No observations have been recorded for this teacher in the selected academic year yet.",
+            "No finalized and locked observations are available for this teacher yet. "
+            "The consolidated PDF includes only observations with evaluator signature, "
+            "teacher self-observation, and teacher signature.",
             status_code=404,
             media_type="text/plain",
         )
