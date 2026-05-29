@@ -51,11 +51,7 @@
         </div>
         <div class="history-actions">
             <a class="history-button" href="/observations">{{ icon("chevron-right", "shell-icon") }} Observations</a>
-            {% if can_export_cycle %}
-            <a class="history-button is-primary" href="/observations/teacher/{{ teacher.id }}/export/pdf">{{ icon("download", "shell-icon") }} Export formal cycle PDF</a>
-            {% else %}
-            <span class="history-button is-disabled" title="Available after six formal observations are finalized and locked">{{ icon("download", "shell-icon") }} Cycle PDF after 6 finalized</span>
-            {% endif %}
+            <a class="history-button is-primary" href="/observations/teacher/{{ teacher.id }}/export/pdf" title="Export every observation recorded so far">{{ icon("download", "shell-icon") }} Export PDF</a>
         </div>
     </section>
 

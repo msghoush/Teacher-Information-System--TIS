@@ -1626,7 +1626,7 @@ def _build_teacher_cycle_pdf_report(
         leftMargin=30,
         topMargin=32,
         bottomMargin=32,
-        title=f"Observation Cycle Report - {_teacher_name(teacher)}",
+        title=f"Observation Progress Report - {_teacher_name(teacher)}",
     )
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name="CycleTitle", parent=styles["Title"], fontSize=19, leading=23, textColor=colors.HexColor("#073a7d"), spaceAfter=7))
@@ -1669,10 +1669,17 @@ def _build_teacher_cycle_pdf_report(
         ]))
 
     story = []
+    formal_count = sum(
+        1
+        for observation in observations
+        if _normalize_observation_type(observation.observation_type) == "Formal"
+    )
+    finalized_count = sum(1 for observation in observations if _observation_is_locked(observation))
+    cycle_status = "Completed" if formal_count >= FORMAL_OBSERVATION_TARGET else "In Progress"
     header_left = [
-        Paragraph("Teacher Observation Cycle Report", styles["CycleTitle"]),
+        Paragraph("Teacher Observation Progress Report", styles["CycleTitle"]),
         Paragraph(f"{_pdf_markup(school_name)} | {_pdf_markup(branch_name)}", styles["BodySmall"]),
-        Paragraph(f"{len(observations)} Formal Observations Finalized", styles["Badge"]),
+        Paragraph(f"{len(observations)} Observations Recorded | {formal_count} / {FORMAL_OBSERVATION_TARGET} Formal", styles["Badge"]),
     ]
     header_table = Table(
         [[header_left, logo_strip or Paragraph(_pdf_markup(school_name), styles["BodySmall"])]],
@@ -1697,9 +1704,10 @@ def _build_teacher_cycle_pdf_report(
     average = round(sum(scores) / len(scores), 2) if scores else None
     percentage = round((average / 5) * 100) if average is not None else None
     summary_rows = [
-        ["Teacher", _teacher_name(teacher), "Formal Observations", f"{len(observations)} / {FORMAL_OBSERVATION_TARGET}"],
+        ["Teacher", _teacher_name(teacher), "Formal Observations", f"{formal_count} / {FORMAL_OBSERVATION_TARGET}"],
         ["Average Score", f"{average if average is not None else '-'} / 5", "Percentage", f"{percentage if percentage is not None else '-'}%"],
-        ["Cycle Status", "Completed & Locked", "Generated", generated_at_display],
+        ["Cycle Status", cycle_status, "Finalized & Locked", str(finalized_count)],
+        ["Generated", generated_at_display, "All Records", str(len(observations))],
     ]
     summary_table = Table(summary_rows, colWidths=[1.2 * inch, 2.3 * inch, 1.35 * inch, 2.1 * inch])
     summary_table.setStyle(TableStyle([
@@ -1715,19 +1723,19 @@ def _build_teacher_cycle_pdf_report(
     story.append(summary_table)
 
     story.append(Paragraph("Observation Cycle Summary", styles["SectionTitle"]))
-    overview_rows = [["#", "Date", "Subject", "Grade", "Evaluator", "Score", "Status"]]
+    overview_rows = [["#", "Type", "Date", "Subject", "Evaluator", "Score", "Status"]]
     for index, observation in enumerate(observations, start=1):
         evaluator = db.query(models.User).filter(models.User.user_id == observation.evaluator_user_id).first()
         overview_rows.append([
             str(index),
+            _normalize_observation_type(observation.observation_type),
             _clean_pdf_text(observation.observation_date),
             _clean_pdf_text(observation.subject),
-            f"{_clean_pdf_text(observation.grade)} {_clean_pdf_text(observation.section, '')}".strip(),
             _user_display_name(evaluator) if evaluator else _clean_pdf_text(observation.evaluator_user_id),
             f"{_clean_pdf_text(observation.overall_score)} / 5",
-            "Locked",
+            _observation_status_label(observation),
         ])
-    overview_table = Table(overview_rows, colWidths=[0.3 * inch, 0.75 * inch, 1.1 * inch, 0.55 * inch, 1.45 * inch, 0.65 * inch, 0.65 * inch], repeatRows=1)
+    overview_table = Table(overview_rows, colWidths=[0.28 * inch, 0.67 * inch, 0.72 * inch, 0.95 * inch, 1.3 * inch, 0.55 * inch, 2.0 * inch], repeatRows=1)
     overview_table.setStyle(TableStyle([
         ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#d8e2f0")),
         ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e3ebf6")),
@@ -1741,7 +1749,11 @@ def _build_teacher_cycle_pdf_report(
 
     criteria_by_id = {criterion.id: criterion for criterion in criteria}
     for index, observation in enumerate(observations, start=1):
-        story.append(Paragraph(f"Observation {index}: {_clean_pdf_text(observation.observation_date)} | {_pdf_markup(observation.subject)}", styles["SectionTitle"]))
+        story.append(Paragraph(
+            f"Observation {index}: {_normalize_observation_type(observation.observation_type)} | "
+            f"{_clean_pdf_text(observation.observation_date)} | {_pdf_markup(observation.subject)}",
+            styles["SectionTitle"],
+        ))
         score_rows = db.query(models.ObservationScore).filter(
             models.ObservationScore.observation_id == observation.id
         ).all()
@@ -1778,7 +1790,7 @@ def _build_teacher_cycle_pdf_report(
         canvas.setFillColor(colors.HexColor("#eef6ff"))
         canvas.translate(300, 410)
         canvas.rotate(35)
-        canvas.drawCentredString(0, 0, "FORMAL OBSERVATION CYCLE")
+        canvas.drawCentredString(0, 0, "OBSERVATION PROGRESS REPORT")
         canvas.restoreState()
         canvas.saveState()
         canvas.setFont("Helvetica", 7)
@@ -2370,12 +2382,19 @@ def export_teacher_observation_cycle_pdf(teacher_id: int, request: Request, db: 
         if not current_teacher or current_teacher.id != teacher.id:
             return RedirectResponse(url="/observations")
 
-    cycle_state = _teacher_cycle_export_state(db, teacher.id, branch_id, academic_year_id)
-    if not cycle_state["can_export"]:
+    observations = db.query(models.Observation).filter(
+        models.Observation.teacher_id == teacher.id,
+        models.Observation.branch_id == branch_id,
+        models.Observation.academic_year_id == academic_year_id,
+    ).order_by(
+        models.Observation.observation_date.asc(),
+        models.Observation.created_at.asc(),
+        models.Observation.id.asc(),
+    ).all()
+    if not observations:
         return Response(
-            "Teacher observation cycle PDF export is available only after six formal observations "
-            "are finalized and locked with evaluator signature, teacher self-observation, and teacher signature.",
-            status_code=403,
+            "No observations have been recorded for this teacher in the selected academic year yet.",
+            status_code=404,
             media_type="text/plain",
         )
 
@@ -2387,7 +2406,7 @@ def export_teacher_observation_cycle_pdf(teacher_id: int, request: Request, db: 
             request,
             db,
             teacher,
-            cycle_state["finalized_observations"][-FORMAL_OBSERVATION_TARGET:],
+            observations,
             criteria,
         )
     except RuntimeError as exc:
@@ -2399,7 +2418,7 @@ def export_teacher_observation_cycle_pdf(teacher_id: int, request: Request, db: 
     safe_teacher_name = "".join(
         ch for ch in _teacher_name(teacher).replace(" ", "_") if ch.isalnum() or ch in {"_", "-"}
     ) or f"teacher_{teacher.id}"
-    filename = f"observation_cycle_{safe_teacher_name}.pdf"
+    filename = f"observation_progress_{safe_teacher_name}.pdf"
     return Response(
         pdf_bytes,
         media_type="application/pdf",
