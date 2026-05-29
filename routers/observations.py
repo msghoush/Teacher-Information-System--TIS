@@ -1782,6 +1782,60 @@ def _build_teacher_cycle_pdf_report(
             story.append(Paragraph(f"<b>Evaluator notes:</b> {_pdf_markup(observation.evaluator_notes)}", styles["BodySmall"]))
         if observation.evaluatee_notes:
             story.append(Paragraph(f"<b>Teacher notes:</b> {_pdf_markup(observation.evaluatee_notes)}", styles["BodySmall"]))
+        self_evaluation, self_scores_by_criterion = _get_self_evaluation_bundle(db, observation)
+        self_numeric_scores = []
+        comparison_rows = [["Indicator", "Evaluator", "Teacher", "Evaluator Evidence", "Teacher Self-Evidence"]]
+        for criterion in criteria:
+            evaluator_score = scores_by_criterion.get(criterion.id)
+            self_score = self_scores_by_criterion.get(criterion.id)
+            evaluator_rating = _clean_pdf_text(getattr(evaluator_score, "rating", "NA"), "NA")
+            self_rating = _clean_pdf_text(getattr(self_score, "rating", "NA"), "NA")
+            if self_rating in RATING_VALUES:
+                self_numeric_scores.append(int(self_rating))
+            comparison_rows.append([
+                Paragraph(f"{criterion.domain_key}{criterion.indicator_number}. {_pdf_markup(criterion.title)}", styles["BodyTiny"]),
+                Paragraph(f"<b>{_pdf_markup(evaluator_rating)}</b><br/>{_pdf_markup(_rating_level(evaluator_rating))}", styles["BodyTiny"]),
+                Paragraph(f"<b>{_pdf_markup(self_rating)}</b><br/>{_pdf_markup(_rating_level(self_rating))}", styles["BodyTiny"]),
+                Paragraph(_pdf_markup(getattr(evaluator_score, "evidence", "")), styles["BodyTiny"]),
+                Paragraph(_pdf_markup(getattr(self_score, "evidence", "")), styles["BodyTiny"]),
+            ])
+        self_average = round(sum(self_numeric_scores) / len(self_numeric_scores), 2) if self_numeric_scores else None
+        story.append(Paragraph("Teacher Self-Evaluation", styles["SectionTitle"]))
+        story.append(Paragraph(
+            f"<b>Evaluator average:</b> {_pdf_markup(observation.overall_score)} / 5 &nbsp;&nbsp; "
+            f"<b>Teacher self-evaluation average:</b> {self_average if self_average is not None else '-'} / 5",
+            styles["BodySmall"],
+        ))
+        comparison_table = Table(
+            comparison_rows,
+            colWidths=[1.85 * inch, 0.72 * inch, 0.72 * inch, 1.8 * inch, 1.8 * inch],
+            repeatRows=1,
+        )
+        comparison_table.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#d8e2f0")),
+            ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e3ebf6")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#fff7ed")),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 6.8),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(comparison_table)
+        reflection_rows = [
+            ["Teacher Reflection", _clean_pdf_text(getattr(self_evaluation, "reflection", None) or observation.evaluatee_notes)],
+            ["Strengths", _clean_pdf_text(getattr(self_evaluation, "strengths", None))],
+            ["Growth Areas", _clean_pdf_text(getattr(self_evaluation, "growth_areas", None))],
+            ["Support Needed", _clean_pdf_text(getattr(self_evaluation, "support_needed", None))],
+        ]
+        reflection_table = Table(reflection_rows, colWidths=[1.25 * inch, 5.65 * inch])
+        reflection_table.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#f1c982")),
+            ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#f1c982")),
+            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#fff7ed")),
+            ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.append(reflection_table)
         evaluator_signature = _signature_image_flowable(observation.evaluator_signature_data, width=170, height=58)
         teacher_signature = _signature_image_flowable(observation.teacher_signature_data, width=170, height=58)
         signature_rows = [
