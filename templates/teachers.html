@@ -2713,6 +2713,18 @@
             font-weight: 800;
         }
 
+        .performance-history-link {
+            width: fit-content;
+            color: #0a4ea3;
+            font-size: 12px;
+            font-weight: 800;
+            text-decoration: none;
+        }
+
+        .performance-history-link:hover {
+            text-decoration: underline;
+        }
+
         .performance-chip.is-strong {
             border-color: #add9c2;
             background: #ecfaf3;
@@ -3990,6 +4002,7 @@
                                             <span class="performance-chip {{ performance.trend_class }}">{{ performance.trend_label }}</span>
                                         </div>
                                         <p class="performance-recommendation">{{ performance.recommendation }}</p>
+                                        <a class="performance-history-link" href="/observations/teacher/{{ teacher.id }}/history">View observation history</a>
                                     </div>
                                 </td>
                                 <td>
