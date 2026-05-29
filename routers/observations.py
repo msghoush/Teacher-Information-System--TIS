@@ -820,6 +820,15 @@ def _observation_is_locked(observation) -> bool:
     return bool(getattr(observation, "locked_at", None) or getattr(observation, "status", "") == "Locked")
 
 
+def _observation_status_label(observation) -> str:
+    if _observation_is_locked(observation):
+        return "Finalized & Locked"
+    status = str(getattr(observation, "status", "") or "").strip()
+    if not status or status == "Final":
+        return "Awaiting Teacher Review & Signature"
+    return status
+
+
 def _can_edit_observation(current_user, observation) -> bool:
     if not auth.can_edit_data(current_user) or _is_teacher_user(current_user):
         return False
@@ -2458,6 +2467,7 @@ def teacher_observation_history_page(teacher_id: int, request: Request, db: Sess
                 "cycle_number": formal_cycle_number.get(observation.id),
                 "evaluator_name": _user_display_name(evaluator) if evaluator else str(observation.evaluator_user_id or "-"),
                 "is_locked": _observation_is_locked(observation),
+                "status_label": _observation_status_label(observation),
                 "can_export": export_state["can_export"],
                 "can_edit": _can_edit_observation(current_user, observation),
                 "can_delete": _can_delete_observation(current_user, observation),
@@ -2640,6 +2650,7 @@ def observation_detail_page(observation_id: int, request: Request, db: Session =
             "self_evaluation_scores_by_criterion": self_evaluation_scores_by_criterion,
             "self_evaluation_complete": self_evaluation_complete,
             "is_locked": _observation_is_locked(observation),
+            "status_label": _observation_status_label(observation),
             "can_edit_observation": _can_edit_observation(current_user, observation),
             "can_delete_observation": _can_delete_observation(current_user, observation),
             "can_export_observation": export_state["can_export"],

@@ -130,7 +130,7 @@ body.rubric-modal-open { overflow: hidden; }
         </div>
         <div class="metric">
             <span>Status</span>
-            <strong>{% if is_locked %}<span class="lock-pill">Locked</span>{% else %}{{ observation.status or "Final" }}{% endif %}</strong>
+            <strong>{% if is_locked %}<span class="lock-pill">{{ status_label }}</span>{% else %}{{ status_label }}{% endif %}</strong>
         </div>
     </section>
 
