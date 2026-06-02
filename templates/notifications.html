@@ -235,6 +235,202 @@
     text-align: center;
 }
 
+.notification-popup {
+    width: min(900px, calc(100vw - 32px));
+    max-height: min(860px, calc(100vh - 32px));
+    padding: 0;
+    border: none;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
+}
+
+.notification-popup::backdrop {
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.notification-popup-shell {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    max-height: min(860px, calc(100vh - 32px));
+    overflow: hidden;
+}
+
+.notification-popup-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--app-line);
+    background: #fff;
+}
+
+.notification-popup-head h2 {
+    margin: 0;
+    color: var(--app-brand-deep);
+    font-size: 18px;
+}
+
+.notification-popup-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border: 1px solid var(--app-line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--app-brand-deep);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.notification-popup-body {
+    overflow-y: auto;
+    padding: 16px;
+    background: #f5f8fc;
+}
+
+.notification-popup-message {
+    margin: 0;
+    color: var(--app-muted);
+    font-size: 14px;
+}
+
+.notification-popup .notification-detail {
+    border: 1px solid var(--app-line);
+    border-radius: 8px;
+    background: #fff;
+    padding: 18px;
+}
+
+.notification-popup .notification-detail-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.notification-popup .notification-detail h2 {
+    margin: 0;
+    color: var(--app-brand-deep);
+    font-size: 22px;
+}
+
+.notification-popup .notification-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 84px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: #eef4fb;
+    color: var(--app-brand-deep);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.notification-popup .notification-status.is-new {
+    background: #fff1cc;
+    color: #7a4b00;
+}
+
+.notification-popup .notification-status.is-resolved {
+    background: #e7f7ef;
+    color: #065f46;
+}
+
+.notification-popup .notification-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.notification-popup .notification-field {
+    border: 1px solid var(--app-line);
+    border-radius: 8px;
+    background: #f8fbff;
+    padding: 11px;
+}
+
+.notification-popup .notification-field span {
+    display: block;
+    color: var(--app-muted);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.notification-popup .notification-field strong {
+    display: block;
+    margin-top: 5px;
+    color: var(--app-ink);
+    font-size: 14px;
+}
+
+.notification-popup .notification-body {
+    display: grid;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.notification-popup .notification-note {
+    border: 1px solid var(--app-line);
+    border-radius: 8px;
+    background: #fff;
+    padding: 13px;
+    line-height: 1.6;
+}
+
+.notification-popup .notification-note-label {
+    margin: 0 0 8px;
+    color: var(--app-muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.notification-popup .notification-note-content {
+    color: var(--app-ink);
+    font-size: 14px;
+    line-height: 1.65;
+}
+
+.notification-popup .notification-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.notification-popup .notification-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 9px 13px;
+    border: none;
+    border-radius: 8px;
+    background: var(--app-brand);
+    color: #fff;
+    cursor: pointer;
+    font-weight: 800;
+}
+
+.notification-popup .notification-action.is-resolve {
+    background: var(--app-success);
+}
+
+body.notification-popup-open {
+    overflow: hidden;
+}
+
 @media (max-width: 760px) {
     .msg-summary {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -255,6 +451,23 @@
 
     .msg-action-row {
         justify-content: flex-start;
+    }
+
+    .notification-popup {
+        width: calc(100vw - 16px);
+        max-height: calc(100vh - 16px);
+    }
+
+    .notification-popup-shell {
+        max-height: calc(100vh - 16px);
+    }
+
+    .notification-popup-body {
+        padding: 10px;
+    }
+
+    .notification-popup .notification-fields {
+        grid-template-columns: 1fr;
     }
 }
 </style>
@@ -333,7 +546,7 @@
                 <div class="msg-actions">
                     <span class="msg-status {{ group.status_class }}">{{ group.status_label }}</span>
                     <div class="msg-action-row">
-                        <a class="msg-action msg-action-primary" href="/notifications/{{ msg.id }}">{{ icon("open", "shell-icon") }} Open</a>
+                        <a class="msg-action msg-action-primary" href="/notifications/{{ msg.id }}" data-open-notification-popup>{{ icon("open", "shell-icon") }} Open</a>
                         {% if selected_box == "inbox" and group.new_count %}
                         <form method="post" action="/notifications/group-action">
                             <input type="hidden" name="group_key" value="{{ group.key }}">
@@ -367,4 +580,165 @@
         {% endif %}
     </div>
 </section>
+
+<dialog class="notification-popup" id="notificationPopup" aria-labelledby="notificationPopupTitle">
+    <div class="notification-popup-shell">
+        <div class="notification-popup-head">
+            <h2 id="notificationPopupTitle">Message Details</h2>
+            <button class="notification-popup-close" type="button" data-close-notification-popup>{{ icon("close", "shell-icon") }} Close</button>
+        </div>
+        <div class="notification-popup-body" id="notificationPopupBody">
+            <p class="notification-popup-message">Loading message...</p>
+        </div>
+    </div>
+</dialog>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(() => {
+    const popup = document.getElementById("notificationPopup");
+    const popupBody = document.getElementById("notificationPopupBody");
+    const popupTitle = document.getElementById("notificationPopupTitle");
+    if (!popup || !popupBody || !popupTitle) {
+        return;
+    }
+
+    const loadingMarkup = '<p class="notification-popup-message">Loading message...</p>';
+    let refreshListOnClose = false;
+    let activeDetailUrl = "";
+
+    const formatPopupTimes = () => {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Riyadh";
+        const formatter = new Intl.DateTimeFormat(undefined, {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            timeZone: timezone,
+        });
+        const timezoneLabel = timezone === "Asia/Riyadh" ? "KSA" : timezone;
+
+        popupBody.querySelectorAll("[data-tis-local-time][data-utc-timestamp]").forEach((item) => {
+            const parsed = new Date(item.getAttribute("data-utc-timestamp"));
+            if (!Number.isNaN(parsed.getTime())) {
+                item.textContent = `${formatter.format(parsed)} ${timezoneLabel}`;
+            }
+        });
+    };
+
+    const showPopup = () => {
+        document.body.classList.add("notification-popup-open");
+        if (typeof popup.showModal === "function") {
+            popup.showModal();
+        } else {
+            popup.setAttribute("open", "open");
+        }
+    };
+
+    const closePopup = () => {
+        if (typeof popup.close === "function") {
+            popup.close();
+        } else {
+            popup.removeAttribute("open");
+            document.body.classList.remove("notification-popup-open");
+            if (refreshListOnClose) {
+                window.location.reload();
+                return;
+            }
+            popupTitle.textContent = "Message Details";
+            popupBody.innerHTML = loadingMarkup;
+        }
+    };
+
+    const showError = (detailUrl) => {
+        popupTitle.textContent = "Message Details";
+        popupBody.innerHTML = `
+            <p class="notification-popup-message">
+                The message could not be loaded.
+                <a href="${detailUrl}">Open the full detail page</a>.
+            </p>
+        `;
+    };
+
+    const openMessage = async (opener) => {
+        const detailUrl = opener.href;
+        activeDetailUrl = detailUrl;
+        refreshListOnClose = opener.closest(".msg-card")?.classList.contains("is-new") || false;
+        popupTitle.textContent = "Message Details";
+        popupBody.innerHTML = loadingMarkup;
+        showPopup();
+
+        try {
+            const response = await fetch(detailUrl, {
+                credentials: "same-origin",
+                headers: { "X-Requested-With": "XMLHttpRequest" },
+            });
+            const responseHtml = await response.text();
+            const detailDocument = new DOMParser().parseFromString(responseHtml, "text/html");
+            const detail = detailDocument.querySelector(".notification-detail");
+            if (!response.ok || !detail) {
+                throw new Error("Notification detail was not returned.");
+            }
+            popupBody.replaceChildren(document.importNode(detail, true));
+            popupTitle.textContent = detail.querySelector("h2")?.textContent.trim() || "Message Details";
+            formatPopupTimes();
+        } catch (error) {
+            showError(detailUrl);
+        }
+    };
+
+    document.addEventListener("click", (event) => {
+        const opener = event.target.closest("[data-open-notification-popup]");
+        if (opener) {
+            event.preventDefault();
+            openMessage(opener);
+            return;
+        }
+        if (event.target.closest("[data-close-notification-popup]")) {
+            closePopup();
+        }
+    });
+
+    popup.addEventListener("click", (event) => {
+        if (event.target === popup) {
+            closePopup();
+        }
+    });
+
+    popup.addEventListener("close", () => {
+        document.body.classList.remove("notification-popup-open");
+        popupBody.innerHTML = loadingMarkup;
+        if (refreshListOnClose) {
+            window.location.reload();
+        }
+    });
+
+    popup.addEventListener("submit", async (event) => {
+        const form = event.target.closest(".notification-actions form");
+        if (!form) {
+            return;
+        }
+        event.preventDefault();
+        form.querySelectorAll("button").forEach((button) => {
+            button.disabled = true;
+        });
+        try {
+            const response = await fetch(form.action, {
+                method: "POST",
+                body: new FormData(form),
+                credentials: "same-origin",
+            });
+            if (!response.ok) {
+                throw new Error("Notification action failed.");
+            }
+            window.location.reload();
+        } catch (error) {
+            showError(activeDetailUrl || "/notifications");
+        }
+    });
+})();
+</script>
 {% endblock %}
