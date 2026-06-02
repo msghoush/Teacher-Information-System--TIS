@@ -4277,8 +4277,8 @@
                             <th>Name</th>
                             <th>Subject Code</th>
                             <th>Extra Hours Count</th>
-                            <th>National Section Hours</th>
-                            <th>International Capacity</th>
+                            <th>Other Path Hours</th>
+                            <th>Capacity</th>
                         </tr>
                         {% for teacher in teachers_preview %}
                         <tr>
@@ -4371,14 +4371,14 @@
                                         </div>
                                     </div>
                                     <div class="report-inline-note">
-                                        Total capacity {{ row.total_capacity_hours }}h | National section {{ row.national_section_hours }}h | International capacity {{ row.capacity_hours }}h
+                                        Total capacity {{ row.total_capacity_hours }}h | Other path {{ row.national_section_hours }}h | Capacity {{ row.capacity_hours }}h
                                     </div>
                                     {% if row.degree_major %}
                                     <div class="report-inline-note">Degree / major: {{ row.degree_major }}</div>
                                     {% endif %}
                                     {% if row.is_underloaded %}
                                     <div class="report-inline-note">
-                                        This teacher still has {{ row.remaining_capacity_hours }}h of international capacity available after the current section assignments.
+                                        This teacher still has {{ row.remaining_capacity_hours }}h of capacity available after the current section assignments.
                                     </div>
                                     {% endif %}
                                     {% if row.homeroom_section_labels %}
@@ -4441,7 +4441,7 @@
                         <div class="empty">No teacher records found in this branch/year scope.</div>
                         {% endif %}
                         <div class="report-footnote">
-                            Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Utilized in planned-section allocations: {{ report_summary.teachers_utilized }} | Full load at international capacity: {{ report_summary.teachers_full_load }} | Underloaded: {{ report_summary.underloaded_teachers }} | Lower-primary homeroom default coverage: {{ report_summary.homeroom_default_coverage_hours }}h | Priority subjects with gaps: {{ report_summary.priority_subjects_with_gaps }} | Priority uncovered sections: {{ report_summary.priority_uncovered_sections }} | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
+                            Existing teachers tracked: {{ report_summary.total_existing_teachers }} | Utilized in planned-section allocations: {{ report_summary.teachers_utilized }} | Full load at capacity: {{ report_summary.teachers_full_load }} | Underloaded: {{ report_summary.underloaded_teachers }} | Lower-primary homeroom default coverage: {{ report_summary.homeroom_default_coverage_hours }}h | Priority subjects with gaps: {{ report_summary.priority_subjects_with_gaps }} | Priority uncovered sections: {{ report_summary.priority_uncovered_sections }} | Idle capacity: {{ report_summary.unused_existing_capacity_hours }}h.
                         </div>
                     </div>
                 </section>
