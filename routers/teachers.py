@@ -2231,7 +2231,7 @@ def create_teacher(
             or parsed_national_section_hours <= 0
         ):
             errors.append(
-                "National section hours must be a positive whole number when National Section is enabled."
+                "Other path hours must be a positive whole number when another path is enabled."
             )
     else:
         parsed_national_section_hours = 0
@@ -2252,7 +2252,7 @@ def create_teacher(
         > capacity_breakdown["total_capacity_hours"]
     ):
         errors.append(
-            "National section hours cannot exceed the teacher total capacity "
+            "Other path hours cannot exceed the teacher total capacity "
             f"({capacity_breakdown['total_capacity_hours']}h)."
         )
 
@@ -2279,8 +2279,8 @@ def create_teacher(
                 f"({total_assigned_hours}) exceed allowed capacity "
                 f"({available_international_hours}) based on Max Hours ({capacity_breakdown['max_hours']}) "
                 f"+ Extra Hours ({capacity_breakdown['extra_hours']}) "
-                f"- National Section Hours ({capacity_breakdown['national_section_hours']}). "
-                "Reduce the selected sections, reduce national section hours, or increase allowed extra hours."
+                f"- Other Path Hours ({capacity_breakdown['national_section_hours']}). "
+                "Reduce the selected sections, reduce other path hours, or increase allowed extra hours."
             )
 
     duplicate_teacher = db.query(models.Teacher).filter(
@@ -2625,7 +2625,7 @@ def update_teacher(
             or parsed_national_section_hours <= 0
         ):
             errors.append(
-                "National section hours must be a positive whole number when National Section is enabled."
+                "Other path hours must be a positive whole number when another path is enabled."
             )
     else:
         parsed_national_section_hours = 0
@@ -2646,7 +2646,7 @@ def update_teacher(
         > capacity_breakdown["total_capacity_hours"]
     ):
         errors.append(
-            "National section hours cannot exceed the teacher total capacity "
+            "Other path hours cannot exceed the teacher total capacity "
             f"({capacity_breakdown['total_capacity_hours']}h)."
         )
 
@@ -2675,8 +2675,8 @@ def update_teacher(
                 f"({total_assigned_hours}) exceed allowed capacity "
                 f"({available_international_hours}) based on Max Hours ({capacity_breakdown['max_hours']}) "
                 f"+ Extra Hours ({capacity_breakdown['extra_hours']}) "
-                f"- National Section Hours ({capacity_breakdown['national_section_hours']}). "
-                "Reduce the selected sections, reduce national section hours, or increase allowed extra hours."
+                f"- Other Path Hours ({capacity_breakdown['national_section_hours']}). "
+                "Reduce the selected sections, reduce other path hours, or increase allowed extra hours."
             )
 
     duplicate_teacher = db.query(models.Teacher).filter(
