@@ -3337,7 +3337,7 @@
             {% if can_copy_year_data %}
             <article class="card">
                 <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("copy", "icon") }}</span>Copy From Academic Year</span></h2>
-                <p>Bring teacher profiles forward from another academic year into the current branch/year scope. Existing teacher records stay untouched, and section links are copied only when matching planning sections already exist in the target year.</p>
+                <p>Copy teachers from another year. Existing records remain; available section links are added.</p>
 
                 {% if copy_year_choices %}
                 <form method="post" action="/teachers/copy-from-year" autocomplete="off" onsubmit="return confirm('Copy teachers into {{ shell.academic_year_name }}? Existing current-year records will be kept.');">
@@ -3512,7 +3512,7 @@
                                     <div class="assignment-suggestion-copy">
                                         <span id="assignmentSuggestionBadge" class="assignment-suggestion-badge">Loading Auto Match</span>
                                         <h3>{{ icon("sparkles", "icon") }} Smart Auto Matching Plan</h3>
-                                        <p id="assignmentSuggestionText">Auto Match uses current plan demand and qualifications to propose the cleanest section allocation first.</p>
+                                        <p id="assignmentSuggestionText">Auto Match proposes sections from current demand and qualifications.</p>
                                     </div>
                                     <div class="assignment-suggestion-actions">
                                         <button id="assignmentSuggestionApplyBtn" class="assignment-suggestion-action is-primary" type="button" disabled>Apply Plan</button>
@@ -3542,7 +3542,7 @@
                                     <div class="plan-confirmation-copy">
                                         <span id="planConfirmationBadge" class="plan-confirmation-badge">Waiting</span>
                                         <strong>Confirmed Teacher Plan</strong>
-                                        <p id="planConfirmationText">Select a degree and specialization, then Apply Plan to accept the suggested subjects, grades, and sections or Adjust Plan to edit them.</p>
+                                        <p id="planConfirmationText">Choose qualifications, then apply the suggestion or adjust it manually.</p>
                                     </div>
                                 </div>
                                 <div id="planConfirmationMeta" class="plan-confirmation-meta"></div>
@@ -3740,7 +3740,7 @@
                             </span>
                             {% endif %}
                         </div>
-                        <p>Review teacher capability, real section teaching load, and workload settings.</p>
+                        <p>Review teacher capability, assignments, and workload.</p>
                         <details class="performance-guide">
                             <summary>Performance Band Guide</summary>
                             <div class="performance-guide-grid">

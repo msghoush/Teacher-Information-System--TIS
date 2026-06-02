@@ -397,8 +397,8 @@
 
 {% block content %}
 <main class="panel">
-<h2 class="panel-title section-heading"><span class="section-heading-icon">{{ icon("planning", "icon") }}</span>Planning Section Details</h2>
-        <p>Update the selected class setup with the same structured workflow, including automatic subject alignment and cleaner teacher assignment controls.</p>
+<h2 class="panel-title section-heading"><span class="section-heading-icon">{{ icon("planning", "icon") }}</span>Edit Planning Section</h2>
+        <p>Update class details and teacher assignments.</p>
 
         {% if error %}
         <div class="error">{{ error }}</div>
@@ -457,7 +457,7 @@
                         <div class="auto-panel-head">
                             <div>
                                 <h3 class="section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Subjects Aligned (Automatic)</h3>
-                                <p>These subjects are pulled automatically from the selected grade in Subjects.</p>
+                                <p>Pulled automatically from the selected grade.</p>
                             </div>
                             <div class="auto-panel-meta">
                                 <span id="alignedSubjectsCount" class="auto-summary-pill">{{ aligned_subjects|length }} {{ "subject" if aligned_subjects|length == 1 else "subjects" }}</span>
@@ -481,7 +481,7 @@
                 <div class="field field-wide">
                     <div class="auto-panel">
                         <h3 class="section-heading"><span class="section-heading-icon">{{ icon("teachers", "icon") }}</span>Subject Teacher Assignments</h3>
-                        <p class="assignment-note">Choose the teacher for each subject in this section. For Grade 1 and Grade 2 lower-primary homeroom subjects, leaving the row blank keeps the homeroom teacher as the default unless you intentionally override it here.</p>
+                        <p class="assignment-note">Assign each subject teacher. For Grades 1 and 2, leave homeroom subjects blank to keep the default.</p>
                         <div id="assignmentRows" class="assignment-grid">
                             {% for item in section_assignment_rows %}
                             <div class="assignment-row">

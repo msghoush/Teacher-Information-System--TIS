@@ -117,7 +117,7 @@
             <div class="school-header">
                 <div>
                     <h2>{{ selected_school_group.name }}</h2>
-                    <p>School organization container. Future subscriptions will create this container, a default branch, admin account, and default year automatically.</p>
+                    <p>School container for branches, years, branding, and access.</p>
                 </div>
                 <span class="status-pill {% if selected_school_group.status %}is-success{% endif %}">{{ "Active" if selected_school_group.status else "Inactive" }}</span>
             </div>
@@ -159,7 +159,7 @@
                 <summary>
                     <div class="collapsible-title">
                         <h3>Branches</h3>
-                        <p>Collapsed by default so large schools stay easy to scan. Expand to add, filter, edit, or delete branches.</p>
+                        <p>Expand to manage branches.</p>
                     </div>
                     <div class="collapsible-summary-actions">
                         <span class="status-pill">{{ school_branch_rows|length }} branch{{ "" if school_branch_rows|length == 1 else "es" }}</span>
@@ -345,7 +345,7 @@
 
             <section class="section-card">
                 <h3>School Branding / Logo</h3>
-                <p>These shared logos apply to all branches in the school unless a branch override is added.</p>
+                <p>Shared logos apply to all branches unless overridden.</p>
                 <div class="logo-strip">
                     {% for logo in group_logos %}
                     <img src="{{ logo.url }}" alt="{{ logo.label }} logo" title="{{ logo.label }}">
@@ -358,13 +358,13 @@
 
             <section class="section-card">
                 <h3>School Admins / Access</h3>
-                <p>This area is reserved for subscription onboarding. Later, creating a subscription will automatically create the school, default branch, admin account, and default academic year.</p>
+                <p>Reserved for subscription onboarding and school-admin setup.</p>
                 <a class="action-btn action-btn-secondary" href="/users">{{ icon("users", "icon") }} Manage Users</a>
             </section>
             {% else %}
             <section class="section-card">
                 <h3>No School Selected</h3>
-                <p>Create a school/organization to start setting up branches, years, branding, and administrators.</p>
+                <p>Create a school to set up branches, years, branding, and admins.</p>
             </section>
             {% endif %}
         </main>

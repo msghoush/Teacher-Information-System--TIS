@@ -989,7 +989,7 @@ CONFIGURATION_MODULES = (
         "label": "School Management",
         "href": "/system-configuration/schools",
         "icon": "branch",
-        "description": "Manage schools, branches, academic years, branding, and access foundations.",
+        "description": "Manage schools, branches, years, branding, and access.",
     },
     {
         "key": "users",
@@ -1024,14 +1024,14 @@ CONFIGURATION_MODULES = (
         "label": "Timetable Settings",
         "href": "/system-configuration/timetable-settings",
         "icon": "timetable",
-        "description": "Define the school week, periods, and non-teaching timetable blocks.",
+        "description": "Configure school days, periods, and blocked times.",
     },
     {
         "key": "academic-calendar",
         "label": "Academic Calendar",
         "href": "/system-configuration/calendar",
         "icon": "calendar",
-        "description": "Configure calendar event types, colors, and icons for the active scope.",
+        "description": "Configure calendar event types for the active scope.",
     },
 )
 
@@ -1095,13 +1095,13 @@ def _build_configuration_hub_stats(
             "label": "Timetable Settings",
             "icon": "timetable",
             "value": timetable_settings_count,
-            "note": "Saved scope-based school day profiles",
+            "note": "Saved school-day profiles",
         },
         {
             "label": "Calendar Event Types",
             "icon": "calendar",
             "value": calendar_event_type_count,
-            "note": "Academic calendar type definitions",
+            "note": "Calendar type definitions",
         },
     ]
 
