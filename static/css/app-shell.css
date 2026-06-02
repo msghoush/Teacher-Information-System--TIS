@@ -987,46 +987,34 @@ svg.tab-icon {
 .page-stage .tis-kpi-card {
     --tis-kpi-accent: #0a4ea3;
     --tis-kpi-accent-soft: #e7f0ff;
-    --tis-kpi-accent-glow: rgba(10, 78, 163, 0.16);
     position: relative;
-    isolation: isolate;
     display: grid;
     align-content: start;
-    gap: 8px;
-    min-height: 142px;
+    gap: 6px;
+    min-height: 112px;
     overflow: hidden;
-    padding: 16px 18px 15px;
+    padding: 12px 14px;
     border: 1px solid #d8e5f4;
-    border-radius: 18px;
-    background: linear-gradient(145deg, #ffffff 0%, #f8fbff 64%, var(--tis-kpi-accent-soft) 145%);
-    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.07);
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 7px 16px rgba(15, 23, 42, 0.06);
 }
 
 .page-stage .tis-kpi-grid .tis-kpi-card::before,
 .page-stage .tis-kpi-card::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto 0;
-    height: 4px;
-    background: linear-gradient(90deg, var(--tis-kpi-accent), #c79a14);
+    content: none;
+    display: none;
 }
 
 .page-stage .tis-kpi-card::after {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    width: 94px;
-    height: 94px;
-    right: -34px;
-    bottom: -38px;
-    border-radius: 999px;
-    background: radial-gradient(circle, var(--tis-kpi-accent-glow), rgba(255, 255, 255, 0) 70%);
+    content: none;
+    display: none;
 }
 
 .page-stage .tis-kpi-card:hover {
-    transform: translateY(-3px);
+    transform: translateY(-2px);
     border-color: #bfd3ec;
-    box-shadow: 0 16px 30px rgba(15, 23, 42, 0.11);
+    box-shadow: 0 12px 22px rgba(15, 23, 42, 0.09);
 }
 
 .page-stage .tis-kpi-card > span {
@@ -1043,9 +1031,9 @@ svg.tab-icon {
 }
 
 .page-stage .tis-kpi-card > span svg {
-    width: 26px;
-    height: 26px;
-    padding: 5px;
+    width: 24px;
+    height: 24px;
+    padding: 4px;
     border: 1px solid rgba(15, 23, 42, 0.08);
     border-radius: 9px;
     background: var(--tis-kpi-accent-soft);
@@ -1056,7 +1044,7 @@ svg.tab-icon {
     display: block;
     margin: 1px 0 0;
     color: #142b4d;
-    font-size: clamp(30px, 3vw, 38px);
+    font-size: clamp(28px, 2.6vw, 34px);
     font-weight: 800;
     letter-spacing: -0.04em;
     line-height: 1;
@@ -1075,25 +1063,21 @@ svg.tab-icon {
 .page-stage .tis-kpi-card--teal {
     --tis-kpi-accent: #0f7f7a;
     --tis-kpi-accent-soft: #e7f7f5;
-    --tis-kpi-accent-glow: rgba(15, 127, 122, 0.18);
 }
 
 .page-stage .tis-kpi-card--gold {
     --tis-kpi-accent: #b77908;
     --tis-kpi-accent-soft: #fff7df;
-    --tis-kpi-accent-glow: rgba(199, 154, 20, 0.2);
 }
 
 .page-stage .tis-kpi-card--violet {
     --tis-kpi-accent: #6d5bd0;
     --tis-kpi-accent-soft: #f0edff;
-    --tis-kpi-accent-glow: rgba(109, 91, 208, 0.17);
 }
 
 .page-stage .tis-kpi-card--rose {
     --tis-kpi-accent: #c2415d;
     --tis-kpi-accent-soft: #fff0f3;
-    --tis-kpi-accent-glow: rgba(194, 65, 93, 0.16);
 }
 
 .page-stage .search {
