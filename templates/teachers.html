@@ -3635,13 +3635,13 @@
                                     </div>
                                     <div class="allocation-progress-panel">
                                         <div class="allocation-progress-meta">
-                                            <span id="allocationProgressLabel">0h used of 24h international capacity</span>
+                                            <span id="allocationProgressLabel">0h used of 24h capacity</span>
                                             <strong id="allocationProgressPercent">0%</strong>
                                         </div>
                                         <div class="allocation-progress-track">
                                             <span id="allocationProgressBar" class="allocation-progress-bar" style="width: 0%;"></span>
                                         </div>
-                                        <div id="allocationCapacityHint" class="allocation-capacity-hint">Base 24h, extra 0h, national 0h, total 24h.</div>
+                                        <div id="allocationCapacityHint" class="allocation-capacity-hint">Base 24h, extra 0h, other path 0h, total 24h.</div>
                                     </div>
                                     <div class="allocation-metrics-grid">
                                         <div class="allocation-metric-card">
@@ -3655,9 +3655,9 @@
                                             <small>Live teaching assignments</small>
                                         </div>
                                         <div class="allocation-metric-card">
-                                            <span>Intl Capacity</span>
+                                            <span>Capacity</span>
                                             <strong id="allocationInternationalCapacityValue">24h</strong>
-                                            <small>Hours available for international sections</small>
+                                            <small>Hours available for this path</small>
                                         </div>
                                         <div id="allocationRemainingMetric" class="allocation-metric-card">
                                             <span id="allocationRemainingHoursLabel">Remaining</span>
@@ -3677,9 +3677,9 @@
                                             <small>Optional added capacity</small>
                                         </div>
                                         <div class="allocation-breakdown-item">
-                                            <span>National Hours</span>
+                                            <span>Other Path Hours</span>
                                             <strong id="allocationNationalHoursValue">0h</strong>
-                                            <small>Reserved outside international load</small>
+                                            <small>Reserved for another path</small>
                                         </div>
                                         <div class="allocation-breakdown-item">
                                             <span>Total Capacity</span>
@@ -3704,7 +3704,7 @@
                         <div class="field field-wide">
                             <label class="toggle-row" for="teaches_national_section">
                                 <input id="teaches_national_section" type="checkbox" name="teaches_national_section" value="on" {% if form_data.teaches_national_section %}checked{% endif %}>
-                                Teaches In National Section
+                                Teaches in Another Path (National or International)
                             </label>
                         </div>
                         <div class="field field-wide">
@@ -3714,7 +3714,7 @@
                             </label>
                         </div>
                         <div class="field field-wide is-hidden" id="nationalSectionHoursField">
-                            <label for="national_section_hours">National Section Hours</label>
+                            <label for="national_section_hours">Other Path Hours</label>
                             <input id="national_section_hours" type="number" name="national_section_hours" min="1" value="{{ form_data.national_section_hours }}">
                         </div>
                     </div>
@@ -3883,7 +3883,7 @@
                                                             <div class="teacher-load-progress-track" role="img" aria-label="{{ allocated_hours }} of {{ baseline_max_hours }} baseline hours allocated">
                                                                 <span class="teacher-load-progress-fill {% if baseline_ratio > 100 %}is-over{% endif %}" style="width: {{ baseline_ratio_capped }}%;"></span>
                                                             </div>
-                                                            <div class="teacher-load-progress-caption">Total capacity: {{ total_capacity }}h | National reserve: {{ national_hours }}h</div>
+                                                            <div class="teacher-load-progress-caption">Total capacity: {{ total_capacity }}h | Other path reserve: {{ national_hours }}h</div>
                                                         </div>
 
                                                         <div class="teacher-load-overview-stats">
@@ -3898,14 +3898,14 @@
                                                                 <small>{% if baseline_remaining < 0 %}Over by {{ baseline_remaining | abs }}h{% else %}Available before 24h baseline{% endif %}</small>
                                                             </div>
                                                             <div class="teacher-load-stat-card {% if within_capacity %}is-success{% else %}is-danger{% endif %}">
-                                                                <span>International cap</span>
+                                                                <span>Capacity</span>
                                                                 <strong>{{ international_capacity }}h</strong>
                                                                 <small>{% if within_capacity %}{{ international_capacity - allocated_hours }}h spare capacity{% else %}{{ allocated_hours - international_capacity }}h over capacity{% endif %}</small>
                                                             </div>
                                                             <div class="teacher-load-stat-card">
-                                                                <span>National reserve</span>
+                                                                <span>Other path reserve</span>
                                                                 <strong>{{ national_hours }}h</strong>
-                                                                <small>Reserved outside international load</small>
+                                                                <small>Reserved for another path</small>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -3978,9 +3978,9 @@
                                 <td>
                                     <div class="capacity-chip-grid">
                                         <span class="capacity-chip"><strong>{{ allocated_hours }}h</strong>Allocated</span>
-                                        <span class="capacity-chip"><strong>{{ international_capacity }}h</strong>Intl</span>
+                                        <span class="capacity-chip"><strong>{{ international_capacity }}h</strong>Capacity</span>
                                         <span class="capacity-chip"><strong>{{ total_capacity }}h</strong>Total</span>
-                                        <span class="capacity-chip"><strong>{{ national_hours }}h</strong>National</span>
+                                        <span class="capacity-chip"><strong>{{ national_hours }}h</strong>Other Path</span>
                                     </div>
                                 </td>
                                 <td>
@@ -4642,18 +4642,18 @@ const searchInput = document.getElementById("teacherSearch");
             let remainingLabel = "Remaining";
             let remainingValue = snapshot.remainingHours;
             let remainingNote = "Hours still open for allocation";
-            let capacityHint = `Base ${formatHours(snapshot.safeMaxHours)} + Extra ${formatHours(snapshot.safeExtraHours)} = ${formatHours(snapshot.totalCapacityHours)} total, with ${formatHours(snapshot.safeNationalHours)} reserved for national sections.`;
+            let capacityHint = `Base ${formatHours(snapshot.safeMaxHours)} + Extra ${formatHours(snapshot.safeExtraHours)} = ${formatHours(snapshot.totalCapacityHours)} total, with ${formatHours(snapshot.safeNationalHours)} reserved for another path.`;
 
             if (snapshot.nationalHoursExceedTotal) {
                 state = "over";
                 badgeText = "Capacity settings conflict";
-                statusText = `National section hours (${formatHours(snapshot.safeNationalHours)}) are higher than total capacity (${formatHours(snapshot.totalCapacityHours)}).`;
+                statusText = `Other path hours (${formatHours(snapshot.safeNationalHours)}) are higher than total capacity (${formatHours(snapshot.totalCapacityHours)}).`;
                 remainingLabel = "Available";
                 remainingValue = 0;
                 remainingNote = "Fix the capacity settings first";
-                capacityHint = "Reduce national section hours or increase total capacity before assigning international sections.";
+                capacityHint = "Reduce other path hours or increase total capacity before assigning sections.";
             } else if (snapshot.selectedSubjectCount === 0) {
-                capacityHint = `The teacher can still take up to ${formatHours(snapshot.requiredHours)} international hours once subjects are selected.`;
+                capacityHint = `The teacher can still take up to ${formatHours(snapshot.requiredHours)} once subjects are selected.`;
             } else if (snapshot.selectedSectionCount === 0) {
                 state = "ready";
                 badgeText = "Subjects selected";
@@ -4665,16 +4665,16 @@ const searchInput = document.getElementById("teacherSearch");
                 statusText = `${formatHours(snapshot.assignedHours)} assigned across ${formatCount(snapshot.selectedSectionCount, "section")}. Reduce the load by ${formatHours(snapshot.overHours)} or increase available capacity.`;
                 remainingLabel = "Over by";
                 remainingValue = snapshot.overHours;
-                remainingNote = "Teacher is above available international hours";
-                capacityHint = `Assigned ${formatHours(snapshot.assignedHours)} while only ${formatHours(snapshot.requiredHours)} international hours are available.`;
+                remainingNote = "Teacher is above available capacity";
+                capacityHint = `Assigned ${formatHours(snapshot.assignedHours)} while only ${formatHours(snapshot.requiredHours)} are available.`;
             } else {
                 state = "balanced";
                 badgeText = snapshot.remainingHours === 0 ? "Fully allocated" : "Within capacity";
                 statusText = snapshot.remainingHours === 0
                     ? `This teacher is exactly full with ${formatHours(snapshot.assignedHours)} assigned across ${formatCount(snapshot.selectedSectionCount, "section")}.`
-                    : `${formatHours(snapshot.assignedHours)} assigned across ${formatCount(snapshot.selectedSectionCount, "section")}. ${formatHours(snapshot.remainingHours)} still available for international sections.`;
+                    : `${formatHours(snapshot.assignedHours)} assigned across ${formatCount(snapshot.selectedSectionCount, "section")}. ${formatHours(snapshot.remainingHours)} still available.`;
                 remainingNote = snapshot.remainingHours === 0
-                    ? "No international hours left"
+                    ? "No capacity left"
                     : "Hours still open for allocation";
             }
 
@@ -4690,7 +4690,7 @@ const searchInput = document.getElementById("teacherSearch");
                 allocationAssignedHoursValue.textContent = formatHours(snapshot.assignedHours);
             }
             if (allocationProgressLabel) {
-                allocationProgressLabel.textContent = `${formatHours(snapshot.assignedHours)} used of ${formatHours(snapshot.requiredHours)} international capacity`;
+                allocationProgressLabel.textContent = `${formatHours(snapshot.assignedHours)} used of ${formatHours(snapshot.requiredHours)} capacity`;
             }
             if (allocationProgressPercent) {
                 allocationProgressPercent.textContent = `${Math.round(progressPercent)}%`;
@@ -5353,7 +5353,7 @@ const searchInput = document.getElementById("teacherSearch");
                 return {
                     state: "error",
                     badgeText: "Fix capacity first",
-                    message: "National section hours are higher than total teacher capacity, so the system cannot build a safe recommendation yet.",
+                    message: "Other path hours are higher than total teacher capacity, so the system cannot build a safe recommendation yet.",
                     summaryItems: [],
                     suggestions: [],
                 };
@@ -5366,7 +5366,7 @@ const searchInput = document.getElementById("teacherSearch");
                     badgeText: "Capacity full",
                     message: "This teacher is already fully allocated based on the current subject and section selections.",
                     summaryItems: [
-                        { label: "Current Load", value: `${snapshot.assignedHours}h`, note: "No further international hours available" },
+                        { label: "Current Load", value: `${snapshot.assignedHours}h`, note: "No further capacity available" },
                     ],
                     suggestions: [],
                 };
@@ -7095,7 +7095,7 @@ const searchInput = document.getElementById("teacherSearch");
                     const allocationSnapshot = getAllocationSnapshot();
                     if (allocationSnapshot.nationalHoursExceedTotal) {
                         event.preventDefault();
-                        window.alert(`National section hours (${allocationSnapshot.safeNationalHours}) cannot exceed total teacher capacity (${allocationSnapshot.totalCapacityHours}).`);
+                        window.alert(`Other path hours (${allocationSnapshot.safeNationalHours}) cannot exceed total teacher capacity (${allocationSnapshot.totalCapacityHours}).`);
                         if (nationalSectionHoursInput) {
                             nationalSectionHoursInput.focus();
                         }
@@ -7103,7 +7103,7 @@ const searchInput = document.getElementById("teacherSearch");
                     }
                     if (allocationSnapshot.assignedHours > allocationSnapshot.requiredHours) {
                         event.preventDefault();
-                        window.alert(`Assigned section hours (${allocationSnapshot.assignedHours}) exceed available international capacity (${allocationSnapshot.requiredHours}). Reduce the selected sections, reduce national section hours, or increase allowed extra hours.`);
+                        window.alert(`Assigned section hours (${allocationSnapshot.assignedHours}) exceed available capacity (${allocationSnapshot.requiredHours}). Reduce the selected sections, reduce other path hours, or increase allowed extra hours.`);
                         return;
                     }
                 });
