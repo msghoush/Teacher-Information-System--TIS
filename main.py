@@ -5909,7 +5909,7 @@ def _build_report_allocation_xlsx_bytes(
         "Teacher ID",
         "Teacher Name",
         "Assigned Hours",
-        "Remaining Intl Capacity",
+        "Remaining Capacity",
         "Assigned Subject",
         "Support Subject",
     ] + [class_row["class_label"] for class_row in class_rows]
@@ -6807,7 +6807,7 @@ def _build_summary_overview_sheet(workbook: Workbook, report_package: dict):
             ("Whole New Hires", summary.get("total_new_teachers_required", 0), "24h full teacher blocks"),
             ("Coverage", f"{summary.get('coverage_percentage', 0)}%", "Covered vs total demand"),
             ("Remaining After Hires", f"{summary.get('remaining_uncovered_hours_after_hires', 0)}h", "Remainder after whole hires"),
-            ("Underloaded Teachers", summary.get("underloaded_teachers", 0), "Teachers with spare international capacity"),
+            ("Underloaded Teachers", summary.get("underloaded_teachers", 0), "Teachers with spare capacity"),
             ("Priority Gap Hours", f"{summary.get('priority_gap_hours', 0)}h", "Priority uncovered demand"),
         ],
     )
@@ -7155,7 +7155,7 @@ def _build_teachers_overview_sheet(workbook: Workbook, report_package: dict):
     _apply_report_title(
         sheet,
         "Teachers Overview",
-        "Teacher load, assigned subjects, capacity, allocation, national-section hours, and remaining international capacity.",
+        "Teacher load, assigned subjects, capacity, allocation, other-path hours, and remaining capacity.",
         last_column=11,
     )
     for col, width in {
@@ -7180,7 +7180,7 @@ def _build_teachers_overview_sheet(workbook: Workbook, report_package: dict):
         "Teacher Name",
         "Degree / Major",
         "Allocated Hours",
-        "International Capacity",
+        "Capacity",
         "Load %",
         "Remaining Capacity",
         "Homeroom",

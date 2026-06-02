@@ -1424,7 +1424,7 @@ def update_planning_section(
         )
         if projected_hours > allowed_hours:
             errors.append(
-                f"{_build_teacher_display_name(teacher)} would reach {projected_hours}h after assigning {subject_code}, which exceeds the available international capacity of {allowed_hours}h."
+                f"{_build_teacher_display_name(teacher)} would reach {projected_hours}h after assigning {subject_code}, which exceeds the available capacity of {allowed_hours}h."
             )
 
     if errors:
