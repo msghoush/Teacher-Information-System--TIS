@@ -2045,6 +2045,7 @@ def _build_reporting_context_from_section_assignments(
                 "total_capacity_hours": teacher_capacity_breakdown[
                     "total_capacity_hours"
                 ],
+                "extra_hours_count": teacher_capacity_breakdown["extra_hours"],
                 "national_section_hours": teacher_capacity_breakdown[
                     "national_section_hours"
                 ],
@@ -2282,6 +2283,7 @@ def _build_reporting_context_from_section_assignments(
                     "total_capacity_hours",
                     REPORT_STANDARD_MAX_HOURS,
                 ),
+                "extra_hours_count": profile.get("extra_hours_count", 0),
                 "national_section_hours": profile.get("national_section_hours", 0),
                 "remaining_capacity_hours": profile["remaining_capacity_hours"],
             }
@@ -3207,6 +3209,7 @@ def _build_reporting_context(
                 "total_capacity_hours": teacher_capacity_breakdown[
                     "total_capacity_hours"
                 ],
+                "extra_hours_count": teacher_capacity_breakdown["extra_hours"],
                 "major_priority_rule_key": major_priority_rule.get("rule_key", ""),
                 "major_priority_rule_label": major_priority_rule.get("label", ""),
                 "major_priority_pool_key": major_priority_rule.get("pool_key", ""),
@@ -3691,6 +3694,7 @@ def _build_reporting_context(
                     "total_capacity_hours",
                     REPORT_STANDARD_MAX_HOURS,
                 ),
+                "extra_hours_count": profile.get("extra_hours_count", 0),
                 "national_section_hours": profile.get("national_section_hours", 0),
                 "remaining_capacity_hours": profile["remaining_capacity_hours"],
             }
@@ -6488,8 +6492,6 @@ def _build_current_report_package(db: Session, user) -> dict:
         if str(section.class_status or "").strip().lower() == "new"
     )
     teachers_for_reporting = teachers_query.order_by(models.Teacher.id.asc()).all()
-    teachers_preview = teachers_query.order_by(models.Teacher.id.desc()).limit(8).all()
-
     subject_hours_by_grade = {}
     for subject in subjects_dashboard_rows:
         grade_label = _normalize_grade_label(getattr(subject, "grade", None))
@@ -6641,7 +6643,6 @@ def _build_current_report_package(db: Session, user) -> dict:
         "planning_new_sections_count": planning_new_sections_count,
         "planning_total_allocated_hours": planning_total_allocated_hours,
         "subjects_dashboard_rows": subjects_dashboard_rows,
-        "teachers_preview": teachers_preview,
         "planning_sections": planning_sections,
         "section_assignments": section_assignments,
         "reporting_context": reporting_context,
@@ -11371,7 +11372,6 @@ def dashboard(
     planning_new_sections_count = report_package["planning_new_sections_count"]
     planning_total_allocated_hours = report_package["planning_total_allocated_hours"]
     subjects_dashboard_rows = report_package["subjects_dashboard_rows"]
-    teachers_preview = report_package["teachers_preview"]
     report_summary = report_package["report_summary"]
     report_subject_count = report_package["report_subject_count"]
     report_subject_rows = report_package["report_subject_rows"]
@@ -11416,7 +11416,6 @@ def dashboard(
             "planning_new_sections_count": planning_new_sections_count,
             "planning_total_allocated_hours": planning_total_allocated_hours,
             "subjects_dashboard_rows": subjects_dashboard_rows,
-            "teachers_preview": teachers_preview,
             "report_summary": report_summary,
             "report_subject_count": report_subject_count,
             "report_subject_rows": report_subject_rows,

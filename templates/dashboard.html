@@ -4269,34 +4269,6 @@
                         <p>Manage teaching staff assigned to this branch and year.</p>
                     </div>
                 </div>
-                {% if teachers_preview %}
-                <div class="table-wrap">
-                    <table>
-                        <tr>
-                            <th>Teacher ID</th>
-                            <th>Name</th>
-                            <th>Subject Code</th>
-                            <th>Extra Hours Count</th>
-                            <th>Other Path Hours</th>
-                            <th>Capacity</th>
-                        </tr>
-                        {% for teacher in teachers_preview %}
-                        <tr>
-                            <td>{{ teacher.teacher_id }}</td>
-                            <td>{{ teacher.first_name }}{% if teacher.middle_name %} {{ teacher.middle_name }}{% endif %} {{ teacher.last_name }}</td>
-                            <td>{{ teacher.subject_code }}</td>
-                            <td>{{ teacher.extra_hours_count if teacher.extra_hours_allowed else 0 }}</td>
-                            <td>{{ teacher.national_section_hours if teacher.teaches_national_section else 0 }}</td>
-                            <td>{{ ((teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0)) - (teacher.national_section_hours if teacher.teaches_national_section else 0) }}</td>
-                        </tr>
-                        {% endfor %}
-                    </table>
-                </div>
-                {% else %}
-                <div class="empty">No teacher records yet. Open the Teachers module to add your first record.</div>
-                {% endif %}
-
-                {% if report_summary.total_required_hours > 0 %}
                 <section class="dashboard-analytics-section" aria-label="Assigned Coverage Across Planned Sections">
                     <div class="report-card report-teachers-card">
                         <div class="report-card-head">
@@ -4341,6 +4313,8 @@
                                     </div>
                                     <div class="report-teacher-badges">
                                         <span class="report-teacher-badge">{{ row.expected_allocated_hours }}h</span>
+                                        <span class="report-teacher-badge">Extra Hours Count: {{ row.extra_hours_count }}</span>
+                                        <span class="report-teacher-badge">Other Path Hours: {{ row.national_section_hours }}</span>
                                         {% if row.is_underloaded %}
                                         <span class="report-teacher-badge report-teacher-badge-underloaded">Underloaded</span>
                                         {% endif %}
@@ -4445,7 +4419,6 @@
                         </div>
                     </div>
                 </section>
-                {% endif %}
             </div>
 
             <div class="panel" id="panel-planning">
