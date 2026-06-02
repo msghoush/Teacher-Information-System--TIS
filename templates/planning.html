@@ -732,7 +732,7 @@
             {% if can_copy_year_data %}
             <article class="card">
                 <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("copy", "icon") }}</span>Copy From Academic Year</span></h2>
-                <p>Bring planning structure forward from another academic year into the current branch/year scope. Existing sections stay in place, and teacher links are added only when matching teachers and subjects already exist in the target year.</p>
+                <p>Copy planning from another year. Existing sections remain; available teacher links are added.</p>
 
                 {% if copy_year_choices %}
                 <form method="post" action="/planning/copy-from-year" autocomplete="off" onsubmit="return confirm('Copy planning data into {{ shell.academic_year_name }}? Existing current-year planning records will be kept.');">
@@ -756,7 +756,7 @@
 
             <article class="card">
                 <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("planning", "icon") }}</span>Create Planning Section</span></h2>
-                <p>Define grade and section structure. Subjects and required hours align automatically from Subjects module, then you can assign teachers per subject from the edit screen for each section.</p>
+                <p>Add a section. Subjects and hours align automatically; assign teachers from Edit.</p>
 
                 {% if success %}
                 <div class="success">{{ success }}</div>
@@ -816,7 +816,7 @@
                                 <div class="auto-panel-head">
                                     <div>
                                         <h3>Subjects Aligned (Automatic)</h3>
-                                        <p>These subjects are pulled automatically from the selected grade in Subjects.</p>
+                                        <p>Pulled automatically from the selected grade.</p>
                                     </div>
                                     <div class="auto-panel-meta">
                                         <span id="alignedSubjectsCount" class="auto-summary-pill">0 subjects</span>

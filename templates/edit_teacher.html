@@ -1834,8 +1834,8 @@
 
 {% block content %}
 <main class="panel">
-<h2 class="panel-title section-heading"><span class="section-heading-icon">{{ icon("teachers", "icon") }}</span>Teacher Profile and Workload Details</h2>
-        <p class="sub">Update teacher details, workload rules, eligible subjects, and section assignments through a cleaner, more professional review screen.</p>
+<h2 class="panel-title section-heading"><span class="section-heading-icon">{{ icon("teachers", "icon") }}</span>Edit Teacher Profile</h2>
+        <p class="sub">Update profile, workload, subjects, and sections.</p>
 
         {% if error %}
         <div class="error">{{ error }}</div>
@@ -1901,7 +1901,7 @@
                             </details>
                             {% endfor %}
                         </div>
-                        <div class="field-note">Choose every degree level and subject specialization that applies. The system stores these selections in a structured way and uses them to validate subject compatibility.</div>
+                        <div class="field-note">Choose applicable degrees and specializations. These selections validate subject compatibility.</div>
                     </div>
                 </div>
                 <div class="field">
@@ -1912,8 +1912,8 @@
                     <label>Eligible Subjects</label>
                     <div class="assignment-step">
                         <div class="assignment-step-label">Step 1</div>
-                        <h3 class="section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Select the subjects this teacher can teach</h3>
-                        <p>Tick one or more subjects first. The section assignment area will appear directly below for those selected subjects.</p>
+                        <h3 class="section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Choose Eligible Subjects</h3>
+                        <p>Select subjects to reveal their section assignments.</p>
                     <div class="subject-selector-shell">
                         <div class="subject-selector-topbar">
                             <input id="subjectSearchInput" class="subject-search" type="text" placeholder="Search by code, subject name, or grade">
@@ -1922,13 +1922,13 @@
                                 <button id="clearAllSubjectsBtn" class="subject-grade-btn" type="button">Clear all</button>
                             </div>
                         </div>
-                        <div class="subject-selector-help">Use the <strong>+</strong> sign to open one grade, then tick the subject checkboxes you want for this teacher.</div>
+                        <div class="subject-selector-help">Open a grade with <strong>+</strong>, then select subjects.</div>
                         <div id="majorGuidance" class="major-guidance" data-state="empty">
                             <div class="major-guidance-head">
                                 <div class="major-guidance-copy">
                                     <span id="majorGuidanceBadge" class="major-guidance-badge">Add qualifications</span>
                                     <h4>Subject Alignment Guide</h4>
-                                    <p id="majorGuidanceText">Select the teacher's qualifications above. Matching subjects will be highlighted automatically and non-matching choices will be flagged for review. If you need to keep a mismatch, enable the explicit Admin Override for that subject.</p>
+                                    <p id="majorGuidanceText">Matching subjects are highlighted. Use Admin Override to keep a mismatch.</p>
                                 </div>
                             </div>
                             <div class="major-guidance-grid">
@@ -1962,24 +1962,24 @@
                             </div>
                         </div>
                         <div id="selectedSubjectChips" class="subject-selector-chips"></div>
-                        <div class="field-note">When a selected subject does not match the saved qualifications, turn on <strong>Admin Override</strong> for that subject to save it as an approved exception.</div>
+                        <div class="field-note">Use <strong>Admin Override</strong> to save a subject mismatch as an approved exception.</div>
                         <div class="subject-picker" id="subjectPicker"></div>
                         <div id="subjectNoResult" class="subject-empty" style="display:none;">No subjects match your search.</div>
                     </div>
                     </div>
                     <div class="assignment-step">
                         <div class="assignment-step-label">Step 2</div>
-                        <h3 class="section-heading"><span class="section-heading-icon">{{ icon("planning", "icon") }}</span>Assign sections for each selected subject</h3>
-                        <p>This is where you choose the exact sections the teacher covers for the selected subject, for example Grade 5-A and Grade 5-B for the same subject.</p>
+                        <h3 class="section-heading"><span class="section-heading-icon">{{ icon("planning", "icon") }}</span>Assign Sections by Subject</h3>
+                        <p>Choose the exact sections covered for each subject.</p>
                     <div id="sectionAssignmentBoard" class="subject-assignment-board"></div>
-                    <div id="sectionAssignmentEmpty" class="section-assignment-empty">Choose one or more subjects in Step 1, and the matching sections will appear here to assign to this teacher.</div>
+                    <div id="sectionAssignmentEmpty" class="section-assignment-empty">Choose subjects in Step 1 to reveal matching sections.</div>
                     </div>
                     <div id="assignmentSuggestionPanel" class="assignment-suggestion-panel" data-state="loading">
                         <div class="assignment-suggestion-head">
                             <div class="assignment-suggestion-copy">
                                 <span id="assignmentSuggestionBadge" class="assignment-suggestion-badge">Loading plan</span>
                                 <h3>Smart Auto Matching Plan</h3>
-                                <p id="assignmentSuggestionText">Refreshing the current Recommended Hiring Plan and uncovered sections, then matching this teacher's main specialization before any compatible secondary pool subject.</p>
+                                <p id="assignmentSuggestionText">Refreshing the hiring plan and matching sections to this teacher's specialization.</p>
                             </div>
                             <div class="assignment-suggestion-actions">
                                 <button id="assignmentSuggestionApplyBtn" class="assignment-suggestion-action is-primary" type="button" disabled>Apply Plan</button>
@@ -2008,7 +2008,7 @@
                             <div class="allocation-copy">
                                 <span id="allocationStatusBadge" class="allocation-status-badge">Start with subjects</span>
                                 <h3 class="section-heading"><span class="section-heading-icon">{{ icon("report", "icon") }}</span>Teaching Load Overview</h3>
-                                <p id="allocationStatusText">Select eligible subjects first, then assign sections to see the teacher's live weekly hours and remaining capacity.</p>
+                                <p id="allocationStatusText">Select subjects and sections to view weekly hours and spare capacity.</p>
                             </div>
                             <div class="allocation-hours-total">
                                 <strong id="allocationAssignedHoursValue">0h</strong>

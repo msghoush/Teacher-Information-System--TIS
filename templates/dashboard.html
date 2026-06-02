@@ -3950,7 +3950,7 @@
                                 {{ icon("open", "icon") }}
                             </a>
                         </div>
-                        <p>Manage curriculum subjects for your current branch and academic year.</p>
+                        <p>Manage subjects for this branch and year.</p>
                     </div>
                 </div>
                 {% if subjects_dashboard_rows %}
@@ -4047,7 +4047,7 @@
                         <div class="report-card-head">
                             <div class="report-card-head-copy">
                                 <h4 class="report-heading"><span class="section-heading-icon report-heading-icon">{{ icon("subjects", "icon") }}</span><span class="report-heading-label">Subject Sufficiency Breakdown</span></h4>
-                                <p>Subject-level coverage cards are now in the Subjects workspace. Expand a subject to inspect contributors and open sections.</p>
+                                <p>Expand a subject to review coverage, teachers, and open sections.</p>
                             </div>
                             <span class="report-card-tag">{{ report_subject_count or report_subject_rows|length }} subjects</span>
                         </div>
@@ -4268,7 +4268,7 @@
                                 {{ icon("open", "icon") }}
                             </a>
                         </div>
-                        <p>Manage teaching staff assigned to this branch and year.</p>
+                        <p>Review staff for this branch and year.</p>
                     </div>
                 </div>
                 <section class="dashboard-analytics-section" aria-label="Assigned Coverage Across Planned Sections">
@@ -4276,7 +4276,7 @@
                         <div class="report-card-head">
                             <div class="report-card-head-copy">
                                 <h4>Assigned Coverage Across Planned Sections</h4>
-                                <p>Visual teacher cards show assigned load, remaining capacity, and distribution across planned section allocations.</p>
+                                <p>Review assigned hours, spare capacity, and planned sections.</p>
                             </div>
                             <span class="report-card-tag">{{ report_teacher_rows|length }} teachers</span>
                         </div>
@@ -4432,14 +4432,14 @@
                                 {{ icon("open", "icon") }}
                             </a>
                         </div>
-                        <p>Interactive planning will calculate teacher load and section demand.</p>
+                        <p>Review section demand and teacher load.</p>
                     </div>
                 </div>
                 <div class="planning-metrics tis-kpi-grid">
                     <div class="planning-kpi planning-kpi-current tis-kpi-card tis-kpi-card--teal">
                         <span>{{ icon("table", "icon") }} Planned Sections</span>
                         <strong class="planning-kpi-value" data-value="{{ planning_total_sections }}">{{ planning_total_sections }}</strong>
-                        <p>Captured sections for this branch/year scope.</p>
+                        <p>Sections in this scope.</p>
                     </div>
                     <div class="planning-kpi planning-kpi-new tis-kpi-card tis-kpi-card--gold">
                         <span>{{ icon("add", "icon") }} New Sections</span>
@@ -4449,7 +4449,7 @@
                     <div class="planning-kpi planning-kpi-hours tis-kpi-card">
                         <span>{{ icon("activity", "icon") }} Allocated Hours</span>
                         <strong class="planning-kpi-value" data-value="{{ planning_total_allocated_hours }}">{{ planning_total_allocated_hours }}</strong>
-                        <p>Automatically calculated by grade-subject alignment.</p>
+                        <p>Calculated from grade-subject alignment.</p>
                     </div>
                 </div>
             </div>
@@ -4457,8 +4457,8 @@
             <div class="panel" id="panel-reports">
                 <div class="panel-head">
                     <div>
-                        <h3 class="section-heading"><span class="section-heading-icon">{{ icon("report", "icon") }}</span>Reports & Insights Workspace</h3>
-                        <p>High-level coverage, uncovered demand, and strategic hiring insight for the current branch and year scope.</p>
+                        <h3 class="section-heading"><span class="section-heading-icon">{{ icon("report", "icon") }}</span>Reports & Insights</h3>
+                        <p>Review coverage gaps and hiring needs for this scope.</p>
                     </div>
                     <div class="panel-head-actions">
                         <a class="open-link" href="/planning">{{ icon("planning", "icon") }} Open Planning</a>
@@ -4477,13 +4477,13 @@
                     </div>
                 </div>
                 <div class="report-note">
-                    This report follows opened planning sections and counts coverage only when a matching section-subject assignment exists, with Grade 1 and Grade 2 homeroom-default subjects applied automatically where configured.
+                    Coverage counts matching section-subject assignments. Grade 1 and Grade 2 homeroom defaults apply where configured.
                 </div>
                 {% if report_summary.total_required_hours > 0 %}
                 <div class="report-visual-grid">
                     <div class="report-visual-card">
                         <h4 class="section-heading"><span class="section-heading-icon">{{ icon("insights", "icon") }}</span>Executive Coverage Snapshot</h4>
-                        <p>Polished donut views summarize section coverage, section mix, and the hiring plan using whole teachers plus any remaining uncovered hours.</p>
+                        <p>Review coverage, section mix, and hiring needs.</p>
                         <div class="report-donut-grid">
                             <div class="report-donut-card" title="Coverage across all required section-hours in the current planning scope.">
                                 <h5 class="report-donut-heading"><span class="section-heading-icon report-heading-icon">{{ icon("report", "icon") }}</span><span class="report-heading-label">Coverage</span></h5>
@@ -4564,7 +4564,7 @@
                     </div>
                     <div class="report-visual-card">
                         <h4 class="report-heading"><span class="section-heading-icon report-heading-icon">{{ icon("warning", "icon") }}</span><span class="report-heading-label">Uncovered Hours</span></h4>
-                        <p>All subjects that still have uncovered hours, based on the current reporting and assignment data.</p>
+                        <p>Subjects with open hours in the current plan.</p>
                         {% if report_visuals.top_subject_gap %}
                         <div class="report-chart-list">
                             {% for item in report_visuals.top_subject_gap %}
@@ -4587,7 +4587,7 @@
                     <article class="report-focus-card">
                         <span class="report-focus-label">Existing Teachers</span>
                         <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_existing_teachers }}">{{ report_summary.total_existing_teachers }}</strong>
-                        <p>Teachers available in the current branch and academic year scope.</p>
+                        <p>Teachers in the current scope.</p>
                     </article>
                     <article class="report-focus-card">
                         <span class="report-focus-label">Whole New Hires</span>
@@ -4602,7 +4602,7 @@
                     <article class="report-focus-card {% if report_summary.total_uncovered_hours > 0 %}is-alert{% else %}is-clear{% endif %}">
                         <span class="report-focus-label">Total Uncovered Hours</span>
                         <strong class="report-focus-value report-kpi-value" data-value="{{ report_summary.total_uncovered_hours }}">{{ report_summary.total_uncovered_hours }}h</strong>
-                        <p>Raw uncovered weekly hours from all unassigned subject-section demand in planning.</p>
+                        <p>Unassigned weekly hours in planning.</p>
                     </article>
                 </div>
 
@@ -4610,7 +4610,7 @@
                     <div class="report-hiring-plan-head">
                         <div>
                             <h4 class="report-heading"><span class="section-heading-icon report-heading-icon">{{ icon("hire", "icon") }}</span><span class="report-heading-label">Recommended Hiring Plan</span></h4>
-                            <p>Visual staffing pools by specialization and 24-hour teacher blocks.</p>
+                            <p>Staffing pools by specialization and 24-hour blocks.</p>
                         </div>
                         <span class="report-hiring-plan-pill">{{ report_summary.total_new_teachers_required or 0 }} full hires required • {{ report_summary.remaining_uncovered_hours_after_hires or 0 }}h uncovered remainder</span>
                     </div>

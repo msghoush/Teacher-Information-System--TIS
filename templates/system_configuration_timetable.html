@@ -520,7 +520,7 @@
         <div class="module-head">
             <div class="module-copy">
                 <h2>Timetable Settings</h2>
-                <p>Define the school week structure for the current branch and academic year. These rules drive the Timetable module grid, blocked slots, and manual scheduling behavior.</p>
+                <p>Define the school week, timetable grid, and blocked slots for this scope.</p>
             </div>
             <div class="pill-row">
                 <span class="status-pill {% if timetable_settings.is_saved %}{% else %}is-warning{% endif %}">
@@ -572,7 +572,7 @@
                     </div>
                 </div>
 
-                <div class="field-note">Set school start time, periods per day, and period duration. End time is recalculated automatically. Non-teaching blocks are defined independently by time and then mapped into overlapping teaching slots.</div>
+                <div class="field-note">Set start time, periods, and duration. End time recalculates automatically; blocks map to overlapping slots.</div>
 
                 <div class="action-row">
                     <button class="action-btn action-btn-primary" type="submit">{{ icon("save", "icon") }} Save Timetable Settings</button>
@@ -584,7 +584,7 @@
             <section class="preview-shell">
                 <div class="module-copy">
                     <h3>Weekly Grid Preview</h3>
-                    <p>This is the period structure the Timetable page will use for the active scope.</p>
+                    <p>Preview used by the Timetable page.</p>
                 </div>
 
                 <div class="preview-grid">
@@ -637,7 +637,7 @@
         <div class="module-head">
             <div class="module-copy">
                 <h2>Non-Teaching Blocks</h2>
-                <p>Add breaks, prayer periods, or any other blocked windows as standalone time ranges. Blocks can begin/end between periods and are automatically applied to overlapping teaching slots.</p>
+                <p>Add breaks, prayer periods, or other blocks. Overlapping teaching slots update automatically.</p>
             </div>
             <div class="pill-row">
                 <span class="usage-pill">{{ timetable_settings.blocks|length }} configured</span>

@@ -681,7 +681,7 @@
                 {% if can_copy_year_data %}
                 <article class="card tools">
                     <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("copy", "icon") }}</span>Copy From Academic Year</span></h2>
-                    <p>Bring subject records from another academic year into the current branch/year scope. Existing subject codes in the target year stay untouched.</p>
+                    <p>Copy subjects from another year. Existing codes stay unchanged.</p>
 
                     {% if copy_year_choices %}
                     <form method="post" action="/subjects/copy-from-year" onsubmit="return confirm('Copy subjects into {{ shell.academic_year_name }}? Existing subject codes in the current year will be kept.');">
@@ -704,7 +704,7 @@
                 <article class="card">
                     <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Add Subject</span></h2>
                     <p>Create a new subject record in the current scope.</p>
-                    <div class="subject-form-note">A professional color is assigned automatically from the subject code and reused across the dashboard, teacher assignments, reports, and future timetable views.</div>
+                    <div class="subject-form-note">Subject colors are assigned automatically and reused across TIS.</div>
 
                     {% if success %}
                     <div class="success">{{ success }}</div>
@@ -751,7 +751,7 @@
 
                 <article class="card tools">
                     <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("spreadsheet", "icon") }}</span>Excel Import / Export</span></h2>
-                    <p>Download template, fill your data, then import automatically.</p>
+                    <p>Download the template, fill it, then import.</p>
 
                     <a id="exportSubjectsBtn" class="btn-export" href="/subjects/export">{{ icon("download", "icon") }} Export Current Subjects</a>
                     <a id="downloadTemplateBtn" class="btn-template" href="/subjects/template">{{ icon("table", "icon") }} Download Excel Template</a>
@@ -795,7 +795,7 @@
                             </button>
                             {% endif %}
                         </div>
-                        <p>Search and manage records instantly.</p>
+                        <p>Search and manage subjects.</p>
                     </div>
                     <input id="subjectSearch" class="search" type="text" placeholder="Search by code, name, or grade">
                 </div>

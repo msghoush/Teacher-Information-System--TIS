@@ -119,7 +119,7 @@
         <aside class="group-panel">
             <div class="panel-head">
                 <h3>School Groups</h3>
-                <p>Select one subscriber container, then edit its shared logos.</p>
+                <p>Select a school group to edit its shared logos.</p>
             </div>
             <div class="group-list">
                 {% for group in logo_school_groups %}
@@ -143,8 +143,8 @@
 
             <section class="section-card">
                 <div>
-                    <h3>Shared School Group Logos</h3>
-                    <p>Branches inside this school group inherit these logos automatically unless a branch override is added.</p>
+                    <h3>Shared Logos</h3>
+                    <p>Branches inherit these logos unless an override is set.</p>
                 </div>
                 {{ logo_editor_cards(group_logos, "school_group", "school_group_id", selected_school_group.id, true) }}
             </section>
@@ -160,7 +160,7 @@
                     <section class="section-card">
                         <div>
                             <h3>{{ row.branch.name }}</h3>
-                            <p>Optional branch-specific logos. Leave blank to inherit the school group logos.</p>
+                            <p>Optional branch logos. Leave blank to inherit shared logos.</p>
                         </div>
                         {{ logo_editor_cards(row.logos, "branch", "branch_id", row.branch.id, true) }}
                     </section>
