@@ -1113,9 +1113,9 @@
     <div class="calendar-banner is-notice">{{ icon("info", "shell-icon") }} {{ notice }}</div>
     {% endif %}
 
-    <section class="calendar-summary-grid" aria-label="Calendar summary">
+    <section class="calendar-summary-grid tis-kpi-grid" aria-label="Calendar summary">
         {% for card in summary_cards %}
-        <article class="calendar-summary-card">
+        <article class="calendar-summary-card tis-kpi-card {{ loop.cycle('', 'tis-kpi-card--teal', 'tis-kpi-card--gold', 'tis-kpi-card--violet', 'tis-kpi-card--rose') }}">
             <span>{{ icon(card.icon, "shell-icon") }} {{ card.label }}</span>
             <strong>{{ card.value }}</strong>
             <small>{{ card.note }}</small>

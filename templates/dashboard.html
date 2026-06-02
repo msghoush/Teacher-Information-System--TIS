@@ -3908,14 +3908,16 @@
 {% endblock %}
 
 {% block content %}
-<section class="stats">
-            <div class="stat">
+<section class="stats tis-kpi-grid">
+            <div class="stat tis-kpi-card">
                 <span>{{ icon("subjects", "icon") }} Subjects</span>
                 <strong>{{ subject_count }}</strong>
+                <small>Configured subjects in the current branch and year.</small>
             </div>
-            <div class="stat">
+            <div class="stat tis-kpi-card tis-kpi-card--teal">
                 <span>{{ icon("teachers", "icon") }} Teachers</span>
                 <strong>{{ teacher_count }}</strong>
+                <small>Teachers available for planning and coverage review.</small>
             </div>
         </section>
 
@@ -4433,19 +4435,19 @@
                         <p>Interactive planning will calculate teacher load and section demand.</p>
                     </div>
                 </div>
-                <div class="planning-metrics">
-                    <div class="planning-kpi planning-kpi-current">
-                        <span>Total Planned Sections</span>
+                <div class="planning-metrics tis-kpi-grid">
+                    <div class="planning-kpi planning-kpi-current tis-kpi-card tis-kpi-card--teal">
+                        <span>{{ icon("table", "icon") }} Planned Sections</span>
                         <strong class="planning-kpi-value" data-value="{{ planning_total_sections }}">{{ planning_total_sections }}</strong>
                         <p>Captured sections for this branch/year scope.</p>
                     </div>
-                    <div class="planning-kpi planning-kpi-new">
-                        <span>Current vs New Sections</span>
+                    <div class="planning-kpi planning-kpi-new tis-kpi-card tis-kpi-card--gold">
+                        <span>{{ icon("add", "icon") }} New Sections</span>
                         <strong class="planning-kpi-value" data-value="{{ planning_new_sections_count }}">{{ planning_new_sections_count }}</strong>
                         <p>Current: {{ planning_current_sections_count }} | New: {{ planning_new_sections_count }}</p>
                     </div>
-                    <div class="planning-kpi planning-kpi-hours">
-                        <span>Total Allocated Hours</span>
+                    <div class="planning-kpi planning-kpi-hours tis-kpi-card">
+                        <span>{{ icon("activity", "icon") }} Allocated Hours</span>
                         <strong class="planning-kpi-value" data-value="{{ planning_total_allocated_hours }}">{{ planning_total_allocated_hours }}</strong>
                         <p>Automatically calculated by grade-subject alignment.</p>
                     </div>

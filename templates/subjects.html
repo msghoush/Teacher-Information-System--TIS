@@ -663,17 +663,16 @@
 {% endblock %}
 
 {% block content %}
-<section class="stats">
-            <div class="stat">
-                <span>Total Subjects</span>
+<section class="stats tis-kpi-grid">
+            <div class="stat tis-kpi-card">
+                <span>{{ icon("subjects", "icon") }} Total Subjects</span>
                 <strong id="subjectCount">{{ subject_total_count }}</strong>
+                <small>Configured subjects in the current branch and year.</small>
             </div>
-            <div class="stat">
-                <span>Current User</span>
+            <div class="stat tis-kpi-card tis-kpi-card--teal">
+                <span>{{ icon("users", "icon") }} Current User</span>
                 <strong style="font-size: 20px;">{{ user.first_name }} {{ user.last_name }}</strong>
-                <div style="font-size: 12px; color: var(--muted); margin-top: 6px;">
-                    Role: {{ user.effective_role if user.effective_role else user.role }}
-                </div>
+                <small>Role: {{ user.effective_role if user.effective_role else user.role }}</small>
             </div>
         </section>
 

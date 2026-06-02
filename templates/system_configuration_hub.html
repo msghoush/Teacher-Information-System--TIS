@@ -173,9 +173,9 @@
             <p>Open each configuration domain in its own dedicated workspace. This keeps administration structured today and scalable for future modules.</p>
         </div>
 
-        <div class="config-stat-grid">
+        <div class="config-stat-grid tis-kpi-grid">
             {% for stat in configuration_stats %}
-            <article class="config-stat-card">
+            <article class="config-stat-card tis-kpi-card {{ loop.cycle('', 'tis-kpi-card--teal', 'tis-kpi-card--gold', 'tis-kpi-card--violet') }}">
                 <span>{{ icon(stat.icon, "icon") }} {{ stat.label }}</span>
                 <strong>{{ stat.value }}</strong>
                 <small>{{ stat.note }}</small>

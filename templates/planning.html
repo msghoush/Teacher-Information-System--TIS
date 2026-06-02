@@ -844,19 +844,19 @@
                     <input id="planningSearch" class="search" type="text" placeholder="Search by grade, section, status, teacher, subject">
                 </div>
 
-                <div class="stats">
-                    <div class="stat stat-current">
-                        <span>Current Sections Count</span>
+                <div class="stats tis-kpi-grid">
+                    <div class="stat stat-current tis-kpi-card tis-kpi-card--teal">
+                        <span>{{ icon("table", "icon") }} Current Sections</span>
                         <strong id="currentSectionsCount" class="kpi-value" data-value="{{ current_sections_count }}">{{ current_sections_count }}</strong>
                         <small>Existing sections carried into planning</small>
                     </div>
-                    <div class="stat stat-new">
-                        <span>New Sections Count</span>
+                    <div class="stat stat-new tis-kpi-card tis-kpi-card--gold">
+                        <span>{{ icon("add", "icon") }} New Sections</span>
                         <strong id="newSectionsCount" class="kpi-value" data-value="{{ new_sections_count }}">{{ new_sections_count }}</strong>
                         <small>New growth sections for next year</small>
                     </div>
-                    <div class="stat stat-hours">
-                        <span>Total Allocated Hours</span>
+                    <div class="stat stat-hours tis-kpi-card">
+                        <span>{{ icon("activity", "icon") }} Allocated Hours</span>
                         <strong id="totalAllocatedHours" class="kpi-value" data-value="{{ total_allocated_hours }}">{{ total_allocated_hours }}</strong>
                         <small>Automatically calculated school-wide load</small>
                     </div>
