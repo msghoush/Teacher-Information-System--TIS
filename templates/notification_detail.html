@@ -4,7 +4,7 @@
 {% block title %}{{ notification.title }} | TIS{% endblock %}
 
 {% block page_header_actions %}
-<a class="shell-action" href="/notifications">{{ icon("notifications", "shell-icon") }} Notification Center</a>
+<a class="shell-action" href="/notifications">{{ icon("inbox", "shell-icon") }} Notification Center</a>
 {% endblock %}
 
 {% block page_styles %}
@@ -227,12 +227,12 @@
         <div class="notification-actions">
             {% if can_mark_done %}
             <form method="post" action="/notifications/{{ notification.id }}/resolved">
-                <button class="notification-action is-resolve" type="submit">{{ icon("save", "icon") }} Mark as Done</button>
+                <button class="notification-action is-resolve" type="submit">{{ icon("check-circle", "icon") }} Mark as Done</button>
             </form>
             {% endif %}
             {% if can_archive_notification %}
             <form method="post" action="/notifications/{{ notification.id }}/archive">
-                <button class="notification-action" type="submit">{{ icon("check-circle", "icon") }} Archive</button>
+                <button class="notification-action" type="submit">{{ icon("archive", "icon") }} Archive</button>
             </form>
             {% endif %}
         </div>

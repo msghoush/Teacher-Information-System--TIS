@@ -4,7 +4,7 @@
 {% block title %}Compose Message | TIS{% endblock %}
 
 {% block page_header_actions %}
-<a class="shell-action" href="/notifications">{{ icon("notifications", "shell-icon") }} Notification Center</a>
+<a class="shell-action" href="/notifications">{{ icon("inbox", "shell-icon") }} Notification Center</a>
 {% endblock %}
 
 {% block page_styles %}
@@ -139,13 +139,13 @@
 <section class="compose-page">
     <form class="compose-card" method="post" action="/notifications/compose" id="compose-form">
         <div class="compose-field">
-            <label for="compose-title">Message Title</label>
+            <label for="compose-title">Subject</label>
             <input
                 id="compose-title"
                 name="title"
                 type="text"
                 maxlength="160"
-                placeholder="Enter a clear, concise title…"
+                placeholder="Enter a clear, concise subject..."
                 required
                 autocomplete="off"
             >
@@ -177,8 +177,8 @@
         </div>
 
         <div class="compose-actions">
-            <a class="compose-btn compose-btn-cancel" href="/notifications">Cancel</a>
-            <button class="compose-btn" type="submit">{{ icon("save", "icon") }} Send Message</button>
+            <a class="compose-btn compose-btn-cancel" href="/notifications">{{ icon("close", "icon") }} Cancel</a>
+            <button class="compose-btn" type="submit">{{ icon("sent", "icon") }} Send Message</button>
         </div>
     </form>
 </section>
