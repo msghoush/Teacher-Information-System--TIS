@@ -37,7 +37,9 @@
 }
 
 .msg-stat span {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     color: var(--app-muted);
     font-size: 12px;
     font-weight: 800;
@@ -139,17 +141,6 @@
     line-height: 1.5;
 }
 
-.msg-preview {
-    margin: 6px 0 0;
-    color: var(--app-muted);
-    font-size: 13px;
-    line-height: 1.5;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
 .msg-badges {
     display: flex;
     flex-wrap: wrap;
@@ -208,6 +199,9 @@
 }
 
 .msg-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     min-height: 30px;
     padding: 6px 10px;
     border: 1px solid var(--app-line);
@@ -270,39 +264,39 @@
 <section class="msg-page">
     <div class="msg-summary">
         <div class="msg-stat">
-            <span>All</span>
+            <span>{{ icon("message", "shell-icon") }} All</span>
             <strong>{{ notification_counts.get("All", 0) }}</strong>
         </div>
         <div class="msg-stat">
-            <span>New</span>
+            <span>{{ icon("notifications", "shell-icon") }} New</span>
             <strong>{{ notification_counts.get("New", 0) }}</strong>
         </div>
         <div class="msg-stat">
-            <span>Seen</span>
+            <span>{{ icon("eye", "shell-icon") }} Seen</span>
             <strong>{{ notification_counts.get("Seen", 0) }}</strong>
         </div>
         <div class="msg-stat">
-            <span>Done</span>
+            <span>{{ icon("check-circle", "shell-icon") }} Done</span>
             <strong>{{ notification_counts.get("Resolved", 0) }}</strong>
         </div>
         <div class="msg-stat">
-            <span>Sent</span>
+            <span>{{ icon("sent", "shell-icon") }} Sent</span>
             <strong>{{ notification_counts.get("Sent", 0) }}</strong>
         </div>
         <div class="msg-stat">
-            <span>Archived</span>
+            <span>{{ icon("archive", "shell-icon") }} Archived</span>
             <strong>{{ notification_counts.get("Archived", 0) }}</strong>
         </div>
     </div>
 
     <nav class="msg-filters" aria-label="Message filters">
-        <a class="msg-filter {% if selected_box == 'inbox' and not selected_status %}is-active{% endif %}" href="/notifications">Inbox</a>
-        <a class="msg-filter {% if selected_box == 'sent' %}is-active{% endif %}" href="/notifications?box=sent">Sent {{ notification_counts.get("Sent", 0) }}</a>
-        <a class="msg-filter {% if selected_box == 'archive' %}is-active{% endif %}" href="/notifications?box=archive">Archive {{ notification_counts.get("Archived", 0) }}</a>
+        <a class="msg-filter {% if selected_box == 'inbox' and not selected_status %}is-active{% endif %}" href="/notifications">{{ icon("inbox", "shell-icon") }} Inbox {{ notification_counts.get("All", 0) }}</a>
+        <a class="msg-filter {% if selected_box == 'sent' %}is-active{% endif %}" href="/notifications?box=sent">{{ icon("sent", "shell-icon") }} Sent {{ notification_counts.get("Sent", 0) }}</a>
+        <a class="msg-filter {% if selected_box == 'archive' %}is-active{% endif %}" href="/notifications?box=archive">{{ icon("archive", "shell-icon") }} Archive {{ notification_counts.get("Archived", 0) }}</a>
         {% for option in status_options %}
-        <a class="msg-filter {% if selected_box == 'inbox' and selected_status == option %}is-active{% endif %}" href="/notifications?status={{ option }}">{{ "Done" if option == "Resolved" else option }} {{ notification_counts.get(option, 0) }}</a>
+        <a class="msg-filter {% if selected_box == 'inbox' and selected_status == option %}is-active{% endif %}" href="/notifications?status={{ option }}">{{ icon("notifications" if option == "New" else "eye" if option == "Seen" else "check-circle", "shell-icon") }} {{ "Done" if option == "Resolved" else option }} {{ notification_counts.get(option, 0) }}</a>
         {% endfor %}
-        <span class="msg-filter">Time: {{ user_timezone }}</span>
+        <span class="msg-filter">{{ icon("clock", "shell-icon") }} Time: {{ user_timezone }}</span>
     </nav>
 
     <div class="msg-list">
@@ -311,7 +305,7 @@
             {% set msg = group.latest %}
             <article class="msg-card {% if group.new_count %}is-new{% endif %}">
                 <div class="msg-icon" aria-hidden="true">
-                    {{ icon("notifications", "shell-icon") }}
+                    {{ icon("sent" if selected_box == "sent" else "archive" if selected_box == "archive" else "inbox", "shell-icon") }}
                 </div>
                 <div>
                     <h2>{{ group.title }}</h2>
@@ -324,9 +318,6 @@
                         {% endif %}
                         &middot; <time data-tis-local-time data-utc-timestamp="{{ notification_timestamp_iso(msg.created_at) }}">{{ format_notification_timestamp(msg.created_at, "Unknown time") }}</time>
                     </p>
-                    {% if group.preview %}
-                    <p class="msg-preview">{{ group.preview }}</p>
-                    {% endif %}
                     <div class="msg-badges">
                         {% if group.count > 1 %}
                         <span class="msg-badge">{{ group.count }} related messages</span>
@@ -342,13 +333,13 @@
                 <div class="msg-actions">
                     <span class="msg-status {{ group.status_class }}">{{ group.status_label }}</span>
                     <div class="msg-action-row">
-                        <a class="msg-action msg-action-primary" href="/notifications/{{ msg.id }}">Open</a>
+                        <a class="msg-action msg-action-primary" href="/notifications/{{ msg.id }}">{{ icon("open", "shell-icon") }} Open</a>
                         {% if selected_box == "inbox" and group.new_count %}
                         <form method="post" action="/notifications/group-action">
                             <input type="hidden" name="group_key" value="{{ group.key }}">
                             <input type="hidden" name="action" value="read">
                             <input type="hidden" name="box" value="{{ selected_box }}">
-                            <button class="msg-action" type="submit">Mark read</button>
+                            <button class="msg-action" type="submit">{{ icon("eye", "shell-icon") }} Mark read</button>
                         </form>
                         {% endif %}
                         {% if selected_box == "inbox" and group.done_count < group.count %}
@@ -356,7 +347,7 @@
                             <input type="hidden" name="group_key" value="{{ group.key }}">
                             <input type="hidden" name="action" value="done">
                             <input type="hidden" name="box" value="{{ selected_box }}">
-                            <button class="msg-action msg-action-done" type="submit">Done</button>
+                            <button class="msg-action msg-action-done" type="submit">{{ icon("check-circle", "shell-icon") }} Done</button>
                         </form>
                         {% endif %}
                         {% if selected_box != "archive" %}
@@ -364,7 +355,7 @@
                             <input type="hidden" name="group_key" value="{{ group.key }}">
                             <input type="hidden" name="action" value="archive">
                             <input type="hidden" name="box" value="{{ selected_box }}">
-                            <button class="msg-action" type="submit">Archive</button>
+                            <button class="msg-action" type="submit">{{ icon("archive", "shell-icon") }} Archive</button>
                         </form>
                         {% endif %}
                     </div>

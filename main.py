@@ -8346,11 +8346,6 @@ def _notification_group_matches(notification, group_key: str) -> bool:
     return False
 
 
-def _notification_preview_text(value: str) -> str:
-    text_value = re.sub(r"<[^>]+>", " ", str(value or ""))
-    return " ".join(html.unescape(text_value).split())
-
-
 def _user_notification_display_map(db: Session, messages: list) -> dict:
     user_ids = {
         str(value or "").strip()
@@ -8397,7 +8392,6 @@ def _build_notification_groups(messages: list) -> list[dict]:
                 "done_count": 0,
                 "status_label": "Seen",
                 "status_class": "",
-                "preview": "",
                 "is_grouped": group_key.startswith("observation:"),
             }
             if group["is_grouped"]:
@@ -8413,7 +8407,6 @@ def _build_notification_groups(messages: list) -> list[dict]:
             group["seen_count"] += 1
 
     for group in grouped.values():
-        latest = group["latest"]
         if group["new_count"]:
             group["status_label"] = "New"
             group["status_class"] = "is-new"
@@ -8423,14 +8416,6 @@ def _build_notification_groups(messages: list) -> list[dict]:
         else:
             group["status_label"] = "Seen"
             group["status_class"] = ""
-        latest_preview = _notification_preview_text(getattr(latest, "message", ""))
-        if group["is_grouped"] and group["count"] > 1:
-            group["preview"] = (
-                f"{group['count']} related observation notifications. "
-                f"Latest: {latest_preview or latest.title}"
-            )
-        else:
-            group["preview"] = latest_preview
     return list(grouped.values())
 
 
