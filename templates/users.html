@@ -824,7 +824,6 @@
                 </div>
 
                 {% if users %}
-                <form id="bulkDeleteForm" method="post" action="/users/delete-bulk">
                 <div class="table-wrap">
                     <table>
                         <thead>
@@ -851,7 +850,7 @@
                                 {% if can_edit_user_accounts %}
                                 <td class="select-col">
                                     {% if row.id in manageable_user_ids %}
-                                    <input class="bulk-select bulk-select-item" type="checkbox" name="selected_user_ids" value="{{ row.id }}" aria-label="Select {{ row.first_name }} {{ row.last_name }} for bulk delete">
+                                    <input class="bulk-select bulk-select-item" type="checkbox" name="selected_user_ids" value="{{ row.id }}" form="bulkDeleteForm" aria-label="Select {{ row.first_name }} {{ row.last_name }} for bulk delete">
                                     {% endif %}
                                 </td>
                                 {% endif %}
@@ -917,7 +916,7 @@
                         </tbody>
                     </table>
                 </div>
-                </form>
+                <form id="bulkDeleteForm" method="post" action="/users/delete-bulk"></form>
                 <div id="noUsersResult" class="empty" style="display:none;">No users match your search.</div>
                 {% else %}
                 <div class="empty">No users found for your scope yet.</div>
