@@ -32,13 +32,12 @@
     --danger: #b42318;
     --success: #0f7f7a;
     --warning: #9a3412;
-    --app-icon-blue: #2563eb;
-    --app-icon-teal: #0f766e;
-    --app-icon-gold: #b77908;
-    --app-icon-violet: #7c3aed;
-    --app-icon-rose: #c2415d;
-    --app-icon-red: #b42318;
-    --app-icon-slate: #4f607a;
+    --app-icon-primary: var(--app-brand);
+    --app-icon-primary-deep: #1f5f9f;
+    --app-icon-teal: var(--app-success);
+    --app-icon-gold: #9a6b05;
+    --app-icon-danger: var(--app-danger);
+    --app-icon-muted: #4f607a;
 }
 
 * {
@@ -89,7 +88,7 @@ svg[data-tis-icon="spreadsheet"],
 svg[data-tis-icon="report"],
 svg[data-tis-icon="insights"],
 svg[data-tis-icon="activity"] {
-    --tis-icon-color: var(--app-icon-blue);
+    --tis-icon-color: var(--app-icon-primary);
 }
 
 svg[data-tis-icon="subjects"],
@@ -98,7 +97,7 @@ svg[data-tis-icon="clipboard-check"],
 svg[data-tis-icon="task"],
 svg[data-tis-icon="exam"],
 svg[data-tis-icon="degree"] {
-    --tis-icon-color: var(--app-icon-violet);
+    --tis-icon-color: var(--app-icon-primary-deep);
 }
 
 svg[data-tis-icon="teachers"],
@@ -127,14 +126,14 @@ svg[data-tis-icon="sent"],
 svg[data-tis-icon="archive"],
 svg[data-tis-icon="clock"],
 svg[data-tis-icon="eye"] {
-    --tis-icon-color: var(--app-icon-rose);
+    --tis-icon-color: var(--app-icon-primary-deep);
 }
 
 svg[data-tis-icon="settings"],
 svg[data-tis-icon="shield"],
 svg[data-tis-icon="audit"],
 svg[data-tis-icon="sparkles"] {
-    --tis-icon-color: var(--app-icon-violet);
+    --tis-icon-color: var(--app-icon-muted);
 }
 
 svg[data-tis-icon="add"],
@@ -147,7 +146,7 @@ svg[data-tis-icon="open"],
 svg[data-tis-icon="edit"],
 svg[data-tis-icon="search"],
 svg[data-tis-icon="chevron-right"] {
-    --tis-icon-color: var(--app-icon-blue);
+    --tis-icon-color: var(--app-icon-primary);
 }
 
 svg[data-tis-icon="trash"],
@@ -155,12 +154,12 @@ svg[data-tis-icon="warning"],
 svg[data-tis-icon="logout"],
 svg[data-tis-icon="close"],
 svg[data-tis-icon="clear"] {
-    --tis-icon-color: var(--app-icon-red);
+    --tis-icon-color: var(--app-icon-danger);
 }
 
 svg[data-tis-icon="info"],
 svg[data-tis-icon="camera"] {
-    --tis-icon-color: var(--app-icon-slate);
+    --tis-icon-color: var(--app-icon-muted);
 }
 
 .app-sidebar :is(.scope-pill, .sidebar-link, .sidebar-photo-trigger, .sidebar-logout) svg[data-tis-icon] {
