@@ -274,6 +274,10 @@
                 });
             };
 
+            const isWorkspaceActionLink = (link) => {
+                return Boolean(link.closest(".page-stage, .header-actions"));
+            };
+
             const isDownloadStyleLink = (link, url) => {
                 const path = url.pathname.toLowerCase();
                 if (link.hasAttribute("download") || spreadsheetDownloadPattern.test(path)) {
@@ -291,6 +295,9 @@
                     return false;
                 }
                 if (link.hasAttribute("target")) {
+                    return false;
+                }
+                if (!isWorkspaceActionLink(link)) {
                     return false;
                 }
                 if (hasNavigationOverride(link)) {
