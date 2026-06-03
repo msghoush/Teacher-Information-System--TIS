@@ -32,10 +32,9 @@
     --danger: #b42318;
     --success: #0f7f7a;
     --warning: #9a3412;
-    --app-icon-primary: var(--app-brand);
-    --app-icon-primary-deep: #1f5f9f;
-    --app-icon-teal: var(--app-success);
-    --app-icon-gold: #9a6b05;
+    --app-icon-default: #b58911;
+    --app-icon-action: var(--app-brand);
+    --app-icon-positive: var(--app-success);
     --app-icon-danger: var(--app-danger);
     --app-icon-muted: #4f607a;
 }
@@ -77,88 +76,46 @@ svg.tab-icon {
 }
 
 svg[data-tis-icon] {
-    color: var(--tis-icon-color, currentColor);
+    color: var(--tis-icon-color, var(--app-icon-default));
     transition: color 160ms ease;
 }
 
-svg[data-tis-icon="dashboard"],
-svg[data-tis-icon="table"],
-svg[data-tis-icon="timetable"],
-svg[data-tis-icon="spreadsheet"],
-svg[data-tis-icon="report"],
-svg[data-tis-icon="insights"],
-svg[data-tis-icon="activity"] {
-    --tis-icon-color: var(--app-icon-primary);
-}
-
-svg[data-tis-icon="subjects"],
-svg[data-tis-icon="planning"],
-svg[data-tis-icon="clipboard-check"],
-svg[data-tis-icon="task"],
-svg[data-tis-icon="exam"],
-svg[data-tis-icon="degree"] {
-    --tis-icon-color: var(--app-icon-primary-deep);
-}
-
-svg[data-tis-icon="teachers"],
-svg[data-tis-icon="users"],
 svg[data-tis-icon="user-plus"],
-svg[data-tis-icon="parent"],
-svg[data-tis-icon="meeting"],
-svg[data-tis-icon="visit"] {
-    --tis-icon-color: var(--app-icon-teal);
-}
-
-svg[data-tis-icon="school"],
-svg[data-tis-icon="branch"],
-svg[data-tis-icon="year"],
-svg[data-tis-icon="calendar"],
-svg[data-tis-icon="home"],
-svg[data-tis-icon="vacation"],
-svg[data-tis-icon="deadline"] {
-    --tis-icon-color: var(--app-icon-gold);
-}
-
-svg[data-tis-icon="notifications"],
-svg[data-tis-icon="message"],
-svg[data-tis-icon="inbox"],
-svg[data-tis-icon="sent"],
-svg[data-tis-icon="archive"],
-svg[data-tis-icon="clock"],
-svg[data-tis-icon="eye"] {
-    --tis-icon-color: var(--app-icon-primary-deep);
-}
-
-svg[data-tis-icon="settings"],
-svg[data-tis-icon="shield"],
-svg[data-tis-icon="audit"],
-svg[data-tis-icon="sparkles"] {
-    --tis-icon-color: var(--app-icon-muted);
-}
-
 svg[data-tis-icon="add"],
 svg[data-tis-icon="save"],
 svg[data-tis-icon="check-circle"],
+svg[data-tis-icon="clipboard-check"] {
+    --tis-icon-color: var(--app-icon-positive);
+}
+
 svg[data-tis-icon="copy"],
 svg[data-tis-icon="upload"],
 svg[data-tis-icon="download"],
 svg[data-tis-icon="open"],
 svg[data-tis-icon="edit"],
 svg[data-tis-icon="search"],
+svg[data-tis-icon="spreadsheet"],
+svg[data-tis-icon="report"],
 svg[data-tis-icon="chevron-right"] {
-    --tis-icon-color: var(--app-icon-primary);
+    --tis-icon-color: var(--app-icon-action);
 }
 
 svg[data-tis-icon="trash"],
 svg[data-tis-icon="warning"],
-svg[data-tis-icon="logout"],
-svg[data-tis-icon="close"],
-svg[data-tis-icon="clear"] {
+svg[data-tis-icon="logout"] {
     --tis-icon-color: var(--app-icon-danger);
 }
 
 svg[data-tis-icon="info"],
-svg[data-tis-icon="camera"] {
+svg[data-tis-icon="camera"],
+svg[data-tis-icon="settings"],
+svg[data-tis-icon="shield"],
+svg[data-tis-icon="audit"],
+svg[data-tis-icon="clock"],
+svg[data-tis-icon="eye"],
+svg[data-tis-icon="archive"],
+svg[data-tis-icon="close"],
+svg[data-tis-icon="clear"] {
     --tis-icon-color: var(--app-icon-muted);
 }
 
