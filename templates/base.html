@@ -252,6 +252,98 @@
                 input.form.submit();
             });
         });
+
+        (() => {
+            const sameTabPaths = new Set(["/logout"]);
+            const destructivePathPattern = /\/delete(?:\/|$)/i;
+            const spreadsheetDownloadPattern = /\.(?:csv|xlsx?|zip)(?:$|\?)/i;
+
+            const normalizePath = (path) => {
+                const normalized = `/${String(path || "").replace(/^\/+/, "")}`;
+                return normalized.length > 1 ? normalized.replace(/\/+$/, "") : "/";
+            };
+
+            const hasNavigationOverride = (link) => {
+                if (link.hasAttribute("data-tis-same-tab")) {
+                    return true;
+                }
+                return Array.from(link.attributes).some((attribute) => {
+                    return attribute.name.startsWith("data-open-")
+                        || attribute.name.startsWith("data-close-")
+                        || attribute.name.startsWith("data-toggle-");
+                });
+            };
+
+            const isDownloadStyleLink = (link, url) => {
+                const path = url.pathname.toLowerCase();
+                if (link.hasAttribute("download") || spreadsheetDownloadPattern.test(path)) {
+                    return true;
+                }
+                if (path.includes("/template")) {
+                    return true;
+                }
+                return path.includes("/export") && !path.endsWith(".pdf");
+            };
+
+            const shouldOpenInNewTab = (link) => {
+                const rawHref = link.getAttribute("href") || "";
+                if (!rawHref || rawHref.startsWith("#") || rawHref.startsWith("javascript:")) {
+                    return false;
+                }
+                if (link.hasAttribute("target")) {
+                    return false;
+                }
+                if (hasNavigationOverride(link)) {
+                    return false;
+                }
+
+                let url;
+                try {
+                    url = new URL(rawHref, window.location.href);
+                } catch (error) {
+                    return false;
+                }
+
+                if (!["http:", "https:"].includes(url.protocol)) {
+                    return false;
+                }
+                if (url.origin !== window.location.origin) {
+                    return true;
+                }
+
+                const targetPath = normalizePath(url.pathname);
+                const currentPath = normalizePath(window.location.pathname);
+                if (targetPath === currentPath || sameTabPaths.has(targetPath)) {
+                    return false;
+                }
+                if (destructivePathPattern.test(targetPath) || isDownloadStyleLink(link, url)) {
+                    return false;
+                }
+                return true;
+            };
+
+            const markForNewTab = (link) => {
+                if (!shouldOpenInNewTab(link)) {
+                    return;
+                }
+                link.target = "_blank";
+                const relTokens = new Set((link.rel || "").split(/\s+/).filter(Boolean));
+                relTokens.add("noopener");
+                relTokens.add("noreferrer");
+                link.rel = Array.from(relTokens).join(" ");
+            };
+
+            document.querySelectorAll("a[href]").forEach(markForNewTab);
+            document.addEventListener("click", (event) => {
+                if (event.defaultPrevented) {
+                    return;
+                }
+                const link = event.target.closest("a[href]");
+                if (link) {
+                    markForNewTab(link);
+                }
+            });
+        })();
     </script>
 </body>
 </html>
