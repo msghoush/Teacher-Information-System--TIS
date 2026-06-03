@@ -1,5 +1,5 @@
 {% macro icon(name, class_name="shell-icon") -%}
-<svg class="{{ class_name }}" viewBox="0 0 24 24" aria-hidden="true">
+<svg class="{{ class_name }}" data-tis-icon="{{ name }}" viewBox="0 0 24 24" aria-hidden="true">
     {% if name == "dashboard" %}
     <rect x="3" y="4" width="7" height="7" rx="1.5"></rect>
     <rect x="14" y="4" width="7" height="4" rx="1.5"></rect>
