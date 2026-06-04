@@ -141,6 +141,10 @@ svg[data-tis-icon="check-circle"] {
     color: #ffffff;
 }
 
+.app-sidebar .sidebar-link:hover svg[data-tis-icon] {
+    color: var(--app-icon-shell-active);
+}
+
 .app-sidebar .sidebar-link.is-active svg[data-tis-icon] {
     color: var(--app-icon-shell-active);
 }
