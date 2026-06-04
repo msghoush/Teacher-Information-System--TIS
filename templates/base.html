@@ -24,10 +24,19 @@
             stroke-linecap: round;
             stroke-linejoin: round;
             vertical-align: middle;
+            color: var(--app-icon-default) !important;
+        }
+
+        svg[data-tis-icon="add"] {
+            color: var(--action-add) !important;
+        }
+
+        svg[data-tis-icon="trash"],
+        svg[data-tis-icon="warning"] {
+            color: var(--action-delete) !important;
         }
 
         .icon-action,
-        .action-btn,
         button.icon-action,
         a.icon-action {
             width: 32px;
@@ -35,9 +44,9 @@
             min-width: 32px;
             min-height: 32px;
             border-radius: 10px;
-            border: 1px solid rgba(201, 216, 234, 0.9);
-            background: rgba(255, 255, 255, 0.92);
-            color: var(--action-view);
+            border: none !important;
+            background: transparent !important;
+            color: var(--app-icon-default) !important;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -47,37 +56,33 @@
         }
 
         .icon-action:hover,
-        .action-btn:hover {
+        .icon-action:focus-visible {
             transform: translateY(-1px);
-            background: rgba(235, 245, 255, 0.95);
+            background: rgba(10, 78, 163, 0.08) !important;
         }
 
-        .icon-action:focus-visible,
-        .action-btn:focus-visible {
+        .icon-action:focus-visible {
             outline: 2px solid rgba(10, 78, 163, 0.35);
             outline-offset: 2px;
         }
 
-        .icon-action:disabled,
-        .action-btn:disabled {
+        .icon-action:disabled {
             opacity: 0.55;
             cursor: not-allowed;
             pointer-events: none;
             transform: none;
         }
 
-        .icon-action-danger,
-        .action-btn-danger {
-            color: var(--app-danger);
-            border-color: rgba(180, 35, 24, 0.25);
-            background: rgba(180, 35, 24, 0.08);
+        .icon-action-danger {
+            color: var(--app-danger) !important;
+            border-color: rgba(180, 35, 24, 0.25) !important;
+            background: rgba(180, 35, 24, 0.08) !important;
         }
 
-        .icon-action-danger:hover,
-        .action-btn-danger:hover {
-            color: #ffffff;
-            background: var(--app-danger);
-            border-color: transparent;
+        .icon-action-danger:hover {
+            color: #ffffff !important;
+            background: var(--app-danger) !important;
+            border-color: transparent !important;
         }
     </style>
 </head>
