@@ -9,6 +9,77 @@
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
     <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260604b">
     {% block page_styles %}{% endblock %}
+    <style>
+        svg.shell-icon,
+        svg.icon,
+        svg.tab-icon,
+        svg[data-tis-icon] {
+            width: var(--app-icon-size);
+            height: var(--app-icon-size);
+            min-width: var(--app-icon-size);
+            min-height: var(--app-icon-size);
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            vertical-align: middle;
+        }
+
+        .icon-action,
+        .action-btn,
+        button.icon-action,
+        a.icon-action {
+            width: 32px;
+            height: 32px;
+            min-width: 32px;
+            min-height: 32px;
+            border-radius: 10px;
+            border: 1px solid rgba(201, 216, 234, 0.9);
+            background: rgba(255, 255, 255, 0.92);
+            color: var(--action-view);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            text-decoration: none;
+            transition: color 160ms ease, border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+        }
+
+        .icon-action:hover,
+        .action-btn:hover {
+            transform: translateY(-1px);
+            background: rgba(235, 245, 255, 0.95);
+        }
+
+        .icon-action:focus-visible,
+        .action-btn:focus-visible {
+            outline: 2px solid rgba(10, 78, 163, 0.35);
+            outline-offset: 2px;
+        }
+
+        .icon-action:disabled,
+        .action-btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            pointer-events: none;
+            transform: none;
+        }
+
+        .icon-action-danger,
+        .action-btn-danger {
+            color: var(--app-danger);
+            border-color: rgba(180, 35, 24, 0.25);
+            background: rgba(180, 35, 24, 0.08);
+        }
+
+        .icon-action-danger:hover,
+        .action-btn-danger:hover {
+            color: #ffffff;
+            background: var(--app-danger);
+            border-color: transparent;
+        }
+    </style>
 </head>
 <body>
     {% set header_actions %}
