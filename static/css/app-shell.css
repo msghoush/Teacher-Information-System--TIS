@@ -32,15 +32,15 @@
     --danger: #b42318;
     --success: #0f7f7a;
     --warning: #9a3412;
-    --app-icon-default: var(--app-accent);
-    --app-icon-action: var(--app-accent);
+    --app-icon-default: var(--app-brand);
+    --app-icon-action: var(--app-brand);
     --app-icon-positive: var(--app-success);
     --app-icon-danger: var(--app-danger);
-    --app-icon-muted: #a97f0b;
-    --app-icon-shell: #f2c75a;
-    --app-icon-shell-active: #f8ddb0;
-    --app-icon-surface: #fff7df;
-    --app-icon-surface-line: #efd28f;
+    --app-icon-muted: #9fa7bb;
+    --app-icon-shell: var(--app-brand);
+    --app-icon-shell-active: var(--app-accent);
+    --app-icon-surface: rgba(255,255,255,0.14);
+    --app-icon-surface-line: rgba(255,255,255,0.28);
 }
 
 * {
@@ -354,8 +354,8 @@ svg:is(
 }
 
 .sidebar-link.is-active {
-    border-color: rgba(199, 154, 20, 0.44);
-    background: linear-gradient(135deg, rgba(199, 154, 20, 0.28), rgba(255, 255, 255, 0.08));
+    border-color: rgba(199, 154, 20, 0.75);
+    background: linear-gradient(135deg, rgba(199, 154, 20, 0.22), rgba(10, 78, 163, 0.16));
     color: #ffffff;
 }
 
