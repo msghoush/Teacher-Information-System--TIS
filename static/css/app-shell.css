@@ -89,38 +89,40 @@ svg.tab-icon {
 }
 
 svg[data-tis-icon] {
-    color: var(--tis-icon-color, var(--app-icon-default));
+    color: var(--app-icon-default);
     transition: color 160ms ease, transform 160ms ease;
     vertical-align: middle;
 }
 
+/* Actionable icons - specific colors */
 svg[data-tis-icon="add"],
 svg[data-tis-icon="user-plus"],
 svg[data-tis-icon="clipboard-check"],
-svg[data-tis-icon="copy"] {
-    --tis-icon-color: var(--action-add);
+svg[data-tis-icon="copy"],
+svg[data-tis-icon="check-circle"] {
+    color: var(--action-add);
 }
 
 svg[data-tis-icon="save"],
 svg[data-tis-icon="edit"] {
-    --tis-icon-color: var(--action-edit);
+    color: var(--action-edit);
 }
 
 svg[data-tis-icon="trash"],
 svg[data-tis-icon="logout"] {
-    --tis-icon-color: var(--action-delete);
+    color: var(--action-delete);
 }
 
 svg[data-tis-icon="download"],
 svg[data-tis-icon="upload"],
 svg[data-tis-icon="spreadsheet"] {
-    --tis-icon-color: var(--action-download);
+    color: var(--action-download);
 }
 
 svg[data-tis-icon="warning"],
 svg[data-tis-icon="archive"],
 svg[data-tis-icon="clear"] {
-    --tis-icon-color: var(--action-warning);
+    color: var(--action-warning);
 }
 
 svg[data-tis-icon="eye"],
@@ -130,31 +132,20 @@ svg[data-tis-icon="report"],
 svg[data-tis-icon="search"],
 svg[data-tis-icon="table"],
 svg[data-tis-icon="open"] {
-    --tis-icon-color: var(--action-view);
+    color: var(--action-view);
 }
 
-svg[data-tis-icon="check-circle"] {
-    --tis-icon-color: var(--action-add);
-}
-
+/* Sidebar icons - white by default, gold on hover/active */
 .app-sidebar :is(.scope-pill, .sidebar-link, .sidebar-photo-trigger) svg[data-tis-icon] {
-    color: #ffffff;
+    color: #ffffff !important;
 }
 
 .app-sidebar .sidebar-link:hover svg[data-tis-icon] {
-    color: var(--app-icon-shell-active);
+    color: var(--app-icon-shell-active) !important;
 }
 
 .app-sidebar .sidebar-link.is-active svg[data-tis-icon] {
-    color: var(--app-icon-shell-active);
-}
-
-/* Page content icons - default to brand blue */
-.app-main svg[data-tis-icon],
-.page-header svg[data-tis-icon],
-.page-panel svg[data-tis-icon],
-.shell-main svg[data-tis-icon] {
-    color: var(--app-icon-default);
+    color: var(--app-icon-shell-active) !important;
 }
 
 .app-sidebar .sidebar-logout svg[data-tis-icon] {
