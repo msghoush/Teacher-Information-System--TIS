@@ -32,15 +32,22 @@
     --danger: #b42318;
     --success: #0f7f7a;
     --warning: #9a3412;
+    --app-icon-size: 20px;
     --app-icon-default: var(--app-brand);
     --app-icon-action: var(--app-brand);
     --app-icon-positive: var(--app-success);
     --app-icon-danger: var(--app-danger);
     --app-icon-muted: #9fa7bb;
-    --app-icon-shell: var(--app-brand);
+    --app-icon-shell: #ffffff;
     --app-icon-shell-active: var(--app-accent);
     --app-icon-surface: rgba(255,255,255,0.14);
     --app-icon-surface-line: rgba(255,255,255,0.28);
+    --action-add: #15803d;
+    --action-edit: #0f5bc0;
+    --action-delete: #b42318;
+    --action-view: var(--app-brand);
+    --action-download: var(--app-accent);
+    --action-warning: #d97706;
 }
 
 * {
@@ -69,8 +76,10 @@ textarea {
 svg.shell-icon,
 svg.icon,
 svg.tab-icon {
-    width: 18px;
-    height: 18px;
+    width: var(--app-icon-size);
+    height: var(--app-icon-size);
+    min-width: var(--app-icon-size);
+    min-height: var(--app-icon-size);
     stroke: currentColor;
     fill: none;
     stroke-width: 1.8;
@@ -81,50 +90,55 @@ svg.tab-icon {
 
 svg[data-tis-icon] {
     color: var(--tis-icon-color, var(--app-icon-default));
-    transition: color 160ms ease;
+    transition: color 160ms ease, transform 160ms ease;
+    vertical-align: middle;
 }
 
-svg[data-tis-icon="user-plus"],
 svg[data-tis-icon="add"],
-svg[data-tis-icon="save"],
-svg[data-tis-icon="check-circle"],
-svg[data-tis-icon="clipboard-check"] {
-    --tis-icon-color: var(--app-icon-positive);
+svg[data-tis-icon="user-plus"],
+svg[data-tis-icon="clipboard-check"],
+svg[data-tis-icon="copy"] {
+    --tis-icon-color: var(--action-add);
 }
 
-svg[data-tis-icon="copy"],
-svg[data-tis-icon="upload"],
-svg[data-tis-icon="download"],
-svg[data-tis-icon="open"],
-svg[data-tis-icon="edit"],
-svg[data-tis-icon="search"],
-svg[data-tis-icon="spreadsheet"],
-svg[data-tis-icon="report"],
-svg[data-tis-icon="chevron-right"] {
-    --tis-icon-color: var(--app-icon-action);
+svg[data-tis-icon="save"],
+svg[data-tis-icon="edit"] {
+    --tis-icon-color: var(--action-edit);
 }
 
 svg[data-tis-icon="trash"],
-svg[data-tis-icon="warning"],
 svg[data-tis-icon="logout"] {
-    --tis-icon-color: var(--app-icon-danger);
+    --tis-icon-color: var(--action-delete);
 }
 
-svg[data-tis-icon="info"],
-svg[data-tis-icon="camera"],
-svg[data-tis-icon="settings"],
-svg[data-tis-icon="shield"],
-svg[data-tis-icon="audit"],
-svg[data-tis-icon="clock"],
-svg[data-tis-icon="eye"],
+svg[data-tis-icon="download"],
+svg[data-tis-icon="upload"],
+svg[data-tis-icon="spreadsheet"] {
+    --tis-icon-color: var(--action-download);
+}
+
+svg[data-tis-icon="warning"],
 svg[data-tis-icon="archive"],
-svg[data-tis-icon="close"],
 svg[data-tis-icon="clear"] {
-    --tis-icon-color: var(--app-icon-muted);
+    --tis-icon-color: var(--action-warning);
+}
+
+svg[data-tis-icon="eye"],
+svg[data-tis-icon="info"],
+svg[data-tis-icon="shield"],
+svg[data-tis-icon="report"],
+svg[data-tis-icon="search"],
+svg[data-tis-icon="table"],
+svg[data-tis-icon="open"] {
+    --tis-icon-color: var(--action-view);
+}
+
+svg[data-tis-icon="check-circle"] {
+    --tis-icon-color: var(--action-add);
 }
 
 .app-sidebar :is(.scope-pill, .sidebar-link, .sidebar-photo-trigger) svg[data-tis-icon] {
-    color: var(--app-icon-shell);
+    color: #ffffff;
 }
 
 .app-sidebar .sidebar-link.is-active svg[data-tis-icon] {
@@ -137,20 +151,16 @@ svg[data-tis-icon="clear"] {
 
 .sidebar-config-btn svg[data-tis-icon],
 .sidebar-config-link svg[data-tis-icon],
-.shell-action.is-primary svg[data-tis-icon],
-.page-stage :is(
-    .btn-save,
-    .btn-primary,
-    .btn-import,
-    .btn-export,
-    .calendar-btn.is-primary,
-    .action-btn-primary,
-    .compose-btn:not(.compose-btn-cancel),
-    .notification-action.is-resolve,
-    .msg-action-primary,
-    .hero-btn.is-primary,
-    .hiring-btn.is-primary
-) svg[data-tis-icon] {
+.shell-action svg[data-tis-icon],
+.page-stage .btn-save svg[data-tis-icon],
+.page-stage .btn-import svg[data-tis-icon],
+.page-stage .btn-export svg[data-tis-icon],
+.page-stage .btn-template svg[data-tis-icon],
+.page-stage .btn-link svg[data-tis-icon],
+.sidebar-config-btn svg[data-tis-icon],
+.sidebar-config-link svg[data-tis-icon],
+.header-chip svg[data-tis-icon],
+.section-heading-icon svg[data-tis-icon] {
     color: inherit;
 }
 
