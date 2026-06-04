@@ -32,11 +32,15 @@
     --danger: #b42318;
     --success: #0f7f7a;
     --warning: #9a3412;
-    --app-icon-default: #b58911;
-    --app-icon-action: var(--app-brand);
+    --app-icon-default: var(--app-accent);
+    --app-icon-action: var(--app-accent);
     --app-icon-positive: var(--app-success);
     --app-icon-danger: var(--app-danger);
-    --app-icon-muted: #4f607a;
+    --app-icon-muted: #a97f0b;
+    --app-icon-shell: #f2c75a;
+    --app-icon-shell-active: #f8ddb0;
+    --app-icon-surface: #fff7df;
+    --app-icon-surface-line: #efd28f;
 }
 
 * {
@@ -119,8 +123,16 @@ svg[data-tis-icon="clear"] {
     --tis-icon-color: var(--app-icon-muted);
 }
 
-.app-sidebar :is(.scope-pill, .sidebar-link, .sidebar-photo-trigger, .sidebar-logout) svg[data-tis-icon] {
-    color: color-mix(in srgb, var(--tis-icon-color, #f8fbff) 48%, #ffffff);
+.app-sidebar :is(.scope-pill, .sidebar-link, .sidebar-photo-trigger) svg[data-tis-icon] {
+    color: var(--app-icon-shell);
+}
+
+.app-sidebar .sidebar-link.is-active svg[data-tis-icon] {
+    color: var(--app-icon-shell-active);
+}
+
+.app-sidebar .sidebar-logout svg[data-tis-icon] {
+    color: #ffd6cf;
 }
 
 .sidebar-config-btn svg[data-tis-icon],
@@ -680,7 +692,7 @@ svg:is(
     flex: 0 0 auto;
     width: 26px;
     height: 26px;
-    color: var(--app-brand);
+    color: var(--app-accent);
 }
 
 .page-title span {
@@ -760,6 +772,10 @@ svg:is(
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+}
+
+.header-chip svg[data-tis-icon] {
+    color: var(--app-accent);
 }
 
 .header-chip strong {
@@ -930,11 +946,15 @@ svg:is(
     width: 24px;
     height: 24px;
     border-radius: 8px;
-    border: 1px solid rgba(198, 216, 239, 0.9);
-    background: linear-gradient(135deg, #f7faff, #ffffff);
-    color: #3f5f86;
+    border: 1px solid var(--app-icon-surface-line);
+    background: linear-gradient(135deg, #fff9ea, #ffffff);
+    color: var(--app-accent);
     box-shadow: none;
     flex-shrink: 0;
+}
+
+.section-heading-icon svg[data-tis-icon] {
+    color: var(--app-accent);
 }
 
 .page-stage h2,
@@ -1010,8 +1030,8 @@ svg:is(
     width: 18px;
     height: 18px;
     border-radius: 6px;
-    border-color: rgba(206, 219, 238, 0.88);
-    color: #6a809c;
+    border-color: color-mix(in srgb, var(--app-icon-surface-line) 84%, #ffffff);
+    color: var(--app-accent);
 }
 
 .page-stage .toolbar,
@@ -1117,10 +1137,10 @@ svg:is(
     width: 24px;
     height: 24px;
     padding: 4px;
-    border: 1px solid rgba(15, 23, 42, 0.08);
+    border: 1px solid var(--app-icon-surface-line);
     border-radius: 9px;
-    background: var(--tis-kpi-accent-soft);
-    color: var(--tis-kpi-accent);
+    background: var(--app-icon-surface);
+    color: var(--app-accent);
 }
 
 .page-stage .tis-kpi-card > strong {
@@ -1167,12 +1187,19 @@ svg:is(
     border: 1px solid #c6d8ef;
     border-radius: 10px;
     background-color: #ffffff;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23073a7d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23c79a14' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: 10px center;
     background-size: 14px 14px;
     padding-left: 34px;
     box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.shell-action:not(.is-primary) svg[data-tis-icon],
+.page-stage .icon-action:not(.icon-action-danger) svg[data-tis-icon],
+.page-stage .row-action:not(.row-action-delete) svg[data-tis-icon],
+.page-stage .stat > span svg[data-tis-icon] {
+    color: var(--app-accent);
 }
 
 .page-stage .search:focus {
