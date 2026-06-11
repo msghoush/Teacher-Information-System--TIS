@@ -6506,6 +6506,11 @@ def _build_subject_pool_distribution_rows(report_subject_rows: list[dict]) -> di
 
         subject_full_hires = remaining_hours // REPORT_STANDARD_MAX_HOURS
         subject_remainder_hours = remaining_hours % REPORT_STANDARD_MAX_HOURS
+        subject_original_teacher_need_count = (
+            math.ceil(required_hours / REPORT_STANDARD_MAX_HOURS)
+            if required_hours > 0
+            else 0
+        )
         pool["subjects"].append(
             {
                 "subject_key": str(row.get("subject_key", "") or ""),
@@ -6525,6 +6530,7 @@ def _build_subject_pool_distribution_rows(report_subject_rows: list[dict]) -> di
                 "allocated_hours": allocated_hours,
                 "remaining_hours": remaining_hours,
                 "coverage_percentage": int(row.get("coverage_percentage", 0) or 0),
+                "original_teacher_need_count": subject_original_teacher_need_count,
                 "hire_full_count": subject_full_hires,
                 "hire_remainder_hours": subject_remainder_hours,
                 "hire_label": _format_hiring_block_label(
@@ -6561,6 +6567,21 @@ def _build_subject_pool_distribution_rows(report_subject_rows: list[dict]) -> di
         hire_remainder_hours = remaining_hours % REPORT_STANDARD_MAX_HOURS
         required_full_loads = required_hours // REPORT_STANDARD_MAX_HOURS
         required_remainder_hours = required_hours % REPORT_STANDARD_MAX_HOURS
+        original_teacher_need_count = (
+            math.ceil(required_hours / REPORT_STANDARD_MAX_HOURS)
+            if required_hours > 0
+            else 0
+        )
+        covered_width_pct = (
+            round((allocated_hours / required_hours) * 100, 1)
+            if required_hours > 0
+            else 0
+        )
+        open_width_pct = (
+            round((remaining_hours / required_hours) * 100, 1)
+            if required_hours > 0
+            else 0
+        )
         hiring_coverage_items = [
             {
                 "subject_name": item["subject_name"],
@@ -6606,6 +6627,9 @@ def _build_subject_pool_distribution_rows(report_subject_rows: list[dict]) -> di
                 ),
                 "required_full_loads": required_full_loads,
                 "required_remainder_hours": required_remainder_hours,
+                "original_teacher_need_count": original_teacher_need_count,
+                "covered_width_pct": min(max(covered_width_pct, 0), 100),
+                "open_width_pct": min(max(open_width_pct, 0), 100),
                 "required_load_label": _format_hiring_block_label(
                     required_full_loads,
                     required_remainder_hours,
@@ -6627,6 +6651,10 @@ def _build_subject_pool_distribution_rows(report_subject_rows: list[dict]) -> di
     total_remaining_hours = sum(int(pool.get("remaining_hours", 0) or 0) for pool in pool_rows)
     full_hire_count = total_remaining_hours // REPORT_STANDARD_MAX_HOURS
     hire_remainder_hours = total_remaining_hours % REPORT_STANDARD_MAX_HOURS
+    original_teacher_need_count = sum(
+        int(pool.get("original_teacher_need_count", 0) or 0)
+        for pool in pool_rows
+    )
 
     return {
         "rows": pool_rows,
@@ -6636,6 +6664,7 @@ def _build_subject_pool_distribution_rows(report_subject_rows: list[dict]) -> di
             "total_required_hours": total_required_hours,
             "total_allocated_hours": total_allocated_hours,
             "total_remaining_hours": total_remaining_hours,
+            "original_teacher_need_count": original_teacher_need_count,
             "full_hire_count": full_hire_count,
             "hire_remainder_hours": hire_remainder_hours,
             "hire_label": _format_hiring_block_label(

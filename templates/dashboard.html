@@ -672,7 +672,7 @@
 
         .subject-pool-summary-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
             gap: 10px;
         }
 
@@ -712,6 +712,20 @@
             line-height: 1.35;
         }
 
+        .subject-pool-visual-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(330px, 420px);
+            gap: 14px;
+            align-items: start;
+        }
+
+        .subject-pool-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+            gap: 12px;
+            align-items: start;
+        }
+
         .subject-pool-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
@@ -730,6 +744,24 @@
             gap: 12px;
             min-width: 0;
             box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+            cursor: pointer;
+            transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+        }
+
+        .subject-pool-card:hover,
+        .subject-pool-card.is-active {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
+            border-color: color-mix(in srgb, var(--pool-accent) 34%, #d7e4f4);
+        }
+
+        .subject-pool-card:focus-visible {
+            outline: 3px solid color-mix(in srgb, var(--pool-accent) 28%, transparent);
+            outline-offset: 2px;
+        }
+
+        .subject-pool-card.is-active {
+            background: linear-gradient(160deg, #ffffff, #f6f9ff);
         }
 
         .subject-pool-card-head {
@@ -788,6 +820,59 @@
 
         .subject-pool-stat.is-hire strong {
             color: #9a5f04;
+        }
+
+        .subject-pool-stat.is-original strong {
+            color: var(--pool-accent);
+        }
+
+        .subject-pool-bar {
+            display: grid;
+            gap: 7px;
+        }
+
+        .subject-pool-bar-track {
+            display: flex;
+            height: 12px;
+            border-radius: 999px;
+            overflow: hidden;
+            background: #e5edf7;
+            box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
+        }
+
+        .subject-pool-bar-fill {
+            height: 100%;
+            min-width: 0;
+        }
+
+        .subject-pool-bar-fill.is-covered {
+            background: linear-gradient(90deg, #0f7f7a, #35b2aa);
+        }
+
+        .subject-pool-bar-fill.is-open {
+            background: linear-gradient(90deg, #d97706, #f5b63c);
+        }
+
+        .subject-pool-bar-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px 12px;
+            color: #536885;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .subject-pool-bar-legend span {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .subject-pool-legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            flex-shrink: 0;
         }
 
         .subject-pool-progress {
@@ -861,7 +946,171 @@
             line-height: 1.45;
         }
 
+        .subject-pool-focus {
+            position: sticky;
+            top: 16px;
+            border: 1px solid #d5e4f4;
+            border-radius: 12px;
+            background: linear-gradient(160deg, #ffffff, #f6f9ff);
+            padding: 14px;
+            display: grid;
+            gap: 13px;
+            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1);
+        }
+
+        .subject-pool-focus-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .subject-pool-focus-head h4 {
+            margin: 0;
+            color: #17365d;
+            font-size: 18px;
+            line-height: 1.2;
+        }
+
+        .subject-pool-focus-head small {
+            display: block;
+            margin-top: 4px;
+            color: #536885;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .subject-pool-focus-ring {
+            --ring-color: #0a4ea3;
+            --ring-value: 0;
+            width: 74px;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            flex-shrink: 0;
+            background: conic-gradient(var(--ring-color) 0 calc(var(--ring-value) * 1%), #e3ebf6 calc(var(--ring-value) * 1%) 100%);
+            box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+        }
+
+        .subject-pool-focus-ring span {
+            width: 54px;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            background: #fff;
+            color: #17365d;
+            display: grid;
+            place-items: center;
+            font-size: 16px;
+            font-weight: 900;
+        }
+
+        .subject-pool-focus-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .subject-pool-focus-metric {
+            border: 1px solid #e1eaf7;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.92);
+            padding: 9px;
+        }
+
+        .subject-pool-focus-metric span {
+            display: block;
+            color: #63768f;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.55px;
+            text-transform: uppercase;
+            line-height: 1.3;
+        }
+
+        .subject-pool-focus-metric strong {
+            display: block;
+            margin-top: 5px;
+            color: #17365d;
+            font-size: 22px;
+            line-height: 1;
+        }
+
+        .subject-pool-focus-metric.is-original strong {
+            color: var(--brand);
+        }
+
+        .subject-pool-focus-metric.is-open strong,
+        .subject-pool-focus-metric.is-hire strong {
+            color: #9a5f04;
+        }
+
+        .subject-pool-focus-subjects {
+            display: grid;
+            gap: 7px;
+            max-height: 360px;
+            overflow: auto;
+            padding-right: 2px;
+        }
+
+        .subject-pool-focus-subject {
+            border: 1px solid #e1eaf7;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.94);
+            padding: 9px;
+            display: grid;
+            gap: 7px;
+        }
+
+        .subject-pool-focus-subject-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .subject-pool-focus-subject strong {
+            color: #17365d;
+            font-size: 13px;
+            line-height: 1.25;
+        }
+
+        .subject-pool-focus-subject small {
+            color: #60748f;
+            font-size: 11px;
+            line-height: 1.35;
+        }
+
+        .subject-pool-focus-chip {
+            border: 1px solid #d7e4f4;
+            border-radius: 999px;
+            background: #f3f8ff;
+            color: #244a75;
+            padding: 4px 7px;
+            font-size: 10px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .subject-pool-focus-note {
+            border: 1px solid #dbe7f6;
+            border-radius: 10px;
+            background: #f8fbff;
+            color: #4e6582;
+            padding: 9px 10px;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
         @media (max-width: 900px) {
+            .subject-pool-visual-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .subject-pool-focus {
+                position: static;
+            }
+
             .subject-pool-summary-grid,
             .subject-pool-stats {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4513,6 +4762,11 @@
                                 <small>Original required weekly hours</small>
                             </div>
                             <div class="subject-pool-summary-item">
+                                <span>Original Teachers Needed</span>
+                                <strong>{{ subject_pool_distribution_summary.original_teacher_need_count }}</strong>
+                                <small>Based on total demand at 24h per teacher</small>
+                            </div>
+                            <div class="subject-pool-summary-item">
                                 <span>Open Hours</span>
                                 <strong>{{ subject_pool_distribution_summary.total_remaining_hours }}h</strong>
                                 <small>{{ subject_pool_distribution_summary.total_allocated_hours }}h already covered</small>
@@ -4524,89 +4778,131 @@
                             </div>
                         </div>
 
-                        <div class="subject-pool-grid">
-                            {% for pool in subject_pool_distribution_rows %}
-                            <article class="subject-pool-card" style="--pool-accent: {{ pool.accent_color }};">
-                                <div class="subject-pool-card-head">
-                                    <div class="subject-pool-title">
-                                        <h4>{{ pool.group_label }}</h4>
-                                        <small>{{ pool.family_label }}</small>
+                        <div class="subject-pool-visual-layout">
+                            <div class="subject-pool-card-grid" aria-label="Pool cards">
+                                {% for pool in subject_pool_distribution_rows %}
+                                <article
+                                    class="subject-pool-card"
+                                    role="button"
+                                    tabindex="0"
+                                    data-pool-label="{{ pool.group_label }}"
+                                    data-family-label="{{ pool.family_label }}"
+                                    data-total-required="{{ pool.total_required_hours }}"
+                                    data-total-current="{{ pool.total_current_hours }}"
+                                    data-total-new="{{ pool.total_new_hours }}"
+                                    data-original-teachers="{{ pool.original_teacher_need_count }}"
+                                    data-allocated-hours="{{ pool.allocated_hours }}"
+                                    data-remaining-hours="{{ pool.remaining_hours }}"
+                                    data-coverage="{{ pool.coverage_percentage }}"
+                                    data-full-hires="{{ pool.full_hire_count }}"
+                                    data-hire-remainder="{{ pool.hire_remainder_hours }}"
+                                    data-minimum-profiles="{{ pool.minimum_teacher_blocks }}"
+                                    data-subject-count="{{ pool.subject_count }}"
+                                    data-covered-width="{{ pool.covered_width_pct }}"
+                                    data-open-width="{{ pool.open_width_pct }}"
+                                    data-accent="{{ pool.accent_color }}"
+                                    data-recommendation="{{ pool.recommendation_note }}"
+                                    data-subjects="{{ pool.subjects | tojson | forceescape }}"
+                                    style="--pool-accent: {{ pool.accent_color }};"
+                                >
+                                    <div class="subject-pool-card-head">
+                                        <div class="subject-pool-title">
+                                            <h4>{{ pool.group_label }}</h4>
+                                            <small>{{ pool.family_label }}</small>
+                                        </div>
+                                        <span class="subject-pool-badge">
+                                            {{ pool.original_teacher_need_count }} original teacher{% if pool.original_teacher_need_count != 1 %}s{% endif %}
+                                        </span>
                                     </div>
-                                    <span class="subject-pool-badge">
-                                        Hire signal: {{ pool.minimum_teacher_blocks }} profile{% if pool.minimum_teacher_blocks != 1 %}s{% endif %}
-                                    </span>
-                                </div>
 
-                                <div class="subject-pool-stats">
-                                    <div class="subject-pool-stat">
+                                    <div class="subject-pool-stats">
+                                        <div class="subject-pool-stat is-original">
+                                            <span>Original Demand</span>
+                                            <strong>{{ pool.total_required_hours }}h</strong>
+                                            <small>{{ pool.original_teacher_need_count }} teacher{% if pool.original_teacher_need_count != 1 %}s{% endif %} at 24h</small>
+                                        </div>
+                                        <div class="subject-pool-stat">
+                                            <span>Covered</span>
+                                            <strong>{{ pool.allocated_hours }}h</strong>
+                                            <small>{{ pool.coverage_percentage }}% covered</small>
+                                        </div>
+                                        <div class="subject-pool-stat">
+                                            <span>Open Hours</span>
+                                            <strong>{{ pool.remaining_hours }}h</strong>
+                                            <small>{{ pool.minimum_teacher_blocks }} profile{% if pool.minimum_teacher_blocks != 1 %}s{% endif %} to cover all open hours</small>
+                                        </div>
+                                        <div class="subject-pool-stat is-hire">
+                                            <span>Full Hire</span>
+                                            <strong>{{ pool.full_hire_count }}</strong>
+                                            <small>{{ pool.hire_remainder_hours }}h remainder</small>
+                                        </div>
+                                    </div>
+
+                                    <div class="subject-pool-bar" aria-label="Covered and open hour mix">
+                                        <div class="subject-pool-bar-track">
+                                            <span class="subject-pool-bar-fill is-covered" style="width: {{ pool.covered_width_pct }}%;"></span>
+                                            {% if pool.open_width_pct > 0 %}
+                                            <span class="subject-pool-bar-fill is-open" style="width: {{ pool.open_width_pct }}%;"></span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="subject-pool-bar-legend">
+                                            <span><i class="subject-pool-legend-dot" style="background:#0f7f7a;"></i>{{ pool.allocated_hours }}h covered</span>
+                                            <span><i class="subject-pool-legend-dot" style="background:#d97706;"></i>{{ pool.remaining_hours }}h open</span>
+                                        </div>
+                                    </div>
+                                </article>
+                                {% endfor %}
+                            </div>
+
+                            <aside id="subjectPoolFocus" class="subject-pool-focus" aria-live="polite">
+                                <div class="subject-pool-focus-head">
+                                    <div>
+                                        <h4 id="subjectPoolFocusTitle">Select a pool</h4>
+                                        <small id="subjectPoolFocusSubtitle">Review original demand, coverage, and hiring split.</small>
+                                    </div>
+                                    <div id="subjectPoolFocusRing" class="subject-pool-focus-ring">
+                                        <span id="subjectPoolFocusCoverage">0%</span>
+                                    </div>
+                                </div>
+                                <div class="subject-pool-focus-metrics">
+                                    <div class="subject-pool-focus-metric is-original">
+                                        <span>Original Teachers Needed</span>
+                                        <strong id="subjectPoolFocusOriginalTeachers">0</strong>
+                                    </div>
+                                    <div class="subject-pool-focus-metric">
                                         <span>Original Demand</span>
-                                        <strong>{{ pool.total_required_hours }}h</strong>
-                                        <small>{{ pool.total_current_hours }}h current | {{ pool.total_new_hours }}h new</small>
+                                        <strong id="subjectPoolFocusDemand">0h</strong>
                                     </div>
-                                    <div class="subject-pool-stat">
-                                        <span>Covered</span>
-                                        <strong>{{ pool.allocated_hours }}h</strong>
-                                        <small>{{ pool.coverage_percentage }}% of this pool</small>
+                                    <div class="subject-pool-focus-metric">
+                                        <span>Covered Hours</span>
+                                        <strong id="subjectPoolFocusCovered">0h</strong>
                                     </div>
-                                    <div class="subject-pool-stat">
+                                    <div class="subject-pool-focus-metric is-open">
                                         <span>Open Hours</span>
-                                        <strong>{{ pool.remaining_hours }}h</strong>
-                                        <small>Still needs allocation or hiring</small>
+                                        <strong id="subjectPoolFocusOpen">0h</strong>
                                     </div>
-                                    <div class="subject-pool-stat is-hire">
-                                        <span>Full Hires</span>
-                                        <strong>{{ pool.full_hire_count }}</strong>
-                                        <small>{{ pool.hire_remainder_hours }}h remainder</small>
+                                    <div class="subject-pool-focus-metric is-hire">
+                                        <span>Full Hire</span>
+                                        <strong id="subjectPoolFocusFullHire">0</strong>
                                     </div>
-                                </div>
-
-                                <div class="subject-pool-progress">
-                                    <div class="subject-pool-progress-head">
-                                        <span>Coverage inside this pool</span>
-                                        <strong>{{ pool.coverage_percentage }}%</strong>
-                                    </div>
-                                    <div class="subject-pool-progress-track">
-                                        <div class="subject-pool-progress-fill" style="--coverage-width: {{ pool.coverage_percentage }}%;"></div>
+                                    <div class="subject-pool-focus-metric">
+                                        <span>Remainder</span>
+                                        <strong id="subjectPoolFocusRemainder">0h</strong>
                                     </div>
                                 </div>
-
-                                <div class="subject-pool-note">{{ pool.recommendation_note }}</div>
-
-                                <div class="subject-pool-table">
-                                    <table>
-                                        <thead>
-                                            <tr>
-                                                <th>Subject</th>
-                                                <th>Family</th>
-                                                <th>Grades</th>
-                                                <th>Demand</th>
-                                                <th>Covered</th>
-                                                <th>Open</th>
-                                                <th>Hire Split</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for subject in pool.subjects %}
-                                            <tr>
-                                                <td>
-                                                    <div class="subject-pool-subject">
-                                                        <strong>{{ subject.subject_name }}</strong>
-                                                        <small>{{ subject.subject_code or subject.subject_key }}</small>
-                                                    </div>
-                                                </td>
-                                                <td>{{ subject.family_label }}</td>
-                                                <td>{{ subject.grades_label }}</td>
-                                                <td>{{ subject.required_hours }}h</td>
-                                                <td>{{ subject.allocated_hours }}h</td>
-                                                <td>{{ subject.remaining_hours }}h</td>
-                                                <td>{{ subject.hire_label }}</td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
+                                <div class="subject-pool-bar" aria-label="Selected pool visual split">
+                                    <div class="subject-pool-bar-track">
+                                        <span id="subjectPoolFocusCoveredBar" class="subject-pool-bar-fill is-covered" style="width: 0%;"></span>
+                                        <span id="subjectPoolFocusOpenBar" class="subject-pool-bar-fill is-open" style="width: 0%;"></span>
+                                    </div>
+                                    <div class="subject-pool-bar-legend">
+                                        <span><i class="subject-pool-legend-dot" style="background:#0f7f7a;"></i>Covered</span>
+                                        <span><i class="subject-pool-legend-dot" style="background:#d97706;"></i>Open</span>
+                                    </div>
                                 </div>
-                            </article>
-                            {% endfor %}
+                                <div id="subjectPoolFocusNote" class="subject-pool-focus-note"></div>
+                                <div id="subjectPoolFocusSubjects" class="subject-pool-focus-subjects"></div>
+                            </aside>
                         </div>
                     </section>
                     {% else %}
@@ -5127,6 +5423,21 @@ const tabs = document.querySelectorAll(".tab");
         const dashboardSubjectViewButtons = Array.from(document.querySelectorAll(".subject-view-btn[data-subject-view]"));
         const dashboardSubjectDefaultPane = document.getElementById("dashboardSubjectDefaultView");
         const dashboardSubjectPoolPane = document.getElementById("dashboardSubjectPoolView");
+        const subjectPoolCards = Array.from(document.querySelectorAll(".subject-pool-card[data-pool-label]"));
+        const subjectPoolFocusTitle = document.getElementById("subjectPoolFocusTitle");
+        const subjectPoolFocusSubtitle = document.getElementById("subjectPoolFocusSubtitle");
+        const subjectPoolFocusRing = document.getElementById("subjectPoolFocusRing");
+        const subjectPoolFocusCoverage = document.getElementById("subjectPoolFocusCoverage");
+        const subjectPoolFocusOriginalTeachers = document.getElementById("subjectPoolFocusOriginalTeachers");
+        const subjectPoolFocusDemand = document.getElementById("subjectPoolFocusDemand");
+        const subjectPoolFocusCovered = document.getElementById("subjectPoolFocusCovered");
+        const subjectPoolFocusOpen = document.getElementById("subjectPoolFocusOpen");
+        const subjectPoolFocusFullHire = document.getElementById("subjectPoolFocusFullHire");
+        const subjectPoolFocusRemainder = document.getElementById("subjectPoolFocusRemainder");
+        const subjectPoolFocusCoveredBar = document.getElementById("subjectPoolFocusCoveredBar");
+        const subjectPoolFocusOpenBar = document.getElementById("subjectPoolFocusOpenBar");
+        const subjectPoolFocusNote = document.getElementById("subjectPoolFocusNote");
+        const subjectPoolFocusSubjects = document.getElementById("subjectPoolFocusSubjects");
         const dashboardTotalSubjects = document.getElementById("dashboardTotalSubjects");
         const dashboardTotalWeeklyHours = document.getElementById("dashboardTotalWeeklyHours");
         const dashboardSelectedLevelLabel = document.getElementById("dashboardSelectedLevelLabel");
@@ -5538,6 +5849,145 @@ const tabs = document.querySelectorAll(".tab");
             subjectKpiAnimated = true;
         };
 
+        const clampDashboardPercent = (value) => Math.max(0, Math.min(100, Number(value || 0)));
+
+        const formatDashboardHours = (value) => `${Number(value || 0)}h`;
+
+        const escapeDashboardHtml = (value) => {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        };
+
+        const parseSubjectPoolItems = (card) => {
+            try {
+                const parsed = JSON.parse(card.dataset.subjects || "[]");
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (error) {
+                return [];
+            }
+        };
+
+        const renderSubjectPoolFocusSubjects = (items) => {
+            if (!subjectPoolFocusSubjects) {
+                return;
+            }
+            if (!items.length) {
+                subjectPoolFocusSubjects.innerHTML = `<div class="subject-pool-focus-note">No subject rows are available for this pool.</div>`;
+                return;
+            }
+            subjectPoolFocusSubjects.innerHTML = items.map((item) => {
+                const subjectName = escapeDashboardHtml(item.subject_name || "Subject");
+                const subjectCode = escapeDashboardHtml(item.subject_code || item.subject_key || "");
+                const gradesLabel = escapeDashboardHtml(item.grades_label || "-");
+                const requiredHours = Number(item.required_hours || 0);
+                const allocatedHours = Number(item.allocated_hours || 0);
+                const remainingHours = Number(item.remaining_hours || 0);
+                const originalTeachers = Number(item.original_teacher_need_count || 0);
+                const hireLabel = escapeDashboardHtml(item.hire_label || "0 full hires");
+                const coverage = clampDashboardPercent(item.coverage_percentage);
+                return `
+                    <div class="subject-pool-focus-subject">
+                        <div class="subject-pool-focus-subject-head">
+                            <div>
+                                <strong>${subjectName}</strong>
+                                <small>${subjectCode}${subjectCode ? " | " : ""}${gradesLabel}</small>
+                            </div>
+                            <span class="subject-pool-focus-chip">${coverage}% covered</span>
+                        </div>
+                        <div class="subject-pool-bar">
+                            <div class="subject-pool-bar-track">
+                                <span class="subject-pool-bar-fill is-covered" style="width:${clampDashboardPercent(requiredHours ? (allocatedHours / requiredHours) * 100 : 0)}%;"></span>
+                                <span class="subject-pool-bar-fill is-open" style="width:${clampDashboardPercent(requiredHours ? (remainingHours / requiredHours) * 100 : 0)}%;"></span>
+                            </div>
+                            <div class="subject-pool-bar-legend">
+                                <span><i class="subject-pool-legend-dot" style="background:#0f7f7a;"></i>${allocatedHours}h covered</span>
+                                <span><i class="subject-pool-legend-dot" style="background:#d97706;"></i>${remainingHours}h open</span>
+                                <span><i class="subject-pool-legend-dot" style="background:#0a4ea3;"></i>${originalTeachers} original teacher${originalTeachers === 1 ? "" : "s"}</span>
+                            </div>
+                            <small>${requiredHours}h original demand | ${hireLabel}</small>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        };
+
+        const selectSubjectPoolCard = (card) => {
+            if (!card) {
+                return;
+            }
+            subjectPoolCards.forEach((item) => {
+                const isActive = item === card;
+                item.classList.toggle("is-active", isActive);
+                item.setAttribute("aria-pressed", isActive ? "true" : "false");
+            });
+
+            const data = card.dataset;
+            const accent = data.accent || "#0A4EA3";
+            const coverage = clampDashboardPercent(data.coverage);
+            const coveredWidth = clampDashboardPercent(data.coveredWidth);
+            const openWidth = clampDashboardPercent(data.openWidth);
+
+            if (subjectPoolFocusTitle) {
+                subjectPoolFocusTitle.textContent = data.poolLabel || "Selected Pool";
+            }
+            if (subjectPoolFocusSubtitle) {
+                subjectPoolFocusSubtitle.textContent = `${data.familyLabel || "Subject group"} | ${data.subjectCount || 0} subject${Number(data.subjectCount || 0) === 1 ? "" : "s"}`;
+            }
+            if (subjectPoolFocusRing) {
+                subjectPoolFocusRing.style.setProperty("--ring-color", accent);
+                subjectPoolFocusRing.style.setProperty("--ring-value", String(coverage));
+            }
+            if (subjectPoolFocusCoverage) {
+                subjectPoolFocusCoverage.textContent = `${coverage}%`;
+            }
+            if (subjectPoolFocusOriginalTeachers) {
+                subjectPoolFocusOriginalTeachers.textContent = String(data.originalTeachers || "0");
+            }
+            if (subjectPoolFocusDemand) {
+                subjectPoolFocusDemand.textContent = formatDashboardHours(data.totalRequired);
+            }
+            if (subjectPoolFocusCovered) {
+                subjectPoolFocusCovered.textContent = formatDashboardHours(data.allocatedHours);
+            }
+            if (subjectPoolFocusOpen) {
+                subjectPoolFocusOpen.textContent = formatDashboardHours(data.remainingHours);
+            }
+            if (subjectPoolFocusFullHire) {
+                subjectPoolFocusFullHire.textContent = String(data.fullHires || "0");
+            }
+            if (subjectPoolFocusRemainder) {
+                subjectPoolFocusRemainder.textContent = formatDashboardHours(data.hireRemainder);
+            }
+            if (subjectPoolFocusCoveredBar) {
+                subjectPoolFocusCoveredBar.style.width = `${coveredWidth}%`;
+            }
+            if (subjectPoolFocusOpenBar) {
+                subjectPoolFocusOpenBar.style.width = `${openWidth}%`;
+            }
+            if (subjectPoolFocusNote) {
+                subjectPoolFocusNote.textContent = data.recommendation || "";
+            }
+
+            renderSubjectPoolFocusSubjects(parseSubjectPoolItems(card));
+        };
+
+        subjectPoolCards.forEach((card) => {
+            card.setAttribute("aria-pressed", "false");
+            card.addEventListener("click", () => {
+                selectSubjectPoolCard(card);
+            });
+            card.addEventListener("keydown", (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    selectSubjectPoolCard(card);
+                }
+            });
+        });
+
         const setDashboardSubjectView = (viewName) => {
             const showPools = viewName === "pools";
             if (dashboardSubjectDefaultPane) {
@@ -5554,6 +6004,9 @@ const tabs = document.querySelectorAll(".tab");
             if (!showPools) {
                 applyDashboardSubjectFilters();
                 animateSubjectKpis();
+            } else if (subjectPoolCards.length > 0) {
+                const activePoolCard = subjectPoolCards.find((card) => card.classList.contains("is-active"));
+                selectSubjectPoolCard(activePoolCard || subjectPoolCards[0]);
             }
         };
 
