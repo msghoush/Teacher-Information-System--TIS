@@ -623,6 +623,267 @@
             margin-bottom: 10px;
         }
 
+        .subject-view-switch {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .subject-view-btn {
+            border: 1px solid #b7c9e2;
+            background: #fff;
+            color: #294b73;
+            border-radius: 9px;
+            padding: 8px 11px;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            transition: transform 120ms ease, border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+        }
+
+        .subject-view-btn:hover {
+            transform: translateY(-1px);
+            border-color: #8aaedf;
+            background: #edf4ff;
+            color: #083b7e;
+        }
+
+        .subject-view-btn.is-active {
+            border-color: var(--brand);
+            background: var(--brand);
+            color: #fff;
+        }
+
+        .subject-view-pane[hidden] {
+            display: none !important;
+        }
+
+        .subject-pool-dashboard {
+            display: grid;
+            gap: 12px;
+        }
+
+        .subject-pool-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .subject-pool-summary-item {
+            border: 1px solid #d6e2f4;
+            border-radius: 10px;
+            background: linear-gradient(145deg, #ffffff, #f7fbff);
+            padding: 10px;
+        }
+
+        .subject-pool-summary-item span,
+        .subject-pool-stat span {
+            display: block;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: #5b7090;
+            font-weight: 800;
+            line-height: 1.3;
+        }
+
+        .subject-pool-summary-item strong,
+        .subject-pool-stat strong {
+            display: block;
+            margin-top: 5px;
+            color: #17365d;
+            font-size: 22px;
+            line-height: 1.1;
+        }
+
+        .subject-pool-summary-item small,
+        .subject-pool-stat small {
+            display: block;
+            margin-top: 4px;
+            color: #536885;
+            font-size: 11px;
+            line-height: 1.35;
+        }
+
+        .subject-pool-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+            gap: 12px;
+            align-items: start;
+        }
+
+        .subject-pool-card {
+            --pool-accent: #0a4ea3;
+            border: 1px solid #d7e4f4;
+            border-left: 5px solid var(--pool-accent);
+            border-radius: 12px;
+            background: #fff;
+            padding: 14px;
+            display: grid;
+            gap: 12px;
+            min-width: 0;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+        }
+
+        .subject-pool-card-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .subject-pool-title {
+            display: grid;
+            gap: 5px;
+            min-width: 0;
+        }
+
+        .subject-pool-title h4 {
+            margin: 0;
+            color: #17365d;
+            font-size: 16px;
+            line-height: 1.25;
+        }
+
+        .subject-pool-title small {
+            color: #536885;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .subject-pool-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            border: 1px solid color-mix(in srgb, var(--pool-accent) 30%, #d7e4f4);
+            background: color-mix(in srgb, var(--pool-accent) 12%, #ffffff);
+            color: #17365d;
+            padding: 6px 9px;
+            font-size: 11px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .subject-pool-stats {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .subject-pool-stat {
+            border: 1px solid #e1eaf7;
+            border-radius: 9px;
+            background: #f8fbff;
+            padding: 8px;
+            min-width: 0;
+        }
+
+        .subject-pool-stat.is-hire strong {
+            color: #9a5f04;
+        }
+
+        .subject-pool-progress {
+            display: grid;
+            gap: 5px;
+        }
+
+        .subject-pool-progress-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            color: #4e6582;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .subject-pool-progress-track {
+            height: 9px;
+            border-radius: 999px;
+            background: #e5edf7;
+            overflow: hidden;
+        }
+
+        .subject-pool-progress-fill {
+            height: 100%;
+            width: var(--coverage-width, 0%);
+            border-radius: inherit;
+            background: linear-gradient(90deg, var(--pool-accent), #7fa6e8);
+        }
+
+        .subject-pool-table {
+            border: 1px solid #e1eaf7;
+            border-radius: 10px;
+            overflow: auto;
+        }
+
+        .subject-pool-table table {
+            min-width: 720px;
+        }
+
+        .subject-pool-table th,
+        .subject-pool-table td {
+            padding: 9px 10px;
+            font-size: 12px;
+        }
+
+        .subject-pool-subject {
+            display: grid;
+            gap: 3px;
+            min-width: 0;
+        }
+
+        .subject-pool-subject strong {
+            color: #17365d;
+            line-height: 1.25;
+        }
+
+        .subject-pool-subject small {
+            color: #5d7088;
+            line-height: 1.3;
+        }
+
+        .subject-pool-note {
+            border: 1px solid #dbe7f6;
+            border-radius: 10px;
+            background: #f8fbff;
+            color: #4e6582;
+            padding: 9px 10px;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        @media (max-width: 900px) {
+            .subject-pool-summary-grid,
+            .subject-pool-stats {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .subject-pool-card-head {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .subject-pool-badge {
+                width: fit-content;
+            }
+        }
+
+        @media (max-width: 620px) {
+            .subject-pool-summary-grid,
+            .subject-pool-stats {
+                grid-template-columns: 1fr;
+            }
+        }
+
         .subject-filter-input {
             width: 320px;
             max-width: 100%;
@@ -3920,6 +4181,17 @@
                         <p>Manage subjects for this branch and year.</p>
                     </div>
                 </div>
+                <div class="subject-view-switch" aria-label="Subjects view options">
+                    <button id="dashboardSubjectDefaultViewBtn" class="subject-view-btn is-active" type="button" data-subject-view="default" aria-pressed="true">
+                        {{ icon("table", "icon") }}
+                        <span>Default View</span>
+                    </button>
+                    <button id="dashboardSubjectPoolViewBtn" class="subject-view-btn" type="button" data-subject-view="pools" aria-pressed="false">
+                        {{ icon("report", "icon") }}
+                        <span>Pool Groups</span>
+                    </button>
+                </div>
+                <div id="dashboardSubjectDefaultView" class="subject-view-pane is-active">
                 {% if subjects_dashboard_rows %}
                 <div class="subject-level-dashboard">
                     <div class="subject-level-kpis">
@@ -4224,6 +4496,123 @@
                     </div>
                 </section>
                 {% endif %}
+                </div>
+
+                <div id="dashboardSubjectPoolView" class="subject-view-pane" hidden>
+                    {% if subject_pool_distribution_rows %}
+                    <section class="subject-pool-dashboard" aria-label="Subject Pool Distribution">
+                        <div class="subject-pool-summary-grid">
+                            <div class="subject-pool-summary-item">
+                                <span>Pools</span>
+                                <strong>{{ subject_pool_distribution_summary.pool_count }}</strong>
+                                <small>{{ subject_pool_distribution_summary.subject_count }} subjects grouped by pool</small>
+                            </div>
+                            <div class="subject-pool-summary-item">
+                                <span>Total Demand</span>
+                                <strong>{{ subject_pool_distribution_summary.total_required_hours }}h</strong>
+                                <small>Original required weekly hours</small>
+                            </div>
+                            <div class="subject-pool-summary-item">
+                                <span>Open Hours</span>
+                                <strong>{{ subject_pool_distribution_summary.total_remaining_hours }}h</strong>
+                                <small>{{ subject_pool_distribution_summary.total_allocated_hours }}h already covered</small>
+                            </div>
+                            <div class="subject-pool-summary-item">
+                                <span>Full Hires</span>
+                                <strong>{{ subject_pool_distribution_summary.full_hire_count }}</strong>
+                                <small>{{ subject_pool_distribution_summary.hire_remainder_hours }}h remainder after 24h blocks</small>
+                            </div>
+                        </div>
+
+                        <div class="subject-pool-grid">
+                            {% for pool in subject_pool_distribution_rows %}
+                            <article class="subject-pool-card" style="--pool-accent: {{ pool.accent_color }};">
+                                <div class="subject-pool-card-head">
+                                    <div class="subject-pool-title">
+                                        <h4>{{ pool.group_label }}</h4>
+                                        <small>{{ pool.family_label }}</small>
+                                    </div>
+                                    <span class="subject-pool-badge">
+                                        Hire signal: {{ pool.minimum_teacher_blocks }} profile{% if pool.minimum_teacher_blocks != 1 %}s{% endif %}
+                                    </span>
+                                </div>
+
+                                <div class="subject-pool-stats">
+                                    <div class="subject-pool-stat">
+                                        <span>Original Demand</span>
+                                        <strong>{{ pool.total_required_hours }}h</strong>
+                                        <small>{{ pool.total_current_hours }}h current | {{ pool.total_new_hours }}h new</small>
+                                    </div>
+                                    <div class="subject-pool-stat">
+                                        <span>Covered</span>
+                                        <strong>{{ pool.allocated_hours }}h</strong>
+                                        <small>{{ pool.coverage_percentage }}% of this pool</small>
+                                    </div>
+                                    <div class="subject-pool-stat">
+                                        <span>Open Hours</span>
+                                        <strong>{{ pool.remaining_hours }}h</strong>
+                                        <small>Still needs allocation or hiring</small>
+                                    </div>
+                                    <div class="subject-pool-stat is-hire">
+                                        <span>Full Hires</span>
+                                        <strong>{{ pool.full_hire_count }}</strong>
+                                        <small>{{ pool.hire_remainder_hours }}h remainder</small>
+                                    </div>
+                                </div>
+
+                                <div class="subject-pool-progress">
+                                    <div class="subject-pool-progress-head">
+                                        <span>Coverage inside this pool</span>
+                                        <strong>{{ pool.coverage_percentage }}%</strong>
+                                    </div>
+                                    <div class="subject-pool-progress-track">
+                                        <div class="subject-pool-progress-fill" style="--coverage-width: {{ pool.coverage_percentage }}%;"></div>
+                                    </div>
+                                </div>
+
+                                <div class="subject-pool-note">{{ pool.recommendation_note }}</div>
+
+                                <div class="subject-pool-table">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Subject</th>
+                                                <th>Family</th>
+                                                <th>Grades</th>
+                                                <th>Demand</th>
+                                                <th>Covered</th>
+                                                <th>Open</th>
+                                                <th>Hire Split</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for subject in pool.subjects %}
+                                            <tr>
+                                                <td>
+                                                    <div class="subject-pool-subject">
+                                                        <strong>{{ subject.subject_name }}</strong>
+                                                        <small>{{ subject.subject_code or subject.subject_key }}</small>
+                                                    </div>
+                                                </td>
+                                                <td>{{ subject.family_label }}</td>
+                                                <td>{{ subject.grades_label }}</td>
+                                                <td>{{ subject.required_hours }}h</td>
+                                                <td>{{ subject.allocated_hours }}h</td>
+                                                <td>{{ subject.remaining_hours }}h</td>
+                                                <td>{{ subject.hire_label }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </article>
+                            {% endfor %}
+                        </div>
+                    </section>
+                    {% else %}
+                    <div class="empty">Pool distribution appears after planned sections and subject hours are available.</div>
+                    {% endif %}
+                </div>
             </div>
 
             <div class="panel" id="panel-teachers">
@@ -4735,6 +5124,9 @@ const tabs = document.querySelectorAll(".tab");
         const dashboardSubjectSearch = document.getElementById("dashboardSubjectSearch");
         const dashboardNoSubjectResult = document.getElementById("dashboardNoSubjectResult");
         const dashboardSubjectGradeChipBar = document.getElementById("dashboardSubjectGradeChipBar");
+        const dashboardSubjectViewButtons = Array.from(document.querySelectorAll(".subject-view-btn[data-subject-view]"));
+        const dashboardSubjectDefaultPane = document.getElementById("dashboardSubjectDefaultView");
+        const dashboardSubjectPoolPane = document.getElementById("dashboardSubjectPoolView");
         const dashboardTotalSubjects = document.getElementById("dashboardTotalSubjects");
         const dashboardTotalWeeklyHours = document.getElementById("dashboardTotalWeeklyHours");
         const dashboardSelectedLevelLabel = document.getElementById("dashboardSelectedLevelLabel");
@@ -5145,6 +5537,31 @@ const tabs = document.querySelectorAll(".tab");
             subjectKpiValues.forEach((element) => animateNumericValue(element));
             subjectKpiAnimated = true;
         };
+
+        const setDashboardSubjectView = (viewName) => {
+            const showPools = viewName === "pools";
+            if (dashboardSubjectDefaultPane) {
+                dashboardSubjectDefaultPane.hidden = showPools;
+            }
+            if (dashboardSubjectPoolPane) {
+                dashboardSubjectPoolPane.hidden = !showPools;
+            }
+            dashboardSubjectViewButtons.forEach((button) => {
+                const isActive = button.dataset.subjectView === viewName;
+                button.classList.toggle("is-active", isActive);
+                button.setAttribute("aria-pressed", isActive ? "true" : "false");
+            });
+            if (!showPools) {
+                applyDashboardSubjectFilters();
+                animateSubjectKpis();
+            }
+        };
+
+        dashboardSubjectViewButtons.forEach((button) => {
+            button.addEventListener("click", () => {
+                setDashboardSubjectView(button.dataset.subjectView || "default");
+            });
+        });
 
         if (dashboardSubjectRows.length > 0) {
             renderDashboardSubjectGradeChips();

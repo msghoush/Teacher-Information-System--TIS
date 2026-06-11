@@ -6421,6 +6421,231 @@ def _summarize_hiring_plan_for_export(plan_payload: dict, report_summary: dict) 
     }
 
 
+def _format_hiring_block_label(full_blocks: int, remainder_hours: int) -> str:
+    full_blocks = int(full_blocks or 0)
+    remainder_hours = int(remainder_hours or 0)
+    label = f"{full_blocks} full hire{'s' if full_blocks != 1 else ''}"
+    if remainder_hours > 0:
+        label = f"{label} + {remainder_hours}h remainder"
+    return label
+
+
+def _build_subject_pool_distribution_rows(report_subject_rows: list[dict]) -> dict:
+    pool_definitions = [
+        "english_pool",
+        "general_science_pool",
+        "arabic_pool",
+        "math_pool",
+        "physical_education",
+        "homeroom_pool",
+    ]
+    pool_sort_order = {
+        group_key: index
+        for index, group_key in enumerate(pool_definitions)
+    }
+    fallback_pool_key = "specialist_pool"
+    pool_map: dict[str, dict[str, Any]] = {}
+
+    for row in report_subject_rows or []:
+        required_hours = int(row.get("required_hours", 0) or 0)
+        allocated_hours = int(row.get("allocated_hours", 0) or 0)
+        remaining_hours = int(row.get("remaining_hours", 0) or 0)
+        if required_hours <= 0 and allocated_hours <= 0 and remaining_hours <= 0:
+            continue
+
+        family = _detect_hiring_subject_family(row)
+        raw_group_key = HIRING_COMPATIBILITY_GROUPS.get(family, f"single_{family}")
+        group_key = _normalize_hiring_pool_group_key(raw_group_key, family)
+        if not group_key or group_key.startswith("single_"):
+            group_key = fallback_pool_key
+
+        group_label = HIRING_GROUP_LABELS.get(group_key)
+        if not group_label:
+            group_label = "Specialist / Other Pool"
+
+        accent_color = HIRING_POOL_ACCENT_COLORS.get(
+            group_key,
+            str(row.get("subject_color", "#64748B") or "#64748B"),
+        )
+        pool = pool_map.setdefault(
+            group_key,
+            {
+                "group_key": group_key,
+                "group_label": group_label,
+                "accent_color": accent_color,
+                "subject_count": 0,
+                "family_labels": [],
+                "family_keys": [],
+                "grade_labels": set(),
+                "total_required_hours": 0,
+                "total_current_hours": 0,
+                "total_new_hours": 0,
+                "allocated_hours": 0,
+                "remaining_hours": 0,
+                "subjects": [],
+            },
+        )
+
+        family_label = HIRING_FAMILY_LABELS.get(family, family.replace("_", " ").title())
+        if family not in pool["family_keys"]:
+            pool["family_keys"].append(family)
+            pool["family_labels"].append(family_label)
+
+        grade_labels = [
+            str(item)
+            for item in row.get("grades", []) or []
+            if str(item).strip()
+        ]
+        pool["grade_labels"].update(grade_labels)
+        pool["subject_count"] += int(row.get("effective_subject_count", 1) or 1)
+        pool["total_required_hours"] += required_hours
+        pool["total_current_hours"] += int(row.get("required_current_hours", 0) or 0)
+        pool["total_new_hours"] += int(row.get("required_new_hours", 0) or 0)
+        pool["allocated_hours"] += allocated_hours
+        pool["remaining_hours"] += remaining_hours
+
+        subject_full_hires = remaining_hours // REPORT_STANDARD_MAX_HOURS
+        subject_remainder_hours = remaining_hours % REPORT_STANDARD_MAX_HOURS
+        pool["subjects"].append(
+            {
+                "subject_key": str(row.get("subject_key", "") or ""),
+                "subject_name": str(row.get("subject_name", "Subject") or "Subject"),
+                "subject_code": str(row.get("subject_code", "") or ""),
+                "subject_color": str(row.get("subject_color", accent_color) or accent_color),
+                "family": family,
+                "family_label": family_label,
+                "grades": grade_labels,
+                "grades_label": ", ".join(
+                    "KG" if grade == "KG" else f"G{grade}"
+                    for grade in grade_labels
+                ) or "-",
+                "required_hours": required_hours,
+                "required_current_hours": int(row.get("required_current_hours", 0) or 0),
+                "required_new_hours": int(row.get("required_new_hours", 0) or 0),
+                "allocated_hours": allocated_hours,
+                "remaining_hours": remaining_hours,
+                "coverage_percentage": int(row.get("coverage_percentage", 0) or 0),
+                "hire_full_count": subject_full_hires,
+                "hire_remainder_hours": subject_remainder_hours,
+                "hire_label": _format_hiring_block_label(
+                    subject_full_hires,
+                    subject_remainder_hours,
+                ),
+            }
+        )
+
+    pool_rows = []
+    for pool in pool_map.values():
+        group_key = pool["group_key"]
+        family_order = HIRING_POOL_FAMILY_ORDER.get(group_key, [])
+        family_order_map = {
+            family: index
+            for index, family in enumerate(family_order)
+        }
+        pool["subjects"].sort(
+            key=lambda item: (
+                family_order_map.get(item.get("family", ""), 999),
+                -int(item.get("remaining_hours", 0) or 0),
+                str(item.get("subject_name", "") or "").lower(),
+            )
+        )
+        required_hours = int(pool["total_required_hours"] or 0)
+        allocated_hours = int(pool["allocated_hours"] or 0)
+        remaining_hours = int(pool["remaining_hours"] or 0)
+        coverage_percentage = (
+            round((allocated_hours / required_hours) * 100)
+            if required_hours > 0
+            else 0
+        )
+        full_hire_count = remaining_hours // REPORT_STANDARD_MAX_HOURS
+        hire_remainder_hours = remaining_hours % REPORT_STANDARD_MAX_HOURS
+        required_full_loads = required_hours // REPORT_STANDARD_MAX_HOURS
+        required_remainder_hours = required_hours % REPORT_STANDARD_MAX_HOURS
+        hiring_coverage_items = [
+            {
+                "subject_name": item["subject_name"],
+                "subject_code": item["subject_code"],
+                "subject_key": item["subject_key"],
+                "subject_color": item["subject_color"],
+                "family": item["family"],
+                "hours": int(item.get("remaining_hours", 0) or 0),
+            }
+            for item in pool["subjects"]
+            if int(item.get("remaining_hours", 0) or 0) > 0
+        ]
+        if remaining_hours > 0:
+            recommendation_note = _build_hiring_pool_reason(
+                group_key,
+                hiring_coverage_items,
+                remaining_hours,
+                full_hire_count,
+                hire_remainder_hours,
+            )
+        else:
+            recommendation_note = (
+                f"{pool['group_label']} is fully covered by the current assignments; "
+                "no new full hire is suggested from uncovered hours."
+            )
+
+        pool_rows.append(
+            {
+                **pool,
+                "grade_labels": sorted(pool["grade_labels"], key=_grade_sort_key),
+                "family_label": ", ".join(pool["family_labels"]) or "Specialist",
+                "coverage_percentage": min(max(coverage_percentage, 0), 100),
+                "full_hire_count": full_hire_count,
+                "hire_remainder_hours": hire_remainder_hours,
+                "minimum_teacher_blocks": (
+                    math.ceil(remaining_hours / REPORT_STANDARD_MAX_HOURS)
+                    if remaining_hours > 0
+                    else 0
+                ),
+                "hire_label": _format_hiring_block_label(
+                    full_hire_count,
+                    hire_remainder_hours,
+                ),
+                "required_full_loads": required_full_loads,
+                "required_remainder_hours": required_remainder_hours,
+                "required_load_label": _format_hiring_block_label(
+                    required_full_loads,
+                    required_remainder_hours,
+                ),
+                "recommendation_note": recommendation_note,
+            }
+        )
+
+    pool_rows.sort(
+        key=lambda pool: (
+            pool_sort_order.get(pool.get("group_key", ""), 999),
+            -int(pool.get("remaining_hours", 0) or 0),
+            str(pool.get("group_label", "") or "").lower(),
+        )
+    )
+
+    total_required_hours = sum(int(pool.get("total_required_hours", 0) or 0) for pool in pool_rows)
+    total_allocated_hours = sum(int(pool.get("allocated_hours", 0) or 0) for pool in pool_rows)
+    total_remaining_hours = sum(int(pool.get("remaining_hours", 0) or 0) for pool in pool_rows)
+    full_hire_count = total_remaining_hours // REPORT_STANDARD_MAX_HOURS
+    hire_remainder_hours = total_remaining_hours % REPORT_STANDARD_MAX_HOURS
+
+    return {
+        "rows": pool_rows,
+        "summary": {
+            "pool_count": len(pool_rows),
+            "subject_count": sum(int(pool.get("subject_count", 0) or 0) for pool in pool_rows),
+            "total_required_hours": total_required_hours,
+            "total_allocated_hours": total_allocated_hours,
+            "total_remaining_hours": total_remaining_hours,
+            "full_hire_count": full_hire_count,
+            "hire_remainder_hours": hire_remainder_hours,
+            "hire_label": _format_hiring_block_label(
+                full_hire_count,
+                hire_remainder_hours,
+            ),
+        },
+    }
+
+
 def _build_current_report_package(db: Session, user) -> dict:
     scoped_branch_id = getattr(user, "scope_branch_id", user.branch_id)
     scoped_academic_year_id = getattr(
@@ -6627,6 +6852,9 @@ def _build_current_report_package(db: Session, user) -> dict:
         hiring_plan_state["plan"],
         report_summary,
     )
+    subject_pool_distribution = _build_subject_pool_distribution_rows(
+        report_subject_rows
+    )
 
     branch_name = branch.name if branch else "Not assigned"
     academic_year_name = academic_year.year_name if academic_year else "Not assigned"
@@ -6664,6 +6892,8 @@ def _build_current_report_package(db: Session, user) -> dict:
         "report_visuals": report_visuals,
         "hiring_plan_editor_auto_payload": hiring_plan_editor_auto_payload,
         "hiring_plan_export": hiring_plan_export,
+        "subject_pool_distribution_rows": subject_pool_distribution["rows"],
+        "subject_pool_distribution_summary": subject_pool_distribution["summary"],
         "hiring_plan_source": hiring_plan_state["source"],
         "hiring_plan_updated_at": hiring_plan_state["updated_at"],
         "hiring_plan_warnings": hiring_plan_state["warnings"],
@@ -11364,6 +11594,8 @@ def dashboard(
     report_gap_rows = report_package["report_gap_rows"]
     report_teacher_rows = report_package["report_teacher_rows"]
     report_visuals = report_package["report_visuals"]
+    subject_pool_distribution_rows = report_package["subject_pool_distribution_rows"]
+    subject_pool_distribution_summary = report_package["subject_pool_distribution_summary"]
     hiring_plan_editor_auto_payload = report_package["hiring_plan_editor_auto_payload"]
     allocation_data = report_package["allocation_data"]
     reporting_context = report_package["reporting_context"]
@@ -11413,6 +11645,8 @@ def dashboard(
             ),
             "report_grade_rows": reporting_context["grade_rows"],
             "report_visuals": report_visuals,
+            "subject_pool_distribution_rows": subject_pool_distribution_rows,
+            "subject_pool_distribution_summary": subject_pool_distribution_summary,
             "hiring_plan_editor_auto_payload": hiring_plan_editor_auto_payload,
             "all_years": all_years,
             "year_map": year_map,
