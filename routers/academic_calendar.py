@@ -903,62 +903,12 @@ def _ensure_calendar_event_schema(db: Session) -> None:
         table_names = set(inspector.get_table_names())
         if "calendar_events" not in table_names:
             return
-        if "calendar_event_grade_targets" not in table_names:
-            db.execute(
-                text(
-                    "CREATE TABLE calendar_event_grade_targets ("
-                    "id INTEGER PRIMARY KEY, "
-                    "calendar_event_id INTEGER NOT NULL REFERENCES calendar_events(id), "
-                    "grade_level VARCHAR(20) NOT NULL, "
-                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
-                    "CONSTRAINT uq_calendar_event_grade_targets_event_grade "
-                    "UNIQUE (calendar_event_id, grade_level)"
-                    ")"
-                )
-            )
-            db.execute(
-                text(
-                    "CREATE INDEX IF NOT EXISTS ix_calendar_event_grade_targets_event "
-                    "ON calendar_event_grade_targets (calendar_event_id)"
-                )
-            )
-            db.execute(
-                text(
-                    "CREATE INDEX IF NOT EXISTS ix_calendar_event_grade_targets_grade "
-                    "ON calendar_event_grade_targets (grade_level)"
-                )
-            )
-        if "calendar_event_section_targets" not in table_names:
-            db.execute(
-                text(
-                    "CREATE TABLE calendar_event_section_targets ("
-                    "id INTEGER PRIMARY KEY, "
-                    "calendar_event_id INTEGER NOT NULL REFERENCES calendar_events(id), "
-                    "section_id INTEGER NOT NULL REFERENCES planning_sections(id), "
-                    "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, "
-                    "CONSTRAINT uq_calendar_event_section_targets_event_section "
-                    "UNIQUE (calendar_event_id, section_id)"
-                    ")"
-                )
-            )
-            db.execute(
-                text(
-                    "CREATE INDEX IF NOT EXISTS ix_calendar_event_section_targets_event "
-                    "ON calendar_event_section_targets (calendar_event_id)"
-                )
-            )
-            db.execute(
-                text(
-                    "CREATE INDEX IF NOT EXISTS ix_calendar_event_section_targets_section "
-                    "ON calendar_event_section_targets (section_id)"
-                )
-            )
         column_names = {
             column["name"]
             for column in inspector.get_columns("calendar_events")
         }
         if "end_date" not in column_names:
-            db.execute(text("ALTER TABLE calendar_events ADD COLUMN end_date VARCHAR(10)"))
+            return
         db.execute(
             text(
                 "UPDATE calendar_events "
@@ -2627,8 +2577,12 @@ def _create_calendar_notifications(
         "time": time_label,
         "link": detail_link,
     }
+    school_group_id = auth.get_branch_school_group_id(db, getattr(event, "branch_id", None))
     for recipient in recipients:
         notification = models.SystemNotification(
+            school_group_id=school_group_id,
+            branch_id=getattr(event, "branch_id", None),
+            academic_year_id=getattr(event, "academic_year_id", None),
             recipient_user_id=recipient.user_id,
             requesting_user_id=getattr(current_user, "user_id", None),
             request_type="Academic Calendar",

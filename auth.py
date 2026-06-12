@@ -1,3 +1,11 @@
+import base64
+import hashlib
+import hmac
+import json
+import os
+import secrets
+import time
+
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from fastapi import Request, Depends
@@ -18,6 +26,10 @@ ROLE_MANAGED_CHOICES = (
 )
 POSITION_EDUCATION_EXCELLENCE = "Education Excellence"
 INACTIVE_ACCOUNT_MESSAGE = "Your account is currently inactive. Please contact the system developer."
+SESSION_COOKIE_KEY = "tis_session"
+SESSION_MAX_AGE_SECONDS = 8 * 60 * 60
+SESSION_SECRET_ENV_NAME = "TIS_SESSION_SECRET"
+MIN_SESSION_SECRET_LENGTH = 32
 
 DATA_MODIFY_ROLES = {
     ROLE_DEVELOPER,
@@ -119,7 +131,171 @@ def can_delete_user_accounts(user) -> bool:
 def can_manage_target_user_account(current_user, target_user) -> bool:
     if not is_developer(current_user):
         return False
+    current_group_id = getattr(current_user, "scope_school_group_id", None) or getattr(
+        current_user,
+        "school_group_id",
+        None,
+    )
+    target_group_id = getattr(target_user, "school_group_id", None)
+    if current_group_id and target_group_id and current_group_id != target_group_id:
+        return False
     return True
+
+
+def _get_positive_int_env(name: str, default: int) -> int:
+    raw_value = str(os.getenv(name, "") or "").strip()
+    if not raw_value:
+        return default
+    try:
+        parsed_value = int(raw_value)
+    except ValueError:
+        return default
+    return parsed_value if parsed_value > 0 else default
+
+
+def _session_max_age_seconds() -> int:
+    return _get_positive_int_env("TIS_SESSION_MAX_AGE_SECONDS", SESSION_MAX_AGE_SECONDS)
+
+
+def is_production_environment() -> bool:
+    env_value = str(
+        os.getenv("TIS_ENV")
+        or os.getenv("ENV")
+        or os.getenv("FASTAPI_ENV")
+        or ""
+    ).strip().lower()
+    return env_value in {"prod", "production", "live"}
+
+
+def _session_secret() -> str:
+    value = str(os.getenv(SESSION_SECRET_ENV_NAME, "") or "").strip()
+    if len(value) >= MIN_SESSION_SECRET_LENGTH:
+        return value
+    raise RuntimeError(
+        f"{SESSION_SECRET_ENV_NAME} must be set to at least "
+        f"{MIN_SESSION_SECRET_LENGTH} characters before sessions can be issued."
+    )
+
+
+def is_session_secret_configured() -> bool:
+    return len(str(os.getenv(SESSION_SECRET_ENV_NAME, "") or "").strip()) >= MIN_SESSION_SECRET_LENGTH
+
+
+def validate_security_configuration():
+    _session_secret()
+    cookie_secure_setting = str(os.getenv("TIS_COOKIE_SECURE", "") or "").strip().lower()
+    if is_production_environment() and cookie_secure_setting in {"0", "false", "no", "off"}:
+        raise RuntimeError("TIS_COOKIE_SECURE cannot be disabled in production.")
+
+
+def _base64url_encode(raw_value: bytes) -> str:
+    return base64.urlsafe_b64encode(raw_value).rstrip(b"=").decode("ascii")
+
+
+def _base64url_decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode((value + padding).encode("ascii"))
+
+
+def _sign_session_payload(payload_b64: str) -> str:
+    signature = hmac.new(
+        _session_secret().encode("utf-8"),
+        payload_b64.encode("ascii"),
+        hashlib.sha256,
+    ).digest()
+    return _base64url_encode(signature)
+
+
+def create_session_token(user) -> str:
+    payload = {
+        "v": 1,
+        "user_id": str(getattr(user, "user_id", "") or "").strip(),
+        "iat": int(time.time()),
+        "nonce": secrets.token_urlsafe(16),
+    }
+    payload_b64 = _base64url_encode(
+        json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    )
+    return f"{payload_b64}.{_sign_session_payload(payload_b64)}"
+
+
+def decode_session_token(token: str):
+    cleaned = str(token or "").strip()
+    if "." not in cleaned:
+        return None
+    payload_b64, signature_b64 = cleaned.split(".", 1)
+    if not payload_b64 or not signature_b64:
+        return None
+    expected_signature = _sign_session_payload(payload_b64)
+    if not hmac.compare_digest(signature_b64, expected_signature):
+        return None
+    try:
+        payload = json.loads(_base64url_decode(payload_b64).decode("utf-8"))
+    except Exception:
+        return None
+    user_id = str(payload.get("user_id") or "").strip()
+    if not user_id:
+        return None
+    try:
+        issued_at = int(payload.get("iat") or 0)
+    except (TypeError, ValueError):
+        return None
+    now = int(time.time())
+    if issued_at <= 0 or issued_at > now + 300:
+        return None
+    if now - issued_at > _session_max_age_seconds():
+        return None
+    return payload
+
+
+def get_session_payload_from_request(request: Request):
+    return decode_session_token(request.cookies.get(SESSION_COOKIE_KEY))
+
+
+def get_session_user_id(request: Request) -> str:
+    payload = get_session_payload_from_request(request)
+    return str(payload.get("user_id") or "").strip() if payload else ""
+
+
+def should_use_secure_cookies(request: Request | None = None) -> bool:
+    if is_production_environment():
+        return True
+    raw_value = str(os.getenv("TIS_COOKIE_SECURE", "") or "").strip().lower()
+    if raw_value in {"1", "true", "yes", "on"}:
+        return True
+    if raw_value in {"0", "false", "no", "off"}:
+        return False
+    return bool(request and request.url.scheme == "https")
+
+
+def secure_cookie_kwargs(request: Request | None = None, *, max_age: int | None = None) -> dict:
+    kwargs = {
+        "httponly": True,
+        "samesite": "lax",
+        "secure": should_use_secure_cookies(request),
+    }
+    if max_age is not None:
+        kwargs["max_age"] = max_age
+    return kwargs
+
+
+def set_auth_session_cookie(response, user, request: Request | None = None):
+    response.set_cookie(
+        key=SESSION_COOKIE_KEY,
+        value=create_session_token(user),
+        **secure_cookie_kwargs(request, max_age=_session_max_age_seconds()),
+    )
+    response.delete_cookie("user_id")
+    return response
+
+
+def set_scope_cookie(response, key: str, value, request: Request | None = None):
+    response.set_cookie(
+        key=key,
+        value=str(value),
+        **secure_cookie_kwargs(request),
+    )
+    return response
 
 
 def _to_bytes(value):
@@ -163,11 +339,126 @@ def authenticate_user(db: Session, username: str, password: str):
     return user
 
 
+def get_branch_school_group_id(db: Session, branch_id) -> int | None:
+    if not branch_id:
+        return None
+    branch = db.query(models.Branch).filter(models.Branch.id == branch_id).first()
+    return getattr(branch, "school_group_id", None) if branch else None
+
+
+def get_user_school_group_id(db: Session, user) -> int | None:
+    branch_group_id = get_branch_school_group_id(db, getattr(user, "branch_id", None))
+    return branch_group_id or getattr(user, "school_group_id", None)
+
+
+def get_active_academic_year_for_school_group(db: Session, school_group_id: int | None):
+    query = db.query(models.AcademicYear).filter(models.AcademicYear.is_active == True)
+    if school_group_id:
+        query = query.filter(models.AcademicYear.school_group_id == school_group_id)
+    return query.order_by(models.AcademicYear.id.desc()).first()
+
+
+def get_academic_year_for_school_group(db: Session, academic_year_id, school_group_id: int | None):
+    if not academic_year_id:
+        return None
+    query = db.query(models.AcademicYear).filter(models.AcademicYear.id == academic_year_id)
+    if school_group_id:
+        query = query.filter(models.AcademicYear.school_group_id == school_group_id)
+    return query.first()
+
+
+def get_accessible_branch_query(db: Session, user):
+    query = db.query(models.Branch).filter(models.Branch.status == True)
+    if is_developer(user):
+        return query
+
+    user_school_group_id = get_user_school_group_id(db, user)
+    if can_access_all_branches(user):
+        if not user_school_group_id:
+            return query.filter(models.Branch.id == -1)
+        return query.filter(models.Branch.school_group_id == user_school_group_id)
+
+    return query.filter(models.Branch.id == getattr(user, "branch_id", None))
+
+
+def can_access_branch(db: Session, user, branch_id) -> bool:
+    if not branch_id:
+        return False
+    return get_accessible_branch_query(db, user).filter(models.Branch.id == branch_id).first() is not None
+
+
+def validate_branch_year_scope(
+    db: Session,
+    *,
+    branch_id,
+    academic_year_id,
+    current_user=None,
+) -> bool:
+    if current_user is not None and not can_access_branch(db, current_user, branch_id):
+        return False
+    branch = db.query(models.Branch).filter(
+        models.Branch.id == branch_id,
+        models.Branch.status == True,
+    ).first()
+    if not branch:
+        return False
+    academic_year = db.query(models.AcademicYear).filter(
+        models.AcademicYear.id == academic_year_id
+    ).first()
+    if not academic_year:
+        return False
+    return getattr(branch, "school_group_id", None) == getattr(academic_year, "school_group_id", None)
+
+
+def _user_group_filter(db: Session, query, school_group_id: int | None):
+    if not school_group_id:
+        return query.filter(models.User.id == -1)
+    branch_ids = db.query(models.Branch.id).filter(
+        models.Branch.school_group_id == school_group_id
+    )
+    return query.filter(
+        or_(
+            models.User.school_group_id == school_group_id,
+            models.User.branch_id.in_(branch_ids),
+        )
+    )
+
+
+def filter_user_query_by_school_group(db: Session, query, school_group_id: int | None):
+    return _user_group_filter(db, query, school_group_id)
+
+
+def get_notification_recipient_query(db: Session, current_user):
+    query = db.query(models.User).filter(models.User.is_active == True)
+    scope_school_group_id = getattr(current_user, "scope_school_group_id", None) or get_user_school_group_id(
+        db,
+        current_user,
+    )
+    query = _user_group_filter(db, query, scope_school_group_id)
+    if not is_developer(current_user):
+        scope_branch_id = getattr(current_user, "scope_branch_id", None) or getattr(current_user, "branch_id", None)
+        query = query.filter(models.User.branch_id == scope_branch_id)
+    return query
+
+
+def get_notification_school_group_id(db: Session, recipient_user=None, current_user=None):
+    if recipient_user is not None:
+        group_id = getattr(recipient_user, "school_group_id", None) or get_branch_school_group_id(
+            db,
+            getattr(recipient_user, "branch_id", None),
+        )
+        if group_id:
+            return group_id
+    if current_user is not None:
+        return getattr(current_user, "scope_school_group_id", None) or get_user_school_group_id(db, current_user)
+    return None
+
+
 def get_current_user(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    user_id = request.cookies.get("user_id")
+    user_id = get_session_user_id(request)
 
     if not user_id:
         return None
@@ -187,6 +478,14 @@ def get_current_user(
         request.state.inactive_user_id = user.user_id
         return None
 
+    user_school_group_id = get_user_school_group_id(db, user)
+    if not user_school_group_id and not is_developer(user):
+        request.state.auth_error = "missing_school_group"
+        return None
+
+    if user_school_group_id and not getattr(user, "school_group_id", None):
+        user.school_group_id = user_school_group_id
+
     branch_cookie = request.cookies.get("branch_id")
     year_cookie = request.cookies.get("academic_year_id")
 
@@ -204,9 +503,7 @@ def get_current_user(
         parsed_year_id = None
 
     can_all_branch_scope = can_access_all_branches(user)
-    active_branches = db.query(models.Branch).filter(
-        models.Branch.status == True
-    ).order_by(models.Branch.name.asc()).all()
+    active_branches = get_accessible_branch_query(db, user).order_by(models.Branch.name.asc()).all()
     active_branch_ids = {branch.id for branch in active_branches}
 
     if can_all_branch_scope:
@@ -226,31 +523,43 @@ def get_current_user(
         ).first()
         scoped_school_group_id = getattr(scoped_branch, "school_group_id", None) if scoped_branch else None
 
-    active_year_query = db.query(models.AcademicYear).filter(
-        models.AcademicYear.is_active == True
-    )
-    if scoped_school_group_id:
-        active_year_query = active_year_query.filter(
-            models.AcademicYear.school_group_id == scoped_school_group_id
-        )
-    active_year = active_year_query.first()
+    active_year = get_active_academic_year_for_school_group(db, scoped_school_group_id)
 
     can_all_year_scope = can_access_all_years(user)
-    if can_all_year_scope and parsed_year_id:
-        selected_year = db.query(models.AcademicYear).filter(
-            models.AcademicYear.id == parsed_year_id
-        ).first()
-        if selected_year:
-            scoped_academic_year_id = selected_year.id
-        elif active_year:
-            scoped_academic_year_id = active_year.id
+    selected_year = get_academic_year_for_school_group(db, parsed_year_id, scoped_school_group_id)
+    assigned_year = get_academic_year_for_school_group(
+        db,
+        getattr(user, "academic_year_id", None),
+        scoped_school_group_id,
+    )
+    if can_all_year_scope and selected_year:
+        scoped_academic_year_id = selected_year.id
     elif active_year:
         scoped_academic_year_id = active_year.id
-    elif parsed_year_id:
-        scoped_academic_year_id = parsed_year_id
+    elif assigned_year:
+        scoped_academic_year_id = assigned_year.id
+    elif selected_year:
+        scoped_academic_year_id = selected_year.id
+
+    if scoped_branch_id and scoped_academic_year_id and not validate_branch_year_scope(
+        db,
+        branch_id=scoped_branch_id,
+        academic_year_id=scoped_academic_year_id,
+        current_user=user,
+    ):
+        fallback_year = get_active_academic_year_for_school_group(db, scoped_school_group_id)
+        if fallback_year:
+            scoped_academic_year_id = fallback_year.id
+        else:
+            scoped_academic_year_id = None
+
+    if not scoped_branch_id or not scoped_academic_year_id:
+        request.state.auth_error = "missing_tenant_scope"
+        return None
 
     user.scope_branch_id = scoped_branch_id
     user.scope_academic_year_id = scoped_academic_year_id
+    user.scope_school_group_id = scoped_school_group_id
     user.effective_role = normalize_role(user.role)
     user.effective_position = normalize_position(getattr(user, "position", ""))
     user.can_access_all_branches = can_all_branch_scope

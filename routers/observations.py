@@ -608,43 +608,8 @@ OBSERVATION_SCHEMA_COLUMNS = {
 
 
 def ensure_observation_schema():
-    models.Base.metadata.create_all(
-        bind=engine,
-        tables=[
-            models.ObservationCriterion.__table__,
-            models.Observation.__table__,
-            models.ObservationScore.__table__,
-            models.ObservationSelfEvaluation.__table__,
-            models.ObservationSelfEvaluationScore.__table__,
-        ],
-    )
-    inspector = inspect(engine)
-    existing_tables = set(inspector.get_table_names())
-
-    with engine.begin() as connection:
-        for table_name, column_sql_map in OBSERVATION_SCHEMA_COLUMNS.items():
-            if table_name not in existing_tables:
-                continue
-            existing_columns = {
-                column["name"]
-                for column in inspector.get_columns(table_name)
-            }
-            for column_name, column_sql in column_sql_map.items():
-                if column_name == "id" or column_name in existing_columns:
-                    continue
-                logger.warning(
-                    "Adding missing Observation schema column %s.%s",
-                    table_name,
-                    column_name,
-                )
-                column_sql = _dialect_column_sql(column_sql, engine.dialect.name)
-                add_column_prefix = "ADD COLUMN IF NOT EXISTS" if engine.dialect.name == "postgresql" else "ADD COLUMN"
-                connection.execute(
-                    text(
-                        f"ALTER TABLE {table_name} "
-                        f"{add_column_prefix} {column_name} {column_sql}"
-                    )
-                )
+    # Observation schema is managed by db_migrations.
+    return
 
 
 def _dialect_column_sql(column_sql: str, dialect_name: str) -> str:
@@ -663,6 +628,36 @@ def _get_scope_ids(current_user):
         getattr(current_user, "scope_branch_id", current_user.branch_id),
         getattr(current_user, "scope_academic_year_id", current_user.academic_year_id),
     )
+
+
+def _observation_in_current_scope(current_user, observation) -> bool:
+    if not observation:
+        return False
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    return (
+        getattr(observation, "branch_id", None) == branch_id
+        and getattr(observation, "academic_year_id", None) == academic_year_id
+    )
+
+
+def _observation_scope_filter(query, current_user):
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    return query.filter(
+        models.Observation.branch_id == branch_id,
+        models.Observation.academic_year_id == academic_year_id,
+    )
+
+
+def _get_observation_for_current_scope(db: Session, current_user, observation_id: int):
+    return _teacher_observation_access_filter(
+        _observation_scope_filter(
+            db.query(models.Observation).filter(models.Observation.id == observation_id),
+            current_user,
+        ),
+        db,
+        current_user,
+        scope_already_applied=True,
+    ).first()
 
 
 def _teacher_name(teacher) -> str:
@@ -832,11 +827,15 @@ def _observation_status_label(observation) -> str:
 def _can_edit_observation(current_user, observation) -> bool:
     if not auth.can_edit_data(current_user) or _is_teacher_user(current_user):
         return False
+    if not _observation_in_current_scope(current_user, observation):
+        return False
     return not _observation_is_locked(observation) or _can_override_locked_observation(current_user)
 
 
 def _can_delete_observation(current_user, observation) -> bool:
     if not auth.can_delete_data(current_user) or _is_teacher_user(current_user):
+        return False
+    if not _observation_in_current_scope(current_user, observation):
         return False
     return not _observation_is_locked(observation) or _can_override_locked_observation(current_user)
 
@@ -921,10 +920,15 @@ def _find_teacher_user(db: Session, teacher):
     teacher_user_id = str(getattr(teacher, "teacher_id", "") or "").strip()
     if not teacher_user_id:
         return None
-    return db.query(models.User).filter(
+    query = db.query(models.User).filter(
         models.User.user_id == teacher_user_id,
         models.User.is_active == True,
-    ).first()
+        models.User.branch_id == getattr(teacher, "branch_id", None),
+    )
+    school_group_id = auth.get_branch_school_group_id(db, getattr(teacher, "branch_id", None))
+    if school_group_id:
+        query = auth.filter_user_query_by_school_group(db, query, school_group_id)
+    return query.first()
 
 
 def _notification_exists(db: Session, recipient_user_id: str, request_type: str, details: str) -> bool:
@@ -950,7 +954,16 @@ def _create_observation_notification(
     request_type = "Observation"
     if _notification_exists(db, recipient_user_id, request_type, details):
         return None
+    recipient_user = db.query(models.User).filter(
+        models.User.user_id == recipient_user_id
+    ).first()
     notification = models.SystemNotification(
+        school_group_id=auth.get_notification_school_group_id(
+            db,
+            recipient_user=recipient_user,
+        ),
+        branch_id=getattr(recipient_user, "branch_id", None),
+        academic_year_id=getattr(recipient_user, "academic_year_id", None),
         recipient_user_id=recipient_user_id,
         requesting_user_id=str(requesting_user_id or "").strip(),
         request_type=request_type,
@@ -1846,7 +1859,9 @@ def _build_teacher_cycle_pdf_report(
     return buffer.getvalue()
 
 
-def _teacher_observation_access_filter(query, db, current_user):
+def _teacher_observation_access_filter(query, db, current_user, *, scope_already_applied: bool = False):
+    if not scope_already_applied:
+        query = _observation_scope_filter(query, current_user)
     if not _is_teacher_user(current_user):
         return query
     teacher = _get_current_teacher(db, current_user)
@@ -2269,7 +2284,7 @@ def edit_observation_page(observation_id: int, request: Request, db: Session = D
     if not current_user:
         return RedirectResponse(url="/")
 
-    observation = db.query(models.Observation).filter(models.Observation.id == observation_id).first()
+    observation = _get_observation_for_current_scope(db, current_user, observation_id)
     if not observation or not _can_edit_observation(current_user, observation):
         return RedirectResponse(url="/observations")
 
@@ -2319,7 +2334,7 @@ async def update_observation(observation_id: int, request: Request, db: Session 
     if not current_user:
         return RedirectResponse(url="/")
 
-    observation = db.query(models.Observation).filter(models.Observation.id == observation_id).first()
+    observation = _get_observation_for_current_scope(db, current_user, observation_id)
     if not observation or not _can_edit_observation(current_user, observation):
         return RedirectResponse(url="/observations")
 
@@ -2386,7 +2401,7 @@ async def delete_observation(observation_id: int, request: Request, db: Session 
     current_user = get_current_user(request, db)
     if not current_user:
         return RedirectResponse(url="/")
-    observation = db.query(models.Observation).filter(models.Observation.id == observation_id).first()
+    observation = _get_observation_for_current_scope(db, current_user, observation_id)
     if not observation or not _can_delete_observation(current_user, observation):
         return RedirectResponse(url="/observations")
     db.query(models.ObservationScore).filter(models.ObservationScore.observation_id == observation.id).delete()
@@ -2736,7 +2751,7 @@ async def save_teacher_signature(observation_id: int, request: Request, db: Sess
     if not current_user:
         return RedirectResponse(url="/")
     current_teacher = _get_current_teacher(db, current_user)
-    observation = db.query(models.Observation).filter(models.Observation.id == observation_id).first()
+    observation = _get_observation_for_current_scope(db, current_user, observation_id)
     if not current_teacher or not observation or observation.teacher_id != current_teacher.id:
         return RedirectResponse(url="/observations")
     if _observation_is_locked(observation):
@@ -2775,7 +2790,7 @@ async def save_self_evaluation(observation_id: int, request: Request, db: Sessio
     if not current_user:
         return RedirectResponse(url="/")
     current_teacher = _get_current_teacher(db, current_user)
-    observation = db.query(models.Observation).filter(models.Observation.id == observation_id).first()
+    observation = _get_observation_for_current_scope(db, current_user, observation_id)
     if not current_teacher or not observation or observation.teacher_id != current_teacher.id:
         return RedirectResponse(url="/observations")
     form = await request.form()
