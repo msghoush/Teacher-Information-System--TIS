@@ -14,6 +14,7 @@ import logging
 import math
 import os
 import re
+import secrets
 import time
 from typing import Optional, Any
 from urllib.parse import quote_plus
@@ -27,6 +28,7 @@ from openpyxl.utils import get_column_letter
 from database import engine, SessionLocal
 import models
 import auth
+import db_migrations
 import permission_registry
 from dependencies import get_db
 from routers import subjects, users, teachers, planning, timetable, academic_calendar, observations
@@ -82,6 +84,7 @@ from timetable_logic import (
 # Create Tables
 # ---------------------------------------
 models.Base.metadata.create_all(bind=engine)
+db_migrations.run_pending_migrations(engine)
 
 # ---------------------------------------
 # App Initialization
@@ -109,6 +112,7 @@ IDLE_TIMEOUT_MINUTES = _get_positive_int_env("TIS_IDLE_TIMEOUT_MINUTES", 30)
 IDLE_TIMEOUT_SECONDS = IDLE_TIMEOUT_MINUTES * 60
 IDLE_TIMEOUT_LOGIN_MESSAGE = "Session timed out due to inactivity. Please log in again."
 AUTH_SESSION_COOKIE_KEYS = (
+    auth.SESSION_COOKIE_KEY,
     "user_id",
     "branch_id",
     "academic_year_id",
@@ -338,49 +342,10 @@ def _ensure_school_group_schema():
     if "school_group_logos" not in table_names:
         models.SchoolGroupLogo.__table__.create(bind=engine, checkfirst=True)
 
-    branch_columns = {
-        column["name"]
-        for column in inspector.get_columns("branches")
-    } if "branches" in table_names else set()
-    if "branches" in table_names and "school_group_id" not in branch_columns:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE branches ADD COLUMN school_group_id INTEGER"))
-            try:
-                connection.execute(
-                    text("CREATE INDEX IF NOT EXISTS ix_branches_school_group_id ON branches (school_group_id)")
-                )
-            except Exception:
-                pass
-
-    academic_year_columns = {
-        column["name"]
-        for column in inspector.get_columns("academic_years")
-    } if "academic_years" in table_names else set()
-    if "academic_years" in table_names and "school_group_id" not in academic_year_columns:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE academic_years ADD COLUMN school_group_id INTEGER"))
-            try:
-                connection.execute(
-                    text("CREATE INDEX IF NOT EXISTS ix_academic_years_school_group_id ON academic_years (school_group_id)")
-                )
-            except Exception:
-                pass
-
 
 def _ensure_subject_color_schema():
-    inspector = inspect(engine)
-    if "subjects" not in inspector.get_table_names():
-        return
-
-    existing_columns = {
-        column["name"]
-        for column in inspector.get_columns("subjects")
-    }
-    if "color" in existing_columns:
-        return
-
-    with engine.begin() as connection:
-        connection.execute(text("ALTER TABLE subjects ADD COLUMN color VARCHAR(7)"))
+    # Subject color schema is managed by db_migrations.
+    return
 
 
 def _ensure_role_permission_schema():
@@ -1191,10 +1156,10 @@ def _resolve_audit_actor(request: Request):
             "actor_branch_id": actor_branch_id,
         }
 
-    cookie_user_id = request.cookies.get("user_id")
-    if cookie_user_id:
+    session_user_id = auth.get_session_user_id(request)
+    if session_user_id:
         return {
-            "actor_user_id": cookie_user_id,
+            "actor_user_id": session_user_id,
             "actor_username": "",
             "actor_role": "Unknown",
             "actor_branch_id": None,
@@ -8048,14 +8013,14 @@ async def inactivity_timeout_middleware(request: Request, call_next):
     ):
         return await call_next(request)
 
-    user_id_cookie = str(request.cookies.get("user_id") or "").strip()
-    if not user_id_cookie:
+    session_user_id = auth.get_session_user_id(request)
+    if not session_user_id:
         return await call_next(request)
 
     db = SessionLocal()
     try:
         user = db.query(models.User).filter(
-            models.User.user_id == user_id_cookie
+            models.User.user_id == session_user_id
         ).first()
         if not user:
             response = RedirectResponse(url="/", status_code=302)
@@ -8087,8 +8052,7 @@ async def inactivity_timeout_middleware(request: Request, call_next):
         response.set_cookie(
             key=IDLE_TIMEOUT_COOKIE_KEY,
             value=str(now_ts),
-            httponly=True,
-            samesite="lax",
+            **auth.secure_cookie_kwargs(request),
         )
         return response
     finally:
@@ -8285,41 +8249,8 @@ def _collect_system_notification_schema_snapshot() -> dict:
 
 
 def _ensure_system_notifications_indexes() -> None:
-    inspector = inspect(engine)
-    if "system_notifications" not in inspector.get_table_names():
-        return
-
-    existing_index_names = {
-        idx.get("name")
-        for idx in inspector.get_indexes("system_notifications")
-        if idx.get("name")
-    }
-    required_indexes = [
-        ("ix_system_notifications_recipient_status", "recipient_user_id, status"),
-        ("ix_system_notifications_created_at", "created_at"),
-        ("ix_system_notifications_recipient_user_id", "recipient_user_id"),
-        ("ix_system_notifications_requesting_user_id", "requesting_user_id"),
-    ]
-
-    for index_name, index_columns_sql in required_indexes:
-        if index_name in existing_index_names:
-            continue
-        try:
-            with engine.begin() as connection:
-                connection.execute(
-                    text(
-                        f"CREATE INDEX {index_name} "
-                        f"ON system_notifications ({index_columns_sql})"
-                    )
-                )
-            existing_index_names.add(index_name)
-        except Exception as exc:
-            _notification_logger().warning(
-                "TIS notification schema: failed to create index=%s reason=%s",
-                index_name,
-                exc,
-                exc_info=True,
-            )
+    # Notification indexes are managed by db_migrations.
+    return
 
 
 def _get_notification_total_count_safe(db: Session, user_id: Optional[str]) -> Optional[int]:
@@ -8468,7 +8399,23 @@ def _create_system_notification(
     recipient_scope: str = NOTIFICATION_SCOPE_USER,
 ):
     _ensure_system_notifications_table_columns()
+    recipient_user = db.query(models.User).filter(
+        models.User.user_id == str(recipient_user_id).strip()
+    ).first()
+    requesting_user = None
+    if requesting_user_id:
+        requesting_user = db.query(models.User).filter(
+            models.User.user_id == str(requesting_user_id).strip()
+        ).first()
+    notification_school_group_id = auth.get_notification_school_group_id(
+        db,
+        recipient_user=recipient_user,
+        current_user=requesting_user,
+    )
     notification = models.SystemNotification(
+        school_group_id=notification_school_group_id,
+        branch_id=getattr(recipient_user, "branch_id", None),
+        academic_year_id=getattr(recipient_user, "academic_year_id", None),
         recipient_user_id=str(recipient_user_id).strip(),
         requesting_user_id=str(requesting_user_id or "").strip(),
         request_type=str(request_type).strip(),
@@ -8733,9 +8680,9 @@ def login(
         return _clear_auth_session_cookies(response)
 
     can_all_branch_scope = auth.can_access_all_branches(user)
-    active_branches = db.query(models.Branch).filter(
-        models.Branch.status == True
-    ).order_by(models.Branch.name.asc()).all()
+    active_branches = auth.get_accessible_branch_query(db, user).order_by(
+        models.Branch.name.asc()
+    ).all()
     active_branch_map = {
         branch.id: branch for branch in active_branches
     }
@@ -8760,10 +8707,10 @@ def login(
         )
 
     branch_scope_id = assigned_branch.id if assigned_branch else active_branches[0].id
+    branch_scope = active_branch_map.get(branch_scope_id)
+    scope_school_group_id = getattr(branch_scope, "school_group_id", None) if branch_scope else None
 
-    active_year = db.query(models.AcademicYear).filter(
-        models.AcademicYear.is_active == True
-    ).first()
+    active_year = auth.get_active_academic_year_for_school_group(db, scope_school_group_id)
     if not active_year:
         return _render_login_page(
             request=request,
@@ -8773,35 +8720,19 @@ def login(
             status_code=400
         )
 
+    if scope_school_group_id and getattr(user, "school_group_id", None) != scope_school_group_id:
+        user.school_group_id = scope_school_group_id
+        db.commit()
+
     response = RedirectResponse(url="/dashboard", status_code=302)
     request.state.audit_actor_user_id = user.user_id
     request.state.audit_actor_username = user.username or ""
     request.state.audit_actor_role = auth.normalize_role(user.role)
     request.state.audit_actor_branch_id = user.branch_id
-    response.set_cookie(
-        key="user_id",
-        value=user.user_id,
-        httponly=True,
-        samesite="lax"
-    )
-    response.set_cookie(
-        key="branch_id",
-        value=str(branch_scope_id),
-        httponly=True,
-        samesite="lax"
-    )
-    response.set_cookie(
-        key="academic_year_id",
-        value=str(active_year.id),
-        httponly=True,
-        samesite="lax"
-    )
-    response.set_cookie(
-        key=IDLE_TIMEOUT_COOKIE_KEY,
-        value=str(int(time.time())),
-        httponly=True,
-        samesite="lax",
-    )
+    auth.set_auth_session_cookie(response, user, request)
+    auth.set_scope_cookie(response, "branch_id", branch_scope_id, request)
+    auth.set_scope_cookie(response, "academic_year_id", active_year.id, request)
+    auth.set_scope_cookie(response, IDLE_TIMEOUT_COOKIE_KEY, int(time.time()), request)
     return response
 
 
@@ -8993,9 +8924,10 @@ def notification_center(
         )
         all_users = []
         if can_compose:
-            all_users = db.query(models.User).filter(
-                models.User.is_active == True
-            ).order_by(models.User.first_name.asc(), models.User.last_name.asc()).all()
+            all_users = auth.get_notification_recipient_query(db, current_user).order_by(
+                models.User.first_name.asc(),
+                models.User.last_name.asc(),
+            ).all()
 
         user_timezone = _get_request_timezone(request)
         template_context = {
@@ -9096,9 +9028,10 @@ def compose_message_form(
             status_code=302,
         )
 
-    all_users = db.query(models.User).filter(
-        models.User.is_active == True
-    ).order_by(models.User.first_name.asc(), models.User.last_name.asc()).all()
+    all_users = auth.get_notification_recipient_query(db, current_user).order_by(
+        models.User.first_name.asc(),
+        models.User.last_name.asc(),
+    ).all()
 
     return templates.TemplateResponse(
         request,
@@ -9255,14 +9188,20 @@ def send_message(
         )
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    allowed_recipient_query = auth.get_notification_recipient_query(db, current_user)
 
     if recipient == "ALL":
-        active_users = db.query(models.User).filter(
-            models.User.is_active == True
-        ).all()
+        active_users = allowed_recipient_query.all()
         count = 0
         for user in active_users:
             n = models.SystemNotification(
+                school_group_id=auth.get_notification_school_group_id(
+                    db,
+                    recipient_user=user,
+                    current_user=current_user,
+                ),
+                branch_id=getattr(user, "branch_id", None),
+                academic_year_id=getattr(user, "academic_year_id", None),
                 recipient_user_id=user.user_id,
                 requesting_user_id=current_user.user_id,
                 request_type=NOTIFICATION_TYPE_MESSAGE,
@@ -9283,9 +9222,8 @@ def send_message(
             title,
         )
     else:
-        target_user = db.query(models.User).filter(
+        target_user = allowed_recipient_query.filter(
             models.User.user_id == recipient,
-            models.User.is_active == True,
         ).first()
         if not target_user:
             return RedirectResponse(
@@ -9293,6 +9231,13 @@ def send_message(
                 status_code=302,
             )
         n = models.SystemNotification(
+            school_group_id=auth.get_notification_school_group_id(
+                db,
+                recipient_user=target_user,
+                current_user=current_user,
+            ),
+            branch_id=getattr(target_user, "branch_id", None),
+            academic_year_id=getattr(target_user, "academic_year_id", None),
             recipient_user_id=target_user.user_id,
             requesting_user_id=current_user.user_id,
             request_type=NOTIFICATION_TYPE_MESSAGE,
@@ -9835,11 +9780,10 @@ def _logo_source_label(source: str) -> str:
 
 
 def _get_user_school_group_id(db: Session, current_user) -> int | None:
-    branch_id = getattr(current_user, "branch_id", None)
-    if not branch_id:
-        return None
-    branch = db.query(models.Branch).filter(models.Branch.id == branch_id).first()
-    return getattr(branch, "school_group_id", None) if branch else None
+    return getattr(current_user, "scope_school_group_id", None) or auth.get_user_school_group_id(
+        db,
+        current_user,
+    )
 
 
 def _build_school_logo_module_context(
@@ -11434,12 +11378,7 @@ def set_current_year(
         return_to,
         "Current academic year updated successfully.",
     )
-    response.set_cookie(
-        key="academic_year_id",
-        value=str(target_year.id),
-        httponly=True,
-        samesite="lax"
-    )
+    auth.set_scope_cookie(response, "academic_year_id", target_year.id, request)
     return response
 
 
@@ -11503,12 +11442,7 @@ def open_new_academic_year(
         return_to,
         notice_message,
     )
-    response.set_cookie(
-        key="academic_year_id",
-        value=str(target_year.id),
-        httponly=True,
-        samesite="lax"
-    )
+    auth.set_scope_cookie(response, "academic_year_id", target_year.id, request)
     return response
 
 
@@ -11538,17 +11472,23 @@ def set_scope_academic_year(
             url=_safe_redirect_path(return_to),
             status_code=302,
         )
+    scoped_branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    if not auth.validate_branch_year_scope(
+        db,
+        branch_id=scoped_branch_id,
+        academic_year_id=target_year.id,
+        current_user=current_user,
+    ):
+        return RedirectResponse(
+            url=_safe_redirect_path(return_to),
+            status_code=302,
+        )
 
     response = RedirectResponse(
         url=_safe_redirect_path(return_to),
         status_code=302,
     )
-    response.set_cookie(
-        key="academic_year_id",
-        value=str(target_year.id),
-        httponly=True,
-        samesite="lax"
-    )
+    auth.set_scope_cookie(response, "academic_year_id", target_year.id, request)
     return response
 
 
@@ -11570,11 +11510,24 @@ def set_scope_branch(
     if not auth.can_manage_system_settings(current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
 
-    target_branch = db.query(models.Branch).filter(
-        models.Branch.id == branch_id,
-        models.Branch.status == True
+    target_branch = auth.get_accessible_branch_query(db, current_user).filter(
+        models.Branch.id == branch_id
     ).first()
     if not target_branch:
+        return RedirectResponse(
+            url=_safe_redirect_path(return_to),
+            status_code=302,
+        )
+    target_group_id = getattr(target_branch, "school_group_id", None)
+    current_year_id = getattr(
+        current_user,
+        "scope_academic_year_id",
+        current_user.academic_year_id,
+    )
+    target_year = auth.get_academic_year_for_school_group(db, current_year_id, target_group_id)
+    if not target_year:
+        target_year = auth.get_active_academic_year_for_school_group(db, target_group_id)
+    if not target_year:
         return RedirectResponse(
             url=_safe_redirect_path(return_to),
             status_code=302,
@@ -11584,12 +11537,8 @@ def set_scope_branch(
         url=_safe_redirect_path(return_to),
         status_code=302,
     )
-    response.set_cookie(
-        key="branch_id",
-        value=str(target_branch.id),
-        httponly=True,
-        samesite="lax"
-    )
+    auth.set_scope_cookie(response, "branch_id", target_branch.id, request)
+    auth.set_scope_cookie(response, "academic_year_id", target_year.id, request)
     return response
 
 
@@ -12010,36 +11959,10 @@ def _ensure_users_table_columns():
         col["name"] for col in inspector.get_columns("users")
     }
 
+    if "is_active" not in existing_columns:
+        return
+
     with engine.begin() as connection:
-        if "username" not in existing_columns:
-            connection.execute(
-                text("ALTER TABLE users ADD COLUMN username VARCHAR(50)")
-            )
-        if "position" not in existing_columns:
-            connection.execute(
-                text("ALTER TABLE users ADD COLUMN position VARCHAR(50)")
-            )
-        if "profile_image_path" not in existing_columns:
-            connection.execute(
-                text("ALTER TABLE users ADD COLUMN profile_image_path VARCHAR(255)")
-            )
-        if "profile_image_content_type" not in existing_columns:
-            connection.execute(
-                text("ALTER TABLE users ADD COLUMN profile_image_content_type VARCHAR(50)")
-            )
-        if "profile_image_data" not in existing_columns:
-            profile_image_binary_type = (
-                "BYTEA" if engine.dialect.name == "postgresql" else "BLOB"
-            )
-            connection.execute(
-                text(
-                    f"ALTER TABLE users ADD COLUMN profile_image_data {profile_image_binary_type}"
-                )
-            )
-        if "is_active" not in existing_columns:
-            connection.execute(
-                text("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT TRUE")
-            )
         connection.execute(
             text("UPDATE users SET is_active = TRUE WHERE is_active IS NULL")
         )
@@ -12050,93 +11973,26 @@ def _ensure_teachers_table_columns():
     if "teachers" not in inspector.get_table_names():
         return
 
-    teacher_columns = inspector.get_columns("teachers")
     existing_columns = {
-        col["name"] for col in teacher_columns
+        col["name"] for col in inspector.get_columns("teachers")
     }
-    teacher_id_column = next(
-        (col for col in teacher_columns if col.get("name") == "teacher_id"),
-        None
-    )
-    teacher_id_length = (
-        getattr(teacher_id_column.get("type"), "length", None)
-        if teacher_id_column
-        else None
-    )
-    db_dialect = engine.dialect.name
 
     with engine.begin() as connection:
-        if "middle_name" not in existing_columns:
-            connection.execute(
-                text("ALTER TABLE teachers ADD COLUMN middle_name VARCHAR(100)")
-            )
-        if "degree_major" not in existing_columns:
-            connection.execute(
-                text("ALTER TABLE teachers ADD COLUMN degree_major VARCHAR(120)")
-            )
-        if "extra_hours_allowed" not in existing_columns:
-            connection.execute(
-                text("ALTER TABLE teachers ADD COLUMN extra_hours_allowed BOOLEAN DEFAULT FALSE")
-            )
-        if "extra_hours_count" not in existing_columns:
-            connection.execute(
-                text("ALTER TABLE teachers ADD COLUMN extra_hours_count INTEGER DEFAULT 0")
-            )
-        if "teaches_national_section" not in existing_columns:
+        for column_name, default_value in (
+            ("extra_hours_allowed", "FALSE"),
+            ("extra_hours_count", "0"),
+            ("teaches_national_section", "FALSE"),
+            ("national_section_hours", "0"),
+            ("is_new_teacher", "FALSE"),
+        ):
+            if column_name not in existing_columns:
+                continue
             connection.execute(
                 text(
-                    "ALTER TABLE teachers ADD COLUMN teaches_national_section BOOLEAN DEFAULT FALSE"
+                    f"UPDATE teachers SET {column_name} = {default_value} "
+                    f"WHERE {column_name} IS NULL"
                 )
             )
-        if "national_section_hours" not in existing_columns:
-            connection.execute(
-                text(
-                    "ALTER TABLE teachers ADD COLUMN national_section_hours INTEGER DEFAULT 0"
-                )
-            )
-        if "is_new_teacher" not in existing_columns:
-            connection.execute(
-                text(
-                    "ALTER TABLE teachers ADD COLUMN is_new_teacher BOOLEAN DEFAULT FALSE"
-                )
-            )
-        if teacher_id_column and teacher_id_length and teacher_id_length < 10:
-            if db_dialect == "postgresql":
-                connection.execute(
-                    text("ALTER TABLE teachers ALTER COLUMN teacher_id TYPE VARCHAR(10)")
-                )
-            elif db_dialect in {"mysql", "mariadb"}:
-                connection.execute(
-                    text("ALTER TABLE teachers MODIFY teacher_id VARCHAR(10)")
-                )
-
-        connection.execute(
-            text("UPDATE teachers SET extra_hours_allowed = FALSE WHERE extra_hours_allowed IS NULL")
-        )
-        connection.execute(
-            text("UPDATE teachers SET extra_hours_count = 0 WHERE extra_hours_count IS NULL")
-        )
-        connection.execute(
-            text(
-                "UPDATE teachers "
-                "SET teaches_national_section = FALSE "
-                "WHERE teaches_national_section IS NULL"
-            )
-        )
-        connection.execute(
-            text(
-                "UPDATE teachers "
-                "SET national_section_hours = 0 "
-                "WHERE national_section_hours IS NULL"
-            )
-        )
-        connection.execute(
-            text(
-                "UPDATE teachers "
-                "SET is_new_teacher = FALSE "
-                "WHERE is_new_teacher IS NULL"
-            )
-        )
 
 
 def _ensure_teacher_subject_allocation_columns():
@@ -12148,15 +12004,10 @@ def _ensure_teacher_subject_allocation_columns():
         col["name"] for col in inspector.get_columns("teacher_subject_allocations")
     }
 
-    with engine.begin() as connection:
-        if "compatibility_override" not in existing_columns:
-            connection.execute(
-                text(
-                    "ALTER TABLE teacher_subject_allocations "
-                    "ADD COLUMN compatibility_override BOOLEAN DEFAULT FALSE"
-                )
-            )
+    if "compatibility_override" not in existing_columns:
+        return
 
+    with engine.begin() as connection:
         connection.execute(
             text(
                 "UPDATE teacher_subject_allocations "
@@ -12167,23 +12018,8 @@ def _ensure_teacher_subject_allocation_columns():
 
 
 def _ensure_timetable_non_teaching_block_columns():
-    inspector = inspect(engine)
-    if "timetable_non_teaching_blocks" not in inspector.get_table_names():
-        return
-
-    existing_columns = {
-        col["name"] for col in inspector.get_columns("timetable_non_teaching_blocks")
-    }
-
-    with engine.begin() as connection:
-        if "start_time" not in existing_columns:
-            connection.execute(
-                text("ALTER TABLE timetable_non_teaching_blocks ADD COLUMN start_time VARCHAR(5)")
-            )
-        if "end_time" not in existing_columns:
-            connection.execute(
-                text("ALTER TABLE timetable_non_teaching_blocks ADD COLUMN end_time VARCHAR(5)")
-            )
+    # Timetable block schema is managed by db_migrations.
+    return
 
 
 def _ensure_system_notifications_table_columns():
@@ -12195,153 +12031,55 @@ def _ensure_system_notifications_table_columns():
         col["name"] for col in inspector.get_columns("system_notifications")
     }
 
-    datetime_type = "TIMESTAMP" if engine.dialect.name == "postgresql" else "DATETIME"
-
-    def add_column_if_missing(column_name: str, column_sql: str):
-        nonlocal existing_columns
-        if column_name in existing_columns:
-            return
-        with engine.begin() as connection:
-            connection.execute(
-                text(f"ALTER TABLE system_notifications ADD COLUMN {column_sql}")
-            )
-        existing_columns.add(column_name)
-
-    add_column_if_missing(
-        "recipient_user_id",
-        "recipient_user_id VARCHAR(10) NOT NULL DEFAULT ''",
-    )
-    add_column_if_missing(
-        "requesting_user_id",
-        "requesting_user_id VARCHAR(10)",
-    )
-    add_column_if_missing(
-        "request_type",
-        "request_type VARCHAR(80) NOT NULL DEFAULT 'Message'",
-    )
-    add_column_if_missing(
-        "title",
-        "title VARCHAR(160) NOT NULL DEFAULT 'System Notification'",
-    )
-    add_column_if_missing(
-        "message",
-        "message TEXT",
-    )
-    add_column_if_missing(
-        "details",
-        "details TEXT",
-    )
-    add_column_if_missing(
-        "status",
-        "status VARCHAR(20) NOT NULL DEFAULT 'New'",
-    )
-    add_column_if_missing(
-        "recipient_scope",
-        "recipient_scope VARCHAR(10) NOT NULL DEFAULT 'User'",
-    )
-    add_column_if_missing(
-        "created_at",
-        f"created_at {datetime_type}",
-    )
-    add_column_if_missing(
-        "seen_at",
-        f"seen_at {datetime_type}",
-    )
-    add_column_if_missing(
-        "resolved_at",
-        f"resolved_at {datetime_type}",
-    )
-    add_column_if_missing(
-        "resolved_by_user_id",
-        "resolved_by_user_id VARCHAR(10)",
-    )
-    add_column_if_missing(
-        "recipient_archived_at",
-        f"recipient_archived_at {datetime_type}",
-    )
-    add_column_if_missing(
-        "recipient_archived_by_user_id",
-        "recipient_archived_by_user_id VARCHAR(10)",
-    )
-    add_column_if_missing(
-        "requester_archived_at",
-        f"requester_archived_at {datetime_type}",
-    )
-    add_column_if_missing(
-        "requester_archived_by_user_id",
-        "requester_archived_by_user_id VARCHAR(10)",
-    )
-
-    created_at_missing_predicate = (
-        "created_at IS NULL"
-        if engine.dialect.name == "postgresql"
-        else "created_at IS NULL OR created_at = '' OR datetime(created_at) IS NULL"
-    )
-    invalid_optional_datetime_updates = []
-    if engine.dialect.name != "postgresql":
-        invalid_optional_datetime_updates = [
-            (
-                "seen_at",
-                "seen_at = '' OR (seen_at IS NOT NULL AND datetime(seen_at) IS NULL)",
-            ),
-            (
-                "resolved_at",
-                "resolved_at = '' OR (resolved_at IS NOT NULL AND datetime(resolved_at) IS NULL)",
-            ),
-            (
-                "recipient_archived_at",
-                "recipient_archived_at = '' OR (recipient_archived_at IS NOT NULL AND datetime(recipient_archived_at) IS NULL)",
-            ),
-            (
-                "requester_archived_at",
-                "requester_archived_at = '' OR (requester_archived_at IS NOT NULL AND datetime(requester_archived_at) IS NULL)",
-            ),
-        ]
-
     with engine.begin() as connection:
-        connection.execute(
-            text(
-                "UPDATE system_notifications "
-                "SET recipient_scope = 'User' "
-                "WHERE recipient_scope IS NULL OR recipient_scope = ''"
-            )
-        )
-        connection.execute(
-            text(
-                "UPDATE system_notifications "
-                "SET status = 'New' "
-                "WHERE status IS NULL OR status = ''"
-            )
-        )
-        connection.execute(
-            text(
-                "UPDATE system_notifications "
-                "SET request_type = 'Message' "
-                "WHERE request_type IS NULL OR request_type = ''"
-            )
-        )
-        connection.execute(
-            text(
-                "UPDATE system_notifications "
-                "SET title = 'System Notification' "
-                "WHERE title IS NULL OR title = ''"
-            )
-        )
-        connection.execute(
-            text(
-                "UPDATE system_notifications "
-                "SET created_at = CURRENT_TIMESTAMP "
-                f"WHERE {created_at_missing_predicate}"
-            )
-        )
-        for column_name, invalid_predicate in invalid_optional_datetime_updates:
+        for column_name, default_value in (
+            ("recipient_scope", "User"),
+            ("status", "New"),
+            ("request_type", "Message"),
+            ("title", "System Notification"),
+        ):
+            if column_name not in existing_columns:
+                continue
             connection.execute(
                 text(
                     "UPDATE system_notifications "
-                    f"SET {column_name} = NULL "
-                    f"WHERE {invalid_predicate}"
+                    f"SET {column_name} = :default_value "
+                    f"WHERE {column_name} IS NULL OR {column_name} = ''"
+                ),
+                {"default_value": default_value},
+            )
+
+        if "created_at" in existing_columns:
+            created_at_missing_predicate = (
+                "created_at IS NULL"
+                if engine.dialect.name == "postgresql"
+                else "created_at IS NULL OR created_at = '' OR datetime(created_at) IS NULL"
+            )
+            connection.execute(
+                text(
+                    "UPDATE system_notifications "
+                    "SET created_at = CURRENT_TIMESTAMP "
+                    f"WHERE {created_at_missing_predicate}"
                 )
             )
+
+        if engine.dialect.name != "postgresql":
+            for column_name in (
+                "seen_at",
+                "resolved_at",
+                "recipient_archived_at",
+                "requester_archived_at",
+            ):
+                if column_name not in existing_columns:
+                    continue
+                connection.execute(
+                    text(
+                        "UPDATE system_notifications "
+                        f"SET {column_name} = NULL "
+                        f"WHERE {column_name} = '' "
+                        f"OR ({column_name} IS NOT NULL AND datetime({column_name}) IS NULL)"
+                    )
+                )
 
     _ensure_system_notifications_indexes()
 
@@ -12374,158 +12112,14 @@ def _is_global_teacher_unique_definition(columns) -> bool:
 
 
 def _ensure_teacher_scope_schema_sqlite():
-    with engine.begin() as connection:
-        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
-        connection.execute(text("DROP INDEX IF EXISTS uq_teachers_scope_teacher_id"))
-        connection.execute(text("ALTER TABLE teachers RENAME TO teachers_legacy_scope_unique"))
-        connection.execute(
-            text(
-                """
-                CREATE TABLE teachers (
-                    id INTEGER NOT NULL,
-                    teacher_id VARCHAR(10),
-                    first_name VARCHAR,
-                    middle_name VARCHAR,
-                    last_name VARCHAR,
-                    degree VARCHAR,
-                    major VARCHAR,
-                    subject_code VARCHAR,
-                    level VARCHAR,
-                    max_hours INTEGER,
-                    extra_hours_allowed BOOLEAN DEFAULT FALSE,
-                    extra_hours_count INTEGER DEFAULT 0,
-                    teaches_national_section BOOLEAN DEFAULT FALSE,
-                    national_section_hours INTEGER DEFAULT 0,
-                    branch_id INTEGER,
-                    academic_year_id INTEGER,
-                    PRIMARY KEY (id),
-                    FOREIGN KEY(branch_id) REFERENCES branches (id),
-                    FOREIGN KEY(academic_year_id) REFERENCES academic_years (id)
-                )
-                """
-            )
-        )
-        connection.execute(
-            text(
-                """
-                INSERT INTO teachers (
-                    id,
-                    teacher_id,
-                    first_name,
-                    middle_name,
-                    last_name,
-                    degree,
-                    major,
-                    subject_code,
-                    level,
-                    max_hours,
-                    extra_hours_allowed,
-                    extra_hours_count,
-                    teaches_national_section,
-                    national_section_hours,
-                    branch_id,
-                    academic_year_id
-                )
-                SELECT
-                    id,
-                    teacher_id,
-                    first_name,
-                    middle_name,
-                    last_name,
-                    degree,
-                    major,
-                    subject_code,
-                    level,
-                    max_hours,
-                    COALESCE(extra_hours_allowed, FALSE),
-                    COALESCE(extra_hours_count, 0),
-                    COALESCE(teaches_national_section, FALSE),
-                    COALESCE(national_section_hours, 0),
-                    branch_id,
-                    academic_year_id
-                FROM teachers_legacy_scope_unique
-                """
-            )
-        )
-        connection.execute(text("DROP TABLE teachers_legacy_scope_unique"))
-        connection.execute(
-            text(
-                """
-                CREATE UNIQUE INDEX uq_teachers_scope_teacher_id
-                ON teachers (branch_id, academic_year_id, teacher_id)
-                """
-            )
-        )
-        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+    return
 
 
 def _ensure_teacher_scope_schema_non_sqlite(
     teacher_unique_constraints,
     teacher_indexes,
 ):
-    dialect = engine.dialect.name
-    with engine.begin() as connection:
-        for unique_constraint in teacher_unique_constraints:
-            constraint_name = unique_constraint.get("name")
-            constrained_columns = unique_constraint.get("column_names") or []
-            if not constraint_name or not _is_global_teacher_unique_definition(constrained_columns):
-                continue
-
-            if dialect == "postgresql":
-                connection.execute(
-                    text(
-                        f'ALTER TABLE "teachers" '
-                        f'DROP CONSTRAINT IF EXISTS "{constraint_name}"'
-                    )
-                )
-            elif dialect in {"mysql", "mariadb"}:
-                connection.execute(
-                    text(
-                        "ALTER TABLE teachers "
-                        f"DROP INDEX `{constraint_name}`"
-                    )
-                )
-
-        for teacher_index in teacher_indexes:
-            index_name = teacher_index.get("name")
-            constrained_columns = teacher_index.get("column_names") or []
-            if not index_name or not teacher_index.get("unique"):
-                continue
-            if not _is_global_teacher_unique_definition(constrained_columns):
-                continue
-
-            if dialect == "postgresql":
-                connection.execute(
-                    text(f'DROP INDEX IF EXISTS "{index_name}"')
-                )
-            elif dialect in {"mysql", "mariadb"}:
-                connection.execute(
-                    text(f"DROP INDEX `{index_name}` ON teachers")
-                )
-
-        if dialect == "postgresql":
-            connection.execute(
-                text(
-                    """
-                    CREATE UNIQUE INDEX IF NOT EXISTS uq_teachers_scope_teacher_id
-                    ON teachers (branch_id, academic_year_id, teacher_id)
-                    """
-                )
-            )
-        elif dialect in {"mysql", "mariadb"}:
-            scoped_index_exists = any(
-                teacher_index.get("name") == "uq_teachers_scope_teacher_id"
-                for teacher_index in teacher_indexes
-            )
-            if not scoped_index_exists:
-                connection.execute(
-                    text(
-                        """
-                        CREATE UNIQUE INDEX uq_teachers_scope_teacher_id
-                        ON teachers (branch_id, academic_year_id, teacher_id)
-                        """
-                    )
-                )
+    return
 
 
 def _ensure_teacher_scope_schema():
@@ -12565,13 +12159,8 @@ def _ensure_teacher_scope_schema():
     if has_scoped_unique and not has_global_teacher_unique:
         return
 
-    if engine.dialect.name == "sqlite":
-        _ensure_teacher_scope_schema_sqlite()
-        return
-
-    _ensure_teacher_scope_schema_non_sqlite(
-        teacher_unique_constraints=teacher_unique_constraints,
-        teacher_indexes=teacher_indexes,
+    logging.getLogger("uvicorn.error").warning(
+        "Teacher scoped uniqueness is not fully migrated; run pending database migrations."
     )
 
 
@@ -12590,191 +12179,7 @@ def _ensure_subject_scope_schema_sqlite(
     rebuild_allocations: bool,
     reset_subject_indexes: bool,
 ):
-    with engine.begin() as connection:
-        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
-
-        if rebuild_allocations:
-            connection.execute(
-                text(
-                    "ALTER TABLE teacher_subject_allocations "
-                    "RENAME TO teacher_subject_allocations_legacy_subject_scope"
-                )
-            )
-
-        if rebuild_teachers:
-            connection.execute(
-                text(
-                    "ALTER TABLE teachers "
-                    "RENAME TO teachers_legacy_subject_scope"
-                )
-            )
-
-            connection.execute(
-                text(
-                    """
-                    CREATE TABLE teachers (
-                        id INTEGER NOT NULL,
-                        teacher_id VARCHAR(10),
-                        first_name VARCHAR,
-                        middle_name VARCHAR,
-                        last_name VARCHAR,
-                        degree VARCHAR,
-                        major VARCHAR,
-                        subject_code VARCHAR,
-                        level VARCHAR,
-                        max_hours INTEGER,
-                        extra_hours_allowed BOOLEAN DEFAULT FALSE,
-                        extra_hours_count INTEGER DEFAULT 0,
-                        teaches_national_section BOOLEAN DEFAULT FALSE,
-                        national_section_hours INTEGER DEFAULT 0,
-                        branch_id INTEGER,
-                        academic_year_id INTEGER,
-                        PRIMARY KEY (id),
-                        UNIQUE (teacher_id),
-                        FOREIGN KEY(branch_id) REFERENCES branches (id),
-                        FOREIGN KEY(academic_year_id) REFERENCES academic_years (id)
-                    )
-                    """
-                )
-            )
-            connection.execute(
-                text(
-                    """
-                    INSERT INTO teachers (
-                        id,
-                        teacher_id,
-                        first_name,
-                        middle_name,
-                        last_name,
-                        degree,
-                        major,
-                        subject_code,
-                        level,
-                        max_hours,
-                        extra_hours_allowed,
-                        extra_hours_count,
-                        teaches_national_section,
-                        national_section_hours,
-                        branch_id,
-                        academic_year_id
-                    )
-                    SELECT
-                        id,
-                        teacher_id,
-                        first_name,
-                        middle_name,
-                        last_name,
-                        degree,
-                        major,
-                        subject_code,
-                        level,
-                        max_hours,
-                        COALESCE(extra_hours_allowed, FALSE),
-                        COALESCE(extra_hours_count, 0),
-                        COALESCE(teaches_national_section, FALSE),
-                        COALESCE(national_section_hours, 0),
-                        branch_id,
-                        academic_year_id
-                    FROM teachers_legacy_subject_scope
-                    """
-                )
-            )
-        else:
-            connection.execute(
-                text(
-                    "UPDATE teachers "
-                    "SET extra_hours_allowed = FALSE "
-                    "WHERE extra_hours_allowed IS NULL"
-                )
-            )
-            connection.execute(
-                text(
-                    "UPDATE teachers "
-                    "SET extra_hours_count = 0 "
-                    "WHERE extra_hours_count IS NULL"
-                )
-            )
-            connection.execute(
-                text(
-                    "UPDATE teachers "
-                    "SET teaches_national_section = FALSE "
-                    "WHERE teaches_national_section IS NULL"
-                )
-            )
-            connection.execute(
-                text(
-                    "UPDATE teachers "
-                    "SET national_section_hours = 0 "
-                    "WHERE national_section_hours IS NULL"
-                )
-            )
-
-        if rebuild_allocations:
-            connection.execute(
-                text(
-                    """
-                    CREATE TABLE teacher_subject_allocations (
-                        id INTEGER NOT NULL,
-                        teacher_id INTEGER NOT NULL,
-                        subject_code VARCHAR NOT NULL,
-                        PRIMARY KEY (id),
-                        CONSTRAINT uq_teacher_subject_allocations_teacher_subject
-                            UNIQUE (teacher_id, subject_code),
-                        FOREIGN KEY(teacher_id) REFERENCES teachers (id)
-                    )
-                    """
-                )
-            )
-            connection.execute(
-                text(
-                    """
-                    INSERT INTO teacher_subject_allocations (
-                        id,
-                        teacher_id,
-                        subject_code
-                    )
-                    SELECT
-                        id,
-                        teacher_id,
-                        subject_code
-                    FROM teacher_subject_allocations_legacy_subject_scope
-                    """
-                )
-            )
-
-        if rebuild_allocations:
-            connection.execute(
-                text("DROP TABLE teacher_subject_allocations_legacy_subject_scope")
-            )
-        if rebuild_teachers:
-            connection.execute(text("DROP TABLE teachers_legacy_subject_scope"))
-
-        if rebuild_allocations:
-            connection.execute(
-                text(
-                    """
-                    CREATE INDEX ix_teacher_subject_allocations_teacher_id
-                    ON teacher_subject_allocations (teacher_id)
-                    """
-                )
-            )
-
-        if reset_subject_indexes:
-            connection.execute(text("DROP INDEX IF EXISTS ix_subjects_subject_code"))
-
-        connection.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS ix_subjects_subject_code "
-                "ON subjects (subject_code)"
-            )
-        )
-        connection.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_subjects_scope_code "
-                "ON subjects (branch_id, academic_year_id, subject_code)"
-            )
-        )
-        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+    return
 
 
 def _ensure_subject_scope_schema_non_sqlite(
@@ -12784,70 +12189,7 @@ def _ensure_subject_scope_schema_non_sqlite(
     has_subject_code_index: bool,
     has_scope_unique_index: bool,
 ):
-    dialect = engine.dialect.name
-    with engine.begin() as connection:
-        if rebuild_teachers:
-            for foreign_key in inspect(engine).get_foreign_keys("teachers"):
-                if not _is_subject_code_foreign_key(foreign_key):
-                    continue
-                constraint_name = foreign_key.get("name")
-                if not constraint_name:
-                    continue
-                if dialect == "postgresql":
-                    connection.execute(
-                        text(
-                            f'ALTER TABLE "teachers" '
-                            f'DROP CONSTRAINT IF EXISTS "{constraint_name}"'
-                        )
-                    )
-                elif dialect in {"mysql", "mariadb"}:
-                    connection.execute(
-                        text(
-                            "ALTER TABLE teachers "
-                            f"DROP FOREIGN KEY `{constraint_name}`"
-                        )
-                    )
-
-        if rebuild_allocations:
-            for foreign_key in inspect(engine).get_foreign_keys("teacher_subject_allocations"):
-                if not _is_subject_code_foreign_key(foreign_key):
-                    continue
-                constraint_name = foreign_key.get("name")
-                if not constraint_name:
-                    continue
-                if dialect == "postgresql":
-                    connection.execute(
-                        text(
-                            f'ALTER TABLE "teacher_subject_allocations" '
-                            f'DROP CONSTRAINT IF EXISTS "{constraint_name}"'
-                        )
-                    )
-                elif dialect in {"mysql", "mariadb"}:
-                    connection.execute(
-                        text(
-                            "ALTER TABLE teacher_subject_allocations "
-                            f"DROP FOREIGN KEY `{constraint_name}`"
-                        )
-                    )
-
-        if reset_subject_indexes:
-            if dialect == "postgresql":
-                connection.execute(text('DROP INDEX IF EXISTS "ix_subjects_subject_code"'))
-            elif dialect in {"mysql", "mariadb"}:
-                connection.execute(text("ALTER TABLE subjects DROP INDEX ix_subjects_subject_code"))
-
-        if reset_subject_indexes or not has_subject_code_index:
-            connection.execute(
-                text("CREATE INDEX ix_subjects_subject_code ON subjects (subject_code)")
-            )
-
-        if not has_scope_unique_index:
-            connection.execute(
-                text(
-                    "CREATE UNIQUE INDEX uq_subjects_scope_code "
-                    "ON subjects (branch_id, academic_year_id, subject_code)"
-                )
-            )
+    return
 
 
 def _ensure_subject_scope_schema():
@@ -12889,20 +12231,8 @@ def _ensure_subject_scope_schema():
     ):
         return
 
-    if engine.dialect.name == "sqlite":
-        _ensure_subject_scope_schema_sqlite(
-            rebuild_teachers=rebuild_teachers,
-            rebuild_allocations=(rebuild_allocations or rebuild_teachers),
-            reset_subject_indexes=reset_subject_indexes,
-        )
-        return
-
-    _ensure_subject_scope_schema_non_sqlite(
-        rebuild_teachers=rebuild_teachers,
-        rebuild_allocations=rebuild_allocations,
-        reset_subject_indexes=reset_subject_indexes,
-        has_subject_code_index=has_subject_code_index,
-        has_scope_unique_index=has_scope_unique_index,
+    logging.getLogger("uvicorn.error").warning(
+        "Subject scoped uniqueness is not fully migrated; run pending database migrations."
     )
 
 
@@ -13094,12 +12424,13 @@ def _ensure_gender_branches(db: Session):
 @app.on_event("startup")
 def setup_initial_data():
 
+    auth.validate_security_configuration()
+    _ensure_school_group_schema()
     _ensure_users_table_columns()
     _ensure_teachers_table_columns()
     _ensure_teacher_scope_schema()
     _ensure_subject_scope_schema()
     _ensure_subject_color_schema()
-    _ensure_school_group_schema()
     _ensure_role_permission_schema()
     _ensure_teacher_subject_allocation_columns()
     _ensure_timetable_non_teaching_block_columns()
@@ -13117,7 +12448,7 @@ def setup_initial_data():
     _migrate_profile_photos_to_database(db)
     admin_user_id = os.getenv("ADMIN_USER_ID", "2623252018")
     admin_username = os.getenv("ADMIN_USERNAME", "developer")
-    admin_password = os.getenv("ADMIN_PASSWORD", "UnderProcess1984")
+    admin_password = os.getenv("ADMIN_PASSWORD")
     admin_position = os.getenv("ADMIN_POSITION", "Developer")
 
     default_branch = _ensure_gender_branches(db)
@@ -13178,14 +12509,21 @@ def setup_initial_data():
     ).first()
 
     if not existing_user:
+        bootstrap_password = admin_password or secrets.token_urlsafe(24)
+        if not admin_password:
+            logging.warning(
+                "ADMIN_PASSWORD is not set; created bootstrap developer account with a random password. "
+                "Set ADMIN_PASSWORD explicitly before production deployment."
+            )
         admin_user = User(
             user_id=admin_user_id,
             username=admin_username,
             first_name="mohamad",
             last_name="El Ghoche",
             position=admin_position,
-            password=get_password_hash(admin_password),
+            password=get_password_hash(bootstrap_password),
             role=auth.ROLE_DEVELOPER,
+            school_group_id=default_school_group_id,
             branch_id=default_branch.id if default_branch else None,
             academic_year_id=academic_year.id,
             is_active=True
@@ -13195,7 +12533,7 @@ def setup_initial_data():
     else:
         updated = False
 
-        if not auth.verify_password(admin_password, existing_user.password):
+        if admin_password and not auth.verify_password(admin_password, existing_user.password):
             existing_user.password = get_password_hash(admin_password)
             updated = True
 
@@ -13213,6 +12551,10 @@ def setup_initial_data():
 
         if not existing_user.branch_id and default_branch:
             existing_user.branch_id = default_branch.id
+            updated = True
+
+        if default_school_group_id and getattr(existing_user, "school_group_id", None) != default_school_group_id:
+            existing_user.school_group_id = default_school_group_id
             updated = True
 
         if not existing_user.academic_year_id:

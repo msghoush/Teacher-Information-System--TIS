@@ -100,6 +100,7 @@ class User(Base):
     profile_image_path = Column(String(255))
     profile_image_content_type = Column(String(50))
     profile_image_data = Column(LargeBinary)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
     branch_id = Column(Integer, ForeignKey("branches.id"))
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
     is_active = Column(Boolean, default=True)
@@ -113,6 +114,9 @@ class SystemNotification(Base):
     )
 
     id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), index=True)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), index=True)
     recipient_user_id = Column(String(10), index=True, nullable=False)
     requesting_user_id = Column(String(10), index=True)
     request_type = Column(String(80), nullable=False)

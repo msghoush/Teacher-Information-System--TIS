@@ -67,11 +67,7 @@ def _get_user_roles_for_creator(current_user):
 
 
 def _get_user_school_group_id(db: Session, current_user) -> int | None:
-    branch_id = getattr(current_user, "scope_branch_id", None) or getattr(current_user, "branch_id", None)
-    if not branch_id:
-        return None
-    branch = db.query(models.Branch).filter(models.Branch.id == branch_id).first()
-    return getattr(branch, "school_group_id", None) if branch else None
+    return auth.get_user_school_group_id(db, current_user)
 
 
 def _get_role_permission_rows(db: Session, role: str, school_group_id: int | None = None):
@@ -118,9 +114,16 @@ def _build_role_permission_summary_map(db: Session, current_user):
 def _get_available_branches(db: Session, current_user):
     role = auth.normalize_role(current_user.role)
     if role == auth.ROLE_DEVELOPER:
-        return db.query(models.Branch).filter(
+        query = db.query(models.Branch).filter(
             models.Branch.status == True
-        ).order_by(models.Branch.name.asc()).all()
+        )
+        scope_school_group_id = getattr(current_user, "scope_school_group_id", None) or _get_user_school_group_id(
+            db,
+            current_user,
+        )
+        if scope_school_group_id:
+            query = query.filter(models.Branch.school_group_id == scope_school_group_id)
+        return query.order_by(models.Branch.name.asc()).all()
 
     own_branch_id = current_user.branch_id
     own_branch = db.query(models.Branch).filter(
@@ -130,8 +133,15 @@ def _get_available_branches(db: Session, current_user):
     return [own_branch] if own_branch else []
 
 
-def _can_manage_target_user(current_user, target_user) -> bool:
-    return auth.can_manage_target_user_account(current_user, target_user)
+def _can_manage_target_user(db: Session, current_user, target_user) -> bool:
+    if not auth.can_manage_target_user_account(current_user, target_user):
+        return False
+    current_group_id = getattr(current_user, "scope_school_group_id", None) or _get_user_school_group_id(
+        db,
+        current_user,
+    )
+    target_group_id = auth.get_user_school_group_id(db, target_user)
+    return not current_group_id or target_group_id == current_group_id
 
 
 def _get_user_for_management(db: Session, current_user, user_pk: int):
@@ -140,7 +150,7 @@ def _get_user_for_management(db: Session, current_user, user_pk: int):
     ).first()
     if not user_row:
         return None
-    if not _can_manage_target_user(current_user, user_row):
+    if not _can_manage_target_user(db, current_user, user_row):
         return None
     return user_row
 
@@ -268,7 +278,13 @@ def _render_users_page(
     can_manage_users = auth.can_manage_users(current_user)
     can_edit_user_accounts = auth.can_edit_user_accounts(current_user)
     users_query = db.query(models.User)
-    if role != auth.ROLE_DEVELOPER:
+    scope_school_group_id = getattr(current_user, "scope_school_group_id", None) or _get_user_school_group_id(
+        db,
+        current_user,
+    )
+    if role == auth.ROLE_DEVELOPER:
+        users_query = auth.filter_user_query_by_school_group(db, users_query, scope_school_group_id)
+    else:
         users_query = users_query.filter(
             models.User.branch_id == current_user.branch_id
         )
@@ -282,11 +298,11 @@ def _render_users_page(
     if can_edit_user_accounts:
         manageable_user_ids = {
             user_row.id for user_row in users
-            if _can_manage_target_user(current_user, user_row)
+            if _can_manage_target_user(db, current_user, user_row)
         }
     branch_map = {
         branch.id: branch.name
-        for branch in db.query(models.Branch).all()
+        for branch in available_branches
     }
 
     return templates.TemplateResponse(
@@ -350,7 +366,7 @@ def get_user_profile_photo(
     if not auth.can_manage_users(current_user):
         return Response(status_code=403)
 
-    user_row = db.query(models.User).filter(models.User.id == user_pk).first()
+    user_row = _get_user_for_management(db, current_user, user_pk)
     if not user_row:
         return Response(status_code=404)
 
@@ -441,6 +457,13 @@ def create_user(
             detail_errors=errors,
         )
 
+    selected_school_group_id = auth.get_branch_school_group_id(db, branch_id)
+    selected_academic_year = auth.get_academic_year_for_school_group(
+        db,
+        getattr(current_user, "scope_academic_year_id", None) or getattr(current_user, "academic_year_id", None),
+        selected_school_group_id,
+    ) or auth.get_active_academic_year_for_school_group(db, selected_school_group_id)
+
     new_user = models.User(
         user_id=user_id,
         username=user_id,
@@ -449,8 +472,9 @@ def create_user(
         position=position,
         role=role,
         password=get_password_hash(password),
+        school_group_id=selected_school_group_id,
         branch_id=branch_id,
-        academic_year_id=getattr(current_user, "academic_year_id", None),
+        academic_year_id=getattr(selected_academic_year, "id", None),
         is_active=True,
     )
 
@@ -622,7 +646,15 @@ def update_user(
     user_row.last_name = last_name
     user_row.position = position
     user_row.role = role
+    selected_school_group_id = auth.get_branch_school_group_id(db, branch_id)
+    selected_academic_year = auth.get_academic_year_for_school_group(
+        db,
+        getattr(user_row, "academic_year_id", None),
+        selected_school_group_id,
+    ) or auth.get_active_academic_year_for_school_group(db, selected_school_group_id)
+    user_row.school_group_id = selected_school_group_id
     user_row.branch_id = branch_id
+    user_row.academic_year_id = getattr(selected_academic_year, "id", None)
     user_row.is_active = parsed_is_active
 
     if password:
@@ -793,7 +825,7 @@ def delete_users_bulk(
     users_to_delete = []
     for user_id in unique_user_ids:
         target_user = user_map.get(user_id)
-        if not target_user or not _can_manage_target_user(current_user, target_user):
+        if not target_user or not _can_manage_target_user(db, current_user, target_user):
             return _render_users_page(
                 request=request,
                 db=db,
