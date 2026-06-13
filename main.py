@@ -94,6 +94,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 templates = Jinja2Templates(directory="templates")
 ACADEMIC_YEAR_NAME_PATTERN = re.compile(r"^\d{4}-\d{4}$")
+PUBLIC_LANDING_HOSTS = {"tisplatform.com", "www.tisplatform.com"}
 
 
 def _get_positive_int_env(name: str, default: int) -> int:
@@ -134,6 +135,19 @@ def _clear_auth_session_cookies(response):
     for cookie_key in AUTH_SESSION_COOKIE_KEYS:
         response.delete_cookie(cookie_key)
     return response
+
+
+def _request_hostname(request: Request) -> str:
+    host = str(request.headers.get("host") or request.url.hostname or "").strip().lower()
+    if not host:
+        return ""
+    if host.startswith("["):
+        return host.split("]", 1)[0].lstrip("[")
+    return host.split(":", 1)[0].rstrip(".")
+
+
+def _is_public_landing_host(request: Request) -> bool:
+    return _request_hostname(request) in PUBLIC_LANDING_HOSTS
 
 
 REPORT_STANDARD_MAX_HOURS = 24
@@ -8120,24 +8134,10 @@ def _render_login_page(
         status_code=status_code,
     )
 
-# ---------------------------------------
-# Include Routers
-# ---------------------------------------
-app.include_router(subjects.router)
-app.include_router(users.router)
-app.include_router(teachers.router)
-app.include_router(planning.router)
-app.include_router(timetable.router)
-app.include_router(academic_calendar.router)
-app.include_router(observations.router)
 
-# ---------------------------------------
-# ROOT (Login Page)
-# ---------------------------------------
-@app.get("/", response_class=HTMLResponse)
-def read_root(
+def _render_login_entrypoint(
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session,
 ):
     current_user = auth.get_current_user(request, db)
     if current_user:
@@ -8160,6 +8160,42 @@ def read_root(
         db=db,
         error=inactive_error or timeout_error,
     )
+
+# ---------------------------------------
+# Include Routers
+# ---------------------------------------
+app.include_router(subjects.router)
+app.include_router(users.router)
+app.include_router(teachers.router)
+app.include_router(planning.router)
+app.include_router(timetable.router)
+app.include_router(academic_calendar.router)
+app.include_router(observations.router)
+
+# ---------------------------------------
+# ROOT (public landing on tisplatform.com, app login elsewhere)
+# ---------------------------------------
+@app.get("/", response_class=HTMLResponse)
+def read_root(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    if _is_public_landing_host(request):
+        return templates.TemplateResponse(
+            request,
+            "landing.html",
+            {"request": request},
+        )
+
+    return _render_login_entrypoint(request=request, db=db)
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    return _render_login_entrypoint(request=request, db=db)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
