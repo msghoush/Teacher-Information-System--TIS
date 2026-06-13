@@ -8,6 +8,7 @@ from sqlalchemy import inspect, text, func
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+import csv
 import html
 import io
 import json
@@ -20,7 +21,7 @@ import smtplib
 import ssl
 import time
 from typing import Optional, Any
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlencode
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, PieChart, Reference
 from openpyxl.formatting.rule import DataBarRule
@@ -116,6 +117,13 @@ DEMO_REQUEST_FIELDS = (
     ("branches", "Number of Branches"),
     ("interested_plan", "Interested Plan"),
     ("message", "Message"),
+)
+DEMO_REQUEST_STATUSES = (
+    "New",
+    "Contacted",
+    "Demo Scheduled",
+    "Converted",
+    "Not a Fit",
 )
 
 
@@ -8253,6 +8261,29 @@ def _build_demo_email_body(demo_fields: dict[str, str], request: Request) -> str
     return "\n".join(lines)
 
 
+def _create_demo_request_record(db: Session, demo_fields: dict[str, str], request: Request):
+    demo_request = models.DemoRequest(
+        school_name=demo_fields.get("school_name", ""),
+        full_name=demo_fields.get("full_name", ""),
+        email=demo_fields.get("email", ""),
+        phone=demo_fields.get("phone", ""),
+        country=demo_fields.get("country", ""),
+        school_type=demo_fields.get("school_type", ""),
+        number_of_teachers=demo_fields.get("teachers", ""),
+        number_of_students=demo_fields.get("students", ""),
+        number_of_branches=demo_fields.get("branches", ""),
+        interested_plan=demo_fields.get("interested_plan", ""),
+        message=demo_fields.get("message", ""),
+        status=DEMO_REQUEST_STATUSES[0],
+        source_host=_request_hostname(request),
+        source_ip=str(getattr(getattr(request, "client", None), "host", "") or ""),
+    )
+    db.add(demo_request)
+    db.commit()
+    db.refresh(demo_request)
+    return demo_request
+
+
 def _send_demo_request_email(demo_fields: dict[str, str], request: Request) -> None:
     smtp_host = str(os.getenv("TIS_SMTP_HOST") or "").strip()
     if not smtp_host:
@@ -8298,7 +8329,10 @@ def _send_demo_request_email(demo_fields: dict[str, str], request: Request) -> N
 
 
 @app.post("/request-demo")
-async def submit_demo_request(request: Request):
+async def submit_demo_request(
+    request: Request,
+    db: Session = Depends(get_db),
+):
     try:
         form_data = await request.form()
     except Exception:
@@ -8328,10 +8362,11 @@ async def submit_demo_request(request: Request):
         )
 
     try:
-        _send_demo_request_email(demo_fields, request)
+        demo_request = _create_demo_request_record(db, demo_fields, request)
     except Exception as exc:
+        db.rollback()
         logging.error(
-            "TIS landing demo request email failed host=%s school=%s email=%s: %s",
+            "TIS landing demo request save failed host=%s school=%s email=%s: %s",
             _request_hostname(request),
             demo_fields.get("school_name"),
             demo_fields.get("email"),
@@ -8343,14 +8378,28 @@ async def submit_demo_request(request: Request):
             content={
                 "ok": False,
                 "message": (
-                    "We could not send the request right now. "
+                    "We could not save the request right now. "
                     "Please email info@tisplatform.com directly."
                 ),
             },
         )
 
+    try:
+        _send_demo_request_email(demo_fields, request)
+    except Exception as exc:
+        logging.warning(
+            "TIS landing demo request saved id=%s but email failed host=%s school=%s email=%s: %s",
+            demo_request.id,
+            _request_hostname(request),
+            demo_fields.get("school_name"),
+            demo_fields.get("email"),
+            exc,
+            exc_info=True,
+        )
+
     logging.info(
-        "TIS landing demo request sent host=%s school=%s email=%s plan=%s",
+        "TIS landing demo request saved id=%s host=%s school=%s email=%s plan=%s",
+        demo_request.id,
         _request_hostname(request),
         demo_fields.get("school_name"),
         demo_fields.get("email"),
@@ -8360,7 +8409,7 @@ async def submit_demo_request(request: Request):
         content={
             "ok": True,
             "message": (
-                "Thank you. Your demo request has been sent to the TIS team. "
+                "Thank you. Your demo request has been received by the TIS team. "
                 "We will contact you shortly."
             ),
         }
@@ -9891,6 +9940,261 @@ def download_audit_log(
         f"attachment; filename={audit_log_path.name}"
     )
     return response
+
+
+# ---------------------------------------
+# PLATFORM: DEMO REQUESTS
+# ---------------------------------------
+def _get_demo_requests_access(request: Request, db: Session):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return None, RedirectResponse(url="/", status_code=302)
+    if not auth.can_manage_system_settings(current_user):
+        return None, RedirectResponse(url="/dashboard", status_code=302)
+    return current_user, None
+
+
+def _normalize_demo_request_status(status: str) -> str:
+    cleaned_status = str(status or "").strip()
+    for option in DEMO_REQUEST_STATUSES:
+        if cleaned_status.lower() == option.lower():
+            return option
+    return DEMO_REQUEST_STATUSES[0]
+
+
+def _demo_request_filters(request: Request) -> dict:
+    return {
+        "school_name": str(request.query_params.get("school_name", "") or "").strip(),
+        "email": str(request.query_params.get("email", "") or "").strip(),
+        "interested_plan": str(request.query_params.get("interested_plan", "") or "").strip(),
+        "status": str(request.query_params.get("status", "") or "").strip(),
+    }
+
+
+def _apply_demo_request_filters(query, filters: dict):
+    school_name = filters.get("school_name", "")
+    email = filters.get("email", "")
+    interested_plan = filters.get("interested_plan", "")
+    status = filters.get("status", "")
+
+    if school_name:
+        query = query.filter(models.DemoRequest.school_name.ilike(f"%{school_name}%"))
+    if email:
+        query = query.filter(models.DemoRequest.email.ilike(f"%{email}%"))
+    if interested_plan:
+        query = query.filter(models.DemoRequest.interested_plan == interested_plan)
+    if status:
+        query = query.filter(models.DemoRequest.status == _normalize_demo_request_status(status))
+    return query
+
+
+def _demo_request_filter_query_string(filters: dict) -> str:
+    return urlencode(
+        {
+            key: value
+            for key, value in filters.items()
+            if str(value or "").strip()
+        }
+    )
+
+
+def _demo_request_status_counts(db: Session) -> dict[str, int]:
+    counts = {status: 0 for status in DEMO_REQUEST_STATUSES}
+    rows = (
+        db.query(models.DemoRequest.status, func.count(models.DemoRequest.id))
+        .group_by(models.DemoRequest.status)
+        .all()
+    )
+    for status, count in rows:
+        counts[_normalize_demo_request_status(status)] = int(count or 0)
+    return counts
+
+
+def _demo_request_export_filename() -> str:
+    return f"demo_requests_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+
+
+def _write_demo_requests_csv(rows) -> bytes:
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "Submitted At",
+            "School Name",
+            "Full Name",
+            "Email",
+            "Phone",
+            "Country",
+            "School Type",
+            "Number of Teachers",
+            "Number of Students",
+            "Number of Branches",
+            "Interested Plan",
+            "Status",
+            "Message",
+        ]
+    )
+    for row in rows:
+        writer.writerow(
+            [
+                _format_notification_timestamp(row.submitted_at, ""),
+                row.school_name or "",
+                row.full_name or "",
+                row.email or "",
+                row.phone or "",
+                row.country or "",
+                row.school_type or "",
+                row.number_of_teachers or "",
+                row.number_of_students or "",
+                row.number_of_branches or "",
+                row.interested_plan or "",
+                row.status or "",
+                row.message or "",
+            ]
+        )
+    return output.getvalue().encode("utf-8-sig")
+
+
+@app.get("/demo-requests", response_class=HTMLResponse)
+def list_demo_requests(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_demo_requests_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    filters = _demo_request_filters(request)
+    query = db.query(models.DemoRequest)
+    filtered_query = _apply_demo_request_filters(query, filters)
+    demo_requests = (
+        filtered_query
+        .order_by(models.DemoRequest.submitted_at.desc(), models.DemoRequest.id.desc())
+        .all()
+    )
+    filter_query_string = _demo_request_filter_query_string(filters)
+    export_url = "/demo-requests/export"
+    if filter_query_string:
+        export_url = f"{export_url}?{filter_query_string}"
+    return_to = str(request.url.path)
+    if request.url.query:
+        return_to = f"{return_to}?{request.url.query}"
+
+    return templates.TemplateResponse(
+        request,
+        "demo_requests.html",
+        {
+            "request": request,
+            "demo_requests": demo_requests,
+            "filters": filters,
+            "status_options": DEMO_REQUEST_STATUSES,
+            "status_counts": _demo_request_status_counts(db),
+            "export_url": export_url,
+            "return_to": return_to,
+            "format_timestamp": _format_notification_timestamp,
+            "timestamp_iso": _notification_timestamp_iso,
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="demo-requests",
+            ),
+        },
+    )
+
+
+@app.get("/demo-requests/export")
+def export_demo_requests(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_demo_requests_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    filters = _demo_request_filters(request)
+    rows = (
+        _apply_demo_request_filters(db.query(models.DemoRequest), filters)
+        .order_by(models.DemoRequest.submitted_at.desc(), models.DemoRequest.id.desc())
+        .all()
+    )
+    payload = _write_demo_requests_csv(rows)
+    response = StreamingResponse(
+        iter([payload]),
+        media_type="text/csv",
+    )
+    response.headers["Content-Disposition"] = (
+        f'attachment; filename="{_demo_request_export_filename()}"'
+    )
+    return response
+
+
+@app.get("/demo-requests/{demo_request_id}", response_class=HTMLResponse)
+def view_demo_request(
+    demo_request_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_demo_requests_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    demo_request = db.query(models.DemoRequest).filter(
+        models.DemoRequest.id == demo_request_id
+    ).first()
+    if not demo_request:
+        return RedirectResponse(url="/demo-requests?notice=Demo%20request%20not%20found.", status_code=302)
+
+    return templates.TemplateResponse(
+        request,
+        "demo_request_detail.html",
+        {
+            "request": request,
+            "demo_request": demo_request,
+            "status_options": DEMO_REQUEST_STATUSES,
+            "return_to": f"/demo-requests/{demo_request.id}",
+            "format_timestamp": _format_notification_timestamp,
+            "timestamp_iso": _notification_timestamp_iso,
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="demo-requests",
+                title="Demo Request Detail",
+                intro="Review the submitted marketing lead and update its follow-up status.",
+            ),
+        },
+    )
+
+
+@app.post("/demo-requests/{demo_request_id}/status")
+def update_demo_request_status(
+    demo_request_id: int,
+    request: Request,
+    status: str = Form(...),
+    return_to: str = Form("/demo-requests"),
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_demo_requests_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    demo_request = db.query(models.DemoRequest).filter(
+        models.DemoRequest.id == demo_request_id
+    ).first()
+    if not demo_request:
+        return _redirect_with_notice("/demo-requests", "Demo request not found.")
+
+    demo_request.status = _normalize_demo_request_status(status)
+    demo_request.status_updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    demo_request.status_updated_by_user_id = getattr(current_user, "user_id", "")
+    demo_request.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.commit()
+
+    safe_return_to = str(return_to or "/demo-requests").strip()
+    if not safe_return_to.startswith("/demo-requests"):
+        safe_return_to = "/demo-requests"
+    return _redirect_with_notice(safe_return_to, "Demo request status updated.")
 
 
 # ---------------------------------------

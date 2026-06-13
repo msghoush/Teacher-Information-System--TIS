@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Demo Requests | TIS{% endblock %}
+
+{% block page_header_actions %}
+<a class="shell-action" href="{{ export_url }}">{{ icon("download", "shell-icon") }} Export CSV</a>
+{% endblock %}
+
+{% block page_styles %}
+<style>
+.demo-requests-page { display: grid; gap: 14px; }
+.lead-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.lead-stat { border: 1px solid var(--app-line); border-radius: 8px; background: #fff; padding: 13px; box-shadow: 0 8px 20px rgba(15, 23, 42, .04); }
+.lead-stat span { display: block; color: var(--app-muted); font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.lead-stat strong { display: block; margin-top: 6px; color: var(--app-ink); font-size: 22px; }
+.lead-panel { border: 1px solid var(--app-line); border-radius: 8px; background: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .05); }
+.lead-filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 14px; align-items: end; }
+.field { display: grid; gap: 6px; }
+.field label { color: #48607f; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.field input, .field select { width: 100%; min-width: 0; border: 1px solid #c6d4e8; border-radius: 8px; padding: 9px 10px; color: #1f2737; background: #fff; }
+.filter-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.action-btn { min-height: 36px; border: 1px solid transparent; border-radius: 8px; padding: 8px 12px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 900; cursor: pointer; text-decoration: none; font-size: 13px; }
+.action-btn-primary { background: var(--app-brand); color: #fff; }
+.action-btn-secondary { border-color: #c6d4e8; background: #fff; color: #1f2737; }
+.table-wrap { overflow-x: auto; border-top: 1px solid var(--app-line); }
+.lead-table { width: 100%; min-width: 1320px; border-collapse: collapse; }
+.lead-table th, .lead-table td { padding: 10px; border-bottom: 1px solid #e3ebf6; text-align: left; vertical-align: middle; }
+.lead-table th { color: #48607f; font-size: 10px; text-transform: uppercase; white-space: nowrap; }
+.lead-table td { color: #1f2737; font-size: 13px; }
+.muted { color: var(--app-muted); }
+.status-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 26px; padding: 4px 9px; border-radius: 999px; background: #eef4fb; color: #48607f; font-size: 11px; font-weight: 900; white-space: nowrap; }
+.status-pill.is-new { background: #fff1cc; color: #7a4b00; }
+.status-pill.is-contacted { background: #edf4ff; color: #17365d; }
+.status-pill.is-demo-scheduled { background: #eefdf8; color: #047857; }
+.status-pill.is-converted { background: #ecfdf3; color: #027a48; }
+.status-pill.is-not-a-fit { background: #f1f5f9; color: #64748b; }
+.status-form { display: flex; align-items: center; gap: 7px; min-width: 230px; }
+.status-form select { min-width: 136px; border: 1px solid #c6d4e8; border-radius: 8px; padding: 7px 8px; background: #fff; color: #1f2737; font-size: 12px; }
+.empty-row td { padding: 28px; text-align: center; color: var(--app-muted); font-weight: 800; background: #fbfdff; }
+.lead-link { color: var(--app-brand); font-weight: 900; text-decoration: none; }
+.lead-link:hover { text-decoration: underline; }
+@media (max-width: 1050px) { .lead-summary, .lead-filters { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 680px) { .lead-summary, .lead-filters { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="demo-requests-page">
+    <div class="lead-summary" aria-label="Demo request status summary">
+        {% for status in status_options %}
+        <article class="lead-stat">
+            <span>{{ status }}</span>
+            <strong>{{ status_counts.get(status, 0) }}</strong>
+        </article>
+        {% endfor %}
+    </div>
+
+    <section class="lead-panel">
+        <form class="lead-filters" method="get" action="/demo-requests">
+            <div class="field">
+                <label for="filter_school_name">School Name</label>
+                <input id="filter_school_name" name="school_name" value="{{ filters.school_name }}" placeholder="Search school">
+            </div>
+            <div class="field">
+                <label for="filter_email">Email</label>
+                <input id="filter_email" name="email" value="{{ filters.email }}" placeholder="Search email">
+            </div>
+            <div class="field">
+                <label for="filter_plan">Interested Plan</label>
+                <select id="filter_plan" name="interested_plan">
+                    <option value="">All plans</option>
+                    {% for plan in ["Starter", "Professional", "Enterprise", "Not sure yet"] %}
+                    <option value="{{ plan }}" {% if filters.interested_plan == plan %}selected{% endif %}>{{ plan }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field">
+                <label for="filter_status">Status</label>
+                <select id="filter_status" name="status">
+                    <option value="">All statuses</option>
+                    {% for status in status_options %}
+                    <option value="{{ status }}" {% if filters.status == status %}selected{% endif %}>{{ status }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button class="action-btn action-btn-primary" type="submit">{{ icon("search", "icon") }} Filter</button>
+                <a class="action-btn action-btn-secondary" href="/demo-requests">{{ icon("clear", "icon") }} Clear</a>
+            </div>
+        </form>
+
+        <div class="table-wrap">
+            <table class="lead-table">
+                <thead>
+                    <tr>
+                        <th>Submitted At</th>
+                        <th>School Name</th>
+                        <th>Full Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Country</th>
+                        <th>School Type</th>
+                        <th>Number of Teachers</th>
+                        <th>Number of Students</th>
+                        <th>Number of Branches</th>
+                        <th>Interested Plan</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in demo_requests %}
+                    <tr>
+                        <td><time data-tis-local-time data-utc-timestamp="{{ timestamp_iso(item.submitted_at) }}">{{ format_timestamp(item.submitted_at, "Unknown") }}</time></td>
+                        <td><a class="lead-link" href="/demo-requests/{{ item.id }}">{{ item.school_name or "-" }}</a></td>
+                        <td>{{ item.full_name or "-" }}</td>
+                        <td><a class="lead-link" href="mailto:{{ item.email }}">{{ item.email or "-" }}</a></td>
+                        <td>{{ item.phone or "-" }}</td>
+                        <td>{{ item.country or "-" }}</td>
+                        <td>{{ item.school_type or "-" }}</td>
+                        <td>{{ item.number_of_teachers or "-" }}</td>
+                        <td>{{ item.number_of_students or "-" }}</td>
+                        <td>{{ item.number_of_branches or "-" }}</td>
+                        <td>{{ item.interested_plan or "-" }}</td>
+                        <td><span class="status-pill is-{{ (item.status or 'New')|lower|replace(' ', '-') }}">{{ item.status or "New" }}</span></td>
+                        <td>
+                            <form class="status-form" method="post" action="/demo-requests/{{ item.id }}/status">
+                                <input type="hidden" name="return_to" value="{{ return_to }}">
+                                <select name="status" aria-label="Update status for {{ item.school_name or 'demo request' }}">
+                                    {% for status in status_options %}
+                                    <option value="{{ status }}" {% if (item.status or "New") == status %}selected{% endif %}>{{ status }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button class="action-btn action-btn-secondary" type="submit">{{ icon("save", "icon") }} Save</button>
+                                <a class="action-btn action-btn-primary" href="/demo-requests/{{ item.id }}">{{ icon("eye", "icon") }} View</a>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr class="empty-row">
+                        <td colspan="13">No demo requests match the current filters.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</section>
+{% endblock %}

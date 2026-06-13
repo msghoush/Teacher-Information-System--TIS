@@ -135,6 +135,36 @@ class SystemNotification(Base):
     requester_archived_by_user_id = Column(String(10))
 
 
+class DemoRequest(Base):
+    __tablename__ = "demo_requests"
+    __table_args__ = (
+        Index("ix_demo_requests_submitted_at", "submitted_at"),
+        Index("ix_demo_requests_status", "status"),
+        Index("ix_demo_requests_interested_plan", "interested_plan"),
+        Index("ix_demo_requests_email", "email"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    submitted_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    school_name = Column(String(180), nullable=False, default="")
+    full_name = Column(String(160), nullable=False, default="")
+    email = Column(String(180), nullable=False, default="")
+    phone = Column(String(80), nullable=False, default="")
+    country = Column(String(120), nullable=False, default="")
+    school_type = Column(String(120), nullable=False, default="")
+    number_of_teachers = Column(String(40), nullable=False, default="")
+    number_of_students = Column(String(40), nullable=False, default="")
+    number_of_branches = Column(String(40), nullable=False, default="")
+    interested_plan = Column(String(80), nullable=False, default="")
+    message = Column(Text, nullable=False, default="")
+    status = Column(String(40), nullable=False, default="New")
+    source_host = Column(String(180), nullable=False, default="")
+    source_ip = Column(String(80), nullable=False, default="")
+    status_updated_at = Column(DateTime)
+    status_updated_by_user_id = Column(String(10))
+
+
 class CalendarEventType(Base):
     __tablename__ = "calendar_event_types"
     __table_args__ = (
