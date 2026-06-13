@@ -70,10 +70,10 @@
                             </a>
                             <a href="https://app.tisplatform.com/login" class="btn btn-soft focus-ring">Go to App Portal</a>
                         </div>
-                        <div class="hero-metrics" aria-label="Platform highlights">
-                            <div><strong>240h</strong><span>weekly demand visible</span></div>
-                            <div><strong>72h</strong><span>uncovered load surfaced</span></div>
-                            <div><strong>3</strong><span>hiring blocks suggested</span></div>
+                        <div class="hero-proof" aria-label="Platform highlights">
+                            <span><svg class="icon icon-small" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Teacher planning</span>
+                            <span><svg class="icon icon-small" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Staffing forecasting</span>
+                            <span><svg class="icon icon-small" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Leadership reporting</span>
                         </div>
                     </div>
 
@@ -84,7 +84,7 @@
                             <span class="window-dot dot-teal"></span>
                             <span class="shot-title">Reports &amp; Insights</span>
                         </div>
-                        <img src="{{ url_for('landing_public', path='screenshots/7.png') }}" alt="TIS executive dashboard showing coverage, staffing plan, and uncovered hours" width="1550" height="660">
+                        <img src="{{ url_for('landing_public', path='screenshots/7.png') }}" alt="TIS executive dashboard product preview" width="1550" height="660">
                     </figure>
                 </div>
 
@@ -111,18 +111,17 @@
                     </div>
                 </div>
 
-                <div class="problem-visuals">
-                    <figure class="screenshot-frame privacy-mask mask-coverage-gap">
-                        <div class="shot-topbar"><span class="shot-title">Coverage gap detail</span></div>
-                        <img src="{{ url_for('landing_public', path='screenshots/2.png') }}" alt="Masked coverage gap analysis screenshot" width="1510" height="559">
-                        <span class="privacy-block gap-chip"></span>
-                        <span class="privacy-block gap-teacher"></span>
-                        <span class="privacy-note">Private teacher details masked</span>
-                    </figure>
-                    <figure class="screenshot-frame strip-shot privacy-soft">
-                        <img src="{{ url_for('landing_public', path='screenshots/3.png') }}" alt="Blurred subject coverage list screenshot" width="1519" height="531">
-                        <span class="privacy-note">Identity details obscured</span>
-                    </figure>
+                <div class="problem-outcome-panel">
+                    <article>
+                        <span>Before TIS</span>
+                        <h3>Planning depends on scattered files</h3>
+                        <p>Academic teams manually compare teacher lists, subject needs, workload capacity, observations, and branch context.</p>
+                    </article>
+                    <article>
+                        <span>With TIS</span>
+                        <h3>Leaders see the operating picture</h3>
+                        <p>Staffing needs, allocations, academic workflows, and planning decisions become organized in one leadership platform.</p>
+                    </article>
                 </div>
             </div>
         </section>
@@ -153,16 +152,10 @@
                     </article>
                 </div>
 
-                <div class="solution-gallery">
-                    <figure class="screenshot-frame">
-                        <img src="{{ url_for('landing_public', path='screenshots/10.png') }}" alt="TIS planning table with sections, assignments, and allocated hours" width="1586" height="562">
-                    </figure>
-                    <figure class="screenshot-frame">
-                        <img src="{{ url_for('landing_public', path='screenshots/8.png') }}" alt="TIS subject catalog organized by grade, code, weekly hours, and actions" width="881" height="880">
-                    </figure>
-                    <figure class="screenshot-frame">
-                        <img src="{{ url_for('landing_public', path='screenshots/12.png') }}" alt="TIS academic calendar with month events panel" width="1587" height="626">
-                    </figure>
+                <div class="solution-outcomes">
+                    <span>Plan staffing before shortages become urgent</span>
+                    <span>Coordinate academic workflows across roles</span>
+                    <span>Prepare leadership reports without manual consolidation</span>
                 </div>
             </div>
         </section>
@@ -174,75 +167,40 @@
                         <div class="section-label"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-bar-chart"></use></svg>Product</div>
                         <h2>Show the work, not another spreadsheet.</h2>
                     </div>
-                    <p>TIS is built around real academic operations: teachers, subjects, planning tables, reports, observations, calendars, user workflows, and staffing analysis.</p>
+                    <p>Selected product previews show the most visual parts of the platform without overwhelming visitors with internal tables or private operational details.</p>
                 </div>
 
-                <div class="feature-showcase-grid">
+                <div class="feature-showcase-grid curated-showcase-grid">
                     <article class="feature-showcase-card large-card">
                         <div class="feature-card-copy">
-                            <span>Teacher Management</span>
-                            <h3>Review staff load, coverage, and capacity in one view.</h3>
-                            <p>Leadership can see utilization, subject assignments, and planning readiness without chasing manual files.</p>
+                            <span>Planning</span>
+                            <h3>Turn academic planning into a clear operating workflow.</h3>
+                            <p>Use section planning and assignment visibility to understand workload needs before the year becomes reactive.</p>
                         </div>
-                        <figure class="screenshot-frame privacy-mask mask-teachers">
-                            <img src="{{ url_for('landing_public', path='screenshots/6.png') }}" alt="Masked Teachers Workspace screenshot" width="1552" height="869">
-                            <span class="privacy-block teachers-list"></span>
-                            <span class="privacy-note">Teacher names and IDs masked</span>
+                        <figure class="screenshot-frame product-art">
+                            <img src="{{ url_for('landing_public', path='screenshots/10.png') }}" alt="TIS planning table product preview" width="1586" height="562">
                         </figure>
                     </article>
 
                     <article class="feature-showcase-card">
                         <div class="feature-card-copy">
-                            <span>Reports</span>
-                            <h3>Turn coverage analysis into leadership decisions.</h3>
-                            <p>Coverage, uncovered hours, sections, and subject-level status become easier to compare.</p>
+                            <span>Subject Allocation</span>
+                            <h3>Keep subject structure organized by grade and workload.</h3>
+                            <p>Color-coded subject records help teams maintain a clean view of academic requirements.</p>
                         </div>
-                        <figure class="screenshot-frame privacy-mask mask-reports">
-                            <img src="{{ url_for('landing_public', path='screenshots/4.png') }}" alt="Masked report coverage screenshot" width="1469" height="816">
-                            <span class="privacy-block report-chip"></span>
-                            <span class="privacy-block report-teacher-card"></span>
-                            <span class="privacy-block report-row-one"></span>
-                            <span class="privacy-block report-row-two"></span>
-                            <span class="privacy-block report-row-three"></span>
-                            <span class="privacy-note">Personal details masked</span>
+                        <figure class="screenshot-frame product-art product-art-tall">
+                            <img src="{{ url_for('landing_public', path='screenshots/8.png') }}" alt="TIS subject catalog product preview" width="881" height="880">
                         </figure>
                     </article>
 
                     <article class="feature-showcase-card">
                         <div class="feature-card-copy">
-                            <span>Timetable</span>
-                            <h3>Connect timetable pressure to staffing readiness.</h3>
-                            <p>See where teaching slots are scheduled, ready to place, or still missing assignments.</p>
+                            <span>Academic Calendar</span>
+                            <h3>Coordinate events around the academic year.</h3>
+                            <p>Give leadership teams a shared calendar view for school operations and academic planning.</p>
                         </div>
-                        <figure class="screenshot-frame privacy-soft">
-                            <img src="{{ url_for('landing_public', path='screenshots/11.png') }}" alt="Blurred timetable planning screenshot" width="1570" height="894">
-                            <span class="privacy-note">Teacher names obscured</span>
-                        </figure>
-                    </article>
-
-                    <article class="feature-showcase-card">
-                        <div class="feature-card-copy">
-                            <span>Staffing Analysis</span>
-                            <h3>Combine workload and observation signals.</h3>
-                            <p>Use capacity snapshots and performance indicators to support the right follow-up decisions.</p>
-                        </div>
-                        <figure class="screenshot-frame privacy-mask mask-staffing">
-                            <img src="{{ url_for('landing_public', path='screenshots/9.png') }}" alt="Masked staffing analysis row screenshot" width="1563" height="236">
-                            <span class="privacy-block staffing-identity"></span>
-                            <span class="privacy-note">Identity details masked</span>
-                        </figure>
-                    </article>
-
-                    <article class="feature-showcase-card">
-                        <div class="feature-card-copy">
-                            <span>Observations</span>
-                            <h3>Keep academic supervision visible.</h3>
-                            <p>Observation records, scores, and status tracking give leaders a cleaner supervision history.</p>
-                        </div>
-                        <figure class="screenshot-frame privacy-mask mask-observations">
-                            <img src="{{ url_for('landing_public', path='screenshots/13.png') }}" alt="Masked observation history screenshot" width="1601" height="370">
-                            <span class="privacy-block observation-evaluator"></span>
-                            <span class="privacy-note">Evaluator names masked</span>
+                        <figure class="screenshot-frame product-art">
+                            <img src="{{ url_for('landing_public', path='screenshots/12.png') }}" alt="TIS academic calendar product preview" width="1587" height="626">
                         </figure>
                     </article>
                 </div>
@@ -274,44 +232,80 @@
             <div class="section-shell">
                 <div class="section-heading center-heading">
                     <div class="section-label"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-bar-chart"></use></svg>Pricing</div>
-                    <h2>Subscription-ready plans for different school operating models.</h2>
-                    <p>Plans are placeholders while onboarding and subscription packaging are finalized.</p>
+                    <h2>Choose the operating layer your school needs today, and grow toward academic intelligence.</h2>
+                    <p>No prices are shown yet. Plans are structured for future subscription checkout and onboarding workflows.</p>
                 </div>
 
                 <div class="pricing-grid">
                     <article class="pricing-card">
                         <div class="plan-kicker">Starter</div>
-                        <h3>Single School</h3>
-                        <p>For schools moving teacher records and core planning out of scattered spreadsheets.</p>
-                        <ul class="highlight-list">
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Teacher profiles</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Subject planning</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Core reports</li>
+                        <h3>Starter</h3>
+                        <p class="plan-recommended">Recommended for single schools that want to organize teacher data and automate staffing planning.</p>
+                        <ul class="plan-feature-list">
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Teacher Information Management</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Teacher Qualifications &amp; Profiles</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Subject Management</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Subject Assignment</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Smart Teacher Allocation</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Teacher Workload Planning</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Staffing Gap Identification</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Hiring Forecasting</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Teacher Capacity Analysis</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Coverage &amp; Uncovered Hours Reports</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Planning Dashboard</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Executive Staffing Reports</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Branch &amp; Academic Year Structure</li>
                         </ul>
-                        <a href="#request-demo" class="btn btn-outline focus-ring">Request Starter</a>
+                        <div class="plan-value">Know exactly how many teachers you need, where shortages exist, and how teaching loads are distributed.</div>
+                        <a href="#request-demo" class="btn btn-outline focus-ring">Request a Demo</a>
                     </article>
+
                     <article class="pricing-card featured-plan">
-                        <div class="plan-badge">Most aligned</div>
+                        <div class="plan-badge">Most popular</div>
                         <div class="plan-kicker">Professional</div>
-                        <h3>Growing School</h3>
-                        <p>For academic leaders who need workload, staffing, observations, and planning visibility.</p>
-                        <ul class="highlight-list">
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Workload planning</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Staffing insights</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Academic operations</li>
+                        <h3>Professional</h3>
+                        <p class="plan-recommended">Recommended for schools that require operational coordination between academic leadership teams and teachers.</p>
+                        <div class="plan-includes">Includes everything in Starter, plus:</div>
+                        <ul class="plan-feature-list">
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Academic Calendar Management</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Academic Observations System</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Classroom Observation Records</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Observation Follow-Up Workflow</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Leadership Feedback Tracking</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Notification Center</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Teacher Notification System</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Supervisor Communication Tools</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Academic Action Tracking</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>School Operations Dashboard</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Observation Analytics</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Multi-Department Coordination</li>
                         </ul>
-                        <a href="#request-demo" class="btn btn-primary focus-ring">Request Professional</a>
+                        <div class="plan-value">Move beyond planning and manage the daily academic leadership workflow across your school.</div>
+                        <a href="#request-demo" class="btn btn-primary focus-ring">Request a Demo</a>
                     </article>
+
                     <article class="pricing-card">
                         <div class="plan-kicker">Enterprise</div>
-                        <h3>Multi-Branch Group</h3>
-                        <p>For school groups that need governance, role control, branch support, and onboarding.</p>
-                        <ul class="highlight-list">
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Multi-branch oversight</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Advanced access control</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Onboarding support</li>
+                        <h3>Enterprise</h3>
+                        <p class="plan-recommended">Recommended for school groups and organizations seeking advanced academic intelligence and AI-supported leadership decisions.</p>
+                        <div class="plan-includes">Includes everything in Professional, plus:</div>
+                        <ul class="plan-feature-list">
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-brain"></use></svg>TIS AI Academic Assistant <span class="soon-badge">Coming Soon</span></li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-file-search"></use></svg>AI Exam Analysis <span class="soon-badge">Coming Soon</span></li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-target"></use></svg>AI Assessment Quality Review <span class="soon-badge">Coming Soon</span></li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-route"></use></svg>Curriculum Alignment Analysis <span class="soon-badge">Coming Soon</span></li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-user-check"></use></svg>Academic Supervision Intelligence <span class="soon-badge">Coming Soon</span></li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-message"></use></svg>AI Coaching Recommendations <span class="soon-badge">Coming Soon</span></li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-line-chart"></use></svg>School Performance Insights <span class="soon-badge">Coming Soon</span></li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-clipboard"></use></svg>AI Action Plan Generation <span class="soon-badge">Coming Soon</span></li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-shield"></use></svg>Academic Risk Detection <span class="soon-badge">Coming Soon</span></li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Leadership Decision Support</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-building"></use></svg>Multi-Branch Executive Analytics</li>
+                            <li><svg class="icon" aria-hidden="true"><use href="#icon-lock"></use></svg>Advanced Governance Tools</li>
                         </ul>
-                        <a href="#request-demo" class="btn btn-outline focus-ring">Request Enterprise</a>
+                        <div class="future-ai-note">Future AI Vision: designed specifically for academic leaders, not as a generic chatbot. TIS AI helps transform operational school data into actionable academic decisions.</div>
+                        <div class="plan-value">Turn school data into academic intelligence and leadership action.</div>
+                        <a href="#request-demo" class="btn btn-outline focus-ring">Contact Sales</a>
                     </article>
                 </div>
             </div>
@@ -323,15 +317,10 @@
                     <div class="section-label"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-user-cog"></use></svg>Demo Request</div>
                     <h2>See TIS with your school planning workflow in mind.</h2>
                     <p>Share your operating context and the TIS team can recommend the right walkthrough: teacher planning, branch visibility, observations, staffing analysis, or the AI roadmap.</p>
-                    <div class="portal-preview-grid">
-                        <figure class="screenshot-frame portal-shot">
-                            <img src="{{ url_for('landing_public', path='screenshots/1.png') }}" alt="TIS app portal login screen" width="830" height="455">
-                        </figure>
-                        <figure class="screenshot-frame privacy-mask mask-notifications">
-                            <img src="{{ url_for('landing_public', path='screenshots/14.png') }}" alt="Masked TIS notification workflow screenshot" width="751" height="682">
-                            <span class="privacy-block notification-names"></span>
-                            <span class="privacy-note">Sender names masked</span>
-                        </figure>
+                    <div class="demo-benefit-list">
+                        <article><strong>Planning walkthrough</strong><span>See teacher workload, allocation, and staffing forecasting workflows.</span></article>
+                        <article><strong>Operations walkthrough</strong><span>Review observations, calendar coordination, and leadership communication.</span></article>
+                        <article><strong>AI roadmap discussion</strong><span>Explore how future academic intelligence can support your leadership team.</span></article>
                     </div>
                 </div>
 
