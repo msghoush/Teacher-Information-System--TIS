@@ -930,6 +930,54 @@ body.landing-page {
     line-height: 1.15;
 }
 
+.plan-price-block {
+    margin-top: 16px;
+    border: 1px solid #dbe5ee;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #ffffff 0%, #f5fafc 100%);
+    padding: 16px;
+}
+
+.featured-plan .plan-price-block {
+    border-color: rgba(22, 138, 136, 0.30);
+    background: linear-gradient(180deg, #f8fffd 0%, #edf9f5 100%);
+}
+
+.enterprise-price {
+    background: linear-gradient(180deg, #f8fbff 0%, #f1f6fb 100%);
+}
+
+.price-line,
+.price-alt {
+    display: block;
+}
+
+.price-line {
+    color: var(--landing-ink);
+    font-size: 14px;
+    line-height: 1.35;
+    font-weight: 850;
+}
+
+.price-line strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 30px;
+    line-height: 1.08;
+    font-weight: 950;
+}
+
+.price-alt {
+    margin-top: 8px;
+    color: var(--landing-slate);
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.featured-plan .price-line strong {
+    color: var(--landing-ocean);
+}
+
 .pricing-card > p,
 .plan-recommended {
     margin: 14px 0 0;

@@ -7,7 +7,7 @@
     <meta name="description" content="TIS Platform helps school leadership teams manage teacher information, workload planning, subject allocation, observations, calendars, staffing analysis, and academic operations.">
     <link rel="icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <link rel="stylesheet" href="{{ url_for('static', path='landing/landing.css') }}?v=20260613c">
+    <link rel="stylesheet" href="{{ url_for('static', path='landing/landing.css') }}?v=20260613d">
 </head>
 <body class="landing-page">
     <svg class="sr-only" aria-hidden="true" focusable="false">
@@ -247,13 +247,17 @@
                 <div class="section-heading center-heading">
                     <div class="section-label"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-bar-chart"></use></svg>Pricing</div>
                     <h2>Choose the operating layer your school needs today, and grow toward academic intelligence.</h2>
-                    <p>No prices are shown yet. Plans are structured for future subscription checkout and onboarding workflows.</p>
+                    <p>Prices are shown for marketing purposes and plan comparison only.</p>
                 </div>
 
                 <div class="pricing-grid">
                     <article class="pricing-card">
                         <div class="plan-kicker">Starter</div>
                         <h3>Starter</h3>
+                        <div class="plan-price-block" aria-label="Starter pricing">
+                            <span class="price-line">Starting from <strong>$49/month</strong></span>
+                            <span class="price-alt">or $490/year</span>
+                        </div>
                         <p class="plan-recommended">Recommended for single schools that want to organize teacher data and automate staffing planning.</p>
                         <ul class="plan-feature-list">
                             <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-users"></use></svg><span>Teacher Information Management</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
@@ -278,6 +282,10 @@
                         <div class="plan-badge">Most popular</div>
                         <div class="plan-kicker">Professional</div>
                         <h3>Professional</h3>
+                        <div class="plan-price-block" aria-label="Professional pricing">
+                            <span class="price-line">Starting from <strong>$99/month</strong></span>
+                            <span class="price-alt">or $990/year</span>
+                        </div>
                         <p class="plan-recommended">Recommended for schools that require operational coordination between academic leadership teams and teachers.</p>
                         <div class="plan-includes">Includes everything in Starter, plus:</div>
                         <ul class="plan-feature-list">
@@ -301,6 +309,10 @@
                     <article class="pricing-card">
                         <div class="plan-kicker">Enterprise</div>
                         <h3>Enterprise</h3>
+                        <div class="plan-price-block enterprise-price" aria-label="Enterprise pricing">
+                            <span class="price-line"><strong>Contact Sales</strong></span>
+                            <span class="price-alt">Custom school group rollout</span>
+                        </div>
                         <p class="plan-recommended">Recommended for school groups and organizations seeking advanced academic intelligence and AI-supported leadership decisions.</p>
                         <div class="plan-includes">Includes everything in Professional, plus:</div>
                         <ul class="plan-feature-list">
