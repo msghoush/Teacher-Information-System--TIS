@@ -6,6 +6,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text, func
 from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import html
 import io
@@ -15,6 +16,8 @@ import math
 import os
 import re
 import secrets
+import smtplib
+import ssl
 import time
 from typing import Optional, Any
 from urllib.parse import quote_plus
@@ -100,6 +103,20 @@ app.mount(
 templates = Jinja2Templates(directory="templates")
 ACADEMIC_YEAR_NAME_PATTERN = re.compile(r"^\d{4}-\d{4}$")
 PUBLIC_LANDING_HOSTS = {"tisplatform.com", "www.tisplatform.com"}
+DEMO_REQUEST_EMAIL_TO = os.getenv("TIS_DEMO_REQUEST_EMAIL_TO", "info@tisplatform.com")
+DEMO_REQUEST_FIELDS = (
+    ("school_name", "School Name"),
+    ("full_name", "Contact Name"),
+    ("email", "Email"),
+    ("phone", "Phone"),
+    ("country", "Country"),
+    ("school_type", "School Type"),
+    ("teachers", "Number of Teachers"),
+    ("students", "Number of Students"),
+    ("branches", "Number of Branches"),
+    ("interested_plan", "Interested Plan"),
+    ("message", "Message"),
+)
 
 
 def _get_positive_int_env(name: str, default: int) -> int:
@@ -111,6 +128,17 @@ def _get_positive_int_env(name: str, default: int) -> int:
     except ValueError:
         return default
     return parsed_value if parsed_value > 0 else default
+
+
+def _get_bool_env(name: str, default: bool = False) -> bool:
+    raw_value = str(os.getenv(name, "") or "").strip().lower()
+    if not raw_value:
+        return default
+    if raw_value in {"1", "true", "yes", "on"}:
+        return True
+    if raw_value in {"0", "false", "no", "off"}:
+        return False
+    return default
 
 
 IDLE_TIMEOUT_COOKIE_KEY = "last_activity_ts"
@@ -129,6 +157,7 @@ IDLE_TIMEOUT_EXEMPT_PATHS = {
     "/login",
     "/logout",
     "/forgot-password",
+    "/request-demo",
     "/favicon.ico",
 }
 IDLE_TIMEOUT_EXEMPT_PREFIXES = (
@@ -8193,6 +8222,149 @@ def read_root(
         )
 
     return _render_login_entrypoint(request=request, db=db)
+
+
+def _clean_demo_field(value: Any, max_length: int = 1200) -> str:
+    cleaned_value = str(value or "").replace("\r", " ").strip()
+    cleaned_value = re.sub(r"[ \t]+", " ", cleaned_value)
+    return cleaned_value[:max_length]
+
+
+def _clean_email_header(value: Any, fallback: str) -> str:
+    cleaned_value = re.sub(r"[\r\n]+", " ", str(value or "").strip())
+    return cleaned_value[:160] or fallback
+
+
+def _build_demo_email_body(demo_fields: dict[str, str], request: Request) -> str:
+    submitted_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    source_host = _request_hostname(request) or "unknown"
+    source_ip = getattr(getattr(request, "client", None), "host", "unknown")
+
+    lines = [
+        "New TIS landing page demo request",
+        "",
+        f"Submitted At: {submitted_at}",
+        f"Source Host: {source_host}",
+        f"Source IP: {source_ip}",
+        "",
+    ]
+    for field_key, field_label in DEMO_REQUEST_FIELDS:
+        lines.append(f"{field_label}: {demo_fields.get(field_key, '') or '-'}")
+    return "\n".join(lines)
+
+
+def _send_demo_request_email(demo_fields: dict[str, str], request: Request) -> None:
+    smtp_host = str(os.getenv("TIS_SMTP_HOST") or "").strip()
+    if not smtp_host:
+        raise RuntimeError("TIS_SMTP_HOST is not configured")
+
+    smtp_port = _get_positive_int_env("TIS_SMTP_PORT", 587)
+    smtp_timeout = _get_positive_int_env("TIS_SMTP_TIMEOUT_SECONDS", 12)
+    smtp_user = str(os.getenv("TIS_SMTP_USER") or "").strip()
+    smtp_password = str(os.getenv("TIS_SMTP_PASSWORD") or "").strip()
+    smtp_from = str(os.getenv("TIS_SMTP_FROM") or smtp_user or DEMO_REQUEST_EMAIL_TO).strip()
+    use_ssl = _get_bool_env("TIS_SMTP_SSL", False)
+    use_tls = _get_bool_env("TIS_SMTP_TLS", not use_ssl)
+
+    school_name = _clean_email_header(demo_fields.get("school_name"), "New school")
+    contact_name = _clean_email_header(demo_fields.get("full_name"), "Landing visitor")
+
+    message = EmailMessage()
+    message["Subject"] = f"TIS demo request - {school_name}"
+    message["From"] = smtp_from
+    message["To"] = DEMO_REQUEST_EMAIL_TO
+    reply_to = _clean_email_header(demo_fields.get("email"), "")
+    if reply_to:
+        message["Reply-To"] = reply_to
+    message.set_content(_build_demo_email_body(demo_fields, request))
+    message.add_header("X-TIS-Demo-Contact", contact_name)
+
+    context = ssl.create_default_context()
+    if use_ssl:
+        with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=smtp_timeout, context=context) as server:
+            if smtp_user and smtp_password:
+                server.login(smtp_user, smtp_password)
+            server.send_message(message)
+        return
+
+    with smtplib.SMTP(smtp_host, smtp_port, timeout=smtp_timeout) as server:
+        server.ehlo()
+        if use_tls:
+            server.starttls(context=context)
+            server.ehlo()
+        if smtp_user and smtp_password:
+            server.login(smtp_user, smtp_password)
+        server.send_message(message)
+
+
+@app.post("/request-demo")
+async def submit_demo_request(request: Request):
+    try:
+        form_data = await request.form()
+    except Exception:
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "message": "Please review the form and try again."},
+        )
+
+    demo_fields = {
+        field_key: _clean_demo_field(form_data.get(field_key), 2400 if field_key == "message" else 500)
+        for field_key, _field_label in DEMO_REQUEST_FIELDS
+    }
+
+    missing_fields = [
+        field_label
+        for field_key, field_label in DEMO_REQUEST_FIELDS
+        if field_key in {"school_name", "full_name", "email", "country", "interested_plan"}
+        and not demo_fields.get(field_key)
+    ]
+    if missing_fields:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "message": "Please complete: " + ", ".join(missing_fields) + ".",
+            },
+        )
+
+    try:
+        _send_demo_request_email(demo_fields, request)
+    except Exception as exc:
+        logging.error(
+            "TIS landing demo request email failed host=%s school=%s email=%s: %s",
+            _request_hostname(request),
+            demo_fields.get("school_name"),
+            demo_fields.get("email"),
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "message": (
+                    "We could not send the request right now. "
+                    "Please email info@tisplatform.com directly."
+                ),
+            },
+        )
+
+    logging.info(
+        "TIS landing demo request sent host=%s school=%s email=%s plan=%s",
+        _request_hostname(request),
+        demo_fields.get("school_name"),
+        demo_fields.get("email"),
+        demo_fields.get("interested_plan"),
+    )
+    return JSONResponse(
+        content={
+            "ok": True,
+            "message": (
+                "Thank you. Your demo request has been sent to the TIS team. "
+                "We will contact you shortly."
+            ),
+        }
+    )
 
 
 @app.get("/login", response_class=HTMLResponse)
