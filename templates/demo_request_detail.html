@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Demo Request Detail | TIS{% endblock %}
+
+{% block page_header_actions %}
+<a class="shell-action" href="/demo-requests">{{ icon("chevron-right", "shell-icon") }} Back to Demo Requests</a>
+{% endblock %}
+
+{% block page_styles %}
+<style>
+.lead-detail-page { max-width: 1180px; margin: 0 auto; display: grid; gap: 14px; }
+.detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; }
+.detail-card { border: 1px solid var(--app-line); border-radius: 8px; background: #fff; padding: 16px; box-shadow: 0 10px 24px rgba(15, 23, 42, .05); }
+.detail-card h2, .detail-card h3 { margin: 0; color: var(--app-brand-deep); }
+.detail-card p { margin: 8px 0 0; color: var(--app-muted); font-size: 14px; line-height: 1.55; }
+.field-grid { margin-top: 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.field-item { border: 1px solid #e1e8f2; border-radius: 8px; background: #fbfdff; padding: 11px; }
+.field-item span { display: block; color: #60728c; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.field-item strong, .field-item a { display: block; margin-top: 5px; color: #1f2737; font-size: 15px; font-weight: 850; overflow-wrap: anywhere; }
+.field-item a { color: var(--app-brand); text-decoration: none; }
+.message-box { margin-top: 14px; border: 1px solid #d8e2f0; border-radius: 8px; background: #f8fbff; padding: 14px; color: #1f2737; line-height: 1.65; white-space: pre-wrap; }
+.status-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 28px; padding: 5px 10px; border-radius: 999px; background: #eef4fb; color: #48607f; font-size: 12px; font-weight: 900; }
+.status-pill.is-new { background: #fff1cc; color: #7a4b00; }
+.status-pill.is-contacted { background: #edf4ff; color: #17365d; }
+.status-pill.is-demo-scheduled { background: #eefdf8; color: #047857; }
+.status-pill.is-converted { background: #ecfdf3; color: #027a48; }
+.status-pill.is-not-a-fit { background: #f1f5f9; color: #64748b; }
+.status-form { display: grid; gap: 10px; margin-top: 14px; }
+.status-form label { color: #48607f; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.status-form select { width: 100%; border: 1px solid #c6d4e8; border-radius: 8px; padding: 9px 10px; color: #1f2737; background: #fff; }
+.action-btn { min-height: 38px; border: 1px solid transparent; border-radius: 8px; padding: 8px 12px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 900; cursor: pointer; text-decoration: none; }
+.action-btn-primary { background: var(--app-brand); color: #fff; }
+.side-stack { display: grid; gap: 14px; }
+.timeline-list { display: grid; gap: 10px; margin-top: 12px; }
+.timeline-list div { display: grid; gap: 3px; border-left: 3px solid #d8e2f0; padding-left: 10px; }
+.timeline-list span { color: #60728c; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.timeline-list strong { color: #1f2737; font-size: 13px; }
+@media (max-width: 920px) { .detail-grid, .field-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="lead-detail-page">
+    <div class="detail-grid">
+        <main class="detail-card">
+            <h2>{{ demo_request.school_name or "Unnamed School" }}</h2>
+            <p>Public marketing lead submitted through the TIS landing page.</p>
+
+            <div class="field-grid">
+                <div class="field-item">
+                    <span>Submitted At</span>
+                    <strong><time data-tis-local-time data-utc-timestamp="{{ timestamp_iso(demo_request.submitted_at) }}">{{ format_timestamp(demo_request.submitted_at, "Unknown") }}</time></strong>
+                </div>
+                <div class="field-item">
+                    <span>Status</span>
+                    <strong><span class="status-pill is-{{ (demo_request.status or 'New')|lower|replace(' ', '-') }}">{{ demo_request.status or "New" }}</span></strong>
+                </div>
+                <div class="field-item">
+                    <span>Full Name</span>
+                    <strong>{{ demo_request.full_name or "-" }}</strong>
+                </div>
+                <div class="field-item">
+                    <span>Email</span>
+                    <a href="mailto:{{ demo_request.email }}">{{ demo_request.email or "-" }}</a>
+                </div>
+                <div class="field-item">
+                    <span>Phone</span>
+                    <strong>{{ demo_request.phone or "-" }}</strong>
+                </div>
+                <div class="field-item">
+                    <span>Country</span>
+                    <strong>{{ demo_request.country or "-" }}</strong>
+                </div>
+                <div class="field-item">
+                    <span>School Type</span>
+                    <strong>{{ demo_request.school_type or "-" }}</strong>
+                </div>
+                <div class="field-item">
+                    <span>Interested Plan</span>
+                    <strong>{{ demo_request.interested_plan or "-" }}</strong>
+                </div>
+                <div class="field-item">
+                    <span>Number of Teachers</span>
+                    <strong>{{ demo_request.number_of_teachers or "-" }}</strong>
+                </div>
+                <div class="field-item">
+                    <span>Number of Students</span>
+                    <strong>{{ demo_request.number_of_students or "-" }}</strong>
+                </div>
+                <div class="field-item">
+                    <span>Number of Branches</span>
+                    <strong>{{ demo_request.number_of_branches or "-" }}</strong>
+                </div>
+                <div class="field-item">
+                    <span>Source Host</span>
+                    <strong>{{ demo_request.source_host or "-" }}</strong>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 18px;">Message</h3>
+            <div class="message-box">{{ demo_request.message or "No message submitted." }}</div>
+        </main>
+
+        <aside class="side-stack">
+            <section class="detail-card">
+                <h3>Status Management</h3>
+                <p>Update platform follow-up status for this marketing lead.</p>
+                <form class="status-form" method="post" action="/demo-requests/{{ demo_request.id }}/status">
+                    <input type="hidden" name="return_to" value="{{ return_to }}">
+                    <label for="lead_status">Status</label>
+                    <select id="lead_status" name="status">
+                        {% for status in status_options %}
+                        <option value="{{ status }}" {% if (demo_request.status or "New") == status %}selected{% endif %}>{{ status }}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="action-btn action-btn-primary" type="submit">{{ icon("save", "icon") }} Update Status</button>
+                </form>
+            </section>
+
+            <section class="detail-card">
+                <h3>Lead Timeline</h3>
+                <div class="timeline-list">
+                    <div>
+                        <span>Submitted</span>
+                        <strong><time data-tis-local-time data-utc-timestamp="{{ timestamp_iso(demo_request.submitted_at) }}">{{ format_timestamp(demo_request.submitted_at, "Unknown") }}</time></strong>
+                    </div>
+                    <div>
+                        <span>Last Updated</span>
+                        <strong><time data-tis-local-time data-utc-timestamp="{{ timestamp_iso(demo_request.updated_at) }}">{{ format_timestamp(demo_request.updated_at, "Unknown") }}</time></strong>
+                    </div>
+                    {% if demo_request.status_updated_at %}
+                    <div>
+                        <span>Status Updated</span>
+                        <strong><time data-tis-local-time data-utc-timestamp="{{ timestamp_iso(demo_request.status_updated_at) }}">{{ format_timestamp(demo_request.status_updated_at, "Unknown") }}</time></strong>
+                    </div>
+                    {% endif %}
+                    {% if demo_request.status_updated_by_user_id %}
+                    <div>
+                        <span>Updated By</span>
+                        <strong>User ID {{ demo_request.status_updated_by_user_id }}</strong>
+                    </div>
+                    {% endif %}
+                </div>
+            </section>
+        </aside>
+    </div>
+</section>
+{% endblock %}

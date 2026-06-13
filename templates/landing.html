@@ -465,7 +465,7 @@
                         throw new Error(result.message || "The request could not be sent.");
                     }
                     status.className = "form-status is-visible is-success";
-                    status.textContent = result.message || "Thank you. Your demo request has been sent to the TIS team.";
+                    status.textContent = result.message || "Thank you. Your demo request has been received by the TIS team.";
                     form.reset();
                 } catch (error) {
                     status.className = "form-status is-visible is-error";

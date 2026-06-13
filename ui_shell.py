@@ -205,6 +205,12 @@ PAGE_META = {
         "intro": "View messages sent to your account by administrators and system alerts.",
         "icon": "notifications",
     },
+    "demo-requests": {
+        "eyebrow": "Platform Leads",
+        "title": "Demo Requests",
+        "intro": "Review public marketing demo requests and manage platform follow-up status.",
+        "icon": "message",
+    },
     "system-configuration": {
         "eyebrow": "Developer Controls",
         "title": "System Configuration",
@@ -286,6 +292,14 @@ def _build_nav_items(
     ]
 
     if can_manage_system_settings:
+        items.append(
+            {
+                "label": "Demo Requests",
+                "href": "/demo-requests",
+                "icon": "message",
+                "active": is_active("/demo-requests"),
+            }
+        )
         items.append(
             {
                 "label": "System Configuration",

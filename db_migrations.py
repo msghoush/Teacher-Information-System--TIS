@@ -688,6 +688,51 @@ def _sqlite_tenant_fk_guard_triggers(engine, connection):
         )
 
 
+def _create_demo_requests_table(engine, connection):
+    datetime_type = _datetime_type(engine)
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS demo_requests (
+            id {id_sql},
+            submitted_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            school_name VARCHAR(180) NOT NULL DEFAULT '',
+            full_name VARCHAR(160) NOT NULL DEFAULT '',
+            email VARCHAR(180) NOT NULL DEFAULT '',
+            phone VARCHAR(80) NOT NULL DEFAULT '',
+            country VARCHAR(120) NOT NULL DEFAULT '',
+            school_type VARCHAR(120) NOT NULL DEFAULT '',
+            number_of_teachers VARCHAR(40) NOT NULL DEFAULT '',
+            number_of_students VARCHAR(40) NOT NULL DEFAULT '',
+            number_of_branches VARCHAR(40) NOT NULL DEFAULT '',
+            interested_plan VARCHAR(80) NOT NULL DEFAULT '',
+            message TEXT NOT NULL DEFAULT '',
+            status VARCHAR(40) NOT NULL DEFAULT 'New',
+            source_host VARCHAR(180) NOT NULL DEFAULT '',
+            source_ip VARCHAR(80) NOT NULL DEFAULT '',
+            status_updated_at {datetime_type},
+            status_updated_by_user_id VARCHAR(10)
+        )
+        """,
+    )
+    for index_name, index_columns_sql in (
+        ("ix_demo_requests_submitted_at", "submitted_at"),
+        ("ix_demo_requests_status", "status"),
+        ("ix_demo_requests_interested_plan", "interested_plan"),
+        ("ix_demo_requests_email", "email"),
+    ):
+        _create_index_if_missing(
+            connection,
+            connection,
+            "demo_requests",
+            index_name,
+            index_columns_sql,
+        )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -703,6 +748,11 @@ MIGRATIONS = (
         migration_id="20260613_003_sqlite_tenant_fk_guards",
         description="Enforce tenant foreign keys with SQLite triggers for legacy migrated databases",
         apply=_sqlite_tenant_fk_guard_triggers,
+    ),
+    Migration(
+        migration_id="20260613_004_demo_requests",
+        description="Create platform-level demo request lead table",
+        apply=_create_demo_requests_table,
     ),
 )
 
