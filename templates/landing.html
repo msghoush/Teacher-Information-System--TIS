@@ -7,7 +7,7 @@
     <meta name="description" content="TIS Platform helps school leadership teams manage teacher information, workload planning, subject allocation, observations, calendars, staffing analysis, and academic operations.">
     <link rel="icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <link rel="stylesheet" href="{{ url_for('static', path='landing/landing.css') }}?v=20260613b">
+    <link rel="stylesheet" href="{{ url_for('static', path='landing/landing.css') }}?v=20260613c">
 </head>
 <body class="landing-page">
     <svg class="sr-only" aria-hidden="true" focusable="false">
@@ -38,13 +38,12 @@
         <div class="section-shell site-header-inner">
             <a href="#" class="brand-link focus-ring">
                 <img class="brand-logo" src="{{ url_for('landing_public', path='logo/TIS_Logo_Adjusted.png') }}" alt="TIS Platform">
-                <span class="brand-name">TIS Platform</span>
             </a>
 
             <nav class="primary-nav" aria-label="Primary navigation">
                 <a class="focus-ring" href="#problem">Problem</a>
-                <a class="focus-ring" href="#product">Product</a>
                 <a class="focus-ring" href="#ai-assistant">AI Assistant</a>
+                <a class="focus-ring" href="#product">Product</a>
                 <a class="focus-ring" href="#pricing">Pricing</a>
             </nav>
 
@@ -59,9 +58,9 @@
                     <div class="hero-copy">
                         <div class="section-label">
                             <svg class="icon icon-small" aria-hidden="true"><use href="#icon-shield"></use></svg>
-                            Secure academic operations SaaS
+                            Academic planning &amp; leadership platform
                         </div>
-                        <h1>Plan teacher workload, staffing, and academic operations from one leadership workspace.</h1>
+                        <h1>Run staffing, planning, and academic leadership from one clear workspace.</h1>
                         <p class="hero-lede">TIS Platform gives principals, academic directors, coordinators, and HR teams a shared operating view for teacher information, subject allocation, workload planning, observations, calendars, and staffing gaps.</p>
                         <div class="hero-actions">
                             <a href="#request-demo" class="btn btn-primary focus-ring">
@@ -70,11 +69,6 @@
                             </a>
                             <a href="https://app.tisplatform.com/login" class="btn btn-soft focus-ring">Go to App Portal</a>
                         </div>
-                        <div class="hero-proof" aria-label="Platform highlights">
-                            <span><svg class="icon icon-small" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Teacher planning</span>
-                            <span><svg class="icon icon-small" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Staffing forecasting</span>
-                            <span><svg class="icon icon-small" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Leadership reporting</span>
-                        </div>
                     </div>
 
                     <figure class="screenshot-frame hero-shot">
@@ -82,18 +76,19 @@
                             <span class="window-dot dot-red"></span>
                             <span class="window-dot dot-amber"></span>
                             <span class="window-dot dot-teal"></span>
-                            <span class="shot-title">Reports &amp; Insights</span>
                         </div>
-                        <img src="{{ url_for('landing_public', path='screenshots/7.png') }}" alt="TIS executive dashboard product preview" width="1550" height="660">
+                        <div class="dashboard-clean-canvas">
+                            <img src="{{ url_for('landing_public', path='screenshots/7.png') }}" alt="TIS executive dashboard product preview" width="1550" height="660">
+                            <span class="dashboard-title-mask" aria-hidden="true"></span>
+                        </div>
                     </figure>
                 </div>
 
                 <div class="trust-grid" aria-label="TIS Platform trust points">
-                    <div class="trust-card"><svg class="icon" aria-hidden="true"><use href="#icon-users"></use></svg><p>Built for school leadership teams</p></div>
-                    <div class="trust-card"><svg class="icon" aria-hidden="true"><use href="#icon-shield"></use></svg><p>Multi-tenant SaaS architecture</p></div>
-                    <div class="trust-card"><svg class="icon" aria-hidden="true"><use href="#icon-lock"></use></svg><p>Secure school data</p></div>
-                    <div class="trust-card"><svg class="icon" aria-hidden="true"><use href="#icon-clipboard"></use></svg><p>Academic planning workflows</p></div>
-                    <div class="trust-card"><svg class="icon" aria-hidden="true"><use href="#icon-building"></use></svg><p>Multi-branch support</p></div>
+                    <div class="trust-card"><svg class="icon" aria-hidden="true"><use href="#icon-users"></use></svg><p>Built for School Leadership Teams</p></div>
+                    <div class="trust-card"><svg class="icon" aria-hidden="true"><use href="#icon-lock"></use></svg><p>Secure School Data</p></div>
+                    <div class="trust-card"><svg class="icon" aria-hidden="true"><use href="#icon-clipboard"></use></svg><p>Academic Planning Workflows</p></div>
+                    <div class="trust-card"><svg class="icon" aria-hidden="true"><use href="#icon-building"></use></svg><p>Multi-Branch Support</p></div>
                 </div>
             </div>
         </section>
@@ -160,6 +155,46 @@
             </div>
         </section>
 
+        <section id="ai-assistant" class="content-section ai-section ai-flagship">
+            <div class="section-shell ai-panel">
+                <div class="ai-copy">
+                    <div class="coming-soon"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-bot"></use></svg>Coming Soon</div>
+                    <h2>TIS AI Academic Assistant</h2>
+                    <p>The future flagship capability of TIS is designed for academic leaders, not generic chatbot use. It will turn planning, supervision, assessment, and school performance signals into practical academic decisions.</p>
+                    <div class="ai-priority-list">
+                        <span><svg class="icon icon-small" aria-hidden="true"><use href="#icon-file-search"></use></svg>Exam Analysis</span>
+                        <span><svg class="icon icon-small" aria-hidden="true"><use href="#icon-route"></use></svg>Curriculum Alignment Review</span>
+                        <span><svg class="icon icon-small" aria-hidden="true"><use href="#icon-target"></use></svg>Assessment Quality Review</span>
+                    </div>
+                    <a href="#request-demo" class="btn btn-primary focus-ring">Discuss AI Roadmap</a>
+                </div>
+
+                <div class="ai-visual" aria-label="TIS AI Academic Assistant capability preview">
+                    <div class="ai-visual-top">
+                        <span><svg class="icon icon-small" aria-hidden="true"><use href="#icon-brain"></use></svg>TIS AI Academic Assistant</span>
+                        <span class="soon-badge ai-soon">Coming Soon</span>
+                    </div>
+                    <div class="ai-insight-card primary-insight">
+                        <span>Academic intelligence summary</span>
+                        <h3>Translate school data into leadership action.</h3>
+                        <p>Identify assessment risks, curriculum alignment issues, coaching priorities, and action-plan opportunities from one academic intelligence layer.</p>
+                    </div>
+                    <div class="ai-signal-grid">
+                        <article><strong>01</strong><span>Review exam quality and item balance</span></article>
+                        <article><strong>02</strong><span>Compare curriculum coverage and pacing</span></article>
+                        <article><strong>03</strong><span>Recommend coaching and supervision next steps</span></article>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-shell ai-capability-strip">
+                <article><svg class="icon" aria-hidden="true"><use href="#icon-user-check"></use></svg><span>Academic Supervision Intelligence</span><em>Coming Soon</em></article>
+                <article><svg class="icon" aria-hidden="true"><use href="#icon-clipboard"></use></svg><span>Action Plan Generation</span><em>Coming Soon</em></article>
+                <article><svg class="icon" aria-hidden="true"><use href="#icon-message"></use></svg><span>Academic Coaching Recommendations</span><em>Coming Soon</em></article>
+                <article><svg class="icon" aria-hidden="true"><use href="#icon-line-chart"></use></svg><span>School Performance Insights</span><em>Coming Soon</em></article>
+            </div>
+        </section>
+
         <section id="product" class="content-section product-showcase">
             <div class="section-shell">
                 <div class="section-heading showcase-heading">
@@ -170,8 +205,8 @@
                     <p>Selected product previews show the most visual parts of the platform without overwhelming visitors with internal tables or private operational details.</p>
                 </div>
 
-                <div class="feature-showcase-grid curated-showcase-grid">
-                    <article class="feature-showcase-card large-card">
+                <div class="product-story-stack">
+                    <article class="product-story-row">
                         <div class="feature-card-copy">
                             <span>Planning</span>
                             <h3>Turn academic planning into a clear operating workflow.</h3>
@@ -182,7 +217,7 @@
                         </figure>
                     </article>
 
-                    <article class="feature-showcase-card">
+                    <article class="product-story-row product-story-reverse">
                         <div class="feature-card-copy">
                             <span>Subject Allocation</span>
                             <h3>Keep subject structure organized by grade and workload.</h3>
@@ -193,7 +228,7 @@
                         </figure>
                     </article>
 
-                    <article class="feature-showcase-card">
+                    <article class="product-story-row">
                         <div class="feature-card-copy">
                             <span>Academic Calendar</span>
                             <h3>Coordinate events around the academic year.</h3>
@@ -203,27 +238,6 @@
                             <img src="{{ url_for('landing_public', path='screenshots/12.png') }}" alt="TIS academic calendar product preview" width="1587" height="626">
                         </figure>
                     </article>
-                </div>
-            </div>
-        </section>
-
-        <section id="ai-assistant" class="content-section ai-section">
-            <div class="section-shell ai-panel">
-                <div class="ai-copy">
-                    <div class="coming-soon"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-bot"></use></svg>Coming Soon</div>
-                    <h2>TIS AI Academic Assistant</h2>
-                    <p>Designed as a future decision layer for academic leaders: connect planning, observations, assessment quality, and school performance signals into practical improvement actions.</p>
-                    <a href="#request-demo" class="btn btn-primary focus-ring">Discuss AI Roadmap</a>
-                </div>
-
-                <div class="ai-capabilities">
-                    <div class="ai-card"><svg class="icon" aria-hidden="true"><use href="#icon-file-search"></use></svg><p>Exam analysis</p></div>
-                    <div class="ai-card"><svg class="icon" aria-hidden="true"><use href="#icon-route"></use></svg><p>Curriculum alignment review</p></div>
-                    <div class="ai-card"><svg class="icon" aria-hidden="true"><use href="#icon-user-check"></use></svg><p>Academic supervision support</p></div>
-                    <div class="ai-card"><svg class="icon" aria-hidden="true"><use href="#icon-target"></use></svg><p>Assessment quality analysis</p></div>
-                    <div class="ai-card"><svg class="icon" aria-hidden="true"><use href="#icon-clipboard"></use></svg><p>Action plan generation</p></div>
-                    <div class="ai-card"><svg class="icon" aria-hidden="true"><use href="#icon-message"></use></svg><p>Academic coaching recommendations</p></div>
-                    <div class="ai-card ai-card-wide"><svg class="icon" aria-hidden="true"><use href="#icon-line-chart"></use></svg><p>School performance insights</p></div>
                 </div>
             </div>
         </section>
@@ -242,19 +256,19 @@
                         <h3>Starter</h3>
                         <p class="plan-recommended">Recommended for single schools that want to organize teacher data and automate staffing planning.</p>
                         <ul class="plan-feature-list">
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Teacher Information Management</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Teacher Qualifications &amp; Profiles</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Subject Management</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Subject Assignment</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Smart Teacher Allocation</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Teacher Workload Planning</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Staffing Gap Identification</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Hiring Forecasting</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Teacher Capacity Analysis</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Coverage &amp; Uncovered Hours Reports</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Planning Dashboard</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Executive Staffing Reports</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Branch &amp; Academic Year Structure</li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-users"></use></svg><span>Teacher Information Management</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-graduation"></use></svg><span>Teacher Qualifications &amp; Profiles</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-clipboard"></use></svg><span>Subject Management</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-route"></use></svg><span>Subject Assignment</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-sparkles"></use></svg><span>Smart Teacher Allocation</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-bar-chart"></use></svg><span>Teacher Workload Planning</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-target"></use></svg><span>Staffing Gap Identification</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-trending"></use></svg><span>Hiring Forecasting</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-line-chart"></use></svg><span>Teacher Capacity Analysis</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-file-search"></use></svg><span>Coverage &amp; Uncovered Hours Reports</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-bar-chart"></use></svg><span>Planning Dashboard</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-shield"></use></svg><span>Executive Staffing Reports</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-building"></use></svg><span>Branch &amp; Academic Year Structure</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
                         </ul>
                         <div class="plan-value">Know exactly how many teachers you need, where shortages exist, and how teaching loads are distributed.</div>
                         <a href="#request-demo" class="btn btn-outline focus-ring">Request a Demo</a>
@@ -267,18 +281,18 @@
                         <p class="plan-recommended">Recommended for schools that require operational coordination between academic leadership teams and teachers.</p>
                         <div class="plan-includes">Includes everything in Starter, plus:</div>
                         <ul class="plan-feature-list">
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Academic Calendar Management</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Academic Observations System</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Classroom Observation Records</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Observation Follow-Up Workflow</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Leadership Feedback Tracking</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Notification Center</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Teacher Notification System</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Supervisor Communication Tools</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Academic Action Tracking</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>School Operations Dashboard</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Observation Analytics</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Multi-Department Coordination</li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-calendar"></use></svg><span>Academic Calendar Management</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-user-check"></use></svg><span>Academic Observations System</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-clipboard"></use></svg><span>Classroom Observation Records</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-route"></use></svg><span>Observation Follow-Up Workflow</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-message"></use></svg><span>Leadership Feedback Tracking</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-bot"></use></svg><span>Notification Center</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-users"></use></svg><span>Teacher Notification System</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-user-cog"></use></svg><span>Supervisor Communication Tools</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-target"></use></svg><span>Academic Action Tracking</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-bar-chart"></use></svg><span>School Operations Dashboard</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-line-chart"></use></svg><span>Observation Analytics</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-building"></use></svg><span>Multi-Department Coordination</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
                         </ul>
                         <div class="plan-value">Move beyond planning and manage the daily academic leadership workflow across your school.</div>
                         <a href="#request-demo" class="btn btn-primary focus-ring">Request a Demo</a>
@@ -290,18 +304,18 @@
                         <p class="plan-recommended">Recommended for school groups and organizations seeking advanced academic intelligence and AI-supported leadership decisions.</p>
                         <div class="plan-includes">Includes everything in Professional, plus:</div>
                         <ul class="plan-feature-list">
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-brain"></use></svg>TIS AI Academic Assistant <span class="soon-badge">Coming Soon</span></li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-file-search"></use></svg>AI Exam Analysis <span class="soon-badge">Coming Soon</span></li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-target"></use></svg>AI Assessment Quality Review <span class="soon-badge">Coming Soon</span></li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-route"></use></svg>Curriculum Alignment Analysis <span class="soon-badge">Coming Soon</span></li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-user-check"></use></svg>Academic Supervision Intelligence <span class="soon-badge">Coming Soon</span></li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-message"></use></svg>AI Coaching Recommendations <span class="soon-badge">Coming Soon</span></li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-line-chart"></use></svg>School Performance Insights <span class="soon-badge">Coming Soon</span></li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-clipboard"></use></svg>AI Action Plan Generation <span class="soon-badge">Coming Soon</span></li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-shield"></use></svg>Academic Risk Detection <span class="soon-badge">Coming Soon</span></li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-check-circle"></use></svg>Leadership Decision Support</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-building"></use></svg>Multi-Branch Executive Analytics</li>
-                            <li><svg class="icon" aria-hidden="true"><use href="#icon-lock"></use></svg>Advanced Governance Tools</li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-brain"></use></svg><span>TIS AI Academic Assistant</span><span class="soon-badge">Coming Soon</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-file-search"></use></svg><span>AI Exam Analysis</span><span class="soon-badge">Coming Soon</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-target"></use></svg><span>AI Assessment Quality Review</span><span class="soon-badge">Coming Soon</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-route"></use></svg><span>Curriculum Alignment Analysis</span><span class="soon-badge">Coming Soon</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-user-check"></use></svg><span>Academic Supervision Intelligence</span><span class="soon-badge">Coming Soon</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-message"></use></svg><span>AI Coaching Recommendations</span><span class="soon-badge">Coming Soon</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-line-chart"></use></svg><span>School Performance Insights</span><span class="soon-badge">Coming Soon</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-clipboard"></use></svg><span>AI Action Plan Generation</span><span class="soon-badge">Coming Soon</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-shield"></use></svg><span>Academic Risk Detection</span><span class="soon-badge">Coming Soon</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-user-cog"></use></svg><span>Leadership Decision Support</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-building"></use></svg><span>Multi-Branch Executive Analytics</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
+                            <li><span class="feature-main"><svg class="icon feature-icon" aria-hidden="true"><use href="#icon-lock"></use></svg><span>Advanced Governance Tools</span></span><svg class="icon inclusion-icon" aria-label="Included"><use href="#icon-check-circle"></use></svg></li>
                         </ul>
                         <div class="future-ai-note">Future AI Vision: designed specifically for academic leaders, not as a generic chatbot. TIS AI helps transform operational school data into actionable academic decisions.</div>
                         <div class="plan-value">Turn school data into academic intelligence and leadership action.</div>
@@ -324,31 +338,31 @@
                     </div>
                 </div>
 
-                <form class="demo-form">
+                <form class="demo-form" id="demoRequestForm" method="post" action="{{ url_for('submit_demo_request') }}">
                     <div class="form-grid">
                         <div>
                             <label for="school-name">School Name</label>
-                            <input id="school-name" name="school-name" type="text" placeholder="Example International School">
+                            <input id="school-name" name="school_name" type="text" placeholder="Your school name" required>
                         </div>
                         <div>
                             <label for="full-name">Full Name</label>
-                            <input id="full-name" name="full-name" type="text" placeholder="Your name">
+                            <input id="full-name" name="full_name" type="text" placeholder="Your name" required>
                         </div>
                         <div>
                             <label for="email">Email</label>
-                            <input id="email" name="email" type="email" placeholder="name@school.edu">
+                            <input id="email" name="email" type="email" placeholder="name@school.edu" required>
                         </div>
                         <div>
                             <label for="phone">Phone</label>
-                            <input id="phone" name="phone" type="tel" placeholder="+966 5X XXX XXXX">
+                            <input id="phone" name="phone" type="tel" placeholder="Your phone number">
                         </div>
                         <div>
                             <label for="country">Country</label>
-                            <input id="country" name="country" type="text" placeholder="Saudi Arabia">
+                            <input id="country" name="country" type="text" placeholder="Country" required>
                         </div>
                         <div>
                             <label for="school-type">School Type</label>
-                            <select id="school-type" name="school-type">
+                            <select id="school-type" name="school_type">
                                 <option value="">Select school type</option>
                                 <option>Private school</option>
                                 <option>International school</option>
@@ -370,7 +384,7 @@
                         </div>
                         <div>
                             <label for="interested-plan">Interested Plan</label>
-                            <select id="interested-plan" name="interested-plan">
+                            <select id="interested-plan" name="interested_plan" required>
                                 <option value="">Select a plan</option>
                                 <option>Starter</option>
                                 <option>Professional</option>
@@ -384,7 +398,9 @@
                         </div>
                     </div>
 
-                    <button type="button" class="btn btn-primary focus-ring">
+                    <div class="form-status" id="demoFormStatus" role="status" aria-live="polite"></div>
+
+                    <button type="submit" class="btn btn-primary focus-ring">
                         Submit Demo Request
                         <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
                     </button>
@@ -395,16 +411,60 @@
 
     <footer class="site-footer">
         <div class="section-shell footer-inner">
-            <div>
-                <img class="footer-logo" src="{{ url_for('landing_public', path='logo/TIS_Logo_Adjusted.png') }}" alt="TIS Platform">
+            <div class="footer-brand-block">
+                <strong>TIS Platform</strong>
+                <span>Academic Planning &amp; Leadership Platform</span>
                 <a class="footer-email" href="mailto:info@tisplatform.com">info@tisplatform.com</a>
             </div>
 
             <div class="footer-meta">
                 <a href="https://app.tisplatform.com/login">App portal</a>
-                <p>&copy; 2026 TIS Platform. All rights reserved.</p>
+                <p>&copy; TIS Platform. All Rights Reserved.</p>
             </div>
         </div>
     </footer>
+
+    <script>
+        (() => {
+            const form = document.getElementById("demoRequestForm");
+            const status = document.getElementById("demoFormStatus");
+            if (!form || !status) {
+                return;
+            }
+
+            const submitButton = form.querySelector('button[type="submit"]');
+
+            form.addEventListener("submit", async (event) => {
+                event.preventDefault();
+                status.className = "form-status is-visible";
+                status.textContent = "Sending your demo request...";
+                if (submitButton) {
+                    submitButton.disabled = true;
+                }
+
+                try {
+                    const response = await fetch(form.action, {
+                        method: "POST",
+                        body: new FormData(form),
+                        headers: { "Accept": "application/json" },
+                    });
+                    const result = await response.json();
+                    if (!response.ok || !result.ok) {
+                        throw new Error(result.message || "The request could not be sent.");
+                    }
+                    status.className = "form-status is-visible is-success";
+                    status.textContent = result.message || "Thank you. Your demo request has been sent to the TIS team.";
+                    form.reset();
+                } catch (error) {
+                    status.className = "form-status is-visible is-error";
+                    status.textContent = error.message || "We could not send the request right now. Please email info@tisplatform.com directly.";
+                } finally {
+                    if (submitButton) {
+                        submitButton.disabled = false;
+                    }
+                }
+            });
+        })();
+    </script>
 </body>
 </html>
