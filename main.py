@@ -91,6 +91,11 @@ db_migrations.run_pending_migrations(engine)
 # ---------------------------------------
 app = FastAPI(title="Teacher Information System")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount(
+    "/landing-public",
+    StaticFiles(directory="tis-landing-website/public"),
+    name="landing_public",
+)
 
 templates = Jinja2Templates(directory="templates")
 ACADEMIC_YEAR_NAME_PATTERN = re.compile(r"^\d{4}-\d{4}$")
