@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260604c">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260613a">
     {% block page_styles %}{% endblock %}
     <style>
         svg.shell-icon,
@@ -26,15 +26,6 @@
             vertical-align: middle;
         }
 
-        svg[data-tis-icon="add"] {
-            color: var(--action-add) !important;
-        }
-
-        svg[data-tis-icon="trash"],
-        svg[data-tis-icon="warning"] {
-            color: var(--action-delete) !important;
-        }
-
         .icon-action,
         button.icon-action,
         a.icon-action {
@@ -45,7 +36,7 @@
             border-radius: 10px;
             border: none !important;
             background: transparent !important;
-            color: var(--app-icon-default) !important;
+            color: var(--app-brand) !important;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -57,12 +48,18 @@
         .icon-action:hover,
         .icon-action:focus-visible {
             transform: translateY(-1px);
-            background: rgba(10, 78, 163, 0.08) !important;
+            background: var(--app-brand-soft) !important;
         }
 
         .icon-action:focus-visible {
-            outline: 2px solid rgba(10, 78, 163, 0.35);
+            outline: 2px solid rgba(31, 79, 130, 0.35);
             outline-offset: 2px;
+        }
+
+        .icon-action svg[data-tis-icon],
+        button.icon-action svg[data-tis-icon],
+        a.icon-action svg[data-tis-icon] {
+            color: currentColor !important;
         }
 
         .icon-action:disabled {

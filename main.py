@@ -6496,6 +6496,8 @@ def _build_subject_pool_distribution_rows(report_subject_rows: list[dict]) -> di
                 "remaining_hours": remaining_hours,
                 "coverage_percentage": int(row.get("coverage_percentage", 0) or 0),
                 "original_teacher_need_count": subject_original_teacher_need_count,
+                "assigned_teacher_count": int(row.get("assigned_teacher_count", 0) or 0),
+                "assigned_teacher_labels": list(row.get("assigned_teacher_labels", []) or []),
                 "hire_full_count": subject_full_hires,
                 "hire_remainder_hours": subject_remainder_hours,
                 "hire_label": _format_hiring_block_label(

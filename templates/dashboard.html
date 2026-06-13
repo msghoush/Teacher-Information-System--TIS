@@ -6,17 +6,17 @@
 {% block page_styles %}
 <style>
 :root {
-            --bg-1: #eff4fb;
-            --bg-2: #dce8f4;
-            --ink: #11243f;
-            --muted: #536782;
-            --card: #ffffff;
-            --line: #cad9ea;
-            --brand: #0a4ea3;
-            --brand-deep: #073a7d;
-            --accent: #c79a14;
-            --teal: #0f7f7a;
-            --danger: #b91c1c;
+            --bg-1: var(--app-bg);
+            --bg-2: var(--app-bg-strong);
+            --ink: var(--app-ink);
+            --muted: var(--app-muted);
+            --card: var(--app-surface-strong);
+            --line: var(--app-line);
+            --brand: var(--app-brand);
+            --brand-deep: var(--app-brand-deep);
+            --accent: var(--app-accent);
+            --teal: var(--app-success);
+            --danger: var(--app-danger);
         }
 
         * {
@@ -650,15 +650,20 @@
 
         .subject-view-btn:hover {
             transform: translateY(-1px);
-            border-color: #8aaedf;
-            background: #edf4ff;
-            color: #083b7e;
+            border-color: var(--app-line-strong);
+            background: var(--app-brand-soft);
+            color: var(--app-brand-deep);
         }
 
         .subject-view-btn.is-active {
-            border-color: var(--brand);
-            background: var(--brand);
+            border-color: var(--app-brand);
+            background: var(--app-brand);
             color: #fff;
+        }
+
+        .subject-view-btn svg[data-tis-icon],
+        .subject-view-btn.is-active svg[data-tis-icon] {
+            color: currentColor !important;
         }
 
         .subject-view-pane[hidden] {
@@ -1100,6 +1105,187 @@
             padding: 9px 10px;
             font-size: 12px;
             line-height: 1.45;
+        }
+
+        .subject-pool-card {
+            --pool-accent: var(--subject-pool-accent);
+            border: 1px solid var(--app-line);
+            border-left: 0;
+            border-radius: var(--app-radius-md);
+            box-shadow: var(--app-shadow-sm);
+        }
+
+        .subject-pool-card:hover,
+        .subject-pool-card.is-active {
+            border-color: var(--app-line-strong);
+            box-shadow: var(--app-shadow-md);
+        }
+
+        .subject-pool-card.is-active {
+            background: #ffffff;
+            box-shadow: inset 0 0 0 1px var(--app-brand), var(--app-shadow-md);
+        }
+
+        .subject-pool-title h4,
+        .subject-pool-focus-head h4,
+        .subject-pool-subject strong,
+        .subject-pool-focus-subject strong {
+            color: var(--app-brand-deep);
+        }
+
+        .subject-pool-title small,
+        .subject-pool-focus-head small,
+        .subject-pool-focus-subject small,
+        .subject-pool-summary-item small,
+        .subject-pool-stat small {
+            color: var(--app-muted);
+        }
+
+        .subject-pool-status {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 26px;
+            padding: 5px 9px;
+            border: 1px solid var(--app-line);
+            border-radius: 999px;
+            background: var(--app-surface-muted);
+            color: var(--app-brand-deep);
+            font-size: 11px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .subject-pool-status.is-clear {
+            border-color: #cddbd7;
+            background: #f4f8f6;
+            color: #285646;
+        }
+
+        .subject-pool-status.is-partial,
+        .subject-pool-status.is-open {
+            border-color: #dfd4ba;
+            background: #fbf7ee;
+            color: #725015;
+        }
+
+        .subject-pool-badge {
+            border-color: var(--app-line);
+            background: var(--app-surface-muted);
+            color: var(--app-brand-deep);
+        }
+
+        .subject-pool-summary-item,
+        .subject-pool-stat,
+        .subject-pool-focus,
+        .subject-pool-focus-metric,
+        .subject-pool-focus-subject,
+        .subject-pool-focus-note {
+            border-color: var(--app-line);
+            background: #ffffff;
+            box-shadow: none;
+        }
+
+        .subject-pool-stat strong,
+        .subject-pool-stat.is-original strong,
+        .subject-pool-stat.is-hire strong,
+        .subject-pool-focus-metric strong,
+        .subject-pool-focus-metric.is-original strong,
+        .subject-pool-focus-metric.is-open strong,
+        .subject-pool-focus-metric.is-hire strong {
+            color: var(--app-ink);
+        }
+
+        .subject-pool-related,
+        .subject-pool-teachers {
+            display: grid;
+            gap: 7px;
+        }
+
+        .subject-pool-section-label {
+            color: var(--app-muted);
+            font-size: 10px;
+            font-weight: 850;
+            letter-spacing: 0.04em;
+            line-height: 1.2;
+            text-transform: uppercase;
+        }
+
+        .subject-pool-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            min-width: 0;
+        }
+
+        .subject-pool-chip {
+            display: inline-flex;
+            align-items: center;
+            max-width: 100%;
+            min-height: 24px;
+            padding: 4px 8px;
+            border: 1px solid var(--app-line);
+            border-radius: 999px;
+            background: var(--app-surface-muted);
+            color: var(--app-brand-deep);
+            font-size: 11px;
+            font-weight: 800;
+            line-height: 1.2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .subject-pool-chip.is-teacher {
+            background: #ffffff;
+        }
+
+        .subject-pool-chip.is-empty,
+        .subject-pool-chip.is-muted {
+            color: var(--app-muted);
+        }
+
+        .subject-pool-bar-track,
+        .subject-pool-progress-track {
+            background: #edf1f6;
+            box-shadow: none;
+        }
+
+        .subject-pool-bar-fill.is-covered {
+            background: var(--subject-pool-covered);
+        }
+
+        .subject-pool-bar-fill.is-open {
+            background: var(--subject-pool-open);
+        }
+
+        .subject-pool-legend-dot.is-covered {
+            background: var(--subject-pool-covered);
+        }
+
+        .subject-pool-legend-dot.is-open {
+            background: var(--subject-pool-open);
+        }
+
+        .subject-pool-legend-dot.is-required {
+            background: var(--app-brand);
+        }
+
+        .subject-pool-progress-fill {
+            background: var(--app-brand);
+        }
+
+        .subject-pool-focus {
+            border-radius: var(--app-radius-md);
+            box-shadow: var(--app-shadow-md);
+        }
+
+        .subject-pool-focus-teachers {
+            display: grid;
+            gap: 6px;
+        }
+
+        .subject-pool-focus-ring {
+            background: conic-gradient(var(--app-brand) 0 calc(var(--ring-value) * 1%), #edf1f6 calc(var(--ring-value) * 1%) 100%);
         }
 
         @media (max-width: 900px) {
@@ -4781,6 +4967,16 @@
                         <div class="subject-pool-visual-layout">
                             <div class="subject-pool-card-grid" aria-label="Pool cards">
                                 {% for pool in subject_pool_distribution_rows %}
+                                {% set pool_status_label = "Fully covered" if pool.remaining_hours <= 0 else ("Partially covered" if pool.allocated_hours > 0 else "Needs coverage") %}
+                                {% set pool_status_class = "is-clear" if pool.remaining_hours <= 0 else ("is-partial" if pool.allocated_hours > 0 else "is-open") %}
+                                {% set pool_teacher_ns = namespace(labels=[]) %}
+                                {% for subject in pool.subjects %}
+                                    {% for teacher_label in subject.assigned_teacher_labels %}
+                                        {% if teacher_label not in pool_teacher_ns.labels %}
+                                            {% set pool_teacher_ns.labels = pool_teacher_ns.labels + [teacher_label] %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endfor %}
                                 <article
                                     class="subject-pool-card"
                                     role="button"
@@ -4800,41 +4996,68 @@
                                     data-subject-count="{{ pool.subject_count }}"
                                     data-covered-width="{{ pool.covered_width_pct }}"
                                     data-open-width="{{ pool.open_width_pct }}"
-                                    data-accent="{{ pool.accent_color }}"
+                                    data-accent="#1f4f82"
+                                    data-status-label="{{ pool_status_label }}"
                                     data-recommendation="{{ pool.recommendation_note }}"
                                     data-subjects="{{ pool.subjects | tojson | forceescape }}"
-                                    style="--pool-accent: {{ pool.accent_color }};"
+                                    style="--pool-accent: var(--subject-pool-accent);"
                                 >
                                     <div class="subject-pool-card-head">
                                         <div class="subject-pool-title">
                                             <h4>{{ pool.group_label }}</h4>
-                                            <small>{{ pool.family_label }}</small>
+                                            <small>{{ pool.family_label }} • {{ pool.subject_count }} related subject{% if pool.subject_count != 1 %}s{% endif %}</small>
                                         </div>
-                                        <span class="subject-pool-badge">
-                                            {{ pool.original_teacher_need_count }} original teacher{% if pool.original_teacher_need_count != 1 %}s{% endif %}
-                                        </span>
+                                        <span class="subject-pool-status {{ pool_status_class }}">{{ pool_status_label }}</span>
                                     </div>
 
                                     <div class="subject-pool-stats">
                                         <div class="subject-pool-stat is-original">
-                                            <span>Original Demand</span>
+                                            <span>Required Hours</span>
                                             <strong>{{ pool.total_required_hours }}h</strong>
                                             <small>{{ pool.original_teacher_need_count }} teacher{% if pool.original_teacher_need_count != 1 %}s{% endif %} at 24h</small>
                                         </div>
                                         <div class="subject-pool-stat">
-                                            <span>Covered</span>
+                                            <span>Covered Hours</span>
                                             <strong>{{ pool.allocated_hours }}h</strong>
                                             <small>{{ pool.coverage_percentage }}% covered</small>
                                         </div>
                                         <div class="subject-pool-stat">
-                                            <span>Open Hours</span>
+                                            <span>Uncovered Hours</span>
                                             <strong>{{ pool.remaining_hours }}h</strong>
                                             <small>{{ pool.minimum_teacher_blocks }} profile{% if pool.minimum_teacher_blocks != 1 %}s{% endif %} to cover all open hours</small>
                                         </div>
                                         <div class="subject-pool-stat is-hire">
-                                            <span>Full Hire</span>
+                                            <span>Recommended Hires</span>
                                             <strong>{{ pool.full_hire_count }}</strong>
                                             <small>{{ pool.hire_remainder_hours }}h remainder</small>
+                                        </div>
+                                    </div>
+
+                                    <div class="subject-pool-related">
+                                        <span class="subject-pool-section-label">Related subjects</span>
+                                        <div class="subject-pool-chip-row">
+                                            {% for subject in pool.subjects[:5] %}
+                                            <span class="subject-pool-chip">{{ subject.subject_name }}</span>
+                                            {% endfor %}
+                                            {% if pool.subjects|length > 5 %}
+                                            <span class="subject-pool-chip is-muted">+{{ pool.subjects|length - 5 }} more</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+
+                                    <div class="subject-pool-teachers">
+                                        <span class="subject-pool-section-label">Assigned teachers</span>
+                                        <div class="subject-pool-chip-row">
+                                            {% if pool_teacher_ns.labels %}
+                                                {% for teacher_label in pool_teacher_ns.labels[:4] %}
+                                                <span class="subject-pool-chip is-teacher">{{ teacher_label }}</span>
+                                                {% endfor %}
+                                                {% if pool_teacher_ns.labels|length > 4 %}
+                                                <span class="subject-pool-chip is-muted">+{{ pool_teacher_ns.labels|length - 4 }} more</span>
+                                                {% endif %}
+                                            {% else %}
+                                            <span class="subject-pool-chip is-empty">No teachers assigned yet</span>
+                                            {% endif %}
                                         </div>
                                     </div>
 
@@ -4846,8 +5069,8 @@
                                             {% endif %}
                                         </div>
                                         <div class="subject-pool-bar-legend">
-                                            <span><i class="subject-pool-legend-dot" style="background:#0f7f7a;"></i>{{ pool.allocated_hours }}h covered</span>
-                                            <span><i class="subject-pool-legend-dot" style="background:#d97706;"></i>{{ pool.remaining_hours }}h open</span>
+                                            <span><i class="subject-pool-legend-dot is-covered"></i>{{ pool.allocated_hours }}h covered</span>
+                                            <span><i class="subject-pool-legend-dot is-open"></i>{{ pool.remaining_hours }}h uncovered</span>
                                         </div>
                                     </div>
                                 </article>
@@ -4896,8 +5119,8 @@
                                         <span id="subjectPoolFocusOpenBar" class="subject-pool-bar-fill is-open" style="width: 0%;"></span>
                                     </div>
                                     <div class="subject-pool-bar-legend">
-                                        <span><i class="subject-pool-legend-dot" style="background:#0f7f7a;"></i>Covered</span>
-                                        <span><i class="subject-pool-legend-dot" style="background:#d97706;"></i>Open</span>
+                                        <span><i class="subject-pool-legend-dot is-covered"></i>Covered</span>
+                                        <span><i class="subject-pool-legend-dot is-open"></i>Uncovered</span>
                                     </div>
                                 </div>
                                 <div id="subjectPoolFocusNote" class="subject-pool-focus-note"></div>
@@ -5888,6 +6111,10 @@ const tabs = document.querySelectorAll(".tab");
                 const remainingHours = Number(item.remaining_hours || 0);
                 const originalTeachers = Number(item.original_teacher_need_count || 0);
                 const hireLabel = escapeDashboardHtml(item.hire_label || "0 full hires");
+                const teacherLabels = Array.isArray(item.assigned_teacher_labels) ? item.assigned_teacher_labels : [];
+                const teacherMarkup = teacherLabels.length
+                    ? teacherLabels.slice(0, 4).map((label) => `<span class="subject-pool-chip is-teacher">${escapeDashboardHtml(label)}</span>`).join("") + (teacherLabels.length > 4 ? `<span class="subject-pool-chip is-muted">+${teacherLabels.length - 4} more</span>` : "")
+                    : `<span class="subject-pool-chip is-empty">No teachers assigned yet</span>`;
                 const coverage = clampDashboardPercent(item.coverage_percentage);
                 return `
                     <div class="subject-pool-focus-subject">
@@ -5904,11 +6131,15 @@ const tabs = document.querySelectorAll(".tab");
                                 <span class="subject-pool-bar-fill is-open" style="width:${clampDashboardPercent(requiredHours ? (remainingHours / requiredHours) * 100 : 0)}%;"></span>
                             </div>
                             <div class="subject-pool-bar-legend">
-                                <span><i class="subject-pool-legend-dot" style="background:#0f7f7a;"></i>${allocatedHours}h covered</span>
-                                <span><i class="subject-pool-legend-dot" style="background:#d97706;"></i>${remainingHours}h open</span>
-                                <span><i class="subject-pool-legend-dot" style="background:#0a4ea3;"></i>${originalTeachers} original teacher${originalTeachers === 1 ? "" : "s"}</span>
+                                <span><i class="subject-pool-legend-dot is-covered"></i>${allocatedHours}h covered</span>
+                                <span><i class="subject-pool-legend-dot is-open"></i>${remainingHours}h uncovered</span>
+                                <span><i class="subject-pool-legend-dot is-required"></i>${originalTeachers} teacher load${originalTeachers === 1 ? "" : "s"}</span>
                             </div>
                             <small>${requiredHours}h original demand | ${hireLabel}</small>
+                        </div>
+                        <div class="subject-pool-focus-teachers">
+                            <span class="subject-pool-section-label">Assigned teachers</span>
+                            <div class="subject-pool-chip-row">${teacherMarkup}</div>
                         </div>
                     </div>
                 `;
