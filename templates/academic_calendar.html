@@ -6,7 +6,7 @@
 {% block page_header_actions %}
 <a class="calendar-header-link" href="{{ pdf_export_url }}" target="_blank" rel="noopener">{{ icon("download", "shell-icon") }} Export PDF</a>
 {% if can_manage_calendar %}
-<button class="calendar-icon-btn" type="button" id="openCreateEventDialog" aria-label="New calendar event" title="New calendar event">{{ icon("add", "shell-icon") }}</button>
+<button class="calendar-icon-btn" type="button" id="openCreateEventDialog" aria-label="New calendar event" title="New calendar event">{{ icon("calendar", "shell-icon") }} <span>New Event</span></button>
 {% endif %}
 {% if shell.can_manage_system_settings %}
 <a class="calendar-header-link" href="/system-configuration/calendar">{{ icon("settings", "shell-icon") }} Calendar Configuration</a>
@@ -21,10 +21,10 @@
         gap: 7px;
         min-height: 34px;
         padding: 7px 12px;
-        border: 1px solid #cfe0f4;
+        border: 1px solid var(--app-line);
         border-radius: 999px;
         background: #ffffff;
-        color: #17365d;
+        color: var(--app-brand-deep);
         font-size: 12px;
         font-weight: 800;
         text-decoration: none;
@@ -34,20 +34,28 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 36px;
-        height: 36px;
-        border: 1px solid #0a4ea3;
+        gap: 7px;
+        min-height: 36px;
+        padding: 7px 12px;
+        border: 1px solid var(--app-brand);
         border-radius: 999px;
-        background: #0a4ea3;
+        background: var(--app-brand);
         color: #ffffff;
+        font-size: 12px;
+        font-weight: 800;
         cursor: pointer;
+    }
+
+    .calendar-header-link svg[data-tis-icon],
+    .calendar-icon-btn svg[data-tis-icon] {
+        color: currentColor !important;
     }
 
     .calendar-icon-btn:hover,
     .calendar-icon-btn:focus {
         outline: none;
-        background: #083f84;
-        box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.16);
+        background: var(--app-brand-deep);
+        box-shadow: var(--app-focus-ring);
     }
 
     .calendar-page {
@@ -232,22 +240,22 @@
 
     .selected-target-chip.is-section,
     .month-target-chip.is-section {
-        border-color: #bde7c9;
-        background: #eefbf2;
-        color: #176b35;
+        border-color: var(--app-line);
+        background: var(--app-surface-muted);
+        color: var(--app-brand-deep);
     }
 
     .selected-target-chip.is-grade,
     .month-target-chip.is-grade {
-        border-color: #bfd8ff;
-        background: #eef6ff;
-        color: #0a4ea3;
+        border-color: var(--app-line);
+        background: var(--app-brand-soft);
+        color: var(--app-brand-deep);
     }
 
     .selected-target-chip.is-teacher {
-        border-color: #d8c7ff;
-        background: #f6f1ff;
-        color: #5b2cb5;
+        border-color: var(--app-line);
+        background: #ffffff;
+        color: var(--app-brand-deep);
     }
 
     button.selected-target-chip {
@@ -265,9 +273,9 @@
 
     button.selected-target-chip:hover,
     button.selected-target-chip:focus-visible {
-        border-color: #0a4ea3;
+        border-color: var(--app-brand);
         outline: none;
-        box-shadow: 0 0 0 2px rgba(10, 78, 163, 0.12);
+        box-shadow: var(--app-focus-ring);
     }
 
     .month-target-chip-list {
@@ -286,8 +294,8 @@
     .calendar-field select:focus,
     .calendar-field textarea:focus {
         outline: none;
-        border-color: #0a4ea3;
-        box-shadow: 0 0 0 3px rgba(10, 78, 163, 0.12);
+        border-color: var(--app-brand);
+        box-shadow: var(--app-focus-ring);
     }
 
     .calendar-check-field {
@@ -337,8 +345,8 @@
     }
 
     .calendar-btn.is-primary {
-        border-color: #0a4ea3;
-        background: #0a4ea3;
+        border-color: var(--app-brand);
+        background: var(--app-brand);
         color: #ffffff;
     }
 
@@ -471,7 +479,7 @@
     }
 
     .day-cell[data-date]:hover {
-        box-shadow: inset 0 0 0 2px rgba(10, 78, 163, 0.12);
+        box-shadow: inset 0 0 0 2px rgba(31, 79, 130, 0.14);
     }
 
     .day-cell.is-muted {
@@ -491,7 +499,7 @@
     }
 
     .day-cell.is-today .day-number {
-        background: #0a4ea3;
+        background: var(--app-brand);
         color: #ffffff;
     }
 
@@ -671,7 +679,7 @@
         height: 28px;
         padding: 0 10px;
         border-radius: 999px;
-        background: #0a4ea3;
+        background: var(--app-brand);
         color: #ffffff;
         font-size: 12px;
         font-weight: 900;
@@ -820,7 +828,7 @@
     .month-event-status[data-status="Planned"] {
         border-color: #bfd8ff;
         background: #eef6ff;
-        color: #0a4ea3;
+        color: var(--app-brand);
     }
 
     .month-event-status[data-status="Confirmed"] {
@@ -869,9 +877,9 @@
 
     .status-menu[open] summary,
     .status-menu summary:hover {
-        border-color: #0a4ea3;
-        background: #eef6ff;
-        color: #0a4ea3;
+        border-color: var(--app-brand);
+        background: var(--app-brand-soft);
+        color: var(--app-brand);
     }
 
     .status-menu-panel {
@@ -908,9 +916,9 @@
 
     .event-status-button:hover,
     .event-status-button.is-active {
-        border-color: #0a4ea3;
-        background: #eef6ff;
-        color: #0a4ea3;
+        border-color: var(--app-brand);
+        background: var(--app-brand-soft);
+        color: var(--app-brand);
     }
 
     .event-status-button[data-status="In Progress"].is-active {
