@@ -7,7 +7,7 @@
     <meta name="description" content="TIS Platform helps school leadership teams manage teacher information, workload planning, subject allocation, observations, calendars, staffing analysis, and academic operations.">
     <link rel="icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <link rel="stylesheet" href="{{ url_for('static', path='landing/landing.css') }}?v=20260613d">
+    <link rel="stylesheet" href="{{ url_for('static', path='landing/landing.css') }}?v=20260614a">
 </head>
 <body class="landing-page">
     <svg class="sr-only" aria-hidden="true" focusable="false">
@@ -34,6 +34,9 @@
         <symbol id="icon-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></symbol>
     </svg>
 
+    <div class="page-ambient page-ambient-a" aria-hidden="true"></div>
+    <div class="page-ambient page-ambient-b" aria-hidden="true"></div>
+
     <header class="site-header">
         <div class="section-shell site-header-inner">
             <a href="#" class="brand-link focus-ring">
@@ -41,10 +44,10 @@
             </a>
 
             <nav class="primary-nav" aria-label="Primary navigation">
-                <a class="focus-ring" href="#problem">Problem</a>
-                <a class="focus-ring" href="#ai-assistant">AI Assistant</a>
-                <a class="focus-ring" href="#product">Product</a>
-                <a class="focus-ring" href="#pricing">Pricing</a>
+                <a class="focus-ring nav-link" href="#problem">Problem</a>
+                <a class="focus-ring nav-link" href="#ai-assistant">AI Assistant</a>
+                <a class="focus-ring nav-link" href="#product">Product</a>
+                <a class="focus-ring nav-link" href="#pricing">Pricing</a>
             </nav>
 
             <a href="https://app.tisplatform.com/login" class="btn btn-outline header-login focus-ring">Login</a>
@@ -53,16 +56,23 @@
 
     <main>
         <section class="hero">
+            <div class="hero-grid-lines" aria-hidden="true"></div>
+            <div class="hero-orb hero-orb-a" aria-hidden="true"></div>
+            <div class="hero-orb hero-orb-b" aria-hidden="true"></div>
+            <div class="hero-orb hero-orb-c" aria-hidden="true"></div>
+            <div class="hero-float hero-float-a" aria-hidden="true"></div>
+            <div class="hero-float hero-float-b" aria-hidden="true"></div>
+
             <div class="section-shell hero-inner">
                 <div class="hero-grid">
                     <div class="hero-copy">
-                        <div class="section-label">
+                        <div class="section-label hero-entry hero-entry-1">
                             <svg class="icon icon-small" aria-hidden="true"><use href="#icon-shield"></use></svg>
                             Academic planning &amp; leadership platform
                         </div>
-                        <h1>Run staffing, planning, and academic leadership from one clear workspace.</h1>
-                        <p class="hero-lede">TIS Platform gives principals, academic directors, coordinators, and HR teams a shared operating view for teacher information, subject allocation, workload planning, observations, calendars, and staffing gaps.</p>
-                        <div class="hero-actions">
+                        <h1 class="hero-entry hero-entry-2">Run staffing, planning, and academic leadership from one clear workspace.</h1>
+                        <p class="hero-lede hero-entry hero-entry-3">TIS Platform gives principals, academic directors, coordinators, and HR teams a shared operating view for teacher information, subject allocation, workload planning, observations, calendars, and staffing gaps.</p>
+                        <div class="hero-actions hero-entry hero-entry-4">
                             <a href="#request-demo" class="btn btn-primary focus-ring">
                                 Request a Demo
                                 <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
@@ -71,13 +81,16 @@
                         </div>
                     </div>
 
-                    <figure class="screenshot-frame hero-shot">
-                        <div class="shot-topbar">
+                    <figure class="screenshot-frame hero-shot glass-surface interactive-card" data-reveal="right" style="--reveal-delay: 160ms;">
+                        <span class="frame-glow frame-glow-ocean" aria-hidden="true"></span>
+                        <div class="shot-topbar glass-bar">
                             <span class="window-dot dot-red"></span>
                             <span class="window-dot dot-amber"></span>
                             <span class="window-dot dot-teal"></span>
+                            <span class="shot-pill" aria-hidden="true"></span>
                         </div>
                         <div class="dashboard-clean-canvas">
+                            <span class="shot-sheen" aria-hidden="true"></span>
                             <img src="{{ url_for('landing_public', path='screenshots/7.png') }}" alt="TIS executive dashboard product preview" width="1550" height="660">
                             <span class="dashboard-title-mask" aria-hidden="true"></span>
                         </div>
@@ -85,34 +98,34 @@
                 </div>
 
                 <div class="trust-grid" aria-label="TIS Platform trust points">
-                    <div class="trust-card"><svg class="icon" aria-hidden="true"><use href="#icon-users"></use></svg><p>Built for School Leadership Teams</p></div>
-                    <div class="trust-card"><svg class="icon" aria-hidden="true"><use href="#icon-lock"></use></svg><p>Secure School Data</p></div>
-                    <div class="trust-card"><svg class="icon" aria-hidden="true"><use href="#icon-clipboard"></use></svg><p>Academic Planning Workflows</p></div>
-                    <div class="trust-card"><svg class="icon" aria-hidden="true"><use href="#icon-building"></use></svg><p>Multi-Branch Support</p></div>
+                    <div class="trust-card glass-surface interactive-card" data-reveal="up" style="--reveal-delay: 260ms;"><svg class="icon" aria-hidden="true"><use href="#icon-users"></use></svg><p>Built for School Leadership Teams</p></div>
+                    <div class="trust-card glass-surface interactive-card" data-reveal="up" style="--reveal-delay: 340ms;"><svg class="icon" aria-hidden="true"><use href="#icon-lock"></use></svg><p>Secure School Data</p></div>
+                    <div class="trust-card glass-surface interactive-card" data-reveal="up" style="--reveal-delay: 420ms;"><svg class="icon" aria-hidden="true"><use href="#icon-clipboard"></use></svg><p>Academic Planning Workflows</p></div>
+                    <div class="trust-card glass-surface interactive-card" data-reveal="up" style="--reveal-delay: 500ms;"><svg class="icon" aria-hidden="true"><use href="#icon-building"></use></svg><p>Multi-Branch Support</p></div>
                 </div>
             </div>
         </section>
 
         <section id="problem" class="content-section problem-section">
             <div class="section-shell problem-grid">
-                <div class="section-copy">
+                <div class="section-copy" data-reveal="left">
                     <div class="section-label"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-target"></use></svg>Problem</div>
                     <h2>School teams are expected to make staffing decisions before the data is ready.</h2>
                     <p>Teacher lists, subject demand, observations, section growth, and hiring needs often sit in separate files. TIS turns those moving parts into a leadership-ready planning system.</p>
                     <div class="problem-points">
-                        <span>Coverage gaps appear late</span>
-                        <span>Teacher load is hard to compare</span>
-                        <span>Branch and year context gets lost</span>
+                        <span class="interactive-card" data-reveal="up" style="--reveal-delay: 80ms;">Coverage gaps appear late</span>
+                        <span class="interactive-card" data-reveal="up" style="--reveal-delay: 140ms;">Teacher load is hard to compare</span>
+                        <span class="interactive-card" data-reveal="up" style="--reveal-delay: 200ms;">Branch and year context gets lost</span>
                     </div>
                 </div>
 
-                <div class="problem-outcome-panel">
-                    <article>
+                <div class="problem-outcome-panel" data-reveal="right">
+                    <article class="interactive-card">
                         <span>Before TIS</span>
                         <h3>Planning depends on scattered files</h3>
                         <p>Academic teams manually compare teacher lists, subject needs, workload capacity, observations, and branch context.</p>
                     </article>
-                    <article>
+                    <article class="interactive-card">
                         <span>With TIS</span>
                         <h3>Leaders see the operating picture</h3>
                         <p>Staffing needs, allocations, academic workflows, and planning decisions become organized in one leadership platform.</p>
@@ -123,24 +136,24 @@
 
         <section id="how-it-works" class="content-section section-muted solution-section">
             <div class="section-shell">
-                <div class="section-heading center-heading">
+                <div class="section-heading center-heading" data-reveal="up">
                     <div class="section-label"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-sparkles"></use></svg>Solution</div>
                     <h2>A connected planning layer for academic decisions.</h2>
                     <p>Start with sections and subjects, connect teacher capacity, then monitor staffing, calendars, observations, and reports from one product experience.</p>
                 </div>
 
                 <div class="solution-steps">
-                    <article>
+                    <article class="interactive-card" data-reveal="left" style="--reveal-delay: 80ms;">
                         <span>01</span>
                         <h3>Model next year's sections</h3>
                         <p>Current and new sections roll into workload demand automatically.</p>
                     </article>
-                    <article>
+                    <article class="interactive-card" data-reveal="up" style="--reveal-delay: 160ms;">
                         <span>02</span>
                         <h3>Allocate subjects and teachers</h3>
                         <p>Subject chips and assignment counts keep planning visible.</p>
                     </article>
-                    <article>
+                    <article class="interactive-card" data-reveal="right" style="--reveal-delay: 240ms;">
                         <span>03</span>
                         <h3>Spot hiring needs early</h3>
                         <p>Coverage, gaps, and staffing blocks are surfaced for leaders.</p>
@@ -148,56 +161,77 @@
                 </div>
 
                 <div class="solution-outcomes">
-                    <span>Plan staffing before shortages become urgent</span>
-                    <span>Coordinate academic workflows across roles</span>
-                    <span>Prepare leadership reports without manual consolidation</span>
+                    <span class="interactive-card" data-reveal="up" style="--reveal-delay: 120ms;">Plan staffing before shortages become urgent</span>
+                    <span class="interactive-card" data-reveal="up" style="--reveal-delay: 200ms;">Coordinate academic workflows across roles</span>
+                    <span class="interactive-card" data-reveal="up" style="--reveal-delay: 280ms;">Prepare leadership reports without manual consolidation</span>
                 </div>
             </div>
         </section>
 
         <section id="ai-assistant" class="content-section ai-section ai-flagship">
+            <div class="ai-grid-overlay" aria-hidden="true"></div>
+            <div class="ai-glow ai-glow-a" aria-hidden="true"></div>
+            <div class="ai-glow ai-glow-b" aria-hidden="true"></div>
+            <div class="ai-beam ai-beam-a" aria-hidden="true"></div>
+            <div class="ai-beam ai-beam-b" aria-hidden="true"></div>
+            <div class="ai-particles" aria-hidden="true">
+                <span class="ai-particle particle-1"></span>
+                <span class="ai-particle particle-2"></span>
+                <span class="ai-particle particle-3"></span>
+                <span class="ai-particle particle-4"></span>
+                <span class="ai-particle particle-5"></span>
+                <span class="ai-particle particle-6"></span>
+                <span class="ai-particle particle-7"></span>
+                <span class="ai-particle particle-8"></span>
+                <span class="ai-particle particle-9"></span>
+                <span class="ai-particle particle-10"></span>
+            </div>
+
             <div class="section-shell ai-panel">
-                <div class="ai-copy">
-                    <div class="coming-soon"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-bot"></use></svg>Coming Soon</div>
+                <div class="ai-copy" data-reveal="left">
+                    <div class="coming-soon">
+                        <svg class="icon icon-small" aria-hidden="true"><use href="#icon-bot"></use></svg>
+                        Coming Soon
+                    </div>
                     <h2>TIS AI Academic Assistant</h2>
                     <p>The future flagship capability of TIS is designed for academic leaders, not generic chatbot use. It will turn planning, supervision, assessment, and school performance signals into practical academic decisions.</p>
                     <div class="ai-priority-list">
-                        <span><svg class="icon icon-small" aria-hidden="true"><use href="#icon-file-search"></use></svg>Exam Analysis</span>
-                        <span><svg class="icon icon-small" aria-hidden="true"><use href="#icon-route"></use></svg>Curriculum Alignment Review</span>
-                        <span><svg class="icon icon-small" aria-hidden="true"><use href="#icon-target"></use></svg>Assessment Quality Review</span>
+                        <span class="interactive-card"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-file-search"></use></svg>Exam Analysis</span>
+                        <span class="interactive-card"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-route"></use></svg>Curriculum Alignment Review</span>
+                        <span class="interactive-card"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-target"></use></svg>Assessment Quality Review</span>
                     </div>
                     <a href="#request-demo" class="btn btn-primary focus-ring">Discuss AI Roadmap</a>
                 </div>
 
-                <div class="ai-visual" aria-label="TIS AI Academic Assistant capability preview">
+                <div class="ai-visual glass-surface interactive-card" aria-label="TIS AI Academic Assistant capability preview" data-reveal="right">
                     <div class="ai-visual-top">
                         <span><svg class="icon icon-small" aria-hidden="true"><use href="#icon-brain"></use></svg>TIS AI Academic Assistant</span>
                         <span class="soon-badge ai-soon">Coming Soon</span>
                     </div>
-                    <div class="ai-insight-card primary-insight">
+                    <div class="ai-insight-card primary-insight interactive-card">
                         <span>Academic intelligence summary</span>
                         <h3>Translate school data into leadership action.</h3>
                         <p>Identify assessment risks, curriculum alignment issues, coaching priorities, and action-plan opportunities from one academic intelligence layer.</p>
                     </div>
                     <div class="ai-signal-grid">
-                        <article><strong>01</strong><span>Review exam quality and item balance</span></article>
-                        <article><strong>02</strong><span>Compare curriculum coverage and pacing</span></article>
-                        <article><strong>03</strong><span>Recommend coaching and supervision next steps</span></article>
+                        <article class="interactive-card"><strong>01</strong><span>Review exam quality and item balance</span></article>
+                        <article class="interactive-card"><strong>02</strong><span>Compare curriculum coverage and pacing</span></article>
+                        <article class="interactive-card"><strong>03</strong><span>Recommend coaching and supervision next steps</span></article>
                     </div>
                 </div>
             </div>
 
             <div class="section-shell ai-capability-strip">
-                <article><svg class="icon" aria-hidden="true"><use href="#icon-user-check"></use></svg><span>Academic Supervision Intelligence</span><em>Coming Soon</em></article>
-                <article><svg class="icon" aria-hidden="true"><use href="#icon-clipboard"></use></svg><span>Action Plan Generation</span><em>Coming Soon</em></article>
-                <article><svg class="icon" aria-hidden="true"><use href="#icon-message"></use></svg><span>Academic Coaching Recommendations</span><em>Coming Soon</em></article>
-                <article><svg class="icon" aria-hidden="true"><use href="#icon-line-chart"></use></svg><span>School Performance Insights</span><em>Coming Soon</em></article>
+                <article class="interactive-card" data-reveal="up" style="--reveal-delay: 80ms;"><svg class="icon" aria-hidden="true"><use href="#icon-user-check"></use></svg><span>Academic Supervision Intelligence</span><em>Coming Soon</em></article>
+                <article class="interactive-card" data-reveal="up" style="--reveal-delay: 140ms;"><svg class="icon" aria-hidden="true"><use href="#icon-clipboard"></use></svg><span>Action Plan Generation</span><em>Coming Soon</em></article>
+                <article class="interactive-card" data-reveal="up" style="--reveal-delay: 200ms;"><svg class="icon" aria-hidden="true"><use href="#icon-message"></use></svg><span>Academic Coaching Recommendations</span><em>Coming Soon</em></article>
+                <article class="interactive-card" data-reveal="up" style="--reveal-delay: 260ms;"><svg class="icon" aria-hidden="true"><use href="#icon-line-chart"></use></svg><span>School Performance Insights</span><em>Coming Soon</em></article>
             </div>
         </section>
 
         <section id="product" class="content-section product-showcase">
             <div class="section-shell">
-                <div class="section-heading showcase-heading">
+                <div class="section-heading showcase-heading" data-reveal="up">
                     <div>
                         <div class="section-label"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-bar-chart"></use></svg>Product</div>
                         <h2>Show the work, not another spreadsheet.</h2>
@@ -206,35 +240,41 @@
                 </div>
 
                 <div class="product-story-stack">
-                    <article class="product-story-row">
+                    <article class="product-story-row" data-reveal="left">
                         <div class="feature-card-copy">
                             <span>Planning</span>
                             <h3>Turn academic planning into a clear operating workflow.</h3>
                             <p>Use section planning and assignment visibility to understand workload needs before the year becomes reactive.</p>
                         </div>
-                        <figure class="screenshot-frame product-art">
+                        <figure class="screenshot-frame product-art glass-surface interactive-card">
+                            <span class="frame-glow frame-glow-teal" aria-hidden="true"></span>
+                            <span class="shot-sheen" aria-hidden="true"></span>
                             <img src="{{ url_for('landing_public', path='screenshots/10.png') }}" alt="TIS planning table product preview" width="1586" height="562">
                         </figure>
                     </article>
 
-                    <article class="product-story-row product-story-reverse">
+                    <article class="product-story-row product-story-reverse" data-reveal="right">
                         <div class="feature-card-copy">
                             <span>Subject Allocation</span>
                             <h3>Keep subject structure organized by grade and workload.</h3>
                             <p>Color-coded subject records help teams maintain a clean view of academic requirements.</p>
                         </div>
-                        <figure class="screenshot-frame product-art product-art-tall">
+                        <figure class="screenshot-frame product-art product-art-tall glass-surface interactive-card">
+                            <span class="frame-glow frame-glow-ocean" aria-hidden="true"></span>
+                            <span class="shot-sheen" aria-hidden="true"></span>
                             <img src="{{ url_for('landing_public', path='screenshots/8.png') }}" alt="TIS subject catalog product preview" width="881" height="880">
                         </figure>
                     </article>
 
-                    <article class="product-story-row">
+                    <article class="product-story-row" data-reveal="left">
                         <div class="feature-card-copy">
                             <span>Academic Calendar</span>
                             <h3>Coordinate events around the academic year.</h3>
                             <p>Give leadership teams a shared calendar view for school operations and academic planning.</p>
                         </div>
-                        <figure class="screenshot-frame product-art">
+                        <figure class="screenshot-frame product-art glass-surface interactive-card">
+                            <span class="frame-glow frame-glow-teal" aria-hidden="true"></span>
+                            <span class="shot-sheen" aria-hidden="true"></span>
                             <img src="{{ url_for('landing_public', path='screenshots/12.png') }}" alt="TIS academic calendar product preview" width="1587" height="626">
                         </figure>
                     </article>
@@ -244,14 +284,14 @@
 
         <section id="pricing" class="content-section pricing-section">
             <div class="section-shell">
-                <div class="section-heading center-heading">
+                <div class="section-heading center-heading" data-reveal="up">
                     <div class="section-label"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-bar-chart"></use></svg>Pricing</div>
                     <h2>Choose the operating layer your school needs today, and grow toward academic intelligence.</h2>
                     <p>Prices are shown for marketing purposes and plan comparison only.</p>
                 </div>
 
                 <div class="pricing-grid">
-                    <article class="pricing-card">
+                    <article class="pricing-card interactive-card" data-reveal="left" style="--reveal-delay: 80ms;">
                         <div class="plan-kicker">Starter</div>
                         <h3>Starter</h3>
                         <div class="plan-price-block" aria-label="Starter pricing">
@@ -278,7 +318,7 @@
                         <a href="#request-demo" class="btn btn-outline focus-ring">Request a Demo</a>
                     </article>
 
-                    <article class="pricing-card featured-plan">
+                    <article class="pricing-card featured-plan interactive-card" data-reveal="up" style="--reveal-delay: 160ms;">
                         <div class="plan-badge">Most popular</div>
                         <div class="plan-kicker">Professional</div>
                         <h3>Professional</h3>
@@ -306,7 +346,7 @@
                         <a href="#request-demo" class="btn btn-primary focus-ring">Request a Demo</a>
                     </article>
 
-                    <article class="pricing-card">
+                    <article class="pricing-card interactive-card" data-reveal="right" style="--reveal-delay: 240ms;">
                         <div class="plan-kicker">Enterprise</div>
                         <h3>Enterprise</h3>
                         <div class="plan-price-block enterprise-price" aria-label="Enterprise pricing">
@@ -339,42 +379,42 @@
 
         <section id="request-demo" class="content-section demo-section">
             <div class="section-shell demo-layout">
-                <div class="demo-side">
+                <div class="demo-side" data-reveal="left">
                     <div class="section-label"><svg class="icon icon-small" aria-hidden="true"><use href="#icon-user-cog"></use></svg>Demo Request</div>
                     <h2>See TIS with your school planning workflow in mind.</h2>
                     <p>Share your operating context and the TIS team can recommend the right walkthrough: teacher planning, branch visibility, observations, staffing analysis, or the AI roadmap.</p>
                     <div class="demo-benefit-list">
-                        <article><strong>Planning walkthrough</strong><span>See teacher workload, allocation, and staffing forecasting workflows.</span></article>
-                        <article><strong>Operations walkthrough</strong><span>Review observations, calendar coordination, and leadership communication.</span></article>
-                        <article><strong>AI roadmap discussion</strong><span>Explore how future academic intelligence can support your leadership team.</span></article>
+                        <article class="interactive-card"><strong>Planning walkthrough</strong><span>See teacher workload, allocation, and staffing forecasting workflows.</span></article>
+                        <article class="interactive-card"><strong>Operations walkthrough</strong><span>Review observations, calendar coordination, and leadership communication.</span></article>
+                        <article class="interactive-card"><strong>AI roadmap discussion</strong><span>Explore how future academic intelligence can support your leadership team.</span></article>
                     </div>
                 </div>
 
-                <form class="demo-form" id="demoRequestForm" method="post" action="{{ url_for('submit_demo_request') }}">
+                <form class="demo-form glass-surface" id="demoRequestForm" method="post" action="{{ url_for('submit_demo_request') }}" novalidate data-reveal="right">
                     <div class="form-grid">
                         <div>
                             <label for="school-name">School Name</label>
-                            <input id="school-name" name="school_name" type="text" placeholder="Your school name" required>
+                            <input id="school-name" name="school_name" type="text" placeholder="Your school name" required data-field-input>
                         </div>
                         <div>
                             <label for="full-name">Full Name</label>
-                            <input id="full-name" name="full_name" type="text" placeholder="Your name" required>
+                            <input id="full-name" name="full_name" type="text" placeholder="Your name" required data-field-input>
                         </div>
                         <div>
                             <label for="email">Email</label>
-                            <input id="email" name="email" type="email" placeholder="name@school.edu" required>
+                            <input id="email" name="email" type="email" placeholder="name@school.edu" required data-field-input>
                         </div>
                         <div>
                             <label for="phone">Phone</label>
-                            <input id="phone" name="phone" type="tel" placeholder="Your phone number">
+                            <input id="phone" name="phone" type="tel" placeholder="Your phone number" data-field-input>
                         </div>
                         <div>
                             <label for="country">Country</label>
-                            <input id="country" name="country" type="text" placeholder="Country" required>
+                            <input id="country" name="country" type="text" placeholder="Country" required data-field-input>
                         </div>
                         <div>
                             <label for="school-type">School Type</label>
-                            <select id="school-type" name="school_type">
+                            <select id="school-type" name="school_type" data-field-input>
                                 <option value="">Select school type</option>
                                 <option>Private school</option>
                                 <option>International school</option>
@@ -384,19 +424,19 @@
                         </div>
                         <div>
                             <label for="teachers">Number of Teachers</label>
-                            <input id="teachers" name="teachers" type="number" placeholder="150">
+                            <input id="teachers" name="teachers" type="number" placeholder="150" data-field-input>
                         </div>
                         <div>
                             <label for="students">Number of Students</label>
-                            <input id="students" name="students" type="number" placeholder="1,200">
+                            <input id="students" name="students" type="number" placeholder="1,200" data-field-input>
                         </div>
                         <div>
                             <label for="branches">Number of Branches</label>
-                            <input id="branches" name="branches" type="number" placeholder="3">
+                            <input id="branches" name="branches" type="number" placeholder="3" data-field-input>
                         </div>
                         <div>
                             <label for="interested-plan">Interested Plan</label>
-                            <select id="interested-plan" name="interested_plan" required>
+                            <select id="interested-plan" name="interested_plan" required data-field-input>
                                 <option value="">Select a plan</option>
                                 <option>Starter</option>
                                 <option>Professional</option>
@@ -406,14 +446,14 @@
                         </div>
                         <div class="form-field-full">
                             <label for="message">Message</label>
-                            <textarea id="message" name="message" rows="5" placeholder="Tell us about your branches, planning process, staffing needs, or AI interests."></textarea>
+                            <textarea id="message" name="message" rows="5" placeholder="Tell us about your branches, planning process, staffing needs, or AI interests." data-field-input></textarea>
                         </div>
                     </div>
 
                     <div class="form-status" id="demoFormStatus" role="status" aria-live="polite"></div>
 
-                    <button type="submit" class="btn btn-primary focus-ring">
-                        Submit Demo Request
+                    <button type="submit" class="btn btn-primary focus-ring demo-submit-btn">
+                        <span class="button-text">Submit Demo Request</span>
                         <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
                     </button>
                 </form>
@@ -422,6 +462,9 @@
     </main>
 
     <footer class="site-footer">
+        <div class="footer-glow footer-glow-a" aria-hidden="true"></div>
+        <div class="footer-glow footer-glow-b" aria-hidden="true"></div>
+
         <div class="section-shell footer-inner">
             <div class="footer-brand-block">
                 <strong>TIS Platform</strong>
@@ -438,8 +481,98 @@
 
     <script>
         (() => {
+            const body = document.body;
+            const root = document.documentElement;
+            const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+            const header = document.querySelector(".site-header");
+            const revealItems = document.querySelectorAll("[data-reveal]");
+            const tiltItems = document.querySelectorAll(".interactive-card, .screenshot-frame, .pricing-card, .trust-card, .demo-form");
             const form = document.getElementById("demoRequestForm");
             const status = document.getElementById("demoFormStatus");
+            const fieldInputs = document.querySelectorAll("[data-field-input]");
+
+            requestAnimationFrame(() => {
+                body.classList.add("is-ready");
+            });
+
+            const updateHeaderState = () => {
+                if (!header) {
+                    return;
+                }
+                const isScrolled = window.scrollY > 14;
+                header.classList.toggle("is-scrolled", isScrolled);
+                root.style.setProperty("--scroll-depth", String(Math.min(window.scrollY / Math.max(window.innerHeight, 1), 1)));
+            };
+
+            updateHeaderState();
+            window.addEventListener("scroll", updateHeaderState, { passive: true });
+
+            if (prefersReducedMotion) {
+                revealItems.forEach((item) => item.classList.add("is-visible"));
+            } else {
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach((entry) => {
+                        if (!entry.isIntersecting) {
+                            return;
+                        }
+                        entry.target.classList.add("is-visible");
+                        observer.unobserve(entry.target);
+                    });
+                }, {
+                    threshold: 0.16,
+                    rootMargin: "0px 0px -10% 0px"
+                });
+
+                revealItems.forEach((item) => observer.observe(item));
+
+                let pointerFrame = 0;
+                window.addEventListener("pointermove", (event) => {
+                    if (pointerFrame) {
+                        cancelAnimationFrame(pointerFrame);
+                    }
+                    pointerFrame = requestAnimationFrame(() => {
+                        const shiftX = (event.clientX / window.innerWidth - 0.5) * 32;
+                        const shiftY = (event.clientY / window.innerHeight - 0.5) * 20;
+                        root.style.setProperty("--pointer-shift-x", shiftX.toFixed(2) + "px");
+                        root.style.setProperty("--pointer-shift-y", shiftY.toFixed(2) + "px");
+                    });
+                }, { passive: true });
+
+                tiltItems.forEach((item) => {
+                    item.addEventListener("pointermove", (event) => {
+                        const rect = item.getBoundingClientRect();
+                        const x = event.clientX - rect.left;
+                        const y = event.clientY - rect.top;
+                        const rotateY = ((x / rect.width) - 0.5) * 8;
+                        const rotateX = (0.5 - y / rect.height) * 8;
+                        item.style.setProperty("--tilt-x", rotateX.toFixed(2) + "deg");
+                        item.style.setProperty("--tilt-y", rotateY.toFixed(2) + "deg");
+                        item.style.setProperty("--glow-x", x + "px");
+                        item.style.setProperty("--glow-y", y + "px");
+                    });
+
+                    item.addEventListener("pointerleave", () => {
+                        item.style.setProperty("--tilt-x", "0deg");
+                        item.style.setProperty("--tilt-y", "0deg");
+                        item.style.setProperty("--glow-x", "50%");
+                        item.style.setProperty("--glow-y", "50%");
+                    });
+                });
+            }
+
+            fieldInputs.forEach((field) => {
+                const syncFieldState = () => {
+                    const hasValue = String(field.value || "").trim().length > 0;
+                    field.classList.toggle("is-filled", hasValue);
+                    field.classList.toggle("is-valid", hasValue && field.checkValidity());
+                    field.classList.toggle("is-invalid", hasValue && !field.checkValidity());
+                };
+
+                field.addEventListener("input", syncFieldState);
+                field.addEventListener("blur", syncFieldState);
+                syncFieldState();
+            });
+
             if (!form || !status) {
                 return;
             }
@@ -448,8 +581,24 @@
 
             form.addEventListener("submit", async (event) => {
                 event.preventDefault();
+
+                const invalidFields = Array.from(form.querySelectorAll("[data-field-input]")).filter((field) => !field.checkValidity());
+                invalidFields.forEach((field) => field.classList.add("is-invalid"));
+
+                if (invalidFields.length > 0) {
+                    form.classList.remove("is-success");
+                    form.classList.add("is-error");
+                    status.className = "form-status is-visible is-error";
+                    status.textContent = "Please review the highlighted fields and try again.";
+                    invalidFields[0].focus();
+                    return;
+                }
+
+                form.classList.remove("is-error", "is-success");
+                form.classList.add("is-submitting");
                 status.className = "form-status is-visible";
                 status.textContent = "Sending your demo request...";
+
                 if (submitButton) {
                     submitButton.disabled = true;
                 }
@@ -464,13 +613,22 @@
                     if (!response.ok || !result.ok) {
                         throw new Error(result.message || "The request could not be sent.");
                     }
+
+                    form.classList.remove("is-submitting", "is-error");
+                    form.classList.add("is-success");
                     status.className = "form-status is-visible is-success";
                     status.textContent = result.message || "Thank you. Your demo request has been received by the TIS team.";
                     form.reset();
+                    fieldInputs.forEach((field) => {
+                        field.classList.remove("is-filled", "is-valid", "is-invalid");
+                    });
                 } catch (error) {
+                    form.classList.remove("is-submitting", "is-success");
+                    form.classList.add("is-error");
                     status.className = "form-status is-visible is-error";
                     status.textContent = error.message || "We could not send the request right now. Please email info@tisplatform.com directly.";
                 } finally {
+                    form.classList.remove("is-submitting");
                     if (submitButton) {
                         submitButton.disabled = false;
                     }
