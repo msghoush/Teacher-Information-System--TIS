@@ -693,19 +693,20 @@
             display: block;
             font-size: 10px;
             text-transform: uppercase;
-            letter-spacing: 0.6px;
+            letter-spacing: 0.14em;
             color: #5b7090;
-            font-weight: 800;
+            font-weight: 900;
             line-height: 1.3;
         }
 
         .subject-pool-summary-item strong,
         .subject-pool-stat strong {
             display: block;
-            margin-top: 5px;
+            margin-top: 4px;
             color: #17365d;
             font-size: 22px;
-            line-height: 1.1;
+            line-height: 1.05;
+            overflow-wrap: anywhere;
         }
 
         .subject-pool-summary-item small,
@@ -714,7 +715,8 @@
             margin-top: 4px;
             color: #536885;
             font-size: 11px;
-            line-height: 1.35;
+            line-height: 1.45;
+            overflow-wrap: anywhere;
         }
 
         .subject-pool-visual-layout {
@@ -726,8 +728,8 @@
 
         .subject-pool-card-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 14px;
             align-items: start;
         }
 
@@ -740,24 +742,39 @@
 
         .subject-pool-card {
             --pool-accent: #0a4ea3;
-            border: 1px solid #d7e4f4;
-            border-left: 5px solid var(--pool-accent);
-            border-radius: 12px;
-            background: #fff;
-            padding: 14px;
+            position: relative;
+            overflow: hidden;
+            min-width: 0;
+            max-width: 100%;
             display: grid;
             gap: 12px;
-            min-width: 0;
-            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+            border: 1px solid #d9e4f2;
+            border-radius: 18px;
+            border-top: 4px solid var(--pool-accent);
+            background: linear-gradient(180deg, #ffffff 0%, #f6faff 100%);
+            padding: 14px;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
             cursor: pointer;
-            transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+            transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+        }
+
+        .subject-pool-card::before {
+            content: "";
+            position: absolute;
+            inset: auto -30px -30px auto;
+            width: 110px;
+            height: 110px;
+            border-radius: 999px;
+            background: radial-gradient(circle, color-mix(in srgb, var(--pool-accent) 12%, transparent) 0%, transparent 62%);
+            opacity: 0.9;
+            pointer-events: none;
         }
 
         .subject-pool-card:hover,
         .subject-pool-card.is-active {
-            transform: translateY(-2px);
-            box-shadow: 0 14px 28px rgba(15, 23, 42, 0.12);
-            border-color: color-mix(in srgb, var(--pool-accent) 34%, #d7e4f4);
+            transform: translateY(-3px);
+            border-color: color-mix(in srgb, var(--pool-accent) 34%, #d9e4f2);
+            box-shadow: 0 18px 35px rgba(15, 23, 42, 0.14);
         }
 
         .subject-pool-card:focus-visible {
@@ -774,12 +791,14 @@
             align-items: flex-start;
             justify-content: space-between;
             gap: 10px;
+            min-width: 0;
         }
 
         .subject-pool-title {
             display: grid;
             gap: 5px;
             min-width: 0;
+            max-width: 100%;
         }
 
         .subject-pool-title h4 {
@@ -787,12 +806,14 @@
             color: #17365d;
             font-size: 16px;
             line-height: 1.25;
+            overflow-wrap: anywhere;
         }
 
         .subject-pool-title small {
             color: #536885;
             font-size: 12px;
             line-height: 1.4;
+            overflow-wrap: anywhere;
         }
 
         .subject-pool-badge {
@@ -821,6 +842,8 @@
             background: #f8fbff;
             padding: 8px;
             min-width: 0;
+            max-width: 100%;
+            overflow-wrap: anywhere;
         }
 
         .subject-pool-stat.is-hire strong {
@@ -954,13 +977,66 @@
         .subject-pool-focus {
             position: sticky;
             top: 16px;
-            border: 1px solid #d5e4f4;
-            border-radius: 12px;
-            background: linear-gradient(160deg, #ffffff, #f6f9ff);
-            padding: 14px;
             display: grid;
-            gap: 13px;
-            box-shadow: 0 14px 30px rgba(15, 23, 42, 0.1);
+            gap: 12px;
+            min-width: 0;
+            max-width: 100%;
+            border: 1px solid #d6e3f1;
+            border-radius: 20px;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+            padding: 14px;
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
+        }
+
+        .subject-pool-focus-summary-card {
+            display: grid;
+            gap: 6px;
+            border: 1px solid #dbe7f6;
+            border-radius: 14px;
+            background: linear-gradient(145deg, #ffffff, #f4f7fb);
+            padding: 10px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+
+        .subject-pool-focus-status {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            padding: 5px 8px;
+            border-radius: 999px;
+            border: 1px solid #d4e0ee;
+            background: #f4f7fb;
+            color: var(--app-brand-deep);
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+
+        .subject-pool-focus-status.is-good {
+            background: rgba(47, 111, 94, 0.12);
+            border-color: rgba(47, 111, 94, 0.22);
+            color: #285646;
+        }
+
+        .subject-pool-focus-status.is-watch {
+            background: rgba(154, 106, 32, 0.12);
+            border-color: rgba(154, 106, 32, 0.22);
+            color: #7c5500;
+        }
+
+        .subject-pool-focus-status.is-risk {
+            background: rgba(162, 59, 50, 0.12);
+            border-color: rgba(162, 59, 50, 0.22);
+            color: #934235;
+        }
+
+        .subject-pool-focus-summary-card p {
+            margin: 0;
+            color: var(--app-muted);
+            font-size: 12px;
+            line-height: 1.45;
+            overflow-wrap: anywhere;
         }
 
         .subject-pool-focus-head {
@@ -968,6 +1044,7 @@
             align-items: flex-start;
             justify-content: space-between;
             gap: 10px;
+            min-width: 0;
         }
 
         .subject-pool-focus-head h4 {
@@ -975,6 +1052,7 @@
             color: #17365d;
             font-size: 18px;
             line-height: 1.2;
+            overflow-wrap: anywhere;
         }
 
         .subject-pool-focus-head small {
@@ -983,6 +1061,7 @@
             color: #536885;
             font-size: 12px;
             line-height: 1.4;
+            overflow-wrap: anywhere;
         }
 
         .subject-pool-focus-ring {
@@ -1021,6 +1100,8 @@
             border-radius: 10px;
             background: rgba(255, 255, 255, 0.92);
             padding: 9px;
+            min-width: 0;
+            overflow-wrap: anywhere;
         }
 
         .subject-pool-focus-metric span {
@@ -1065,6 +1146,8 @@
             padding: 9px;
             display: grid;
             gap: 7px;
+            min-width: 0;
+            overflow-wrap: anywhere;
         }
 
         .subject-pool-focus-subject-head {
@@ -1072,12 +1155,14 @@
             align-items: flex-start;
             justify-content: space-between;
             gap: 8px;
+            min-width: 0;
         }
 
         .subject-pool-focus-subject strong {
             color: #17365d;
             font-size: 13px;
             line-height: 1.25;
+            overflow-wrap: anywhere;
         }
 
         .subject-pool-focus-subject small {
@@ -1223,6 +1308,7 @@
             align-items: center;
             max-width: 100%;
             min-height: 24px;
+            overflow-wrap: anywhere;
             padding: 4px 8px;
             border: 1px solid var(--app-line);
             border-radius: 999px;
@@ -4625,7 +4711,7 @@
                     </button>
                     <button id="dashboardSubjectPoolViewBtn" class="subject-view-btn" type="button" data-subject-view="pools" aria-pressed="false">
                         {{ icon("report", "icon") }}
-                        <span>Pool Groups</span>
+                        <span>Subject Groups</span>
                     </button>
                 </div>
                 <div id="dashboardSubjectDefaultView" class="subject-view-pane is-active">
@@ -4937,22 +5023,33 @@
 
                 <div id="dashboardSubjectPoolView" class="subject-view-pane" hidden>
                     {% if subject_pool_distribution_rows %}
-                    <section class="subject-pool-dashboard" aria-label="Subject Pool Distribution">
+                    <section class="subject-pool-dashboard" aria-label="Subject Groups Overview">
+                        <div class="subject-pool-dashboard-intro">
+                            <div>
+                                <p class="subject-pool-eyebrow">Subject groups</p>
+                                <h3 class="subject-pool-dashboard-title">Coverage, staffing, and teacher load at a glance</h3>
+                                <p class="subject-pool-dashboard-copy">Review each subject family to understand how much demand is covered, which teachers are assigned, and where open capacity remains.</p>
+                            </div>
+                            <div class="subject-pool-dashboard-badges">
+                                <span class="subject-pool-dashboard-badge">Fast coverage review</span>
+                                <span class="subject-pool-dashboard-badge is-accent">Teacher workload view</span>
+                            </div>
+                        </div>
                         <div class="subject-pool-summary-grid">
                             <div class="subject-pool-summary-item">
-                                <span>Pools</span>
+                                <span>Subject Groups</span>
                                 <strong>{{ subject_pool_distribution_summary.pool_count }}</strong>
-                                <small>{{ subject_pool_distribution_summary.subject_count }} subjects grouped by pool</small>
+                                <small>{{ subject_pool_distribution_summary.subject_count }} subjects grouped by coverage family</small>
                             </div>
                             <div class="subject-pool-summary-item">
                                 <span>Total Demand</span>
                                 <strong>{{ subject_pool_distribution_summary.total_required_hours }}h</strong>
-                                <small>Original required weekly hours</small>
+                                <small>Original required weekly teaching hours</small>
                             </div>
                             <div class="subject-pool-summary-item">
-                                <span>Original Teachers Needed</span>
+                                <span>Teachers Needed</span>
                                 <strong>{{ subject_pool_distribution_summary.original_teacher_need_count }}</strong>
-                                <small>Based on total demand at 24h per teacher</small>
+                                <small>FTE demand based on 24h teacher blocks</small>
                             </div>
                             <div class="subject-pool-summary-item">
                                 <span>Open Hours</span>
@@ -4960,9 +5057,9 @@
                                 <small>{{ subject_pool_distribution_summary.total_allocated_hours }}h already covered</small>
                             </div>
                             <div class="subject-pool-summary-item">
-                                <span>Full Hires</span>
+                                <span>Hiring Need</span>
                                 <strong>{{ subject_pool_distribution_summary.full_hire_count }}</strong>
-                                <small>{{ subject_pool_distribution_summary.hire_remainder_hours }}h remainder after 24h blocks</small>
+                                <small>{{ subject_pool_distribution_summary.hire_remainder_hours }}h remainder after full hire blocks</small>
                             </div>
                         </div>
 
@@ -5082,12 +5179,16 @@
                             <aside id="subjectPoolFocus" class="subject-pool-focus" aria-live="polite">
                                 <div class="subject-pool-focus-head">
                                     <div>
-                                        <h4 id="subjectPoolFocusTitle">Select a pool</h4>
-                                        <small id="subjectPoolFocusSubtitle">Review original demand, coverage, and hiring split.</small>
+                                        <h4 id="subjectPoolFocusTitle">Select a subject group</h4>
+                                        <small id="subjectPoolFocusSubtitle">Choose a subject group to review coverage status, assigned teachers, and remaining demand.</small>
                                     </div>
-                                    <div id="subjectPoolFocusRing" class="subject-pool-focus-ring">
+                                    <div id="subjectPoolFocusRing" class="subject-pool-focus-ring" aria-hidden="true">
                                         <span id="subjectPoolFocusCoverage">0%</span>
                                     </div>
+                                </div>
+                                <div class="subject-pool-focus-summary-card" aria-live="polite">
+                                    <span id="subjectPoolFocusStatus" class="subject-pool-focus-status is-neutral">Coverage overview</span>
+                                    <p id="subjectPoolFocusSummary">Select a subject group to see the current coverage outlook and staffing need in one view.</p>
                                 </div>
                                 <div class="subject-pool-focus-metrics">
                                     <div class="subject-pool-focus-metric is-original">
@@ -5657,6 +5758,8 @@ const tabs = document.querySelectorAll(".tab");
         const subjectPoolCards = Array.from(document.querySelectorAll(".subject-pool-card[data-pool-label]"));
         const subjectPoolFocusTitle = document.getElementById("subjectPoolFocusTitle");
         const subjectPoolFocusSubtitle = document.getElementById("subjectPoolFocusSubtitle");
+        const subjectPoolFocusStatus = document.getElementById("subjectPoolFocusStatus");
+        const subjectPoolFocusSummary = document.getElementById("subjectPoolFocusSummary");
         const subjectPoolFocusRing = document.getElementById("subjectPoolFocusRing");
         const subjectPoolFocusCoverage = document.getElementById("subjectPoolFocusCoverage");
         const subjectPoolFocusOriginalTeachers = document.getElementById("subjectPoolFocusOriginalTeachers");
@@ -6170,11 +6273,26 @@ const tabs = document.querySelectorAll(".tab");
             const coveredWidth = clampDashboardPercent(data.coveredWidth);
             const openWidth = clampDashboardPercent(data.openWidth);
 
+            const statusTone = coverage >= 85 ? "is-good" : coverage >= 55 ? "is-watch" : "is-risk";
+            const statusLabel = coverage >= 85 ? "Coverage on track" : coverage >= 55 ? "Partial coverage" : "Immediate attention";
+            const remainingHours = Number(data.remainingHours || 0);
+            const fullHires = Number(data.fullHires || 0);
+            const summaryText = remainingHours > 0
+                ? `${data.familyLabel || "Subject group"} still needs ${formatDashboardHours(remainingHours)} of coverage. ${fullHires} hiring block${fullHires === 1 ? "" : "s"} may be needed to close the open demand.`
+                : `${data.familyLabel || "Subject group"} is fully covered. No additional staffing is currently required for this group.`;
+
             if (subjectPoolFocusTitle) {
-                subjectPoolFocusTitle.textContent = data.poolLabel || "Selected Pool";
+                subjectPoolFocusTitle.textContent = data.poolLabel || "Selected subject group";
             }
             if (subjectPoolFocusSubtitle) {
-                subjectPoolFocusSubtitle.textContent = `${data.familyLabel || "Subject group"} | ${data.subjectCount || 0} subject${Number(data.subjectCount || 0) === 1 ? "" : "s"}`;
+                subjectPoolFocusSubtitle.textContent = `${data.familyLabel || "Subject group"} • ${data.subjectCount || 0} subject${Number(data.subjectCount || 0) === 1 ? "" : "s"} • ${formatDashboardHours(data.totalRequired || 0)} demand`;
+            }
+            if (subjectPoolFocusStatus) {
+                subjectPoolFocusStatus.textContent = statusLabel;
+                subjectPoolFocusStatus.className = `subject-pool-focus-status ${statusTone}`;
+            }
+            if (subjectPoolFocusSummary) {
+                subjectPoolFocusSummary.textContent = summaryText;
             }
             if (subjectPoolFocusRing) {
                 subjectPoolFocusRing.style.setProperty("--ring-color", accent);
