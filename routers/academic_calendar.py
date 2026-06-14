@@ -20,6 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import auth
+import authorization
 import models
 from dependencies import get_db
 from subject_colors import build_subject_theme, normalize_hex_color
@@ -106,11 +107,6 @@ DEFAULT_EVENT_TYPES = (
     },
 )
 
-CALENDAR_MANAGE_ROLES = {
-    auth.ROLE_DEVELOPER,
-    auth.ROLE_ADMINISTRATOR,
-    auth.ROLE_EDITOR,
-}
 EVENT_STATUS_OPTIONS = ("Planned", "Confirmed", "In Progress", "Completed", "Cancelled")
 PRIORITY_OPTIONS = ("Low", "Normal", "High", "Urgent")
 TARGET_GROUP_OPTIONS = ("All School", "Grade", "Section", "Teacher", "Role", "Custom")
@@ -940,8 +936,17 @@ def _get_configuration_access(request: Request, db: Session):
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return None, RedirectResponse(url="/", status_code=302)
-    if not auth.can_manage_system_settings(current_user):
-        return None, RedirectResponse(url="/dashboard", status_code=302)
+    if not auth.has_permission(db, current_user, "calendar.manage_event_types"):
+        return (
+            None,
+            authorization.build_access_denied_response(
+                request,
+                db,
+                current_user=current_user,
+                permission_keys=("calendar.manage_event_types",),
+                page_key="system-configuration",
+            ),
+        )
     return current_user, None
 
 
@@ -952,9 +957,16 @@ def _get_scope_ids(current_user):
     )
 
 
-def _can_manage_calendar(current_user) -> bool:
-    role = auth.normalize_role(getattr(current_user, "role", ""))
-    return role in CALENDAR_MANAGE_ROLES
+def _can_manage_calendar(db: Session, current_user) -> bool:
+    return auth.has_any_permission(
+        db,
+        current_user,
+        "calendar.create",
+        "calendar.edit",
+        "calendar.delete",
+        "calendar.assign_targets",
+        "calendar.send_notifications",
+    )
 
 
 def _get_configuration_modules(active_key: str) -> list[dict[str, object]]:
@@ -2764,7 +2776,7 @@ def academic_calendar_home(
                 current_user=current_user,
                 today_value=date.today(),
             ),
-            "can_manage_calendar": _can_manage_calendar(current_user),
+            "can_manage_calendar": _can_manage_calendar(db, current_user),
             "selected_event_id": _parse_int(event_id),
             "return_to": _current_return_path(request),
             "notice": str(request.query_params.get("notice", "") or "").strip(),
@@ -2894,7 +2906,7 @@ def create_calendar_event(
     current_user, redirect_response = _get_current_user_or_redirect(request, db)
     if redirect_response:
         return redirect_response
-    if not _can_manage_calendar(current_user):
+    if not _can_manage_calendar(db, current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
     safe_return_to = _safe_redirect_path(return_to)
     branch_id, academic_year_id = _get_scope_ids(current_user)
@@ -3007,7 +3019,7 @@ def update_calendar_event(
     current_user, redirect_response = _get_current_user_or_redirect(request, db)
     if redirect_response:
         return redirect_response
-    if not _can_manage_calendar(current_user):
+    if not _can_manage_calendar(db, current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
     safe_return_to = _safe_redirect_path(return_to)
     branch_id, academic_year_id = _get_scope_ids(current_user)
@@ -3104,7 +3116,7 @@ def update_calendar_event_status(
     current_user, redirect_response = _get_current_user_or_redirect(request, db)
     if redirect_response:
         return redirect_response
-    if not _can_manage_calendar(current_user):
+    if not _can_manage_calendar(db, current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
     safe_return_to = _safe_redirect_path(return_to)
     branch_id, academic_year_id = _get_scope_ids(current_user)
@@ -3156,7 +3168,7 @@ def delete_calendar_event(
     current_user, redirect_response = _get_current_user_or_redirect(request, db)
     if redirect_response:
         return redirect_response
-    if not _can_manage_calendar(current_user):
+    if not _can_manage_calendar(db, current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
     safe_return_to = _safe_redirect_path(return_to)
     branch_id, academic_year_id = _get_scope_ids(current_user)

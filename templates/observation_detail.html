@@ -4,7 +4,7 @@
 {% block title %}Observation Result | TIS{% endblock %}
 
 {% block page_header_actions %}
-{% if can_export_observation %}
+{% if can("observations.export_reports") and can_export_observation %}
 <a class="shell-btn shell-btn-export" href="/observations/{{ observation.id }}/export/pdf">{{ icon("download", "shell-icon") }} Export PDF</a>
 {% endif %}
 {% if can_edit_observation %}

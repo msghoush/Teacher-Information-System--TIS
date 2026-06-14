@@ -139,7 +139,7 @@
                 </nav>
             </section>
 
-            {% if shell.can_manage_system_settings and shell.available_scope_branches %}
+            {% if shell.can_switch_branches and shell.available_scope_branches %}
             <section class="sidebar-section">
                 <h3 class="sidebar-section-title">Configuration</h3>
                 <div class="sidebar-config">
@@ -159,6 +159,24 @@
                             <button class="sidebar-config-btn" type="submit">{{ icon("branch", "shell-icon") }} Switch Branch</button>
                         </form>
                     </div>
+                    {% if shell.can_switch_years and shell.all_years %}
+                    <div class="sidebar-config-card">
+                        <h4 class="sidebar-card-title">Change Academic Year</h4>
+                        <p>Switch year scope inside the selected school.</p>
+                        <form class="sidebar-config-row" method="post" action="/scope/academic-year">
+                            <input type="hidden" name="return_to" value="{{ request.url.path }}">
+                            <div>
+                                <label for="sidebar_scope_academic_year_id">Academic Year</label>
+                                <select id="sidebar_scope_academic_year_id" name="academic_year_id" required>
+                                    {% for year_item in shell.all_years %}
+                                    <option value="{{ year_item.id }}" {% if shell.scoped_academic_year_id == year_item.id %}selected{% endif %}>{{ year_item.year_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <button class="sidebar-config-btn" type="submit">{{ icon("year", "shell-icon") }} Switch Year</button>
+                        </form>
+                    </div>
+                    {% endif %}
                 </div>
             </section>
             {% endif %}
@@ -179,6 +197,7 @@
                     <div class="sidebar-account-copy">
                         <strong>{{ shell.user_name }}</strong>
                         <span>{{ shell.role_label or "System User" }}</span>
+                        {% if can("users.manage_profile_photo") %}
                         <form class="sidebar-photo-form" method="post" action="/profile/photo" enctype="multipart/form-data" data-auto-submit-file-form>
                             <input type="hidden" name="return_to" value="{{ request.url.path }}">
                             <input
@@ -195,6 +214,7 @@
                             </label>
                             <small class="sidebar-photo-help">PNG, JPG, GIF, or WEBP up to 3 MB</small>
                         </form>
+                        {% endif %}
                     </div>
                 </div>
                 <a class="sidebar-logout" href="/logout">{{ icon("logout", "shell-icon") }} Logout</a>

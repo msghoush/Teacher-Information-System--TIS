@@ -21,6 +21,7 @@ ROLE_LIMITED = "Limited Access"
 ROLE_MANAGED_CHOICES = (
     ROLE_DEVELOPER,
     ROLE_ADMINISTRATOR,
+    ROLE_EDITOR,
     ROLE_USER,
     ROLE_LIMITED,
 )
@@ -31,16 +32,33 @@ SESSION_MAX_AGE_SECONDS = 8 * 60 * 60
 SESSION_SECRET_ENV_NAME = "TIS_SESSION_SECRET"
 MIN_SESSION_SECRET_LENGTH = 32
 
-DATA_MODIFY_ROLES = {
-    ROLE_DEVELOPER,
-    ROLE_ADMINISTRATOR,
-    ROLE_EDITOR,
-    ROLE_USER,
-}
-DATA_DELETE_ROLES = {
-    ROLE_DEVELOPER,
-    ROLE_ADMINISTRATOR,
-}
+SYSTEM_CONFIGURATION_PERMISSION_PREFIXES = (
+    "configuration.",
+    "schools.",
+    "branches.",
+    "academic_years.",
+    "branding.",
+)
+USER_MANAGEMENT_PREFIX = "users."
+DATA_MODIFICATION_PERMISSION_PREFIXES = (
+    "subjects.",
+    "teachers.",
+    "planning.",
+    "timetable.",
+    "calendar.",
+    "observations.",
+    "hiring_plan.",
+)
+DATA_DELETE_PERMISSIONS = frozenset(
+    {
+        "subjects.delete",
+        "teachers.delete",
+        "planning.delete_section",
+        "timetable.delete",
+        "calendar.delete",
+        "observations.delete",
+    }
+)
 
 
 def normalize_role(role: str) -> str:
@@ -71,7 +89,175 @@ def normalize_position(position: str) -> str:
     return cleaned
 
 
-def can_access_all_branches(user) -> bool:
+def _permission_registry_module():
+    import permission_registry
+
+    return permission_registry
+
+
+def get_user_permission_keys(user) -> set[str]:
+    cached = getattr(user, "permission_keys", None)
+    if not cached:
+        return set()
+    return set(cached)
+
+
+def _has_cached_permission(user, permission_key: str) -> bool:
+    if is_developer(user):
+        return True
+    return str(permission_key or "").strip() in get_user_permission_keys(user)
+
+
+def _has_any_cached_permission(user, permission_keys) -> bool:
+    return any(_has_cached_permission(user, permission_key) for permission_key in permission_keys)
+
+
+def _has_cached_permission_prefix(user, prefixes) -> bool:
+    if is_developer(user):
+        return True
+    cached_keys = get_user_permission_keys(user)
+    return any(
+        str(permission_key).startswith(prefix)
+        for permission_key in cached_keys
+        for prefix in prefixes
+    )
+
+
+def _get_role_permission_rows(
+    db: Session,
+    role: str,
+    school_group_id: int | None = None,
+):
+    permission_registry = _permission_registry_module()
+    normalized_role = permission_registry.normalize_managed_role(role)
+    if not normalized_role:
+        return []
+
+    query = db.query(models.RolePermission).filter(
+        models.RolePermission.role == normalized_role
+    )
+    if school_group_id is None:
+        query = query.filter(models.RolePermission.school_group_id.is_(None))
+    else:
+        query = query.filter(models.RolePermission.school_group_id == school_group_id)
+    return query.all()
+
+
+def get_allowed_permission_keys(
+    db: Session,
+    user,
+    school_group_id: int | None = None,
+) -> set[str]:
+    permission_registry = _permission_registry_module()
+    if not user or not is_user_active(user):
+        return set()
+
+    normalized_role = permission_registry.normalize_managed_role(
+        getattr(user, "role", "")
+    )
+    if not normalized_role:
+        return set()
+    if normalized_role == ROLE_DEVELOPER:
+        return set(permission_registry.ALL_PERMISSION_KEYS)
+
+    resolved_school_group_id = school_group_id
+    if resolved_school_group_id is None:
+        resolved_school_group_id = (
+            getattr(user, "scope_school_group_id", None)
+            or getattr(user, "school_group_id", None)
+            or get_user_school_group_id(db, user)
+        )
+
+    cache_key = (
+        "permission_cache",
+        normalized_role,
+        int(resolved_school_group_id or 0),
+    )
+    cached_permissions = getattr(user, "_permission_cache", {})
+    if cache_key in cached_permissions:
+        return set(cached_permissions[cache_key])
+
+    allowed_keys = permission_registry.get_default_permissions_for_role(normalized_role)
+    for permission_row in _get_role_permission_rows(db, normalized_role, None):
+        if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
+            if permission_row.is_allowed:
+                allowed_keys.add(permission_row.permission_key)
+            else:
+                allowed_keys.discard(permission_row.permission_key)
+    if resolved_school_group_id:
+        for permission_row in _get_role_permission_rows(
+            db,
+            normalized_role,
+            resolved_school_group_id,
+        ):
+            if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
+                if permission_row.is_allowed:
+                    allowed_keys.add(permission_row.permission_key)
+                else:
+                    allowed_keys.discard(permission_row.permission_key)
+
+    allowed_keys -= permission_registry.DEVELOPER_ONLY_PERMISSION_KEYS
+    cached_permissions[cache_key] = frozenset(allowed_keys)
+    user._permission_cache = cached_permissions
+    return set(allowed_keys)
+
+
+def has_permission(
+    db: Session,
+    user,
+    permission_key: str,
+    *,
+    school_group_id: int | None = None,
+) -> bool:
+    cleaned_permission_key = str(permission_key or "").strip()
+    if not cleaned_permission_key:
+        return True
+    if not user or not is_user_active(user):
+        return False
+    if is_developer(user):
+        return True
+    return cleaned_permission_key in get_allowed_permission_keys(
+        db,
+        user,
+        school_group_id=school_group_id,
+    )
+
+
+def has_any_permission(
+    db: Session,
+    user,
+    *permission_keys: str,
+    school_group_id: int | None = None,
+) -> bool:
+    return any(
+        has_permission(
+            db,
+            user,
+            permission_key,
+            school_group_id=school_group_id,
+        )
+        for permission_key in permission_keys
+    )
+
+
+def has_all_permissions(
+    db: Session,
+    user,
+    *permission_keys: str,
+    school_group_id: int | None = None,
+) -> bool:
+    return all(
+        has_permission(
+            db,
+            user,
+            permission_key,
+            school_group_id=school_group_id,
+        )
+        for permission_key in permission_keys
+    )
+
+
+def can_access_all_branches(user, db: Session | None = None) -> bool:
     role = normalize_role(getattr(user, "role", ""))
     raw_role = str(getattr(user, "role", "")).strip().lower()
     position = normalize_position(getattr(user, "position", ""))
@@ -82,7 +268,19 @@ def can_access_all_branches(user) -> bool:
     if raw_role in {"education excellence", "education excelency"}:
         return True
 
-    return position == POSITION_EDUCATION_EXCELLENCE
+    if position == POSITION_EDUCATION_EXCELLENCE:
+        return True
+
+    if db is not None:
+        return has_any_permission(
+            db,
+            user,
+            "schools.manage_all_schools",
+            "dashboard.view_all_schools",
+            "system_owner.switch_all_schools",
+        )
+
+    return False
 
 
 def is_developer(user) -> bool:
@@ -93,43 +291,63 @@ def is_user_active(user) -> bool:
     return bool(getattr(user, "is_active", False))
 
 
-def can_access_all_years(user) -> bool:
-    return is_developer(user)
+def can_access_all_years(user, db: Session | None = None) -> bool:
+    if is_developer(user):
+        return True
+    if db is not None:
+        return has_any_permission(
+            db,
+            user,
+            "academic_years.view",
+            "academic_years.activate",
+        )
+    return _has_any_cached_permission(
+        user,
+        ("academic_years.view", "academic_years.activate"),
+    )
 
 
 def can_manage_system_settings(user) -> bool:
-    return is_developer(user)
+    return _has_cached_permission_prefix(user, SYSTEM_CONFIGURATION_PERMISSION_PREFIXES)
 
 
 def can_manage_users(user) -> bool:
-    return is_developer(user)
+    return _has_cached_permission(user, "users.view")
 
 
 def can_modify_data(user) -> bool:
-    role = normalize_role(getattr(user, "role", ""))
-    return role in DATA_MODIFY_ROLES
+    return _has_cached_permission_prefix(user, DATA_MODIFICATION_PERMISSION_PREFIXES)
 
 
 def can_edit_data(user) -> bool:
-    role = normalize_role(getattr(user, "role", ""))
-    return role in DATA_MODIFY_ROLES
+    return _has_cached_permission_prefix(user, DATA_MODIFICATION_PERMISSION_PREFIXES)
 
 
 def can_delete_data(user) -> bool:
-    role = normalize_role(getattr(user, "role", ""))
-    return role in DATA_DELETE_ROLES
+    return _has_any_cached_permission(user, DATA_DELETE_PERMISSIONS)
 
 
 def can_edit_user_accounts(user) -> bool:
-    return is_developer(user)
+    return _has_any_cached_permission(
+        user,
+        (
+            "users.edit_profile",
+            "users.assign_position",
+            "users.assign_role",
+            "users.assign_developer_role",
+            "users.assign_branch",
+            "users.activate_deactivate",
+            "users.reset_password",
+        ),
+    )
 
 
 def can_delete_user_accounts(user) -> bool:
-    return is_developer(user)
+    return _has_any_cached_permission(user, ("users.delete", "users.bulk_delete"))
 
 
 def can_manage_target_user_account(current_user, target_user) -> bool:
-    if not is_developer(current_user):
+    if not can_manage_users(current_user):
         return False
     current_group_id = getattr(current_user, "scope_school_group_id", None) or getattr(
         current_user,
@@ -138,6 +356,11 @@ def can_manage_target_user_account(current_user, target_user) -> bool:
     )
     target_group_id = getattr(target_user, "school_group_id", None)
     if current_group_id and target_group_id and current_group_id != target_group_id:
+        return False
+    if is_developer(target_user) and not _has_any_cached_permission(
+        current_user,
+        ("users.manage_developer_accounts",),
+    ):
         return False
     return True
 
@@ -373,7 +596,7 @@ def get_accessible_branch_query(db: Session, user):
         return query
 
     user_school_group_id = get_user_school_group_id(db, user)
-    if can_access_all_branches(user):
+    if can_access_all_branches(user, db):
         if not user_school_group_id:
             return query.filter(models.Branch.id == -1)
         return query.filter(models.Branch.school_group_id == user_school_group_id)
@@ -502,7 +725,7 @@ def get_current_user(
     except ValueError:
         parsed_year_id = None
 
-    can_all_branch_scope = can_access_all_branches(user)
+    can_all_branch_scope = can_access_all_branches(user, db)
     active_branches = get_accessible_branch_query(db, user).order_by(models.Branch.name.asc()).all()
     active_branch_ids = {branch.id for branch in active_branches}
 
@@ -525,7 +748,7 @@ def get_current_user(
 
     active_year = get_active_academic_year_for_school_group(db, scoped_school_group_id)
 
-    can_all_year_scope = can_access_all_years(user)
+    can_all_year_scope = can_access_all_years(user, db)
     selected_year = get_academic_year_for_school_group(db, parsed_year_id, scoped_school_group_id)
     assigned_year = get_academic_year_for_school_group(
         db,
@@ -564,6 +787,13 @@ def get_current_user(
     user.effective_position = normalize_position(getattr(user, "position", ""))
     user.can_access_all_branches = can_all_branch_scope
     user.can_access_all_years = can_all_year_scope
+    user.permission_keys = frozenset(
+        get_allowed_permission_keys(
+            db,
+            user,
+            school_group_id=scoped_school_group_id or user_school_group_id,
+        )
+    )
 
     request.state.audit_actor_user_id = user.user_id
     request.state.audit_actor_username = user.username or ""

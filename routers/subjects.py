@@ -12,6 +12,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
 import auth
+import authorization
 import models
 from dependencies import get_db
 from auth import get_current_user
@@ -268,10 +269,10 @@ def _render_subjects_page(
     detail_errors=None
 ):
     branch_id, academic_year_id = _get_scope_ids(current_user)
-    can_modify = auth.can_modify_data(current_user)
-    can_edit = auth.can_edit_data(current_user)
-    can_delete = auth.can_delete_data(current_user)
-    can_copy_year_data = auth.is_developer(current_user)
+    can_modify = auth.has_permission(db, current_user, "subjects.create")
+    can_edit = auth.has_permission(db, current_user, "subjects.edit")
+    can_delete = auth.has_permission(db, current_user, "subjects.delete")
+    can_copy_year_data = auth.has_permission(db, current_user, "subjects.copy_year_data")
     subjects = db.query(models.Subject).filter(
         models.Subject.branch_id == branch_id,
         models.Subject.academic_year_id == academic_year_id
@@ -362,13 +363,15 @@ def copy_subjects_from_year(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.is_developer(current_user):
-        return _render_subjects_page(
-            request=request,
-            db=db,
-            current_user=current_user,
-            error="Only the developer user can copy subjects between academic years.",
-        )
+    current_user, denied_response = authorization.require_permission(
+        request,
+        db,
+        "subjects.copy_year_data",
+        current_user=current_user,
+        page_key="subjects",
+    )
+    if denied_response:
+        return denied_response
 
     branch_id, target_academic_year_id = _get_scope_ids(current_user)
     if source_academic_year_id == target_academic_year_id:
@@ -692,7 +695,7 @@ def import_subjects(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_modify_data(current_user):
+    if not auth.has_permission(db, current_user, "subjects.import"):
         return _render_subjects_page(
             request=request,
             db=db,
@@ -885,7 +888,7 @@ def add_subject(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_modify_data(current_user):
+    if not auth.has_permission(db, current_user, "subjects.create"):
         return _render_subjects_page(
             request=request,
             db=db,
@@ -967,7 +970,7 @@ def edit_subject_page(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_edit_data(current_user):
+    if not auth.has_permission(db, current_user, "subjects.edit"):
         return RedirectResponse(url="/subjects", status_code=302)
 
     branch_id, academic_year_id = _get_scope_ids(current_user)
@@ -1023,7 +1026,7 @@ def update_subject(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_edit_data(current_user):
+    if not auth.has_permission(db, current_user, "subjects.edit"):
         return RedirectResponse(url="/subjects", status_code=302)
 
     branch_id, academic_year_id = _get_scope_ids(current_user)
@@ -1172,7 +1175,7 @@ def delete_subject(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_delete_data(current_user):
+    if not auth.has_permission(db, current_user, "subjects.delete"):
         return RedirectResponse(url="/subjects")
 
     branch_id, academic_year_id = _get_scope_ids(current_user)
@@ -1221,7 +1224,7 @@ def delete_subjects_bulk(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_delete_data(current_user):
+    if not auth.has_permission(db, current_user, "subjects.delete"):
         return RedirectResponse(url="/subjects", status_code=302)
 
     unique_subject_ids = sorted({

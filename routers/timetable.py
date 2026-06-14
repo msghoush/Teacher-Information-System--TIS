@@ -1537,8 +1537,18 @@ def timetable_page(
         {
             "request": request,
             "timetable_payload": workspace_payload,
-            "can_edit_timetable": auth.can_edit_data(current_user),
-            "can_manage_system_settings": auth.can_manage_system_settings(current_user),
+            "can_edit_timetable": auth.has_any_permission(
+                db,
+                current_user,
+                "timetable.create",
+                "timetable.edit",
+                "timetable.delete",
+            ),
+            "can_manage_system_settings": auth.has_permission(
+                db,
+                current_user,
+                "timetable.manage_settings",
+            ),
             **build_shell_context(
                 request,
                 db,
@@ -1630,7 +1640,12 @@ async def assign_timetable_slot(
     if redirect_response:
         return _json_error("Please sign in again to continue.", status_code=401)
 
-    if not auth.can_edit_data(current_user):
+    if not auth.has_any_permission(
+        db,
+        current_user,
+        "timetable.create",
+        "timetable.edit",
+    ):
         return _json_error(
             "Your role can view the timetable but cannot change timetable slots.",
             status_code=403,

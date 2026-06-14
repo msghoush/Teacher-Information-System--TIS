@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import auth
+import authorization
 import models
 from dependencies import get_db
 from auth import get_current_user
@@ -567,10 +568,10 @@ def _render_planning_page(
     form_data=None,
 ):
     branch_id, academic_year_id = _get_scope_ids(current_user)
-    can_modify = auth.can_modify_data(current_user)
-    can_edit = auth.can_edit_data(current_user)
-    can_delete = auth.can_delete_data(current_user)
-    can_copy_year_data = auth.is_developer(current_user)
+    can_modify = auth.has_permission(db, current_user, "planning.create_section")
+    can_edit = auth.has_permission(db, current_user, "planning.edit_section")
+    can_delete = auth.has_permission(db, current_user, "planning.delete_section")
+    can_copy_year_data = auth.has_permission(db, current_user, "planning.copy_year_data")
     copy_year_choices = (
         get_copy_year_choices(db, academic_year_id)
         if can_copy_year_data
@@ -809,13 +810,15 @@ def copy_planning_from_year(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.is_developer(current_user):
-        return _render_planning_page(
-            request=request,
-            db=db,
-            current_user=current_user,
-            error="Only the developer user can copy planning data between academic years.",
-        )
+    current_user, denied_response = authorization.require_permission(
+        request,
+        db,
+        "planning.copy_year_data",
+        current_user=current_user,
+        page_key="planning",
+    )
+    if denied_response:
+        return denied_response
 
     branch_id, target_academic_year_id = _get_scope_ids(current_user)
     if source_academic_year_id == target_academic_year_id:
@@ -1105,7 +1108,7 @@ def create_planning_section(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_modify_data(current_user):
+    if not auth.has_permission(db, current_user, "planning.create_section"):
         return _render_planning_page(
             request=request,
             db=db,
@@ -1227,7 +1230,7 @@ def edit_planning_page(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_edit_data(current_user):
+    if not auth.has_permission(db, current_user, "planning.edit_section"):
         return RedirectResponse(url="/planning", status_code=302)
 
     branch_id, academic_year_id = _get_scope_ids(current_user)
@@ -1264,7 +1267,7 @@ def update_planning_section(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_edit_data(current_user):
+    if not auth.has_permission(db, current_user, "planning.edit_section"):
         return RedirectResponse(url="/planning", status_code=302)
 
     branch_id, academic_year_id = _get_scope_ids(current_user)
@@ -1554,7 +1557,7 @@ def delete_planning_section(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_delete_data(current_user):
+    if not auth.has_permission(db, current_user, "planning.delete_section"):
         return RedirectResponse(url="/planning", status_code=302)
 
     branch_id, academic_year_id = _get_scope_ids(current_user)

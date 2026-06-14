@@ -715,10 +715,14 @@
                     <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("spreadsheet", "icon") }}</span>Excel Import / Export</span></h2>
                     <p>Download the template, fill it, then import.</p>
 
+                    {% if can("subjects.export") %}
                     <a id="exportSubjectsBtn" class="btn-export" href="/subjects/export">{{ icon("download", "icon") }} Export Current Subjects</a>
+                    {% endif %}
+                    {% if can("subjects.import") %}
                     <a id="downloadTemplateBtn" class="btn-template" href="/subjects/template">{{ icon("table", "icon") }} Download Excel Template</a>
+                    {% endif %}
 
-                    {% if can_modify %}
+                    {% if can("subjects.import") %}
                     <form id="importForm" method="post" action="/subjects/import" enctype="multipart/form-data">
                         <div class="field" style="margin-top: 10px;">
                             <label for="subject_file">Select Excel File (.xlsx)</label>
@@ -734,7 +738,7 @@
                     </ol>
                     {% else %}
                     <p style="margin-top: 10px; font-size: 13px; color: var(--warning);">
-                        Import is disabled for read-only accounts.
+                        Import tools are disabled for your current role.
                     </p>
                     {% endif %}
                 </article>

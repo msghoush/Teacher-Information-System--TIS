@@ -228,10 +228,9 @@ PAGE_META = {
 
 def _build_nav_items(
     current_path: str,
-    can_manage_users: bool,
-    can_manage_system_settings: bool,
-    can_manage_school_branding: bool = False,
-    can_manage_role_permissions: bool = False,
+    *,
+    can,
+    can_any,
     new_notification_count: int = 0,
 ):
     def is_active(target: str) -> bool:
@@ -239,92 +238,109 @@ def _build_nav_items(
             return current_path == "/dashboard"
         return current_path == target or current_path.startswith(f"{target}/")
 
-    items = [
+    items = []
+    for item in (
         {
             "label": "Dashboard",
             "href": "/dashboard",
             "icon": "dashboard",
-            "active": is_active("/dashboard"),
+            "permission_keys": ("dashboard.view",),
         },
         {
             "label": "Subjects",
             "href": "/subjects/",
             "icon": "subjects",
-            "active": is_active("/subjects"),
+            "permission_keys": ("subjects.view",),
         },
         {
             "label": "Teachers",
             "href": "/teachers/",
             "icon": "teachers",
-            "active": is_active("/teachers"),
+            "permission_keys": ("teachers.view",),
         },
         {
             "label": "Planning",
             "href": "/planning/",
             "icon": "planning",
-            "active": is_active("/planning"),
+            "permission_keys": ("planning.view",),
         },
         {
             "label": "Timetable",
             "href": "/timetable/",
             "icon": "timetable",
-            "active": is_active("/timetable"),
+            "permission_keys": ("timetable.view",),
         },
         {
             "label": "Academic Calendar",
             "href": "/academic-calendar/",
             "icon": "calendar",
-            "active": is_active("/academic-calendar"),
+            "permission_keys": ("calendar.view",),
         },
         {
             "label": "Observations",
             "href": "/observations/",
             "icon": "clipboard-check",
-            "active": is_active("/observations"),
+            "permission_keys": ("observations.view",),
         },
         {
             "label": "Notification Center",
             "href": "/notifications",
             "icon": "notifications",
-            "active": is_active("/notifications"),
+            "permission_keys": ("notifications.view",),
             "badge_count": new_notification_count,
         },
-    ]
-
-    if can_manage_system_settings:
+        {
+            "label": "Users",
+            "href": "/users",
+            "icon": "users",
+            "permission_keys": ("users.view",),
+        },
+        {
+            "label": "Demo Requests",
+            "href": "/demo-requests",
+            "icon": "message",
+            "permission_keys": ("demo_requests.view",),
+        },
+        {
+            "label": "System Configuration",
+            "href": "/system-configuration",
+            "icon": "settings",
+            "permission_keys": (
+                "configuration.view",
+                "schools.view",
+                "branches.view",
+                "academic_years.view",
+                "branding.view",
+                "configuration.manage_permissions",
+                "configuration.manage_degrees",
+                "configuration.manage_specializations",
+                "timetable.manage_settings",
+                "calendar.manage_event_types",
+            ),
+            "permission_mode": "any",
+        },
+        {
+            "label": "School Branding",
+            "href": "/school-branding",
+            "icon": "upload",
+            "permission_keys": ("branding.view",),
+        },
+    ):
+        permission_mode = item.get("permission_mode", "all")
+        permission_keys = tuple(item.get("permission_keys", ()))
+        if permission_mode == "any":
+            allowed = can_any(*permission_keys)
+        else:
+            allowed = all(can(permission_key) for permission_key in permission_keys)
+        if not allowed:
+            continue
         items.append(
             {
-                "label": "Demo Requests",
-                "href": "/demo-requests",
-                "icon": "message",
-                "active": is_active("/demo-requests"),
+                key: value
+                for key, value in item.items()
+                if key not in {"permission_keys", "permission_mode"}
             }
-        )
-        items.append(
-            {
-                "label": "System Configuration",
-                "href": "/system-configuration",
-                "icon": "settings",
-                "active": is_active("/system-configuration"),
-            }
-        )
-    elif can_manage_school_branding:
-        items.append(
-            {
-                "label": "School Branding",
-                "href": "/school-branding",
-                "icon": "upload",
-                "active": is_active("/school-branding"),
-            }
-        )
-    if can_manage_role_permissions and not can_manage_system_settings:
-        items.append(
-            {
-                "label": "Role Permissions",
-                "href": "/system-configuration/role-permissions",
-                "icon": "shield",
-                "active": is_active("/system-configuration/role-permissions"),
-            }
+            | {"active": is_active(item["href"].rstrip("/")) if item["href"] != "/dashboard" else is_active("/dashboard")}
         )
 
     return items
@@ -360,23 +376,40 @@ def build_shell_context(
         models.AcademicYear.id == scoped_academic_year_id
     ).first()
 
+    permission_keys = frozenset(
+        auth.get_allowed_permission_keys(
+            db,
+            current_user,
+            school_group_id=scoped_school_group_id
+            or getattr(current_user, "scope_school_group_id", None)
+            or auth.get_user_school_group_id(db, current_user),
+        )
+    )
+    current_user.permission_keys = permission_keys
+
+    def can(permission_key: str) -> bool:
+        return auth.is_developer(current_user) or str(permission_key or "").strip() in permission_keys
+
+    def can_any(*permission_options: str) -> bool:
+        return any(can(permission_key) for permission_key in permission_options)
+
     can_manage_system_settings = auth.can_manage_system_settings(current_user)
     can_manage_users = auth.can_manage_users(current_user)
-    can_manage_school_branding = (
-        can_manage_system_settings
-        or auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_ADMINISTRATOR
+    can_manage_school_branding = can_any(
+        "branding.view",
+        "branding.manage_school_logos",
+        "branding.manage_branch_logos",
     )
-    can_manage_role_permissions = (
-        can_manage_system_settings
-        or auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_ADMINISTRATOR
-    )
+    can_manage_role_permissions = can("configuration.manage_permissions")
     meta = PAGE_META.get(page_key, {})
 
     available_scope_branches = []
     all_years = []
     active_year_id = None
+    can_switch_branches = auth.can_access_all_branches(current_user, db)
+    can_switch_years = auth.can_access_all_years(current_user, db)
 
-    if can_manage_system_settings:
+    if can_switch_branches:
         available_scope_branch_query = db.query(models.Branch).filter(
             models.Branch.status == True
         )
@@ -387,6 +420,7 @@ def build_shell_context(
         available_scope_branches = available_scope_branch_query.order_by(models.Branch.name.asc()).all()
         if branch and not branch.status and available_scope_branches:
             branch = available_scope_branches[0]
+    if can_switch_years:
         all_years_query = db.query(models.AcademicYear)
         if scoped_school_group_id:
             all_years_query = all_years_query.filter(
@@ -431,11 +465,9 @@ def build_shell_context(
             "current_path": request.url.path,
             "nav_items": _build_nav_items(
                 request.url.path,
-                can_manage_users,
-                can_manage_system_settings,
-                can_manage_school_branding,
-                can_manage_role_permissions,
-                new_notification_count,
+                can=can,
+                can_any=can_any,
+                new_notification_count=new_notification_count,
             ),
             "user_name": f"{current_user.first_name} {current_user.last_name}".strip(),
             "role_label": effective_role,
@@ -449,6 +481,8 @@ def build_shell_context(
             "can_manage_users": can_manage_users,
             "can_manage_school_branding": can_manage_school_branding,
             "can_manage_role_permissions": can_manage_role_permissions,
+            "can_switch_branches": can_switch_branches,
+            "can_switch_years": can_switch_years,
             "available_scope_branches": available_scope_branches,
             "all_years": all_years,
             "scoped_branch_id": scoped_branch_id,
@@ -457,5 +491,8 @@ def build_shell_context(
             "notice": resolved_notice,
             "new_notification_count": new_notification_count,
             "school_logos": get_school_logo_slots(request, db, getattr(branch, "id", scoped_branch_id)),
-        }
+        },
+        "permission_keys": sorted(permission_keys),
+        "can": can,
+        "can_any": can_any,
     }
