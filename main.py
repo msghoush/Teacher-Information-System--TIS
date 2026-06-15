@@ -10330,6 +10330,34 @@ def update_demo_request_status(
     return _redirect_with_notice(safe_return_to, "Demo request status updated.")
 
 
+@app.post("/demo-requests/{demo_request_id}/delete")
+def delete_demo_request(
+    demo_request_id: int,
+    request: Request,
+    return_to: str = Form("/demo-requests"),
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_demo_requests_access(request, db, "demo_requests.update_status")
+    if redirect_response:
+        return redirect_response
+
+    demo_request = db.query(models.DemoRequest).filter(
+        models.DemoRequest.id == demo_request_id
+    ).first()
+    if not demo_request:
+        return _redirect_with_notice("/demo-requests", "Demo request not found.")
+
+    db.delete(demo_request)
+    db.commit()
+
+    safe_return_to = str(return_to or "/demo-requests").strip()
+    if not safe_return_to.startswith("/demo-requests"):
+        safe_return_to = "/demo-requests"
+    if safe_return_to == f"/demo-requests/{demo_request_id}":
+        safe_return_to = "/demo-requests"
+    return _redirect_with_notice(safe_return_to, "Demo request deleted.")
+
+
 # ---------------------------------------
 # DEVELOPER: SYSTEM CONFIGURATION
 # ---------------------------------------

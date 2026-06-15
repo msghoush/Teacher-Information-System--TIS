@@ -23,6 +23,7 @@
 .action-btn { min-height: 36px; border: 1px solid transparent; border-radius: 8px; padding: 8px 12px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 900; cursor: pointer; text-decoration: none; font-size: 13px; }
 .action-btn-primary { background: var(--app-brand); color: #fff; }
 .action-btn-secondary { border-color: #c6d4e8; background: #fff; color: #1f2737; }
+.action-btn-danger { border-color: #efc5bf; background: #fff5f3; color: #9f2d1f; }
 .table-wrap { overflow-x: auto; border-top: 1px solid var(--app-line); }
 .lead-table { width: 100%; min-width: 1320px; border-collapse: collapse; }
 .lead-table th, .lead-table td { padding: 10px; border-bottom: 1px solid #e3ebf6; text-align: left; vertical-align: middle; }
@@ -35,6 +36,7 @@
 .status-pill.is-demo-scheduled { background: #eefdf8; color: #047857; }
 .status-pill.is-converted { background: #ecfdf3; color: #027a48; }
 .status-pill.is-not-a-fit { background: #f1f5f9; color: #64748b; }
+.lead-actions { display: flex; align-items: center; gap: 7px; min-width: 330px; }
 .status-form { display: flex; align-items: center; gap: 7px; min-width: 230px; }
 .status-form select { min-width: 136px; border: 1px solid #c6d4e8; border-radius: 8px; padding: 7px 8px; background: #fff; color: #1f2737; font-size: 12px; }
 .empty-row td { padding: 28px; text-align: center; color: var(--app-muted); font-weight: 800; background: #fbfdff; }
@@ -125,16 +127,22 @@
                         <td>{{ item.interested_plan or "-" }}</td>
                         <td><span class="status-pill is-{{ (item.status or 'New')|lower|replace(' ', '-') }}">{{ item.status or "New" }}</span></td>
                         <td>
-                            <form class="status-form" method="post" action="/demo-requests/{{ item.id }}/status">
-                                <input type="hidden" name="return_to" value="{{ return_to }}">
-                                <select name="status" aria-label="Update status for {{ item.school_name or 'demo request' }}">
-                                    {% for status in status_options %}
-                                    <option value="{{ status }}" {% if (item.status or "New") == status %}selected{% endif %}>{{ status }}</option>
-                                    {% endfor %}
-                                </select>
-                                <button class="action-btn action-btn-secondary" type="submit">{{ icon("save", "icon") }} Save</button>
+                            <div class="lead-actions">
+                                <form class="status-form" method="post" action="/demo-requests/{{ item.id }}/status">
+                                    <input type="hidden" name="return_to" value="{{ return_to }}">
+                                    <select name="status" aria-label="Update status for {{ item.school_name or 'demo request' }}">
+                                        {% for status in status_options %}
+                                        <option value="{{ status }}" {% if (item.status or "New") == status %}selected{% endif %}>{{ status }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button class="action-btn action-btn-secondary" type="submit">{{ icon("save", "icon") }} Save</button>
+                                </form>
                                 <a class="action-btn action-btn-primary" href="/demo-requests/{{ item.id }}">{{ icon("eye", "icon") }} View</a>
-                            </form>
+                                <form method="post" action="/demo-requests/{{ item.id }}/delete" onsubmit="return confirm('Are you sure you want to delete this demo request? This action cannot be undone.');">
+                                    <input type="hidden" name="return_to" value="{{ return_to }}">
+                                    <button class="action-btn action-btn-danger" type="submit">{{ icon("trash", "icon") }} Delete</button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     {% else %}
