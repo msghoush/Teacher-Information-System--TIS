@@ -1,5 +1,25 @@
 body.design-studio-enabled {
-    padding-right: 340px;
+    padding-top: 64px;
+    padding-right: 360px;
+}
+
+.layout-adjust-launch {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 9998;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    border: 1px solid #b8d0ec;
+    border-radius: 999px;
+    padding: 9px 14px;
+    background: linear-gradient(180deg, #ffffff, #edf4ff);
+    color: #17365d;
+    font-weight: 900;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, .18);
+    cursor: pointer;
 }
 
 .design-studio-enabled [data-design-component] {
@@ -17,15 +37,107 @@ body.design-studio-enabled {
     outline-offset: 4px;
 }
 
+.design-toolbar {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: min(980px, calc(100vw - 390px));
+    min-height: 48px;
+    padding: 7px;
+    border: 1px solid rgba(188, 205, 230, .9);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, .94);
+    box-shadow: 0 18px 45px rgba(15, 23, 42, .18);
+    backdrop-filter: blur(14px);
+}
+
+.design-toolbar-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding-right: 8px;
+    border-right: 1px solid #e1e8f2;
+}
+
+.design-toolbar-group:last-child {
+    border-right: 0;
+    padding-right: 0;
+}
+
+.design-tool-btn,
+.design-studio-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-width: 36px;
+    min-height: 36px;
+    border: 1px solid #c6d4e8;
+    border-radius: 10px;
+    padding: 7px 10px;
+    background: #ffffff;
+    color: #17365d;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.design-tool-btn svg,
+.design-studio-btn svg,
+.layout-adjust-launch svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.design-tool-btn:hover,
+.design-studio-btn:hover,
+.layout-adjust-launch:hover {
+    border-color: #9cbde4;
+    background: #edf4ff;
+}
+
+.design-tool-btn.is-primary,
+.design-studio-btn.is-primary {
+    border-color: transparent;
+    background: #0a4ea3;
+    color: #fff;
+}
+
+.design-tool-btn.is-danger,
+.design-studio-btn.is-danger {
+    border-color: #efc5bf;
+    background: #fff5f3;
+    color: #9f2d1f;
+}
+
+.design-tool-swatch {
+    width: 36px;
+    height: 36px;
+    border: 1px solid #c6d4e8;
+    border-radius: 10px;
+    padding: 3px;
+    background: #fff;
+}
+
 .design-studio-panel {
     position: fixed;
     top: 0;
     right: 0;
     z-index: 10000;
-    width: 320px;
+    width: 340px;
     height: 100vh;
     display: grid;
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: auto auto 1fr auto;
     border-left: 1px solid #cbd7e8;
     background: #ffffff;
     box-shadow: -18px 0 42px rgba(15, 23, 42, .16);
@@ -33,9 +145,14 @@ body.design-studio-enabled {
 }
 
 .design-studio-head,
+.design-studio-summary,
 .design-studio-actions {
     padding: 14px;
     border-bottom: 1px solid #e1e8f2;
+}
+
+.design-studio-head {
+    background: linear-gradient(180deg, #f8fbff, #ffffff);
 }
 
 .design-studio-actions {
@@ -49,16 +166,22 @@ body.design-studio-enabled {
 .design-studio-head h2 {
     margin: 0;
     color: #17365d;
-    font-size: 16px;
+    font-size: 18px;
 }
 
 .design-studio-head p,
 .design-studio-empty,
-.design-studio-message {
+.design-studio-message,
+.design-studio-summary {
     margin: 6px 0 0;
     color: #60728c;
     font-size: 12px;
     line-height: 1.45;
+}
+
+.design-studio-summary {
+    margin: 0;
+    background: #f8fbff;
 }
 
 .design-studio-body {
@@ -67,6 +190,15 @@ body.design-studio-enabled {
     display: grid;
     align-content: start;
     gap: 12px;
+}
+
+.design-studio-section-title {
+    margin: 4px 0 0;
+    color: #17365d;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
 }
 
 .design-studio-field {
@@ -96,55 +228,67 @@ body.design-studio-enabled {
     padding: 3px;
 }
 
-.design-studio-btn {
-    min-height: 34px;
-    border: 1px solid #c6d4e8;
-    border-radius: 8px;
-    padding: 7px 10px;
-    background: #fff;
-    color: #17365d;
-    font-weight: 900;
-    cursor: pointer;
+.design-resize-handle {
+    position: absolute;
+    z-index: 10002;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #ffffff;
+    border-radius: 4px;
+    background: #0a4ea3;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, .25);
 }
 
-.design-studio-btn.is-primary {
-    border-color: transparent;
+.design-resize-handle.is-right {
+    top: 50%;
+    right: -9px;
+    transform: translateY(-50%);
+    cursor: ew-resize;
+}
+
+.design-resize-handle.is-bottom {
+    left: 50%;
+    bottom: -9px;
+    transform: translateX(-50%);
+    cursor: ns-resize;
+}
+
+.design-resize-handle.is-corner {
+    right: -9px;
+    bottom: -9px;
+    cursor: nwse-resize;
+}
+
+.design-size-readout {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    z-index: 10002;
+    border-radius: 999px;
+    padding: 5px 8px;
     background: #0a4ea3;
     color: #fff;
-}
-
-.design-studio-btn.is-danger {
-    border-color: #efc5bf;
-    background: #fff5f3;
-    color: #9f2d1f;
-}
-
-.design-studio-launch {
-    position: fixed;
-    right: 336px;
-    bottom: 18px;
-    z-index: 9999;
-    min-height: 38px;
-    border: 1px solid #b8d0ec;
-    border-radius: 999px;
-    padding: 8px 12px;
-    background: #edf4ff;
-    color: #17365d;
+    font-size: 11px;
     font-weight: 900;
-    box-shadow: 0 10px 28px rgba(15, 23, 42, .18);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, .22);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
     body.design-studio-enabled {
+        padding-top: 118px;
         padding-right: 0;
+    }
+
+    .design-toolbar {
+        left: 10px;
+        right: 10px;
+        transform: none;
+        max-width: none;
+        flex-wrap: wrap;
     }
 
     .design-studio-panel {
         width: 100%;
         max-width: none;
-    }
-
-    .design-studio-launch {
-        right: 14px;
     }
 }

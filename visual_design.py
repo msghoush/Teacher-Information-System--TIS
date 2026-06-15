@@ -60,6 +60,8 @@ BUTTON_SETTINGS = (
 )
 
 SECTION_SETTINGS = (
+    VisualDesignSetting("width", "Width", "number", "width", "", min_value=160, max_value=1600, unit="px"),
+    VisualDesignSetting("min_height", "Minimum Height", "number", "min-height", "", min_value=30, max_value=1000, unit="px"),
     VisualDesignSetting("columns", "Columns", "number", "grid-template-columns", "", min_value=1, max_value=6),
     VisualDesignSetting("gap", "Spacing", "number", "gap", "", min_value=0, max_value=80, unit="px"),
     VisualDesignSetting("padding", "Padding", "number", "padding", "", min_value=0, max_value=80, unit="px"),
@@ -69,6 +71,7 @@ SECTION_SETTINGS = (
 
 NAV_SETTINGS = (
     VisualDesignSetting("width", "Width", "number", "width", "", min_value=220, max_value=420, unit="px"),
+    VisualDesignSetting("min_height", "Minimum Height", "number", "min-height", "", min_value=120, max_value=1200, unit="px"),
     VisualDesignSetting("item_spacing", "Item Spacing", "number", "gap", "", min_value=0, max_value=28, unit="px"),
     VisualDesignSetting("item_padding", "Item Padding", "number", "padding", "", min_value=4, max_value=28, unit="px", selector_suffix=" .sidebar-link"),
     VisualDesignSetting("icon_size", "Icon Size", "number", "width", "", min_value=12, max_value=34, unit="px", selector_suffix=" svg[data-tis-icon]"),
@@ -76,6 +79,8 @@ NAV_SETTINGS = (
 )
 
 TABLE_SETTINGS = (
+    VisualDesignSetting("width", "Width", "number", "width", "", min_value=200, max_value=1600, unit="px"),
+    VisualDesignSetting("min_height", "Minimum Height", "number", "min-height", "", min_value=60, max_value=1000, unit="px"),
     VisualDesignSetting("row_height", "Row Height", "number", "height", "", min_value=28, max_value=80, unit="px", selector_suffix=" tbody tr"),
     VisualDesignSetting("density", "Density", "select", "", options=("default", "compact", "comfortable")),
     VisualDesignSetting("border_color", "Border Color", "color", "border-color"),
