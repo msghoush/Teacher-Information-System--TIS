@@ -525,7 +525,7 @@ def build_shell_context(
         new_demo_request_count = db.query(
             func.count(models.DemoRequest.id)
         ).filter(
-            models.DemoRequest.status == "New",
+            models.DemoRequest.seen_at.is_(None),
         ).scalar() or 0
     except Exception:
         new_demo_request_count = 0
