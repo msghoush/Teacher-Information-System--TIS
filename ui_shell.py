@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 import auth
 import models
+from design_tokens import build_design_css, merge_design_settings
 import permission_registry
 
 
@@ -311,6 +312,7 @@ def _build_nav_items(
                 "configuration.manage_permissions",
                 "configuration.manage_degrees",
                 "configuration.manage_specializations",
+                "design_control.manage",
                 "timetable.manage_settings",
                 "calendar.manage_event_types",
             ),
@@ -517,6 +519,12 @@ def build_shell_context(
         ).scalar() or 0
     except Exception:
         new_demo_request_count = 0
+    try:
+        design_css = build_design_css(
+            merge_design_settings(db.query(models.SystemDesignSetting).all())
+        )
+    except Exception:
+        design_css = ""
 
     return {
         "can": _build_permission_checker(db, current_user, scoped_school_group_id),
@@ -557,6 +565,7 @@ def build_shell_context(
             "new_notification_count": new_notification_count,
             "new_demo_request_count": new_demo_request_count,
             "school_logos": get_school_logo_slots(request, db, getattr(branch, "id", scoped_branch_id)),
+            "design_css": design_css,
         },
         "permission_keys": sorted(permission_keys),
         "can": can,

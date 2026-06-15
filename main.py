@@ -35,6 +35,12 @@ import auth
 import authorization
 import db_migrations
 import permission_registry
+from design_tokens import (
+    DESIGN_TOKENS,
+    default_design_settings,
+    merge_design_settings,
+    validate_design_token_value,
+)
 from dependencies import get_db
 from routers import subjects, users, teachers, planning, timetable, academic_calendar, observations
 from auth import get_password_hash
@@ -1014,6 +1020,7 @@ CONFIGURATION_MODULES = (
             "configuration.manage_permissions",
             "configuration.manage_degrees",
             "configuration.manage_specializations",
+            "design_control.manage",
             "timetable.manage_settings",
             "timetable.manage_blocks",
             "calendar.manage_event_types",
@@ -1049,6 +1056,14 @@ CONFIGURATION_MODULES = (
         "icon": "shield",
         "description": "Assign detailed TIS permissions to each access role.",
         "permission_keys": ("configuration.manage_permissions",),
+    },
+    {
+        "key": "design-control",
+        "label": "Developer Design Control",
+        "href": "/system-configuration/design",
+        "icon": "settings",
+        "description": "Adjust approved global design tokens without editing code.",
+        "permission_keys": ("design_control.manage",),
     },
     {
         "key": "degrees",
@@ -10376,6 +10391,7 @@ def _get_configuration_access(request: Request, db: Session):
         "configuration.manage_permissions",
         "configuration.manage_degrees",
         "configuration.manage_specializations",
+        "design_control.manage",
         "timetable.manage_settings",
         "timetable.manage_blocks",
         "calendar.manage_event_types",
@@ -10392,6 +10408,7 @@ def _get_configuration_access(request: Request, db: Session):
                     "branches.view",
                     "academic_years.view",
                     "branding.view",
+                    "design_control.manage",
                 ),
                 page_key="system-configuration",
             ),
@@ -10439,6 +10456,24 @@ def _get_role_permissions_access(request: Request, db: Session):
                 db,
                 current_user=current_user,
                 permission_keys=("configuration.manage_permissions",),
+                page_key="system-configuration",
+            ),
+        )
+    return current_user, None
+
+
+def _get_design_control_access(request: Request, db: Session):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return None, RedirectResponse(url="/", status_code=302)
+    if not auth.is_developer(current_user) or not auth.has_permission(db, current_user, "design_control.manage"):
+        return (
+            None,
+            authorization.build_access_denied_response(
+                request,
+                db,
+                current_user=current_user,
+                permission_keys=("design_control.manage",),
                 page_key="system-configuration",
             ),
         )
@@ -10781,6 +10816,33 @@ def _build_role_permissions_context(request: Request, db: Session, current_user)
     }
 
 
+def _get_design_control_context(request: Request, db: Session) -> dict:
+    rows = db.query(models.SystemDesignSetting).all()
+    settings = merge_design_settings(rows)
+    design_form_values = {}
+    for token in DESIGN_TOKENS:
+        value = settings.get(token.key, token.default)
+        if token.input_type == "number" and token.unit and value.endswith(token.unit):
+            value = value[:-len(token.unit)]
+        design_form_values[token.key] = value
+    grouped_tokens = []
+    for group_name in dict.fromkeys(token.group for token in DESIGN_TOKENS):
+        grouped_tokens.append(
+            {
+                "name": group_name,
+                "tokens": [token for token in DESIGN_TOKENS if token.group == group_name],
+            }
+        )
+    return {
+        "design_settings": settings,
+        "design_form_values": design_form_values,
+        "design_token_groups": grouped_tokens,
+        "default_design_settings": default_design_settings(),
+        "notice_message": str(request.query_params.get("notice", "") or "").strip(),
+        "error_message": str(request.query_params.get("error", "") or "").strip(),
+    }
+
+
 @app.get("/system-configuration/role-permissions")
 def system_configuration_role_permissions(
     request: Request,
@@ -10862,6 +10924,80 @@ def update_role_permissions(
             f"&school_group_id={target_school_group_id}"
         )
     return _redirect_with_notice(return_to, f"{selected_role} permissions updated.")
+
+
+@app.get("/system-configuration/design")
+def system_configuration_design(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_design_control_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    return _render_configuration_template(
+        request=request,
+        db=db,
+        current_user=current_user,
+        template_name="system_configuration_design.html",
+        active_module_key="design-control",
+        title="Developer Design Control",
+        intro="Adjust approved global design tokens without editing application code.",
+        extra_context=_get_design_control_context(request, db),
+    )
+
+
+@app.post("/system-configuration/design")
+async def update_system_design(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_design_control_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    form_data = await request.form()
+    values = {}
+    for token in DESIGN_TOKENS:
+        try:
+            values[token.key] = validate_design_token_value(token, form_data.get(token.key, ""))
+        except ValueError as exc:
+            return _redirect_with_error("/system-configuration/design", str(exc))
+
+    existing_rows = {
+        row.key: row
+        for row in db.query(models.SystemDesignSetting).all()
+    }
+    now = datetime.utcnow()
+    updated_by_user_id = getattr(current_user, "user_id", None)
+    for token in DESIGN_TOKENS:
+        row = existing_rows.get(token.key)
+        if row is None:
+            row = models.SystemDesignSetting(
+                key=token.key,
+                created_at=now,
+            )
+            db.add(row)
+        row.value = values[token.key]
+        row.updated_by_user_id = updated_by_user_id
+        row.updated_at = now
+
+    db.commit()
+    return _redirect_with_notice("/system-configuration/design", "Design settings saved.")
+
+
+@app.post("/system-configuration/design/reset")
+def reset_system_design(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_design_control_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    db.query(models.SystemDesignSetting).delete(synchronize_session=False)
+    db.commit()
+    return _redirect_with_notice("/system-configuration/design", "Design settings reset to defaults.")
 
 
 @app.get("/system-configuration/schools")

@@ -60,6 +60,17 @@ class RolePermission(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class SystemDesignSetting(Base):
+    __tablename__ = "system_design_settings"
+
+    id = Column(Integer, primary_key=True)
+    key = Column(String(80), nullable=False, unique=True, index=True)
+    value = Column(String(120), nullable=False, default="")
+    updated_by_user_id = Column(String(10))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class BranchLogo(Base):
     __tablename__ = "branch_logos"
     __table_args__ = (

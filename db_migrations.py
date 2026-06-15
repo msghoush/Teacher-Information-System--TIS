@@ -760,6 +760,31 @@ def _demo_request_seen_columns(engine, connection):
     )
 
 
+def _create_system_design_settings_table(engine, connection):
+    datetime_type = _datetime_type(engine)
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS system_design_settings (
+            id {id_sql},
+            key VARCHAR(80) NOT NULL UNIQUE,
+            value VARCHAR(120) NOT NULL DEFAULT '',
+            updated_by_user_id VARCHAR(10),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "system_design_settings",
+        "ix_system_design_settings_key",
+        "key",
+    )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -785,6 +810,11 @@ MIGRATIONS = (
         migration_id="20260615_001_demo_request_seen_columns",
         description="Track viewed demo requests for sidebar unread counts",
         apply=_demo_request_seen_columns,
+    ),
+    Migration(
+        migration_id="20260615_002_system_design_settings",
+        description="Create developer-controlled design settings table",
+        apply=_create_system_design_settings_table,
     ),
 )
 

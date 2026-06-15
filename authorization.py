@@ -161,6 +161,8 @@ PROTECTED_ROUTE_RULES = (
     PermissionRule(r"/school-branding", ("GET",), ("branding.view",), "school-branding"),
     PermissionRule(r"/system-configuration", ("GET",), ("configuration.view", "schools.view", "branches.view", "academic_years.view", "branding.view", "configuration.manage_permissions", "configuration.manage_degrees", "configuration.manage_specializations", "timetable.manage_settings", "timetable.manage_blocks", "calendar.manage_event_types"), "system-configuration", match="any"),
     PermissionRule(r"/system-configuration/role-permissions", ("GET", "POST"), ("configuration.manage_permissions",), "system-configuration"),
+    PermissionRule(r"/system-configuration/design", ("GET", "POST"), ("design_control.manage",), "system-configuration"),
+    PermissionRule(r"/system-configuration/design/reset", ("POST",), ("design_control.manage",), "system-configuration"),
     PermissionRule(r"/system-configuration/logos", ("GET",), ("branding.view",), "system-configuration"),
     PermissionRule(r"/system-configuration/logos", ("POST",), ("branding.manage_school_logos", "branding.manage_branch_logos"), "system-configuration", match="any"),
     PermissionRule(r"/system-configuration/logos/reset", ("POST",), ("branding.manage_school_logos", "branding.manage_branch_logos"), "system-configuration", match="any"),
