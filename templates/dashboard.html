@@ -4643,7 +4643,7 @@
 
 {% block page_header_actions %}
 {% if can("reports.export") %}
-<details class="export-menu">
+<details class="export-menu" data-design-component="dashboard.export_button" data-design-type="button">
     <summary class="shell-action is-primary">{{ icon("download", "shell-icon") }} Export Report</summary>
     <div class="export-menu-panel">
         <a href="/reports/allocation-plan.xlsx?section=full">{{ icon("spreadsheet", "icon") }} Export as Excel</a>
@@ -4659,21 +4659,21 @@
 {% endblock %}
 
 {% block content %}
-<section class="stats tis-kpi-grid">
-            <div class="stat tis-kpi-card">
+<section class="stats tis-kpi-grid" data-design-component="dashboard.kpi_grid" data-design-type="section">
+            <div class="stat tis-kpi-card" data-design-component="dashboard.subjects_card" data-design-type="card">
                 <span>{{ icon("subjects", "icon") }} Subjects</span>
                 <strong>{{ subject_count }}</strong>
                 <small>Configured subjects in the current branch and year.</small>
             </div>
-            <div class="stat tis-kpi-card tis-kpi-card--teal">
+            <div class="stat tis-kpi-card tis-kpi-card--teal" data-design-component="dashboard.teachers_card" data-design-type="card">
                 <span>{{ icon("teachers", "icon") }} Teachers</span>
                 <strong>{{ teacher_count }}</strong>
                 <small>Teachers available for planning and coverage review.</small>
             </div>
         </section>
 
-        <section class="workspace">
-            <div class="tabs">
+        <section class="workspace" data-design-component="dashboard.workspace" data-design-type="section">
+            <div class="tabs" data-design-component="dashboard.tabs" data-design-type="section">
                 <button class="tab active" type="button" data-panel="subjects">
                     {{ icon("subjects", "tab-icon") }}
                     <span>Subjects</span>
@@ -4692,7 +4692,7 @@
                 </button>
             </div>
 
-            <div class="panel active" id="panel-subjects">
+            <div class="panel active" id="panel-subjects" data-design-component="dashboard.subjects_panel" data-design-type="section">
                 <div class="panel-head">
                     <div>
                         <div class="panel-title">
@@ -4739,7 +4739,7 @@
                 <div class="subject-toolbar">
                     <input id="dashboardSubjectSearch" class="subject-filter-input" type="text" placeholder="Search by code, name, grade, or hours">
                 </div>
-                <div class="table-wrap">
+                <div class="table-wrap" data-design-component="dashboard.subjects_table" data-design-type="table">
                     <table>
                         <thead>
                             <tr>

@@ -785,6 +785,38 @@ def _create_system_design_settings_table(engine, connection):
     )
 
 
+def _create_visual_design_settings_table(engine, connection):
+    datetime_type = _datetime_type(engine)
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS visual_design_settings (
+            id {id_sql},
+            page_key VARCHAR(80) NOT NULL,
+            component_key VARCHAR(120) NOT NULL,
+            component_type VARCHAR(40) NOT NULL,
+            setting_key VARCHAR(80) NOT NULL,
+            setting_value VARCHAR(255) NOT NULL DEFAULT '',
+            scope_type VARCHAR(20) NOT NULL DEFAULT 'global',
+            school_group_id INTEGER,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            updated_by_user_id VARCHAR(10),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_visual_design_component_setting UNIQUE (page_key, component_key, setting_key)
+        )
+        """,
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "visual_design_settings",
+        "ix_visual_design_page_component",
+        "page_key, component_key",
+    )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -815,6 +847,11 @@ MIGRATIONS = (
         migration_id="20260615_002_system_design_settings",
         description="Create developer-controlled design settings table",
         apply=_create_system_design_settings_table,
+    ),
+    Migration(
+        migration_id="20260615_003_visual_design_settings",
+        description="Create visual design studio component settings table",
+        apply=_create_visual_design_settings_table,
     ),
 )
 

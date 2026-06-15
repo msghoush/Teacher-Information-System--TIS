@@ -11,6 +11,12 @@
     {% if shell.design_css %}
     <style>{{ shell.design_css | safe }}</style>
     {% endif %}
+    {% if shell.visual_design_css %}
+    <style>{{ shell.visual_design_css | safe }}</style>
+    {% endif %}
+    {% if shell.design_studio.can_use %}
+    <link rel="stylesheet" href="{{ url_for('static', path='css/design-studio.css') }}?v=20260615a">
+    {% endif %}
     {% block page_styles %}{% endblock %}
     <style>
         svg.shell-icon,
@@ -85,12 +91,12 @@
         }
     </style>
 </head>
-<body>
+<body class="{% if shell.design_studio.enabled %}design-studio-enabled{% endif %}" data-page-key="{{ shell.page_key }}">
     {% set header_actions %}
         {% block page_header_actions %}{% endblock %}
     {% endset %}
     <div class="app-shell">
-        <aside class="app-sidebar">
+        <aside class="app-sidebar" data-design-component="shell.sidebar" data-design-type="navigation">
             <div class="sidebar-brand">
                 <div class="sidebar-brand-copy">
                     <div class="sidebar-logo-frame">
@@ -124,7 +130,7 @@
 
             <section class="sidebar-section">
                 <h3 class="sidebar-section-title">Navigation</h3>
-                <nav class="sidebar-nav" aria-label="Primary navigation">
+                <nav class="sidebar-nav" aria-label="Primary navigation" data-design-component="shell.navigation" data-design-type="navigation">
                     {% for item in shell.nav_items %}
                     <a class="sidebar-link {% if item.active %}is-active{% endif %}" href="{{ item.href }}">
                         <span class="sidebar-link-main">
@@ -225,7 +231,7 @@
         </aside>
 
         <div class="app-main">
-            <header class="app-header">
+            <header class="app-header" data-design-component="shell.header" data-design-type="section">
                 <div class="app-header-copy">
                     <h1 class="page-title">{{ icon(shell.page_icon, "shell-icon page-title-icon") }} <span>{{ shell.page_title }}</span></h1>
                 </div>
@@ -284,13 +290,17 @@
             <div class="shell-notice">{{ icon("info", "shell-icon") }} {{ shell.notice }}</div>
             {% endif %}
 
-            <main class="page-stage">
+            <main class="page-stage" data-design-component="shell.page_stage" data-design-type="section">
                 {% block content %}{% endblock %}
             </main>
         </div>
     </div>
 
     {% block page_scripts %}{% endblock %}
+    {% if shell.design_studio.enabled %}
+    <script id="tis-design-studio-config" type="application/json">{{ shell.design_studio.config | tojson | safe }}</script>
+    <script src="{{ url_for('static', path='js/design-studio.js') }}?v=20260615a"></script>
+    {% endif %}
     <script>
         (() => {
             const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;

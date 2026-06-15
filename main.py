@@ -41,6 +41,12 @@ from design_tokens import (
     merge_design_settings,
     validate_design_token_value,
 )
+from visual_design import (
+    VISUAL_COMPONENT_MAP,
+    build_visual_design_config,
+    normalize_visual_payload,
+    rows_to_visual_settings,
+)
 from dependencies import get_db
 from routers import subjects, users, teachers, planning, timetable, academic_calendar, observations
 from auth import get_password_hash
@@ -10998,6 +11004,111 @@ def reset_system_design(
     db.query(models.SystemDesignSetting).delete(synchronize_session=False)
     db.commit()
     return _redirect_with_notice("/system-configuration/design", "Design settings reset to defaults.")
+
+
+@app.get("/api/design-studio/config")
+def get_design_studio_config(
+    request: Request,
+    page_key: str = Query("dashboard"),
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_design_control_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    normalized_page_key = str(page_key or "dashboard").strip() or "dashboard"
+    rows = db.query(models.VisualDesignSetting).filter(
+        models.VisualDesignSetting.page_key.in_(("global", normalized_page_key)),
+        models.VisualDesignSetting.is_active == True,
+    ).all()
+    return JSONResponse(build_visual_design_config(normalized_page_key, rows_to_visual_settings(rows)))
+
+
+@app.post("/api/design-studio/component-settings")
+async def update_design_studio_component_settings(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_design_control_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    try:
+        payload = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid design settings payload."}, status_code=400)
+
+    component_key = str(payload.get("component_key", "") or "").strip()
+    component = VISUAL_COMPONENT_MAP.get(component_key)
+    if not component:
+        return JSONResponse({"ok": False, "error": "Unknown design component."}, status_code=400)
+
+    try:
+        normalized_settings = normalize_visual_payload(
+            component_key,
+            payload.get("settings") or {},
+        )
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+    page_key = component.page_key
+    db.query(models.VisualDesignSetting).filter(
+        models.VisualDesignSetting.page_key == page_key,
+        models.VisualDesignSetting.component_key == component.key,
+    ).delete(synchronize_session=False)
+
+    now = datetime.utcnow()
+    for setting_key, setting_value in normalized_settings.items():
+        db.add(
+            models.VisualDesignSetting(
+                page_key=page_key,
+                component_key=component.key,
+                component_type=component.component_type,
+                setting_key=setting_key,
+                setting_value=setting_value,
+                scope_type="global",
+                updated_by_user_id=getattr(current_user, "user_id", None),
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    db.commit()
+    return JSONResponse({"ok": True, "component_key": component.key, "settings": normalized_settings})
+
+
+@app.post("/api/design-studio/reset")
+async def reset_design_studio_settings(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_design_control_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    component_key = str((payload or {}).get("component_key", "") or "").strip()
+    page_key = str((payload or {}).get("page_key", "") or "").strip()
+    query = db.query(models.VisualDesignSetting)
+    if component_key:
+        component = VISUAL_COMPONENT_MAP.get(component_key)
+        if not component:
+            return JSONResponse({"ok": False, "error": "Unknown design component."}, status_code=400)
+        query = query.filter(
+            models.VisualDesignSetting.page_key == component.page_key,
+            models.VisualDesignSetting.component_key == component.key,
+        )
+    elif page_key:
+        query = query.filter(models.VisualDesignSetting.page_key == page_key)
+    else:
+        return JSONResponse({"ok": False, "error": "Select a component or page to reset."}, status_code=400)
+
+    deleted_count = query.delete(synchronize_session=False)
+    db.commit()
+    return JSONResponse({"ok": True, "deleted_count": deleted_count})
 
 
 @app.get("/system-configuration/schools")
