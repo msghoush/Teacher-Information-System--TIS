@@ -233,6 +233,7 @@ def _build_nav_items(
     can,
     can_any,
     new_notification_count: int = 0,
+    new_demo_request_count: int = 0,
 ):
     def is_active(target: str) -> bool:
         if target == "/dashboard":
@@ -301,6 +302,7 @@ def _build_nav_items(
             "href": "/demo-requests",
             "icon": "message",
             "permission_keys": ("demo_requests.view",),
+            "badge_count": new_demo_request_count,
         },
         {
             "label": "System Configuration",
@@ -515,9 +517,18 @@ def build_shell_context(
         ).filter(
             models.SystemNotification.recipient_user_id == current_user.user_id,
             models.SystemNotification.status == "New",
+            models.SystemNotification.recipient_archived_at.is_(None),
         ).scalar() or 0
     except Exception:
         new_notification_count = 0
+    try:
+        new_demo_request_count = db.query(
+            func.count(models.DemoRequest.id)
+        ).filter(
+            models.DemoRequest.status == "New",
+        ).scalar() or 0
+    except Exception:
+        new_demo_request_count = 0
 
     return {
         "can": _build_permission_checker(db, current_user, scoped_school_group_id),
@@ -533,6 +544,7 @@ def build_shell_context(
                 can=can,
                 can_any=can_any,
                 new_notification_count=new_notification_count,
+                new_demo_request_count=new_demo_request_count,
             ),
             "user_name": f"{current_user.first_name} {current_user.last_name}".strip(),
             "role_label": effective_role,
@@ -555,6 +567,7 @@ def build_shell_context(
             "active_year_id": active_year_id,
             "notice": resolved_notice,
             "new_notification_count": new_notification_count,
+            "new_demo_request_count": new_demo_request_count,
             "school_logos": get_school_logo_slots(request, db, getattr(branch, "id", scoped_branch_id)),
         },
         "permission_keys": sorted(permission_keys),
