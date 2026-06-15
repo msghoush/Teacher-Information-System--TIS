@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 import auth
 import models
+import permission_registry
 
 
 DEFAULT_SCHOOL_LOGO_SLOTS = (
@@ -346,6 +347,69 @@ def _build_nav_items(
     return items
 
 
+def _get_role_permission_rows(
+    db: Session,
+    role: str,
+    school_group_id: int | None = None,
+) -> list[models.RolePermission]:
+    normalized_role = permission_registry.normalize_managed_role(role)
+    if not normalized_role:
+        return []
+
+    query = db.query(models.RolePermission).filter(
+        models.RolePermission.role == normalized_role
+    )
+    if school_group_id is None:
+        query = query.filter(models.RolePermission.school_group_id.is_(None))
+    else:
+        query = query.filter(models.RolePermission.school_group_id == school_group_id)
+    return query.all()
+
+
+def _get_allowed_permission_keys(
+    db: Session,
+    role: str,
+    school_group_id: int | None = None,
+) -> set[str]:
+    normalized_role = permission_registry.normalize_managed_role(role)
+    if not normalized_role:
+        return set()
+    if normalized_role == auth.ROLE_DEVELOPER:
+        return set(permission_registry.ALL_PERMISSION_KEYS)
+
+    allowed_keys = permission_registry.get_default_permissions_for_role(normalized_role)
+    try:
+        permission_rows = [
+            *_get_role_permission_rows(db, normalized_role, None),
+            *(_get_role_permission_rows(db, normalized_role, school_group_id) if school_group_id else []),
+        ]
+    except Exception:
+        return allowed_keys - permission_registry.DEVELOPER_ONLY_PERMISSION_KEYS
+
+    for permission_row in permission_rows:
+        if permission_row.permission_key not in permission_registry.PERMISSION_LABELS:
+            continue
+        if permission_row.is_allowed:
+            allowed_keys.add(permission_row.permission_key)
+        else:
+            allowed_keys.discard(permission_row.permission_key)
+    return allowed_keys - permission_registry.DEVELOPER_ONLY_PERMISSION_KEYS
+
+
+def _build_permission_checker(db: Session, current_user, school_group_id: int | None = None):
+    allowed_keys = _get_allowed_permission_keys(
+        db,
+        getattr(current_user, "role", ""),
+        school_group_id,
+    )
+
+    def can(permission_key: str) -> bool:
+        key = str(permission_key or "").strip()
+        return key in allowed_keys
+
+    return can
+
+
 def build_shell_context(
     request,
     db: Session,
@@ -456,6 +520,7 @@ def build_shell_context(
         new_notification_count = 0
 
     return {
+        "can": _build_permission_checker(db, current_user, scoped_school_group_id),
         "shell": {
             "page_key": page_key,
             "page_title": title or meta.get("title", "Teacher Information System"),
