@@ -68,6 +68,7 @@ body {
     min-height: 100vh;
     color: var(--app-ink);
     font-family: "Trebuchet MS", "Lucida Sans Unicode", "Segoe UI", sans-serif;
+    font-size: var(--tis-base-font-size, 14px);
     background: linear-gradient(180deg, var(--app-bg), var(--app-bg-strong));
 }
 
@@ -144,10 +145,10 @@ svg:is(
 .app-shell {
     min-height: 100vh;
     display: grid;
-    grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+    grid-template-columns: minmax(240px, var(--tis-sidebar-width, 320px)) minmax(0, 1fr);
     align-items: start;
-    gap: 16px;
-    padding: 12px;
+    gap: calc(16px * var(--tis-spacing-scale, 1));
+    padding: calc(12px * var(--tis-spacing-scale, 1));
 }
 
 .app-sidebar {
@@ -827,7 +828,7 @@ svg.page-title-icon[data-tis-icon] {
     gap: 8px;
     padding: 10px 14px;
     border: 1px solid var(--app-line);
-    border-radius: var(--app-radius-md);
+    border-radius: var(--tis-button-radius, var(--app-radius-md));
     background: var(--app-surface-strong);
     color: var(--app-brand-deep);
     text-decoration: none;

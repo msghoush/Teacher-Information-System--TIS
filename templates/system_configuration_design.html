@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Developer Design Control | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+.design-control-page { display: grid; gap: 14px; }
+.design-alert { display: inline-flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid #b8ead2; border-radius: 12px; background: #ecfdf3; color: #027a48; font-weight: 800; }
+.design-alert.is-error { border-color: #efc5bf; background: #fff5f3; color: #9f2d1f; }
+.config-nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.config-nav-link { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 12px; border: 1px solid #d6e3f3; border-radius: 999px; background: #fff; color: #23466f; font-size: 12px; font-weight: 900; text-decoration: none; }
+.config-nav-link.is-active { border-color: #b8d0ec; background: #edf4ff; color: #17365d; }
+.design-form { display: grid; gap: 14px; }
+.design-card { display: grid; gap: 12px; padding: 14px; border: 1px solid #d8e2f0; border-radius: 14px; background: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .06); }
+.design-card h2 { margin: 0; color: #17365d; font-size: 18px; }
+.design-token-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.design-field { display: grid; gap: 7px; min-width: 0; padding: 10px; border: 1px solid #e1e9f4; border-radius: 10px; background: #f8fbff; }
+.design-field label { color: #48607f; font-size: 12px; font-weight: 900; text-transform: uppercase; }
+.design-field input, .design-field select { width: 100%; min-width: 0; min-height: 38px; border: 1px solid #c6d4e8; border-radius: 8px; padding: 8px 10px; color: #1f2737; background: #fff; }
+.design-field input[type="color"] { padding: 4px; }
+.design-field small { color: #60728c; font-size: 12px; font-weight: 700; }
+.design-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.action-btn { min-height: 36px; border: 1px solid transparent; border-radius: var(--tis-button-radius, 8px); padding: 8px 12px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 900; cursor: pointer; text-decoration: none; }
+.action-btn-primary { background: #0a4ea3; color: #fff; }
+.action-btn-secondary { border-color: #c6d4e8; background: #fff; color: #1f2737; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="design-control-page">
+    {% if error_message %}
+    <div class="design-alert is-error">{{ icon("warning", "icon") }} {{ error_message }}</div>
+    {% endif %}
+    {% if notice_message %}
+    <div class="design-alert">{{ icon("check-circle", "icon") }} {{ notice_message }}</div>
+    {% endif %}
+
+    <nav class="config-nav" aria-label="Configuration modules">
+        {% for module in configuration_modules %}
+        <a class="config-nav-link {% if module.active %}is-active{% endif %}" href="{{ module.href }}">
+            {{ icon(module.icon, "icon") }} {{ module.label }}
+        </a>
+        {% endfor %}
+    </nav>
+
+    <form class="design-form" method="post" action="/system-configuration/design">
+        {% for group in design_token_groups %}
+        <section class="design-card">
+            <h2>{{ group.name }}</h2>
+            <div class="design-token-grid">
+                {% for token in group.tokens %}
+                <div class="design-field">
+                    <label for="{{ token.key }}">{{ token.label }}</label>
+                    {% if token.input_type == "color" %}
+                    <input type="color" id="{{ token.key }}" name="{{ token.key }}" value="{{ design_form_values.get(token.key, token.default) }}">
+                    {% elif token.input_type == "select" %}
+                    <select id="{{ token.key }}" name="{{ token.key }}">
+                        {% for option in token.options %}
+                        <option value="{{ option }}" {% if design_form_values.get(token.key, token.default) == option %}selected{% endif %}>{{ option }}</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <input type="number" id="{{ token.key }}" name="{{ token.key }}" min="{{ token.min_value }}" max="{{ token.max_value }}" value="{{ design_form_values.get(token.key, token.default) }}">
+                    {% endif %}
+                    <small>Default: {{ default_design_settings.get(token.key, token.default) }}</small>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+
+        <div class="design-actions">
+            <button class="action-btn action-btn-primary" type="submit">{{ icon("save", "icon") }} Save Design Settings</button>
+        </div>
+    </form>
+
+    <form method="post" action="/system-configuration/design/reset" onsubmit="return confirm('Reset design settings to defaults?');">
+        <button class="action-btn action-btn-secondary" type="submit">{{ icon("close", "icon") }} Reset Defaults</button>
+    </form>
+</section>
+{% endblock %}

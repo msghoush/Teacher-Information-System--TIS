@@ -196,6 +196,7 @@ PERMISSION_GROUPS = (
             ("configuration.view_audit_log", "View audit log"),
             ("configuration.export_audit_log", "Export audit log"),
             ("configuration.manage_global_defaults", "Manage global configuration defaults"),
+            ("design_control.manage", "Manage developer design control"),
         ),
     },
     {
@@ -242,6 +243,7 @@ DEVELOPER_ONLY_PERMISSION_KEYS = {
     "schools.manage_all_schools",
     "configuration.export_audit_log",
     "configuration.manage_global_defaults",
+    "design_control.manage",
     "demo_requests.view",
     "demo_requests.export",
     "demo_requests.update_status",
