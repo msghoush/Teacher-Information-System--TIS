@@ -322,12 +322,6 @@ def _build_nav_items(
             ),
             "permission_mode": "any",
         },
-        {
-            "label": "School Branding",
-            "href": "/school-branding",
-            "icon": "upload",
-            "permission_keys": ("branding.view",),
-        },
     ):
         permission_mode = item.get("permission_mode", "all")
         permission_keys = tuple(item.get("permission_keys", ()))
