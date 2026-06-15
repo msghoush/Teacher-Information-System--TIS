@@ -8,6 +8,7 @@ import auth
 import models
 from design_tokens import build_design_css, merge_design_settings
 import permission_registry
+from visual_design import build_visual_design_config, build_visual_design_css, rows_to_visual_settings
 
 
 DEFAULT_SCHOOL_LOGO_SLOTS = (
@@ -525,6 +526,22 @@ def build_shell_context(
         )
     except Exception:
         design_css = ""
+    can_use_design_studio = auth.is_developer(current_user) and can("design_control.manage")
+    design_mode_enabled = (
+        can_use_design_studio
+        and str(request.query_params.get("design_mode", "") or "").strip().lower() in {"1", "true", "yes"}
+    )
+    try:
+        visual_rows = db.query(models.VisualDesignSetting).filter(
+            models.VisualDesignSetting.page_key.in_(("global", page_key)),
+            models.VisualDesignSetting.is_active == True,
+        ).all()
+        visual_settings = rows_to_visual_settings(visual_rows)
+        visual_design_css = build_visual_design_css(visual_settings)
+        visual_design_config = build_visual_design_config(page_key, visual_settings)
+    except Exception:
+        visual_design_css = ""
+        visual_design_config = build_visual_design_config(page_key, {})
 
     return {
         "can": _build_permission_checker(db, current_user, scoped_school_group_id),
@@ -566,6 +583,12 @@ def build_shell_context(
             "new_demo_request_count": new_demo_request_count,
             "school_logos": get_school_logo_slots(request, db, getattr(branch, "id", scoped_branch_id)),
             "design_css": design_css,
+            "visual_design_css": visual_design_css,
+            "design_studio": {
+                "can_use": can_use_design_studio,
+                "enabled": design_mode_enabled,
+                "config": visual_design_config,
+            },
         },
         "permission_keys": sorted(permission_keys),
         "can": can,

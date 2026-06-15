@@ -71,6 +71,27 @@ class SystemDesignSetting(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class VisualDesignSetting(Base):
+    __tablename__ = "visual_design_settings"
+    __table_args__ = (
+        UniqueConstraint("page_key", "component_key", "setting_key", name="uq_visual_design_component_setting"),
+        Index("ix_visual_design_page_component", "page_key", "component_key"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    page_key = Column(String(80), nullable=False, index=True)
+    component_key = Column(String(120), nullable=False, index=True)
+    component_type = Column(String(40), nullable=False)
+    setting_key = Column(String(80), nullable=False)
+    setting_value = Column(String(255), nullable=False, default="")
+    scope_type = Column(String(20), nullable=False, default="global")
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), index=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    updated_by_user_id = Column(String(10))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class BranchLogo(Base):
     __tablename__ = "branch_logos"
     __table_args__ = (

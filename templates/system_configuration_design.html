@@ -12,8 +12,13 @@
 .config-nav-link { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 12px; border: 1px solid #d6e3f3; border-radius: 999px; background: #fff; color: #23466f; font-size: 12px; font-weight: 900; text-decoration: none; }
 .config-nav-link.is-active { border-color: #b8d0ec; background: #edf4ff; color: #17365d; }
 .design-form { display: grid; gap: 14px; }
+.studio-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
 .design-card { display: grid; gap: 12px; padding: 14px; border: 1px solid #d8e2f0; border-radius: 14px; background: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .06); }
 .design-card h2 { margin: 0; color: #17365d; font-size: 18px; }
+.design-card p { margin: 0; color: #60728c; font-size: 13px; line-height: 1.45; }
+.studio-card { display: grid; gap: 8px; padding: 14px; border: 1px solid #d8e2f0; border-radius: 12px; background: #fff; color: inherit; text-decoration: none; }
+.studio-card strong { color: #17365d; }
+.studio-card span { color: #60728c; font-size: 12px; line-height: 1.4; }
 .design-token-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
 .design-field { display: grid; gap: 7px; min-width: 0; padding: 10px; border: 1px solid #e1e9f4; border-radius: 10px; background: #f8fbff; }
 .design-field label { color: #48607f; font-size: 12px; font-weight: 900; text-transform: uppercase; }
@@ -44,7 +49,34 @@
         {% endfor %}
     </nav>
 
+    <section class="design-card">
+        <h2>Developer Visual Design Studio</h2>
+        <p>Open a live TIS page in design mode, select highlighted components, preview safe visual changes, and save them as configuration.</p>
+        <div class="studio-grid">
+            <a class="studio-card" href="/dashboard?design_mode=1">
+                <strong>{{ icon("dashboard", "icon") }} Dashboard Layout Editor</strong>
+                <span>Edit dashboard sections, cards, tables, and action controls.</span>
+            </a>
+            <a class="studio-card" href="/dashboard?design_mode=1">
+                <strong>{{ icon("sparkles", "icon") }} Component Style Editor</strong>
+                <span>Select cards, buttons, tables, and page sections directly on the page.</span>
+            </a>
+            <a class="studio-card" href="/dashboard?design_mode=1">
+                <strong>{{ icon("table", "icon") }} Page Layout Editor</strong>
+                <span>Adjust spacing, density, columns, and visibility on registered page areas.</span>
+            </a>
+            <a class="studio-card" href="/dashboard?design_mode=1">
+                <strong>{{ icon("settings", "icon") }} Navigation Layout Editor</strong>
+                <span>Edit safe sidebar width, item spacing, icon size, and active item styling.</span>
+            </a>
+        </div>
+    </section>
+
     <form class="design-form" method="post" action="/system-configuration/design">
+        <section class="design-card">
+            <h2>Theme Tokens</h2>
+            <p>Global theme settings used by the visual builder foundation.</p>
+        </section>
         {% for group in design_token_groups %}
         <section class="design-card">
             <h2>{{ group.name }}</h2>
