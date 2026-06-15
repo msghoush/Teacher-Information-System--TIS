@@ -157,6 +157,7 @@ PROTECTED_ROUTE_RULES = (
     PermissionRule(r"/demo-requests/export", ("GET",), ("demo_requests.export",), "demo-requests"),
     PermissionRule(r"/demo-requests/\d+", ("GET",), ("demo_requests.view",), "demo-requests"),
     PermissionRule(r"/demo-requests/\d+/status", ("POST",), ("demo_requests.update_status",), "demo-requests"),
+    PermissionRule(r"/demo-requests/\d+/delete", ("POST",), ("demo_requests.update_status",), "demo-requests"),
     PermissionRule(r"/school-branding", ("GET",), ("branding.view",), "school-branding"),
     PermissionRule(r"/system-configuration", ("GET",), ("configuration.view", "schools.view", "branches.view", "academic_years.view", "branding.view", "configuration.manage_permissions", "configuration.manage_degrees", "configuration.manage_specializations", "timetable.manage_settings", "timetable.manage_blocks", "calendar.manage_event_types"), "system-configuration", match="any"),
     PermissionRule(r"/system-configuration/role-permissions", ("GET", "POST"), ("configuration.manage_permissions",), "system-configuration"),

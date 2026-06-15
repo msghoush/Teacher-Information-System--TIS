@@ -31,6 +31,7 @@
 .status-form select { width: 100%; border: 1px solid #c6d4e8; border-radius: 8px; padding: 9px 10px; color: #1f2737; background: #fff; }
 .action-btn { min-height: 38px; border: 1px solid transparent; border-radius: 8px; padding: 8px 12px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 900; cursor: pointer; text-decoration: none; }
 .action-btn-primary { background: var(--app-brand); color: #fff; }
+.action-btn-danger { border-color: #efc5bf; background: #fff5f3; color: #9f2d1f; }
 .side-stack { display: grid; gap: 14px; }
 .timeline-list { display: grid; gap: 10px; margin-top: 12px; }
 .timeline-list div { display: grid; gap: 3px; border-left: 3px solid #d8e2f0; padding-left: 10px; }
@@ -115,6 +116,10 @@
                         {% endfor %}
                     </select>
                     <button class="action-btn action-btn-primary" type="submit">{{ icon("save", "icon") }} Update Status</button>
+                </form>
+                <form class="status-form" method="post" action="/demo-requests/{{ demo_request.id }}/delete" onsubmit="return confirm('Are you sure you want to delete this demo request? This action cannot be undone.');">
+                    <input type="hidden" name="return_to" value="/demo-requests">
+                    <button class="action-btn action-btn-danger" type="submit">{{ icon("trash", "icon") }} Delete Demo Request</button>
                 </form>
             </section>
 
