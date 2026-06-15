@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import auth
+import authorization
 import models
 import permission_registry
 from dependencies import get_db
@@ -37,6 +38,7 @@ POSITION_ALIASES = {
 ROLE_CHOICES = [
     auth.ROLE_DEVELOPER,
     auth.ROLE_ADMINISTRATOR,
+    auth.ROLE_EDITOR,
     auth.ROLE_USER,
     auth.ROLE_LIMITED,
 ]
@@ -54,16 +56,16 @@ def _normalize_user_id(value: str) -> str:
 
 
 def _get_user_roles_for_creator(current_user):
-    role = auth.normalize_role(current_user.role)
-    if role == auth.ROLE_DEVELOPER:
+    if auth._has_cached_permission(current_user, "users.assign_developer_role"):
         return ROLE_CHOICES
-    if role == auth.ROLE_ADMINISTRATOR:
+    if auth._has_cached_permission(current_user, "users.assign_role"):
         return [
             auth.ROLE_ADMINISTRATOR,
+            auth.ROLE_EDITOR,
             auth.ROLE_USER,
             auth.ROLE_LIMITED,
         ]
-    return [auth.ROLE_USER, auth.ROLE_LIMITED]
+    return [auth.normalize_role(getattr(current_user, "role", "")) or auth.ROLE_LIMITED]
 
 
 def _get_user_school_group_id(db: Session, current_user) -> int | None:
@@ -105,15 +107,18 @@ def _build_role_permission_summary_map(db: Session, current_user):
     return {
         role: permission_registry.build_role_permission_payload(
             role,
-            _get_allowed_permission_keys(db, role, school_group_id),
+            auth.get_allowed_permission_keys(
+                db,
+                type("RoleSubject", (), {"role": role, "is_active": True, "school_group_id": school_group_id})(),
+                school_group_id,
+            ),
         )
         for role in permission_registry.MANAGED_ROLES
     }
 
 
 def _get_available_branches(db: Session, current_user):
-    role = auth.normalize_role(current_user.role)
-    if role == auth.ROLE_DEVELOPER:
+    if auth.can_access_all_branches(current_user, db):
         query = db.query(models.Branch).filter(
             models.Branch.status == True
         )
@@ -277,6 +282,7 @@ def _render_users_page(
     role = auth.normalize_role(current_user.role)
     can_manage_users = auth.can_manage_users(current_user)
     can_edit_user_accounts = auth.can_edit_user_accounts(current_user)
+    can_delete_user_accounts = auth.can_delete_user_accounts(current_user)
     users_query = db.query(models.User)
     scope_school_group_id = getattr(current_user, "scope_school_group_id", None) or _get_user_school_group_id(
         db,
@@ -295,7 +301,7 @@ def _render_users_page(
         for user_row in users
     }
     manageable_user_ids = set()
-    if can_edit_user_accounts:
+    if can_edit_user_accounts or can_delete_user_accounts:
         manageable_user_ids = {
             user_row.id for user_row in users
             if _can_manage_target_user(db, current_user, user_row)
@@ -323,6 +329,7 @@ def _render_users_page(
             "current_user": current_user,
             "can_manage_users": can_manage_users,
             "can_edit_user_accounts": can_edit_user_accounts,
+            "can_delete_user_accounts": can_delete_user_accounts,
             "manageable_user_ids": manageable_user_ids,
             **build_shell_context(
                 request,
@@ -343,8 +350,15 @@ def users_page(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_manage_users(current_user):
-        return RedirectResponse(url="/dashboard", status_code=302)
+    current_user, denied_response = authorization.require_permission(
+        request,
+        db,
+        "users.view",
+        current_user=current_user,
+        page_key="users",
+    )
+    if denied_response:
+        return denied_response
 
     return _render_users_page(
         request=request,

@@ -32,6 +32,7 @@ from openpyxl.utils import get_column_letter
 from database import engine, SessionLocal
 import models
 import auth
+import authorization
 import db_migrations
 import permission_registry
 from dependencies import get_db
@@ -1004,6 +1005,20 @@ CONFIGURATION_MODULES = (
         "href": "/system-configuration",
         "icon": "settings",
         "description": "Open the configuration hub.",
+        "permission_keys": (
+            "configuration.view",
+            "schools.view",
+            "branches.view",
+            "academic_years.view",
+            "branding.view",
+            "configuration.manage_permissions",
+            "configuration.manage_degrees",
+            "configuration.manage_specializations",
+            "timetable.manage_settings",
+            "timetable.manage_blocks",
+            "calendar.manage_event_types",
+        ),
+        "permission_mode": "any",
     },
     {
         "key": "school-management",
@@ -1011,6 +1026,13 @@ CONFIGURATION_MODULES = (
         "href": "/system-configuration/schools",
         "icon": "branch",
         "description": "Manage schools, branches, years, branding, and access.",
+        "permission_keys": (
+            "schools.view",
+            "branches.view",
+            "academic_years.view",
+            "branding.view",
+        ),
+        "permission_mode": "any",
     },
     {
         "key": "users",
@@ -1018,6 +1040,7 @@ CONFIGURATION_MODULES = (
         "href": "/users",
         "icon": "users",
         "description": "Manage user accounts, roles, and active status.",
+        "permission_keys": ("users.view",),
     },
     {
         "key": "role-permissions",
@@ -1025,6 +1048,7 @@ CONFIGURATION_MODULES = (
         "href": "/system-configuration/role-permissions",
         "icon": "shield",
         "description": "Assign detailed TIS permissions to each access role.",
+        "permission_keys": ("configuration.manage_permissions",),
     },
     {
         "key": "degrees",
@@ -1032,6 +1056,7 @@ CONFIGURATION_MODULES = (
         "href": "/system-configuration/degrees",
         "icon": "copy",
         "description": "Manage academic degree options.",
+        "permission_keys": ("configuration.manage_degrees",),
     },
     {
         "key": "specializations",
@@ -1039,6 +1064,7 @@ CONFIGURATION_MODULES = (
         "href": "/system-configuration/specializations",
         "icon": "subjects",
         "description": "Manage majors and teaching specializations.",
+        "permission_keys": ("configuration.manage_specializations",),
     },
     {
         "key": "timetable-settings",
@@ -1046,6 +1072,8 @@ CONFIGURATION_MODULES = (
         "href": "/system-configuration/timetable-settings",
         "icon": "timetable",
         "description": "Configure school days, periods, and blocked times.",
+        "permission_keys": ("timetable.manage_settings", "timetable.manage_blocks"),
+        "permission_mode": "any",
     },
     {
         "key": "academic-calendar",
@@ -1053,18 +1081,42 @@ CONFIGURATION_MODULES = (
         "href": "/system-configuration/calendar",
         "icon": "calendar",
         "description": "Configure calendar event types for the active scope.",
+        "permission_keys": ("calendar.manage_event_types",),
     },
 )
 
 
-def _get_configuration_modules(active_key: str) -> list[dict[str, object]]:
-    return [
-        {
-            **module,
-            "active": module["key"] == active_key,
-        }
-        for module in CONFIGURATION_MODULES
-    ]
+def _get_configuration_modules(
+    active_key: str,
+    db: Session | None = None,
+    current_user=None,
+) -> list[dict[str, object]]:
+    modules = []
+    for module in CONFIGURATION_MODULES:
+        permission_keys = tuple(module.get("permission_keys", ()))
+        permission_mode = str(module.get("permission_mode", "all")).strip().lower()
+        if permission_keys and db is not None and current_user is not None:
+            if permission_mode == "any":
+                allowed = any(
+                    auth.has_permission(db, current_user, permission_key)
+                    for permission_key in permission_keys
+                )
+            else:
+                allowed = all(
+                    auth.has_permission(db, current_user, permission_key)
+                    for permission_key in permission_keys
+                )
+            if not allowed:
+                continue
+        modules.append(
+            {
+                key: value
+                for key, value in module.items()
+                if key not in {"permission_keys", "permission_mode"}
+            }
+            | {"active": module["key"] == active_key}
+        )
+    return modules
 
 
 def _build_configuration_hub_stats(
@@ -1134,15 +1186,34 @@ def _build_configuration_context(request: Request, db: Session, current_user):
         "scope_academic_year_id",
         current_user.academic_year_id,
     )
+    user_school_group_id = _get_user_school_group_id(db, current_user)
+    can_manage_all = _can_manage_all_school_scopes(db, current_user)
     branch_rows = _build_branch_configuration_rows(
         db,
         scoped_branch_id=scoped_branch_id,
     )
-    school_group_rows = db.query(models.SchoolGroup).order_by(
+    if not can_manage_all and user_school_group_id:
+        branch_rows = [
+            row for row in branch_rows
+            if row.get("school_group_id") == user_school_group_id
+        ]
+
+    school_group_query = db.query(models.SchoolGroup).order_by(
         models.SchoolGroup.status.desc(),
         models.SchoolGroup.name.asc(),
-    ).all()
-    academic_year_rows = db.query(models.AcademicYear).order_by(
+    )
+    if not can_manage_all and user_school_group_id:
+        school_group_query = school_group_query.filter(
+            models.SchoolGroup.id == user_school_group_id
+        )
+    school_group_rows = school_group_query.all()
+
+    academic_year_query = db.query(models.AcademicYear)
+    if not can_manage_all and user_school_group_id:
+        academic_year_query = academic_year_query.filter(
+            models.AcademicYear.school_group_id == user_school_group_id
+        )
+    academic_year_rows = academic_year_query.order_by(
         models.AcademicYear.year_name.desc()
     ).all()
     qualification_rows = _build_qualification_configuration_rows(db)
@@ -1158,8 +1229,29 @@ def _build_configuration_context(request: Request, db: Session, current_user):
         (year for year in academic_year_rows if bool(year.is_active)),
         None,
     )
-    timetable_settings_count = db.query(models.TimetableSetting).count()
-    calendar_event_type_count = db.query(models.CalendarEventType).count()
+    timetable_settings_query = db.query(models.TimetableSetting)
+    calendar_event_type_query = db.query(models.CalendarEventType)
+    if not can_manage_all and user_school_group_id:
+        scoped_branch_ids = [
+            branch_row["id"]
+            for branch_row in branch_rows
+        ]
+        if scoped_branch_ids:
+            timetable_settings_query = timetable_settings_query.filter(
+                models.TimetableSetting.branch_id.in_(scoped_branch_ids)
+            )
+            calendar_event_type_query = calendar_event_type_query.filter(
+                models.CalendarEventType.branch_id.in_(scoped_branch_ids)
+            )
+        else:
+            timetable_settings_query = timetable_settings_query.filter(
+                models.TimetableSetting.id == -1
+            )
+            calendar_event_type_query = calendar_event_type_query.filter(
+                models.CalendarEventType.id == -1
+            )
+    timetable_settings_count = timetable_settings_query.count()
+    calendar_event_type_count = calendar_event_type_query.count()
     return {
         "branch_rows": branch_rows,
         "school_group_rows": school_group_rows,
@@ -1173,7 +1265,11 @@ def _build_configuration_context(request: Request, db: Session, current_user):
         "specialization_rows": specialization_rows,
         "timetable_settings_count": timetable_settings_count,
         "calendar_event_type_count": calendar_event_type_count,
-        "configuration_modules": _get_configuration_modules("overview"),
+        "configuration_modules": _get_configuration_modules(
+            "overview",
+            db,
+            current_user,
+        ),
         "configuration_stats": _build_configuration_hub_stats(
             school_group_rows,
             branch_rows,
@@ -8077,41 +8173,49 @@ async def inactivity_timeout_middleware(request: Request, call_next):
 
     db = SessionLocal()
     try:
-        user = db.query(models.User).filter(
-            models.User.user_id == session_user_id
-        ).first()
-        if not user:
-            response = RedirectResponse(url="/", status_code=302)
-            return _clear_auth_session_cookies(response)
+        user = None
+        current_user = None
+        if session_user_id:
+            user = db.query(models.User).filter(
+                models.User.user_id == session_user_id
+            ).first()
+            if not user:
+                response = RedirectResponse(url="/", status_code=302)
+                return _clear_auth_session_cookies(response)
 
-        if not auth.is_user_active(user):
-            response = RedirectResponse(url="/?inactive=1", status_code=302)
-            return _clear_auth_session_cookies(response)
+            if not auth.is_user_active(user):
+                response = RedirectResponse(url="/?inactive=1", status_code=302)
+                return _clear_auth_session_cookies(response)
 
-        if path in IDLE_TIMEOUT_EXEMPT_PATHS:
-            return await call_next(request)
+            if path not in IDLE_TIMEOUT_EXEMPT_PATHS and not auth.is_developer(user):
+                now_ts = int(time.time())
+                last_activity_raw = str(request.cookies.get(IDLE_TIMEOUT_COOKIE_KEY) or "").strip()
+                if last_activity_raw:
+                    try:
+                        last_activity_ts = int(last_activity_raw)
+                    except ValueError:
+                        last_activity_ts = 0
 
-        if auth.is_developer(user):
-            return await call_next(request)
+                    if last_activity_ts > 0 and (now_ts - last_activity_ts) > IDLE_TIMEOUT_SECONDS:
+                        timeout_response = RedirectResponse(url="/?timeout=1", status_code=302)
+                        return _clear_auth_session_cookies(timeout_response)
+            current_user = auth.get_current_user(request, db)
 
-        now_ts = int(time.time())
-        last_activity_raw = str(request.cookies.get(IDLE_TIMEOUT_COOKIE_KEY) or "").strip()
-        if last_activity_raw:
-            try:
-                last_activity_ts = int(last_activity_raw)
-            except ValueError:
-                last_activity_ts = 0
-
-            if last_activity_ts > 0 and (now_ts - last_activity_ts) > IDLE_TIMEOUT_SECONDS:
-                timeout_response = RedirectResponse(url="/?timeout=1", status_code=302)
-                return _clear_auth_session_cookies(timeout_response)
+        permission_response = authorization.enforce_route_permission(
+            request,
+            db,
+            current_user=current_user,
+        )
+        if permission_response is not None:
+            return permission_response
 
         response = await call_next(request)
-        response.set_cookie(
-            key=IDLE_TIMEOUT_COOKIE_KEY,
-            value=str(now_ts),
-            **auth.secure_cookie_kwargs(request),
-        )
+        if session_user_id and user and path not in IDLE_TIMEOUT_EXEMPT_PATHS and not auth.is_developer(user):
+            response.set_cookie(
+                key=IDLE_TIMEOUT_COOKIE_KEY,
+                value=str(int(time.time())),
+                **auth.secure_cookie_kwargs(request),
+            )
         return response
     finally:
         db.close()
@@ -8943,7 +9047,7 @@ def login(
         )
         return _clear_auth_session_cookies(response)
 
-    can_all_branch_scope = auth.can_access_all_branches(user)
+    can_all_branch_scope = auth.can_access_all_branches(user, db)
     active_branches = auth.get_accessible_branch_query(db, user).order_by(
         models.Branch.name.asc()
     ).all()
@@ -9183,8 +9287,11 @@ def notification_center(
             current_user.user_id,
         )
 
-        can_compose = auth.is_developer(current_user) or (
-            auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_ADMINISTRATOR
+        can_compose = auth.has_any_permission(
+            db,
+            current_user,
+            "notifications.send_direct",
+            "notifications.broadcast",
         )
         all_users = []
         if can_compose:
@@ -9283,8 +9390,11 @@ def compose_message_form(
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
 
-    can_compose = auth.is_developer(current_user) or (
-        auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_ADMINISTRATOR
+    can_compose = auth.has_any_permission(
+        db,
+        current_user,
+        "notifications.send_direct",
+        "notifications.broadcast",
     )
     if not can_compose:
         return RedirectResponse(
@@ -9432,15 +9542,6 @@ def send_message(
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
 
-    can_compose = auth.is_developer(current_user) or (
-        auth.normalize_role(getattr(current_user, "role", "")) == auth.ROLE_ADMINISTRATOR
-    )
-    if not can_compose:
-        return RedirectResponse(
-            url="/notifications?notice=You%20do%20not%20have%20permission%20to%20send%20messages.",
-            status_code=302,
-        )
-
     title = str(title or "").strip()
     recipient = str(recipient or "").strip()
     message = str(message or "").strip()
@@ -9453,6 +9554,16 @@ def send_message(
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     allowed_recipient_query = auth.get_notification_recipient_query(db, current_user)
+    required_notification_permission = (
+        "notifications.broadcast"
+        if recipient == "ALL"
+        else "notifications.send_direct"
+    )
+    if not auth.has_permission(db, current_user, required_notification_permission):
+        return RedirectResponse(
+            url="/notifications?notice=You%20do%20not%20have%20permission%20to%20send%20messages.",
+            status_code=302,
+        )
 
     if recipient == "ALL":
         active_users = allowed_recipient_query.all()
@@ -9871,8 +9982,14 @@ def download_audit_log(
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
 
-    if not auth.can_manage_system_settings(current_user):
-        return RedirectResponse(url="/dashboard", status_code=302)
+    if not auth.has_permission(db, current_user, "configuration.export_audit_log"):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("configuration.export_audit_log",),
+            page_key="system-configuration",
+        )
 
     audit_log_path = get_audit_log_path()
     if not audit_log_path.exists():
@@ -9945,12 +10062,22 @@ def download_audit_log(
 # ---------------------------------------
 # PLATFORM: DEMO REQUESTS
 # ---------------------------------------
-def _get_demo_requests_access(request: Request, db: Session):
+def _get_demo_requests_access(request: Request, db: Session, *permission_keys: str):
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return None, RedirectResponse(url="/", status_code=302)
-    if not auth.can_manage_system_settings(current_user):
-        return None, RedirectResponse(url="/dashboard", status_code=302)
+    required_permissions = permission_keys or ("demo_requests.view",)
+    if not any(auth.has_permission(db, current_user, permission_key) for permission_key in required_permissions):
+        return (
+            None,
+            authorization.build_access_denied_response(
+                request,
+                db,
+                current_user=current_user,
+                permission_keys=required_permissions,
+                page_key="demo-requests",
+            ),
+        )
     return current_user, None
 
 
@@ -10060,7 +10187,7 @@ def list_demo_requests(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    current_user, redirect_response = _get_demo_requests_access(request, db)
+    current_user, redirect_response = _get_demo_requests_access(request, db, "demo_requests.view")
     if redirect_response:
         return redirect_response
 
@@ -10108,7 +10235,7 @@ def export_demo_requests(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    current_user, redirect_response = _get_demo_requests_access(request, db)
+    current_user, redirect_response = _get_demo_requests_access(request, db, "demo_requests.export")
     if redirect_response:
         return redirect_response
 
@@ -10135,7 +10262,7 @@ def view_demo_request(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    current_user, redirect_response = _get_demo_requests_access(request, db)
+    current_user, redirect_response = _get_demo_requests_access(request, db, "demo_requests.view")
     if redirect_response:
         return redirect_response
 
@@ -10175,7 +10302,7 @@ def update_demo_request_status(
     return_to: str = Form("/demo-requests"),
     db: Session = Depends(get_db),
 ):
-    current_user, redirect_response = _get_demo_requests_access(request, db)
+    current_user, redirect_response = _get_demo_requests_access(request, db, "demo_requests.update_status")
     if redirect_response:
         return redirect_response
 
@@ -10204,8 +10331,37 @@ def _get_configuration_access(request: Request, db: Session):
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return None, RedirectResponse(url="/", status_code=302)
-    if not auth.can_manage_system_settings(current_user):
-        return None, RedirectResponse(url="/dashboard", status_code=302)
+    if not auth.has_any_permission(
+        db,
+        current_user,
+        "configuration.view",
+        "schools.view",
+        "branches.view",
+        "academic_years.view",
+        "branding.view",
+        "configuration.manage_permissions",
+        "configuration.manage_degrees",
+        "configuration.manage_specializations",
+        "timetable.manage_settings",
+        "timetable.manage_blocks",
+        "calendar.manage_event_types",
+    ):
+        return (
+            None,
+            authorization.build_access_denied_response(
+                request,
+                db,
+                current_user=current_user,
+                permission_keys=(
+                    "configuration.view",
+                    "schools.view",
+                    "branches.view",
+                    "academic_years.view",
+                    "branding.view",
+                ),
+                page_key="system-configuration",
+            ),
+        )
     return current_user, None
 
 
@@ -10213,9 +10369,27 @@ def _get_school_branding_access(request: Request, db: Session):
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return None, RedirectResponse(url="/", status_code=302)
-    role = auth.normalize_role(getattr(current_user, "role", ""))
-    if not (auth.can_manage_system_settings(current_user) or role == auth.ROLE_ADMINISTRATOR):
-        return None, RedirectResponse(url="/dashboard", status_code=302)
+    if not auth.has_any_permission(
+        db,
+        current_user,
+        "branding.view",
+        "branding.manage_school_logos",
+        "branding.manage_branch_logos",
+    ):
+        return (
+            None,
+            authorization.build_access_denied_response(
+                request,
+                db,
+                current_user=current_user,
+                permission_keys=(
+                    "branding.view",
+                    "branding.manage_school_logos",
+                    "branding.manage_branch_logos",
+                ),
+                page_key="school-branding",
+            ),
+        )
     return current_user, None
 
 
@@ -10223,9 +10397,17 @@ def _get_role_permissions_access(request: Request, db: Session):
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return None, RedirectResponse(url="/", status_code=302)
-    role = auth.normalize_role(getattr(current_user, "role", ""))
-    if not (auth.can_manage_system_settings(current_user) or role == auth.ROLE_ADMINISTRATOR):
-        return None, RedirectResponse(url="/dashboard", status_code=302)
+    if not auth.has_permission(db, current_user, "configuration.manage_permissions"):
+        return (
+            None,
+            authorization.build_access_denied_response(
+                request,
+                db,
+                current_user=current_user,
+                permission_keys=("configuration.manage_permissions",),
+                page_key="system-configuration",
+            ),
+        )
     return current_user, None
 
 
@@ -10241,7 +10423,11 @@ def _render_configuration_template(
     extra_context: dict | None = None,
 ):
     context = _build_configuration_context(request, db, current_user)
-    context["configuration_modules"] = _get_configuration_modules(active_module_key)
+    context["configuration_modules"] = _get_configuration_modules(
+        active_module_key,
+        db,
+        current_user,
+    )
     context.update(extra_context or {})
     return templates.TemplateResponse(
         request,
@@ -10305,6 +10491,23 @@ def _get_user_school_group_id(db: Session, current_user) -> int | None:
     )
 
 
+def _can_manage_all_school_scopes(db: Session, current_user) -> bool:
+    return auth.has_any_permission(
+        db,
+        current_user,
+        "schools.manage_all_schools",
+        "system_owner.switch_all_schools",
+    )
+
+
+def _can_manage_global_role_permissions(db: Session, current_user) -> bool:
+    return auth.has_permission(
+        db,
+        current_user,
+        "system_owner.manage_global_role_permissions",
+    )
+
+
 def _build_school_logo_module_context(
     request: Request,
     db: Session,
@@ -10312,7 +10515,7 @@ def _build_school_logo_module_context(
     *,
     administrator_mode: bool = False,
 ):
-    can_manage_all = auth.can_manage_system_settings(current_user)
+    can_manage_all = _can_manage_all_school_scopes(db, current_user)
     user_school_group_id = _get_user_school_group_id(db, current_user)
 
     school_groups_query = db.query(models.SchoolGroup).order_by(
@@ -10476,7 +10679,7 @@ def _build_school_management_context(request: Request, db: Session, current_user
 
 
 def _build_role_permissions_context(request: Request, db: Session, current_user):
-    can_manage_all = auth.can_manage_system_settings(current_user)
+    can_manage_all = _can_manage_global_role_permissions(db, current_user)
     user_school_group_id = _get_user_school_group_id(db, current_user)
     school_groups = db.query(models.SchoolGroup).order_by(
         models.SchoolGroup.status.desc(),
@@ -10536,7 +10739,10 @@ def _build_role_permissions_context(request: Request, db: Session, current_user)
         ),
         "role_permission_school_groups": school_groups,
         "can_manage_all_role_permissions": can_manage_all,
-        "can_edit_selected_role_permissions": selected_role != auth.ROLE_DEVELOPER,
+        "can_edit_selected_role_permissions": (
+            auth.has_permission(db, current_user, "configuration.manage_permissions")
+            and selected_role != auth.ROLE_DEVELOPER
+        ),
         "notice_message": str(request.query_params.get("notice", "") or "").strip(),
     }
 
@@ -10575,7 +10781,7 @@ def update_role_permissions(
     if redirect_response:
         return redirect_response
 
-    can_manage_all = auth.can_manage_system_settings(current_user)
+    can_manage_all = _can_manage_global_role_permissions(db, current_user)
     selected_role = permission_registry.normalize_managed_role(role)
     if not selected_role:
         return _redirect_with_error(
@@ -10826,7 +11032,7 @@ def school_branding(
                 request,
                 db,
                 current_user,
-                administrator_mode=not auth.can_manage_system_settings(current_user),
+                administrator_mode=not _can_manage_all_school_scopes(db, current_user),
             ),
             **build_shell_context(
                 request,
@@ -10856,7 +11062,7 @@ async def save_system_configuration_logo(
     if redirect_response:
         return redirect_response
 
-    can_manage_all = auth.can_manage_system_settings(current_user)
+    can_manage_all = _can_manage_all_school_scopes(db, current_user)
     normalized_scope_type = str(scope_type or "branch").strip().lower()
     if normalized_scope_type not in {"school_group", "branch"}:
         return _redirect_with_error(return_to, "Select a valid logo scope.")
@@ -10887,7 +11093,7 @@ async def save_system_configuration_logo(
         branch = db.query(models.Branch).filter(models.Branch.id == branch_id).first()
         if not branch:
             return _redirect_with_error(return_to, "Select a valid branch.")
-        if not can_manage_all and branch.id != current_user.branch_id:
+        if not can_manage_all and branch.id != getattr(current_user, "scope_branch_id", current_user.branch_id):
             return RedirectResponse(url="/dashboard", status_code=302)
 
     normalized_label = str(label or "").strip() or slot["label"]
@@ -10989,7 +11195,7 @@ def reset_system_configuration_logo(
     if redirect_response:
         return redirect_response
 
-    can_manage_all = auth.can_manage_system_settings(current_user)
+    can_manage_all = _can_manage_all_school_scopes(db, current_user)
     normalized_scope_type = str(scope_type or "branch").strip().lower()
     user_school_group_id = _get_user_school_group_id(db, current_user)
     existing_logo = None
@@ -11007,7 +11213,7 @@ def reset_system_configuration_logo(
     else:
         if not branch_id:
             return _redirect_with_error(return_to, "Select a valid branch.")
-        if not can_manage_all and branch_id != current_user.branch_id:
+        if not can_manage_all and branch_id != getattr(current_user, "scope_branch_id", current_user.branch_id):
             return RedirectResponse(url="/dashboard", status_code=302)
         existing_logo = db.query(models.BranchLogo).filter(
             models.BranchLogo.branch_id == branch_id,
@@ -11141,8 +11347,16 @@ def save_timetable_settings(
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
-    if not current_user or not auth.can_manage_system_settings(current_user):
+    if not current_user:
         return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "timetable.manage_settings"):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("timetable.manage_settings",),
+            page_key="system-configuration",
+        )
 
     safe_return_to = _safe_redirect_path(return_to)
     branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
@@ -11241,8 +11455,16 @@ def recalculate_timetable_settings_structure(
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
-    if not current_user or not auth.can_manage_system_settings(current_user):
+    if not current_user:
         return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "timetable.manage_settings"):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("timetable.manage_settings",),
+            page_key="system-configuration",
+        )
 
     safe_return_to = _safe_redirect_path(return_to)
     branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
@@ -11282,8 +11504,16 @@ def create_timetable_block(
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
-    if not current_user or not auth.can_manage_system_settings(current_user):
+    if not current_user:
         return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "timetable.manage_blocks"):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("timetable.manage_blocks",),
+            page_key="system-configuration",
+        )
 
     safe_return_to = _safe_redirect_path(return_to)
     branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
@@ -11360,8 +11590,16 @@ def update_timetable_block(
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
-    if not current_user or not auth.can_manage_system_settings(current_user):
+    if not current_user:
         return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "timetable.manage_blocks"):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("timetable.manage_blocks",),
+            page_key="system-configuration",
+        )
 
     safe_return_to = _safe_redirect_path(return_to)
     branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
@@ -11439,8 +11677,16 @@ def delete_timetable_block(
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
-    if not current_user or not auth.can_manage_system_settings(current_user):
+    if not current_user:
         return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "timetable.manage_blocks"):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("timetable.manage_blocks",),
+            page_key="system-configuration",
+        )
 
     safe_return_to = _safe_redirect_path(return_to)
     branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
@@ -11487,8 +11733,16 @@ def create_branch(
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
-    if not current_user or not auth.can_manage_system_settings(current_user):
+    if not current_user:
         return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "branches.create"):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("branches.create",),
+            page_key="system-configuration",
+        )
 
     safe_return_to = _safe_redirect_path(return_to)
     cleaned_name = " ".join(str(name or "").split())
@@ -11557,8 +11811,16 @@ def update_branch(
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
-    if not current_user or not auth.can_manage_system_settings(current_user):
+    if not current_user:
         return RedirectResponse(url="/", status_code=302)
+    if not auth.has_any_permission(db, current_user, "branches.edit", "branches.activate_deactivate"):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("branches.edit", "branches.activate_deactivate"),
+            page_key="system-configuration",
+        )
 
     safe_return_to = _safe_redirect_path(return_to)
     branch_row = db.query(models.Branch).filter(
@@ -11635,8 +11897,16 @@ def create_qualification_option(
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
-    if not current_user or not auth.can_manage_system_settings(current_user):
+    if not current_user:
         return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "branches.delete"):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("branches.delete",),
+            page_key="system-configuration",
+        )
 
     safe_return_to = _safe_redirect_path(return_to)
     normalized_kind = _normalize_qualification_kind(kind)
@@ -11708,8 +11978,16 @@ def update_qualification_option(
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
-    if not current_user or not auth.can_manage_system_settings(current_user):
+    if not current_user:
         return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "academic_years.activate"):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("academic_years.activate",),
+            page_key="system-configuration",
+        )
 
     safe_return_to = _safe_redirect_path(return_to)
     ensure_qualification_options_seeded(db)
@@ -11776,8 +12054,16 @@ def delete_qualification_option(
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
-    if not current_user or not auth.can_manage_system_settings(current_user):
+    if not current_user:
         return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "academic_years.create"):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("academic_years.create",),
+            page_key="system-configuration",
+        )
 
     safe_return_to = _safe_redirect_path(return_to)
     ensure_qualification_options_seeded(db)
@@ -11980,8 +12266,14 @@ def set_scope_academic_year(
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
 
-    if not auth.can_manage_system_settings(current_user):
-        return RedirectResponse(url="/dashboard", status_code=302)
+    if not auth.can_access_all_branches(current_user, db):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("branches.view", "schools.manage_all_schools"),
+            page_key="dashboard",
+        )
 
     target_year = db.query(models.AcademicYear).filter(
         models.AcademicYear.id == academic_year_id
@@ -12026,8 +12318,14 @@ def set_scope_branch(
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
 
-    if not auth.can_manage_system_settings(current_user):
-        return RedirectResponse(url="/dashboard", status_code=302)
+    if not auth.can_access_all_branches(current_user, db):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("schools.manage_all_schools", "dashboard.view_all_schools", "system_owner.switch_all_schools"),
+            page_key="dashboard",
+        )
 
     target_branch = auth.get_accessible_branch_query(db, current_user).filter(
         models.Branch.id == branch_id

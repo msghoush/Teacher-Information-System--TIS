@@ -414,6 +414,7 @@
             </div>
         </div>
 
+        {% if can("branches.create") %}
         <form class="create-row" method="post" action="/system-configuration/branches">
             <input type="hidden" name="return_to" value="/system-configuration/branches">
             <div class="create-field">
@@ -431,6 +432,7 @@
             </div>
             <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Add</button>
         </form>
+        {% endif %}
 
         <div class="table-wrap">
             <table class="branch-table">
@@ -461,9 +463,9 @@
                             </div>
                             <div class="branch-edit">
                                 <label class="sr-only" for="branch_name_{{ row.id }}">Branch name</label>
-                                <input id="branch_name_{{ row.id }}" type="text" name="name" value="{{ row.name }}" data-initial="{{ row.name }}" form="branch_update_form_{{ row.id }}" required>
+                                <input id="branch_name_{{ row.id }}" type="text" name="name" value="{{ row.name }}" data-initial="{{ row.name }}" form="branch_update_form_{{ row.id }}" required {% if not can("branches.edit") %}disabled{% endif %}>
                                 <label class="sr-only" for="branch_region_{{ row.id }}">Region</label>
-                                <select id="branch_region_{{ row.id }}" name="region" data-initial="{{ row.region if row.region else '' }}" form="branch_update_form_{{ row.id }}" required style="margin-top: 4px;">
+                                <select id="branch_region_{{ row.id }}" name="region" data-initial="{{ row.region if row.region else '' }}" form="branch_update_form_{{ row.id }}" required style="margin-top: 4px;" {% if not can("branches.edit") %}disabled{% endif %}>
                                     {% if row.region and row.region not in saudi_regions %}
                                     <option value="{{ row.region }}" selected>{{ row.region }}</option>
                                     {% else %}
@@ -481,7 +483,7 @@
                             </div>
                             <div class="branch-edit">
                                 <label class="sr-only" for="branch_status_{{ row.id }}">Status</label>
-                                <select id="branch_status_{{ row.id }}" name="status" data-initial="{{ 'active' if row.status else 'inactive' }}" form="branch_update_form_{{ row.id }}">
+                                <select id="branch_status_{{ row.id }}" name="status" data-initial="{{ 'active' if row.status else 'inactive' }}" form="branch_update_form_{{ row.id }}" {% if not can("branches.activate_deactivate") %}disabled{% endif %}>
                                     <option value="active" {% if row.status %}selected{% endif %}>Active</option>
                                     <option value="inactive" {% if not row.status %}selected{% endif %}>Inactive</option>
                                 </select>
@@ -499,7 +501,10 @@
                                 <input type="hidden" name="return_to" value="/system-configuration/branches">
                             </form>
                             <div class="table-actions actions-default">
+                                {% if can_any("branches.edit", "branches.activate_deactivate") %}
                                 <button class="action-btn action-btn-secondary btn-icon js-branch-edit" type="button" data-branch-row-id="{{ row.id }}" aria-label="Edit branch {{ row.name }}">{{ icon("edit", "icon") }}</button>
+                                {% endif %}
+                                {% if can("branches.delete") %}
                                 <button
                                     class="action-btn action-btn-danger btn-icon"
                                     type="submit"
@@ -511,11 +516,14 @@
                                 >
                                     {{ icon("trash", "icon") }}
                                 </button>
+                                {% endif %}
                             </div>
+                            {% if can_any("branches.edit", "branches.activate_deactivate") %}
                             <div class="table-actions actions-editing">
                                 <button class="action-btn action-btn-primary" type="submit" form="branch_update_form_{{ row.id }}">{{ icon("save", "icon") }} Save</button>
                                 <button class="action-btn action-btn-secondary js-branch-cancel" type="button" data-branch-row-id="{{ row.id }}">{{ icon("close", "icon") }} Cancel</button>
                             </div>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}

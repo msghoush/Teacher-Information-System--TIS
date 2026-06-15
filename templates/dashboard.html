@@ -4642,6 +4642,7 @@
 {% endblock %}
 
 {% block page_header_actions %}
+{% if can("reports.export") %}
 <details class="export-menu">
     <summary class="shell-action is-primary">{{ icon("download", "shell-icon") }} Export Report</summary>
     <div class="export-menu-panel">
@@ -4654,6 +4655,7 @@
         <a href="/reports/allocation-plan.pdf?section=summary">{{ icon("insights", "icon") }} Summary PDF</a>
     </div>
 </details>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -5438,6 +5440,7 @@
                     </div>
                     <div class="panel-head-actions">
                         <a class="open-link" href="/planning">{{ icon("planning", "icon") }} Open Planning</a>
+                        {% if can("reports.export") %}
                         <details class="export-menu">
                             <summary class="open-link">{{ icon("download", "icon") }} Export Report</summary>
                             <div class="export-menu-panel">
@@ -5450,6 +5453,7 @@
                                 <a href="/reports/allocation-plan.xlsx?section=teachers">{{ icon("teachers", "icon") }} Teachers Excel</a>
                             </div>
                         </details>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="report-note">
@@ -5582,6 +5586,7 @@
                     </article>
                 </div>
 
+                {% if can("hiring_plan.view") %}
                 <section class="report-hiring-plan" aria-label="Recommended Hiring Plan">
                     <div class="report-hiring-plan-head">
                         <div>
@@ -5595,9 +5600,11 @@
                         <div class="hiring-card-toolbar">
                             <div class="report-inline-note">Adjust the suggested cards directly: drag subject-hour chips, rename profiles, add manual profiles, then save.</div>
                             <div class="hiring-studio-actions">
+                                {% if can("hiring_plan.edit") %}
                                 <button id="hiringStudioLockBtn" type="button" class="hiring-btn is-muted">Lock Plan</button>
                                 <button id="hiringStudioAddProfileBtn" type="button" class="hiring-btn">+ New Profile</button>
                                 <button id="hiringStudioSaveBtn" type="button" class="hiring-btn is-primary">Save Plan</button>
+                                {% endif %}
                             </div>
                         </div>
                         <div id="hiringStudioStatus" class="report-inline-note">Loading recommended hiring plan...</div>
@@ -5614,6 +5621,7 @@
                         </div>
                     </div>
                 </section>
+                {% endif %}
 
                 {% set coverage_pct = report_summary.coverage_percentage or 0 %}
                 {% set uncovered_pct = 100 - coverage_pct if coverage_pct < 100 else 0 %}
@@ -6444,6 +6452,8 @@ const tabs = document.querySelectorAll(".tab");
             });
         });
 
+        const canViewHiringPlan = {{ can("hiring_plan.view") | tojson }};
+        const canEditHiringPlan = {{ can("hiring_plan.edit") | tojson }};
         const hiringStudioAutoPayload = {{ hiring_plan_editor_auto_payload | tojson }};
         const hiringStudioProfiles = document.getElementById("hiringStudioProfiles");
         const hiringStudioUnassigned = document.getElementById("hiringStudioUnassigned");
@@ -6914,7 +6924,7 @@ const tabs = document.querySelectorAll(".tab");
 
         const isPlanLocked = () => Boolean(hiringStudioState.plan.locked);
 
-        const isEditable = () => !isPlanLocked();
+        const isEditable = () => canEditHiringPlan && !isPlanLocked();
 
         const parseDragMeta = (event) => {
             const payload = event?.dataTransfer?.getData("application/json") || "";
@@ -7671,7 +7681,7 @@ const tabs = document.querySelectorAll(".tab");
         };
 
         const loadHiringStudio = async () => {
-            if (!hiringStudioProfiles) {
+            if (!canViewHiringPlan || !hiringStudioProfiles) {
                 return;
             }
             ensureDragHandlersBound();

@@ -64,6 +64,7 @@
 {% endblock %}
 
 {% macro logo_editor_cards(logos, scope_type, scope_id_name, scope_id_value, allow_reset) %}
+{% set can_edit_logo = can("branding.manage_school_logos") if scope_type == "school_group" else can("branding.manage_branch_logos") %}
 <div class="logo-grid">
     {% for logo in logos %}
     <section class="logo-card">
@@ -80,14 +81,18 @@
             <input type="hidden" name="{{ scope_id_name }}" value="{{ scope_id_value }}">
             <input type="hidden" name="slot_key" value="{{ logo.slot_key }}">
             <label for="{{ scope_type }}_label_{{ scope_id_value }}_{{ logo.slot_key }}">Logo label</label>
-            <input id="{{ scope_type }}_label_{{ scope_id_value }}_{{ logo.slot_key }}" type="text" name="label" value="{{ logo.label }}" required>
+            <input id="{{ scope_type }}_label_{{ scope_id_value }}_{{ logo.slot_key }}" type="text" name="label" value="{{ logo.label }}" required {% if not can_edit_logo %}disabled{% endif %}>
             <label for="{{ scope_type }}_file_{{ scope_id_value }}_{{ logo.slot_key }}">Replace logo</label>
-            <input id="{{ scope_type }}_file_{{ scope_id_value }}_{{ logo.slot_key }}" type="file" name="logo_file" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml">
+            <input id="{{ scope_type }}_file_{{ scope_id_value }}_{{ logo.slot_key }}" type="file" name="logo_file" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" {% if not can_edit_logo %}disabled{% endif %}>
             <div class="logo-actions">
+                {% if can_edit_logo %}
                 {% if allow_reset and logo.source == scope_type %}
                 <button class="action-btn action-btn-danger" type="submit" formaction="/system-configuration/logos/reset" onclick="return confirm('Reset this logo?');">{{ icon("trash", "icon") }} Reset</button>
                 {% endif %}
                 <button class="action-btn action-btn-primary" type="submit">{{ icon("upload", "icon") }} Save</button>
+                {% else %}
+                <span class="status-pill">View Only</span>
+                {% endif %}
             </div>
         </form>
     </section>

@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import auth
+import authorization
 import models
 from dependencies import get_db
 from auth import get_current_user
@@ -1430,10 +1431,10 @@ def _render_teachers_page(
     selected_override_subject_codes=None,
 ):
     branch_id, academic_year_id = _get_scope_ids(current_user)
-    can_modify = auth.can_modify_data(current_user)
-    can_edit = auth.can_edit_data(current_user)
-    can_delete = auth.can_delete_data(current_user)
-    can_copy_year_data = auth.is_developer(current_user)
+    can_modify = auth.has_permission(db, current_user, "teachers.create")
+    can_edit = auth.has_permission(db, current_user, "teachers.edit")
+    can_delete = auth.has_permission(db, current_user, "teachers.delete")
+    can_copy_year_data = auth.has_permission(db, current_user, "teachers.copy_year_data")
     copy_year_choices = (
         get_copy_year_choices(db, academic_year_id)
         if can_copy_year_data
@@ -1690,13 +1691,15 @@ def copy_teachers_from_year(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.is_developer(current_user):
-        return _render_teachers_page(
-            request=request,
-            db=db,
-            current_user=current_user,
-            error="Only the developer user can copy teachers between academic years.",
-        )
+    current_user, denied_response = authorization.require_permission(
+        request,
+        db,
+        "teachers.copy_year_data",
+        current_user=current_user,
+        page_key="teachers",
+    )
+    if denied_response:
+        return denied_response
 
     branch_id, target_academic_year_id = _get_scope_ids(current_user)
     if source_academic_year_id == target_academic_year_id:
@@ -2094,7 +2097,7 @@ def create_teacher(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_modify_data(current_user):
+    if not auth.has_permission(db, current_user, "teachers.create"):
         return _render_teachers_page(
             request=request,
             db=db,
@@ -2441,7 +2444,7 @@ def edit_teacher_page(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_edit_data(current_user):
+    if not auth.has_permission(db, current_user, "teachers.edit"):
         return RedirectResponse(url="/teachers", status_code=302)
 
     branch_id, academic_year_id = _get_scope_ids(current_user)
@@ -2485,7 +2488,7 @@ def update_teacher(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_edit_data(current_user):
+    if not auth.has_permission(db, current_user, "teachers.edit"):
         return RedirectResponse(url="/teachers", status_code=302)
 
     branch_id, academic_year_id = _get_scope_ids(current_user)
@@ -2891,7 +2894,7 @@ def delete_teacher(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_delete_data(current_user):
+    if not auth.has_permission(db, current_user, "teachers.delete"):
         return RedirectResponse(url="/teachers", status_code=302)
 
     branch_id, academic_year_id = _get_scope_ids(current_user)
@@ -2926,7 +2929,7 @@ def delete_teachers_bulk(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_delete_data(current_user):
+    if not auth.has_permission(db, current_user, "teachers.delete"):
         return RedirectResponse(url="/teachers", status_code=302)
 
     unique_teacher_ids = sorted({

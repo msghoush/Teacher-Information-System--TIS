@@ -803,12 +803,17 @@ def _get_current_teacher(db: Session, current_user):
 
 
 def _can_create_observation(current_user) -> bool:
-    return auth.can_modify_data(current_user) and not _is_teacher_user(current_user)
+    return auth._has_any_cached_permission(
+        current_user,
+        (
+            "observations.create_formal",
+            "observations.create_non_formal",
+        ),
+    ) and not _is_teacher_user(current_user)
 
 
 def _can_override_locked_observation(current_user) -> bool:
-    role = auth.normalize_role(getattr(current_user, "role", ""))
-    return role in {auth.ROLE_DEVELOPER, auth.ROLE_ADMINISTRATOR}
+    return auth._has_cached_permission(current_user, "observations.unlock")
 
 
 def _observation_is_locked(observation) -> bool:
@@ -825,7 +830,7 @@ def _observation_status_label(observation) -> str:
 
 
 def _can_edit_observation(current_user, observation) -> bool:
-    if not auth.can_edit_data(current_user) or _is_teacher_user(current_user):
+    if not auth._has_cached_permission(current_user, "observations.edit_draft") or _is_teacher_user(current_user):
         return False
     if not _observation_in_current_scope(current_user, observation):
         return False
@@ -833,7 +838,7 @@ def _can_edit_observation(current_user, observation) -> bool:
 
 
 def _can_delete_observation(current_user, observation) -> bool:
-    if not auth.can_delete_data(current_user) or _is_teacher_user(current_user):
+    if not auth._has_cached_permission(current_user, "observations.delete") or _is_teacher_user(current_user):
         return False
     if not _observation_in_current_scope(current_user, observation):
         return False

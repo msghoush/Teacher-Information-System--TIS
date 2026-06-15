@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Access Denied | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+    .access-denied-card {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 28px;
+        border: 1px solid #d8e2f0;
+        border-radius: 20px;
+        background: #ffffff;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+        display: grid;
+        gap: 14px;
+    }
+
+    .access-denied-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        width: fit-content;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: #fef3f2;
+        color: #b42318;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .access-denied-card h2 {
+        margin: 0;
+        font-size: 30px;
+        color: #102a43;
+    }
+
+    .access-denied-card p {
+        margin: 0;
+        color: #526581;
+        font-size: 15px;
+        line-height: 1.6;
+    }
+
+    .access-denied-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 6px;
+    }
+
+    .access-denied-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 700;
+        border: 1px solid #c8d6eb;
+        background: #ffffff;
+        color: #17365d;
+    }
+
+    .access-denied-btn.is-primary {
+        border-color: #0a4ea3;
+        background: #0a4ea3;
+        color: #ffffff;
+    }
+
+    .access-denied-meta {
+        margin-top: 4px;
+        padding-top: 14px;
+        border-top: 1px solid #e5edf7;
+        font-size: 13px;
+        color: #6b7c93;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="access-denied-card">
+    <span class="access-denied-eyebrow">{{ icon("shield", "shell-icon") }} Access Denied</span>
+    <h2>This page or action is restricted.</h2>
+    <p>{{ denied_message }}</p>
+    <p>If you need this access, ask the system developer or the role-permissions administrator to enable it for your role.</p>
+    <div class="access-denied-actions">
+        <a class="access-denied-btn is-primary" href="/dashboard">{{ icon("dashboard", "shell-icon") }} Return to Dashboard</a>
+        <a class="access-denied-btn" href="/notifications">{{ icon("notifications", "shell-icon") }} Open Notifications</a>
+    </div>
+    {% if required_permissions %}
+    <div class="access-denied-meta">
+        Required permission key{{ "s" if required_permissions|length != 1 else "" }}:
+        {{ required_permissions | join(", ") }}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

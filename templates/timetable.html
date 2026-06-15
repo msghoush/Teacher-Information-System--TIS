@@ -1418,6 +1418,7 @@
                 <p>Schedule lessons using current planning data, teacher assignments, and timetable settings.</p>
             </div>
             <div class="hero-actions">
+                {% if can("timetable.export") %}
                 <details class="timetable-export-menu">
                     <summary class="hero-btn is-primary">{{ icon("download", "icon") }} Export Timetable</summary>
                     <div class="timetable-export-menu-panel">
@@ -1425,7 +1426,8 @@
                         <a href="/timetable/export.pdf" target="_blank" rel="noopener">{{ icon("report", "icon") }} Printable PDF</a>
                     </div>
                 </details>
-                {% if can_manage_system_settings %}
+                {% endif %}
+                {% if can("timetable.manage_settings") %}
                 <a class="hero-btn is-secondary" href="/system-configuration/timetable-settings">{{ icon("settings", "icon") }} Timetable Settings</a>
                 {% endif %}
                 <a class="hero-btn is-secondary" href="/planning/">{{ icon("planning", "icon") }} Planning</a>

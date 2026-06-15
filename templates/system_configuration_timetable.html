@@ -540,6 +540,7 @@
                     <p>These values define the weekly grid used by the main Timetable page.</p>
                 </div>
 
+                <fieldset {% if not can("timetable.manage_settings") %}disabled{% endif %} style="border:0; padding:0; margin:0;">
                 <div class="field">
                     <label>Working Days</label>
                     <div class="day-pill-grid">
@@ -575,10 +576,13 @@
                 <div class="field-note">Set start time, periods, and duration. End time recalculates automatically; blocks map to overlapping slots.</div>
 
                 <div class="action-row">
+                    {% if can("timetable.manage_settings") %}
                     <button class="action-btn action-btn-primary" type="submit">{{ icon("save", "icon") }} Save Timetable Settings</button>
                     <button class="action-btn action-btn-secondary" type="submit" formaction="/system-configuration/timetable-settings/recalculate">{{ icon("sparkles", "icon") }} Recalculate Timeline</button>
+                    {% endif %}
                     <a class="action-btn action-btn-secondary" href="/timetable/">{{ icon("timetable", "icon") }} Open Timetable Page</a>
                 </div>
+                </fieldset>
             </form>
 
             <section class="preview-shell">
@@ -645,6 +649,7 @@
             </div>
         </div>
 
+        {% if can("timetable.manage_blocks") %}
         <form class="block-form" method="post" action="/system-configuration/timetable-settings/blocks">
             <input type="hidden" name="return_to" value="/system-configuration/timetable-settings">
             <div class="field">
@@ -678,6 +683,7 @@
             </div>
             <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Add Block</button>
         </form>
+        {% endif %}
 
         {% if timetable_settings.blocks %}
         <div class="table-wrap">
@@ -700,7 +706,7 @@
                             </div>
                             <div class="block-edit">
                                 <label class="sr-only" for="block_type_{{ block.id }}">Type</label>
-                                <select id="block_type_{{ block.id }}" name="block_type" form="block_update_form_{{ block.id }}" data-initial="{{ block.block_type }}">
+                                <select id="block_type_{{ block.id }}" name="block_type" form="block_update_form_{{ block.id }}" data-initial="{{ block.block_type }}" {% if not can("timetable.manage_blocks") %}disabled{% endif %}>
                                     {% for block_type in block_type_options %}
                                     <option value="{{ block_type.key }}" {% if block.block_type == block_type.key %}selected{% endif %}>{{ block_type.label }}</option>
                                     {% endfor %}
@@ -713,14 +719,14 @@
                             </div>
                             <div class="block-edit">
                                 <label class="sr-only" for="block_label_{{ block.id }}">Label</label>
-                                <input id="block_label_{{ block.id }}" type="text" name="label" value="{{ block.label }}" form="block_update_form_{{ block.id }}" data-initial="{{ block.label }}" required>
+                                <input id="block_label_{{ block.id }}" type="text" name="label" value="{{ block.label }}" form="block_update_form_{{ block.id }}" data-initial="{{ block.label }}" required {% if not can("timetable.manage_blocks") %}disabled{% endif %}>
                             </div>
                         </td>
                         <td>
                             <div class="block-read">{{ block.day_label }}</div>
                             <div class="block-edit">
                                 <label class="sr-only" for="block_day_{{ block.id }}">Day</label>
-                                <select id="block_day_{{ block.id }}" name="day_key" form="block_update_form_{{ block.id }}" data-initial="{{ block.day_key }}">
+                                <select id="block_day_{{ block.id }}" name="day_key" form="block_update_form_{{ block.id }}" data-initial="{{ block.day_key }}" {% if not can("timetable.manage_blocks") %}disabled{% endif %}>
                                     <option value="{{ all_day_key }}" {% if block.day_key == all_day_key %}selected{% endif %}>All Working Days</option>
                                     {% for day in timetable_settings.working_days %}
                                     <option value="{{ day.key }}" {% if block.day_key == day.key %}selected{% endif %}>{{ day.label }}</option>
@@ -733,11 +739,11 @@
                             <div class="block-edit" style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;">
                                 <div>
                                     <label class="sr-only" for="block_start_{{ block.id }}">Start Time</label>
-                                    <input id="block_start_{{ block.id }}" type="time" name="start_time" value="{{ block.start_time }}" form="block_update_form_{{ block.id }}" data-initial="{{ block.start_time }}" required>
+                                    <input id="block_start_{{ block.id }}" type="time" name="start_time" value="{{ block.start_time }}" form="block_update_form_{{ block.id }}" data-initial="{{ block.start_time }}" required {% if not can("timetable.manage_blocks") %}disabled{% endif %}>
                                 </div>
                                 <div>
                                     <label class="sr-only" for="block_end_{{ block.id }}">End Time</label>
-                                    <input id="block_end_{{ block.id }}" type="time" name="end_time" value="{{ block.end_time }}" form="block_update_form_{{ block.id }}" data-initial="{{ block.end_time }}" required>
+                                    <input id="block_end_{{ block.id }}" type="time" name="end_time" value="{{ block.end_time }}" form="block_update_form_{{ block.id }}" data-initial="{{ block.end_time }}" required {% if not can("timetable.manage_blocks") %}disabled{% endif %}>
                                 </div>
                             </div>
                         </td>
@@ -745,6 +751,7 @@
                             <form id="block_update_form_{{ block.id }}" method="post" action="/system-configuration/timetable-settings/blocks/{{ block.id }}">
                                 <input type="hidden" name="return_to" value="/system-configuration/timetable-settings">
                             </form>
+                            {% if can("timetable.manage_blocks") %}
                             <div class="table-actions actions-default">
                                 <button class="action-btn action-btn-secondary" type="button" data-block-edit="{{ block.id }}">{{ icon("edit", "icon") }} Edit</button>
                                 <button class="action-btn action-btn-danger" type="submit" form="block_update_form_{{ block.id }}" formaction="/system-configuration/timetable-settings/blocks/{{ block.id }}/delete" onclick="return confirm('Delete {{ block.label }}?');">{{ icon("trash", "icon") }} Delete</button>
@@ -753,6 +760,7 @@
                                 <button class="action-btn action-btn-primary" type="submit" form="block_update_form_{{ block.id }}">{{ icon("save", "icon") }} Save</button>
                                 <button class="action-btn action-btn-secondary" type="button" data-block-cancel="{{ block.id }}">{{ icon("close", "icon") }} Cancel</button>
                             </div>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}

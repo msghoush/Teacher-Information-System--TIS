@@ -278,6 +278,7 @@
             </div>
         </div>
 
+        {% if can("academic_years.create") %}
         <form class="create-row" method="post" action="/developer/open-academic-year">
             <input type="hidden" name="return_to" value="/system-configuration/academic-years">
             <div class="field">
@@ -286,6 +287,7 @@
             </div>
             <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Open</button>
         </form>
+        {% endif %}
 
         <div class="year-list">
             {% for year in academic_year_rows %}
@@ -298,7 +300,7 @@
                     <span class="status-pill {% if year.is_active %}is-success{% else %}is-muted{% endif %}">
                         {{ "Current" if year.is_active else "Inactive" }}
                     </span>
-                    {% if not year.is_active %}
+                    {% if not year.is_active and can("academic_years.activate") %}
                     <form method="post" action="/admin/current-year">
                         <input type="hidden" name="return_to" value="/system-configuration/academic-years">
                         <input type="hidden" name="academic_year_id" value="{{ year.id }}">

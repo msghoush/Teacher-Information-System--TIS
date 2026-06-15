@@ -105,11 +105,13 @@
                 <span>{{ "Active" if school.status else "Inactive" }}</span>
             </a>
             {% endfor %}
+            {% if can("schools.create") %}
             <form class="field" method="post" action="/system-configuration/schools">
                 <label for="new_school_name">New School / Organization</label>
                 <input id="new_school_name" name="name" placeholder="School name" required>
                 <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Create School</button>
             </form>
+            {% endif %}
         </aside>
 
         <main class="school-main">
@@ -128,17 +130,20 @@
                     <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
                     <div class="field">
                         <label for="school_name">School / Organization Name</label>
-                        <input id="school_name" name="name" value="{{ selected_school_group.name }}" required>
+                        <input id="school_name" name="name" value="{{ selected_school_group.name }}" required {% if not can("schools.edit") %}disabled{% endif %}>
                     </div>
                     <div class="field">
                         <label for="school_status">Status</label>
-                        <select id="school_status" name="status">
+                        <select id="school_status" name="status" {% if not can("schools.edit") %}disabled{% endif %}>
                             <option value="active" {% if selected_school_group.status %}selected{% endif %}>Active</option>
                             <option value="inactive" {% if not selected_school_group.status %}selected{% endif %}>Inactive</option>
                         </select>
                     </div>
+                    {% if can("schools.edit") %}
                     <button class="action-btn action-btn-primary" type="submit">{{ icon("save", "icon") }} Save School</button>
+                    {% endif %}
                 </form>
+                {% if can("schools.delete") %}
                 <div class="danger-zone">
                     <div>
                         <strong>Delete School</strong>
@@ -153,6 +158,7 @@
                         <button class="action-btn action-btn-danger" type="submit" {% if not school_delete_summary.can_delete %}disabled title="Delete locked: {{ school_delete_summary.reason or 'school data is still linked' }}"{% endif %}>{{ icon("trash", "icon") }} Delete School</button>
                     </form>
                 </div>
+                {% endif %}
             </section>
 
             <details class="section-card collapsible-section" data-collapsible-branches>
@@ -167,6 +173,7 @@
                     </div>
                 </summary>
                 <div class="collapsible-body">
+                {% if can("branches.create") %}
                 <form class="form-grid" method="post" action="/system-configuration/branches">
                     <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
                     <input type="hidden" name="school_group_id" value="{{ selected_school_group.id }}">
@@ -185,6 +192,7 @@
                     </div>
                     <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Add Branch</button>
                 </form>
+                {% endif %}
                 {% if school_branch_rows %}
                 <div class="branch-filter-bar" aria-label="Branch filters">
                     <div class="field">
@@ -228,13 +236,13 @@
                                     </form>
                                     <div class="table-field">
                                         <label for="branch_name_{{ branch_row.id }}">Name</label>
-                                        <input id="branch_name_{{ branch_row.id }}" name="name" value="{{ branch_row.name }}" form="branch_edit_{{ branch_row.id }}" required>
+                                        <input id="branch_name_{{ branch_row.id }}" name="name" value="{{ branch_row.name }}" form="branch_edit_{{ branch_row.id }}" required {% if not can("branches.edit") %}disabled{% endif %}>
                                     </div>
                                 </td>
                                 <td>
                                     <div class="table-field">
                                         <label for="branch_region_{{ branch_row.id }}">Region</label>
-                                        <select id="branch_region_{{ branch_row.id }}" name="region" form="branch_edit_{{ branch_row.id }}" required>
+                                        <select id="branch_region_{{ branch_row.id }}" name="region" form="branch_edit_{{ branch_row.id }}" required {% if not can("branches.edit") %}disabled{% endif %}>
                                             {% if branch_row.region and branch_row.region not in saudi_regions %}
                                             <option value="{{ branch_row.region }}" selected>{{ branch_row.region }}</option>
                                             {% endif %}
@@ -247,7 +255,7 @@
                                 <td>
                                     <div class="table-field">
                                         <label for="branch_status_{{ branch_row.id }}">Status</label>
-                                        <select id="branch_status_{{ branch_row.id }}" name="status" form="branch_edit_{{ branch_row.id }}">
+                                        <select id="branch_status_{{ branch_row.id }}" name="status" form="branch_edit_{{ branch_row.id }}" {% if not can("branches.activate_deactivate") %}disabled{% endif %}>
                                             <option value="active" {% if branch_row.status %}selected{% endif %}>Active</option>
                                             <option value="inactive" {% if not branch_row.status %}selected{% endif %}>Inactive</option>
                                         </select>
@@ -283,11 +291,15 @@
                                 </td>
                                 <td>
                                     <div class="inline-actions" style="justify-content:flex-end;">
+                                        {% if can_any("branches.edit", "branches.activate_deactivate") %}
                                         <button class="action-btn action-btn-primary" type="submit" form="branch_edit_{{ branch_row.id }}">{{ icon("save", "icon") }} Save</button>
+                                        {% endif %}
+                                        {% if can("branches.delete") %}
                                         <form method="post" action="/system-configuration/branches/{{ branch_row.id }}/delete" onsubmit="return confirm('Delete {{ branch_row.name }}? This only works when no users, subjects, teachers, or planning records are linked to it.');">
                                             <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
                                             <button class="action-btn action-btn-danger" type="submit" {% if not branch_row.can_delete %}disabled title="Cannot delete: {{ branch_row.usage_counts.users_count }} users, {{ branch_row.usage_counts.teachers_count }} teachers, {{ branch_row.usage_counts.subjects_count }} subjects, and {{ branch_row.usage_counts.planning_sections_count }} planning records linked, or one active branch must remain."{% endif %}>{{ icon("trash", "icon") }} Delete</button>
                                         </form>
+                                        {% endif %}
                                     </div>
                                     {% if not branch_row.can_delete %}
                                     <span class="delete-note">Cannot delete while linked data exists or it is the only active branch.</span>
@@ -308,6 +320,7 @@
 
             <section class="section-card">
                 <h3>Academic Years</h3>
+                {% if can("academic_years.create") %}
                 <form class="form-grid two" method="post" action="/developer/open-academic-year">
                     <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
                     <input type="hidden" name="school_group_id" value="{{ selected_school_group.id }}">
@@ -317,6 +330,7 @@
                     </div>
                     <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Open Year</button>
                 </form>
+                {% endif %}
                 <div class="table-wrap">
                     <table class="data-table">
                         <thead><tr><th>Academic Year</th><th>Status</th><th></th></tr></thead>
@@ -326,7 +340,7 @@
                                 <td>{{ year.year_name }}</td>
                                 <td><span class="status-pill {% if year.is_active %}is-success{% endif %}">{{ "Current" if year.is_active else "Inactive" }}</span></td>
                                 <td>
-                                    {% if not year.is_active %}
+                                    {% if not year.is_active and can("academic_years.activate") %}
                                     <form method="post" action="/admin/current-year">
                                         <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
                                         <input type="hidden" name="academic_year_id" value="{{ year.id }}">
@@ -351,15 +365,19 @@
                     <img src="{{ logo.url }}" alt="{{ logo.label }} logo" title="{{ logo.label }}">
                     {% endfor %}
                 </div>
+                {% if can("branding.view") %}
                 <div class="inline-actions">
                     <a class="action-btn action-btn-secondary" href="/system-configuration/logos?school_group_id={{ selected_school_group.id }}">{{ icon("upload", "icon") }} Edit Branding</a>
                 </div>
+                {% endif %}
             </section>
 
             <section class="section-card">
                 <h3>School Admins / Access</h3>
                 <p>Reserved for subscription onboarding and school-admin setup.</p>
+                {% if can("users.view") %}
                 <a class="action-btn action-btn-secondary" href="/users">{{ icon("users", "icon") }} Manage Users</a>
+                {% endif %}
             </section>
             {% else %}
             <section class="section-card">

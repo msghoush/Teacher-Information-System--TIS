@@ -3,12 +3,19 @@
 
 {% block title %}Academic Calendar | TIS{% endblock %}
 
+{% set can_create_calendar = can("calendar.create") %}
+{% set can_edit_calendar = can("calendar.edit") %}
+{% set can_delete_calendar = can("calendar.delete") %}
+{% set can_manage_calendar_actions = can_edit_calendar or can_delete_calendar %}
+
 {% block page_header_actions %}
+{% if can("calendar.export") %}
 <a class="calendar-header-link" href="{{ pdf_export_url }}" target="_blank" rel="noopener">{{ icon("download", "shell-icon") }} Export PDF</a>
-{% if can_manage_calendar %}
+{% endif %}
+{% if can_create_calendar %}
 <button class="calendar-icon-btn" type="button" id="openCreateEventDialog" aria-label="New calendar event" title="New calendar event">{{ icon("calendar", "shell-icon") }} <span>New Event</span></button>
 {% endif %}
-{% if shell.can_manage_system_settings %}
+{% if can("calendar.manage_event_types") %}
 <a class="calendar-header-link" href="/system-configuration/calendar">{{ icon("settings", "shell-icon") }} Calendar Configuration</a>
 {% endif %}
 {% endblock %}
@@ -1131,7 +1138,7 @@
         {% endfor %}
     </section>
 
-    {% if can_manage_calendar %}
+    {% if can_create_calendar %}
     <dialog class="edit-dialog" id="createEventDialog">
         <div class="dialog-shell">
             <div class="dialog-head">
@@ -1352,7 +1359,7 @@
                         <div class="month-event-main">
                             <div class="month-event-meta">
                                 <span class="month-event-type">{{ icon(event.type_icon, "agenda-type-icon") }} {{ event.type_name }}</span>
-                                {% if can_manage_calendar %}
+    {% if can_edit_calendar %}
                                 <form class="month-status-form" method="post" action="/academic-calendar/events/{{ event.id }}/status">
                                     <input type="hidden" name="return_to" value="{{ return_to }}">
                                     <details class="status-menu">
@@ -1432,16 +1439,16 @@
                     <span>Description</span>
                     <p id="detailDescription">-</p>
                 </div>
-                {% if can_manage_calendar %}
+                {% if can_manage_calendar_actions %}
                 <div class="editor-actions">
-                    <button class="calendar-btn" type="button" id="editSelectedEvent">{{ icon("edit", "shell-icon") }} Edit</button>
+                    <button class="calendar-btn" type="button" id="editSelectedEvent">{{ icon("edit", "shell-icon") }} {{ "Manage" if can_delete_calendar and not can_edit_calendar else "Edit" }}</button>
                 </div>
                 {% endif %}
             </div>
         </div>
     </dialog>
 
-    {% if can_manage_calendar %}
+    {% if can_manage_calendar_actions %}
     <dialog class="edit-dialog" id="editEventDialog">
         <div class="dialog-shell">
             <div class="dialog-head">
@@ -1450,6 +1457,7 @@
             </div>
             <form id="editEventForm" method="post">
                 <input type="hidden" name="return_to" value="{{ return_to }}">
+                <fieldset {% if not can_edit_calendar %}disabled{% endif %} style="border:0; padding:0; margin:0;">
                 <div class="event-form-grid">
                     <div class="calendar-field is-full">
                         <label for="edit_title">Title</label>
@@ -1559,13 +1567,18 @@
                         <textarea id="edit_description" name="description"></textarea>
                     </div>
                 </div>
+                </fieldset>
             </form>
             <form id="deleteEventForm" method="post">
                 <input type="hidden" name="return_to" value="{{ return_to }}">
             </form>
             <div class="dialog-actions event-edit-actions">
+                {% if can_edit_calendar %}
                 <button class="calendar-btn is-primary" type="submit" form="editEventForm">{{ icon("save", "shell-icon") }} Save Changes</button>
+                {% endif %}
+                {% if can_delete_calendar %}
                 <button class="calendar-btn is-danger" type="submit" form="deleteEventForm">{{ icon("trash", "shell-icon") }} Delete Event</button>
+                {% endif %}
             </div>
         </div>
     </dialog>
@@ -1578,7 +1591,10 @@
     const calendarEvents = {{ calendar_events | tojson }};
     const eventsById = new Map(calendarEvents.map((eventItem) => [String(eventItem.id), eventItem]));
     const selectedEventId = {{ selected_event_id | tojson }};
-    const canManageCalendar = {{ can_manage_calendar | tojson }};
+    const canCreateCalendar = {{ can_create_calendar | tojson }};
+    const canEditCalendar = {{ can_edit_calendar | tojson }};
+    const canDeleteCalendar = {{ can_delete_calendar | tojson }};
+    const canManageCalendar = canEditCalendar || canDeleteCalendar;
     const allGradesValue = "All Grades";
     const allSectionsValue = {{ all_sections_value | tojson }};
     const allTeachersValue = "__all_teachers__";
@@ -2179,7 +2195,7 @@
     }
 
     function openCreateEventDialog(dateValue = "") {
-        if (!createDialog || !canManageCalendar) {
+        if (!createDialog || !canCreateCalendar) {
             return;
         }
         if (dateValue) {
@@ -2303,7 +2319,7 @@
         }
     });
 
-    if (createButton && createDialog && canManageCalendar) {
+    if (createButton && createDialog && canCreateCalendar) {
         createButton.addEventListener("click", () => {
             openCreateEventDialog();
         });
@@ -2311,7 +2327,7 @@
 
     document.querySelectorAll(".day-cell[data-date]").forEach((dayCell) => {
         dayCell.addEventListener("dblclick", (event) => {
-            if (!canManageCalendar || event.target.closest("[data-event-id]")) {
+            if (!canCreateCalendar || event.target.closest("[data-event-id]")) {
                 return;
             }
             openCreateEventDialog(dayCell.dataset.date || "");
