@@ -297,9 +297,9 @@
     </div>
 
     {% block page_scripts %}{% endblock %}
-    {% if shell.design_studio.enabled %}
+    {% if shell.design_studio.can_use %}
     <script id="tis-design-studio-config" type="application/json">{{ shell.design_studio.config | tojson | safe }}</script>
-    <script src="{{ url_for('static', path='js/design-studio.js') }}?v=20260615a"></script>
+    <script src="{{ url_for('static', path='js/design-studio.js') }}?v=20260615b"></script>
     {% endif %}
     <script>
         (() => {
