@@ -292,12 +292,6 @@ def _build_nav_items(
             "badge_count": new_notification_count,
         },
         {
-            "label": "Users",
-            "href": "/users",
-            "icon": "users",
-            "permission_keys": ("users.view",),
-        },
-        {
             "label": "Demo Requests",
             "href": "/demo-requests",
             "icon": "message",
