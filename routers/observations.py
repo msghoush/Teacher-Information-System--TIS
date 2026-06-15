@@ -1888,6 +1888,7 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
         template_context = {
             "request": request,
             "shell": _minimal_shell_context(),
+            "can": lambda permission_key: False,
             "rows": [],
             "can_create": False,
             "target": FORMAL_OBSERVATION_TARGET,
