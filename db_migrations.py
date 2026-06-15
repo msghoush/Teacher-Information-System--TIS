@@ -714,7 +714,9 @@ def _create_demo_requests_table(engine, connection):
             source_host VARCHAR(180) NOT NULL DEFAULT '',
             source_ip VARCHAR(80) NOT NULL DEFAULT '',
             status_updated_at {datetime_type},
-            status_updated_by_user_id VARCHAR(10)
+            status_updated_by_user_id VARCHAR(10),
+            seen_at {datetime_type},
+            seen_by_user_id VARCHAR(10)
         )
         """,
     )
@@ -731,6 +733,31 @@ def _create_demo_requests_table(engine, connection):
             index_name,
             index_columns_sql,
         )
+
+
+def _demo_request_seen_columns(engine, connection):
+    datetime_type = _datetime_type(engine)
+    _add_column_if_missing(
+        connection,
+        connection,
+        "demo_requests",
+        "seen_at",
+        f"seen_at {datetime_type}",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "demo_requests",
+        "seen_by_user_id",
+        "seen_by_user_id VARCHAR(10)",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "demo_requests",
+        "ix_demo_requests_seen_at",
+        "seen_at",
+    )
 
 
 MIGRATIONS = (
@@ -753,6 +780,11 @@ MIGRATIONS = (
         migration_id="20260613_004_demo_requests",
         description="Create platform-level demo request lead table",
         apply=_create_demo_requests_table,
+    ),
+    Migration(
+        migration_id="20260615_001_demo_request_seen_columns",
+        description="Track viewed demo requests for sidebar unread counts",
+        apply=_demo_request_seen_columns,
     ),
 )
 

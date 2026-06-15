@@ -163,6 +163,8 @@ class DemoRequest(Base):
     source_ip = Column(String(80), nullable=False, default="")
     status_updated_at = Column(DateTime)
     status_updated_by_user_id = Column(String(10))
+    seen_at = Column(DateTime)
+    seen_by_user_id = Column(String(10))
 
 
 class CalendarEventType(Base):

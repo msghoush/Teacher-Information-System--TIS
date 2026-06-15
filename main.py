@@ -10271,6 +10271,12 @@ def view_demo_request(
     ).first()
     if not demo_request:
         return RedirectResponse(url="/demo-requests?notice=Demo%20request%20not%20found.", status_code=302)
+    if not getattr(demo_request, "seen_at", None):
+        demo_request.seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        demo_request.seen_by_user_id = getattr(current_user, "user_id", "")
+        demo_request.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        db.commit()
+        db.refresh(demo_request)
 
     return templates.TemplateResponse(
         request,
