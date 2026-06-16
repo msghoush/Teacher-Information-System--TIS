@@ -313,7 +313,6 @@ def _build_nav_items(
                 "configuration.manage_permissions",
                 "configuration.manage_degrees",
                 "configuration.manage_specializations",
-                "design_control.manage",
                 "timetable.manage_settings",
                 "calendar.manage_event_types",
             ),

@@ -44,6 +44,7 @@ from design_tokens import (
 from visual_design import (
     VISUAL_COMPONENT_MAP,
     build_visual_design_config,
+    is_custom_component_key,
     normalize_visual_payload,
     rows_to_visual_settings,
 )
@@ -1026,7 +1027,6 @@ CONFIGURATION_MODULES = (
             "configuration.manage_permissions",
             "configuration.manage_degrees",
             "configuration.manage_specializations",
-            "design_control.manage",
             "timetable.manage_settings",
             "timetable.manage_blocks",
             "calendar.manage_event_types",
@@ -1062,14 +1062,6 @@ CONFIGURATION_MODULES = (
         "icon": "shield",
         "description": "Assign detailed TIS permissions to each access role.",
         "permission_keys": ("configuration.manage_permissions",),
-    },
-    {
-        "key": "design-control",
-        "label": "Developer Design Control",
-        "href": "/system-configuration/design",
-        "icon": "settings",
-        "description": "Adjust approved global design tokens without editing code.",
-        "permission_keys": ("design_control.manage",),
     },
     {
         "key": "degrees",
@@ -10397,7 +10389,6 @@ def _get_configuration_access(request: Request, db: Session):
         "configuration.manage_permissions",
         "configuration.manage_degrees",
         "configuration.manage_specializations",
-        "design_control.manage",
         "timetable.manage_settings",
         "timetable.manage_blocks",
         "calendar.manage_event_types",
@@ -10414,7 +10405,6 @@ def _get_configuration_access(request: Request, db: Session):
                     "branches.view",
                     "academic_years.view",
                     "branding.view",
-                    "design_control.manage",
                 ),
                 page_key="system-configuration",
             ),
@@ -11040,21 +11030,24 @@ async def update_design_studio_component_settings(
 
     component_key = str(payload.get("component_key", "") or "").strip()
     component = VISUAL_COMPONENT_MAP.get(component_key)
-    if not component:
+    is_custom_component = is_custom_component_key(component_key)
+    if not component and not is_custom_component:
         return JSONResponse({"ok": False, "error": "Unknown design component."}, status_code=400)
 
+    component_type = str(payload.get("component_type", "") or getattr(component, "component_type", "") or "element").strip()
     try:
         normalized_settings = normalize_visual_payload(
             component_key,
             payload.get("settings") or {},
+            component_type,
         )
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
-    page_key = component.page_key
+    page_key = getattr(component, "page_key", "") or str(payload.get("page_key", "") or "").strip() or "global"
     db.query(models.VisualDesignSetting).filter(
         models.VisualDesignSetting.page_key == page_key,
-        models.VisualDesignSetting.component_key == component.key,
+        models.VisualDesignSetting.component_key == component_key,
     ).delete(synchronize_session=False)
 
     now = datetime.utcnow()
@@ -11062,8 +11055,8 @@ async def update_design_studio_component_settings(
         db.add(
             models.VisualDesignSetting(
                 page_key=page_key,
-                component_key=component.key,
-                component_type=component.component_type,
+                component_key=component_key,
+                component_type=component_type,
                 setting_key=setting_key,
                 setting_value=setting_value,
                 scope_type="global",
@@ -11073,7 +11066,7 @@ async def update_design_studio_component_settings(
             )
         )
     db.commit()
-    return JSONResponse({"ok": True, "component_key": component.key, "settings": normalized_settings})
+    return JSONResponse({"ok": True, "component_key": component_key, "settings": normalized_settings})
 
 
 @app.post("/api/design-studio/reset")
@@ -11095,12 +11088,14 @@ async def reset_design_studio_settings(
     query = db.query(models.VisualDesignSetting)
     if component_key:
         component = VISUAL_COMPONENT_MAP.get(component_key)
-        if not component:
+        if not component and not is_custom_component_key(component_key):
             return JSONResponse({"ok": False, "error": "Unknown design component."}, status_code=400)
+        component_page_key = getattr(component, "page_key", "") or page_key
         query = query.filter(
-            models.VisualDesignSetting.page_key == component.page_key,
-            models.VisualDesignSetting.component_key == component.key,
+            models.VisualDesignSetting.component_key == component_key,
         )
+        if component_page_key:
+            query = query.filter(models.VisualDesignSetting.page_key == component_page_key)
     elif page_key:
         query = query.filter(models.VisualDesignSetting.page_key == page_key)
     else:
@@ -11109,6 +11104,27 @@ async def reset_design_studio_settings(
     deleted_count = query.delete(synchronize_session=False)
     db.commit()
     return JSONResponse({"ok": True, "deleted_count": deleted_count})
+
+
+@app.post("/api/design-studio/reset-all")
+async def reset_all_design_studio_settings(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_design_control_access(request, db)
+    if redirect_response:
+        return redirect_response
+
+    visual_count = db.query(models.VisualDesignSetting).delete(synchronize_session=False)
+    token_count = db.query(models.SystemDesignSetting).delete(synchronize_session=False)
+    db.commit()
+    return JSONResponse(
+        {
+            "ok": True,
+            "visual_deleted_count": visual_count,
+            "theme_deleted_count": token_count,
+        }
+    )
 
 
 @app.get("/system-configuration/schools")

@@ -12,8 +12,25 @@
     const components = new Map((config.components || []).map((component) => [component.key, component]));
     const savedSettings = config.saved_settings || {};
     const isEnabled = document.body.classList.contains("design-studio-enabled");
+    const pageKey = config.page_key || document.body.getAttribute("data-page-key") || "global";
     let selectedElement = null;
     let selectedComponent = null;
+    const universalSettings = [
+        {key: "width", label: "Width", input_type: "number", css_property: "width", min_value: 10, max_value: 1800, unit: "px"},
+        {key: "min_height", label: "Height", input_type: "number", css_property: "min-height", min_value: 10, max_value: 1400, unit: "px"},
+        {key: "padding", label: "Padding", input_type: "number", css_property: "padding", min_value: 0, max_value: 120, unit: "px"},
+        {key: "margin", label: "Margin", input_type: "number", css_property: "margin", min_value: 0, max_value: 120, unit: "px"},
+        {key: "background", label: "Background", input_type: "color", css_property: "background-color"},
+        {key: "color", label: "Text Color", input_type: "color", css_property: "color"},
+        {key: "border_radius", label: "Border Radius", input_type: "number", css_property: "border-radius", min_value: 0, max_value: 80, unit: "px"},
+        {key: "border_color", label: "Border Color", input_type: "color", css_property: "border-color"},
+        {key: "border_width", label: "Border Width", input_type: "number", css_property: "border-width", min_value: 0, max_value: 16, unit: "px"},
+        {key: "shadow", label: "Shadow", input_type: "select", css_property: "box-shadow", options: ["default", "none", "soft", "deep"]},
+        {key: "text_size", label: "Text Size", input_type: "number", css_property: "font-size", min_value: 8, max_value: 72, unit: "px"},
+        {key: "alignment", label: "Alignment", input_type: "select", css_property: "text-align", options: ["default", "left", "center", "right"]},
+        {key: "order", label: "Order", input_type: "number", css_property: "order", min_value: 0, max_value: 100},
+        {key: "visibility", label: "Visibility", input_type: "select", css_property: "display", options: ["visible", "hidden"]},
+    ];
 
     const icons = {
         adjust: '<svg viewBox="0 0 24 24"><path d="M4 7h10"></path><path d="M18 7h2"></path><circle cx="16" cy="7" r="2"></circle><path d="M4 17h2"></path><path d="M10 17h10"></path><circle cx="8" cy="17" r="2"></circle></svg>',
@@ -26,6 +43,7 @@
         alignCenter: '<svg viewBox="0 0 24 24"><path d="M4 6h16"></path><path d="M7 10h10"></path><path d="M4 14h16"></path><path d="M7 18h10"></path></svg>',
         alignRight: '<svg viewBox="0 0 24 24"><path d="M4 6h16"></path><path d="M10 10h10"></path><path d="M4 14h16"></path><path d="M10 18h10"></path></svg>',
         close: '<svg viewBox="0 0 24 24"><path d="m6 6 12 12"></path><path d="m18 6-12 12"></path></svg>',
+        resetAll: '<svg viewBox="0 0 24 24"><path d="M4 4v6h6"></path><path d="M20 20v-6h-6"></path><path d="M5 15a7 7 0 0 0 11.9 3.9L20 16"></path><path d="M19 9A7 7 0 0 0 7.1 5.1L4 8"></path></svg>',
     };
 
     function enableDesignMode() {
@@ -92,6 +110,53 @@
             return String(value).slice(0, -setting.unit.length);
         }
         return value || "";
+    }
+
+    function componentTypeForElement(element) {
+        const tagName = element.tagName.toLowerCase();
+        if (tagName === "button" || element.getAttribute("role") === "button" || element.className.includes("btn")) return "button";
+        if (tagName === "table" || element.closest("table") === element) return "table";
+        if (tagName === "nav" || element.className.includes("nav") || element.className.includes("sidebar")) return "navigation";
+        if (["section", "article", "main", "aside", "header", "form"].includes(tagName)) return "section";
+        return "element";
+    }
+
+    function labelForElement(element, index) {
+        const tagName = element.tagName.toLowerCase();
+        const text = (element.innerText || element.getAttribute("aria-label") || element.getAttribute("title") || "").trim().replace(/\s+/g, " ");
+        if (text) return `${tagName}: ${text.slice(0, 42)}`;
+        if (element.id) return `${tagName} #${element.id}`;
+        return `${tagName} ${index + 1}`;
+    }
+
+    function buildCustomComponents() {
+        const selectors = [
+            ".page-stage section", ".page-stage article", ".page-stage .card", ".page-stage .stat",
+            ".page-stage .workspace", ".page-stage .panel", ".page-stage table", ".page-stage form",
+            ".page-stage button", ".page-stage a", ".page-stage input", ".page-stage select",
+            ".page-stage h1", ".page-stage h2", ".page-stage h3", ".page-stage h4", ".page-stage p",
+            ".app-header .header-chip", ".app-header img", ".app-sidebar .scope-pill", ".app-sidebar .sidebar-config-card",
+        ].join(",");
+        const candidates = Array.from(document.querySelectorAll(selectors));
+        let index = 0;
+        candidates.forEach((element) => {
+            if (element.hasAttribute("data-design-component")) return;
+            if (element.closest(".design-toolbar, .design-studio-panel")) return;
+            const rect = element.getBoundingClientRect();
+            if (rect.width < 12 || rect.height < 10) return;
+            const key = `custom.${pageKey}.${index}`;
+            index += 1;
+            const componentType = componentTypeForElement(element);
+            element.setAttribute("data-design-component", key);
+            element.setAttribute("data-design-type", componentType);
+            components.set(key, {
+                key,
+                label: labelForElement(element, index),
+                page_key: pageKey,
+                component_type: componentType,
+                settings: universalSettings,
+            });
+        });
     }
 
     function collectSettings() {
@@ -267,7 +332,12 @@
         const response = await fetch("/api/design-studio/component-settings", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({component_key: selectedComponent.key, settings: collectSettings()}),
+            body: JSON.stringify({
+                page_key: selectedComponent.page_key || pageKey,
+                component_key: selectedComponent.key,
+                component_type: selectedComponent.component_type || "element",
+                settings: collectSettings(),
+            }),
         });
         const payload = await response.json();
         if (!response.ok || !payload.ok) {
@@ -286,7 +356,7 @@
         const response = await fetch("/api/design-studio/reset", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({component_key: selectedComponent.key}),
+            body: JSON.stringify({page_key: selectedComponent.page_key || pageKey, component_key: selectedComponent.key}),
         });
         const payload = await response.json();
         if (!response.ok || !payload.ok) {
@@ -295,6 +365,22 @@
         }
         savedSettings[selectedComponent.key] = {};
         window.location.reload();
+    }
+
+    async function resetAllDesign() {
+        const confirmed = window.confirm("Reset all design changes and return TIS to the original layout and theme?");
+        if (!confirmed) return;
+        const response = await fetch("/api/design-studio/reset-all", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({}),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+            setMessage(payload.error || "Unable to reset all design settings.", true);
+            return;
+        }
+        window.location.href = window.location.pathname;
     }
 
     function applyToolbarValue(settingKeys, value) {
@@ -328,12 +414,14 @@
             <div class="design-toolbar-group">
                 <button class="design-tool-btn is-primary" type="button" data-design-save>${icons.save}<span>Save</span></button>
                 <button class="design-tool-btn is-danger" type="button" data-design-reset>${icons.reset}<span>Reset</span></button>
+                <button class="design-tool-btn is-danger" type="button" data-design-reset-all>${icons.resetAll}<span>Reset All</span></button>
                 <button class="design-tool-btn" type="button" data-design-exit>${icons.close}<span>Exit</span></button>
             </div>
         `;
         document.body.appendChild(toolbar);
         toolbar.querySelector("[data-design-save]").addEventListener("click", saveSelected);
         toolbar.querySelector("[data-design-reset]").addEventListener("click", resetSelected);
+        toolbar.querySelector("[data-design-reset-all]").addEventListener("click", resetAllDesign);
         toolbar.querySelector("[data-design-exit]").addEventListener("click", exitDesignMode);
         toolbar.querySelector("[data-toolbar-color]").addEventListener("input", (event) => {
             applyToolbarValue(["background", "active_background", "border_color", "header_background"], event.target.value);
@@ -364,12 +452,14 @@
             <div class="design-studio-actions">
                 <button class="design-studio-btn is-primary" type="button" data-design-save>${icons.save} Save</button>
                 <button class="design-studio-btn is-danger" type="button" data-design-reset>${icons.reset} Reset</button>
+                <button class="design-studio-btn is-danger" type="button" data-design-reset-all>${icons.resetAll} Reset All</button>
                 <button class="design-studio-btn" type="button" data-design-exit>${icons.close} Exit</button>
             </div>
         `;
         document.body.appendChild(panel);
         panel.querySelector("[data-design-save]").addEventListener("click", saveSelected);
         panel.querySelector("[data-design-reset]").addEventListener("click", resetSelected);
+        panel.querySelector("[data-design-reset-all]").addEventListener("click", resetAllDesign);
         panel.querySelector("[data-design-exit]").addEventListener("click", exitDesignMode);
     }
 
@@ -392,5 +482,6 @@
 
     buildToolbar();
     buildPanel();
+    buildCustomComponents();
     bindComponents();
 })();

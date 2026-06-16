@@ -87,6 +87,23 @@ TABLE_SETTINGS = (
     VisualDesignSetting("header_background", "Header Background", "color", "background-color", selector_suffix=" thead"),
 )
 
+UNIVERSAL_SETTINGS = (
+    VisualDesignSetting("width", "Width", "number", "width", "", min_value=10, max_value=1800, unit="px"),
+    VisualDesignSetting("min_height", "Minimum Height", "number", "min-height", "", min_value=10, max_value=1400, unit="px"),
+    VisualDesignSetting("padding", "Padding", "number", "padding", "", min_value=0, max_value=120, unit="px"),
+    VisualDesignSetting("margin", "Margin", "number", "margin", "", min_value=0, max_value=120, unit="px"),
+    VisualDesignSetting("background", "Background", "color", "background-color"),
+    VisualDesignSetting("color", "Text Color", "color", "color"),
+    VisualDesignSetting("border_radius", "Border Radius", "number", "border-radius", "", min_value=0, max_value=80, unit="px"),
+    VisualDesignSetting("border_color", "Border Color", "color", "border-color"),
+    VisualDesignSetting("border_width", "Border Width", "number", "border-width", "", min_value=0, max_value=16, unit="px"),
+    VisualDesignSetting("shadow", "Shadow", "select", "box-shadow", options=("default", "none", "soft", "deep")),
+    VisualDesignSetting("text_size", "Text Size", "number", "font-size", "", min_value=8, max_value=72, unit="px"),
+    VisualDesignSetting("alignment", "Alignment", "select", "text-align", options=("default", "left", "center", "right")),
+    VisualDesignSetting("order", "Order", "number", "order", "", min_value=0, max_value=100),
+    VisualDesignSetting("visibility", "Visibility", "select", "display", options=("visible", "hidden")),
+)
+
 
 VISUAL_DESIGN_COMPONENTS: tuple[VisualDesignComponent, ...] = (
     VisualDesignComponent("shell.sidebar", "Sidebar", "global", "navigation", NAV_SETTINGS),
@@ -104,6 +121,7 @@ VISUAL_DESIGN_COMPONENTS: tuple[VisualDesignComponent, ...] = (
 )
 
 VISUAL_COMPONENT_MAP = {component.key: component for component in VISUAL_DESIGN_COMPONENTS}
+UNIVERSAL_COMPONENT_KEY_PREFIX = "custom."
 
 
 def get_components_for_page(page_key: str) -> list[VisualDesignComponent]:
@@ -117,6 +135,32 @@ def get_components_for_page(page_key: str) -> list[VisualDesignComponent]:
 
 def _setting_map(component: VisualDesignComponent) -> dict[str, VisualDesignSetting]:
     return {setting.key: setting for setting in component.settings}
+
+
+def is_custom_component_key(component_key: str) -> bool:
+    return str(component_key or "").strip().startswith(UNIVERSAL_COMPONENT_KEY_PREFIX)
+
+
+def get_component_settings(component_key: str, component_type: str = "") -> tuple[VisualDesignSetting, ...]:
+    component = VISUAL_COMPONENT_MAP.get(str(component_key or "").strip())
+    if component:
+        return component.settings
+    if is_custom_component_key(component_key):
+        normalized_type = str(component_type or "").strip().lower()
+        if normalized_type == "button":
+            return BUTTON_SETTINGS + UNIVERSAL_SETTINGS
+        if normalized_type == "table":
+            return TABLE_SETTINGS + UNIVERSAL_SETTINGS
+        if normalized_type == "navigation":
+            return NAV_SETTINGS + UNIVERSAL_SETTINGS
+        if normalized_type == "section":
+            return SECTION_SETTINGS + UNIVERSAL_SETTINGS
+        return UNIVERSAL_SETTINGS
+    return ()
+
+
+def _settings_by_key(component_key: str, component_type: str = "") -> dict[str, VisualDesignSetting]:
+    return {setting.key: setting for setting in get_component_settings(component_key, component_type)}
 
 
 def validate_visual_design_value(setting: VisualDesignSetting, raw_value) -> str:
@@ -152,11 +196,11 @@ def validate_visual_design_value(setting: VisualDesignSetting, raw_value) -> str
     return value
 
 
-def normalize_visual_payload(component_key: str, settings_payload: dict) -> dict[str, str]:
-    component = VISUAL_COMPONENT_MAP.get(str(component_key or "").strip())
-    if not component:
+def normalize_visual_payload(component_key: str, settings_payload: dict, component_type: str = "") -> dict[str, str]:
+    normalized_component_key = str(component_key or "").strip()
+    allowed_settings = _settings_by_key(normalized_component_key, component_type)
+    if not allowed_settings:
         raise ValueError("Unknown design component.")
-    allowed_settings = _setting_map(component)
     normalized = {}
     for key, raw_value in (settings_payload or {}).items():
         setting = allowed_settings.get(str(key or "").strip())
@@ -173,10 +217,12 @@ def rows_to_visual_settings(rows) -> dict[str, dict[str, str]]:
     for row in rows:
         if not getattr(row, "is_active", True):
             continue
-        component = VISUAL_COMPONENT_MAP.get(str(getattr(row, "component_key", "") or ""))
-        if not component:
+        component_key = str(getattr(row, "component_key", "") or "")
+        component_type = str(getattr(row, "component_type", "") or "")
+        allowed_settings = _settings_by_key(component_key, component_type)
+        if not allowed_settings:
             continue
-        setting = _setting_map(component).get(str(getattr(row, "setting_key", "") or ""))
+        setting = allowed_settings.get(str(getattr(row, "setting_key", "") or ""))
         if not setting:
             continue
         try:
@@ -184,7 +230,7 @@ def rows_to_visual_settings(rows) -> dict[str, dict[str, str]]:
         except ValueError:
             continue
         if value:
-            settings.setdefault(component.key, {})[setting.key] = value
+            settings.setdefault(component_key, {})[setting.key] = value
     return settings
 
 
@@ -208,9 +254,12 @@ def build_visual_design_css(settings_by_component: dict[str, dict[str, str]]) ->
     rules = []
     for component_key, settings in (settings_by_component or {}).items():
         component = VISUAL_COMPONENT_MAP.get(component_key)
-        if not component:
+        if component:
+            setting_lookup = _setting_map(component)
+        elif is_custom_component_key(component_key):
+            setting_lookup = _settings_by_key(component_key)
+        else:
             continue
-        setting_lookup = _setting_map(component)
         declarations_by_suffix: dict[str, list[str]] = {}
         for setting_key, value in settings.items():
             setting = setting_lookup.get(setting_key)
