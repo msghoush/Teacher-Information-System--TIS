@@ -88,10 +88,19 @@ TABLE_SETTINGS = (
 )
 
 UNIVERSAL_SETTINGS = (
+    VisualDesignSetting("text_content", "Text / Title", "text"),
     VisualDesignSetting("width", "Width", "number", "width", "", min_value=10, max_value=1800, unit="px"),
     VisualDesignSetting("min_height", "Minimum Height", "number", "min-height", "", min_value=10, max_value=1400, unit="px"),
     VisualDesignSetting("padding", "Padding", "number", "padding", "", min_value=0, max_value=120, unit="px"),
+    VisualDesignSetting("padding_top", "Padding Top", "number", "padding-top", "", min_value=0, max_value=120, unit="px"),
+    VisualDesignSetting("padding_right", "Padding Right", "number", "padding-right", "", min_value=0, max_value=120, unit="px"),
+    VisualDesignSetting("padding_bottom", "Padding Bottom", "number", "padding-bottom", "", min_value=0, max_value=120, unit="px"),
+    VisualDesignSetting("padding_left", "Padding Left", "number", "padding-left", "", min_value=0, max_value=120, unit="px"),
     VisualDesignSetting("margin", "Margin", "number", "margin", "", min_value=0, max_value=120, unit="px"),
+    VisualDesignSetting("margin_top", "Margin Top", "number", "margin-top", "", min_value=0, max_value=120, unit="px"),
+    VisualDesignSetting("margin_right", "Margin Right", "number", "margin-right", "", min_value=0, max_value=120, unit="px"),
+    VisualDesignSetting("margin_bottom", "Margin Bottom", "number", "margin-bottom", "", min_value=0, max_value=120, unit="px"),
+    VisualDesignSetting("margin_left", "Margin Left", "number", "margin-left", "", min_value=0, max_value=120, unit="px"),
     VisualDesignSetting("background", "Background", "color", "background-color"),
     VisualDesignSetting("color", "Text Color", "color", "color"),
     VisualDesignSetting("border_radius", "Border Radius", "number", "border-radius", "", min_value=0, max_value=80, unit="px"),
@@ -99,6 +108,7 @@ UNIVERSAL_SETTINGS = (
     VisualDesignSetting("border_width", "Border Width", "number", "border-width", "", min_value=0, max_value=16, unit="px"),
     VisualDesignSetting("shadow", "Shadow", "select", "box-shadow", options=("default", "none", "soft", "deep")),
     VisualDesignSetting("text_size", "Text Size", "number", "font-size", "", min_value=8, max_value=72, unit="px"),
+    VisualDesignSetting("font_weight", "Font Weight", "select", "font-weight", options=("default", "400", "500", "600", "700", "800", "900")),
     VisualDesignSetting("alignment", "Alignment", "select", "text-align", options=("default", "left", "center", "right")),
     VisualDesignSetting("order", "Order", "number", "order", "", min_value=0, max_value=100),
     VisualDesignSetting("visibility", "Visibility", "select", "display", options=("visible", "hidden")),
@@ -193,6 +203,8 @@ def validate_visual_design_value(setting: VisualDesignSetting, raw_value) -> str
         if setting.key == "columns":
             return str(numeric_value)
         return f"{numeric_value}{setting.unit}"
+    if setting.input_type == "text":
+        return value.replace("<", "").replace(">", "")[:240]
     return value
 
 
