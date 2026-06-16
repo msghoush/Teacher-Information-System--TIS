@@ -137,7 +137,7 @@ body.design-studio-enabled {
     width: 340px;
     height: 100vh;
     display: grid;
-    grid-template-rows: auto auto 1fr auto;
+    grid-template-rows: auto auto minmax(220px, 1fr) minmax(180px, .8fr) auto;
     border-left: 1px solid #cbd7e8;
     background: #ffffff;
     box-shadow: -18px 0 42px rgba(15, 23, 42, .16);
@@ -182,6 +182,35 @@ body.design-studio-enabled {
 .design-studio-summary {
     margin: 0;
     background: #f8fbff;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+}
+
+.design-studio-summary div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    padding: 7px;
+    border: 1px solid #e1e8f2;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.design-studio-summary strong {
+    color: #48607f;
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+.design-studio-summary span {
+    min-width: 0;
+    overflow: hidden;
+    color: #172033;
+    font-size: 11px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .design-studio-body {
@@ -190,6 +219,11 @@ body.design-studio-enabled {
     display: grid;
     align-content: start;
     gap: 12px;
+}
+
+.design-studio-secondary {
+    border-top: 1px solid #e1e8f2;
+    background: #fbfdff;
 }
 
 .design-studio-section-title {
@@ -204,6 +238,69 @@ body.design-studio-enabled {
 .design-studio-field {
     display: grid;
     gap: 6px;
+}
+
+.design-studio-field small {
+    color: #60728c;
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.design-structure-list,
+.design-hidden-list {
+    display: grid;
+    gap: 7px;
+}
+
+.design-structure-item,
+.design-hidden-item {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid #d8e2f0;
+    border-radius: 9px;
+    padding: 8px;
+    background: #fff;
+    color: #172033;
+    text-align: left;
+}
+
+.design-structure-item {
+    cursor: pointer;
+}
+
+.design-structure-item strong,
+.design-hidden-item strong {
+    display: block;
+    overflow: hidden;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.design-structure-item span,
+.design-hidden-item span {
+    display: block;
+    margin-top: 2px;
+    color: #60728c;
+    font-size: 11px;
+}
+
+.design-hidden-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.design-hidden-item button {
+    min-height: 30px;
+    border: 1px solid #b8d0ec;
+    border-radius: 8px;
+    background: #edf4ff;
+    color: #17365d;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
 }
 
 .design-studio-field label {

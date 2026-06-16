@@ -15,11 +15,21 @@
     const pageKey = config.page_key || document.body.getAttribute("data-page-key") || "global";
     let selectedElement = null;
     let selectedComponent = null;
+    let hasUnsavedChanges = false;
     const universalSettings = [
+        {key: "text_content", label: "Title / Text", input_type: "text"},
         {key: "width", label: "Width", input_type: "number", css_property: "width", min_value: 10, max_value: 1800, unit: "px"},
         {key: "min_height", label: "Height", input_type: "number", css_property: "min-height", min_value: 10, max_value: 1400, unit: "px"},
         {key: "padding", label: "Padding", input_type: "number", css_property: "padding", min_value: 0, max_value: 120, unit: "px"},
+        {key: "padding_top", label: "Padding Top", input_type: "number", css_property: "padding-top", min_value: 0, max_value: 120, unit: "px"},
+        {key: "padding_right", label: "Padding Right", input_type: "number", css_property: "padding-right", min_value: 0, max_value: 120, unit: "px"},
+        {key: "padding_bottom", label: "Padding Bottom", input_type: "number", css_property: "padding-bottom", min_value: 0, max_value: 120, unit: "px"},
+        {key: "padding_left", label: "Padding Left", input_type: "number", css_property: "padding-left", min_value: 0, max_value: 120, unit: "px"},
         {key: "margin", label: "Margin", input_type: "number", css_property: "margin", min_value: 0, max_value: 120, unit: "px"},
+        {key: "margin_top", label: "Margin Top", input_type: "number", css_property: "margin-top", min_value: 0, max_value: 120, unit: "px"},
+        {key: "margin_right", label: "Margin Right", input_type: "number", css_property: "margin-right", min_value: 0, max_value: 120, unit: "px"},
+        {key: "margin_bottom", label: "Margin Bottom", input_type: "number", css_property: "margin-bottom", min_value: 0, max_value: 120, unit: "px"},
+        {key: "margin_left", label: "Margin Left", input_type: "number", css_property: "margin-left", min_value: 0, max_value: 120, unit: "px"},
         {key: "background", label: "Background", input_type: "color", css_property: "background-color"},
         {key: "color", label: "Text Color", input_type: "color", css_property: "color"},
         {key: "border_radius", label: "Border Radius", input_type: "number", css_property: "border-radius", min_value: 0, max_value: 80, unit: "px"},
@@ -27,6 +37,7 @@
         {key: "border_width", label: "Border Width", input_type: "number", css_property: "border-width", min_value: 0, max_value: 16, unit: "px"},
         {key: "shadow", label: "Shadow", input_type: "select", css_property: "box-shadow", options: ["default", "none", "soft", "deep"]},
         {key: "text_size", label: "Text Size", input_type: "number", css_property: "font-size", min_value: 8, max_value: 72, unit: "px"},
+        {key: "font_weight", label: "Font Weight", input_type: "select", css_property: "font-weight", options: ["default", "400", "500", "600", "700", "800", "900"]},
         {key: "alignment", label: "Alignment", input_type: "select", css_property: "text-align", options: ["default", "left", "center", "right"]},
         {key: "order", label: "Order", input_type: "number", css_property: "order", min_value: 0, max_value: 100},
         {key: "visibility", label: "Visibility", input_type: "select", css_property: "display", options: ["visible", "hidden"]},
@@ -44,6 +55,7 @@
         alignRight: '<svg viewBox="0 0 24 24"><path d="M4 6h16"></path><path d="M10 10h10"></path><path d="M4 14h16"></path><path d="M10 18h10"></path></svg>',
         close: '<svg viewBox="0 0 24 24"><path d="m6 6 12 12"></path><path d="m18 6-12 12"></path></svg>',
         resetAll: '<svg viewBox="0 0 24 24"><path d="M4 4v6h6"></path><path d="M20 20v-6h-6"></path><path d="M5 15a7 7 0 0 0 11.9 3.9L20 16"></path><path d="M19 9A7 7 0 0 0 7.1 5.1L4 8"></path></svg>',
+        tree: '<svg viewBox="0 0 24 24"><path d="M6 3v18"></path><path d="M6 7h8"></path><path d="M14 5v4"></path><path d="M6 17h12"></path><path d="M18 15v4"></path></svg>',
     };
 
     function enableDesignMode() {
@@ -105,11 +117,42 @@
         return value;
     }
 
+    function numericStyleValue(value) {
+        const parsed = Number.parseInt(String(value || "").replace("px", ""), 10);
+        return Number.isFinite(parsed) ? String(parsed) : "";
+    }
+
     function fieldValueForSetting(setting, value) {
         if (setting.input_type === "number" && setting.unit && String(value || "").endsWith(setting.unit)) {
             return String(value).slice(0, -setting.unit.length);
         }
         return value || "";
+    }
+
+    function getCurrentValue(setting) {
+        if (!selectedElement) return "";
+        if (setting.key === "text_content") return (selectedElement.textContent || "").trim();
+        const target = getTargetElement(setting);
+        if (!target || !setting.css_property) return "";
+        const computed = window.getComputedStyle(target);
+        if (setting.input_type === "number") return numericStyleValue(computed.getPropertyValue(setting.css_property));
+        if (setting.input_type === "color") return rgbToHex(computed.getPropertyValue(setting.css_property));
+        if (setting.key === "visibility") return computed.display === "none" ? "hidden" : "visible";
+        if (setting.key === "alignment") return computed.getPropertyValue(setting.css_property) || "default";
+        if (setting.key === "font_weight") return computed.getPropertyValue(setting.css_property) || "default";
+        return "";
+    }
+
+    function rgbToHex(value) {
+        const match = String(value || "").match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+        if (!match) return "";
+        return `#${[match[1], match[2], match[3]].map((part) => Number(part).toString(16).padStart(2, "0")).join("")}`;
+    }
+
+    function setDirty(isDirty = true) {
+        hasUnsavedChanges = isDirty;
+        const dirtyEl = document.querySelector("[data-design-dirty]");
+        if (dirtyEl) dirtyEl.textContent = hasUnsavedChanges ? "Unsaved changes" : "Saved";
     }
 
     function componentTypeForElement(element) {
@@ -124,9 +167,10 @@
     function labelForElement(element, index) {
         const tagName = element.tagName.toLowerCase();
         const text = (element.innerText || element.getAttribute("aria-label") || element.getAttribute("title") || "").trim().replace(/\s+/g, " ");
-        if (text) return `${tagName}: ${text.slice(0, 42)}`;
+        const pageName = pageKey.charAt(0).toUpperCase() + pageKey.slice(1).replace(/[-_]/g, " ");
+        if (text) return `${pageName} / ${text.slice(0, 54)}`;
         if (element.id) return `${tagName} #${element.id}`;
-        return `${tagName} ${index + 1}`;
+        return `${pageName} / ${tagName} ${index + 1}`;
     }
 
     function buildCustomComponents() {
@@ -135,7 +179,9 @@
             ".page-stage .workspace", ".page-stage .panel", ".page-stage table", ".page-stage form",
             ".page-stage button", ".page-stage a", ".page-stage input", ".page-stage select",
             ".page-stage h1", ".page-stage h2", ".page-stage h3", ".page-stage h4", ".page-stage p",
-            ".app-header .header-chip", ".app-header img", ".app-sidebar .scope-pill", ".app-sidebar .sidebar-config-card",
+            ".page-stage strong", ".page-stage small", ".page-stage label", ".page-stage th", ".page-stage td",
+            ".page-title span", ".app-header .header-chip", ".app-header img", ".app-sidebar .scope-pill",
+            ".app-sidebar .sidebar-link", ".app-sidebar .sidebar-config-card",
         ].join(",");
         const candidates = Array.from(document.querySelectorAll(selectors));
         let index = 0;
@@ -179,6 +225,10 @@
         if (!selectedComponent) return;
         const values = collectSettings();
         selectedComponent.settings.forEach((setting) => {
+            if (setting.key === "text_content") {
+                if (values[setting.key]) selectedElement.textContent = values[setting.key];
+                return;
+            }
             if (!setting.css_property) return;
             const target = getTargetElement(setting);
             if (!target) return;
@@ -191,6 +241,7 @@
                 target.style.removeProperty(setting.css_property);
             }
         });
+        setDirty(true);
         updateSizeReadout();
     }
 
@@ -269,16 +320,30 @@
         const body = document.querySelector("[data-design-fields]");
         const title = document.querySelector("[data-design-title]");
         const meta = document.querySelector("[data-design-meta]");
+        const summary = document.querySelector("[data-design-selected-summary]");
         if (!body || !title || !meta) return;
         if (!selectedComponent) {
             title.textContent = "Layout Adjust";
             meta.textContent = "Select any highlighted component, then resize or format it.";
+            if (summary) summary.innerHTML = "No component selected.";
             body.innerHTML = '<p class="design-studio-empty">Choose a card, button, table, sidebar, or section to edit.</p>';
             return;
         }
 
+        const rect = selectedElement.getBoundingClientRect();
+        const computed = window.getComputedStyle(selectedElement);
         title.textContent = selectedComponent.label;
-        meta.textContent = `${selectedComponent.component_type} | ${selectedComponent.key}`;
+        meta.textContent = `${pageKey} | ${selectedComponent.component_type} | ${selectedComponent.key}`;
+        if (summary) {
+            summary.innerHTML = `
+                <div><strong>Width</strong><span>${Math.round(rect.width)}px</span></div>
+                <div><strong>Height</strong><span>${Math.round(rect.height)}px</span></div>
+                <div><strong>Padding</strong><span>${computed.paddingTop} ${computed.paddingRight} ${computed.paddingBottom} ${computed.paddingLeft}</span></div>
+                <div><strong>Margin</strong><span>${computed.marginTop} ${computed.marginRight} ${computed.marginBottom} ${computed.marginLeft}</span></div>
+                <div><strong>Visibility</strong><span>${computed.display === "none" ? "Hidden" : "Visible"}</span></div>
+                <div><strong>Alignment</strong><span>${computed.textAlign || "default"}</span></div>
+            `;
+        }
         const current = savedSettings[selectedComponent.key] || {};
         body.innerHTML = '<h3 class="design-studio-section-title">Properties</h3>';
         selectedComponent.settings.forEach((setting) => {
@@ -296,20 +361,27 @@
                     input.appendChild(optionEl);
                 });
             } else {
-                input.type = setting.input_type === "color" ? "color" : "number";
+                input.type = setting.input_type === "color" ? "color" : setting.input_type === "text" ? "text" : "number";
                 if (setting.min_value !== null && setting.min_value !== undefined) input.min = String(setting.min_value);
                 if (setting.max_value !== null && setting.max_value !== undefined) input.max = String(setting.max_value);
             }
-            let value = fieldValueForSetting(setting, current[setting.key] || setting.default || "");
+            let value = fieldValueForSetting(setting, current[setting.key] || setting.default || getCurrentValue(setting));
             if (setting.input_type === "color" && !value) value = "#ffffff";
             input.value = value;
             input.addEventListener("input", applyPreview);
             input.addEventListener("change", applyPreview);
             field.appendChild(label);
             field.appendChild(input);
+            const help = document.createElement("small");
+            const currentValue = getCurrentValue(setting);
+            const limits = setting.input_type === "number"
+                ? `Minimum: ${setting.min_value ?? "auto"}${setting.unit || ""} | Maximum: ${setting.max_value ?? "auto"}${setting.unit || ""}`
+                : "";
+            help.textContent = `Current: ${currentValue || "default"}${limits ? " | " + limits : ""}`;
+            field.appendChild(help);
             body.appendChild(field);
         });
-        applyPreview();
+        setDirty(false);
     }
 
     function selectComponent(element) {
@@ -345,6 +417,7 @@
             return;
         }
         savedSettings[selectedComponent.key] = payload.settings || {};
+        setDirty(false);
         setMessage("Saved.", false);
     }
 
@@ -364,6 +437,75 @@
             return;
         }
         savedSettings[selectedComponent.key] = {};
+        window.location.reload();
+    }
+
+    function previewSelected() {
+        if (!selectedComponent) {
+            setMessage("Select a component first.", true);
+            return;
+        }
+        applyPreview();
+        setMessage("Preview applied. Save to keep it.", false);
+    }
+
+    function cancelUnsavedChanges() {
+        const confirmed = !hasUnsavedChanges || window.confirm("Cancel unsaved layout changes on this page?");
+        if (confirmed) window.location.reload();
+    }
+
+    async function resetCurrentPage() {
+        const confirmed = window.confirm("Reset all layout changes on this page?");
+        if (!confirmed) return;
+        const response = await fetch("/api/design-studio/reset", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({page_key: pageKey}),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+            setMessage(payload.error || "Unable to reset this page.", true);
+            return;
+        }
+        window.location.reload();
+    }
+
+    async function restoreHidden(componentKey) {
+        const component = components.get(componentKey);
+        if (!component) return;
+        const nextSettings = {...(savedSettings[componentKey] || {}), visibility: "visible"};
+        const response = await fetch("/api/design-studio/component-settings", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                page_key: component.page_key || pageKey,
+                component_key: component.key,
+                component_type: component.component_type || "element",
+                settings: nextSettings,
+            }),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+            setMessage(payload.error || "Unable to restore hidden item.", true);
+            return;
+        }
+        savedSettings[componentKey] = payload.settings || {};
+        window.location.reload();
+    }
+
+    async function restoreAllHidden() {
+        const confirmed = window.confirm("Restore all hidden items on this page?");
+        if (!confirmed) return;
+        const response = await fetch("/api/design-studio/reset-hidden", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({page_key: pageKey}),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+            setMessage(payload.error || "Unable to restore hidden items.", true);
+            return;
+        }
         window.location.reload();
     }
 
@@ -412,15 +554,21 @@
                 <button class="design-tool-btn" type="button" data-toolbar-align="right" title="Align right">${icons.alignRight}</button>
             </div>
             <div class="design-toolbar-group">
+                <button class="design-tool-btn" type="button" data-design-preview>${icons.select}<span>Preview</span></button>
                 <button class="design-tool-btn is-primary" type="button" data-design-save>${icons.save}<span>Save</span></button>
+                <button class="design-tool-btn" type="button" data-design-cancel>${icons.close}<span>Cancel</span></button>
                 <button class="design-tool-btn is-danger" type="button" data-design-reset>${icons.reset}<span>Reset</span></button>
+                <button class="design-tool-btn is-danger" type="button" data-design-reset-page>${icons.reset}<span>Reset Page</span></button>
                 <button class="design-tool-btn is-danger" type="button" data-design-reset-all>${icons.resetAll}<span>Reset All</span></button>
                 <button class="design-tool-btn" type="button" data-design-exit>${icons.close}<span>Exit</span></button>
             </div>
         `;
         document.body.appendChild(toolbar);
+        toolbar.querySelector("[data-design-preview]").addEventListener("click", previewSelected);
         toolbar.querySelector("[data-design-save]").addEventListener("click", saveSelected);
+        toolbar.querySelector("[data-design-cancel]").addEventListener("click", cancelUnsavedChanges);
         toolbar.querySelector("[data-design-reset]").addEventListener("click", resetSelected);
+        toolbar.querySelector("[data-design-reset-page]").addEventListener("click", resetCurrentPage);
         toolbar.querySelector("[data-design-reset-all]").addEventListener("click", resetAllDesign);
         toolbar.querySelector("[data-design-exit]").addEventListener("click", exitDesignMode);
         toolbar.querySelector("[data-toolbar-color]").addEventListener("input", (event) => {
@@ -444,21 +592,36 @@
                 <h2 data-design-title>Layout Adjust</h2>
                 <p data-design-meta>Select any highlighted component, then resize or format it.</p>
                 <p class="design-studio-message" data-design-message></p>
+                <p class="design-studio-message" data-design-dirty>Saved</p>
             </div>
-            <div class="design-studio-summary">Manual resize: drag the blue handles on the selected component. All supported width and height changes are saved from this panel.</div>
+            <div class="design-studio-summary" data-design-selected-summary>No component selected.</div>
             <div class="design-studio-body" data-design-fields>
                 <p class="design-studio-empty">Choose a component to edit.</p>
             </div>
+            <div class="design-studio-body design-studio-secondary">
+                <h3 class="design-studio-section-title">${icons.tree} Page Structure</h3>
+                <div class="design-structure-list" data-design-structure></div>
+                <h3 class="design-studio-section-title">${icons.hide} Hidden Items</h3>
+                <div class="design-hidden-list" data-design-hidden-list></div>
+            </div>
             <div class="design-studio-actions">
+                <button class="design-studio-btn" type="button" data-design-preview>${icons.select} Preview</button>
                 <button class="design-studio-btn is-primary" type="button" data-design-save>${icons.save} Save</button>
+                <button class="design-studio-btn" type="button" data-design-cancel>${icons.close} Cancel</button>
                 <button class="design-studio-btn is-danger" type="button" data-design-reset>${icons.reset} Reset</button>
+                <button class="design-studio-btn is-danger" type="button" data-design-reset-page>${icons.reset} Reset Page</button>
+                <button class="design-studio-btn" type="button" data-design-restore-hidden>${icons.hide} Restore Hidden</button>
                 <button class="design-studio-btn is-danger" type="button" data-design-reset-all>${icons.resetAll} Reset All</button>
                 <button class="design-studio-btn" type="button" data-design-exit>${icons.close} Exit</button>
             </div>
         `;
         document.body.appendChild(panel);
+        panel.querySelector("[data-design-preview]").addEventListener("click", previewSelected);
         panel.querySelector("[data-design-save]").addEventListener("click", saveSelected);
+        panel.querySelector("[data-design-cancel]").addEventListener("click", cancelUnsavedChanges);
         panel.querySelector("[data-design-reset]").addEventListener("click", resetSelected);
+        panel.querySelector("[data-design-reset-page]").addEventListener("click", resetCurrentPage);
+        panel.querySelector("[data-design-restore-hidden]").addEventListener("click", restoreAllHidden);
         panel.querySelector("[data-design-reset-all]").addEventListener("click", resetAllDesign);
         panel.querySelector("[data-design-exit]").addEventListener("click", exitDesignMode);
     }
@@ -480,8 +643,76 @@
         }, true);
     }
 
+    function renderStructureTree() {
+        const list = document.querySelector("[data-design-structure]");
+        if (!list) return;
+        list.innerHTML = "";
+        const items = Array.from(document.querySelectorAll("[data-design-component]"))
+            .map((element) => {
+                const key = element.getAttribute("data-design-component");
+                const component = components.get(key);
+                return component ? {element, component} : null;
+            })
+            .filter(Boolean);
+        if (!items.length) {
+            list.innerHTML = '<p class="design-studio-empty">No editable items found.</p>';
+            return;
+        }
+        items.slice(0, 160).forEach(({element, component}) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "design-structure-item";
+            button.innerHTML = `<strong>${component.label}</strong><span>${component.component_type}</span>`;
+            button.addEventListener("click", () => {
+                if (window.getComputedStyle(element).display !== "none") {
+                    element.scrollIntoView({block: "center", behavior: "smooth"});
+                }
+                selectComponent(element);
+            });
+            list.appendChild(button);
+        });
+    }
+
+    function renderHiddenItems() {
+        const list = document.querySelector("[data-design-hidden-list]");
+        if (!list) return;
+        list.innerHTML = "";
+        const hiddenKeys = Object.entries(savedSettings || {})
+            .filter(([, settings]) => settings && settings.visibility === "hidden")
+            .map(([key]) => key)
+            .filter((key) => components.has(key));
+        if (!hiddenKeys.length) {
+            list.innerHTML = '<p class="design-studio-empty">No hidden items on this page.</p>';
+            return;
+        }
+        hiddenKeys.forEach((key) => {
+            const component = components.get(key);
+            const row = document.createElement("div");
+            row.className = "design-hidden-item";
+            row.innerHTML = `<div><strong>${component.label}</strong><span>${component.component_type}</span></div>`;
+            const restore = document.createElement("button");
+            restore.type = "button";
+            restore.textContent = "Restore";
+            restore.addEventListener("click", () => restoreHidden(key));
+            row.appendChild(restore);
+            list.appendChild(row);
+        });
+    }
+
+    function applySavedTextSettings() {
+        Object.entries(savedSettings || {}).forEach(([componentKey, settings]) => {
+            if (!settings || !settings.text_content) return;
+            document.querySelectorAll(directSelector(componentKey)).forEach((element) => {
+                element.textContent = settings.text_content;
+            });
+        });
+    }
+
     buildToolbar();
     buildPanel();
     buildCustomComponents();
     bindComponents();
+    applySavedTextSettings();
+    renderStructureTree();
+    renderHiddenItems();
 })();
