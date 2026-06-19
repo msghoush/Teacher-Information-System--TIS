@@ -23,8 +23,11 @@
     --app-radius-lg: 16px;
     --app-radius-md: 12px;
     --app-radius-sm: 8px;
+    --header-platform-logo-scale: 1.15;
     --header-brand-logo-height: 56px;
     --header-brand-logo-max-width: 152px;
+    --header-brand-primary-logo-height: 66px;
+    --header-brand-primary-logo-max-width: 166px;
     --header-brand-secondary-logo-height: 56px;
     --header-brand-secondary-logo-max-width: 168px;
     --header-brand-accreditation-logo-height: 48px;
@@ -566,11 +569,14 @@ svg:is(
 }
 
 .header-platform-brand:hover .header-tis-logo {
-    transform: translateY(-1px);
+    transform: translateY(-1px) scale(var(--header-platform-logo-scale));
 }
 
 .header-tis-logo {
     width: 100%;
+    max-width: none;
+    transform: scale(var(--header-platform-logo-scale));
+    transform-origin: left center;
     transition: transform 160ms ease;
 }
 
@@ -633,7 +639,7 @@ svg.page-title-icon[data-tis-icon] {
     gap: 10px;
     min-width: 0;
     max-width: min(44vw, 520px);
-    min-height: calc(var(--header-brand-logo-height) + 4px);
+    min-height: calc(var(--header-brand-primary-logo-height) + 4px);
     padding-left: 18px;
     border-left: 1px solid var(--app-line);
 }
@@ -651,7 +657,8 @@ svg.page-title-icon[data-tis-icon] {
 }
 
 .header-tenant-brand .header-tenant-logo--primary {
-    max-width: var(--header-brand-logo-max-width);
+    max-height: var(--header-brand-primary-logo-height);
+    max-width: var(--header-brand-primary-logo-max-width);
 }
 
 .header-tenant-brand .header-tenant-logo--secondary {
