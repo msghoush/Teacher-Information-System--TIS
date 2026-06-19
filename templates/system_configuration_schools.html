@@ -74,7 +74,8 @@
 .danger-zone strong { display: block; color: #9f2d1f; }
 .danger-zone span { color: #64748b; font-size: 12px; font-weight: 800; }
 .logo-strip { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px dashed #b8c9df; border-radius: 12px; background: #f8fbff; }
-.logo-strip img { max-height: 56px; max-width: 180px; object-fit: contain; background: #fff; border-radius: 8px; padding: 6px; }
+.logo-strip img { display: block; width: auto; height: auto; max-height: var(--header-brand-logo-height); max-width: var(--header-brand-secondary-logo-max-width); object-fit: contain; object-position: center; image-rendering: auto; background: #fff; border-radius: 8px; padding: 4px; }
+.logo-strip img[data-logo-slot="accreditation"] { max-height: var(--header-brand-accreditation-logo-height); max-width: var(--header-brand-accreditation-logo-max-width); }
 @media (max-width: 1050px) { .school-layout, .form-grid, .form-grid.two { grid-template-columns: 1fr; } .school-list { position: static; } .usage-grid { grid-template-columns: repeat(2, minmax(90px, 1fr)); } .usage-stack { min-width: 260px; } }
 </style>
 {% endblock %}
@@ -363,7 +364,7 @@
                 <div class="logo-strip">
                     {% for logo in group_logos %}
                     {% if logo.url and logo.slot_key in ("primary", "accreditation", "secondary") %}
-                    <img src="{{ logo.url }}" alt="{{ logo.label }} logo" title="{{ logo.label }}">
+                    <img src="{{ logo.url }}" alt="{{ logo.label }} logo" title="{{ logo.label }}" data-logo-slot="{{ logo.slot_key }}">
                     {% endif %}
                     {% endfor %}
                 </div>

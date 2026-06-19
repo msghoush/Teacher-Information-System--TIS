@@ -23,6 +23,14 @@
     --app-radius-lg: 16px;
     --app-radius-md: 12px;
     --app-radius-sm: 8px;
+    --header-brand-logo-height: 56px;
+    --header-brand-logo-max-width: 152px;
+    --header-brand-secondary-logo-height: 56px;
+    --header-brand-secondary-logo-max-width: 168px;
+    --header-brand-accreditation-logo-height: 48px;
+    --header-brand-accreditation-logo-max-width: 54px;
+    --branding-preview-logo-height: 88px;
+    --branding-preview-logo-max-width: 240px;
     --bg: #f5f7fb;
     --bg-1: #f5f7fb;
     --bg-2: #e9eef7;
@@ -624,30 +632,36 @@ svg.page-title-icon[data-tis-icon] {
     flex-wrap: wrap;
     gap: 10px;
     min-width: 0;
-    max-width: min(42vw, 470px);
-    min-height: 54px;
+    max-width: min(44vw, 520px);
+    min-height: calc(var(--header-brand-logo-height) + 4px);
     padding-left: 18px;
     border-left: 1px solid var(--app-line);
 }
 
 .header-tenant-brand img {
     display: block;
+    width: auto;
     height: auto;
-    max-height: 50px;
-    max-width: 150px;
+    max-height: var(--header-brand-logo-height);
+    max-width: var(--header-brand-logo-max-width);
     object-fit: contain;
+    object-position: center;
+    image-rendering: auto;
+    flex: 0 1 auto;
 }
 
-.header-tenant-brand .header-school-logo {
-    width: clamp(96px, 9vw, 136px);
+.header-tenant-brand .header-tenant-logo--primary {
+    max-width: var(--header-brand-logo-max-width);
 }
 
-.header-tenant-brand .header-school-logo-main {
-    width: clamp(102px, 10vw, 146px);
+.header-tenant-brand .header-tenant-logo--secondary {
+    max-height: var(--header-brand-secondary-logo-height);
+    max-width: var(--header-brand-secondary-logo-max-width);
 }
 
-.header-tenant-brand .header-cognia-logo {
-    width: clamp(32px, 3vw, 44px);
+.header-tenant-brand .header-tenant-logo--accreditation {
+    max-height: var(--header-brand-accreditation-logo-height);
+    max-width: var(--header-brand-accreditation-logo-max-width);
 }
 
 .header-context-grid {
