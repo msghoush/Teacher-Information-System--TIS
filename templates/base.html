@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="{{ url_for('static', path=tis_logo_path(theme='light', layout='stacked')) }}">
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path=tis_logo_path(theme='light', layout='stacked')) }}">
-    <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260613a">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260619b">
     <link rel="stylesheet" href="{{ url_for('static', path='css/branding.css') }}?v=20260619a">
     {% if shell.design_css %}
     <style>{{ shell.design_css | safe }}</style>
@@ -99,37 +99,6 @@
     {% endset %}
     <div class="app-shell">
         <aside class="app-sidebar" data-design-component="shell.sidebar" data-design-type="navigation">
-            <div class="sidebar-brand">
-                <div class="sidebar-brand-copy">
-                    <div class="sidebar-logo-frame">
-                        {{ tis_logo(theme="light", layout="horizontal", responsive=true, class_name="sidebar-tis-logo") }}
-                    </div>
-                </div>
-                <div class="sidebar-scope-pillbar">
-                    <div class="scope-pill">
-                        {{ icon("school", "shell-icon") }}
-                        <div>
-                            <span>School</span>
-                            <strong>{{ shell.school_group_name }}</strong>
-                        </div>
-                    </div>
-                    <div class="scope-pill">
-                        {{ icon("branch", "shell-icon") }}
-                        <div>
-                            <span>Branch / Campus</span>
-                            <strong>{{ shell.branch_name }}</strong>
-                        </div>
-                    </div>
-                    <div class="scope-pill">
-                        {{ icon("year", "shell-icon") }}
-                        <div>
-                            <span>Academic Year</span>
-                            <strong>{{ shell.academic_year_name }}</strong>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <section class="sidebar-section">
                 <h3 class="sidebar-section-title">Navigation</h3>
                 <nav class="sidebar-nav" aria-label="Primary navigation" data-design-component="shell.navigation" data-design-type="navigation">
@@ -234,58 +203,74 @@
 
         <div class="app-main">
             <header class="app-header" data-design-component="shell.header" data-design-type="section">
-                <div class="app-header-copy">
-                    <h1 class="page-title">{{ icon(shell.page_icon, "shell-icon page-title-icon") }} <span>{{ shell.page_title }}</span></h1>
-                </div>
-                <div class="app-header-side">
-                    <div class="header-brand-strip">
+                <div class="header-identity-row">
+                    <div class="header-primary-identity">
+                        <a class="header-platform-brand" href="/dashboard" aria-label="TIS dashboard">
+                            {{ tis_logo(theme="light", layout="horizontal", responsive=false, class_name="header-tis-logo") }}
+                        </a>
+                        <div class="app-header-copy">
+                            <h1 class="page-title">{{ icon(shell.page_icon, "shell-icon page-title-icon") }} <span>{{ shell.page_title }}</span></h1>
+                        </div>
+                    </div>
+                    {% if shell.school_logos %}
+                    <div class="header-tenant-brand" aria-label="Organization logos">
                         {% for logo in shell.school_logos %}
                         <img class="{% if logo.slot_key == 'accreditation' %}header-cognia-logo{% elif logo.slot_key == 'secondary' %}header-school-logo-main{% else %}header-school-logo{% endif %}" src="{{ logo.url }}" alt="{{ logo.label }} logo">
                         {% endfor %}
                     </div>
-                    <div class="header-context-strip">
-                        <div class="header-chip">
-                            <span>{{ icon("school", "shell-icon") }} School</span>
-                            <strong>{{ shell.school_group_name }}</strong>
-                        </div>
-                        <div class="header-chip">
-                            <span>{{ icon("branch", "shell-icon") }} Branch / Campus</span>
-                            <strong>{{ shell.branch_name }}</strong>
-                        </div>
-                        <div class="header-chip">
-                            <span>{{ icon("year", "shell-icon") }} Academic Year</span>
-                            <strong>{{ shell.academic_year_name }}</strong>
-                        </div>
-                        <div class="header-chip">
-                            <span>{{ icon("shield", "shell-icon") }} Role</span>
-                            <strong>{{ shell.role_label or "System User" }}</strong>
-                        </div>
-                        <div class="header-user-chip" title="{{ shell.user_name }}">
-                            <span class="header-avatar">
-                                {% if shell.user_image_url %}
-                                <img
-                                    src="{{ shell.user_image_url }}"
-                                    alt="{{ shell.user_name }} profile photo"
-                                    onerror="this.style.display='none'; const fallback=this.nextElementSibling; if (fallback) fallback.style.display='inline-flex';"
-                                >
-                                {% endif %}
-                                <span class="header-avatar-fallback" {% if shell.user_image_url %}style="display:none;"{% endif %}>{{ shell.user_initials or "U" }}</span>
-                            </span>
+                    {% endif %}
+                </div>
+
+                <div class="header-context-grid">
+                    <div class="header-chip">
+                        <span>{{ icon("school", "shell-icon") }} School</span>
+                        <strong>{{ shell.school_group_name }}</strong>
+                    </div>
+                    <div class="header-chip">
+                        <span>{{ icon("branch", "shell-icon") }} Branch / Campus</span>
+                        <strong>{{ shell.branch_name }}</strong>
+                    </div>
+                    <div class="header-chip">
+                        <span>{{ icon("year", "shell-icon") }} Academic Year</span>
+                        <strong>{{ shell.academic_year_name }}</strong>
+                    </div>
+                    <div class="header-chip">
+                        <span>{{ icon("shield", "shell-icon") }} Role</span>
+                        <strong>{{ shell.role_label or "System User" }}</strong>
+                    </div>
+                    <div class="header-user-chip" title="{{ shell.user_name }}">
+                        <span class="header-avatar">
+                            {% if shell.user_image_url %}
+                            <img
+                                src="{{ shell.user_image_url }}"
+                                alt="{{ shell.user_name }} profile photo"
+                                onerror="this.style.display='none'; const fallback=this.nextElementSibling; if (fallback) fallback.style.display='inline-flex';"
+                            >
+                            {% endif %}
+                            <span class="header-avatar-fallback" {% if shell.user_image_url %}style="display:none;"{% endif %}>{{ shell.user_initials or "U" }}</span>
+                        </span>
+                        <span class="header-user-copy">
+                            <small>Signed in</small>
                             <strong>{{ shell.user_name }}</strong>
-                        </div>
-                        {% if shell.new_notification_count %}
+                        </span>
+                    </div>
+                </div>
+
+                {% if shell.new_notification_count or header_actions | trim %}
+                <div class="header-utility-row">
+                    {% if shell.new_notification_count %}
                         <a class="header-chip header-notification-chip" href="/notifications">
                             <span>{{ icon("notifications", "shell-icon") }} New Requests</span>
                             <strong>{{ shell.new_notification_count }}</strong>
                         </a>
-                        {% endif %}
-                    </div>
+                    {% endif %}
                     {% if header_actions | trim %}
                     <div class="header-actions">
                         {{ header_actions | safe }}
                     </div>
                     {% endif %}
                 </div>
+                {% endif %}
             </header>
 
             {% if shell.notice %}
