@@ -26,8 +26,8 @@
     --header-platform-logo-scale: 1.15;
     --header-brand-logo-height: 56px;
     --header-brand-logo-max-width: 152px;
-    --header-brand-primary-logo-height: 66px;
-    --header-brand-primary-logo-max-width: 166px;
+    --header-brand-primary-logo-height: 80px;
+    --header-brand-primary-logo-max-width: 180px;
     --header-brand-secondary-logo-height: 56px;
     --header-brand-secondary-logo-max-width: 168px;
     --header-brand-accreditation-logo-height: 48px;
@@ -560,12 +560,22 @@ svg:is(
 }
 
 .header-platform-brand {
+    position: relative;
     display: block;
     flex: 0 0 176px;
     width: 176px;
     max-width: 28%;
     padding-right: 18px;
-    border-right: 1px solid var(--app-line-strong);
+}
+
+.header-platform-brand::after {
+    position: absolute;
+    top: 0;
+    right: -10px;
+    bottom: 0;
+    width: 1px;
+    background: var(--app-line-strong);
+    content: "";
 }
 
 .header-platform-brand:hover .header-tis-logo {
