@@ -36,8 +36,11 @@
     .section-card p { margin: 0; color: #60728c; font-size: 13px; line-height: 1.45; }
     .logo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
     .logo-card { display: grid; gap: 10px; padding: 12px; border: 1px solid #d8e2f0; border-radius: 12px; background: #fff; min-width: 0; }
-    .logo-preview { display: flex; align-items: center; justify-content: center; min-height: 96px; border: 1px dashed #b8c9df; border-radius: 10px; background: #fff; }
-    .logo-preview img { max-width: 92%; max-height: 76px; object-fit: contain; }
+    .logo-preview { display: flex; align-items: center; justify-content: center; min-height: calc(var(--branding-preview-logo-height) + 28px); padding: 12px; border: 1px dashed #b8c9df; border-radius: 10px; background: #fff; }
+    .logo-preview img { display: block; width: auto; height: auto; max-width: min(100%, var(--branding-preview-logo-max-width)); max-height: var(--branding-preview-logo-height); object-fit: contain; object-position: center; image-rendering: auto; }
+    .logo-preview--secondary img { max-width: min(100%, calc(var(--branding-preview-logo-max-width) + 24px)); }
+    .logo-preview--favicon img,
+    .logo-preview--accreditation img { max-width: min(100%, var(--branding-preview-logo-height)); }
     .logo-empty { color: #667085; font-size: 13px; font-weight: 800; }
     .logo-meta { display: grid; gap: 3px; }
     .logo-meta strong { color: #1f2737; overflow-wrap: anywhere; }
@@ -70,7 +73,7 @@
 <div class="logo-grid">
     {% for logo in logos %}
     <section class="logo-card">
-        <div class="logo-preview">
+        <div class="logo-preview logo-preview--{{ logo.slot_key }}">
             {% if logo.url %}
             <img src="{{ logo.url }}" alt="{{ logo.label }} logo">
             {% else %}
