@@ -21,10 +21,11 @@ from sqlalchemy.orm import Session
 
 import auth
 import authorization
+import branding_storage
 import models
 from dependencies import get_db
 from subject_colors import build_subject_theme, normalize_hex_color
-from ui_shell import build_shell_context
+from ui_shell import build_shell_context, get_school_logo_slots
 
 
 router = APIRouter(tags=["Academic Calendar"])
@@ -32,12 +33,23 @@ templates = Jinja2Templates(directory="templates")
 
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TIME_PATTERN = re.compile(r"^\d{2}:\d{2}$")
-STATIC_DIR = Path("static")
-CALENDAR_PDF_LOGOS = (
-    STATIC_DIR / "images" / "TIS_Logo_Adjusted.png",
-    STATIC_DIR / "images" / "andalus-logo-main.png",
-    STATIC_DIR / "images" / "cognia-logo.png",
+PLATFORM_CALENDAR_PDF_LOGO = branding_storage.tis_logo_absolute_path(
+    theme="light",
+    layout="horizontal",
 )
+
+
+def _calendar_pdf_logos(
+    request: Request,
+    db: Session,
+    branch_id: int,
+) -> tuple[Path, ...]:
+    logo_paths = [PLATFORM_CALENDAR_PDF_LOGO]
+    for logo in get_school_logo_slots(request, db, branch_id):
+        absolute_path = str(logo.get("absolute_path") or "").strip()
+        if absolute_path:
+            logo_paths.append(Path(absolute_path))
+    return tuple(logo_paths)
 
 DEFAULT_EVENT_TYPES = (
     {
@@ -491,6 +503,9 @@ class _CalendarPdfReport:
         try:
             with Image.open(image_path) as raw_image:
                 image = raw_image.convert("RGBA")
+                alpha_box = image.getchannel("A").getbbox()
+                if alpha_box:
+                    image = image.crop(alpha_box)
                 background = Image.new("RGBA", image.size, (255, 255, 255, 255))
                 background.alpha_composite(image)
                 rgb_image = background.convert("RGB")
@@ -1640,6 +1655,7 @@ def _build_academic_calendar_pdf_bytes(
     academic_year_name: str,
     filters: dict,
     base_url: str = "",
+    logos: tuple[Path, ...] = (),
 ) -> bytes:
     calendar_events = [
         {
@@ -1656,7 +1672,7 @@ def _build_academic_calendar_pdf_bytes(
     pdf = _CalendarPdfReport(
         "Parent Academic Calendar Report",
         subtitle,
-        logos=CALENDAR_PDF_LOGOS,
+        logos=logos or (PLATFORM_CALENDAR_PDF_LOGO,),
     )
     pdf.paragraph(
         "This parent-facing calendar report summarizes school activities, events, assessments, meetings, "
@@ -2868,6 +2884,7 @@ def export_academic_calendar_pdf(
         academic_year_name=academic_year_name,
         filters=filters,
         base_url=str(request.base_url).rstrip("/"),
+        logos=_calendar_pdf_logos(request, db, branch_id),
     )
     filename = _build_calendar_pdf_filename(branch_name, academic_year_name, filters)
     return Response(

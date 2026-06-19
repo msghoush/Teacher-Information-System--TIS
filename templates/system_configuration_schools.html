@@ -362,7 +362,9 @@
                 <p>Shared logos apply to all branches unless overridden.</p>
                 <div class="logo-strip">
                     {% for logo in group_logos %}
+                    {% if logo.url and logo.slot_key in ("primary", "accreditation", "secondary") %}
                     <img src="{{ logo.url }}" alt="{{ logo.label }} logo" title="{{ logo.label }}">
+                    {% endif %}
                     {% endfor %}
                 </div>
                 {% if can("branding.view") %}

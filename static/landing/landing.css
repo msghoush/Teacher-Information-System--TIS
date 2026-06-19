@@ -144,11 +144,9 @@ section[id] {
     transform: translateY(-1px);
 }
 
-.brand-logo {
-    width: auto;
-    height: 58px;
-    object-fit: contain;
-    display: block;
+.landing-tis-logo {
+    width: 190px;
+    max-width: 40vw;
 }
 
 .primary-nav {

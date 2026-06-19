@@ -19,6 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import auth
+import branding_storage
 import models
 from dependencies import get_db
 from timetable_logic import (
@@ -26,42 +27,44 @@ from timetable_logic import (
     get_scope_ids,
     normalize_day_key,
 )
-from ui_shell import build_shell_context
+from ui_shell import build_shell_context, get_school_logo_slots
 
 
 router = APIRouter(prefix="/timetable", tags=["Timetable"])
 templates = Jinja2Templates(directory="templates")
-BASE_DIR = Path(__file__).resolve().parent.parent
-EXPORT_LOGO_ASSETS = (
-    {
-        "path": BASE_DIR / "static" / "images" / "TIS_Logo_Adjusted.png",
-        "anchor": "A1",
-        "max_width": 82,
-        "max_height": 34,
-        "fallback": "Teacher Information System",
-    },
-    {
-        "path": BASE_DIR / "static" / "images" / "andalus-logo.png",
-        "anchor": "C1",
-        "max_width": 78,
-        "max_height": 34,
-        "fallback": "Little Andalus International Schools",
-    },
-    {
-        "path": BASE_DIR / "static" / "images" / "cognia-logo.png",
-        "anchor": "E1",
-        "max_width": 40,
-        "max_height": 34,
-        "fallback": "Cognia",
-    },
-    {
-        "path": BASE_DIR / "static" / "images" / "andalus-logo-main.png",
-        "anchor": "G1",
-        "max_width": 92,
-        "max_height": 34,
-        "fallback": "Andalus International Schools",
-    },
-)
+PLATFORM_EXPORT_LOGO_ASSET = {
+    "path": branding_storage.tis_logo_absolute_path(
+        theme="light",
+        layout="horizontal",
+    ),
+    "anchor": "A1",
+    "max_width": 82,
+    "max_height": 34,
+    "fallback": "Teacher Information System",
+}
+
+
+def _build_export_logo_assets(request: Request, db: Session, branch_id: int) -> list[dict]:
+    assets = [dict(PLATFORM_EXPORT_LOGO_ASSET)]
+    anchors = ("C1", "E1", "G1")
+    for index, logo in enumerate(
+        get_school_logo_slots(request, db, branch_id)[: len(anchors)]
+    ):
+        absolute_path = str(logo.get("absolute_path") or "").strip()
+        if not absolute_path:
+            continue
+        is_accreditation = logo.get("slot_key") == "accreditation"
+        assets.append(
+            {
+                "path": Path(absolute_path),
+                "anchor": anchors[index],
+                "max_width": 42 if is_accreditation else 92,
+                "max_height": 34,
+                "fallback": logo.get("label") or "Organization logo",
+            }
+        )
+    return assets
+
 EXCEL_BRAND_BLUE = "0A4EA3"
 EXCEL_TEXT = "17365D"
 EXCEL_MUTED = "60728C"
@@ -442,15 +445,32 @@ def _fit_sheet_to_printed_page(sheet):
     sheet.page_margins.footer = 0.15
 
 
-def _add_excel_logo_strip(sheet):
+def _cropped_logo_image(image_path: Path) -> PillowImage.Image:
+    with PillowImage.open(image_path) as source_image:
+        image = source_image.convert("RGBA")
+    alpha_box = image.getchannel("A").getbbox()
+    return image.crop(alpha_box) if alpha_box else image
+
+
+def _excel_logo_image(image_path: Path) -> ExcelImage:
+    image = _cropped_logo_image(image_path)
+    image_buffer = io.BytesIO()
+    image.save(image_buffer, format="PNG")
+    image_buffer.seek(0)
+    logo = ExcelImage(image_buffer)
+    logo._tis_image_buffer = image_buffer
+    return logo
+
+
+def _add_excel_logo_strip(sheet, logo_assets: list[dict]):
     sheet.row_dimensions[1].height = 30
-    for asset in EXPORT_LOGO_ASSETS:
+    for asset in logo_assets:
         anchor = asset["anchor"]
         try:
             image_path = asset["path"]
             if not image_path.exists():
                 raise FileNotFoundError(str(image_path))
-            logo = ExcelImage(str(image_path))
+            logo = _excel_logo_image(image_path)
             fitted_width, fitted_height = _fit_dimensions(
                 logo.width,
                 logo.height,
@@ -489,11 +509,15 @@ def _prepare_excel_sheet(
     subtitle: str,
     total_columns: int,
     include_logos: bool = False,
+    logo_assets: list[dict] | None = None,
 ) -> int:
     sheet.sheet_view.showGridLines = False
     _fit_sheet_to_printed_page(sheet)
     if include_logos:
-        _add_excel_logo_strip(sheet)
+        _add_excel_logo_strip(
+            sheet,
+            logo_assets or [dict(PLATFORM_EXPORT_LOGO_ASSET)],
+        )
         title_row = 4
     else:
         title_row = 1
@@ -667,6 +691,7 @@ def _write_overview_sheet(
     branch_name: str,
     academic_year_name: str,
     generated_at: datetime,
+    logo_assets: list[dict],
 ):
     sheet = workbook.active
     sheet.title = "Overview"
@@ -679,6 +704,7 @@ def _write_overview_sheet(
         ),
         total_columns=8,
         include_logos=True,
+        logo_assets=logo_assets,
     )
     summary = workspace_payload.get("summary", {})
     metrics = [
@@ -987,10 +1013,18 @@ def _build_timetable_xlsx_bytes(
     workspace_payload: dict,
     branch_name: str,
     academic_year_name: str,
+    logo_assets: list[dict] | None = None,
 ) -> bytes:
     generated_at = datetime.now()
     workbook = Workbook()
-    _write_overview_sheet(workbook, workspace_payload, branch_name, academic_year_name, generated_at)
+    _write_overview_sheet(
+        workbook,
+        workspace_payload,
+        branch_name,
+        academic_year_name,
+        generated_at,
+        logo_assets or [dict(PLATFORM_EXPORT_LOGO_ASSET)],
+    )
     _write_entity_timetable_sheet(
         workbook,
         workspace_payload,
@@ -1057,14 +1091,14 @@ def _build_pdf_image_asset(
     }
 
 
-def _load_pdf_logo_assets() -> list[dict]:
+def _load_pdf_logo_assets(assets: list[dict]) -> list[dict]:
     logo_assets = []
-    for index, asset in enumerate(EXPORT_LOGO_ASSETS, start=1):
+    for index, asset in enumerate(assets, start=1):
         try:
             image_path = asset["path"]
             if not image_path.exists():
                 continue
-            with PillowImage.open(image_path) as source_image:
+            with _cropped_logo_image(image_path) as source_image:
                 display_width, display_height = _fit_dimensions(
                     source_image.width,
                     source_image.height,
@@ -1100,10 +1134,17 @@ class _TimetablePdf:
     height = 595.28
     margin = 30
 
-    def __init__(self, title: str, subtitle: str):
+    def __init__(
+        self,
+        title: str,
+        subtitle: str,
+        logo_assets: list[dict] | None = None,
+    ):
         self.title = title
         self.subtitle = subtitle
-        self.image_assets = _load_pdf_logo_assets()
+        self.image_assets = _load_pdf_logo_assets(
+            logo_assets or [dict(PLATFORM_EXPORT_LOGO_ASSET)]
+        )
         self.logo_asset_count = len(self.image_assets)
         self.subject_icon_asset_names: dict[tuple[str, str], str] = {}
         self.pages: list[list[str]] = []
@@ -1471,11 +1512,13 @@ def _build_timetable_pdf_bytes(
     workspace_payload: dict,
     branch_name: str,
     academic_year_name: str,
+    logo_assets: list[dict] | None = None,
 ) -> bytes:
     generated_at = datetime.now()
     pdf = _TimetablePdf(
         "Weekly Timetable",
         f"{branch_name} | Academic Year {academic_year_name} | Generated {generated_at.strftime('%Y-%m-%d %H:%M')}",
+        logo_assets=logo_assets,
     )
     pdf.paragraph(
         "Printable timetable export generated from the same live section, teacher, subject, and school-day data shown in the TIS timetable workspace."
@@ -1581,10 +1624,12 @@ def export_timetable_excel(
         branch_id,
         academic_year_id,
     )
+    logo_assets = _build_export_logo_assets(request, db, branch_id)
     payload = _build_timetable_xlsx_bytes(
         workspace_payload,
         branch_name,
         academic_year_name,
+        logo_assets=logo_assets,
     )
     file_name = _build_timetable_export_filename(
         branch_name,
@@ -1614,10 +1659,12 @@ def export_timetable_pdf(
         branch_id,
         academic_year_id,
     )
+    logo_assets = _build_export_logo_assets(request, db, branch_id)
     payload = _build_timetable_pdf_bytes(
         workspace_payload,
         branch_name,
         academic_year_name,
+        logo_assets=logo_assets,
     )
     file_name = _build_timetable_export_filename(
         branch_name,

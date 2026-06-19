@@ -5,7 +5,10 @@ export const metadata: Metadata = {
   title: "TIS Platform | Smarter Teacher Planning for Modern Schools",
   description:
     "A secure SaaS platform for schools to manage teacher information, workloads, subjects, academic operations, and staffing needs.",
-  metadataBase: new URL("https://tisplatform.com")
+  metadataBase: new URL("https://tisplatform.com"),
+  icons: {
+    icon: "https://app.tisplatform.com/static/branding/tis/logos/TIS Logo \u2013 Full Color \u2013 Stacked Layout.png"
+  }
 };
 
 export const viewport: Viewport = {

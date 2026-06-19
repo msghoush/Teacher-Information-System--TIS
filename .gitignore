@@ -3,4 +3,5 @@ __pycache__/
 *.py[cod]
 logs/
 static/uploads/profile_photos/
+static/branding/organizations/
 

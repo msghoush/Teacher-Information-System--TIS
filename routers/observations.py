@@ -1368,11 +1368,8 @@ def _pdf_markup(value, fallback: str = "-") -> str:
 
 
 def _logo_static_path(logo: dict) -> str | None:
-    relative_path = str((logo or {}).get("path") or "").replace("\\", "/").lstrip("/")
-    if not relative_path:
-        return None
-    local_path = os.path.join(os.getcwd(), "static", *relative_path.split("/"))
-    return local_path if os.path.exists(local_path) else None
+    local_path = str((logo or {}).get("absolute_path") or "").strip()
+    return local_path if local_path and os.path.exists(local_path) else None
 
 
 def _signature_image_flowable(signature_data: str, *, width: int = 190, height: int = 70):
