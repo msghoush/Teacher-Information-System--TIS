@@ -1,0 +1,62 @@
+.tis-logo-set {
+    display: inline-block;
+    width: 100%;
+    max-width: 100%;
+    line-height: 0;
+    vertical-align: middle;
+}
+
+.tis-logo-crop {
+    position: relative;
+    display: block;
+    width: 100%;
+    overflow: hidden;
+}
+
+.tis-logo-crop img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    height: auto;
+    max-width: none;
+}
+
+.tis-logo-crop--horizontal {
+    aspect-ratio: 1448 / 306;
+}
+
+.tis-logo-crop--horizontal img {
+    width: 107.94%;
+    transform: translate(-2.88%, -38.58%);
+}
+
+.tis-logo-crop--stacked {
+    aspect-ratio: 974 / 753;
+}
+
+.tis-logo-crop--stacked img {
+    width: 160.47%;
+    transform: translate(-19.13%, -26.49%);
+}
+
+.tis-logo-crop--wordmark {
+    display: none;
+    aspect-ratio: 1512 / 679;
+}
+
+.tis-logo-crop--wordmark img {
+    width: 103.37%;
+    transform: translate(-2.18%, -28.15%);
+}
+
+@media (max-width: 640px) {
+    .tis-logo-set--responsive .tis-logo-crop--horizontal,
+    .tis-logo-set--responsive .tis-logo-crop--stacked {
+        display: none;
+    }
+
+    .tis-logo-set--responsive .tis-logo-crop--wordmark {
+        display: block;
+    }
+}

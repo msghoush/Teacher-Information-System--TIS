@@ -6,47 +6,76 @@ from sqlalchemy.orm import Session
 
 import auth
 import models
+from branding_storage import (
+    BrandingStorageError,
+    ORGANIZATION_LOGO_SLOTS,
+    organization_asset_subpath,
+    resolve_owned_logo_path,
+)
 from design_tokens import build_design_css, merge_design_settings
 import permission_registry
 from visual_design import build_visual_design_config, build_visual_design_css, rows_to_visual_settings
 
 
-DEFAULT_SCHOOL_LOGO_SLOTS = (
-    {
-        "slot_key": "primary",
-        "label": "Little Andalus International Schools",
-        "path": "images/andalus-logo.png",
-        "class_name": "logo-primary",
-        "sort_order": 1,
-    },
-    {
-        "slot_key": "accreditation",
-        "label": "Cognia",
-        "path": "images/cognia-logo.png",
-        "class_name": "logo-accreditation",
-        "sort_order": 2,
-    },
-    {
-        "slot_key": "secondary",
-        "label": "Andalus International Schools",
-        "path": "images/andalus-logo-main.png",
-        "class_name": "logo-secondary",
-        "sort_order": 3,
-    },
-)
+DEFAULT_SCHOOL_LOGO_SLOTS = ORGANIZATION_LOGO_SLOTS
 
 
-def _logo_payload(request, *, slot_key: str, label: str, image_path: str, class_name: str, sort_order: int, source: str) -> dict:
+def _logo_payload(
+    request,
+    *,
+    school_group_id: int,
+    branch_id: int | None,
+    slot_key: str,
+    label: str,
+    image_path: str,
+    class_name: str,
+    sort_order: int,
+    source: str,
+    recommendation: str,
+) -> dict:
     normalized_path = str(image_path or "").replace("\\", "/").lstrip("/")
+    url = ""
+    absolute_path = ""
+    if normalized_path:
+        logo_branch_id = branch_id if source == "branch" else None
+        try:
+            resolved_path = resolve_owned_logo_path(
+                normalized_path,
+                school_group_id=school_group_id,
+                branch_id=logo_branch_id,
+                allow_legacy=True,
+                require_file=True,
+            )
+            absolute_path = str(resolved_path)
+            try:
+                asset_path = organization_asset_subpath(
+                    school_group_id,
+                    normalized_path,
+                )
+                url = str(
+                    request.url_for(
+                        "organization_asset",
+                        school_group_id=str(school_group_id),
+                        asset_path=asset_path,
+                    )
+                )
+            except BrandingStorageError:
+                normalized_path = ""
+                absolute_path = ""
+        except (BrandingStorageError, FileNotFoundError):
+            normalized_path = ""
     return {
         "slot_key": slot_key,
         "label": label,
         "path": normalized_path,
-        "url": str(request.url_for("static", path=normalized_path)),
+        "url": url,
+        "absolute_path": absolute_path,
         "class_name": class_name,
-        "is_default": source == "default",
+        "is_configured": bool(normalized_path and url),
+        "is_default": False,
         "source": source,
         "sort_order": sort_order,
+        "recommendation": recommendation,
     }
 
 
@@ -55,6 +84,9 @@ def get_school_logo_slots(
     db: Session,
     branch_id: int | None,
     school_group_id: int | None = None,
+    *,
+    include_empty: bool = False,
+    include_all_slots: bool = False,
 ) -> list[dict]:
     configured_by_slot = {}
     group_configured_by_slot = {}
@@ -62,16 +94,16 @@ def get_school_logo_slots(
     if branch_id:
         try:
             branch = db.query(models.Branch).filter(models.Branch.id == int(branch_id)).first()
-            if branch and not resolved_group_id:
+            if branch:
                 resolved_group_id = getattr(branch, "school_group_id", None)
-            configured_rows = db.query(models.BranchLogo).filter(
-                models.BranchLogo.branch_id == int(branch_id)
-            ).all()
-            configured_by_slot = {
-                str(row.slot_key or "").strip(): row
-                for row in configured_rows
-                if str(row.slot_key or "").strip()
-            }
+                configured_rows = db.query(models.BranchLogo).filter(
+                    models.BranchLogo.branch_id == int(branch.id)
+                ).all()
+                configured_by_slot = {
+                    str(row.slot_key or "").strip(): row
+                    for row in configured_rows
+                    if str(row.slot_key or "").strip()
+                }
         except Exception:
             configured_by_slot = {}
     if resolved_group_id:
@@ -89,25 +121,66 @@ def get_school_logo_slots(
 
     logos = []
     for default_slot in DEFAULT_SCHOOL_LOGO_SLOTS:
+        if not include_all_slots and not default_slot["show_in_brand_strip"]:
+            continue
         slot_key = default_slot["slot_key"]
         configured = configured_by_slot.get(slot_key)
         group_configured = group_configured_by_slot.get(slot_key)
-        source = "branch" if configured else "school_group" if group_configured else "default"
+        source = "branch" if configured else "school_group" if group_configured else "none"
         row = configured or group_configured
-        image_path = str(getattr(row, "image_path", "") or "").replace("\\", "/").lstrip("/") or default_slot["path"]
+        image_path = str(getattr(row, "image_path", "") or "").replace("\\", "/").lstrip("/")
         label = str(getattr(row, "label", "") or "").strip() or default_slot["label"]
+        if not row and not include_empty:
+            continue
+        if not resolved_group_id:
+            continue
         logos.append(
             _logo_payload(
                 request,
+                school_group_id=int(resolved_group_id),
+                branch_id=int(branch_id) if branch_id else None,
                 slot_key=slot_key,
                 label=label,
                 image_path=image_path,
                 class_name=default_slot["class_name"],
                 sort_order=default_slot["sort_order"],
                 source=source,
+                recommendation=default_slot["recommendation"],
             )
         )
     return logos
+
+
+def get_organization_identity_logo(
+    request,
+    db: Session,
+    branch_id: int | None,
+    school_group_id: int | None = None,
+    *,
+    background: str = "light",
+    favicon: bool = False,
+) -> dict | None:
+    logos = get_school_logo_slots(
+        request,
+        db,
+        branch_id,
+        school_group_id,
+        include_empty=False,
+        include_all_slots=True,
+    )
+    by_slot = {logo["slot_key"]: logo for logo in logos if logo.get("is_configured")}
+    if favicon:
+        preferred_slots = ("favicon", "primary")
+    elif str(background or "light").strip().lower() in {
+        "dark",
+        "navy",
+        "colored",
+        "gradient",
+    }:
+        preferred_slots = ("light", "primary", "dark")
+    else:
+        preferred_slots = ("dark", "primary", "light")
+    return next((by_slot.get(slot) for slot in preferred_slots if by_slot.get(slot)), None)
 
 
 def _build_user_initials(first_name: str = "", last_name: str = "", fallback_name: str = "") -> str:

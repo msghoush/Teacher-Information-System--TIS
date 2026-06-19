@@ -227,6 +227,10 @@ svg:is(
     width: min(100%, 210px);
 }
 
+.sidebar-logo-frame .sidebar-tis-logo {
+    width: min(100%, 210px);
+}
+
 .sidebar-brand-copy {
     display: grid;
     gap: 6px;

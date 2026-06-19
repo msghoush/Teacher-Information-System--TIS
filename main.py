@@ -33,6 +33,7 @@ from database import engine, SessionLocal
 import models
 import auth
 import authorization
+import branding_storage
 import db_migrations
 import permission_registry
 from visual_design import (
@@ -102,7 +103,11 @@ db_migrations.run_pending_migrations(engine)
 # App Initialization
 # ---------------------------------------
 app = FastAPI(title="Teacher Information System")
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount(
+    "/static",
+    branding_storage.ProtectedBrandingStaticFiles(directory="static"),
+    name="static",
+)
 app.mount(
     "/landing-public",
     StaticFiles(directory="tis-landing-website/public"),
@@ -336,7 +341,9 @@ REPORT_EXPORT_SUBJECT_FILL_PALETTE = [
 ]
 get_audit_logger()
 
-FAVICON_IMAGE_PATH = os.path.join("static", "images", "tis-browser-icon-v2.png")
+FAVICON_IMAGE_PATH = str(
+    branding_storage.tis_logo_absolute_path(theme="light", layout="stacked")
+)
 FAVICON_CACHE_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     "Pragma": "no-cache",
@@ -345,11 +352,6 @@ FAVICON_CACHE_HEADERS = {
 PROFILE_PHOTO_UPLOAD_DIR = os.path.join("static", "uploads", "profile_photos")
 PROFILE_PHOTO_RELATIVE_DIR = "uploads/profile_photos"
 PROFILE_PHOTO_MAX_BYTES = 3 * 1024 * 1024
-BRANCH_LOGO_UPLOAD_DIR = os.path.join("static", "uploads", "branch_logos")
-BRANCH_LOGO_RELATIVE_DIR = "uploads/branch_logos"
-SCHOOL_GROUP_LOGO_UPLOAD_DIR = os.path.join("static", "uploads", "school_group_logos")
-SCHOOL_GROUP_LOGO_RELATIVE_DIR = "uploads/school_group_logos"
-BRANCH_LOGO_MAX_BYTES = 4 * 1024 * 1024
 DEFAULT_SCHOOL_GROUP_NAME = "Al-Andalus Schools"
 MAJOR_ALIGNMENT_STOPWORDS = {
     "a",
@@ -382,20 +384,6 @@ MAJOR_ALIGNMENT_STOPWORDS = {
 
 def _ensure_profile_photo_upload_dir():
     os.makedirs(PROFILE_PHOTO_UPLOAD_DIR, exist_ok=True)
-
-
-def _ensure_branch_logo_upload_dir(branch_id: int | None = None):
-    target_dir = BRANCH_LOGO_UPLOAD_DIR
-    if branch_id:
-        target_dir = os.path.join(target_dir, str(int(branch_id)))
-    os.makedirs(target_dir, exist_ok=True)
-
-
-def _ensure_school_group_logo_upload_dir(school_group_id: int | None = None):
-    target_dir = SCHOOL_GROUP_LOGO_UPLOAD_DIR
-    if school_group_id:
-        target_dir = os.path.join(target_dir, str(int(school_group_id)))
-    os.makedirs(target_dir, exist_ok=True)
 
 
 def _ensure_school_group_schema():
@@ -469,37 +457,7 @@ def _profile_photo_media_type_from_extension(extension: str) -> str:
     return "application/octet-stream"
 
 
-def _detect_branch_logo_extension(file_bytes: bytes, filename: str = "") -> str:
-    detected = _detect_profile_photo_extension(file_bytes)
-    if detected in {".png", ".jpg", ".jpeg", ".webp"}:
-        return detected
-
-    lowered_name = str(filename or "").lower()
-    if file_bytes[:512].lstrip().lower().startswith(b"<svg") or lowered_name.endswith(".svg"):
-        return ".svg"
-    if lowered_name.endswith(".jpeg"):
-        return ".jpg"
-    if lowered_name.endswith(".jpg"):
-        return ".jpg"
-    if lowered_name.endswith(".png"):
-        return ".png"
-    if lowered_name.endswith(".webp"):
-        return ".webp"
-    return ""
-
-
-def _branch_logo_media_type_from_extension(extension: str) -> str:
-    normalized_extension = str(extension or "").strip().lower()
-    if normalized_extension == ".svg":
-        return "image/svg+xml"
-    return _profile_photo_media_type_from_extension(normalized_extension)
-
-
 def _normalize_profile_photo_relative_path(relative_path: str) -> str:
-    return str(relative_path or "").replace("\\", "/").lstrip("/")
-
-
-def _normalize_branch_logo_relative_path(relative_path: str) -> str:
     return str(relative_path or "").replace("\\", "/").lstrip("/")
 
 
@@ -512,42 +470,6 @@ def _delete_profile_photo_file(relative_path: str):
         os.path.join("static", *normalized_relative_path.split("/"))
     )
     upload_root = os.path.abspath(PROFILE_PHOTO_UPLOAD_DIR)
-    if not absolute_path.startswith(upload_root):
-        return
-    if os.path.exists(absolute_path):
-        try:
-            os.remove(absolute_path)
-        except OSError:
-            return
-
-
-def _delete_branch_logo_file(relative_path: str):
-    normalized_relative_path = _normalize_branch_logo_relative_path(relative_path)
-    if not normalized_relative_path.startswith(f"{BRANCH_LOGO_RELATIVE_DIR}/"):
-        return
-
-    absolute_path = os.path.abspath(
-        os.path.join("static", *normalized_relative_path.split("/"))
-    )
-    upload_root = os.path.abspath(BRANCH_LOGO_UPLOAD_DIR)
-    if not absolute_path.startswith(upload_root):
-        return
-    if os.path.exists(absolute_path):
-        try:
-            os.remove(absolute_path)
-        except OSError:
-            return
-
-
-def _delete_school_group_logo_file(relative_path: str):
-    normalized_relative_path = _normalize_branch_logo_relative_path(relative_path)
-    if not normalized_relative_path.startswith(f"{SCHOOL_GROUP_LOGO_RELATIVE_DIR}/"):
-        return
-
-    absolute_path = os.path.abspath(
-        os.path.join("static", *normalized_relative_path.split("/"))
-    )
-    upload_root = os.path.abspath(SCHOOL_GROUP_LOGO_UPLOAD_DIR)
     if not absolute_path.startswith(upload_root):
         return
     if os.path.exists(absolute_path):
@@ -964,6 +886,132 @@ def _ensure_default_school_group(db: Session):
     db.commit()
     db.refresh(school_group)
     return school_group
+
+
+AL_ANDALUS_LEGACY_LOGOS = (
+    {
+        "slot_key": "primary",
+        "label": "Little Andalus International Schools",
+        "source": branding_storage.STATIC_ROOT / "images" / "andalus-logo.png",
+        "filename": "primary.png",
+    },
+    {
+        "slot_key": "accreditation",
+        "label": "Cognia",
+        "source": branding_storage.STATIC_ROOT / "images" / "cognia-logo.png",
+        "filename": "accreditation.png",
+    },
+    {
+        "slot_key": "secondary",
+        "label": "Andalus International Schools",
+        "source": branding_storage.STATIC_ROOT / "images" / "andalus-logo-main.png",
+        "filename": "secondary.png",
+    },
+)
+AL_ANDALUS_GROUP_NAMES = {
+    DEFAULT_SCHOOL_GROUP_NAME,
+    "Al Andalus Schools",
+    "Andalus Schools",
+}
+
+
+def _ensure_organization_branding_storage(db: Session):
+    logger = logging.getLogger(__name__)
+    school_groups = db.query(models.SchoolGroup).all()
+    for school_group in school_groups:
+        branding_storage.ensure_organization_logo_dir(school_group.id)
+
+    changed = False
+    for logo in db.query(models.SchoolGroupLogo).all():
+        try:
+            migrated_path = branding_storage.migrate_legacy_logo_file(
+                logo.image_path,
+                school_group_id=logo.school_group_id,
+            )
+        except (branding_storage.BrandingStorageError, FileNotFoundError) as exc:
+            logger.warning(
+                "Unable to migrate school-group logo %s: %s",
+                getattr(logo, "id", ""),
+                exc,
+            )
+            continue
+        if migrated_path != logo.image_path:
+            logo.image_path = migrated_path
+            logo.updated_at = datetime.utcnow()
+            changed = True
+
+    branch_rows = {
+        branch.id: branch for branch in db.query(models.Branch).all()
+    }
+    for logo in db.query(models.BranchLogo).all():
+        branch = branch_rows.get(logo.branch_id)
+        school_group_id = getattr(branch, "school_group_id", None)
+        if not school_group_id:
+            continue
+        try:
+            migrated_path = branding_storage.migrate_legacy_logo_file(
+                logo.image_path,
+                school_group_id=school_group_id,
+                branch_id=branch.id,
+            )
+        except (branding_storage.BrandingStorageError, FileNotFoundError) as exc:
+            logger.warning(
+                "Unable to migrate branch logo %s: %s",
+                getattr(logo, "id", ""),
+                exc,
+            )
+            continue
+        if migrated_path != logo.image_path:
+            logo.image_path = migrated_path
+            logo.updated_at = datetime.utcnow()
+            changed = True
+
+    al_andalus = next(
+        (
+            group
+            for group in school_groups
+            if str(group.name or "").strip() in AL_ANDALUS_GROUP_NAMES
+        ),
+        None,
+    )
+    if al_andalus:
+        existing_slots = {
+            row.slot_key
+            for row in db.query(models.SchoolGroupLogo).filter(
+                models.SchoolGroupLogo.school_group_id == al_andalus.id
+            ).all()
+        }
+        slot_definitions = {
+            slot["slot_key"]: slot for slot in DEFAULT_SCHOOL_LOGO_SLOTS
+        }
+        for legacy_logo in AL_ANDALUS_LEGACY_LOGOS:
+            if legacy_logo["slot_key"] in existing_slots:
+                continue
+            try:
+                relative_path = branding_storage.copy_legacy_default_logo(
+                    legacy_logo["source"],
+                    school_group_id=al_andalus.id,
+                    filename=legacy_logo["filename"],
+                )
+            except FileNotFoundError as exc:
+                logger.warning("Unable to copy Al-Andalus legacy logo: %s", exc)
+                continue
+            slot = slot_definitions[legacy_logo["slot_key"]]
+            db.add(
+                models.SchoolGroupLogo(
+                    school_group_id=al_andalus.id,
+                    slot_key=legacy_logo["slot_key"],
+                    label=legacy_logo["label"],
+                    image_path=relative_path,
+                    content_type="image/png",
+                    sort_order=slot["sort_order"],
+                    updated_by_user_id="system",
+                )
+            )
+            changed = True
+
+    if changed:
+        db.commit()
 
 
 def _normalize_qualification_label(value: str) -> str:
@@ -8543,6 +8591,45 @@ def favicon():
         headers=FAVICON_CACHE_HEADERS,
     )
 
+
+@app.get(
+    "/organization-assets/{school_group_id}/{asset_path:path}",
+    name="organization_asset",
+    include_in_schema=False,
+)
+def organization_asset(
+    school_group_id: int,
+    asset_path: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return PlainTextResponse("Not found", status_code=404)
+    requesting_group_id = _get_user_school_group_id(db, current_user)
+    can_manage_all = _can_manage_all_school_scopes(db, current_user)
+    if not branding_storage.can_access_organization_assets(
+        requesting_group_id,
+        school_group_id,
+        can_manage_all=can_manage_all,
+    ):
+        return PlainTextResponse("Not found", status_code=404)
+    try:
+        asset = branding_storage.resolve_organization_asset_path(
+            school_group_id,
+            asset_path,
+            require_file=True,
+        )
+    except (branding_storage.BrandingStorageError, FileNotFoundError):
+        return PlainTextResponse("Not found", status_code=404)
+    return FileResponse(
+        asset,
+        headers={
+            "Cache-Control": "private, max-age=300",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
 # ---------------------------------------
 # LOGIN
 # ---------------------------------------
@@ -10540,7 +10627,7 @@ def _logo_source_label(source: str) -> str:
         return "Branch override"
     if source == "school_group":
         return "School group logo"
-    return "System default logo"
+    return "Not configured"
 
 
 def _get_user_school_group_id(db: Session, current_user) -> int | None:
@@ -10621,7 +10708,13 @@ def _build_school_logo_module_context(
                             **logo,
                             "source_label": _logo_source_label(logo.get("source")),
                         }
-                        for logo in get_school_logo_slots(request, db, branch.id)
+                        for logo in get_school_logo_slots(
+                            request,
+                            db,
+                            branch.id,
+                            include_empty=True,
+                            include_all_slots=True,
+                        )
                     ],
                 }
             )
@@ -10638,6 +10731,8 @@ def _build_school_logo_module_context(
                 db,
                 None,
                 school_group_id=selected_group.id,
+                include_empty=True,
+                include_all_slots=True,
             )
         ]
 
@@ -11091,6 +11186,14 @@ def create_school_group(
     school_group = models.SchoolGroup(name=cleaned_name, status=True)
     db.add(school_group)
     db.flush()
+    try:
+        branding_storage.ensure_organization_logo_dir(school_group.id)
+    except OSError:
+        db.rollback()
+        return _redirect_with_error(
+            return_to,
+            "Unable to initialize organization branding storage.",
+        )
     db.add(
         models.Branch(
             school_group_id=school_group.id,
@@ -11309,7 +11412,11 @@ async def save_system_configuration_logo(
         branch = db.query(models.Branch).filter(models.Branch.id == branch_id).first()
         if not branch:
             return _redirect_with_error(return_to, "Select a valid branch.")
-        if not can_manage_all and branch.id != getattr(current_user, "scope_branch_id", current_user.branch_id):
+        if not can_manage_all and (
+            branch.id
+            != getattr(current_user, "scope_branch_id", current_user.branch_id)
+            or branch.school_group_id != user_school_group_id
+        ):
             return RedirectResponse(url="/dashboard", status_code=302)
 
     normalized_label = str(label or "").strip() or slot["label"]
@@ -11323,6 +11430,16 @@ async def save_system_configuration_logo(
             models.BranchLogo.branch_id == branch.id,
             models.BranchLogo.slot_key == slot_key,
         ).first()
+    target_school_group_id = (
+        school_group.id
+        if normalized_scope_type == "school_group"
+        else getattr(branch, "school_group_id", None)
+    )
+    if not target_school_group_id:
+        return _redirect_with_error(
+            return_to,
+            "The selected branding scope has no organization owner.",
+        )
 
     file_bytes = b""
     if logo_file and logo_file.filename:
@@ -11337,35 +11454,29 @@ async def save_system_configuration_logo(
             return _redirect_with_notice(return_to, "Logo label updated.")
         return _redirect_with_error(return_to, "Choose a logo file to upload.")
 
-    if len(file_bytes) > BRANCH_LOGO_MAX_BYTES:
-        return _redirect_with_error(return_to, "Logo file is too large. Maximum size is 4 MB.")
+    try:
+        upload_info = branding_storage.validate_logo_upload(
+            file_bytes,
+            logo_file.filename,
+            slot_key=slot_key,
+        )
+        relative_path = branding_storage.write_logo_file(
+            file_bytes,
+            school_group_id=target_school_group_id,
+            branch_id=branch.id if normalized_scope_type == "branch" else None,
+            slot_key=slot_key,
+            extension=upload_info.extension,
+        )
+    except (branding_storage.BrandingStorageError, OSError) as exc:
+        return _redirect_with_error(return_to, str(exc))
 
-    extension = _detect_branch_logo_extension(file_bytes, logo_file.filename)
-    if extension not in {".png", ".jpg", ".webp", ".svg"}:
-        return _redirect_with_error(return_to, "Upload a PNG, JPG, WEBP, or SVG logo.")
-
-    filename = f"{slot_key}_{int(time.time() * 1000)}{extension}"
-    if normalized_scope_type == "school_group":
-        _ensure_school_group_logo_upload_dir(school_group.id)
-        relative_path = f"{SCHOOL_GROUP_LOGO_RELATIVE_DIR}/{school_group.id}/{filename}"
-        upload_root = os.path.abspath(os.path.join(SCHOOL_GROUP_LOGO_UPLOAD_DIR, str(school_group.id)))
-    else:
-        _ensure_branch_logo_upload_dir(branch.id)
-        relative_path = f"{BRANCH_LOGO_RELATIVE_DIR}/{branch.id}/{filename}"
-        upload_root = os.path.abspath(os.path.join(BRANCH_LOGO_UPLOAD_DIR, str(branch.id)))
-    absolute_path = os.path.abspath(os.path.join("static", *relative_path.split("/")))
-    if not absolute_path.startswith(upload_root):
-        return _redirect_with_error(return_to, "Logo upload path is invalid.")
-
-    with open(absolute_path, "wb") as output_file:
-        output_file.write(file_bytes)
-
+    old_path = ""
     if not existing_logo:
         logo_payload = {
             "slot_key": slot_key,
             "label": normalized_label,
             "image_path": relative_path,
-            "content_type": _branch_logo_media_type_from_extension(extension),
+            "content_type": upload_info.content_type,
             "sort_order": slot["sort_order"],
             "updated_by_user_id": getattr(current_user, "user_id", None),
         }
@@ -11384,16 +11495,18 @@ async def save_system_configuration_logo(
         old_path = existing_logo.image_path
         existing_logo.label = normalized_label
         existing_logo.image_path = relative_path
-        existing_logo.content_type = _branch_logo_media_type_from_extension(extension)
+        existing_logo.content_type = upload_info.content_type
         existing_logo.sort_order = slot["sort_order"]
         existing_logo.updated_by_user_id = getattr(current_user, "user_id", None)
         existing_logo.updated_at = datetime.utcnow()
-        if normalized_scope_type == "school_group":
-            _delete_school_group_logo_file(old_path)
-        else:
-            _delete_branch_logo_file(old_path)
 
     db.commit()
+    if old_path and old_path != relative_path:
+        branding_storage.delete_owned_logo_file(
+            old_path,
+            school_group_id=target_school_group_id,
+            branch_id=branch.id if normalized_scope_type == "branch" else None,
+        )
     return _redirect_with_notice(return_to, "Logo updated.")
 
 
@@ -11413,24 +11526,43 @@ def reset_system_configuration_logo(
 
     can_manage_all = _can_manage_all_school_scopes(db, current_user)
     normalized_scope_type = str(scope_type or "branch").strip().lower()
+    if normalized_scope_type not in {"school_group", "branch"}:
+        return _redirect_with_error(return_to, "Select a valid logo scope.")
     user_school_group_id = _get_user_school_group_id(db, current_user)
     existing_logo = None
-    delete_file = _delete_branch_logo_file
+    target_school_group_id = None
+    target_branch_id = None
     if normalized_scope_type == "school_group":
         if not school_group_id:
             return _redirect_with_error(return_to, "Select a valid school group.")
+        school_group = db.query(models.SchoolGroup).filter(
+            models.SchoolGroup.id == school_group_id
+        ).first()
+        if not school_group:
+            return _redirect_with_error(return_to, "Select a valid school group.")
         if not can_manage_all and school_group_id != user_school_group_id:
             return RedirectResponse(url="/dashboard", status_code=302)
+        target_school_group_id = school_group.id
         existing_logo = db.query(models.SchoolGroupLogo).filter(
             models.SchoolGroupLogo.school_group_id == school_group_id,
             models.SchoolGroupLogo.slot_key == slot_key,
         ).first()
-        delete_file = _delete_school_group_logo_file
     else:
         if not branch_id:
             return _redirect_with_error(return_to, "Select a valid branch.")
-        if not can_manage_all and branch_id != getattr(current_user, "scope_branch_id", current_user.branch_id):
+        branch = db.query(models.Branch).filter(
+            models.Branch.id == branch_id
+        ).first()
+        if not branch or not getattr(branch, "school_group_id", None):
+            return _redirect_with_error(return_to, "Select a valid branch.")
+        if not can_manage_all and (
+            branch_id
+            != getattr(current_user, "scope_branch_id", current_user.branch_id)
+            or branch.school_group_id != user_school_group_id
+        ):
             return RedirectResponse(url="/dashboard", status_code=302)
+        target_school_group_id = branch.school_group_id
+        target_branch_id = branch.id
         existing_logo = db.query(models.BranchLogo).filter(
             models.BranchLogo.branch_id == branch_id,
             models.BranchLogo.slot_key == slot_key,
@@ -11439,7 +11571,11 @@ def reset_system_configuration_logo(
         old_path = existing_logo.image_path
         db.delete(existing_logo)
         db.commit()
-        delete_file(old_path)
+        branding_storage.delete_owned_logo_file(
+            old_path,
+            school_group_id=target_school_group_id,
+            branch_id=target_branch_id,
+        )
     return _redirect_with_notice(return_to, "Logo reset.")
 
 
@@ -13471,8 +13607,6 @@ def setup_initial_data():
     _log_notification_schema_compatibility("startup")
     _seed_teacher_subject_allocations()
     _ensure_profile_photo_upload_dir()
-    _ensure_branch_logo_upload_dir()
-    _ensure_school_group_logo_upload_dir()
     observations.ensure_observation_schema()
     db = SessionLocal()
     observations.ensure_observation_seed_data(db)
@@ -13486,6 +13620,7 @@ def setup_initial_data():
 
     default_branch = _ensure_gender_branches(db)
     _ensure_default_school_group(db)
+    _ensure_organization_branding_storage(db)
 
     if not default_branch:
         default_branch = db.query(Branch).filter(

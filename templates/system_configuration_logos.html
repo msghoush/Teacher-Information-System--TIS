@@ -38,9 +38,11 @@
     .logo-card { display: grid; gap: 10px; padding: 12px; border: 1px solid #d8e2f0; border-radius: 12px; background: #fff; min-width: 0; }
     .logo-preview { display: flex; align-items: center; justify-content: center; min-height: 96px; border: 1px dashed #b8c9df; border-radius: 10px; background: #fff; }
     .logo-preview img { max-width: 92%; max-height: 76px; object-fit: contain; }
+    .logo-empty { color: #667085; font-size: 13px; font-weight: 800; }
     .logo-meta { display: grid; gap: 3px; }
     .logo-meta strong { color: #1f2737; overflow-wrap: anywhere; }
     .logo-meta span { color: #60728c; font-size: 12px; font-weight: 800; }
+    .logo-spec { margin: 0; color: #60728c; font-size: 12px; line-height: 1.45; }
     .logo-form { display: grid; gap: 8px; }
     .logo-form label { color: #48607f; font-size: 12px; font-weight: 900; text-transform: uppercase; }
     .logo-form input[type="text"],
@@ -69,12 +71,17 @@
     {% for logo in logos %}
     <section class="logo-card">
         <div class="logo-preview">
+            {% if logo.url %}
             <img src="{{ logo.url }}" alt="{{ logo.label }} logo">
+            {% else %}
+            <span class="logo-empty">No logo uploaded</span>
+            {% endif %}
         </div>
         <div class="logo-meta">
             <strong>{{ logo.label }}</strong>
             <span>{{ logo.source_label }}</span>
         </div>
+        <p class="logo-spec">{{ logo.recommendation }} PNG, JPG, WEBP, or safe SVG; maximum 4 MB.</p>
         <form class="logo-form" method="post" action="/system-configuration/logos" enctype="multipart/form-data">
             <input type="hidden" name="return_to" value="{{ logo_return_to }}">
             <input type="hidden" name="scope_type" value="{{ scope_type }}">
@@ -82,7 +89,7 @@
             <input type="hidden" name="slot_key" value="{{ logo.slot_key }}">
             <label for="{{ scope_type }}_label_{{ scope_id_value }}_{{ logo.slot_key }}">Logo label</label>
             <input id="{{ scope_type }}_label_{{ scope_id_value }}_{{ logo.slot_key }}" type="text" name="label" value="{{ logo.label }}" required {% if not can_edit_logo %}disabled{% endif %}>
-            <label for="{{ scope_type }}_file_{{ scope_id_value }}_{{ logo.slot_key }}">Replace logo</label>
+            <label for="{{ scope_type }}_file_{{ scope_id_value }}_{{ logo.slot_key }}">{{ "Replace logo" if logo.url else "Upload logo" }}</label>
             <input id="{{ scope_type }}_file_{{ scope_id_value }}_{{ logo.slot_key }}" type="file" name="logo_file" accept=".png,.jpg,.jpeg,.webp,.svg,image/png,image/jpeg,image/webp,image/svg+xml" {% if not can_edit_logo %}disabled{% endif %}>
             <div class="logo-actions">
                 {% if can_edit_logo %}

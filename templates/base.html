@@ -1,13 +1,15 @@
 {% from "_app_icons.html" import icon %}
+{% from "_tis_logo.html" import tis_logo, tis_logo_path with context %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <title>{% block title %}{{ shell.page_title }} | TIS{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
-    <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path='images/tis-browser-icon-v2.png') }}?v=20260227">
+    <link rel="icon" type="image/png" href="{{ url_for('static', path=tis_logo_path(theme='light', layout='stacked')) }}">
+    <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path=tis_logo_path(theme='light', layout='stacked')) }}">
     <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260613a">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/branding.css') }}?v=20260619a">
     {% if shell.design_css %}
     <style>{{ shell.design_css | safe }}</style>
     {% endif %}
@@ -100,7 +102,7 @@
             <div class="sidebar-brand">
                 <div class="sidebar-brand-copy">
                     <div class="sidebar-logo-frame">
-                        <img src="{{ url_for('static', path='images/TIS_Logo_Adjusted.png') }}" alt="Teacher Information System logo">
+                        {{ tis_logo(theme="light", layout="horizontal", responsive=true, class_name="sidebar-tis-logo") }}
                     </div>
                 </div>
                 <div class="sidebar-scope-pillbar">

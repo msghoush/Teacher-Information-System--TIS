@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { TisLogo } from "@/components/tis-logo";
 import {
   ArrowRight,
   BarChart3,
@@ -297,12 +298,10 @@ function Header({
       <div className="section-shell flex min-h-20 flex-col gap-4 py-4 md:flex-row md:items-center md:justify-between">
         <div className="flex w-full items-center justify-between gap-3 md:w-auto">
           <a href="#" className="focus-ring inline-flex items-center gap-3 rounded-xl px-1 py-1">
-            <Image
-              src="/logo/TIS_Logo_Adjusted.png"
-              alt="TIS Platform"
-              width={176}
-              height={71}
-              className="h-11 w-auto object-contain transition duration-500 group-hover:scale-[1.02]"
+            <TisLogo
+              theme="light"
+              layout="horizontal"
+              className="w-44 max-w-[46vw]"
               priority
             />
             <span className="hidden text-lg font-bold tracking-[-0.02em] text-ink sm:inline">
@@ -958,15 +957,11 @@ function Footer() {
 
       <div className="section-shell relative flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
         <div>
-          <div className="inline-flex rounded-[1.45rem] border border-white/12 bg-white/[0.06] p-2 shadow-[0_20px_50px_rgba(2,6,23,0.35)]">
-            <Image
-              src="/logo/TIS_Logo_Adjusted.png"
-              alt="TIS Platform"
-              width={190}
-              height={77}
-              className="h-12 w-auto rounded-xl bg-white p-1 object-contain"
-            />
-          </div>
+          <TisLogo
+            theme="dark"
+            layout="horizontal"
+            className="w-48 max-w-[70vw]"
+          />
           <a
             className="footer-link mt-4 inline-flex rounded-full border border-white/12 bg-white/[0.05] px-4 py-2 text-sm text-slate-200"
             href="mailto:info@tisplatform.com"
