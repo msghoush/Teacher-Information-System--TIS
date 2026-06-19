@@ -102,7 +102,7 @@ svg[data-tis-icon] {
 }
 
 /* Icons inherit the control state so active tabs/buttons never lose contrast. */
-.app-sidebar :is(.scope-pill, .sidebar-link, .sidebar-photo-trigger) svg[data-tis-icon] {
+.app-sidebar :is(.sidebar-link, .sidebar-photo-trigger) svg[data-tis-icon] {
     color: #ffffff !important;
 }
 
@@ -194,105 +194,11 @@ svg:is(
     background: none;
 }
 
-.sidebar-brand,
 .sidebar-section,
 .sidebar-footer,
 .sidebar-nav {
     position: relative;
     z-index: 1;
-}
-
-.sidebar-brand {
-    display: grid;
-    gap: 12px;
-}
-
-.sidebar-brand img {
-    width: min(100%, 220px);
-    height: auto;
-    display: block;
-}
-
-.sidebar-logo-frame {
-    width: fit-content;
-    max-width: 100%;
-    padding: 14px 16px;
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    border-radius: 18px;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(235, 243, 255, 0.95));
-    box-shadow: 0 16px 32px rgba(9, 28, 58, 0.22);
-}
-
-.sidebar-logo-frame img {
-    width: min(100%, 210px);
-}
-
-.sidebar-logo-frame .sidebar-tis-logo {
-    width: min(100%, 210px);
-}
-
-.sidebar-brand-copy {
-    display: grid;
-    gap: 6px;
-}
-
-.sidebar-kicker {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    width: fit-content;
-    padding: 6px 10px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.12);
-    color: #d9e8ff;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-}
-
-.sidebar-brand h2 {
-    margin: 0;
-    font-size: 26px;
-    line-height: 1.1;
-    letter-spacing: 0.2px;
-}
-
-.sidebar-brand p {
-    margin: 0;
-    color: rgba(232, 240, 255, 0.76);
-    font-size: 13px;
-    line-height: 1.55;
-}
-
-.sidebar-scope-pillbar {
-    display: grid;
-    gap: 8px;
-}
-
-.scope-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.08);
-    color: #f8fbff;
-    font-size: 13px;
-}
-
-.scope-pill strong {
-    display: block;
-    font-size: 13px;
-}
-
-.scope-pill span {
-    color: rgba(232, 240, 255, 0.72);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
 }
 
 .sidebar-section-title {
@@ -383,6 +289,11 @@ svg:is(
 .sidebar-section {
     border-top: 1px solid rgba(255, 255, 255, 0.12);
     padding-top: 16px;
+}
+
+.app-sidebar > .sidebar-section:first-child {
+    border-top: 0;
+    padding-top: 0;
 }
 
 .sidebar-config {
@@ -611,23 +522,53 @@ svg:is(
 }
 
 .app-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 6px 12px;
-    padding: 10px 14px;
+    display: grid;
+    gap: 12px;
+    padding: 14px 16px;
     border: 1px solid var(--app-line);
     border-radius: var(--app-radius-lg);
     background: var(--app-surface);
     box-shadow: var(--app-shadow-sm);
 }
 
+.header-identity-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 18px;
+    min-width: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--app-line);
+}
+
+.header-primary-identity {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    min-width: 0;
+}
+
+.header-platform-brand {
+    display: block;
+    flex: 0 0 176px;
+    width: 176px;
+    max-width: 28%;
+    padding-right: 18px;
+    border-right: 1px solid var(--app-line-strong);
+}
+
+.header-platform-brand:hover .header-tis-logo {
+    transform: translateY(-1px);
+}
+
+.header-tis-logo {
+    width: 100%;
+    transition: transform 160ms ease;
+}
+
 .app-header-copy {
     display: grid;
-    gap: 6px;
-    align-content: start;
-    flex: 1 1 280px;
+    align-content: center;
     min-width: 0;
 }
 
@@ -654,15 +595,12 @@ svg:is(
     align-items: center;
     gap: 10px;
     width: fit-content;
-    padding: 12px 16px;
-    border: 1px solid var(--app-line);
-    border-radius: var(--app-radius-md);
-    background: #ffffff;
-    box-shadow: var(--app-shadow-sm);
+    max-width: 100%;
+    min-width: 0;
     color: var(--app-brand-deep);
-    font-size: 32px;
+    font-size: 28px;
     font-weight: 800;
-    line-height: 1.04;
+    line-height: 1.12;
     letter-spacing: 0;
 }
 
@@ -674,59 +612,66 @@ svg.page-title-icon[data-tis-icon] {
 }
 
 .page-title span {
-    display: inline-block;
+    display: block;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
-.app-header-side {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    gap: 8px;
-    flex: 1 1 420px;
-    min-width: min(100%, 280px);
-}
-
-.header-brand-strip {
+.header-tenant-brand {
     display: flex;
     align-items: center;
     justify-content: flex-end;
     flex-wrap: wrap;
     gap: 10px;
+    min-width: 0;
+    max-width: min(42vw, 470px);
+    min-height: 54px;
+    padding-left: 18px;
+    border-left: 1px solid var(--app-line);
 }
 
-.header-brand-strip img {
+.header-tenant-brand img {
     display: block;
     height: auto;
+    max-height: 50px;
+    max-width: 150px;
+    object-fit: contain;
 }
 
-.header-brand-strip .header-school-logo {
-    width: clamp(102px, 12vw, 146px);
+.header-tenant-brand .header-school-logo {
+    width: clamp(96px, 9vw, 136px);
 }
 
-.header-brand-strip .header-school-logo-main {
-    width: clamp(108px, 13vw, 156px);
+.header-tenant-brand .header-school-logo-main {
+    width: clamp(102px, 10vw, 146px);
 }
 
-.header-brand-strip .header-cognia-logo {
-    width: clamp(30px, 3.6vw, 44px);
+.header-tenant-brand .header-cognia-logo {
+    width: clamp(32px, 3vw, 44px);
 }
 
-.header-context-strip {
-    display: flex;
+.header-context-grid {
+    display: grid;
+    grid-template-columns:
+        minmax(0, 1.2fr)
+        minmax(0, 1.05fr)
+        minmax(0, 0.88fr)
+        minmax(0, 0.82fr)
+        minmax(0, 1.15fr);
     align-items: stretch;
-    justify-content: flex-end;
-    flex-wrap: wrap;
     gap: 8px;
+    min-width: 0;
 }
 
 .header-chip {
-    min-width: 146px;
+    display: grid;
+    align-content: center;
+    min-width: 0;
+    min-height: 68px;
     padding: 9px 11px;
     border: 1px solid var(--app-line);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.78);
+    border-radius: var(--app-radius-md);
+    background: var(--app-surface-muted);
 }
 
 .header-notification-chip {
@@ -760,24 +705,41 @@ svg.page-title-icon[data-tis-icon] {
     margin-top: 4px;
     font-size: 13px;
     line-height: 1.3;
+    overflow-wrap: anywhere;
 }
 
 .header-user-chip {
-    min-width: 220px;
-    padding: 8px 10px;
+    min-width: 0;
+    min-height: 68px;
+    padding: 9px 11px;
     border: 1px solid var(--app-line);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.78);
-    display: inline-flex;
+    border-radius: var(--app-radius-md);
+    background: var(--app-surface-muted);
+    display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.header-user-copy {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.header-user-copy small {
+    color: var(--app-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .header-user-chip strong {
     margin: 0;
     font-size: 13px;
-    line-height: 1.2;
+    line-height: 1.3;
     color: var(--app-ink);
+    overflow-wrap: anywhere;
 }
 
 .header-avatar {
@@ -815,9 +777,24 @@ svg.page-title-icon[data-tis-icon] {
     justify-content: center;
 }
 
+.header-utility-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--app-line);
+}
+
+.header-utility-row .header-notification-chip {
+    min-height: 40px;
+}
+
 .header-actions {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
     flex-wrap: wrap;
     gap: 8px;
 }
@@ -1257,19 +1234,26 @@ svg.page-title-icon[data-tis-icon] {
     .app-shell {
         grid-template-columns: 280px minmax(0, 1fr);
     }
+}
 
-    .app-header {
-        align-items: flex-start;
+@media (max-width: 1120px) {
+    .header-identity-row {
+        grid-template-columns: 1fr;
+        align-items: start;
     }
 
-    .app-header-side {
+    .header-tenant-brand {
         justify-content: flex-start;
-        min-width: 100%;
+        width: 100%;
+        max-width: none;
+        padding-top: 12px;
+        padding-left: 0;
+        border-top: 1px solid var(--app-line);
+        border-left: 0;
     }
 
-    .header-context-strip,
-    .header-actions {
-        justify-content: flex-start;
+    .header-context-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 
@@ -1286,9 +1270,6 @@ svg.page-title-icon[data-tis-icon] {
         overflow: visible;
     }
 
-    .header-chip-grid {
-        grid-template-columns: 1fr;
-    }
 }
 
 @media (max-width: 760px) {
@@ -1308,15 +1289,42 @@ svg.page-title-icon[data-tis-icon] {
         font-size: 24px;
     }
 
-    .header-brand-strip {
-        justify-content: flex-start;
+    .header-primary-identity {
+        gap: 14px;
     }
 
-    .header-context-strip {
-        justify-content: flex-start;
+    .header-platform-brand {
+        flex-basis: 148px;
+        width: 148px;
+        padding-right: 14px;
     }
 
-    .header-chip {
-        min-width: 0;
+    .header-context-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .header-utility-row,
+    .header-actions {
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 520px) {
+    .header-primary-identity {
+        align-items: flex-start;
+    }
+
+    .header-platform-brand {
+        flex-basis: 112px;
+        width: 112px;
+        padding-right: 12px;
+    }
+
+    .app-header-copy h1 {
+        font-size: 21px;
+    }
+
+    .header-context-grid {
+        grid-template-columns: 1fr;
     }
 }
