@@ -4,7 +4,8 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from sqlalchemy import inspect, text, func
+from sqlalchemy import inspect, text, func, or_
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -35,6 +36,7 @@ import auth
 import authorization
 import branding_storage
 import db_migrations
+import location_service
 import permission_registry
 from visual_design import (
     VISUAL_COMPONENT_MAP,
@@ -170,6 +172,7 @@ AUTH_SESSION_COOKIE_KEYS = (
     auth.SESSION_COOKIE_KEY,
     "user_id",
     "branch_id",
+    "school_group_id",
     "academic_year_id",
     IDLE_TIMEOUT_COOKIE_KEY,
 )
@@ -342,7 +345,7 @@ REPORT_EXPORT_SUBJECT_FILL_PALETTE = [
 get_audit_logger()
 
 FAVICON_IMAGE_PATH = str(
-    branding_storage.tis_logo_absolute_path(theme="light", layout="stacked")
+    branding_storage.tis_logo_absolute_path(theme="light", compact=True)
 )
 FAVICON_CACHE_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
@@ -584,6 +587,118 @@ def _normalize_branch_region(value: str) -> str | None:
     return SAUDI_REGION_LOOKUP.get(cleaned.casefold())
 
 
+def _resolve_submitted_location(
+    *,
+    country_code: str,
+    region_id: str,
+    region_manual: str,
+    city_id: str,
+    city_manual: str,
+    legacy_region: str = "",
+    required: bool = True,
+) -> location_service.ResolvedLocation | None:
+    modern_values = (country_code, region_id, region_manual, city_id, city_manual)
+    if any(str(value or "").strip() for value in modern_values):
+        if not required and not str(region_id or "").strip() and not str(region_manual or "").strip():
+            return None
+        return location_service.resolve_location(
+            country_code=country_code,
+            region_id=region_id,
+            region_manual=region_manual,
+            city_id=city_id,
+            city_manual=city_manual,
+            require_city=required,
+        )
+
+    legacy_location = location_service.infer_legacy_saudi_location(legacy_region)
+    if legacy_location:
+        return legacy_location
+    if required:
+        raise location_service.LocationValidationError(
+            "Select a country, region/state/province, and city."
+        )
+    return None
+
+
+def _normalize_location_detail(value: object, label: str) -> str:
+    cleaned = " ".join(str(value or "").split())
+    if any(ord(character) < 32 or ord(character) == 127 for character in cleaned):
+        raise location_service.LocationValidationError(
+            f"{label} contains unsupported control characters."
+        )
+    if len(cleaned) > 160:
+        raise location_service.LocationValidationError(
+            f"{label} must be 160 characters or fewer."
+        )
+    return cleaned
+
+
+def _bulk_json_error(errors: list[dict[str, object]], status_code: int = 422):
+    return JSONResponse(
+        {
+            "ok": False,
+            "errors": errors,
+        },
+        status_code=status_code,
+    )
+
+
+def _bulk_payload_items(payload: object) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+        return [], [
+            {
+                "id": None,
+                "label": "Changes",
+                "field": "items",
+                "message": "Submit a valid list of changed items.",
+            }
+        ]
+    raw_items = payload.get("items") or []
+    if not raw_items:
+        return [], [
+            {
+                "id": None,
+                "label": "Changes",
+                "field": "items",
+                "message": "No modified items were submitted.",
+            }
+        ]
+    if len(raw_items) > 200:
+        return [], [
+            {
+                "id": None,
+                "label": "Changes",
+                "field": "items",
+                "message": "Save no more than 200 modified items at once.",
+            }
+        ]
+    if not all(isinstance(item, dict) for item in raw_items):
+        return [], [
+            {
+                "id": None,
+                "label": "Changes",
+                "field": "items",
+                "message": "Each modified item must be a valid record.",
+            }
+        ]
+    return list(raw_items), []
+
+
+def _bulk_item_error(
+    *,
+    item_id: object,
+    label: str,
+    field: str,
+    message: str,
+) -> dict[str, object]:
+    return {
+        "id": item_id,
+        "label": str(label or "Record").strip() or "Record",
+        "field": field,
+        "message": message,
+    }
+
+
 def _branch_usage_counts(db: Session, branch_id: int) -> dict[str, int]:
     return {
         "users_count": db.query(models.User).filter(
@@ -599,6 +714,60 @@ def _branch_usage_counts(db: Session, branch_id: int) -> dict[str, int]:
             models.PlanningSection.branch_id == branch_id
         ).count(),
     }
+
+
+ACADEMIC_YEAR_USAGE_MODELS = (
+    ("users_count", "users", models.User),
+    ("notifications_count", "notifications", models.SystemNotification),
+    ("calendar_event_types_count", "calendar event types", models.CalendarEventType),
+    ("calendar_events_count", "calendar events", models.CalendarEvent),
+    ("subjects_count", "subjects", models.Subject),
+    ("teachers_count", "teachers", models.Teacher),
+    ("observations_count", "observations", models.Observation),
+    ("planning_sections_count", "planning sections", models.PlanningSection),
+    ("timetable_settings_count", "timetable settings", models.TimetableSetting),
+    ("timetable_entries_count", "timetable entries", models.TimetableEntry),
+    ("hiring_plan_drafts_count", "hiring plan drafts", models.HiringPlanDraft),
+)
+
+
+def _academic_year_usage_counts(db: Session, academic_year_id: int) -> dict[str, int]:
+    return {
+        key: db.query(model).filter(
+            model.academic_year_id == academic_year_id
+        ).count()
+        for key, _label, model in ACADEMIC_YEAR_USAGE_MODELS
+    }
+
+
+def _build_academic_year_configuration_rows(
+    db: Session,
+    school_group_id: int,
+) -> list[dict[str, object]]:
+    rows = []
+    academic_years = db.query(models.AcademicYear).filter(
+        models.AcademicYear.school_group_id == school_group_id
+    ).order_by(models.AcademicYear.year_name.desc()).all()
+    for academic_year in academic_years:
+        usage_counts = _academic_year_usage_counts(db, academic_year.id)
+        linked_records_count = sum(int(count or 0) for count in usage_counts.values())
+        usage_summary = ", ".join(
+            f"{usage_counts[key]} {label}"
+            for key, label, _model in ACADEMIC_YEAR_USAGE_MODELS
+            if usage_counts[key]
+        )
+        rows.append(
+            {
+                "id": academic_year.id,
+                "year_name": academic_year.year_name,
+                "is_active": bool(academic_year.is_active),
+                "usage_counts": usage_counts,
+                "linked_records_count": linked_records_count,
+                "usage_summary": usage_summary,
+                "can_delete": linked_records_count == 0,
+            }
+        )
+    return rows
 
 
 def _build_branch_configuration_rows(
@@ -622,13 +791,27 @@ def _build_branch_configuration_rows(
         can_deactivate = not bool(branch.status) or active_branch_count > 1
         saved_region = str(branch.location or "").strip()
         normalized_region = _normalize_branch_region(saved_region)
+        legacy_location = location_service.infer_legacy_saudi_location(saved_region)
 
         branch_rows.append(
             {
                 "id": branch.id,
                 "school_group_id": getattr(branch, "school_group_id", None),
                 "name": str(branch.name or "").strip(),
-                "region": normalized_region or saved_region,
+                "country_code": str(getattr(branch, "country_code", "") or "").strip()
+                or (legacy_location.country_code if legacy_location else ""),
+                "country_name": str(getattr(branch, "country_name", "") or "").strip()
+                or (legacy_location.country_name if legacy_location else ""),
+                "region": legacy_location.region_name if legacy_location else (
+                    str(getattr(branch, "region_name", "") or "").strip()
+                    or normalized_region
+                    or saved_region
+                ),
+                "city": str(getattr(branch, "city_name", "") or "").strip(),
+                "district": str(getattr(branch, "district_name", "") or "").strip(),
+                "neighborhood": str(
+                    getattr(branch, "neighborhood_name", "") or ""
+                ).strip(),
                 "status": bool(branch.status),
                 "is_current_scope": scoped_branch_id == branch.id,
                 "usage_counts": usage_counts,
@@ -729,9 +912,6 @@ def _get_allowed_permission_keys(
     normalized_role = permission_registry.normalize_managed_role(role)
     if not normalized_role:
         return set()
-    if normalized_role == auth.ROLE_DEVELOPER:
-        return set(permission_registry.ALL_PERMISSION_KEYS)
-
     allowed_keys = permission_registry.get_default_permissions_for_role(normalized_role)
     for permission_row in _get_role_permission_rows(db, normalized_role, None):
         if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
@@ -746,7 +926,7 @@ def _get_allowed_permission_keys(
                     allowed_keys.add(permission_row.permission_key)
             else:
                 allowed_keys.discard(permission_row.permission_key)
-    return allowed_keys - permission_registry.DEVELOPER_ONLY_PERMISSION_KEYS
+    return permission_registry.constrain_role_permissions(normalized_role, allowed_keys)
 
 
 def _build_role_permission_payload(
@@ -777,13 +957,14 @@ def _set_role_permission_rows(
     updated_by_user_id: str | None,
 ):
     normalized_role = permission_registry.normalize_managed_role(role)
-    if not normalized_role or normalized_role == auth.ROLE_DEVELOPER:
+    if not normalized_role:
         return
 
     valid_keys = set(permission_registry.ALL_PERMISSION_KEYS)
-    allowed_keys = allowed_keys & valid_keys
-    if normalized_role != auth.ROLE_DEVELOPER:
-        allowed_keys -= permission_registry.DEVELOPER_ONLY_PERMISSION_KEYS
+    allowed_keys = permission_registry.constrain_role_permissions(
+        normalized_role,
+        allowed_keys & valid_keys,
+    )
     existing_rows = {
         row.permission_key: row
         for row in _get_role_permission_rows(db, normalized_role, school_group_id)
@@ -812,8 +993,6 @@ def _set_role_permission_rows(
 
 def _seed_global_role_permissions(db: Session):
     for role in permission_registry.MANAGED_ROLES:
-        if role == auth.ROLE_DEVELOPER:
-            continue
         if _get_role_permission_rows(db, role, None):
             continue
         _set_role_permission_rows(
@@ -846,11 +1025,20 @@ def _ensure_default_school_group(db: Session):
         school_group = models.SchoolGroup(
             name=DEFAULT_SCHOOL_GROUP_NAME,
             status=True,
+            country_code="SA",
+            country_name="Saudi Arabia",
         )
         db.add(school_group)
         db.flush()
 
     changed = False
+    if (
+        school_group.name == DEFAULT_SCHOOL_GROUP_NAME
+        and not str(getattr(school_group, "country_code", "") or "").strip()
+    ):
+        school_group.country_code = "SA"
+        school_group.country_name = "Saudi Arabia"
+        changed = True
     branches_without_group = db.query(models.Branch).filter(
         models.Branch.school_group_id.is_(None)
     ).all()
@@ -875,7 +1063,10 @@ def _ensure_default_school_group(db: Session):
                 models.Branch(
                     school_group_id=item.id,
                     name=item.name,
-                    location="Makkah Region",
+                    location="Makkah",
+                    country_code="SA",
+                    country_name="Saudi Arabia",
+                    region_name="Makkah",
                     status=True,
                 )
             )
@@ -8242,7 +8433,7 @@ async def inactivity_timeout_middleware(request: Request, call_next):
                 response = RedirectResponse(url="/?inactive=1", status_code=302)
                 return _clear_auth_session_cookies(response)
 
-            if path not in IDLE_TIMEOUT_EXEMPT_PATHS and not auth.is_developer(user):
+            if path not in IDLE_TIMEOUT_EXEMPT_PATHS and not auth.is_platform_user(user):
                 now_ts = int(time.time())
                 last_activity_raw = str(request.cookies.get(IDLE_TIMEOUT_COOKIE_KEY) or "").strip()
                 if last_activity_raw:
@@ -8265,7 +8456,7 @@ async def inactivity_timeout_middleware(request: Request, call_next):
             return permission_response
 
         response = await call_next(request)
-        if session_user_id and user and path not in IDLE_TIMEOUT_EXEMPT_PATHS and not auth.is_developer(user):
+        if session_user_id and user and path not in IDLE_TIMEOUT_EXEMPT_PATHS and not auth.is_platform_user(user):
             response.set_cookie(
                 key=IDLE_TIMEOUT_COOKIE_KEY,
                 value=str(int(time.time())),
@@ -8343,7 +8534,7 @@ def _render_login_entrypoint(
     current_user = auth.get_current_user(request, db)
     if current_user:
         return RedirectResponse(
-            url="/dashboard?info=already-logged-in",
+            url=("/platform" if auth.is_platform_user(current_user) else "/dashboard?info=already-logged-in"),
             status_code=302
         )
 
@@ -9148,7 +9339,11 @@ def login(
     active_branch_map = {
         branch.id: branch for branch in active_branches
     }
-    assigned_branch = active_branch_map.get(user.branch_id)
+    assigned_branch = (
+        None
+        if auth.is_platform_user(user)
+        else active_branch_map.get(user.branch_id)
+    )
 
     if not assigned_branch and not can_all_branch_scope:
         return _render_login_page(
@@ -9159,7 +9354,12 @@ def login(
             status_code=400
         )
 
-    if not assigned_branch and can_all_branch_scope and not active_branches:
+    if (
+        not assigned_branch
+        and can_all_branch_scope
+        and not active_branches
+        and not auth.is_platform_user(user)
+    ):
         return _render_login_page(
             request=request,
             db=db,
@@ -9168,12 +9368,20 @@ def login(
             status_code=400
         )
 
-    branch_scope_id = assigned_branch.id if assigned_branch else active_branches[0].id
+    branch_scope_id = None if auth.is_platform_user(user) else (
+        assigned_branch.id
+        if assigned_branch
+        else active_branches[0].id
+        if active_branches
+        else None
+    )
     branch_scope = active_branch_map.get(branch_scope_id)
     scope_school_group_id = getattr(branch_scope, "school_group_id", None) if branch_scope else None
 
     active_year = auth.get_active_academic_year_for_school_group(db, scope_school_group_id)
-    if not active_year:
+    if not active_year and auth.is_platform_user(user):
+        active_year = auth.get_latest_academic_year_for_school_group(db, scope_school_group_id)
+    if not active_year and not auth.is_platform_user(user):
         return _render_login_page(
             request=request,
             db=db,
@@ -9182,20 +9390,440 @@ def login(
             status_code=400
         )
 
-    if scope_school_group_id and getattr(user, "school_group_id", None) != scope_school_group_id:
+    if (
+        not auth.is_platform_user(user)
+        and scope_school_group_id
+        and getattr(user, "school_group_id", None) != scope_school_group_id
+    ):
         user.school_group_id = scope_school_group_id
         db.commit()
 
-    response = RedirectResponse(url="/dashboard", status_code=302)
+    response = RedirectResponse(
+        url="/platform" if auth.is_platform_user(user) else "/dashboard",
+        status_code=302,
+    )
     request.state.audit_actor_user_id = user.user_id
     request.state.audit_actor_username = user.username or ""
-    request.state.audit_actor_role = auth.normalize_role(user.role)
-    request.state.audit_actor_branch_id = user.branch_id
+    request.state.audit_actor_role = (
+        auth.normalize_platform_role(getattr(user, "platform_role", ""))
+        or auth.normalize_role(user.role)
+    )
+    request.state.audit_actor_branch_id = branch_scope_id
     auth.set_auth_session_cookie(response, user, request)
-    auth.set_scope_cookie(response, "branch_id", branch_scope_id, request)
-    auth.set_scope_cookie(response, "academic_year_id", active_year.id, request)
+    if auth.is_platform_user(user):
+        response.delete_cookie("school_group_id")
+        response.delete_cookie("branch_id")
+        response.delete_cookie("academic_year_id")
+    elif branch_scope_id:
+        auth.set_scope_cookie(response, "branch_id", branch_scope_id, request)
+    if active_year and not auth.is_platform_user(user):
+        auth.set_scope_cookie(response, "academic_year_id", active_year.id, request)
     auth.set_scope_cookie(response, IDLE_TIMEOUT_COOKIE_KEY, int(time.time()), request)
     return response
+
+
+@app.get("/platform", response_class=HTMLResponse)
+def platform_console(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+    if not auth.is_platform_user(current_user):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("system_owner.full_access",),
+            page_key="dashboard",
+            message="The Platform Console is available only to platform identities.",
+        )
+
+    school_groups = db.query(models.SchoolGroup).order_by(models.SchoolGroup.name.asc()).all()
+    branches = db.query(models.Branch).all()
+    tenant_user_count_by_branch = {
+        branch_id: count
+        for branch_id, count in db.query(
+            models.User.branch_id,
+            func.count(models.User.id),
+        ).filter(
+            models.User.user_type == auth.USER_TYPE_TENANT,
+            models.User.branch_id.isnot(None),
+        ).group_by(models.User.branch_id).all()
+    }
+    teacher_count_by_branch = {
+        branch_id: count
+        for branch_id, count in db.query(
+            models.Teacher.branch_id,
+            func.count(models.Teacher.id),
+        ).filter(
+            models.Teacher.branch_id.isnot(None),
+        ).group_by(models.Teacher.branch_id).all()
+    }
+    branches.sort(
+        key=lambda branch: (
+            branch.school_group_id or 0,
+            not bool(branch.status),
+            -(
+                int(tenant_user_count_by_branch.get(branch.id, 0) or 0)
+                + int(teacher_count_by_branch.get(branch.id, 0) or 0)
+            ),
+            str(branch.name or "").casefold(),
+        )
+    )
+    branch_count_by_group = {
+        group_id: count
+        for group_id, count in db.query(
+            models.Branch.school_group_id,
+            func.count(models.Branch.id),
+        ).group_by(models.Branch.school_group_id).all()
+    }
+    tenant_user_count_by_group = {
+        group_id: count
+        for group_id, count in db.query(
+            models.User.school_group_id,
+            func.count(models.User.id),
+        ).filter(
+            models.User.user_type == auth.USER_TYPE_TENANT,
+        ).group_by(models.User.school_group_id).all()
+    }
+    platform_owners = db.query(models.User).filter(
+        models.User.user_type == auth.USER_TYPE_PLATFORM,
+        models.User.platform_role == auth.PLATFORM_ROLE_OWNER,
+    ).order_by(models.User.id.asc()).all()
+    platform_developers = db.query(models.User).filter(
+        models.User.user_type == auth.USER_TYPE_PLATFORM,
+        models.User.platform_role == auth.PLATFORM_ROLE_DEVELOPER,
+    ).order_by(models.User.id.asc()).all()
+    developer_permission_keys = {
+        row.id: (
+            {
+                permission.permission_key
+                for permission in db.query(models.PlatformUserPermission).filter(
+                    models.PlatformUserPermission.platform_user_id == row.id,
+                    models.PlatformUserPermission.is_allowed == True,
+                ).all()
+            }
+            if bool(getattr(row, "platform_permissions_initialized", False))
+            else set(permission_registry.PLATFORM_DEVELOPER_DEFAULT_PERMISSION_KEYS)
+        )
+        for row in platform_developers
+    }
+    developer_permission_groups = []
+    for group in permission_registry.PERMISSION_GROUPS:
+        permissions = [
+            {"key": key, "label": label}
+            for key, label in group["permissions"]
+            if key in permission_registry.DEVELOPER_ASSIGNABLE_PERMISSION_KEYS
+        ]
+        if permissions:
+            developer_permission_groups.append(
+                {"key": group["key"], "label": group["label"], "permissions": permissions}
+            )
+
+    return templates.TemplateResponse(
+        request,
+        "platform_console.html",
+        {
+            "request": request,
+            "school_groups": school_groups,
+            "branches": branches,
+            "branch_count_by_group": branch_count_by_group,
+            "tenant_user_count_by_group": tenant_user_count_by_group,
+            "selected_school_group_id": getattr(current_user, "scope_school_group_id", None),
+            "platform_owners": platform_owners,
+            "platform_developers": platform_developers,
+            "developer_permission_keys": developer_permission_keys,
+            "developer_permission_groups": developer_permission_groups,
+            "developer_default_permission_keys": permission_registry.PLATFORM_DEVELOPER_DEFAULT_PERMISSION_KEYS,
+            "can_manage_ownership": auth.is_platform_owner(current_user),
+            "can_transfer_ownership": auth.is_primary_platform_owner(current_user),
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="platform",
+                title="Platform Console",
+                eyebrow="Global Access",
+                intro="Select any organization and branch, then enter its tenant workspace without changing your platform identity.",
+                icon="shield",
+            ),
+        },
+    )
+
+
+def _get_platform_owner_access(request: Request, db: Session, *, primary: bool = False):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return None, RedirectResponse(url="/", status_code=302)
+    allowed = (
+        auth.is_primary_platform_owner(current_user)
+        if primary
+        else auth.is_platform_owner(current_user)
+    )
+    if allowed:
+        return current_user, None
+    return (
+        None,
+        authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=(
+                "system_owner.transfer_ownership"
+                if primary
+                else "system_owner.manage_ownership"
+            ,),
+            page_key="platform",
+            message="Only the Platform Owner can perform this action.",
+        ),
+    )
+
+
+def _platform_account_storage_group_id(db: Session) -> int | None:
+    columns = inspect(db.get_bind()).get_columns("users")
+    school_group_column = next(
+        (column for column in columns if column.get("name") == "school_group_id"),
+        None,
+    )
+    if not school_group_column or bool(school_group_column.get("nullable", True)):
+        return None
+    return db.query(models.SchoolGroup.id).order_by(models.SchoolGroup.id.asc()).scalar()
+
+
+def _validate_platform_account_fields(
+    db: Session,
+    *,
+    user_id: str,
+    username: str,
+    email: str,
+    password: str,
+) -> list[str]:
+    errors = []
+    if not re.fullmatch(r"\d{1,10}", user_id):
+        errors.append("Platform user ID must be numeric and up to 10 digits.")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{3,50}", username):
+        errors.append("Username must be 3-50 letters, numbers, dots, dashes, or underscores.")
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        errors.append("Enter a valid email address.")
+    if len(password) < 12:
+        errors.append("Platform account passwords must be at least 12 characters.")
+    duplicate = db.query(models.User).filter(
+        or_(
+            models.User.user_id == user_id,
+            models.User.username == username,
+            models.User.email == email,
+        )
+    ).first()
+    if duplicate:
+        errors.append("User ID, username, or email already exists.")
+    return errors
+
+
+def _platform_console_error(message: str):
+    return RedirectResponse(
+        url=f"/platform?notice={quote_plus(message)}",
+        status_code=302,
+    )
+
+
+@app.post("/platform/developers")
+def create_platform_developer(
+    request: Request,
+    user_id: str = Form(...),
+    username: str = Form(...),
+    email: str = Form(...),
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    password: str = Form(...),
+    permission_keys: list[str] = Form([]),
+    db: Session = Depends(get_db),
+):
+    current_user, denied = _get_platform_owner_access(request, db)
+    if denied:
+        return denied
+    user_id = str(user_id or "").strip()
+    username = str(username or "").strip().lower()
+    email = str(email or "").strip().lower()
+    password = str(password or "")
+    errors = _validate_platform_account_fields(
+        db,
+        user_id=user_id,
+        username=username,
+        email=email,
+        password=password,
+    )
+    if errors:
+        return _platform_console_error(" ".join(errors))
+    allowed_permissions = set(permission_keys) & set(
+        permission_registry.DEVELOPER_ASSIGNABLE_PERMISSION_KEYS
+    )
+    developer = models.User(
+        user_id=user_id,
+        username=username,
+        email=email,
+        first_name=str(first_name or "").strip(),
+        last_name=str(last_name or "").strip(),
+        password=get_password_hash(password),
+        user_type=auth.USER_TYPE_PLATFORM,
+        platform_role=auth.PLATFORM_ROLE_DEVELOPER,
+        platform_owner_kind=None,
+        platform_permissions_initialized=True,
+        access_scope=auth.ACCESS_SCOPE_GLOBAL,
+        role=None,
+        position=None,
+        school_group_id=_platform_account_storage_group_id(db),
+        branch_id=None,
+        academic_year_id=None,
+        is_active=True,
+    )
+    db.add(developer)
+    db.flush()
+    now = datetime.utcnow()
+    for permission_key in sorted(allowed_permissions):
+        db.add(
+            models.PlatformUserPermission(
+                platform_user_id=developer.id,
+                permission_key=permission_key,
+                is_allowed=True,
+                updated_by_user_id=current_user.user_id,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    db.commit()
+    return _redirect_with_notice("/platform", "Platform Developer created.")
+
+
+@app.post("/platform/developers/{developer_id}/permissions")
+def update_platform_developer_permissions(
+    developer_id: int,
+    request: Request,
+    permission_keys: list[str] = Form([]),
+    db: Session = Depends(get_db),
+):
+    current_user, denied = _get_platform_owner_access(request, db)
+    if denied:
+        return denied
+    developer = db.query(models.User).filter(
+        models.User.id == developer_id,
+        models.User.user_type == auth.USER_TYPE_PLATFORM,
+        models.User.platform_role == auth.PLATFORM_ROLE_DEVELOPER,
+    ).first()
+    if not developer:
+        return _platform_console_error("Developer account not found.")
+    allowed_permissions = set(permission_keys) & set(
+        permission_registry.DEVELOPER_ASSIGNABLE_PERMISSION_KEYS
+    )
+    db.query(models.PlatformUserPermission).filter(
+        models.PlatformUserPermission.platform_user_id == developer.id
+    ).delete(synchronize_session=False)
+    now = datetime.utcnow()
+    for permission_key in sorted(allowed_permissions):
+        db.add(
+            models.PlatformUserPermission(
+                platform_user_id=developer.id,
+                permission_key=permission_key,
+                is_allowed=True,
+                updated_by_user_id=current_user.user_id,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    developer.platform_permissions_initialized = True
+    db.commit()
+    return _redirect_with_notice("/platform", "Developer permissions updated.")
+
+
+@app.post("/platform/owners")
+def create_platform_co_owner(
+    request: Request,
+    user_id: str = Form(...),
+    username: str = Form(...),
+    email: str = Form(...),
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    current_user, denied = _get_platform_owner_access(request, db)
+    if denied:
+        return denied
+    user_id = str(user_id or "").strip()
+    username = str(username or "").strip().lower()
+    email = str(email or "").strip().lower()
+    password = str(password or "")
+    errors = _validate_platform_account_fields(
+        db,
+        user_id=user_id,
+        username=username,
+        email=email,
+        password=password,
+    )
+    if errors:
+        return _platform_console_error(" ".join(errors))
+    co_owner = models.User(
+        user_id=user_id,
+        username=username,
+        email=email,
+        first_name=str(first_name or "").strip(),
+        last_name=str(last_name or "").strip(),
+        password=get_password_hash(password),
+        user_type=auth.USER_TYPE_PLATFORM,
+        platform_role=auth.PLATFORM_ROLE_OWNER,
+        platform_owner_kind=auth.PLATFORM_OWNER_CO_OWNER,
+        platform_permissions_initialized=False,
+        access_scope=auth.ACCESS_SCOPE_GLOBAL,
+        role=None,
+        position=None,
+        school_group_id=_platform_account_storage_group_id(db),
+        branch_id=None,
+        academic_year_id=None,
+        is_active=True,
+    )
+    db.add(co_owner)
+    db.commit()
+    return _redirect_with_notice("/platform", "Co-Owner created.")
+
+
+@app.post("/platform/ownership/transfer")
+def transfer_platform_ownership(
+    request: Request,
+    target_user_id: str = Form(...),
+    current_password: str = Form(...),
+    confirmation: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    current_user, denied = _get_platform_owner_access(request, db, primary=True)
+    if denied:
+        return denied
+    if str(confirmation or "").strip() != "TRANSFER OWNERSHIP":
+        return _platform_console_error("Type TRANSFER OWNERSHIP exactly to confirm.")
+    if not auth.verify_password(str(current_password or ""), current_user.password):
+        return _platform_console_error("Current owner password is incorrect.")
+    target = db.query(models.User).filter(
+        models.User.user_id == str(target_user_id or "").strip(),
+        models.User.user_type == auth.USER_TYPE_PLATFORM,
+        models.User.is_active == True,
+    ).first()
+    if not target or target.id == current_user.id:
+        return _platform_console_error("Select another active platform user.")
+    db.query(models.User).filter(
+        models.User.user_type == auth.USER_TYPE_PLATFORM,
+        models.User.platform_owner_kind == auth.PLATFORM_OWNER_PRIMARY,
+    ).update(
+        {models.User.platform_owner_kind: auth.PLATFORM_OWNER_CO_OWNER},
+        synchronize_session=False,
+    )
+    target.platform_role = auth.PLATFORM_ROLE_OWNER
+    target.platform_owner_kind = auth.PLATFORM_OWNER_PRIMARY
+    target.platform_permissions_initialized = False
+    db.query(models.PlatformUserPermission).filter(
+        models.PlatformUserPermission.platform_user_id == target.id
+    ).delete(synchronize_session=False)
+    db.commit()
+    return _redirect_with_notice("/platform", "Primary ownership transferred.")
 
 
 # ---------------------------------------
@@ -10452,6 +11080,128 @@ def delete_demo_request(
     return _redirect_with_notice(safe_return_to, "Demo request deleted.")
 
 
+@app.post("/demo-requests/bulk-status")
+def bulk_update_demo_request_statuses(
+    request: Request,
+    payload: dict,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_demo_requests_access(
+        request,
+        db,
+        "demo_requests.update_status",
+    )
+    if redirect_response:
+        status_code = 401 if not current_user else 403
+        return _bulk_json_error(
+            [
+                _bulk_item_error(
+                    item_id=None,
+                    label="Demo Requests",
+                    field="permission",
+                    message=(
+                        "Authentication required."
+                        if not current_user
+                        else "You do not have permission to update demo request statuses."
+                    ),
+                )
+            ],
+            status_code=status_code,
+        )
+
+    items, errors = _bulk_payload_items(payload)
+    if errors:
+        return _bulk_json_error(errors, status_code=400)
+
+    parsed_items: list[tuple[int, dict[str, object]]] = []
+    seen_ids: set[int] = set()
+    for item in items:
+        raw_id = item.get("id")
+        try:
+            demo_request_id = int(raw_id)
+        except (TypeError, ValueError):
+            errors.append(
+                _bulk_item_error(
+                    item_id=raw_id,
+                    label="Demo Request",
+                    field="id",
+                    message="A valid demo request ID is required.",
+                )
+            )
+            continue
+        if demo_request_id in seen_ids:
+            errors.append(
+                _bulk_item_error(
+                    item_id=demo_request_id,
+                    label=f"Demo Request {demo_request_id}",
+                    field="id",
+                    message="This demo request was submitted more than once.",
+                )
+            )
+            continue
+        seen_ids.add(demo_request_id)
+        parsed_items.append((demo_request_id, item))
+
+    rows = db.query(models.DemoRequest).filter(
+        models.DemoRequest.id.in_([item_id for item_id, _item in parsed_items])
+    ).all() if parsed_items else []
+    row_map = {row.id: row for row in rows}
+    update_plan: list[tuple[object, str]] = []
+
+    for demo_request_id, item in parsed_items:
+        row = row_map.get(demo_request_id)
+        label = str(getattr(row, "school_name", "") or f"Demo Request {demo_request_id}").strip()
+        if not row:
+            errors.append(
+                _bulk_item_error(
+                    item_id=demo_request_id,
+                    label=label,
+                    field="id",
+                    message="Demo request was not found.",
+                )
+            )
+            continue
+        submitted_status = str(item.get("status") or "").strip()
+        normalized_status = next(
+            (
+                option
+                for option in DEMO_REQUEST_STATUSES
+                if option.casefold() == submitted_status.casefold()
+            ),
+            None,
+        )
+        if not normalized_status:
+            errors.append(
+                _bulk_item_error(
+                    item_id=demo_request_id,
+                    label=label,
+                    field="status",
+                    message="Select a valid demo request status.",
+                )
+            )
+            continue
+        update_plan.append((row, normalized_status))
+
+    if errors:
+        return _bulk_json_error(errors)
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    for row, normalized_status in update_plan:
+        row.status = normalized_status
+        row.status_updated_at = now
+        row.status_updated_by_user_id = getattr(current_user, "user_id", "")
+        row.updated_at = now
+    db.commit()
+    return JSONResponse(
+        {
+            "ok": True,
+            "saved_count": len(update_plan),
+            "message": f"Saved {len(update_plan)} modified demo request status"
+            + ("." if len(update_plan) == 1 else "es."),
+        }
+    )
+
+
 # ---------------------------------------
 # DEVELOPER: SYSTEM CONFIGURATION
 # ---------------------------------------
@@ -10543,7 +11293,7 @@ def _get_design_control_access(request: Request, db: Session):
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return None, RedirectResponse(url="/", status_code=302)
-    if not auth.is_developer(current_user) or not auth.has_permission(db, current_user, "design_control.manage"):
+    if not auth.is_platform_user(current_user) or not auth.has_permission(db, current_user, "design_control.manage"):
         return (
             None,
             authorization.build_access_denied_response(
@@ -10685,8 +11435,18 @@ def _build_school_logo_module_context(
             requested_group_id_int = int(requested_group_id)
         except ValueError:
             requested_group_id_int = None
+        if (
+            auth.is_platform_user(current_user)
+            and requested_group_id_int != user_school_group_id
+        ):
+            requested_group_id_int = None
         selected_group = next(
             (group for group in school_groups if group.id == requested_group_id_int),
+            None,
+        )
+    if not selected_group and user_school_group_id:
+        selected_group = next(
+            (group for group in school_groups if group.id == user_school_group_id),
             None,
         )
     if not selected_group and school_groups:
@@ -10809,6 +11569,69 @@ def system_configuration(
     )
 
 
+def _location_api_user_or_response(request: Request, db: Session):
+    current_user = auth.get_current_user(request, db)
+    if current_user:
+        return current_user, None
+    return None, JSONResponse(
+        {"detail": "Authentication required."},
+        status_code=401,
+    )
+
+
+@app.get("/api/locations/countries")
+def location_countries(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _current_user, error_response = _location_api_user_or_response(request, db)
+    if error_response:
+        return error_response
+    return JSONResponse(
+        {"items": location_service.list_countries()},
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
+@app.get("/api/locations/regions")
+def location_regions(
+    request: Request,
+    country_code: str = Query(..., min_length=2, max_length=2),
+    db: Session = Depends(get_db),
+):
+    _current_user, error_response = _location_api_user_or_response(request, db)
+    if error_response:
+        return error_response
+    try:
+        items = location_service.list_regions(country_code)
+    except location_service.LocationValidationError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+    return JSONResponse(
+        {"items": items},
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
+@app.get("/api/locations/cities")
+def location_cities(
+    request: Request,
+    country_code: str = Query(..., min_length=2, max_length=2),
+    region_id: int = Query(..., gt=0),
+    db: Session = Depends(get_db),
+):
+    _current_user, error_response = _location_api_user_or_response(request, db)
+    if error_response:
+        return error_response
+    try:
+        items = location_service.list_cities(country_code, region_id)
+    except location_service.LocationValidationError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+    return JSONResponse(
+        {"items": items},
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
 def _build_school_management_context(request: Request, db: Session, current_user):
     context = _build_school_logo_module_context(request, db, current_user)
     selected_school_group = context.get("selected_school_group")
@@ -10816,9 +11639,10 @@ def _build_school_management_context(request: Request, db: Session, current_user
     school_academic_year_rows = []
     school_branch_rows = []
     if school_group_id:
-        school_academic_year_rows = db.query(models.AcademicYear).filter(
-            models.AcademicYear.school_group_id == school_group_id
-        ).order_by(models.AcademicYear.year_name.desc()).all()
+        school_academic_year_rows = _build_academic_year_configuration_rows(
+            db,
+            school_group_id,
+        )
         school_branch_rows = [
             row
             for row in _build_branch_configuration_rows(db)
@@ -10828,6 +11652,11 @@ def _build_school_management_context(request: Request, db: Session, current_user
         **context,
         "school_academic_year_rows": school_academic_year_rows,
         "school_branch_rows": school_branch_rows,
+        "school_branch_region_options": sorted(
+            {str(row.get("region") or "").strip() for row in school_branch_rows}
+            - {""},
+            key=str.casefold,
+        ),
         "school_delete_summary": _build_school_delete_summary(db, school_group_id),
     }
 
@@ -10842,9 +11671,6 @@ def _build_role_permissions_context(request: Request, db: Session, current_user)
 
     requested_role = request.query_params.get("role", auth.ROLE_ADMINISTRATOR)
     selected_role = permission_registry.normalize_managed_role(requested_role) or auth.ROLE_ADMINISTRATOR
-    if selected_role == auth.ROLE_DEVELOPER and not can_manage_all:
-        selected_role = auth.ROLE_ADMINISTRATOR
-
     requested_scope = str(request.query_params.get("scope", "") or "").strip().lower()
     requested_group_id = request.query_params.get("school_group_id")
     selected_school_group = None
@@ -10868,10 +11694,7 @@ def _build_role_permissions_context(request: Request, db: Session, current_user)
             selected_school_group = school_groups[0]
             selected_school_group_id = selected_school_group.id
 
-    editable_roles = [
-        role for role in permission_registry.MANAGED_ROLES
-        if can_manage_all or role != auth.ROLE_DEVELOPER
-    ]
+    editable_roles = list(permission_registry.MANAGED_ROLES)
     permission_payload = _build_role_permission_payload(
         db,
         selected_role,
@@ -10895,7 +11718,6 @@ def _build_role_permissions_context(request: Request, db: Session, current_user)
         "can_manage_all_role_permissions": can_manage_all,
         "can_edit_selected_role_permissions": (
             auth.has_permission(db, current_user, "configuration.manage_permissions")
-            and selected_role != auth.ROLE_DEVELOPER
         ),
         "notice_message": str(request.query_params.get("notice", "") or "").strip(),
     }
@@ -10942,12 +11764,6 @@ def update_role_permissions(
             "/system-configuration/role-permissions",
             "Select a valid role.",
         )
-    if selected_role == auth.ROLE_DEVELOPER:
-        return _redirect_with_error(
-            "/system-configuration/role-permissions?role=Developer&scope=global",
-            "Developer permissions are always full access and cannot be restricted.",
-        )
-
     target_school_group_id = None
     if can_manage_all and str(scope_type or "").strip().lower() == "global":
         target_school_group_id = None
@@ -11166,6 +11982,13 @@ def system_configuration_schools(
 def create_school_group(
     request: Request,
     name: str = Form(...),
+    country_code: str = Form(""),
+    region_id: str = Form(""),
+    region_manual: str = Form(""),
+    city_id: str = Form(""),
+    city_manual: str = Form(""),
+    district_name: str = Form(""),
+    neighborhood_name: str = Form(""),
     return_to: str = Form("/system-configuration/schools"),
     db: Session = Depends(get_db),
 ):
@@ -11183,7 +12006,32 @@ def create_school_group(
     if existing:
         return _redirect_with_error(return_to, "A school/organization with that name already exists.")
 
-    school_group = models.SchoolGroup(name=cleaned_name, status=True)
+    try:
+        resolved_location = _resolve_submitted_location(
+            country_code=country_code,
+            region_id=region_id,
+            region_manual=region_manual,
+            city_id=city_id,
+            city_manual=city_manual,
+        )
+        cleaned_district = _normalize_location_detail(district_name, "District")
+        cleaned_neighborhood = _normalize_location_detail(
+            neighborhood_name,
+            "Neighborhood",
+        )
+    except location_service.LocationValidationError as exc:
+        return _redirect_with_error(return_to, str(exc))
+
+    school_group = models.SchoolGroup(
+        name=cleaned_name,
+        status=True,
+        country_code=resolved_location.country_code,
+        country_name=resolved_location.country_name,
+        region_name=resolved_location.region_name,
+        city_name=resolved_location.city_name,
+        district_name=cleaned_district,
+        neighborhood_name=cleaned_neighborhood,
+    )
     db.add(school_group)
     db.flush()
     try:
@@ -11198,7 +12046,13 @@ def create_school_group(
         models.Branch(
             school_group_id=school_group.id,
             name=cleaned_name,
-            location="Makkah Region",
+            location=resolved_location.region_name,
+            country_code=resolved_location.country_code,
+            country_name=resolved_location.country_name,
+            region_name=resolved_location.region_name,
+            city_name=resolved_location.city_name,
+            district_name=cleaned_district,
+            neighborhood_name=cleaned_neighborhood,
             status=True,
         )
     )
@@ -11215,6 +12069,13 @@ def update_school_group(
     request: Request,
     name: str = Form(...),
     status: str = Form("active"),
+    country_code: str = Form(""),
+    region_id: str = Form(""),
+    region_manual: str = Form(""),
+    city_id: str = Form(""),
+    city_manual: str = Form(""),
+    district_name: str = Form(""),
+    neighborhood_name: str = Form(""),
     return_to: str = Form("/system-configuration/schools"),
     db: Session = Depends(get_db),
 ):
@@ -11239,8 +12100,32 @@ def update_school_group(
     if duplicate:
         return _redirect_with_error(return_to, "Another school/organization already uses that name.")
 
+    try:
+        resolved_location = _resolve_submitted_location(
+            country_code=country_code,
+            region_id=region_id,
+            region_manual=region_manual,
+            city_id=city_id,
+            city_manual=city_manual,
+            required=False,
+        )
+        cleaned_district = _normalize_location_detail(district_name, "District")
+        cleaned_neighborhood = _normalize_location_detail(
+            neighborhood_name,
+            "Neighborhood",
+        )
+    except location_service.LocationValidationError as exc:
+        return _redirect_with_error(return_to, str(exc))
+
     school_group.name = cleaned_name
     school_group.status = str(status or "").strip().lower() != "inactive"
+    if resolved_location:
+        school_group.country_code = resolved_location.country_code
+        school_group.country_name = resolved_location.country_name
+        school_group.region_name = resolved_location.region_name
+        school_group.city_name = resolved_location.city_name
+    school_group.district_name = cleaned_district
+    school_group.neighborhood_name = cleaned_neighborhood
     school_group.updated_at = datetime.utcnow()
     db.commit()
     return _redirect_with_notice(
@@ -12080,6 +12965,13 @@ def create_branch(
     request: Request,
     name: str = Form(...),
     region: str = Form(""),
+    country_code: str = Form(""),
+    region_id: str = Form(""),
+    region_manual: str = Form(""),
+    city_id: str = Form(""),
+    city_manual: str = Form(""),
+    district_name: str = Form(""),
+    neighborhood_name: str = Form(""),
     school_group_id: int | None = Form(None),
     return_to: str = Form("/system-configuration/branches"),
     db: Session = Depends(get_db),
@@ -12098,7 +12990,6 @@ def create_branch(
 
     safe_return_to = _safe_redirect_path(return_to)
     cleaned_name = " ".join(str(name or "").split())
-    normalized_region = _normalize_branch_region(region)
 
     if not cleaned_name:
         return _redirect_with_error(
@@ -12106,11 +12997,22 @@ def create_branch(
             "Branch name is required.",
         )
 
-    if not normalized_region:
-        return _redirect_with_error(
-            safe_return_to,
-            "Select a valid Saudi Arabia region for the branch.",
+    try:
+        resolved_location = _resolve_submitted_location(
+            country_code=country_code,
+            region_id=region_id,
+            region_manual=region_manual,
+            city_id=city_id,
+            city_manual=city_manual,
+            legacy_region=region,
         )
+        cleaned_district = _normalize_location_detail(district_name, "District")
+        cleaned_neighborhood = _normalize_location_detail(
+            neighborhood_name,
+            "Neighborhood",
+        )
+    except location_service.LocationValidationError as exc:
+        return _redirect_with_error(safe_return_to, str(exc))
 
     existing_branch = db.query(models.Branch).filter(
         func.lower(models.Branch.name) == cleaned_name.lower()
@@ -12136,7 +13038,13 @@ def create_branch(
     db.add(
         models.Branch(
             name=cleaned_name,
-            location=normalized_region,
+            location=resolved_location.region_name,
+            country_code=resolved_location.country_code,
+            country_name=resolved_location.country_name,
+            region_name=resolved_location.region_name,
+            city_name=resolved_location.city_name,
+            district_name=cleaned_district,
+            neighborhood_name=cleaned_neighborhood,
             status=True,
             school_group_id=getattr(school_group, "id", None),
         )
@@ -12152,12 +13060,376 @@ def create_branch(
 # ---------------------------------------
 # DEVELOPER: UPDATE BRANCH
 # ---------------------------------------
+def _branch_record_is_in_user_scope(db: Session, current_user, branch_row) -> bool:
+    if auth.is_platform_user(current_user):
+        return True
+    access_scope = auth.get_access_scope(current_user)
+    if access_scope == auth.ACCESS_SCOPE_ORGANIZATION:
+        return getattr(branch_row, "school_group_id", None) == auth.get_user_school_group_id(
+            db,
+            current_user,
+        )
+    scoped_branch_id = getattr(current_user, "scope_branch_id", None) or getattr(
+        current_user,
+        "branch_id",
+        None,
+    )
+    return getattr(branch_row, "id", None) == scoped_branch_id
+
+
+@app.post("/system-configuration/branches/bulk-update")
+def bulk_update_branches(
+    request: Request,
+    payload: dict,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return _bulk_json_error(
+            [_bulk_item_error(item_id=None, label="Session", field="auth", message="Authentication required.")],
+            status_code=401,
+        )
+
+    can_edit = auth.has_permission(db, current_user, "branches.edit")
+    can_change_status = auth.has_permission(
+        db,
+        current_user,
+        "branches.activate_deactivate",
+    )
+    if not can_edit and not can_change_status:
+        return _bulk_json_error(
+            [
+                _bulk_item_error(
+                    item_id=None,
+                    label="Branches",
+                    field="permission",
+                    message="You do not have permission to update branches.",
+                )
+            ],
+            status_code=403,
+        )
+
+    items, errors = _bulk_payload_items(payload)
+    if errors:
+        return _bulk_json_error(errors, status_code=400)
+
+    parsed_items: list[tuple[int, dict[str, object]]] = []
+    seen_ids: set[int] = set()
+    for item in items:
+        raw_id = item.get("id")
+        try:
+            branch_id = int(raw_id)
+        except (TypeError, ValueError):
+            errors.append(
+                _bulk_item_error(
+                    item_id=raw_id,
+                    label="Branch",
+                    field="id",
+                    message="A valid branch ID is required.",
+                )
+            )
+            continue
+        if branch_id in seen_ids:
+            errors.append(
+                _bulk_item_error(
+                    item_id=branch_id,
+                    label=f"Branch {branch_id}",
+                    field="id",
+                    message="This branch was submitted more than once.",
+                )
+            )
+            continue
+        seen_ids.add(branch_id)
+        parsed_items.append((branch_id, item))
+
+    branch_rows = db.query(models.Branch).filter(
+        models.Branch.id.in_([branch_id for branch_id, _item in parsed_items])
+    ).all() if parsed_items else []
+    branch_map = {branch.id: branch for branch in branch_rows}
+    update_plan: list[dict[str, object]] = []
+
+    for branch_id, item in parsed_items:
+        branch_row = branch_map.get(branch_id)
+        label = str(getattr(branch_row, "name", "") or f"Branch {branch_id}").strip()
+        if not branch_row or not _branch_record_is_in_user_scope(db, current_user, branch_row):
+            errors.append(
+                _bulk_item_error(
+                    item_id=branch_id,
+                    label=label,
+                    field="id",
+                    message="Branch was not found or is outside your accessible scope.",
+                )
+            )
+            continue
+
+        submitted_changed_fields = item.get("_changed_fields")
+        changed_fields = (
+            {str(field) for field in submitted_changed_fields}
+            if isinstance(submitted_changed_fields, list)
+            else {str(field) for field in item.keys() if field not in {"id", "_changed_fields"}}
+        )
+        name_requested = "name" in changed_fields
+        status_requested = "status" in changed_fields
+        location_core_field_names = {
+            "region",
+            "country_code",
+            "region_id",
+            "region_manual",
+            "city_id",
+            "city_manual",
+        }
+        address_detail_field_names = {"district_name", "neighborhood_name"}
+        location_core_requested = bool(changed_fields & location_core_field_names)
+        address_detail_requested = bool(changed_fields & address_detail_field_names)
+        location_requested = location_core_requested or address_detail_requested
+
+        submitted_name = item.get("name") if name_requested else branch_row.name
+        cleaned_name = " ".join(str(submitted_name or "").split())
+        if name_requested and not can_edit:
+            errors.append(
+                _bulk_item_error(
+                    item_id=branch_id,
+                    label=label,
+                    field="name",
+                    message="You do not have permission to edit branch details.",
+                )
+            )
+        elif not cleaned_name:
+            errors.append(
+                _bulk_item_error(
+                    item_id=branch_id,
+                    label=label,
+                    field="name",
+                    message="Branch name is required.",
+                )
+            )
+
+        next_status = bool(branch_row.status)
+        if status_requested:
+            normalized_status = str(item.get("status") or "").strip().lower()
+            if normalized_status not in {"active", "inactive"}:
+                errors.append(
+                    _bulk_item_error(
+                        item_id=branch_id,
+                        label=label,
+                        field="status",
+                        message="Select a valid branch status.",
+                    )
+                )
+            else:
+                next_status = normalized_status == "active"
+                if next_status != bool(branch_row.status) and not can_change_status:
+                    errors.append(
+                        _bulk_item_error(
+                            item_id=branch_id,
+                            label=label,
+                            field="status",
+                            message="You do not have permission to activate or deactivate branches.",
+                        )
+                    )
+
+        resolved_location = None
+        cleaned_district = str(getattr(branch_row, "district_name", "") or "").strip()
+        cleaned_neighborhood = str(
+            getattr(branch_row, "neighborhood_name", "") or ""
+        ).strip()
+        if location_requested:
+            if not can_edit:
+                errors.append(
+                    _bulk_item_error(
+                        item_id=branch_id,
+                        label=label,
+                        field="location",
+                        message="You do not have permission to edit branch details.",
+                    )
+                )
+            elif location_core_requested:
+                try:
+                    resolved_location = _resolve_submitted_location(
+                        country_code=str(item.get("country_code") or ""),
+                        region_id=str(item.get("region_id") or ""),
+                        region_manual=str(item.get("region_manual") or ""),
+                        city_id=str(item.get("city_id") or ""),
+                        city_manual=str(item.get("city_manual") or ""),
+                        legacy_region=str(item.get("region") or ""),
+                        required=False,
+                    )
+                except location_service.LocationValidationError as exc:
+                    errors.append(
+                        _bulk_item_error(
+                            item_id=branch_id,
+                            label=label,
+                            field="location",
+                            message=str(exc),
+                        )
+                    )
+            if can_edit and address_detail_requested:
+                try:
+                    if "district_name" in changed_fields:
+                        cleaned_district = _normalize_location_detail(
+                            item.get("district_name"),
+                            "District",
+                        )
+                    if "neighborhood_name" in changed_fields:
+                        cleaned_neighborhood = _normalize_location_detail(
+                            item.get("neighborhood_name"),
+                            "Neighborhood",
+                        )
+                except location_service.LocationValidationError as exc:
+                    errors.append(
+                        _bulk_item_error(
+                            item_id=branch_id,
+                            label=label,
+                            field="address_detail",
+                            message=str(exc),
+                        )
+                    )
+
+        update_plan.append(
+            {
+                "row": branch_row,
+                "id": branch_id,
+                "label": label,
+                "name": cleaned_name,
+                "name_changed": name_requested and cleaned_name != str(branch_row.name or "").strip(),
+                "status": next_status,
+                "status_changed": status_requested and next_status != bool(branch_row.status),
+                "location": resolved_location,
+                "district": cleaned_district,
+                "district_changed": (
+                    "district_name" in changed_fields
+                    and cleaned_district
+                    != str(getattr(branch_row, "district_name", "") or "").strip()
+                ),
+                "neighborhood": cleaned_neighborhood,
+                "neighborhood_changed": (
+                    "neighborhood_name" in changed_fields
+                    and cleaned_neighborhood
+                    != str(getattr(branch_row, "neighborhood_name", "") or "").strip()
+                ),
+            }
+        )
+
+    final_names = {
+        branch.id: str(branch.name or "").strip()
+        for branch in db.query(models.Branch).all()
+    }
+    for planned in update_plan:
+        final_names[int(planned["id"])] = str(planned["name"])
+    name_counts: dict[str, int] = {}
+    for final_name in final_names.values():
+        normalized_name = final_name.casefold()
+        if normalized_name:
+            name_counts[normalized_name] = name_counts.get(normalized_name, 0) + 1
+    for planned in update_plan:
+        normalized_name = str(planned["name"]).casefold()
+        if planned["name_changed"] and name_counts.get(normalized_name, 0) > 1:
+            errors.append(
+                _bulk_item_error(
+                    item_id=planned["id"],
+                    label=str(planned["label"]),
+                    field="name",
+                    message="Another branch already uses this name.",
+                )
+            )
+
+    status_changed_group_ids = {
+        getattr(planned["row"], "school_group_id", None)
+        for planned in update_plan
+        if planned["status_changed"]
+    }
+    if status_changed_group_ids:
+        final_statuses = {
+            branch.id: bool(branch.status)
+            for branch in db.query(models.Branch).filter(
+                models.Branch.school_group_id.in_(status_changed_group_ids)
+            ).all()
+        }
+        for planned in update_plan:
+            final_statuses[int(planned["id"])] = bool(planned["status"])
+        for group_id in status_changed_group_ids:
+            group_branch_ids = {
+                branch.id
+                for branch in db.query(models.Branch.id).filter(
+                    models.Branch.school_group_id == group_id
+                ).all()
+            }
+            if group_branch_ids and not any(final_statuses.get(branch_id, False) for branch_id in group_branch_ids):
+                for planned in update_plan:
+                    if (
+                        getattr(planned["row"], "school_group_id", None) == group_id
+                        and planned["status_changed"]
+                        and not planned["status"]
+                    ):
+                        errors.append(
+                            _bulk_item_error(
+                                item_id=planned["id"],
+                                label=str(planned["label"]),
+                                field="status",
+                                message="At least one active branch must remain in the organization.",
+                            )
+                        )
+
+    if errors:
+        return _bulk_json_error(errors)
+
+    for planned in update_plan:
+        branch_row = planned["row"]
+        if planned["name_changed"]:
+            branch_row.name = planned["name"]
+        if planned["status_changed"]:
+            branch_row.status = planned["status"]
+        resolved_location = planned["location"]
+        if resolved_location:
+            branch_row.location = resolved_location.region_name
+            branch_row.country_code = resolved_location.country_code
+            branch_row.country_name = resolved_location.country_name
+            branch_row.region_name = resolved_location.region_name
+            branch_row.city_name = resolved_location.city_name
+        if planned["district_changed"]:
+            branch_row.district_name = planned["district"]
+        if planned["neighborhood_changed"]:
+            branch_row.neighborhood_name = planned["neighborhood"]
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return _bulk_json_error(
+            [
+                _bulk_item_error(
+                    item_id=None,
+                    label="Branches",
+                    field="database",
+                    message="Branch changes conflict with existing records.",
+                )
+            ],
+            status_code=409,
+        )
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "saved_count": len(update_plan),
+            "message": f"Saved {len(update_plan)} modified branch"
+            + ("." if len(update_plan) == 1 else "es."),
+        }
+    )
+
+
 @app.post("/system-configuration/branches/{branch_id}")
 def update_branch(
     branch_id: int,
     request: Request,
     name: str = Form(...),
     region: str = Form(""),
+    country_code: str = Form(""),
+    region_id: str = Form(""),
+    region_manual: str = Form(""),
+    city_id: str = Form(""),
+    city_manual: str = Form(""),
+    district_name: str = Form(""),
+    neighborhood_name: str = Form(""),
     status: str = Form("active"),
     return_to: str = Form("/system-configuration/branches"),
     db: Session = Depends(get_db),
@@ -12187,7 +13459,6 @@ def update_branch(
     safe_return_to, _, _ = _safe_redirect_path(return_to).partition("#")
 
     cleaned_name = " ".join(str(name or "").split())
-    normalized_region = _normalize_branch_region(region)
     normalized_status = str(status or "").strip().lower()
     next_status = normalized_status != "inactive"
 
@@ -12197,11 +13468,23 @@ def update_branch(
             "Branch name is required.",
         )
 
-    if not normalized_region:
-        return _redirect_with_error(
-            safe_return_to,
-            "Select a valid Saudi Arabia region for the branch.",
+    try:
+        resolved_location = _resolve_submitted_location(
+            country_code=country_code,
+            region_id=region_id,
+            region_manual=region_manual,
+            city_id=city_id,
+            city_manual=city_manual,
+            legacy_region=region,
+            required=False,
         )
+        cleaned_district = _normalize_location_detail(district_name, "District")
+        cleaned_neighborhood = _normalize_location_detail(
+            neighborhood_name,
+            "Neighborhood",
+        )
+    except location_service.LocationValidationError as exc:
+        return _redirect_with_error(safe_return_to, str(exc))
 
     duplicate_branch = db.query(models.Branch).filter(
         func.lower(models.Branch.name) == cleaned_name.lower(),
@@ -12227,7 +13510,14 @@ def update_branch(
         )
 
     branch_row.name = cleaned_name
-    branch_row.location = normalized_region
+    if resolved_location:
+        branch_row.location = resolved_location.region_name
+        branch_row.country_code = resolved_location.country_code
+        branch_row.country_name = resolved_location.country_name
+        branch_row.region_name = resolved_location.region_name
+        branch_row.city_name = resolved_location.city_name
+    branch_row.district_name = cleaned_district
+    branch_row.neighborhood_name = cleaned_neighborhood
     branch_row.status = next_status
     db.commit()
 
@@ -12499,6 +13789,71 @@ def delete_branch(
 
 
 # ---------------------------------------
+# ADMIN: DELETE EMPTY ACADEMIC YEAR
+# ---------------------------------------
+@app.post("/system-configuration/academic-years/{academic_year_id}/delete")
+def delete_academic_year(
+    academic_year_id: int,
+    request: Request,
+    return_to: str = Form("/system-configuration/schools"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "academic_years.delete"):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("academic_years.delete",),
+            page_key="system-configuration",
+        )
+
+    safe_return_to = _safe_redirect_path(return_to)
+    academic_year = db.query(models.AcademicYear).filter(
+        models.AcademicYear.id == academic_year_id
+    ).first()
+    if not academic_year:
+        return _redirect_with_error(safe_return_to, "Academic year record not found.")
+
+    if (
+        not _can_manage_all_school_scopes(db, current_user)
+        and academic_year.school_group_id != _get_user_school_group_id(db, current_user)
+    ):
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    usage_counts = _academic_year_usage_counts(db, academic_year.id)
+    linked_records_count = sum(int(count or 0) for count in usage_counts.values())
+    if linked_records_count:
+        usage_summary = ", ".join(
+            f"{usage_counts[key]} {label}"
+            for key, label, _model in ACADEMIC_YEAR_USAGE_MODELS
+            if usage_counts[key]
+        )
+        return _redirect_with_error(
+            safe_return_to,
+            "This academic year cannot be deleted because it contains "
+            f"{usage_summary}.",
+        )
+
+    db.delete(academic_year)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return _redirect_with_error(
+            safe_return_to,
+            "This academic year cannot be deleted because linked system data still exists.",
+        )
+
+    response = _redirect_with_notice(safe_return_to, "Academic year deleted successfully.")
+    if str(request.cookies.get("academic_year_id") or "") == str(academic_year_id):
+        response.delete_cookie("academic_year_id")
+    return response
+
+
+# ---------------------------------------
 # ADMIN: SET CURRENT YEAR
 # ---------------------------------------
 @app.post("/admin/current-year")
@@ -12656,6 +14011,42 @@ def set_scope_academic_year(
 
 
 # ---------------------------------------
+# SCOPE: SET CURRENT ORGANIZATION
+# ---------------------------------------
+@app.post("/scope/organization")
+def set_scope_organization(
+    request: Request,
+    school_group_id: int = Form(...),
+    return_to: str = Form("/platform"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+    if not auth.is_platform_user(current_user):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("system_owner.switch_all_schools",),
+            page_key="platform",
+            message="Only platform users can select an organization context.",
+        )
+
+    target_group = db.query(models.SchoolGroup).filter(
+        models.SchoolGroup.id == school_group_id
+    ).first()
+    if not target_group:
+        return RedirectResponse(url=_safe_redirect_path(return_to), status_code=302)
+
+    response = RedirectResponse(url=_safe_redirect_path(return_to), status_code=302)
+    auth.set_scope_cookie(response, "school_group_id", target_group.id, request)
+    response.delete_cookie("branch_id")
+    response.delete_cookie("academic_year_id")
+    return response
+
+
+# ---------------------------------------
 # SCOPE: SET CURRENT BRANCH
 # ---------------------------------------
 @app.post("/scope/branch")
@@ -12696,6 +14087,8 @@ def set_scope_branch(
     target_year = auth.get_academic_year_for_school_group(db, current_year_id, target_group_id)
     if not target_year:
         target_year = auth.get_active_academic_year_for_school_group(db, target_group_id)
+    if not target_year and auth.is_platform_user(current_user):
+        target_year = auth.get_latest_academic_year_for_school_group(db, target_group_id)
     if not target_year:
         return RedirectResponse(
             url=_safe_redirect_path(return_to),
@@ -12707,6 +14100,7 @@ def set_scope_branch(
         status_code=302,
     )
     auth.set_scope_cookie(response, "branch_id", target_branch.id, request)
+    auth.set_scope_cookie(response, "school_group_id", target_group_id, request)
     auth.set_scope_cookie(response, "academic_year_id", target_year.id, request)
     return response
 
@@ -13530,7 +14924,10 @@ def _ensure_gender_branches(db: Session):
             else:
                 boys_row = Branch(
                     name=boys_name,
-                    location="Makkah Region",
+                    location="Makkah",
+                    country_code="SA",
+                    country_name="Saudi Arabia",
+                    region_name="Makkah",
                     status=True,
                 )
                 db.add(boys_row)
@@ -13555,7 +14952,10 @@ def _ensure_gender_branches(db: Session):
             else:
                 girls_row = Branch(
                     name=girls_name,
-                    location="Makkah Region",
+                    location="Makkah",
+                    country_code="SA",
+                    country_name="Saudi Arabia",
+                    region_name="Makkah",
                     status=True,
                 )
                 db.add(girls_row)
@@ -13616,7 +15016,6 @@ def setup_initial_data():
     admin_user_id = os.getenv("ADMIN_USER_ID", "2623252018")
     admin_username = os.getenv("ADMIN_USERNAME", "developer")
     admin_password = os.getenv("ADMIN_PASSWORD")
-    admin_position = os.getenv("ADMIN_POSITION", "Developer")
 
     default_branch = _ensure_gender_branches(db)
     _ensure_default_school_group(db)
@@ -13631,6 +15030,15 @@ def setup_initial_data():
             Branch.status == True
         ).order_by(Branch.id.asc()).first()
     default_school_group_id = getattr(default_branch, "school_group_id", None)
+    user_school_group_nullable = next(
+        (
+            bool(column.get("nullable", True))
+            for column in inspect(engine).get_columns("users")
+            if column.get("name") == "school_group_id"
+        ),
+        True,
+    )
+    platform_storage_group_id = None if user_school_group_nullable else default_school_group_id
 
     legacy_position_map = {
         "Education Excelency": "Education Excellence",
@@ -13688,12 +15096,16 @@ def setup_initial_data():
             username=admin_username,
             first_name="mohamad",
             last_name="El Ghoche",
-            position=admin_position,
+            position=None,
             password=get_password_hash(bootstrap_password),
-            role=auth.ROLE_DEVELOPER,
-            school_group_id=default_school_group_id,
-            branch_id=default_branch.id if default_branch else None,
-            academic_year_id=academic_year.id,
+            role=None,
+            user_type=auth.USER_TYPE_PLATFORM,
+            platform_role=auth.PLATFORM_ROLE_OWNER,
+            platform_owner_kind=auth.PLATFORM_OWNER_PRIMARY,
+            access_scope=auth.ACCESS_SCOPE_GLOBAL,
+            school_group_id=platform_storage_group_id,
+            branch_id=None,
+            academic_year_id=None,
             is_active=True
         )
         db.add(admin_user)
@@ -13709,24 +15121,42 @@ def setup_initial_data():
             existing_user.username = admin_username
             updated = True
 
-        if not existing_user.position:
-            existing_user.position = admin_position
+        if existing_user.position is not None:
+            existing_user.position = None
             updated = True
 
-        if not existing_user.role:
-            existing_user.role = auth.ROLE_DEVELOPER
+        if existing_user.role is not None:
+            existing_user.role = None
             updated = True
 
-        if not existing_user.branch_id and default_branch:
-            existing_user.branch_id = default_branch.id
+        if auth.normalize_user_type(getattr(existing_user, "user_type", "")) != auth.USER_TYPE_PLATFORM:
+            existing_user.user_type = auth.USER_TYPE_PLATFORM
             updated = True
 
-        if default_school_group_id and getattr(existing_user, "school_group_id", None) != default_school_group_id:
-            existing_user.school_group_id = default_school_group_id
+        if auth.normalize_platform_role(getattr(existing_user, "platform_role", "")) != auth.PLATFORM_ROLE_OWNER:
+            existing_user.platform_role = auth.PLATFORM_ROLE_OWNER
             updated = True
 
-        if not existing_user.academic_year_id:
-            existing_user.academic_year_id = academic_year.id
+        if auth.normalize_platform_owner_kind(
+            getattr(existing_user, "platform_owner_kind", "")
+        ) != auth.PLATFORM_OWNER_PRIMARY:
+            existing_user.platform_owner_kind = auth.PLATFORM_OWNER_PRIMARY
+            updated = True
+
+        if auth.normalize_access_scope(getattr(existing_user, "access_scope", "")) != auth.ACCESS_SCOPE_GLOBAL:
+            existing_user.access_scope = auth.ACCESS_SCOPE_GLOBAL
+            updated = True
+
+        if existing_user.branch_id is not None:
+            existing_user.branch_id = None
+            updated = True
+
+        if getattr(existing_user, "school_group_id", None) != platform_storage_group_id:
+            existing_user.school_group_id = platform_storage_group_id
+            updated = True
+
+        if existing_user.academic_year_id is not None:
+            existing_user.academic_year_id = None
             updated = True
 
         if not existing_user.is_active:

@@ -44,6 +44,7 @@ PUBLIC_PATH_PATTERNS = (
 
 
 PROTECTED_ROUTE_RULES = (
+    PermissionRule(r"/platform", ("GET",), ("system_owner.full_access",), "platform"),
     PermissionRule(r"/dashboard", ("GET",), ("dashboard.view",), "dashboard"),
     PermissionRule(r"/dashboard/api/hiring-plan", ("GET",), ("hiring_plan.view",), "dashboard"),
     PermissionRule(r"/dashboard/api/hiring-plan/effective", ("GET",), ("hiring_plan.view",), "dashboard"),
@@ -174,6 +175,7 @@ PROTECTED_ROUTE_RULES = (
     PermissionRule(r"/system-configuration/schools/\d+", ("POST",), ("schools.edit",), "system-configuration"),
     PermissionRule(r"/system-configuration/schools/\d+/delete", ("POST",), ("schools.delete",), "system-configuration"),
     PermissionRule(r"/system-configuration/academic-years", ("GET",), ("academic_years.view",), "system-configuration"),
+    PermissionRule(r"/system-configuration/academic-years/\d+/delete", ("POST",), ("academic_years.delete",), "system-configuration"),
     PermissionRule(r"/system-configuration/branches", ("GET",), ("branches.view",), "system-configuration"),
     PermissionRule(r"/system-configuration/branches", ("POST",), ("branches.create",), "system-configuration"),
     PermissionRule(r"/system-configuration/branches/\d+", ("POST",), ("branches.edit", "branches.activate_deactivate"), "system-configuration", match="any"),

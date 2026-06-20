@@ -11,6 +11,12 @@ class Branch(Base):
     school_group_id = Column(Integer, ForeignKey("school_groups.id"), index=True)
     name = Column(String, nullable=False)
     location = Column(String)
+    country_code = Column(String(2))
+    country_name = Column(String(120))
+    region_name = Column(String(160))
+    city_name = Column(String(160))
+    district_name = Column(String(160))
+    neighborhood_name = Column(String(160))
     status = Column(Boolean, default=True)
 
 
@@ -19,6 +25,12 @@ class SchoolGroup(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(160), nullable=False, unique=True)
+    country_code = Column(String(2))
+    country_name = Column(String(120))
+    region_name = Column(String(160))
+    city_name = Column(String(160))
+    district_name = Column(String(160))
+    neighborhood_name = Column(String(160))
     status = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -124,18 +136,44 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(String(10), unique=True, index=True)
     username = Column(String(50), unique=True, index=True)
+    email = Column(String(180), unique=True, index=True)
     first_name = Column(String)
     last_name = Column(String)
     position = Column(String(50))
     password = Column(String)
     role = Column(String)
+    user_type = Column(String(20), nullable=False, default="TENANT", index=True)
+    platform_role = Column(String(40), index=True)
+    platform_owner_kind = Column(String(20), index=True)
+    platform_permissions_initialized = Column(Boolean, nullable=False, default=False)
+    access_scope = Column(String(20), nullable=False, default="BRANCH", index=True)
     profile_image_path = Column(String(255))
     profile_image_content_type = Column(String(50))
     profile_image_data = Column(LargeBinary)
-    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), index=True)
     branch_id = Column(Integer, ForeignKey("branches.id"))
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
     is_active = Column(Boolean, default=True)
+
+
+class PlatformUserPermission(Base):
+    __tablename__ = "platform_user_permissions"
+    __table_args__ = (
+        UniqueConstraint(
+            "platform_user_id",
+            "permission_key",
+            name="uq_platform_user_permissions_user_key",
+        ),
+        Index("ix_platform_user_permissions_user", "platform_user_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    platform_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    permission_key = Column(String(120), nullable=False, index=True)
+    is_allowed = Column(Boolean, nullable=False, default=True)
+    updated_by_user_id = Column(String(10))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
 class SystemNotification(Base):

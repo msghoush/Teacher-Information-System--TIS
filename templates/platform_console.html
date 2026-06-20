@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}Platform Console | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+.platform-toolbar { display:flex; justify-content:space-between; gap:16px; margin-bottom:16px; }
+.platform-search { width:min(420px,100%); border:1px solid #cbd5e1; border-radius:10px; padding:10px 12px; }
+.organization-list { display:grid; gap:12px; }
+.organization-card { background:#fff; border:1px solid #d8e2f0; border-radius:14px; box-shadow:0 7px 20px rgba(15,23,42,.05); overflow:hidden; }
+.organization-card summary { display:flex; align-items:center; justify-content:space-between; gap:16px; cursor:pointer; padding:16px 18px; list-style:none; }
+.organization-card summary::-webkit-details-marker { display:none; }
+.organization-title { display:grid; gap:4px; }
+.organization-title strong { font-size:17px; }
+.organization-meta { color:#64748b; font-size:13px; }
+.organization-summary-actions { display:flex; align-items:center; gap:8px; }
+.status-pill { border-radius:999px; padding:4px 9px; background:#e2e8f0; font-size:12px; font-weight:700; }
+.status-pill.active { background:#dcfce7; color:#166534; }
+.organization-content { border-top:1px solid #e8eef6; padding:14px 18px 18px; }
+.organization-actions { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.branch-list { display:grid; gap:8px; }
+.branch-row { display:flex; align-items:center; justify-content:space-between; gap:12px; border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; }
+.branch-copy { display:grid; gap:3px; }
+.muted { color:#64748b; font-size:13px; }
+.button { display:inline-flex; align-items:center; justify-content:center; border:0; border-radius:9px; background:#0a4ea3; color:#fff; cursor:pointer; font-weight:700; padding:8px 11px; text-decoration:none; }
+.button.secondary { background:#475569; }
+.button.danger { background:#b42318; }
+.ownership-form-action { margin-top:14px; }
+.platform-management { margin-top:22px; display:grid; gap:16px; }
+.management-card { background:#fff; border:1px solid #d8e2f0; border-radius:14px; padding:18px; }
+.management-card h2 { margin:0 0 5px; font-size:19px; }
+.form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; }
+.field { display:grid; gap:5px; }
+.field label { color:#334155; font-size:13px; font-weight:700; }
+.field input { border:1px solid #cbd5e1; border-radius:9px; padding:9px 10px; }
+.permission-groups { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:8px; margin:12px 0; }
+.permission-group { border:1px solid #e2e8f0; border-radius:9px; padding:8px 10px; }
+.permission-group summary { cursor:pointer; font-weight:700; }
+.permission-check { display:flex; gap:7px; align-items:flex-start; margin:7px 0; font-size:13px; }
+.account-row { border-top:1px solid #e2e8f0; padding:12px 0; }
+.account-row:first-of-type { border-top:0; }
+.account-head { display:flex; justify-content:space-between; gap:12px; margin-bottom:8px; }
+.notice { background:#eff6ff; color:#1e3a8a; border-radius:10px; padding:10px 12px; margin-bottom:14px; }
+@media (max-width:700px) { .platform-toolbar,.organization-card summary,.branch-row,.account-head { align-items:stretch; flex-direction:column; } }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if request.query_params.get('notice') %}
+<div class="notice">{{ request.query_params.get('notice') }}</div>
+{% endif %}
+
+<div class="platform-toolbar">
+    <input class="platform-search" id="organizationSearch" type="search" placeholder="Search organizations or branches" aria-label="Search organizations or branches">
+    <span class="muted">{{ school_groups|length }} organizations</span>
+</div>
+
+<section class="organization-list" id="organizationList" aria-label="Organizations">
+    {% for group in school_groups %}
+    <details class="organization-card" data-organization-card data-search="{{ group.name|lower }} {% for branch in branches if branch.school_group_id == group.id %}{{ branch.name|lower }} {% endfor %}">
+        <summary>
+            <span class="organization-title">
+                <strong>{{ group.name }}</strong>
+                <span class="organization-meta">{{ branch_count_by_group.get(group.id, 0) }} branches | {{ tenant_user_count_by_group.get(group.id, 0) }} tenant users</span>
+            </span>
+            <span class="organization-summary-actions">
+                <span class="status-pill {% if group.status %}active{% endif %}">{{ "Active" if group.status else "Inactive" }}</span>
+                <span class="muted">Expand / Collapse</span>
+            </span>
+        </summary>
+        <div class="organization-content">
+            <div class="organization-actions">
+                <form method="post" action="/scope/organization">
+                    <input type="hidden" name="school_group_id" value="{{ group.id }}">
+                    <input type="hidden" name="return_to" value="/platform">
+                    <button class="button secondary" type="submit">Select Organization</button>
+                </form>
+                <form method="post" action="/scope/organization">
+                    <input type="hidden" name="school_group_id" value="{{ group.id }}">
+                    <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ group.id }}">
+                    <button class="button secondary" type="submit">Manage Organization</button>
+                </form>
+            </div>
+            <div class="branch-list">
+                {% for branch in branches if branch.school_group_id == group.id %}
+                <div class="branch-row">
+                    <span class="branch-copy">
+                        <strong>{{ branch.name }}</strong>
+                        <span class="muted">{{ branch.location or "Location not set" }} | {{ "Active" if branch.status else "Inactive" }}</span>
+                    </span>
+                    <form method="post" action="/scope/branch">
+                        <input type="hidden" name="branch_id" value="{{ branch.id }}">
+                        <input type="hidden" name="return_to" value="/dashboard">
+                        <button class="button" type="submit">Open Branch</button>
+                    </form>
+                </div>
+                {% else %}
+                <p class="muted">No branches configured.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </details>
+    {% else %}
+    <div class="management-card">No organizations configured.</div>
+    {% endfor %}
+</section>
+
+{% if can_manage_ownership %}
+<section class="platform-management" aria-label="Platform account management">
+    <article class="management-card">
+        <h2>Create Platform Developer</h2>
+        <p class="muted">Developer permissions are explicitly assigned and can never include ownership controls.</p>
+        <form method="post" action="/platform/developers">
+            <div class="form-grid">
+                <div class="field"><label for="developer_user_id">User ID</label><input id="developer_user_id" name="user_id" required></div>
+                <div class="field"><label for="developer_username">Username</label><input id="developer_username" name="username" required></div>
+                <div class="field"><label for="developer_email">Email</label><input id="developer_email" name="email" type="email" required></div>
+                <div class="field"><label for="developer_first_name">First Name</label><input id="developer_first_name" name="first_name" required></div>
+                <div class="field"><label for="developer_last_name">Last Name</label><input id="developer_last_name" name="last_name" required></div>
+                <div class="field"><label for="developer_password">Initial Password</label><input id="developer_password" name="password" type="password" minlength="12" required></div>
+            </div>
+            <div class="permission-groups">
+                {% for group in developer_permission_groups %}
+                <details class="permission-group">
+                    <summary>{{ group.label }}</summary>
+                    {% for permission in group.permissions %}
+                    <label class="permission-check"><input type="checkbox" name="permission_keys" value="{{ permission.key }}"> <span>{{ permission.label }}<br><small>{{ permission.key }}</small></span></label>
+                    {% endfor %}
+                </details>
+                {% endfor %}
+            </div>
+            <button class="button" type="submit">Create Developer</button>
+        </form>
+    </article>
+
+    <article class="management-card">
+        <h2>Developer Accounts</h2>
+        {% for developer in platform_developers %}
+        <form class="account-row" method="post" action="/platform/developers/{{ developer.id }}/permissions">
+            <div class="account-head"><strong>{{ developer.first_name }} {{ developer.last_name }}</strong><span class="muted">{{ developer.email or developer.username }}</span></div>
+            <div class="permission-groups">
+                {% for group in developer_permission_groups %}
+                <details class="permission-group">
+                    <summary>{{ group.label }}</summary>
+                    {% for permission in group.permissions %}
+                    <label class="permission-check"><input type="checkbox" name="permission_keys" value="{{ permission.key }}" {% if permission.key in developer_permission_keys.get(developer.id, []) %}checked{% endif %}> <span>{{ permission.label }}</span></label>
+                    {% endfor %}
+                </details>
+                {% endfor %}
+            </div>
+            <button class="button secondary" type="submit">Save Developer Permissions</button>
+        </form>
+        {% else %}
+        <p class="muted">No Platform Developer accounts.</p>
+        {% endfor %}
+    </article>
+
+    <article class="management-card">
+        <h2>Ownership Management</h2>
+        <div>
+            {% for owner in platform_owners %}
+            <div class="account-row"><strong>{{ owner.first_name }} {{ owner.last_name }}</strong> <span class="status-pill">{{ owner.platform_owner_kind or "CO_OWNER" }}</span><br><span class="muted">{{ owner.email or owner.username }}</span></div>
+            {% endfor %}
+        </div>
+        <h3>Add Co-Owner</h3>
+        <form method="post" action="/platform/owners">
+            <div class="form-grid">
+                <div class="field"><label for="owner_user_id">User ID</label><input id="owner_user_id" name="user_id" required></div>
+                <div class="field"><label for="owner_username">Username</label><input id="owner_username" name="username" required></div>
+                <div class="field"><label for="owner_email">Email</label><input id="owner_email" name="email" type="email" required></div>
+                <div class="field"><label for="owner_first_name">First Name</label><input id="owner_first_name" name="first_name" required></div>
+                <div class="field"><label for="owner_last_name">Last Name</label><input id="owner_last_name" name="last_name" required></div>
+                <div class="field"><label for="owner_password">Initial Password</label><input id="owner_password" name="password" type="password" minlength="12" required></div>
+            </div>
+            <button class="button ownership-form-action" type="submit">Add Co-Owner</button>
+        </form>
+
+        {% if can_transfer_ownership %}
+        <h3>Transfer Primary Ownership</h3>
+        <p class="muted">The target must already be an active platform user. Your account will remain a Co-Owner.</p>
+        <form method="post" action="/platform/ownership/transfer">
+            <div class="form-grid">
+                <div class="field"><label for="target_user_id">Target Platform User ID</label><input id="target_user_id" name="target_user_id" required></div>
+                <div class="field"><label for="current_password">Current Password</label><input id="current_password" name="current_password" type="password" required></div>
+                <div class="field"><label for="confirmation">Type TRANSFER OWNERSHIP</label><input id="confirmation" name="confirmation" required></div>
+            </div>
+            <button class="button danger ownership-form-action" type="submit">Transfer Primary Ownership</button>
+        </form>
+        {% endif %}
+    </article>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+const organizationSearch = document.getElementById("organizationSearch");
+const organizationCards = Array.from(document.querySelectorAll("[data-organization-card]"));
+organizationSearch?.addEventListener("input", () => {
+    const term = organizationSearch.value.trim().toLowerCase();
+    organizationCards.forEach((card) => {
+        card.hidden = Boolean(term) && !card.dataset.search.includes(term);
+    });
+});
+</script>
+{% endblock %}

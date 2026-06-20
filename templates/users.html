@@ -744,6 +744,15 @@
                             <div class="role-permission-groups" data-role-permission-groups></div>
                         </div>
                         <div class="field">
+                            <label for="access_scope">Access Scope</label>
+                            <select id="access_scope" name="access_scope" required>
+                                {% for scope in access_scope_choices %}
+                                <option value="{{ scope }}">{{ scope }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="hint">ORGANIZATION includes every branch in this school group. BRANCH is limited to the assigned branch.</small>
+                        </div>
+                        <div class="field">
                             <label for="branch_id">Branch</label>
                             <select id="branch_id" name="branch_id" required>
                                 <option value="" selected disabled>Select Branch</option>
@@ -796,6 +805,7 @@
                                 <th>User ID</th>
                                 <th>Position</th>
                                 <th>Role</th>
+                                <th>Access Scope</th>
                                 <th>Branch</th>
                                 <th>Status</th>
                                 {% if can_edit_user_accounts or can_delete_user_accounts %}
@@ -835,12 +845,10 @@
                                 <td>{{ row.user_id or row.username or "-" }}</td>
                                 <td>{{ row.position or "-" }}</td>
                                 <td><span class="tag">{{ row.role }}</span></td>
+                                <td><span class="tag">{{ row.access_scope or "BRANCH" }}</span></td>
                                 <td>{{ branch_map.get(row.branch_id, "Not assigned") }}</td>
                                 <td>
                                     {% if can("users.activate_deactivate") and row.id in manageable_user_ids %}
-                                        {% if (row.role or "")|lower == "developer" %}
-                                        <span class="status-chip-dev">Always Active (Developer)</span>
-                                        {% else %}
                                         <form class="status-control" method="post" action="/users/status/{{ row.id }}">
                                             <label class="sr-only" for="status_{{ row.id }}">Status for {{ row.first_name }} {{ row.last_name }}</label>
                                             <select id="status_{{ row.id }}" class="status-select" name="is_active" aria-label="Status for {{ row.first_name }} {{ row.last_name }}">
@@ -851,7 +859,6 @@
                                                 {{ icon("save", "icon") }}
                                             </button>
                                         </form>
-                                        {% endif %}
                                     {% else %}
                                     {{ "Active" if row.is_active else "Inactive" }}
                                     {% endif %}
@@ -908,10 +915,43 @@
 <script>
 const rolePermissionSummaryMap = {{ role_permission_summary_map | tojson }};
 const searchInput = document.getElementById("usersSearch");
+const positionSelect = document.getElementById("position");
+const accessScopeSelect = document.getElementById("access_scope");
+const roleSelect = document.getElementById("role");
+const syncOrganizationReadOnlyPosition = () => {
+    if (!positionSelect || !accessScopeSelect || !roleSelect) return;
+    const locked = ["Education Excellence", "Management"].includes(positionSelect.value);
+    if (locked) {
+        accessScopeSelect.value = "ORGANIZATION";
+        roleSelect.value = "Limited";
+    }
+    accessScopeSelect.disabled = locked;
+    roleSelect.disabled = locked;
+    if (locked) {
+        for (const [id, name, value, parent] of [
+            ["access_scope_mirror", "access_scope", "ORGANIZATION", accessScopeSelect.parentElement],
+            ["role_mirror", "role", "Limited", roleSelect.parentElement],
+        ]) {
+            let mirror = document.getElementById(id);
+            if (!mirror) {
+                mirror = document.createElement("input");
+                mirror.type = "hidden";
+                mirror.id = id;
+                mirror.name = name;
+                parent.appendChild(mirror);
+            }
+            mirror.value = value;
+        }
+    } else {
+        document.getElementById("access_scope_mirror")?.remove();
+        document.getElementById("role_mirror")?.remove();
+    }
+    renderRolePermissions();
+};
+positionSelect?.addEventListener("change", syncOrganizationReadOnlyPosition);
         const rows = Array.from(document.querySelectorAll(".user-row"));
         const noResult = document.getElementById("noUsersResult");
         const userIdInput = document.getElementById("user_id");
-        const roleSelect = document.getElementById("role");
         const rolePermissionSummary = document.querySelector("[data-role-permission-summary]");
         const rolePermissionGroups = document.querySelector("[data-role-permission-groups]");
         const createUserForm = document.getElementById("createUserForm");
@@ -1086,6 +1126,7 @@ const searchInput = document.getElementById("usersSearch");
 
         if (roleSelect) {
             roleSelect.addEventListener("change", renderRolePermissions);
+            syncOrganizationReadOnlyPosition();
             renderRolePermissions();
         }
 

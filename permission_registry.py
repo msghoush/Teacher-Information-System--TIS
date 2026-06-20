@@ -2,7 +2,6 @@ import auth
 
 
 MANAGED_ROLES = (
-    auth.ROLE_DEVELOPER,
     auth.ROLE_ADMINISTRATOR,
     auth.ROLE_EDITOR,
     auth.ROLE_USER,
@@ -48,14 +47,12 @@ PERMISSION_GROUPS = (
             ("users.edit_profile", "Edit user profile"),
             ("users.assign_position", "Assign position"),
             ("users.assign_role", "Assign role"),
-            ("users.assign_developer_role", "Assign Developer role"),
             ("users.assign_branch", "Assign branch"),
             ("users.activate_deactivate", "Activate/deactivate users"),
             ("users.reset_password", "Reset user password"),
             ("users.delete", "Delete users"),
             ("users.bulk_delete", "Bulk delete users"),
             ("users.manage_profile_photo", "Manage profile photo"),
-            ("users.manage_developer_accounts", "Manage Developer accounts"),
         ),
     },
     {
@@ -180,6 +177,7 @@ PERMISSION_GROUPS = (
             ("academic_years.view", "View academic years"),
             ("academic_years.create", "Create academic years"),
             ("academic_years.activate", "Set current academic year"),
+            ("academic_years.delete", "Delete empty academic years"),
             ("branding.view", "View school branding"),
             ("branding.manage_school_logos", "Manage school logos"),
             ("branding.manage_branch_logos", "Manage branch logo overrides"),
@@ -217,7 +215,9 @@ PERMISSION_GROUPS = (
             ("system_owner.manage_subscriptions", "Manage SaaS subscriptions"),
             ("system_owner.create_subscription_school", "Create school from subscription"),
             ("system_owner.manage_global_role_permissions", "Manage global role permissions"),
-            ("system_owner.manage_developer_accounts", "Manage Developer accounts"),
+            ("system_owner.manage_developer_accounts", "Manage platform developer accounts"),
+            ("system_owner.manage_ownership", "Manage platform owners and co-owners"),
+            ("system_owner.transfer_ownership", "Transfer primary platform ownership"),
             ("system_owner.run_startup_repairs", "Run startup/schema repairs"),
             ("system_owner.view_cross_school_audit", "View cross-school audit"),
             ("system_owner.export_cross_school_data", "Export cross-school data"),
@@ -238,8 +238,6 @@ ALL_PERMISSION_KEYS = tuple(PERMISSION_LABELS.keys())
 
 DEVELOPER_ONLY_PERMISSION_KEYS = {
     "dashboard.view_all_schools",
-    "users.assign_developer_role",
-    "users.manage_developer_accounts",
     "schools.manage_all_schools",
     "configuration.export_audit_log",
     "configuration.manage_global_defaults",
@@ -314,8 +312,42 @@ _EDITOR_LIKE_PERMISSIONS = {
 }
 
 
+LIMITED_READ_ONLY_PERMISSION_KEYS = {
+    "dashboard.view",
+    "dashboard.view_branch_summary",
+    "subjects.view",
+    "teachers.view",
+    "planning.view",
+    "timetable.view",
+    "calendar.view",
+    "observations.view",
+    "notifications.view",
+    "reports.view",
+    "hiring_plan.view",
+}
+
+
+OWNER_ONLY_PERMISSION_KEYS = {
+    "system_owner.full_access",
+    "system_owner.manage_developer_accounts",
+    "system_owner.manage_ownership",
+    "system_owner.transfer_ownership",
+    "system_owner.manage_ownership",
+    "system_owner.transfer_ownership",
+}
+
+
+DEVELOPER_ASSIGNABLE_PERMISSION_KEYS = frozenset(
+    set(ALL_PERMISSION_KEYS) - OWNER_ONLY_PERMISSION_KEYS
+)
+
+
+PLATFORM_DEVELOPER_DEFAULT_PERMISSION_KEYS = frozenset(
+    DEVELOPER_ASSIGNABLE_PERMISSION_KEYS
+)
+
+
 DEFAULT_ROLE_PERMISSIONS = {
-    auth.ROLE_DEVELOPER: set(ALL_PERMISSION_KEYS),
     auth.ROLE_ADMINISTRATOR: {
         key
         for key in ALL_PERMISSION_KEYS
@@ -323,19 +355,7 @@ DEFAULT_ROLE_PERMISSIONS = {
     },
     auth.ROLE_EDITOR: set(_EDITOR_LIKE_PERMISSIONS),
     auth.ROLE_USER: set(_EDITOR_LIKE_PERMISSIONS),
-    auth.ROLE_LIMITED: {
-        "dashboard.view",
-        "dashboard.view_branch_summary",
-        "subjects.view",
-        "teachers.view",
-        "planning.view",
-        "timetable.view",
-        "calendar.view",
-        "observations.view",
-        "notifications.view",
-        "reports.view",
-        "hiring_plan.view",
-    },
+    auth.ROLE_LIMITED: set(LIMITED_READ_ONLY_PERMISSION_KEYS),
 }
 
 
@@ -348,16 +368,26 @@ def get_default_permissions_for_role(role: str) -> set[str]:
     normalized = normalize_managed_role(role)
     if not normalized:
         return set()
-    if normalized == auth.ROLE_DEVELOPER:
-        return set(ALL_PERMISSION_KEYS)
-    return set(DEFAULT_ROLE_PERMISSIONS.get(normalized, set())) - DEVELOPER_ONLY_PERMISSION_KEYS
+    return constrain_role_permissions(
+        normalized,
+        DEFAULT_ROLE_PERMISSIONS.get(normalized, set()),
+    )
+
+
+def constrain_role_permissions(role: str, permission_keys) -> set[str]:
+    normalized = normalize_managed_role(role)
+    allowed = set(permission_keys or ()) - DEVELOPER_ONLY_PERMISSION_KEYS
+    if normalized == auth.ROLE_LIMITED:
+        allowed &= LIMITED_READ_ONLY_PERMISSION_KEYS
+    return allowed
 
 
 def build_role_permission_payload(role: str, allowed_keys: set[str] | None = None) -> dict:
     normalized = normalize_managed_role(role)
-    allowed = set(allowed_keys or get_default_permissions_for_role(normalized))
-    if normalized != auth.ROLE_DEVELOPER:
-        allowed -= DEVELOPER_ONLY_PERMISSION_KEYS
+    allowed = constrain_role_permissions(
+        normalized,
+        allowed_keys if allowed_keys is not None else get_default_permissions_for_role(normalized),
+    )
     groups = []
     for group in PERMISSION_GROUPS:
         permissions = []
@@ -368,7 +398,13 @@ def build_role_permission_payload(role: str, allowed_keys: set[str] | None = Non
                     "key": permission_key,
                     "label": permission_label,
                     "developer_only": developer_only,
-                    "assignable": normalized == auth.ROLE_DEVELOPER or not developer_only,
+                    "assignable": (
+                        not developer_only
+                        and (
+                            normalized != auth.ROLE_LIMITED
+                            or permission_key in LIMITED_READ_ONLY_PERMISSION_KEYS
+                        )
+                    ),
                     "allowed": permission_key in allowed,
                 }
             )

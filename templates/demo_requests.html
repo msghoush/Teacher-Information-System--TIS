@@ -8,6 +8,7 @@
 {% endblock %}
 
 {% block page_styles %}
+<link rel="stylesheet" href="/static/css/save-all-changes.css">
 <style>
 .demo-requests-page { display: grid; gap: 14px; }
 .lead-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
@@ -58,7 +59,7 @@
         {% endfor %}
     </div>
 
-    <section class="lead-panel">
+    <section class="lead-panel" data-save-all-container data-save-all-endpoint="/demo-requests/bulk-status">
         <form class="lead-filters" method="get" action="/demo-requests">
             <div class="field">
                 <label for="filter_school_name">School Name</label>
@@ -92,6 +93,15 @@
             </div>
         </form>
 
+        {% if demo_requests and can("demo_requests.update_status") %}
+        <div class="save-all-toolbar" style="margin: 0 14px 14px;">
+            <span class="save-all-feedback" data-save-all-feedback role="status" aria-live="polite" hidden></span>
+            <button class="save-all-button" type="button" data-save-all-submit disabled>
+                Save All Changes (<span data-save-all-count>0</span>)
+            </button>
+        </div>
+        {% endif %}
+
         <div class="table-wrap">
             <table class="lead-table">
                 <thead>
@@ -113,7 +123,7 @@
                 </thead>
                 <tbody>
                     {% for item in demo_requests %}
-                    <tr>
+                    <tr data-save-all-row data-save-all-id="{{ item.id }}" data-save-all-form-id="demo_status_form_{{ item.id }}">
                         <td><time data-tis-local-time data-utc-timestamp="{{ timestamp_iso(item.submitted_at) }}">{{ format_timestamp(item.submitted_at, "Unknown") }}</time></td>
                         <td><a class="lead-link" href="/demo-requests/{{ item.id }}">{{ item.school_name or "-" }}</a></td>
                         <td>{{ item.full_name or "-" }}</td>
@@ -128,7 +138,7 @@
                         <td><span class="status-pill is-{{ (item.status or 'New')|lower|replace(' ', '-') }}">{{ item.status or "New" }}</span></td>
                         <td>
                             <div class="lead-actions">
-                                <form class="status-form" method="post" action="/demo-requests/{{ item.id }}/status">
+                                <form id="demo_status_form_{{ item.id }}" class="status-form" method="post" action="/demo-requests/{{ item.id }}/status">
                                     <input type="hidden" name="return_to" value="{{ return_to }}">
                                     <select name="status" aria-label="Update status for {{ item.school_name or 'demo request' }}">
                                         {% for status in status_options %}
@@ -142,6 +152,7 @@
                                     <input type="hidden" name="return_to" value="{{ return_to }}">
                                     <button class="action-btn action-btn-danger" type="submit">{{ icon("trash", "icon") }} Delete</button>
                                 </form>
+                                <span class="save-all-row-error" data-save-all-row-error role="alert" hidden></span>
                             </div>
                         </td>
                     </tr>
@@ -155,4 +166,23 @@
         </div>
     </section>
 </section>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="/static/js/save-all-changes.js"></script>
+<script>
+document.querySelectorAll("[data-save-all-container]").forEach((container) => {
+    container.addEventListener("tis:save-all-success", (event) => {
+        (event.detail.rows || []).forEach((row) => {
+            const select = row.querySelector('.status-form select[name="status"]');
+            const pill = row.querySelector(".status-pill");
+            if (!select || !pill) {
+                return;
+            }
+            pill.textContent = select.value;
+            pill.className = `status-pill is-${select.value.toLowerCase().replaceAll(" ", "-")}`;
+        });
+    });
+});
+</script>
 {% endblock %}

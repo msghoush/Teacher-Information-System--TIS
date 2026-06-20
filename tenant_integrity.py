@@ -26,12 +26,15 @@ def _table_count(db, model, *filters) -> int:
     return _count(query)
 
 
-def _missing_reference_count(db, model, reference_model, source_column):
-    return _count(
+def _missing_reference_count(db, model, reference_model, source_column, *filters):
+    query = (
         db.query(func.count(model.id))
         .outerjoin(reference_model, source_column == reference_model.id)
         .filter(source_column.isnot(None), reference_model.id.is_(None))
     )
+    for filter_clause in filters:
+        query = query.filter(filter_clause)
+    return _count(query)
 
 
 def _scope_group_mismatch_count(db, model):
@@ -61,37 +64,42 @@ def collect_tenant_integrity_issues(db) -> list[dict]:
     _add_issue(
         issues,
         "users_missing_school_group",
-        _table_count(db, models.User, models.User.school_group_id.is_(None)),
-        "Users must belong to a school group.",
+        _table_count(
+            db,
+            models.User,
+            models.User.user_type != "PLATFORM",
+            models.User.school_group_id.is_(None),
+        ),
+        "Tenant users must belong to a school group.",
     )
     _add_issue(
         issues,
         "users_missing_branch",
-        _table_count(db, models.User, models.User.branch_id.is_(None)),
-        "Users must have a branch assignment.",
+        _table_count(db, models.User, models.User.user_type != "PLATFORM", models.User.branch_id.is_(None)),
+        "Tenant users must have a branch assignment.",
     )
     _add_issue(
         issues,
         "users_missing_academic_year",
-        _table_count(db, models.User, models.User.academic_year_id.is_(None)),
-        "Users must have an academic year assignment.",
+        _table_count(db, models.User, models.User.user_type != "PLATFORM", models.User.academic_year_id.is_(None)),
+        "Tenant users must have an academic year assignment.",
     )
     _add_issue(
         issues,
         "users_branch_missing",
-        _missing_reference_count(db, models.User, models.Branch, models.User.branch_id),
+        _missing_reference_count(db, models.User, models.Branch, models.User.branch_id, models.User.user_type != "PLATFORM"),
         "Users reference a branch that does not exist.",
     )
     _add_issue(
         issues,
         "users_academic_year_missing",
-        _missing_reference_count(db, models.User, models.AcademicYear, models.User.academic_year_id),
+        _missing_reference_count(db, models.User, models.AcademicYear, models.User.academic_year_id, models.User.user_type != "PLATFORM"),
         "Users reference an academic year that does not exist.",
     )
     _add_issue(
         issues,
         "users_school_group_missing",
-        _missing_reference_count(db, models.User, models.SchoolGroup, models.User.school_group_id),
+        _missing_reference_count(db, models.User, models.SchoolGroup, models.User.school_group_id, models.User.user_type != "PLATFORM"),
         "Users reference a school group that does not exist.",
     )
     _add_issue(
@@ -100,7 +108,10 @@ def collect_tenant_integrity_issues(db) -> list[dict]:
         _count(
             db.query(func.count(models.User.id))
             .join(models.Branch, models.User.branch_id == models.Branch.id)
-            .filter(models.User.school_group_id != models.Branch.school_group_id)
+            .filter(
+                models.User.user_type != "PLATFORM",
+                models.User.school_group_id != models.Branch.school_group_id,
+            )
         ),
         "User school_group_id must match the assigned branch school group.",
     )

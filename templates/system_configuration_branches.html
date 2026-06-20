@@ -4,6 +4,7 @@
 {% block title %}Branch Management | TIS{% endblock %}
 
 {% block page_styles %}
+<link rel="stylesheet" href="/static/css/save-all-changes.css">
 <style>
     .config-page {
         display: grid;
@@ -401,7 +402,7 @@
         {% endfor %}
     </nav>
 
-    <section class="module-shell">
+    <section class="module-shell" data-save-all-container data-save-all-endpoint="/system-configuration/branches/bulk-update">
         <div class="module-head">
             <div class="module-copy">
                 <h2>Branch Management</h2>
@@ -434,6 +435,15 @@
         </form>
         {% endif %}
 
+        {% if branch_rows and can_any("branches.edit", "branches.activate_deactivate") %}
+        <div class="save-all-toolbar">
+            <span class="save-all-feedback" data-save-all-feedback role="status" aria-live="polite" hidden></span>
+            <button class="save-all-button" type="button" data-save-all-submit disabled>
+                Save All Changes (<span data-save-all-count>0</span>)
+            </button>
+        </div>
+        {% endif %}
+
         <div class="table-wrap">
             <table class="branch-table">
                 <thead>
@@ -456,7 +466,7 @@
                         </td>
                     </tr>
                     {% for row in group_rows %}
-                    <tr id="branch-row-{{ row.id }}" class="branch-row {% if not row.status %}is-inactive{% endif %}" data-branch-row-id="{{ row.id }}">
+                    <tr id="branch-row-{{ row.id }}" class="branch-row {% if not row.status %}is-inactive{% endif %}" data-branch-row-id="{{ row.id }}" data-save-all-row data-save-all-id="{{ row.id }}" data-save-all-form-id="branch_update_form_{{ row.id }}">
                         <td>
                             <div class="branch-read branch-name">
                                 <strong>{{ row.name }}</strong>
@@ -524,6 +534,7 @@
                                 <button class="action-btn action-btn-secondary js-branch-cancel" type="button" data-branch-row-id="{{ row.id }}">{{ icon("close", "icon") }} Cancel</button>
                             </div>
                             {% endif %}
+                            <span class="save-all-row-error" data-save-all-row-error role="alert" hidden></span>
                         </td>
                     </tr>
                     {% endfor %}
@@ -536,6 +547,7 @@
 {% endblock %}
 
 {% block page_scripts %}
+<script src="/static/js/save-all-changes.js"></script>
 <script>
     (function () {
         var rows = Array.prototype.slice.call(document.querySelectorAll("[data-branch-row-id]"));
@@ -545,8 +557,6 @@
                 var isTarget = row.getAttribute("data-branch-row-id") === String(targetRowId);
                 if (isTarget) {
                     row.classList.add("is-editing");
-                } else {
-                    row.classList.remove("is-editing");
                 }
             });
         }
@@ -560,6 +570,7 @@
             var fields = row.querySelectorAll(".branch-edit [data-initial]");
             fields.forEach(function (field) {
                 field.value = field.getAttribute("data-initial") || "";
+                field.dispatchEvent(new Event("change", { bubbles: true }));
             });
             row.classList.remove("is-editing");
         }

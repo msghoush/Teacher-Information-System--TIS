@@ -13,19 +13,34 @@ import bcrypt
 import models
 from dependencies import get_db
 
-ROLE_DEVELOPER = "Developer"
+ROLE_DEVELOPER = "Developer"  # Legacy value migrated to PLATFORM/Platform Developer.
 ROLE_ADMINISTRATOR = "Administrator"
 ROLE_EDITOR = "Editor"
 ROLE_USER = "User"
-ROLE_LIMITED = "Limited Access"
+ROLE_LIMITED = "Limited"
 ROLE_MANAGED_CHOICES = (
-    ROLE_DEVELOPER,
     ROLE_ADMINISTRATOR,
     ROLE_EDITOR,
     ROLE_USER,
     ROLE_LIMITED,
 )
+USER_TYPE_TENANT = "TENANT"
+USER_TYPE_PLATFORM = "PLATFORM"
+PLATFORM_ROLE_OWNER = "Platform Owner"
+PLATFORM_ROLE_DEVELOPER = "Platform Developer"
+PLATFORM_ROLE_CHOICES = (PLATFORM_ROLE_OWNER, PLATFORM_ROLE_DEVELOPER)
+PLATFORM_OWNER_PRIMARY = "PRIMARY"
+PLATFORM_OWNER_CO_OWNER = "CO_OWNER"
+PLATFORM_OWNER_KINDS = (PLATFORM_OWNER_PRIMARY, PLATFORM_OWNER_CO_OWNER)
+ACCESS_SCOPE_GLOBAL = "GLOBAL"
+ACCESS_SCOPE_ORGANIZATION = "ORGANIZATION"
+ACCESS_SCOPE_BRANCH = "BRANCH"
+TENANT_ACCESS_SCOPE_CHOICES = (ACCESS_SCOPE_ORGANIZATION, ACCESS_SCOPE_BRANCH)
 POSITION_EDUCATION_EXCELLENCE = "Education Excellence"
+POSITION_MANAGEMENT = "Management"
+ORGANIZATION_READ_ONLY_POSITIONS = frozenset(
+    {POSITION_EDUCATION_EXCELLENCE, POSITION_MANAGEMENT}
+)
 INACTIVE_ACCOUNT_MESSAGE = "Your account is currently inactive. Please contact the system developer."
 SESSION_COOKIE_KEY = "tis_session"
 SESSION_MAX_AGE_SECONDS = 8 * 60 * 60
@@ -79,6 +94,72 @@ def normalize_role(role: str) -> str:
     return cleaned
 
 
+def normalize_user_type(user_type: str) -> str:
+    cleaned = str(user_type or "").strip().upper()
+    return cleaned if cleaned in {USER_TYPE_TENANT, USER_TYPE_PLATFORM} else ""
+
+
+def normalize_platform_role(platform_role: str) -> str:
+    cleaned = str(platform_role or "").strip().lower()
+    if cleaned in {"owner", "platform owner"}:
+        return PLATFORM_ROLE_OWNER
+    if cleaned in {"developer", "platform developer"}:
+        return PLATFORM_ROLE_DEVELOPER
+    return ""
+
+
+def normalize_platform_owner_kind(owner_kind: str) -> str:
+    cleaned = str(owner_kind or "").strip().upper()
+    return cleaned if cleaned in PLATFORM_OWNER_KINDS else ""
+
+
+def normalize_access_scope(access_scope: str) -> str:
+    cleaned = str(access_scope or "").strip().upper()
+    if cleaned in {ACCESS_SCOPE_GLOBAL, ACCESS_SCOPE_ORGANIZATION, ACCESS_SCOPE_BRANCH}:
+        return cleaned
+    return ""
+
+
+def is_platform_user(user) -> bool:
+    user_type = normalize_user_type(getattr(user, "user_type", ""))
+    if user_type == USER_TYPE_PLATFORM:
+        return normalize_platform_role(getattr(user, "platform_role", "")) in PLATFORM_ROLE_CHOICES
+    if user_type == USER_TYPE_TENANT:
+        return False
+    # Compatibility for objects loaded before the platform-identity migration.
+    return normalize_role(getattr(user, "role", "")) == ROLE_DEVELOPER
+
+
+def is_platform_owner(user) -> bool:
+    return is_platform_user(user) and normalize_platform_role(
+        getattr(user, "platform_role", "")
+    ) == PLATFORM_ROLE_OWNER
+
+
+def is_platform_developer(user) -> bool:
+    if not is_platform_user(user):
+        return False
+    platform_role = normalize_platform_role(getattr(user, "platform_role", ""))
+    return platform_role == PLATFORM_ROLE_DEVELOPER or not platform_role
+
+
+def is_primary_platform_owner(user) -> bool:
+    return is_platform_owner(user) and normalize_platform_owner_kind(
+        getattr(user, "platform_owner_kind", "")
+    ) == PLATFORM_OWNER_PRIMARY
+
+
+def get_access_scope(user) -> str:
+    if is_platform_user(user):
+        return ACCESS_SCOPE_GLOBAL
+    access_scope = normalize_access_scope(getattr(user, "access_scope", ""))
+    if is_organization_read_only_position(getattr(user, "position", "")):
+        return ACCESS_SCOPE_ORGANIZATION
+    if access_scope in TENANT_ACCESS_SCOPE_CHOICES:
+        return access_scope
+    return ACCESS_SCOPE_BRANCH
+
+
 def normalize_position(position: str) -> str:
     if not position:
         return ""
@@ -87,6 +168,16 @@ def normalize_position(position: str) -> str:
     if lowered in {"education excellence", "education excelency"}:
         return POSITION_EDUCATION_EXCELLENCE
     return cleaned
+
+
+def is_organization_read_only_position(position: str) -> bool:
+    return normalize_position(position) in ORGANIZATION_READ_ONLY_POSITIONS
+
+
+def get_effective_tenant_role(user) -> str:
+    if is_organization_read_only_position(getattr(user, "position", "")):
+        return ROLE_LIMITED
+    return normalize_role(getattr(user, "role", ""))
 
 
 def _permission_registry_module():
@@ -103,7 +194,7 @@ def get_user_permission_keys(user) -> set[str]:
 
 
 def _has_cached_permission(user, permission_key: str) -> bool:
-    if is_developer(user):
+    if is_platform_owner(user):
         return True
     return str(permission_key or "").strip() in get_user_permission_keys(user)
 
@@ -113,7 +204,7 @@ def _has_any_cached_permission(user, permission_keys) -> bool:
 
 
 def _has_cached_permission_prefix(user, prefixes) -> bool:
-    if is_developer(user):
+    if is_platform_owner(user):
         return True
     cached_keys = get_user_permission_keys(user)
     return any(
@@ -152,14 +243,29 @@ def get_allowed_permission_keys(
     if not user or not is_user_active(user):
         return set()
 
+    if is_platform_owner(user):
+        return set(permission_registry.ALL_PERMISSION_KEYS)
+    if is_platform_developer(user):
+        if not bool(getattr(user, "platform_permissions_initialized", False)):
+            return set(permission_registry.PLATFORM_DEVELOPER_DEFAULT_PERMISSION_KEYS)
+        try:
+            rows = db.query(models.PlatformUserPermission).filter(
+                models.PlatformUserPermission.platform_user_id == user.id,
+                models.PlatformUserPermission.is_allowed == True,
+            ).all()
+        except Exception:
+            return set()
+        return {
+            row.permission_key
+            for row in rows
+            if row.permission_key in permission_registry.DEVELOPER_ASSIGNABLE_PERMISSION_KEYS
+        }
+
     normalized_role = permission_registry.normalize_managed_role(
-        getattr(user, "role", "")
+        get_effective_tenant_role(user)
     )
     if not normalized_role:
         return set()
-    if normalized_role == ROLE_DEVELOPER:
-        return set(permission_registry.ALL_PERMISSION_KEYS)
-
     resolved_school_group_id = school_group_id
     if resolved_school_group_id is None:
         resolved_school_group_id = (
@@ -196,7 +302,10 @@ def get_allowed_permission_keys(
                 else:
                     allowed_keys.discard(permission_row.permission_key)
 
-    allowed_keys -= permission_registry.DEVELOPER_ONLY_PERMISSION_KEYS
+    allowed_keys = permission_registry.constrain_role_permissions(
+        normalized_role,
+        allowed_keys,
+    )
     cached_permissions[cache_key] = frozenset(allowed_keys)
     user._permission_cache = cached_permissions
     return set(allowed_keys)
@@ -214,7 +323,7 @@ def has_permission(
         return True
     if not user or not is_user_active(user):
         return False
-    if is_developer(user):
+    if is_platform_owner(user):
         return True
     return cleaned_permission_key in get_allowed_permission_keys(
         db,
@@ -258,33 +367,11 @@ def has_all_permissions(
 
 
 def can_access_all_branches(user, db: Session | None = None) -> bool:
-    role = normalize_role(getattr(user, "role", ""))
-    raw_role = str(getattr(user, "role", "")).strip().lower()
-    position = normalize_position(getattr(user, "position", ""))
-
-    if role == ROLE_DEVELOPER:
-        return True
-
-    if raw_role in {"education excellence", "education excelency"}:
-        return True
-
-    if position == POSITION_EDUCATION_EXCELLENCE:
-        return True
-
-    if db is not None:
-        return has_any_permission(
-            db,
-            user,
-            "schools.manage_all_schools",
-            "dashboard.view_all_schools",
-            "system_owner.switch_all_schools",
-        )
-
-    return False
+    return get_access_scope(user) in {ACCESS_SCOPE_GLOBAL, ACCESS_SCOPE_ORGANIZATION}
 
 
 def is_developer(user) -> bool:
-    return normalize_role(getattr(user, "role", "")) == ROLE_DEVELOPER
+    return is_platform_developer(user)
 
 
 def is_user_active(user) -> bool:
@@ -292,7 +379,7 @@ def is_user_active(user) -> bool:
 
 
 def can_access_all_years(user, db: Session | None = None) -> bool:
-    if is_developer(user):
+    if is_platform_user(user):
         return True
     if db is not None:
         return has_any_permission(
@@ -316,11 +403,18 @@ def can_manage_users(user) -> bool:
 
 
 def can_modify_data(user) -> bool:
-    return _has_cached_permission_prefix(user, DATA_MODIFICATION_PERMISSION_PREFIXES)
+    if is_platform_owner(user):
+        return True
+    permission_registry = _permission_registry_module()
+    return any(
+        permission_key not in permission_registry.LIMITED_READ_ONLY_PERMISSION_KEYS
+        and any(permission_key.startswith(prefix) for prefix in DATA_MODIFICATION_PERMISSION_PREFIXES)
+        for permission_key in get_user_permission_keys(user)
+    )
 
 
 def can_edit_data(user) -> bool:
-    return _has_cached_permission_prefix(user, DATA_MODIFICATION_PERMISSION_PREFIXES)
+    return can_modify_data(user)
 
 
 def can_delete_data(user) -> bool:
@@ -334,7 +428,6 @@ def can_edit_user_accounts(user) -> bool:
             "users.edit_profile",
             "users.assign_position",
             "users.assign_role",
-            "users.assign_developer_role",
             "users.assign_branch",
             "users.activate_deactivate",
             "users.reset_password",
@@ -349,6 +442,10 @@ def can_delete_user_accounts(user) -> bool:
 def can_manage_target_user_account(current_user, target_user) -> bool:
     if not can_manage_users(current_user):
         return False
+    if is_platform_user(target_user):
+        return False
+    if is_platform_user(current_user):
+        return True
     current_group_id = getattr(current_user, "scope_school_group_id", None) or getattr(
         current_user,
         "school_group_id",
@@ -356,11 +453,6 @@ def can_manage_target_user_account(current_user, target_user) -> bool:
     )
     target_group_id = getattr(target_user, "school_group_id", None)
     if current_group_id and target_group_id and current_group_id != target_group_id:
-        return False
-    if is_developer(target_user) and not _has_any_cached_permission(
-        current_user,
-        ("users.manage_developer_accounts",),
-    ):
         return False
     return True
 
@@ -570,12 +662,21 @@ def get_branch_school_group_id(db: Session, branch_id) -> int | None:
 
 
 def get_user_school_group_id(db: Session, user) -> int | None:
+    if is_platform_user(user):
+        return None
     branch_group_id = get_branch_school_group_id(db, getattr(user, "branch_id", None))
     return branch_group_id or getattr(user, "school_group_id", None)
 
 
 def get_active_academic_year_for_school_group(db: Session, school_group_id: int | None):
     query = db.query(models.AcademicYear).filter(models.AcademicYear.is_active == True)
+    if school_group_id:
+        query = query.filter(models.AcademicYear.school_group_id == school_group_id)
+    return query.order_by(models.AcademicYear.id.desc()).first()
+
+
+def get_latest_academic_year_for_school_group(db: Session, school_group_id: int | None):
+    query = db.query(models.AcademicYear)
     if school_group_id:
         query = query.filter(models.AcademicYear.school_group_id == school_group_id)
     return query.order_by(models.AcademicYear.id.desc()).first()
@@ -591,12 +692,14 @@ def get_academic_year_for_school_group(db: Session, academic_year_id, school_gro
 
 
 def get_accessible_branch_query(db: Session, user):
+    access_scope = get_access_scope(user)
+    if access_scope == ACCESS_SCOPE_GLOBAL:
+        return db.query(models.Branch)
+
     query = db.query(models.Branch).filter(models.Branch.status == True)
-    if is_developer(user):
-        return query
 
     user_school_group_id = get_user_school_group_id(db, user)
-    if can_access_all_branches(user, db):
+    if access_scope == ACCESS_SCOPE_ORGANIZATION:
         if not user_school_group_id:
             return query.filter(models.Branch.id == -1)
         return query.filter(models.Branch.school_group_id == user_school_group_id)
@@ -619,10 +722,10 @@ def validate_branch_year_scope(
 ) -> bool:
     if current_user is not None and not can_access_branch(db, current_user, branch_id):
         return False
-    branch = db.query(models.Branch).filter(
-        models.Branch.id == branch_id,
-        models.Branch.status == True,
-    ).first()
+    branch_query = db.query(models.Branch).filter(models.Branch.id == branch_id)
+    if current_user is None or not is_platform_user(current_user):
+        branch_query = branch_query.filter(models.Branch.status == True)
+    branch = branch_query.first()
     if not branch:
         return False
     academic_year = db.query(models.AcademicYear).filter(
@@ -657,8 +760,11 @@ def get_notification_recipient_query(db: Session, current_user):
         db,
         current_user,
     )
-    query = _user_group_filter(db, query, scope_school_group_id)
-    if not is_developer(current_user):
+    if scope_school_group_id:
+        query = _user_group_filter(db, query, scope_school_group_id)
+    elif not is_platform_user(current_user):
+        query = query.filter(models.User.id == -1)
+    if get_access_scope(current_user) == ACCESS_SCOPE_BRANCH:
         scope_branch_id = getattr(current_user, "scope_branch_id", None) or getattr(current_user, "branch_id", None)
         query = query.filter(models.User.branch_id == scope_branch_id)
     return query
@@ -702,7 +808,7 @@ def get_current_user(
         return None
 
     user_school_group_id = get_user_school_group_id(db, user)
-    if not user_school_group_id and not is_developer(user):
+    if not user_school_group_id and not is_platform_user(user):
         request.state.auth_error = "missing_school_group"
         return None
 
@@ -710,15 +816,22 @@ def get_current_user(
         user.school_group_id = user_school_group_id
 
     branch_cookie = request.cookies.get("branch_id")
+    school_group_cookie = request.cookies.get("school_group_id")
     year_cookie = request.cookies.get("academic_year_id")
 
-    scoped_branch_id = user.branch_id
-    scoped_academic_year_id = user.academic_year_id
+    platform_user = is_platform_user(user)
+    scoped_branch_id = None if platform_user else user.branch_id
+    scoped_academic_year_id = None if platform_user else user.academic_year_id
 
     try:
         parsed_branch_id = int(branch_cookie) if branch_cookie else None
     except ValueError:
         parsed_branch_id = None
+
+    try:
+        parsed_school_group_id = int(school_group_cookie) if school_group_cookie else None
+    except ValueError:
+        parsed_school_group_id = None
 
     try:
         parsed_year_id = int(year_cookie) if year_cookie else None
@@ -729,31 +842,61 @@ def get_current_user(
     active_branches = get_accessible_branch_query(db, user).order_by(models.Branch.name.asc()).all()
     active_branch_ids = {branch.id for branch in active_branches}
 
+    selected_platform_group = None
+    if platform_user and parsed_school_group_id:
+        selected_platform_group = db.query(models.SchoolGroup).filter(
+            models.SchoolGroup.id == parsed_school_group_id
+        ).first()
+
     if can_all_branch_scope:
         if parsed_branch_id and parsed_branch_id in active_branch_ids:
-            scoped_branch_id = parsed_branch_id
-        elif user.branch_id in active_branch_ids:
+            parsed_branch = next(
+                (branch for branch in active_branches if branch.id == parsed_branch_id),
+                None,
+            )
+            if (
+                not selected_platform_group
+                or getattr(parsed_branch, "school_group_id", None) == selected_platform_group.id
+            ):
+                scoped_branch_id = parsed_branch_id
+        elif not platform_user and user.branch_id in active_branch_ids:
             scoped_branch_id = user.branch_id
-        elif active_branches:
+        elif not platform_user and active_branches:
             scoped_branch_id = active_branches[0].id
     elif parsed_branch_id and parsed_branch_id == user.branch_id:
         scoped_branch_id = parsed_branch_id
 
-    scoped_school_group_id = None
+    scoped_school_group_id = getattr(selected_platform_group, "id", None)
     if scoped_branch_id:
         scoped_branch = db.query(models.Branch).filter(
             models.Branch.id == scoped_branch_id
         ).first()
-        scoped_school_group_id = getattr(scoped_branch, "school_group_id", None) if scoped_branch else None
+        branch_group_id = getattr(scoped_branch, "school_group_id", None) if scoped_branch else None
+        if scoped_school_group_id and branch_group_id != scoped_school_group_id:
+            scoped_branch_id = None
+        else:
+            scoped_school_group_id = branch_group_id
 
-    active_year = get_active_academic_year_for_school_group(db, scoped_school_group_id)
+    active_year = (
+        get_active_academic_year_for_school_group(db, scoped_school_group_id)
+        if scoped_branch_id or not platform_user
+        else None
+    )
 
     can_all_year_scope = can_access_all_years(user, db)
-    selected_year = get_academic_year_for_school_group(db, parsed_year_id, scoped_school_group_id)
-    assigned_year = get_academic_year_for_school_group(
-        db,
-        getattr(user, "academic_year_id", None),
-        scoped_school_group_id,
+    selected_year = (
+        get_academic_year_for_school_group(db, parsed_year_id, scoped_school_group_id)
+        if scoped_branch_id or not platform_user
+        else None
+    )
+    assigned_year = (
+        get_academic_year_for_school_group(
+            db,
+            getattr(user, "academic_year_id", None),
+            scoped_school_group_id,
+        )
+        if not platform_user
+        else None
     )
     if can_all_year_scope and selected_year:
         scoped_academic_year_id = selected_year.id
@@ -763,6 +906,9 @@ def get_current_user(
         scoped_academic_year_id = assigned_year.id
     elif selected_year:
         scoped_academic_year_id = selected_year.id
+    elif is_platform_user(user) and scoped_branch_id and scoped_school_group_id:
+        latest_year = get_latest_academic_year_for_school_group(db, scoped_school_group_id)
+        scoped_academic_year_id = getattr(latest_year, "id", None)
 
     if scoped_branch_id and scoped_academic_year_id and not validate_branch_year_scope(
         db,
@@ -776,14 +922,18 @@ def get_current_user(
         else:
             scoped_academic_year_id = None
 
-    if not scoped_branch_id or not scoped_academic_year_id:
+    if (not scoped_branch_id or not scoped_academic_year_id) and not is_platform_user(user):
         request.state.auth_error = "missing_tenant_scope"
         return None
 
     user.scope_branch_id = scoped_branch_id
     user.scope_academic_year_id = scoped_academic_year_id
     user.scope_school_group_id = scoped_school_group_id
-    user.effective_role = normalize_role(user.role)
+    user.effective_role = (
+        normalize_platform_role(getattr(user, "platform_role", ""))
+        if is_platform_user(user)
+        else get_effective_tenant_role(user)
+    )
     user.effective_position = normalize_position(getattr(user, "position", ""))
     user.can_access_all_branches = can_all_branch_scope
     user.can_access_all_years = can_all_year_scope
@@ -798,6 +948,6 @@ def get_current_user(
     request.state.audit_actor_user_id = user.user_id
     request.state.audit_actor_username = user.username or ""
     request.state.audit_actor_role = normalize_role(user.role)
-    request.state.audit_actor_branch_id = user.branch_id
+    request.state.audit_actor_branch_id = scoped_branch_id
 
     return user
