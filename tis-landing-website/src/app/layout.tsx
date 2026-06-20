@@ -2,12 +2,12 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "TIS Platform | Smarter Teacher Planning for Modern Schools",
+  title: "TIS Platform | Connected Academic Operations for Schools",
   description:
-    "A secure SaaS platform for schools to manage teacher information, workloads, subjects, academic operations, and staffing needs.",
+    "A developing SaaS academic operations platform connecting teacher workforce planning, observations, calendars, branches, dashboards, and future AI-powered intelligence.",
   metadataBase: new URL("https://tisplatform.com"),
   icons: {
-    icon: "https://app.tisplatform.com/static/branding/tis/logos/TIS Logo \u2013 Full Color \u2013 Stacked Layout.png"
+    icon: "/branding/tis/logos/tis-wordmark-dark-blue.png"
   }
 };
 

@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { TisLogo } from "@/components/tis-logo";
 import {
   ArrowRight,
   BarChart3,
@@ -11,12 +10,17 @@ import {
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
+  Database,
+  Eye,
+  FileSpreadsheet,
   FileSearch,
   GraduationCap,
   LineChart,
   LoaderCircle,
   LockKeyhole,
+  Menu,
   MessageSquareText,
+  Network,
   Route,
   ShieldCheck,
   Sparkles,
@@ -24,7 +28,8 @@ import {
   TrendingUp,
   UserCheck,
   UserCog,
-  Users
+  Users,
+  X
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type {
@@ -40,10 +45,36 @@ import type { LucideIcon } from "lucide-react";
 const appPortalUrl = "https://app.tisplatform.com";
 
 const problems = [
-  "Teacher workload is hard to track across branches and academic years.",
-  "Subject allocation often depends on manual files and scattered updates.",
-  "Staffing gaps are discovered late, when timetables are already under pressure.",
-  "Leadership reports are difficult to trust when the source data is fragmented."
+  {
+    title: "Too Many Spreadsheets",
+    description:
+      "Academic work is scattered across different files, formats, and personal tracking systems.",
+    icon: FileSpreadsheet
+  },
+  {
+    title: "Inconsistent Data",
+    description:
+      "Each person or branch may structure information differently, making comparison and reporting difficult.",
+    icon: Database
+  },
+  {
+    title: "Heavy Staff Workload",
+    description:
+      "Teachers, supervisors, and coordinators carry the burden of repeatedly entering and updating data.",
+    icon: Users
+  },
+  {
+    title: "Delayed Visibility",
+    description:
+      "Leaders often discover staffing gaps, missing coverage, or academic issues after the problem has grown.",
+    icon: Eye
+  },
+  {
+    title: "Disconnected Decisions",
+    description:
+      "Calendars, observations, staffing, reports, and academic planning are managed separately.",
+    icon: Network
+  }
 ];
 
 const trustPoints = [
@@ -53,89 +84,226 @@ const trustPoints = [
   "Role-based access"
 ];
 
-const solutionPoints = [
+const heroStory = [
   {
-    title: "Centralize teacher planning data",
-    description:
-      "Keep teacher information, subject assignments, workload, and planning status in one secure workspace.",
-    icon: Users
+    label: "Scattered Files",
+    description: "Separate sheets, calendars, forms, and follow-up lists.",
+    icon: FileSpreadsheet
   },
   {
-    title: "Plan workload before the year starts",
-    description:
-      "Review coverage, available capacity, uncovered hours, and staffing needs before operations become reactive.",
-    icon: ClipboardCheck
+    label: "Connected Operations",
+    description: "One structured academic workflow inside TIS.",
+    icon: Network
   },
   {
-    title: "Give leaders a reliable operating view",
-    description:
-      "Support owners, principals, coordinators, and HR teams with shared planning visibility.",
+    label: "Clear Decisions",
+    description: "Visible gaps, priorities, progress, and required action.",
     icon: BarChart3
   }
 ];
 
+const solutionPoints = [
+  {
+    title: "One Source of Academic Truth",
+    description:
+      "Bring teacher data, workloads, observations, calendars, and staffing information into one connected system.",
+    icon: Database
+  },
+  {
+    title: "Clearer Leadership Visibility",
+    description:
+      "Help principals, academic leaders, and supervisors see what is happening, what is missing, and what requires action.",
+    icon: Eye
+  },
+  {
+    title: "Standardized Academic Processes",
+    description:
+      "Replace personal spreadsheet formats with a consistent way to manage academic operations across branches.",
+    icon: ClipboardCheck
+  },
+  {
+    title: "Smarter Staffing Decisions",
+    description:
+      "Identify teaching load issues, uncovered hours, subject gaps, and staffing needs before they become larger problems.",
+    icon: TrendingUp
+  },
+  {
+    title: "Connected School Communication",
+    description:
+      "Support coordination between leadership, supervisors, teachers, and branches through shared workflows.",
+    icon: MessageSquareText
+  },
+  {
+    title: "Ready for Future Intelligence",
+    description:
+      "Build the structured data foundation needed for advanced AI-powered features as TIS continues to grow.",
+    icon: Sparkles
+  }
+];
+
 const features = [
-  { title: "Teacher Information Management", icon: Users },
-  { title: "Subject & Workload Planning", icon: ClipboardCheck },
-  { title: "Staffing Need Forecasting", icon: TrendingUp },
-  { title: "Academic Observations", icon: GraduationCap },
-  { title: "Academic Calendar", icon: CalendarDays },
-  { title: "Reports & Analytics", icon: BarChart3 },
-  { title: "Multi-Branch Management", icon: Building2 },
-  { title: "Role-Based Access", icon: LockKeyhole }
+  {
+    title: "Academic Workforce Planning",
+    description:
+      "Plan teacher assignments, analyze weekly loads, identify uncovered hours, and understand staffing needs.",
+    icon: Users
+  },
+  {
+    title: "Academic Calendars & Shared Coordination",
+    description:
+      "Coordinate events, timelines, school priorities, and branch-level planning through shared calendars.",
+    icon: CalendarDays
+  },
+  {
+    title: "Observation & Supervision Workflows",
+    description:
+      "Manage structured observations, supervisor feedback, shared records, and signing workflows.",
+    icon: ClipboardCheck
+  },
+  {
+    title: "Multi-Branch Organization Management",
+    description:
+      "Support school groups, campuses, branches, users, roles, and tenant-isolated structures.",
+    icon: Building2
+  },
+  {
+    title: "Dashboards & Decision Visibility",
+    description:
+      "Give leaders a clearer view of coverage, staffing gaps, utilization, and follow-up needs.",
+    icon: BarChart3
+  },
+  {
+    title: "Future AI-Powered Intelligence",
+    description:
+      "Prepare for planned subscription-based AI capabilities grounded in verified academic data.",
+    icon: BrainCircuit
+  }
+];
+
+const workforceCapabilities = [
+  { title: "Teacher Load Visibility", icon: BarChart3 },
+  { title: "Subject Coverage Analysis", icon: Target },
+  { title: "Staffing Gap Detection", icon: TrendingUp },
+  { title: "Qualification-Based Planning", icon: GraduationCap },
+  { title: "New Teacher Requirement Insights", icon: Users },
+  { title: "Multi-Branch Workforce Clarity", icon: Building2 }
+];
+
+const observationCapabilities = [
+  { title: "Structured Observation Records", icon: ClipboardCheck },
+  { title: "Shared Teacher-Supervisor Visibility", icon: UserCheck },
+  { title: "Signing and Approval Workflow", icon: ShieldCheck },
+  { title: "Supervision Follow-Up", icon: MessageSquareText },
+  { title: "Planned AI-Suggested Improvement Plans", icon: Sparkles },
+  { title: "Leadership Oversight", icon: Eye }
+];
+
+const calendarCapabilities = [
+  { title: "Academic-Year-Based Calendar", icon: CalendarDays },
+  { title: "Shared School Coordination", icon: Users },
+  { title: "International Event Awareness", icon: Route },
+  { title: "Planned AI-Suggested Activities", icon: Sparkles },
+  { title: "Curriculum-Integrated Events", icon: GraduationCap },
+  { title: "SDG Awareness Planning", icon: Target }
+];
+
+const branchCapabilities = [
+  { title: "Organization and Branch Structure", icon: Building2 },
+  { title: "Role-Based User Management", icon: UserCog },
+  { title: "Tenant-Isolated Environment", icon: LockKeyhole },
+  { title: "Branch Progress Intelligence", icon: LineChart },
+  { title: "Branch Comparison Indicators", icon: BarChart3 },
+  { title: "Scalable SaaS Structure", icon: Network }
+];
+
+const dashboardCapabilities = [
+  { title: "Planning Completion Indicators", icon: ClipboardCheck },
+  { title: "Assessment Progress Visibility", icon: FileSearch },
+  { title: "Observation & Supervision Insights", icon: Eye },
+  { title: "Academic Calendar Integration", icon: CalendarDays },
+  { title: "Branch and Organization Dashboards", icon: Building2 },
+  { title: "Risk and Delay Alerts", icon: Target }
 ];
 
 const aiCapabilities = [
-  { title: "Exam analysis", icon: FileSearch },
-  { title: "Curriculum alignment review", icon: Route },
-  { title: "Academic supervision support", icon: UserCheck },
-  { title: "Assessment quality analysis", icon: Target },
-  { title: "Action plan generation", icon: ClipboardCheck },
-  { title: "Academic coaching recommendations", icon: MessageSquareText },
-  { title: "School performance insights", icon: LineChart }
+  { title: "Curriculum-to-Classroom AI Support", icon: Route },
+  { title: "AI-Assisted Assessment Generation", icon: FileSearch },
+  { title: "AI-Supported Observation Follow-Up", icon: UserCheck },
+  { title: "AI-Powered Calendar Planning", icon: CalendarDays },
+  { title: "Academic Analytics and Recommendations", icon: LineChart },
+  { title: "Subscription-Based AI Growth", icon: BrainCircuit }
+];
+
+const curriculumJourney = [
+  {
+    title: "Approved Curriculum Data",
+    description: "Uploaded standards, learning outcomes, objectives, and school requirements.",
+    icon: GraduationCap
+  },
+  {
+    title: "Guided Planning",
+    description: "Future support for annual, weekly, and lesson planning through approved templates.",
+    icon: ClipboardCheck
+  },
+  {
+    title: "Teacher Review & Approval",
+    description: "Teachers adjust and submit; academic leaders review and approve official planning data.",
+    icon: UserCheck
+  },
+  {
+    title: "Assessment & Insight",
+    description: "Planned assessment generation, answer keys, coverage analytics, and recommendations.",
+    icon: BarChart3
+  }
 ];
 
 const plans = [
   {
-    name: "Starter",
-    description: "For single schools organizing teacher records and core planning workflows.",
-    highlights: ["Teacher profiles", "Subject planning", "Core reports"]
+    name: "Core",
+    description:
+      "For schools that need structured teacher data, academic operations, basic planning visibility, and essential workflows.",
+    highlights: ["Teacher and subject operations", "Essential planning visibility", "Core academic workflows"]
   },
   {
     name: "Professional",
     description:
-      "For growing schools that need workload, staffing, and operations visibility.",
-    highlights: ["Workload planning", "Staffing insights", "Academic operations"]
+      "For schools that need stronger dashboards, shared calendars, observation workflows, and staffing visibility.",
+    highlights: ["Advanced dashboards", "Shared calendars and observations", "Staffing and team coordination"]
   },
   {
-    name: "Enterprise",
+    name: "Enterprise AI",
     description:
-      "For multi-branch school groups with advanced governance and support needs.",
-    highlights: ["Multi-branch oversight", "Advanced access control", "Onboarding support"]
+      "For school groups that need multi-branch visibility, customization, and progressively introduced AI intelligence.",
+    highlights: ["Multi-branch intelligence", "Advanced customization", "Planned AI-assisted capabilities"]
   }
 ];
 
-const showcaseImage = {
-  image: "/screenshots/2.png",
-  width: 1510,
-  height: 559,
-  alt: "Privacy-safe TIS view showing staffing demand, teacher coverage, and uncovered hours"
+const productImages = {
+  workforce: {
+    image: "/screenshots/10.png",
+    width: 1586,
+    height: 562,
+    alt: "Privacy-safe TIS planning table showing sections, subjects, assignments, and allocated hours"
+  },
+  observations: {
+    image: "/screenshots/13.png",
+    width: 1601,
+    height: 370,
+    alt: "Privacy-safe TIS observation workflow showing records, scores, signatures, and status"
+  },
+  calendar: {
+    image: "/screenshots/12.png",
+    width: 1587,
+    height: 626,
+    alt: "TIS academic calendar showing shared school events and monthly coordination"
+  },
+  dashboard: {
+    image: "/screenshots/7.png",
+    width: 1550,
+    height: 660,
+    alt: "TIS reports dashboard showing coverage, staffing plans, uncovered hours, and leadership indicators"
+  }
 };
-
-const aiParticles = [
-  { left: 8, top: 12, size: 6, delay: "0s", duration: "15s" },
-  { left: 17, top: 68, size: 4, delay: "-2s", duration: "13s" },
-  { left: 24, top: 38, size: 5, delay: "-4s", duration: "18s" },
-  { left: 31, top: 80, size: 3, delay: "-7s", duration: "12s" },
-  { left: 42, top: 15, size: 4, delay: "-5s", duration: "16s" },
-  { left: 48, top: 52, size: 6, delay: "-1s", duration: "14s" },
-  { left: 57, top: 30, size: 4, delay: "-8s", duration: "17s" },
-  { left: 63, top: 74, size: 5, delay: "-3s", duration: "15s" },
-  { left: 71, top: 20, size: 3, delay: "-6s", duration: "12s" },
-  { left: 77, top: 58, size: 5, delay: "-9s", duration: "19s" },
-  { left: 84, top: 36, size: 4, delay: "-2.5s", duration: "14s" },
-  { left: 91, top: 70, size: 6, delay: "-4.5s", duration: "18s" }
-];
 
 const initialDemoForm = {
   schoolName: "",
@@ -268,11 +436,18 @@ export default function Home() {
   return (
     <main className={cn("landing-page overflow-hidden bg-white", pageReady && "is-ready")}>
       <Header pageReady={pageReady} scrolled={headerScrolled} />
+      <MainPositioningSection />
       <Hero pageReady={pageReady} />
       <ProblemSection />
       <SolutionSection />
-      <ProductSection />
-      <AiAssistantSection />
+      <CoreCapabilitiesSection />
+      <WorkforcePlanningSection />
+      <ObservationSection />
+      <CalendarSection />
+      <MultiBranchSection />
+      <DashboardSection />
+      <FutureAiSection />
+      <CurriculumToClassroomSection />
       <PricingSection />
       <DemoSection />
       <Footer />
@@ -287,6 +462,8 @@ function Header({
   pageReady: boolean;
   scrolled: boolean;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
     <header
       className={cn(
@@ -295,43 +472,61 @@ function Header({
         scrolled && "is-scrolled"
       )}
     >
-      <div className="section-shell flex min-h-20 flex-col gap-4 py-4 md:flex-row md:items-center md:justify-between">
+      <div className="section-shell flex min-h-20 flex-col py-4 md:flex-row md:items-center md:justify-between">
         <div className="flex w-full items-center justify-between gap-3 md:w-auto">
-          <a href="#" className="focus-ring inline-flex items-center gap-3 rounded-xl px-1 py-1">
-            <TisLogo
-              theme="light"
-              layout="horizontal"
-              className="w-44 max-w-[46vw]"
+          <a href="#" className="focus-ring relative block h-12 w-44 overflow-hidden rounded-xl sm:w-48">
+            <Image
+              src="/branding/tis/logos/tis-full-color-horizontal.png"
+              alt="TIS Teacher Information System"
+              width={1563}
+              height={1563}
               priority
+              className="absolute left-1/2 top-1/2 h-44 w-44 max-w-none -translate-x-1/2 -translate-y-1/2 object-contain sm:h-48 sm:w-48"
             />
-            <span className="hidden text-lg font-bold tracking-[-0.02em] text-ink sm:inline">
-              TIS Platform
-            </span>
           </a>
 
-          <a
-            href={appPortalUrl}
-            className="focus-ring button-secondary inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-ocean md:hidden"
-          >
-            Login
-          </a>
+          <div className="flex items-center gap-2 md:hidden">
+            <a
+              href={appPortalUrl}
+              className="focus-ring button-secondary inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-ocean"
+            >
+              Login
+            </a>
+            <button
+              type="button"
+              className="focus-ring inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-ink shadow-sm"
+              aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={menuOpen}
+              aria-controls="mobile-navigation"
+              onClick={() => setMenuOpen((isOpen) => !isOpen)}
+            >
+              {menuOpen ? <X className="h-5 w-5" aria-hidden="true" /> : <Menu className="h-5 w-5" aria-hidden="true" />}
+            </button>
+          </div>
         </div>
 
         <nav
-          className="flex w-full flex-wrap items-center gap-x-5 gap-y-2 text-sm font-semibold text-slate-600 md:w-auto md:justify-center"
+          id="mobile-navigation"
+          className={cn(
+            "mt-4 w-full border-t border-slate-200 pt-3 text-sm font-semibold text-slate-600 md:mt-0 md:flex md:w-auto md:items-center md:justify-center md:gap-x-5 md:border-0 md:pt-0",
+            menuOpen ? "grid grid-cols-2 gap-2" : "hidden"
+          )}
           aria-label="Primary navigation"
         >
-          <a className="nav-link focus-ring rounded-md" href="#features">
+          <a className="nav-link focus-ring rounded-md px-2 py-2 md:px-0 md:py-0" href="#capabilities" onClick={() => setMenuOpen(false)}>
             Features
           </a>
-          <a className="nav-link focus-ring rounded-md" href="#how-it-works">
+          <a className="nav-link focus-ring rounded-md px-2 py-2 md:px-0 md:py-0" href="#solution" onClick={() => setMenuOpen(false)}>
             How It Works
           </a>
-          <a className="nav-link focus-ring rounded-md" href="#pricing">
+          <a className="nav-link focus-ring rounded-md px-2 py-2 md:px-0 md:py-0" href="#future-ai" onClick={() => setMenuOpen(false)}>
+            Future AI
+          </a>
+          <a className="nav-link focus-ring rounded-md px-2 py-2 md:px-0 md:py-0" href="#pricing" onClick={() => setMenuOpen(false)}>
             Pricing
           </a>
-          <a className="nav-link focus-ring rounded-md" href="#request-demo">
-            Request Demo
+          <a className="nav-link focus-ring rounded-md px-2 py-2 md:px-0 md:py-0" href="#request-demo" onClick={() => setMenuOpen(false)}>
+            Book a Demo
           </a>
         </nav>
 
@@ -346,13 +541,26 @@ function Header({
   );
 }
 
+function MainPositioningSection() {
+  return (
+    <section className="positioning-strip border-b border-white/10 bg-[#102532] text-white">
+      <div className="section-shell flex items-center justify-center gap-3 py-2.5 text-center">
+        <span className="h-2 w-2 shrink-0 rounded-full bg-teal-300 shadow-[0_0_16px_rgba(94,234,212,0.65)]" aria-hidden="true" />
+        <p className="text-xs leading-5 text-slate-200 sm:text-sm">
+          <strong className="font-bold text-white">Developing SaaS academic operations platform.</strong>{" "}
+          <span className="hidden md:inline">
+            Connecting leadership, teachers, branches, calendars, observations, staffing, and decisions.
+          </span>
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function Hero({ pageReady }: { pageReady: boolean }) {
   return (
     <section className="hero-section relative isolate overflow-hidden border-b border-slate-200/80">
       <div className="hero-grid" aria-hidden="true" />
-      <div className="hero-orb hero-orb-a" aria-hidden="true" />
-      <div className="hero-orb hero-orb-b" aria-hidden="true" />
-      <div className="hero-orb hero-orb-c" aria-hidden="true" />
       <div className="hero-float hero-float-a" aria-hidden="true" />
       <div className="hero-float hero-float-b" aria-hidden="true" />
 
@@ -366,7 +574,7 @@ function Hero({ pageReady }: { pageReady: boolean }) {
             style={{ "--enter-delay": "80ms" } as CSSProperties}
           >
             <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-            Secure SaaS for academic leadership teams
+            Built for Schools Moving Beyond Spreadsheets
           </div>
 
           <h1
@@ -376,7 +584,7 @@ function Hero({ pageReady }: { pageReady: boolean }) {
             )}
             style={{ "--enter-delay": "160ms" } as CSSProperties}
           >
-            Smarter Teacher Planning for Modern Schools
+            When Academic Decisions Are Scattered, Schools Lose Time, Clarity, and Control.
           </h1>
 
           <p
@@ -386,8 +594,9 @@ function Hero({ pageReady }: { pageReady: boolean }) {
             )}
             style={{ "--enter-delay": "240ms" } as CSSProperties}
           >
-            TIS Platform helps schools organize teacher data, assign subjects, plan
-            workloads, and identify staffing needs from one secure SaaS platform.
+            TIS brings teacher data, workloads, staffing gaps, academic calendars,
+            observations, and leadership decisions into one connected SaaS platform,
+            helping schools see what is happening, what is missing, and what needs action.
           </p>
 
           <div
@@ -401,28 +610,65 @@ function Hero({ pageReady }: { pageReady: boolean }) {
               href="#request-demo"
               className="focus-ring button-primary inline-flex h-12 items-center justify-center rounded-xl px-6 text-base font-bold text-white shadow-card"
             >
-              Request a Demo
+              Request Early Access
               <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
             </a>
             <a
-              href={appPortalUrl}
+              href="#solution"
               className="focus-ring button-tertiary inline-flex h-12 items-center justify-center rounded-xl px-6 text-base font-bold text-ink"
             >
-              Go to App Portal
+              See How TIS Works
             </a>
+          </div>
+
+          <p
+            className={cn(
+              "motion-enter mx-auto mt-5 max-w-2xl text-sm leading-6 text-slate-500",
+              pageReady && "is-visible"
+            )}
+            style={{ "--enter-delay": "380ms" } as CSSProperties}
+          >
+            A developing academic operations platform with advanced AI capabilities
+            planned through subscription-based growth.
+          </p>
+        </div>
+
+        <div
+          className={cn(
+            "motion-enter hero-story-flow mx-auto mt-10 max-w-5xl",
+            pageReady && "is-visible"
+          )}
+          style={{ "--enter-delay": "440ms" } as CSSProperties}
+        >
+          <div className="grid gap-3 md:grid-cols-3">
+            {heroStory.map((step, index) => {
+              const Icon = step.icon;
+
+              return (
+                <div key={step.label} className="hero-story-step relative flex items-start gap-4 p-4">
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white text-ocean shadow-sm">
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-ink">{step.label}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">{step.description}</p>
+                  </div>
+                  {index < heroStory.length - 1 ? (
+                    <ArrowRight className="hero-story-arrow absolute -right-3 top-1/2 z-10 hidden h-5 w-5 -translate-y-1/2 text-teal md:block" aria-hidden="true" />
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        <div className="mx-auto mt-14 grid max-w-5xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mx-auto mt-5 flex max-w-5xl flex-wrap justify-center gap-x-5 gap-y-2">
           {trustPoints.map((point, index) => (
             <Reveal key={point} delay={380 + index * 90}>
-              <InteractiveSurface
-                className="glass-card flex min-h-24 items-center gap-3 rounded-[1.35rem] border border-white/70 p-4 shadow-[0_18px_46px_rgba(15,23,42,0.08)]"
-                tone="teal"
-              >
-                <CheckCircle2 className="feature-icon h-5 w-5 shrink-0 text-teal" aria-hidden="true" />
-                <p className="text-sm font-bold leading-6 text-ink">{point}</p>
-              </InteractiveSurface>
+              <div className="flex items-center gap-2 px-2 py-1 text-xs font-bold text-slate-600 sm:text-sm">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-teal" aria-hidden="true" />
+                <span>{point}</span>
+              </div>
             </Reveal>
           ))}
         </div>
@@ -437,14 +683,19 @@ function ProblemSection() {
       <div className="section-shell grid gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
         <Reveal direction="left">
           <div>
-            <SectionLabel icon={Target}>Problem</SectionLabel>
+            <SectionLabel icon={Target}>The Problem</SectionLabel>
             <h2 className="mt-4 text-3xl font-bold leading-tight tracking-[-0.03em] text-ink sm:text-4xl">
-              Planning gets harder when teacher data lives in too many places.
+              Schools Are Not Short of Data. They Are Drowning in Disconnected Files.
             </h2>
             <p className="mt-4 text-base leading-7 text-slate-600">
-              Academic teams are expected to make staffing decisions quickly, but the
-              information they need is often split between spreadsheets, messages,
-              timetables, and last-minute reports.
+              Teacher loads, subject coverage, observations, calendars, reports, staffing
+              needs, and follow-up tasks are often managed in separate files, created by
+              different people in different formats.
+            </p>
+            <p className="mt-4 text-base leading-7 text-slate-600">
+              Staff spend more time updating files than understanding the data. Leaders
+              receive information late or inconsistently, and multi-branch organizations
+              face an even larger burden when every branch works differently.
             </p>
           </div>
         </Reveal>
@@ -452,16 +703,28 @@ function ProblemSection() {
         <Reveal direction="right">
           <div className="rounded-[1.75rem] border border-slate-200/80 bg-[linear-gradient(180deg,rgba(247,250,252,0.86)_0%,rgba(255,255,255,0.96)_100%)] p-3 shadow-soft">
             <div className="grid gap-3">
-              {problems.map((problem, index) => (
+              {problems.map((problem, index) => {
+                const Icon = problem.icon;
+
+                return (
                 <InteractiveSurface
-                  key={problem}
+                  key={problem.title}
                   className="rounded-[1.2rem] border border-slate-200/80 bg-white/95 p-5"
                   tone="ocean"
                   style={{ "--reveal-delay": `${120 + index * 60}ms` } as CSSProperties}
                 >
-                  <p className="text-base font-bold leading-7 text-ink">{problem}</p>
+                  <div className="flex items-start gap-4">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-skysoft text-ocean">
+                      <Icon className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <p className="text-base font-bold leading-7 text-ink">{problem.title}</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">{problem.description}</p>
+                    </div>
+                  </div>
                 </InteractiveSurface>
-              ))}
+                );
+              })}
             </div>
           </div>
         </Reveal>
@@ -473,7 +736,7 @@ function ProblemSection() {
 function SolutionSection() {
   return (
     <section
-      id="how-it-works"
+      id="solution"
       className="border-y border-slate-200/80 bg-[linear-gradient(180deg,#f8fbff_0%,#f7fafc_100%)] py-20"
     >
       <div className="section-shell">
@@ -481,16 +744,22 @@ function SolutionSection() {
           <div className="max-w-3xl">
             <SectionLabel icon={Sparkles}>Solution</SectionLabel>
             <h2 className="mt-4 text-3xl font-bold leading-tight tracking-[-0.03em] text-ink sm:text-4xl">
-              Move from scattered planning to one operating layer for academic decisions.
+              One Connected Platform to Bring Academic Operations Back Under Control.
             </h2>
             <p className="mt-4 text-base leading-7 text-slate-600">
-              TIS Platform gives school leaders a structured workflow for setting up the
-              academic year, planning teacher allocation, and monitoring staffing readiness.
+              TIS brings teacher data, workloads, subject coverage, academic calendars,
+              observations, supervision follow-up, branch structures, and leadership
+              decisions into one structured academic ecosystem.
+            </p>
+            <p className="mt-4 text-base leading-7 text-slate-600">
+              Schools can reduce manual confusion, standardize academic processes, improve
+              visibility, and make decisions with greater confidence while every branch
+              operates inside a secure, tenant-isolated environment.
             </p>
           </div>
         </Reveal>
 
-        <div className="mt-10 grid gap-5 lg:grid-cols-3">
+        <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           {solutionPoints.map((point, index) => {
             const Icon = point.icon;
             const directions: RevealDirection[] = ["left", "up", "right"];
@@ -498,7 +767,7 @@ function SolutionSection() {
             return (
               <Reveal
                 key={point.title}
-                direction={directions[index] ?? "up"}
+                direction={directions[index % directions.length] ?? "up"}
                 delay={80 + index * 80}
               >
                 <InteractiveSurface
@@ -525,111 +794,198 @@ function SolutionSection() {
   );
 }
 
-function ProductSection() {
+function CoreCapabilitiesSection() {
   return (
-    <section id="features" className="bg-white py-20">
+    <section id="capabilities" className="bg-white py-20">
       <div className="section-shell">
-        <div className="grid gap-12 lg:grid-cols-[0.82fr_1.18fr] lg:items-center">
-          <Reveal direction="left">
-            <div>
-              <SectionLabel icon={BarChart3}>Product</SectionLabel>
-              <h2 className="mt-4 text-3xl font-bold leading-tight tracking-[-0.03em] text-ink sm:text-4xl">
-                A calm command center for teacher workload, staffing, and academic visibility.
-              </h2>
-              <p className="mt-4 text-base leading-7 text-slate-600">
-                The product view supports the story without overwhelming it: leadership
-                teams can inspect coverage, staffing pressure, subject demand, and reports
-                from a single privacy-safe dashboard.
-              </p>
+        <Reveal>
+          <div className="mx-auto max-w-3xl text-center">
+            <SectionLabel icon={Network}>Core Platform Capabilities</SectionLabel>
+            <h2 className="mt-4 text-3xl font-bold leading-tight tracking-[-0.03em] text-ink sm:text-4xl">
+              Everything Your Academic Operation Needs, Connected in One Platform.
+            </h2>
+            <p className="mt-4 text-base leading-7 text-slate-600">
+              TIS brings teacher planning, branch management, observations, calendars,
+              dashboards, and a foundation for future AI-powered intelligence into one
+              structured SaaS environment.
+            </p>
+          </div>
+        </Reveal>
 
-              <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                {features.map((feature, index) => {
-                  const Icon = feature.icon;
-                  const direction = index % 2 === 0 ? "left" : "right";
+        <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {features.map((feature, index) => {
+            const Icon = feature.icon;
+            const directions: RevealDirection[] = ["left", "up", "right"];
 
-                  return (
-                    <Reveal key={feature.title} direction={direction} delay={80 + index * 40}>
-                      <InteractiveSurface
-                        className="feature-list-card flex items-center gap-3 rounded-[1.1rem] border border-slate-200/80 bg-white/90 p-3"
-                        tone="teal"
-                      >
-                        <div className="grid h-9 w-9 place-items-center rounded-xl bg-skysoft text-ocean">
-                          <Icon className="feature-icon h-4 w-4 shrink-0" aria-hidden="true" />
-                        </div>
-                        <p className="text-sm font-bold leading-5 text-ink">{feature.title}</p>
-                      </InteractiveSurface>
-                    </Reveal>
-                  );
-                })}
-              </div>
-            </div>
-          </Reveal>
-
-          <Reveal direction="right" delay={120}>
-            <ProductFrame
-              image={showcaseImage.image}
-              width={showcaseImage.width}
-              height={showcaseImage.height}
-              alt={showcaseImage.alt}
-            />
-          </Reveal>
+            return (
+              <Reveal
+                key={feature.title}
+                direction={directions[index % directions.length]}
+                delay={60 + index * 55}
+              >
+                <InteractiveSurface
+                  as="article"
+                  className="feature-card h-full rounded-[1.35rem] border border-slate-200/80 bg-white p-5 shadow-soft"
+                  tone={index === features.length - 1 ? "ai" : "ocean"}
+                >
+                  <div className="icon-badge grid h-12 w-12 place-items-center rounded-2xl bg-skysoft text-ocean">
+                    <Icon className="feature-icon h-5 w-5" aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-4 text-lg font-bold leading-7 text-ink">{feature.title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{feature.description}</p>
+                </InteractiveSurface>
+              </Reveal>
+            );
+          })}
         </div>
       </div>
     </section>
   );
 }
 
-function AiAssistantSection() {
+function WorkforcePlanningSection() {
+  return (
+    <ModuleBand
+      id="workforce-planning"
+      label="Teacher Workforce Planning Engine"
+      icon={Users}
+      title="Know Exactly Who Is Teaching What, and Where Support Is Needed."
+      paragraphs={[
+        "One of the strongest current capabilities of TIS is its ability to help schools understand their teaching workforce with clarity. Instead of calculating teacher loads, subject coverage, and staffing needs across separate files, TIS brings the information into one structured planning engine.",
+        "School leaders can track qualifications, majors, subject specialties, weekly teaching loads, assigned subjects, uncovered hours, and additional staffing requirements so gaps are identified earlier and decisions are based on clear data rather than assumptions."
+      ]}
+      capabilities={workforceCapabilities}
+      image={productImages.workforce}
+      className="border-y border-slate-200/80 bg-[linear-gradient(180deg,#f8fbff_0%,#f7fafc_100%)]"
+    />
+  );
+}
+
+function ObservationSection() {
+  return (
+    <ModuleBand
+      id="observations"
+      label="Observation & Supervision Workflows"
+      icon={ClipboardCheck}
+      title="Turn Teacher Observation into a Clear, Shared, and Accountable Process."
+      paragraphs={[
+        "TIS is designed to move teacher observation away from scattered forms, disconnected files, and informal follow-up. Observation records, supervisor feedback, teacher responses, signatures, and approval steps can become part of one structured workflow.",
+        "As the platform grows, planned AI-assisted supervision may help supervisors suggest improvement plans based on observation notes, evaluation results, performance evidence, and school-approved criteria."
+      ]}
+      capabilities={observationCapabilities}
+      image={productImages.observations}
+      imageFirst
+      className="bg-white"
+      futureNote="AI-assisted improvement plans are planned capabilities and are not presented as currently released."
+    />
+  );
+}
+
+function CalendarSection() {
+  return (
+    <ModuleBand
+      id="academic-calendar"
+      label="Academic Calendars & Shared Coordination"
+      icon={CalendarDays}
+      title="Turn the Academic Calendar into a Shared Planning Engine."
+      paragraphs={[
+        "Academic leaders, supervisors, teachers, and branches can work from a shared calendar connected to the selected academic year, coordinating priorities, events, observations, deadlines, and academic follow-up.",
+        "Future calendar capabilities are planned to support international events, curriculum-integrated activities, SDG awareness, and AI-assisted activity suggestions based on grade levels and school needs."
+      ]}
+      capabilities={calendarCapabilities}
+      image={productImages.calendar}
+      className="border-y border-slate-200/80 bg-[linear-gradient(180deg,#f7fafc_0%,#ffffff_100%)]"
+      futureNote="Future activity suggestions will be progressively introduced as the platform develops."
+    />
+  );
+}
+
+function MultiBranchSection() {
+  return (
+    <section id="multi-branch" className="bg-white py-20">
+      <div className="section-shell grid gap-12 lg:grid-cols-[0.88fr_1.12fr] lg:items-center">
+        <Reveal direction="left">
+          <div>
+            <SectionLabel icon={Building2}>Multi-Branch Organization Management</SectionLabel>
+            <h2 className="mt-4 text-3xl font-bold leading-tight tracking-[-0.03em] text-ink sm:text-4xl">
+              Built for Schools That Operate Across Branches, Campuses, and Teams.
+            </h2>
+            <p className="mt-4 text-base leading-7 text-slate-600">
+              TIS provides a scalable environment where organizations, branches, users,
+              roles, branding, academic structures, and workflows can be organized with
+              greater clarity inside a tenant-isolated SaaS platform.
+            </p>
+            <p className="mt-4 text-base leading-7 text-slate-600">
+              Management-level users can compare progress, identify delayed tasks, and see
+              where follow-up is needed across planning, exams, observations, calendars,
+              reporting, and academic operations.
+            </p>
+
+            <CapabilityGrid capabilities={branchCapabilities} />
+          </div>
+        </Reveal>
+
+        <Reveal direction="right" delay={120}>
+          <OrganizationMap />
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+function DashboardSection() {
+  return (
+    <ModuleBand
+      id="dashboards"
+      label="Dashboards & Decision Visibility"
+      icon={BarChart3}
+      title="See Academic Progress, Risks, and Priorities Before They Become Problems."
+      paragraphs={[
+        "TIS dashboards are designed to give leaders more than static reports. They connect academic operations so leadership can understand what is complete, what is delayed, what needs follow-up, and where intervention may be required.",
+        "Branch-level dashboards can show the academic health of one campus, while organization-level views can compare branches, highlight delays, identify performance gaps, and support faster evidence-based decisions."
+      ]}
+      capabilities={dashboardCapabilities}
+      image={productImages.dashboard}
+      imageFirst
+      className="border-y border-slate-200/80 bg-[linear-gradient(180deg,#f8fbff_0%,#f7fafc_100%)]"
+      supportingLine="From reports to real-time academic visibility."
+    />
+  );
+}
+
+function FutureAiSection() {
   return (
     <section
-      id="ai-assistant"
+      id="future-ai"
       className="ai-section relative isolate overflow-hidden py-24 text-white"
     >
       <div className="ai-grid-overlay" aria-hidden="true" />
-      <div className="ai-glow ai-glow-a" aria-hidden="true" />
-      <div className="ai-glow ai-glow-b" aria-hidden="true" />
       <div className="ai-beam ai-beam-a" aria-hidden="true" />
       <div className="ai-beam ai-beam-b" aria-hidden="true" />
-      <div className="ai-particles" aria-hidden="true">
-        {aiParticles.map((particle, index) => (
-          <span
-            key={`${particle.left}-${particle.top}-${index}`}
-            className="ai-particle"
-            style={
-              {
-                "--particle-left": `${particle.left}%`,
-                "--particle-top": `${particle.top}%`,
-                "--particle-size": `${particle.size}px`,
-                "--particle-delay": particle.delay,
-                "--particle-duration": particle.duration
-              } as CSSProperties
-            }
-          />
-        ))}
-      </div>
 
       <div className="section-shell relative grid gap-10 lg:grid-cols-[0.86fr_1.14fr] lg:items-center">
         <Reveal direction="left">
           <div>
             <div className="ai-chip inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-white">
               <Bot className="h-4 w-4" aria-hidden="true" />
-              Coming Soon
+              Future AI-Powered Intelligence
             </div>
             <h2 className="mt-4 text-3xl font-bold leading-tight tracking-[-0.04em] sm:text-4xl lg:text-[2.85rem]">
-              TIS AI Academic Assistant
+              AI That Works Inside the Academic Workflow, Not Outside It.
             </h2>
             <p className="mt-4 max-w-xl text-base leading-7 text-slate-200">
-              Future AI capabilities are planned to help academic teams analyze learning
-              quality, identify risks, and turn school data into practical improvement
-              actions.
+              TIS is being developed with a future intelligence layer that can work inside
+              calendars, observations, curriculum planning, assessments, dashboards, branch
+              progress, and leadership decision-making using reviewed and approved data.
             </p>
             <div className="ai-highlight mt-8 max-w-lg rounded-[1.6rem] border border-white/12 bg-white/[0.06] p-5 backdrop-blur-xl">
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-200/80">
-                Premium roadmap emphasis
+                Planned subscription-based growth
               </p>
               <p className="mt-3 text-base leading-7 text-slate-100">
-                Designed to become the intelligence layer for academic leaders who need
-                faster insight, clearer priorities, and stronger school follow-through.
+                Future AI capabilities will be introduced progressively through subscription
+                plans, allowing schools to grow into more advanced intelligence as the
+                platform and their needs develop.
               </p>
             </div>
           </div>
@@ -666,10 +1022,69 @@ function AiAssistantSection() {
                   <BrainCircuit className="feature-icon h-5 w-5" aria-hidden="true" />
                 </div>
                 <p className="mt-4 text-base font-bold leading-7 text-white">
-                  Built for academic leaders, not generic chat workflows.
+                  Planned to work from verified academic data, approved school criteria, and
+                  connected TIS workflows.
                 </p>
               </InteractiveSurface>
             </div>
+          </div>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+function CurriculumToClassroomSection() {
+  return (
+    <section id="curriculum-to-classroom" className="bg-white py-20">
+      <div className="section-shell">
+        <Reveal>
+          <div className="mx-auto max-w-3xl text-center">
+            <SectionLabel icon={Route}>From Curriculum to Classroom</SectionLabel>
+            <h2 className="mt-4 text-3xl font-bold leading-tight tracking-[-0.03em] text-ink sm:text-4xl">
+              Support Teachers Without Adding Another Burden.
+            </h2>
+            <p className="mt-4 text-base leading-7 text-slate-600">
+              Future AI-assisted planning tools are being designed to guide teachers through
+              annual plans, weekly plans, lesson plans, and curriculum tracking using approved
+              templates, curriculum data, learning outcomes, standards, and school requirements.
+            </p>
+            <p className="mt-4 text-base leading-7 text-slate-600">
+              Teachers can review, adjust, complete, and submit their work while academic
+              leaders review and approve it, turning planning documents into reliable official
+              data inside TIS.
+            </p>
+          </div>
+        </Reveal>
+
+        <div className="curriculum-journey relative mt-12 grid gap-5 lg:grid-cols-4">
+          {curriculumJourney.map((step, index) => {
+            const Icon = step.icon;
+
+            return (
+              <Reveal key={step.title} delay={80 + index * 90}>
+                <InteractiveSurface
+                  className="journey-card h-full rounded-[1.5rem] border border-slate-200/80 bg-white p-6 shadow-soft"
+                  tone="teal"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="grid h-11 w-11 place-items-center rounded-2xl bg-mint text-teal">
+                      <Icon className="feature-icon h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <span className="text-sm font-bold text-slate-300">0{index + 1}</span>
+                  </div>
+                  <h3 className="mt-5 text-lg font-bold leading-7 text-ink">{step.title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-slate-600">{step.description}</p>
+                </InteractiveSurface>
+              </Reveal>
+            );
+          })}
+        </div>
+
+        <Reveal delay={220}>
+          <div className="mx-auto mt-8 max-w-3xl rounded-[1.3rem] border border-teal/20 bg-mint/55 px-5 py-4 text-center text-sm font-semibold leading-6 text-ocean">
+            These capabilities are planned, are being developed progressively, and may be
+            introduced through subscription-based plans.
           </div>
         </Reveal>
       </div>
@@ -683,12 +1098,14 @@ function PricingSection() {
       <div className="section-shell">
         <Reveal>
           <div className="mx-auto max-w-3xl text-center">
-            <SectionLabel icon={BarChart3}>Pricing</SectionLabel>
+            <SectionLabel icon={BarChart3}>Subscription Plans</SectionLabel>
             <h2 className="mt-4 text-3xl font-bold leading-tight tracking-[-0.03em] text-ink sm:text-4xl">
-              Simple plans for schools at different stages.
+              Choose the Level of Academic Intelligence Your School Needs.
             </h2>
             <p className="mt-4 text-base leading-7 text-slate-600">
-              Subscription and onboarding options are coming soon.
+              TIS is being developed as a subscription-based SaaS platform, allowing
+              schools to start with essential academic operations and grow into advanced
+              dashboards, multi-branch workflows, and future AI-powered intelligence.
             </p>
           </div>
         </Reveal>
@@ -736,7 +1153,7 @@ function PricingSection() {
                           : "border-ocean text-ocean hover:bg-ocean hover:text-white"
                       )}
                     >
-                      Request a Demo
+                      {featured ? "Request Early Access" : "Request Pricing"}
                     </a>
                   </div>
                 </InteractiveSurface>
@@ -744,6 +1161,13 @@ function PricingSection() {
             );
           })}
         </div>
+
+        <Reveal delay={220}>
+          <p className="mx-auto mt-8 max-w-3xl text-center text-sm leading-6 text-slate-500">
+            AI-powered capabilities will be introduced progressively and may vary according
+            to subscription level, school needs, and platform development stage.
+          </p>
+        </Reveal>
       </div>
     </section>
   );
@@ -800,7 +1224,9 @@ function DemoSection() {
     await new Promise((resolve) => window.setTimeout(resolve, 900));
 
     setSubmitState("success");
-    setSubmitMessage("Looks good.");
+    setSubmitMessage(
+      "Form validation complete. Online delivery is being connected; please email info@tisplatform.com to complete your request."
+    );
   };
 
   return (
@@ -811,19 +1237,40 @@ function DemoSection() {
       <div className="section-shell grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
         <Reveal direction="left">
           <div>
-            <SectionLabel icon={UserCog}>Demo</SectionLabel>
+            <SectionLabel icon={UserCog}>Start Your TIS Journey</SectionLabel>
             <h2 className="mt-4 text-3xl font-bold leading-tight tracking-[-0.03em] text-ink sm:text-4xl">
-              See how TIS Platform can support your school planning workflow.
+              Ready to Bring Clarity, Control, and Intelligence to Your Academic Operations?
             </h2>
             <p className="mt-4 text-base leading-7 text-slate-600">
-              Share your school details and the TIS team can follow up with demo
-              availability, onboarding options, and recommended next steps.
+              TIS is being built for schools that want to move beyond scattered files,
+              disconnected workflows, and delayed decisions. Start exploring how one
+              connected academic operations platform can support your leaders, supervisors,
+              teachers, branches, and future AI-powered growth.
+            </p>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
+              <a
+                href="#demo-form"
+                className="focus-ring button-primary inline-flex h-11 items-center justify-center rounded-xl px-5 text-sm font-bold text-white"
+              >
+                Book a Demo
+              </a>
+              <a
+                href="mailto:info@tisplatform.com?subject=TIS%20Early%20Access%20Request"
+                className="focus-ring button-secondary inline-flex h-11 items-center justify-center rounded-xl px-5 text-sm font-bold text-ocean"
+              >
+                Request Early Access
+              </a>
+            </div>
+            <p className="mt-6 text-sm leading-6 text-slate-500">
+              TIS is currently in active development, with selected features and advanced
+              AI capabilities planned for progressive release through subscription-based plans.
             </p>
           </div>
         </Reveal>
 
         <Reveal direction="right" delay={120}>
           <form
+            id="demo-form"
             className={cn(
               "demo-form-shell rounded-[1.9rem] border border-slate-200/80 bg-white/90 p-6 shadow-soft backdrop-blur-xl",
               isSuccess && "is-success",
@@ -937,11 +1384,22 @@ function DemoSection() {
               ) : isSuccess ? (
                 <CheckCircle2 className="mr-2 h-5 w-5" aria-hidden="true" />
               ) : null}
-              Submit Demo Request
+              Book a Demo
               {!isSubmitting && !isSuccess ? (
                 <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
               ) : null}
             </button>
+            <p className="mt-4 max-w-xl text-xs leading-5 text-slate-500">
+              This form does not send automatically yet. To complete a demo request now,
+              email{" "}
+              <a
+                className="font-bold text-ocean underline decoration-ocean/30 underline-offset-2"
+                href="mailto:info@tisplatform.com?subject=TIS%20Demo%20Request"
+              >
+                info@tisplatform.com
+              </a>
+              .
+            </p>
           </form>
         </Reveal>
       </div>
@@ -952,16 +1410,17 @@ function DemoSection() {
 function Footer() {
   return (
     <footer className="footer-shell relative overflow-hidden border-t border-slate-800/80 bg-ink py-12 text-white">
-      <div className="footer-glow footer-glow-a" aria-hidden="true" />
-      <div className="footer-glow footer-glow-b" aria-hidden="true" />
-
       <div className="section-shell relative flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
         <div>
-          <TisLogo
-            theme="dark"
-            layout="horizontal"
-            className="w-48 max-w-[70vw]"
-          />
+          <div className="relative h-12 w-48 overflow-hidden" aria-label="TIS Teacher Information System">
+            <Image
+              src="/branding/tis/logos/tis-white-light-orange-horizontal.png"
+              alt=""
+              width={1563}
+              height={1563}
+              className="absolute left-1/2 top-1/2 h-48 w-48 max-w-none -translate-x-1/2 -translate-y-1/2 object-contain"
+            />
+          </div>
           <a
             className="footer-link mt-4 inline-flex rounded-full border border-white/12 bg-white/[0.05] px-4 py-2 text-sm text-slate-200"
             href="mailto:info@tisplatform.com"
@@ -983,6 +1442,159 @@ function Footer() {
   );
 }
 
+function ModuleBand({
+  id,
+  label,
+  icon: Icon,
+  title,
+  paragraphs,
+  capabilities,
+  image,
+  imageFirst = false,
+  className,
+  futureNote,
+  supportingLine
+}: {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  title: string;
+  paragraphs: string[];
+  capabilities: Array<{ title: string; icon: LucideIcon }>;
+  image: { image: string; width: number; height: number; alt: string };
+  imageFirst?: boolean;
+  className?: string;
+  futureNote?: string;
+  supportingLine?: string;
+}) {
+  return (
+    <section id={id} className={cn("module-band py-20", className)}>
+      <div className="section-shell grid gap-12 lg:grid-cols-[0.92fr_1.08fr] lg:items-center">
+        <Reveal direction={imageFirst ? "right" : "left"} className={imageFirst ? "lg:order-2" : undefined}>
+          <div>
+            <SectionLabel icon={Icon}>{label}</SectionLabel>
+            <h2 className="mt-4 text-3xl font-bold leading-tight tracking-[-0.03em] text-ink sm:text-4xl">
+              {title}
+            </h2>
+            {paragraphs.map((paragraph, index) => (
+              <p
+                key={paragraph}
+                className={cn(
+                  "mt-4 leading-7",
+                  index === 0 ? "text-base font-medium text-slate-700" : "text-sm text-slate-600"
+                )}
+              >
+                {paragraph}
+              </p>
+            ))}
+            {supportingLine ? (
+              <p className="mt-5 text-sm font-bold uppercase tracking-[0.14em] text-teal">
+                {supportingLine}
+              </p>
+            ) : null}
+            <CapabilityGrid capabilities={capabilities} />
+            {futureNote ? (
+              <p className="mt-5 rounded-xl border border-teal/20 bg-mint/55 px-4 py-3 text-sm font-semibold leading-6 text-ocean">
+                {futureNote}
+              </p>
+            ) : null}
+          </div>
+        </Reveal>
+
+        <Reveal
+          direction={imageFirst ? "left" : "right"}
+          delay={120}
+          className={imageFirst ? "lg:order-1" : undefined}
+        >
+          <ProductFrame
+            image={image.image}
+            width={image.width}
+            height={image.height}
+            alt={image.alt}
+          />
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+function CapabilityGrid({
+  capabilities
+}: {
+  capabilities: Array<{ title: string; icon: LucideIcon }>;
+}) {
+  return (
+    <div className="mt-8 grid gap-3 sm:grid-cols-2">
+      {capabilities.map((capability, index) => {
+        const Icon = capability.icon;
+
+        return (
+          <InteractiveSurface
+            key={capability.title}
+            className="feature-list-card flex min-h-14 items-center gap-3 rounded-[1rem] border border-slate-200/80 bg-white/90 p-3"
+            tone={index % 2 === 0 ? "ocean" : "teal"}
+          >
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-skysoft text-ocean">
+              <Icon className="feature-icon h-4 w-4" aria-hidden="true" />
+            </div>
+            <p className="text-sm font-bold leading-5 text-ink">{capability.title}</p>
+          </InteractiveSurface>
+        );
+      })}
+    </div>
+  );
+}
+
+function OrganizationMap() {
+  const branches = [
+    { name: "Branch A", progress: "92%", tone: "bg-teal" },
+    { name: "Branch B", progress: "76%", tone: "bg-ocean" },
+    { name: "Branch C", progress: "64%", tone: "bg-amber-400" }
+  ];
+
+  return (
+    <div className="organization-map rounded-[2rem] border border-slate-200/80 bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_100%)] p-5 shadow-soft sm:p-7">
+      <div className="mx-auto max-w-sm rounded-[1.2rem] border border-ocean/20 bg-ocean px-5 py-4 text-center text-white shadow-card">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-100">Organization View</p>
+        <p className="mt-1 text-lg font-bold">TIS School Group</p>
+      </div>
+
+      <div className="mx-auto h-8 w-px bg-slate-300" aria-hidden="true" />
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        {branches.map((branch, index) => (
+          <InteractiveSurface
+            key={branch.name}
+            className="rounded-[1.2rem] border border-slate-200/80 bg-white p-4"
+            tone={index === 2 ? "teal" : "ocean"}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <Building2 className="h-5 w-5 text-ocean" aria-hidden="true" />
+              <span className="text-xs font-bold text-slate-500">{branch.progress}</span>
+            </div>
+            <p className="mt-4 text-sm font-bold text-ink">{branch.name}</p>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className={cn("branch-progress-fill h-full rounded-full", branch.tone)}
+                style={{ width: branch.progress }}
+              />
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-500">Planning, calendar, observations, reports</p>
+          </InteractiveSurface>
+        ))}
+      </div>
+
+      <div className="mt-5 flex flex-wrap justify-center gap-2">
+        {["Tenant isolated", "Role based", "Comparable indicators"].map((item) => (
+          <span key={item} className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600">
+            {item}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ProductFrame({
   image,
   width,
@@ -996,17 +1608,20 @@ function ProductFrame({
 }) {
   return (
     <InteractiveSurface
-      className="showcase-frame group relative overflow-hidden rounded-[2rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(247,250,252,0.92))] p-3 shadow-[0_26px_75px_rgba(15,23,42,0.14)]"
+      className="showcase-frame group relative overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white p-2 shadow-[0_26px_75px_rgba(15,23,42,0.16)]"
       tone="ocean"
     >
-      <div className="absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.7),transparent_70%)]" />
-      <div className="glass-bar relative flex h-10 items-center gap-2 rounded-2xl border border-white/70 px-4">
+      <div className="glass-bar relative flex h-10 items-center gap-2 rounded-xl border border-slate-200/80 px-4">
         <span className="h-2.5 w-2.5 rounded-full bg-rose-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
         <span className="h-2.5 w-2.5 rounded-full bg-teal-400" />
-        <span className="ml-3 h-2 w-40 rounded-full bg-white/60" />
+        <span className="ml-3 h-2 w-24 rounded-full bg-slate-100 sm:w-40" />
+        <span className="ml-auto inline-flex items-center gap-2 text-[0.68rem] font-bold uppercase tracking-[0.1em] text-slate-500">
+          <span className="h-2 w-2 rounded-full bg-teal" aria-hidden="true" />
+          Product preview
+        </span>
       </div>
-      <div className="relative overflow-hidden rounded-[1.5rem] pt-3">
+      <div className="relative overflow-hidden rounded-xl bg-white pt-2">
         <div className="showcase-sheen" aria-hidden="true" />
         <Image
           src={image}
@@ -1014,7 +1629,7 @@ function ProductFrame({
           width={width}
           height={height}
           sizes="(min-width: 1024px) 54vw, 100vw"
-          className="showcase-image h-auto w-full rounded-[1.3rem] border border-slate-100 object-contain"
+          className="showcase-image h-auto w-full rounded-lg border border-slate-200/80 bg-white object-contain"
         />
       </div>
     </InteractiveSurface>
