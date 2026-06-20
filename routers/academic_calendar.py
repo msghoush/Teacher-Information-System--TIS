@@ -12,7 +12,7 @@ from typing import Any
 from urllib.parse import quote_plus, urlencode
 
 from fastapi import APIRouter, Depends, Form, Query, Request
-from fastapi.responses import RedirectResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from PIL import Image
 from sqlalchemy import inspect, or_, text
@@ -3362,6 +3362,221 @@ def update_calendar_event_type(
             "Another event type already uses this name.",
         )
     return _redirect_with_query(safe_return_to, "notice", "Calendar event type updated.")
+
+
+@router.post("/system-configuration/calendar/event-types/bulk/update")
+def bulk_update_calendar_event_types(
+    request: Request,
+    payload: dict,
+    db: Session = Depends(get_db),
+):
+    current_user, redirect_response = _get_configuration_access(request, db)
+    if redirect_response:
+        return JSONResponse(
+            {
+                "ok": False,
+                "errors": [
+                    {
+                        "id": None,
+                        "label": "Calendar Event Types",
+                        "field": "permission",
+                        "message": (
+                            "Authentication required."
+                            if not current_user
+                            else "You do not have permission to update calendar event types."
+                        ),
+                    }
+                ],
+            },
+            status_code=401 if not current_user else 403,
+        )
+
+    raw_items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(raw_items, list) or not raw_items or len(raw_items) > 200:
+        return JSONResponse(
+            {
+                "ok": False,
+                "errors": [
+                    {
+                        "id": None,
+                        "label": "Calendar Event Types",
+                        "field": "items",
+                        "message": "Submit between 1 and 200 modified event types.",
+                    }
+                ],
+            },
+            status_code=400,
+        )
+
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    parsed_items: list[tuple[int, dict]] = []
+    errors: list[dict[str, object]] = []
+    seen_ids: set[int] = set()
+    for item in raw_items:
+        raw_id = item.get("id") if isinstance(item, dict) else None
+        event_type_id = _parse_int(raw_id)
+        if not event_type_id:
+            errors.append(
+                {
+                    "id": raw_id,
+                    "label": "Calendar Event Type",
+                    "field": "id",
+                    "message": "A valid event type ID is required.",
+                }
+            )
+            continue
+        if event_type_id in seen_ids:
+            errors.append(
+                {
+                    "id": event_type_id,
+                    "label": f"Event Type {event_type_id}",
+                    "field": "id",
+                    "message": "This event type was submitted more than once.",
+                }
+            )
+            continue
+        seen_ids.add(event_type_id)
+        parsed_items.append((event_type_id, item))
+
+    rows = db.query(models.CalendarEventType).filter(
+        models.CalendarEventType.id.in_([item_id for item_id, _item in parsed_items]),
+        models.CalendarEventType.branch_id == branch_id,
+        models.CalendarEventType.academic_year_id == academic_year_id,
+    ).all() if parsed_items else []
+    row_map = {row.id: row for row in rows}
+    update_plan: list[dict[str, object]] = []
+
+    for event_type_id, item in parsed_items:
+        row = row_map.get(event_type_id)
+        label = str(getattr(row, "name", "") or f"Event Type {event_type_id}").strip()
+        if not row:
+            errors.append(
+                {
+                    "id": event_type_id,
+                    "label": label,
+                    "field": "id",
+                    "message": "Event type was not found in the active branch and academic year.",
+                }
+            )
+            continue
+        submitted_changed_fields = item.get("_changed_fields")
+        changed_fields = (
+            {str(field) for field in submitted_changed_fields}
+            if isinstance(submitted_changed_fields, list)
+            else {str(field) for field in item.keys() if field not in {"id", "_changed_fields"}}
+        )
+        normalized_name = _normalize_spaces(
+            item.get("name") if "name" in changed_fields else row.name
+        )
+        if not normalized_name:
+            errors.append(
+                {
+                    "id": event_type_id,
+                    "label": label,
+                    "field": "name",
+                    "message": "Event type name is required.",
+                }
+            )
+        update_plan.append(
+            {
+                "row": row,
+                "id": event_type_id,
+                "label": label,
+                "name": normalized_name,
+                "name_changed": "name" in changed_fields and normalized_name != _normalize_spaces(row.name),
+                "color": (
+                    _normalize_event_color(str(item.get("color") or ""))
+                    if "color" in changed_fields
+                    else row.color
+                ),
+                "color_changed": "color" in changed_fields,
+                "icon": (
+                    _normalize_icon_name(str(item.get("icon") or ""))
+                    if "icon" in changed_fields
+                    else row.icon
+                ),
+                "icon_changed": "icon" in changed_fields,
+                "sort_order": (
+                    _parse_int(item.get("sort_order")) or 0
+                    if "sort_order" in changed_fields
+                    else row.sort_order
+                ),
+                "sort_order_changed": "sort_order" in changed_fields,
+                "is_active": (
+                    _is_checked(item.get("is_active"))
+                    if "is_active" in changed_fields
+                    else bool(row.is_active)
+                ),
+                "is_active_changed": "is_active" in changed_fields,
+            }
+        )
+
+    final_names = {
+        row.id: _normalize_spaces(row.name)
+        for row in db.query(models.CalendarEventType).filter(
+            models.CalendarEventType.branch_id == branch_id,
+            models.CalendarEventType.academic_year_id == academic_year_id,
+        ).all()
+    }
+    for planned in update_plan:
+        final_names[int(planned["id"])] = str(planned["name"])
+    name_counts: dict[str, int] = {}
+    for name in final_names.values():
+        key = name.casefold()
+        if key:
+            name_counts[key] = name_counts.get(key, 0) + 1
+    for planned in update_plan:
+        if planned["name_changed"] and name_counts.get(str(planned["name"]).casefold(), 0) > 1:
+            errors.append(
+                {
+                    "id": planned["id"],
+                    "label": planned["label"],
+                    "field": "name",
+                    "message": "Another event type already uses this name.",
+                }
+            )
+
+    if errors:
+        return JSONResponse({"ok": False, "errors": errors}, status_code=422)
+
+    for planned in update_plan:
+        row = planned["row"]
+        if planned["name_changed"]:
+            row.name = planned["name"]
+        if planned["color_changed"]:
+            row.color = planned["color"]
+        if planned["icon_changed"]:
+            row.icon = planned["icon"]
+        if planned["sort_order_changed"]:
+            row.sort_order = planned["sort_order"]
+        if planned["is_active_changed"]:
+            row.is_active = planned["is_active"]
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return JSONResponse(
+            {
+                "ok": False,
+                "errors": [
+                    {
+                        "id": None,
+                        "label": "Calendar Event Types",
+                        "field": "database",
+                        "message": "Event type changes conflict with existing records.",
+                    }
+                ],
+            },
+            status_code=409,
+        )
+    return JSONResponse(
+        {
+            "ok": True,
+            "saved_count": len(update_plan),
+            "message": f"Saved {len(update_plan)} modified event type"
+            + ("." if len(update_plan) == 1 else "s."),
+        }
+    )
 
 
 @router.post("/system-configuration/calendar/event-types/{event_type_id}/delete")

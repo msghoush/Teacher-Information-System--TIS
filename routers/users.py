@@ -26,6 +26,10 @@ POSITIONS = [
     "Principal",
     "Vice Principal",
     "Education Excellence",
+    "Educational Specialist",
+    "Academic Coach",
+    "Admission Officer",
+    "Management",
 ]
 
 POSITION_ALIASES = {
@@ -36,7 +40,6 @@ POSITION_ALIASES = {
 }
 
 ROLE_CHOICES = [
-    auth.ROLE_DEVELOPER,
     auth.ROLE_ADMINISTRATOR,
     auth.ROLE_EDITOR,
     auth.ROLE_USER,
@@ -56,7 +59,7 @@ def _normalize_user_id(value: str) -> str:
 
 
 def _get_user_roles_for_creator(current_user):
-    if auth._has_cached_permission(current_user, "users.assign_developer_role"):
+    if auth.is_platform_user(current_user):
         return ROLE_CHOICES
     if auth._has_cached_permission(current_user, "users.assign_role"):
         return [
@@ -69,7 +72,10 @@ def _get_user_roles_for_creator(current_user):
 
 
 def _get_user_school_group_id(db: Session, current_user) -> int | None:
-    return auth.get_user_school_group_id(db, current_user)
+    return getattr(current_user, "scope_school_group_id", None) or auth.get_user_school_group_id(
+        db,
+        current_user,
+    )
 
 
 def _get_role_permission_rows(db: Session, role: str, school_group_id: int | None = None):
@@ -83,8 +89,6 @@ def _get_role_permission_rows(db: Session, role: str, school_group_id: int | Non
 
 def _get_allowed_permission_keys(db: Session, role: str, school_group_id: int | None = None) -> set[str]:
     normalized_role = permission_registry.normalize_managed_role(role)
-    if normalized_role == auth.ROLE_DEVELOPER:
-        return set(permission_registry.ALL_PERMISSION_KEYS)
     allowed_keys = permission_registry.get_default_permissions_for_role(normalized_role)
     for permission_row in _get_role_permission_rows(db, normalized_role, None):
         if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
@@ -99,7 +103,7 @@ def _get_allowed_permission_keys(db: Session, role: str, school_group_id: int | 
                     allowed_keys.add(permission_row.permission_key)
             else:
                 allowed_keys.discard(permission_row.permission_key)
-    return allowed_keys - permission_registry.DEVELOPER_ONLY_PERMISSION_KEYS
+    return permission_registry.constrain_role_permissions(normalized_role, allowed_keys)
 
 
 def _build_role_permission_summary_map(db: Session, current_user):
@@ -126,7 +130,7 @@ def _get_available_branches(db: Session, current_user):
             db,
             current_user,
         )
-        if scope_school_group_id:
+        if scope_school_group_id and not auth.is_platform_user(current_user):
             query = query.filter(models.Branch.school_group_id == scope_school_group_id)
         return query.order_by(models.Branch.name.asc()).all()
 
@@ -141,6 +145,8 @@ def _get_available_branches(db: Session, current_user):
 def _can_manage_target_user(db: Session, current_user, target_user) -> bool:
     if not auth.can_manage_target_user_account(current_user, target_user):
         return False
+    if auth.is_platform_user(current_user):
+        return True
     current_group_id = getattr(current_user, "scope_school_group_id", None) or _get_user_school_group_id(
         db,
         current_user,
@@ -167,10 +173,6 @@ def _parse_is_active(value: str):
     if cleaned in {"inactive", "false", "0", "no", "off"}:
         return False
     return None
-
-
-def _is_developer_account(user_row) -> bool:
-    return auth.normalize_role(getattr(user_row, "role", "")) == auth.ROLE_DEVELOPER
 
 
 def _build_user_initials(first_name: str = "", last_name: str = "") -> str:
@@ -234,6 +236,8 @@ def _render_edit_user_page(
             str(user_row.position).strip(),
             str(user_row.position).strip(),
         )
+    if "access_scope" not in form_data:
+        form_data["access_scope"] = auth.get_access_scope(user_row)
 
     role_choices = list(_get_user_roles_for_creator(current_user))
     normalized_row_role = auth.normalize_role(getattr(user_row, "role", ""))
@@ -249,8 +253,9 @@ def _render_edit_user_page(
             "user_row": user_row,
             "positions": POSITIONS,
             "role_choices": role_choices,
+            "access_scope_choices": auth.TENANT_ACCESS_SCOPE_CHOICES,
             "role_permission_summary_map": _build_role_permission_summary_map(db, current_user),
-            "can_set_inactive": selected_role != auth.ROLE_DEVELOPER,
+            "can_set_inactive": True,
             "available_branches": _get_available_branches(db, current_user),
             "error": error,
             "detail_errors": detail_errors or [],
@@ -279,20 +284,27 @@ def _render_users_page(
     detail_errors=None,
 ):
     available_branches = _get_available_branches(db, current_user)
-    role = auth.normalize_role(current_user.role)
     can_manage_users = auth.can_manage_users(current_user)
     can_edit_user_accounts = auth.can_edit_user_accounts(current_user)
     can_delete_user_accounts = auth.can_delete_user_accounts(current_user)
-    users_query = db.query(models.User)
+    users_query = db.query(models.User).filter(
+        models.User.user_type != auth.USER_TYPE_PLATFORM
+    )
     scope_school_group_id = getattr(current_user, "scope_school_group_id", None) or _get_user_school_group_id(
         db,
         current_user,
     )
-    if role == auth.ROLE_DEVELOPER:
-        users_query = auth.filter_user_query_by_school_group(db, users_query, scope_school_group_id)
+    if auth.get_access_scope(current_user) in {
+        auth.ACCESS_SCOPE_GLOBAL,
+        auth.ACCESS_SCOPE_ORGANIZATION,
+    }:
+        if scope_school_group_id:
+            users_query = auth.filter_user_query_by_school_group(db, users_query, scope_school_group_id)
+        elif not auth.is_platform_user(current_user):
+            users_query = users_query.filter(models.User.id == -1)
     else:
         users_query = users_query.filter(
-            models.User.branch_id == current_user.branch_id
+            models.User.branch_id == getattr(current_user, "scope_branch_id", current_user.branch_id)
         )
 
     users = users_query.order_by(models.User.id.desc()).all()
@@ -321,6 +333,7 @@ def _render_users_page(
             "branch_map": branch_map,
             "positions": POSITIONS,
             "role_choices": _get_user_roles_for_creator(current_user),
+            "access_scope_choices": auth.TENANT_ACCESS_SCOPE_CHOICES,
             "role_permission_summary_map": _build_role_permission_summary_map(db, current_user),
             "available_branches": available_branches,
             "error": error,
@@ -411,6 +424,7 @@ def create_user(
     last_name: str = Form(...),
     position: str = Form(...),
     role: str = Form(...),
+    access_scope: str = Form(auth.ACCESS_SCOPE_BRANCH),
     password: str = Form(...),
     branch_id: int = Form(...),
     db: Session = Depends(get_db),
@@ -427,6 +441,10 @@ def create_user(
     last_name = _normalize_name(last_name)
     role = auth.normalize_role(role)
     position = POSITION_ALIASES.get(position.strip(), position.strip())
+    access_scope = auth.normalize_access_scope(access_scope)
+    if auth.is_organization_read_only_position(position):
+        access_scope = auth.ACCESS_SCOPE_ORGANIZATION
+        role = auth.ROLE_LIMITED
 
     errors = []
     if not USER_ID_PATTERN.match(user_id):
@@ -444,6 +462,9 @@ def create_user(
     allowed_roles = _get_user_roles_for_creator(current_user)
     if role not in allowed_roles:
         errors.append("You are not allowed to assign this role.")
+
+    if access_scope not in auth.TENANT_ACCESS_SCOPE_CHOICES:
+        errors.append("Tenant users must have ORGANIZATION or BRANCH access scope.")
 
     if len(password.strip()) < 8:
         errors.append("Password must be at least 8 characters.")
@@ -485,6 +506,9 @@ def create_user(
         last_name=last_name,
         position=position,
         role=role,
+        user_type=auth.USER_TYPE_TENANT,
+        platform_role=None,
+        access_scope=access_scope,
         password=get_password_hash(password),
         school_group_id=selected_school_group_id,
         branch_id=branch_id,
@@ -554,6 +578,7 @@ def update_user(
     last_name: str = Form(...),
     position: str = Form(...),
     role: str = Form(...),
+    access_scope: str = Form(auth.ACCESS_SCOPE_BRANCH),
     branch_id: int = Form(...),
     is_active: str = Form("active"),
     password: str = Form(""),
@@ -583,6 +608,10 @@ def update_user(
     last_name = _normalize_name(last_name)
     role = auth.normalize_role(role)
     position = POSITION_ALIASES.get(position.strip(), position.strip())
+    access_scope = auth.normalize_access_scope(access_scope)
+    if auth.is_organization_read_only_position(position):
+        access_scope = auth.ACCESS_SCOPE_ORGANIZATION
+        role = auth.ROLE_LIMITED
     password = password.strip()
     parsed_is_active = _parse_is_active(is_active)
 
@@ -603,6 +632,9 @@ def update_user(
     if role not in allowed_roles:
         errors.append("You are not allowed to assign this role.")
 
+    if access_scope not in auth.TENANT_ACCESS_SCOPE_CHOICES:
+        errors.append("Tenant users must have ORGANIZATION or BRANCH access scope.")
+
     available_branches = _get_available_branches(db, current_user)
     allowed_branch_ids = {branch.id for branch in available_branches if branch}
     if branch_id not in allowed_branch_ids:
@@ -610,9 +642,6 @@ def update_user(
 
     if parsed_is_active is None:
         errors.append("Invalid status selected.")
-
-    if role == auth.ROLE_DEVELOPER and parsed_is_active is False:
-        errors.append("Developer accounts must remain active.")
 
     if password and len(password) < 8:
         errors.append("Password must be at least 8 characters.")
@@ -634,6 +663,7 @@ def update_user(
             "last_name": last_name,
             "position": position,
             "role": role,
+            "access_scope": access_scope,
             "branch_id": branch_id,
             "is_active": (
                 "active"
@@ -660,6 +690,9 @@ def update_user(
     user_row.last_name = last_name
     user_row.position = position
     user_row.role = role
+    user_row.user_type = auth.USER_TYPE_TENANT
+    user_row.platform_role = None
+    user_row.access_scope = access_scope
     selected_school_group_id = auth.get_branch_school_group_id(db, branch_id)
     selected_academic_year = auth.get_academic_year_for_school_group(
         db,
@@ -684,6 +717,7 @@ def update_user(
             "last_name": last_name,
             "position": position,
             "role": role,
+            "access_scope": access_scope,
             "branch_id": branch_id,
             "is_active": "active" if parsed_is_active else "inactive",
         }
@@ -737,14 +771,6 @@ def update_user_status(
             db=db,
             current_user=current_user,
             error="Invalid status selected.",
-        )
-
-    if _is_developer_account(user_row) and parsed_is_active is False:
-        return _render_users_page(
-            request=request,
-            db=db,
-            current_user=current_user,
-            error="Developer accounts must remain active.",
         )
 
     user_row.is_active = parsed_is_active

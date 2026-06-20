@@ -1,9 +1,50 @@
 {% extends "base.html" %}
 {% from "_app_icons.html" import icon %}
 
+{% macro location_fields(prefix, country_code="", region_name="", city_name="", form_id="", disabled=false, compact=false, required=true, district_name="", neighborhood_name="") %}
+<div class="location-fields{% if compact %} is-compact{% endif %}"
+     data-location-fields
+     data-selected-country="{{ country_code or '' }}"
+     data-selected-region="{{ region_name or '' }}"
+     data-selected-city="{{ city_name or '' }}"
+     data-location-required="{{ 'true' if required else 'false' }}">
+    <div class="field">
+        <label for="{{ prefix }}_country">Country</label>
+        <select id="{{ prefix }}_country" name="country_code" data-location-country{% if required %} required{% endif %}{% if form_id %} form="{{ form_id }}"{% endif %}{% if disabled %} disabled{% endif %}>
+            <option value="">Loading countries...</option>
+        </select>
+    </div>
+    <div class="field">
+        <label for="{{ prefix }}_region">Region / State / Province</label>
+        <select id="{{ prefix }}_region" name="region_id" data-location-region{% if required %} required{% endif %} disabled{% if form_id %} form="{{ form_id }}"{% endif %}>
+            <option value="">Select country first</option>
+        </select>
+        <input id="{{ prefix }}_region_manual" name="region_manual" data-location-region-manual placeholder="Enter region/state/province" maxlength="160" hidden disabled{% if form_id %} form="{{ form_id }}"{% endif %}>
+    </div>
+    <div class="field">
+        <label for="{{ prefix }}_city">City / Locality</label>
+        <select id="{{ prefix }}_city" name="city_id" data-location-city{% if required %} required{% endif %} disabled{% if form_id %} form="{{ form_id }}"{% endif %}>
+            <option value="">Select region first</option>
+        </select>
+        <input id="{{ prefix }}_city_manual" name="city_manual" data-location-city-manual placeholder="Enter city/locality" maxlength="160" hidden disabled{% if form_id %} form="{{ form_id }}"{% endif %}>
+    </div>
+    <div class="field">
+        <label for="{{ prefix }}_district">District <span class="optional-label">Optional</span></label>
+        <input id="{{ prefix }}_district" name="district_name" value="{{ district_name or '' }}" maxlength="160" placeholder="District"{% if form_id %} form="{{ form_id }}"{% endif %}{% if disabled %} disabled{% endif %}>
+    </div>
+    <div class="field">
+        <label for="{{ prefix }}_neighborhood">Neighborhood <span class="optional-label">Optional</span></label>
+        <input id="{{ prefix }}_neighborhood" name="neighborhood_name" value="{{ neighborhood_name or '' }}" maxlength="160" placeholder="Neighborhood"{% if form_id %} form="{{ form_id }}"{% endif %}{% if disabled %} disabled{% endif %}>
+    </div>
+    <span class="location-status" data-location-status aria-live="polite"></span>
+    <span class="location-guidance">Missing a region or city? Choose Other / manual entry. Manual values are saved only on this organization or branch.</span>
+</div>
+{% endmacro %}
+
 {% block title %}School Management | TIS{% endblock %}
 
 {% block page_styles %}
+<link rel="stylesheet" href="/static/css/save-all-changes.css">
 <style>
 .school-page { display: grid; gap: 14px; }
 .error-banner { display: inline-flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid #efc5bf; border-radius: 12px; background: #fff5f3; color: #9f2d1f; font-weight: 800; }
@@ -35,6 +76,14 @@
 .field { display: grid; gap: 6px; }
 .field label { color: #48607f; font-size: 12px; font-weight: 900; text-transform: uppercase; }
 .field input, .field select { width: 100%; min-width: 0; border: 1px solid #c6d4e8; border-radius: 8px; padding: 9px 10px; color: #1f2737; background: #fff; }
+.location-fields { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.location-fields.is-compact { grid-template-columns: minmax(190px, 1fr); min-width: 220px; }
+.location-fields .field input[hidden] { display: none; }
+.location-status { grid-column: 1 / -1; min-height: 0; color: #9f2d1f; font-size: 11px; font-weight: 800; }
+.location-status:empty { display: none; }
+.location-guidance { grid-column: 1 / -1; color: #60728c; font-size: 11px; line-height: 1.4; }
+.optional-label { color: #7b8da6; font-size: 9px; font-weight: 800; }
+.school-list .location-fields { grid-template-columns: 1fr; }
 .action-btn { min-height: 36px; border: 1px solid transparent; border-radius: 8px; padding: 8px 12px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 900; cursor: pointer; text-decoration: none; }
 .action-btn-primary { background: #0a4ea3; color: #fff; }
 .action-btn-secondary { border-color: #c6d4e8; background: #fff; color: #1f2737; }
@@ -76,7 +125,7 @@
 .logo-strip { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px dashed #b8c9df; border-radius: 12px; background: #f8fbff; }
 .logo-strip img { display: block; width: auto; height: auto; max-height: var(--header-brand-logo-height); max-width: var(--header-brand-secondary-logo-max-width); object-fit: contain; object-position: center; image-rendering: auto; background: #fff; border-radius: 8px; padding: 4px; }
 .logo-strip img[data-logo-slot="accreditation"] { max-height: var(--header-brand-accreditation-logo-height); max-width: var(--header-brand-accreditation-logo-max-width); }
-@media (max-width: 1050px) { .school-layout, .form-grid, .form-grid.two { grid-template-columns: 1fr; } .school-list { position: static; } .usage-grid { grid-template-columns: repeat(2, minmax(90px, 1fr)); } .usage-stack { min-width: 260px; } }
+@media (max-width: 1050px) { .school-layout, .form-grid, .form-grid.two, .location-fields { grid-template-columns: 1fr; } .school-list { position: static; } .usage-grid { grid-template-columns: repeat(2, minmax(90px, 1fr)); } .usage-stack { min-width: 260px; } }
 </style>
 {% endblock %}
 
@@ -101,15 +150,27 @@
                 <p>Subscriber containers for branches, years, branding, and access.</p>
             </div>
             {% for school in logo_school_groups %}
+            {% if can_manage_all_logo_scopes %}
+            <form method="post" action="/scope/organization">
+                <input type="hidden" name="school_group_id" value="{{ school.id }}">
+                <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ school.id }}">
+                <button style="width:100%;border:0;text-align:left;" class="school-link {% if selected_school_group and school.id == selected_school_group.id %}is-active{% endif %}" type="submit">
+                    <strong>{{ school.name }}</strong>
+                    <span>{{ "Active" if school.status else "Inactive" }}</span>
+                </button>
+            </form>
+            {% else %}
             <a class="school-link {% if selected_school_group and school.id == selected_school_group.id %}is-active{% endif %}" href="/system-configuration/schools?school_group_id={{ school.id }}">
                 <strong>{{ school.name }}</strong>
                 <span>{{ "Active" if school.status else "Inactive" }}</span>
             </a>
+            {% endif %}
             {% endfor %}
             {% if can("schools.create") %}
             <form class="field" method="post" action="/system-configuration/schools">
                 <label for="new_school_name">New School / Organization</label>
                 <input id="new_school_name" name="name" placeholder="School name" required>
+                {{ location_fields("new_school") }}
                 <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Create School</button>
             </form>
             {% endif %}
@@ -140,6 +201,16 @@
                             <option value="inactive" {% if not selected_school_group.status %}selected{% endif %}>Inactive</option>
                         </select>
                     </div>
+                    {{ location_fields(
+                        "school_location",
+                        selected_school_group.country_code,
+                        selected_school_group.region_name,
+                        selected_school_group.city_name,
+                        disabled=not can("schools.edit"),
+                        required=false,
+                        district_name=selected_school_group.district_name,
+                        neighborhood_name=selected_school_group.neighborhood_name
+                    ) }}
                     {% if can("schools.edit") %}
                     <button class="action-btn action-btn-primary" type="submit">{{ icon("save", "icon") }} Save School</button>
                     {% endif %}
@@ -162,7 +233,7 @@
                 {% endif %}
             </section>
 
-            <details class="section-card collapsible-section" data-collapsible-branches>
+            <details class="section-card collapsible-section" data-collapsible-branches data-save-all-container data-save-all-endpoint="/system-configuration/branches/bulk-update">
                 <summary>
                     <div class="collapsible-title">
                         <h3>Branches</h3>
@@ -182,15 +253,12 @@
                         <label for="branch_name">Branch Name</label>
                         <input id="branch_name" name="name" placeholder="Branch name" required>
                     </div>
-                    <div class="field">
-                        <label for="branch_region">Region</label>
-                        <select id="branch_region" name="region" required>
-                            <option value="" selected disabled>Select region</option>
-                            {% for region in saudi_regions %}
-                            <option value="{{ region }}">{{ region }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
+                    {{ location_fields(
+                        "new_branch",
+                        selected_school_group.country_code,
+                        selected_school_group.region_name,
+                        selected_school_group.city_name
+                    ) }}
                     <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Add Branch</button>
                 </form>
                 {% endif %}
@@ -200,7 +268,7 @@
                         <label for="branch_region_filter">Filter Branches by Region</label>
                         <select id="branch_region_filter" data-branch-region-filter>
                             <option value="">All regions</option>
-                            {% for region in saudi_regions %}
+                            {% for region in school_branch_region_options %}
                             <option value="{{ region }}">{{ region }}</option>
                             {% endfor %}
                         </select>
@@ -224,13 +292,21 @@
                     <span class="branch-filter-summary" data-branch-filter-summary>{{ school_branch_rows|length }} branch{{ "" if school_branch_rows|length == 1 else "es" }} shown</span>
                 </div>
                 {% endif %}
+                {% if school_branch_rows and can_any("branches.edit", "branches.activate_deactivate") %}
+                <div class="save-all-toolbar">
+                    <span class="save-all-feedback" data-save-all-feedback role="status" aria-live="polite" hidden></span>
+                    <button class="save-all-button" type="button" data-save-all-submit disabled>
+                        Save All Changes (<span data-save-all-count>0</span>)
+                    </button>
+                </div>
+                {% endif %}
                 <div class="table-wrap">
                     <table class="data-table">
-                        <thead><tr><th>Branch / Campus</th><th>Region</th><th>Status</th><th>Usage</th><th style="text-align:right;">Actions</th></tr></thead>
+                        <thead><tr><th>Branch / Campus</th><th>Location</th><th>Status</th><th>Usage</th><th style="text-align:right;">Actions</th></tr></thead>
                         <tbody>
                             {% for branch_row in school_branch_rows %}
                             {% set has_data = branch_row.linked_records_count > 0 %}
-                            <tr data-branch-row data-branch-region="{{ branch_row.region or '' }}" data-branch-data="{{ 'has-data' if has_data else 'empty' }}" data-branch-status="{{ 'active' if branch_row.status else 'inactive' }}">
+                            <tr data-branch-row data-save-all-row data-save-all-id="{{ branch_row.id }}" data-save-all-form-id="branch_edit_{{ branch_row.id }}" data-branch-region="{{ branch_row.region or '' }}" data-branch-data="{{ 'has-data' if has_data else 'empty' }}" data-branch-status="{{ 'active' if branch_row.status else 'inactive' }}">
                                 <td>
                                     <form id="branch_edit_{{ branch_row.id }}" method="post" action="/system-configuration/branches/{{ branch_row.id }}">
                                         <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
@@ -241,17 +317,18 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <div class="table-field">
-                                        <label for="branch_region_{{ branch_row.id }}">Region</label>
-                                        <select id="branch_region_{{ branch_row.id }}" name="region" form="branch_edit_{{ branch_row.id }}" required {% if not can("branches.edit") %}disabled{% endif %}>
-                                            {% if branch_row.region and branch_row.region not in saudi_regions %}
-                                            <option value="{{ branch_row.region }}" selected>{{ branch_row.region }}</option>
-                                            {% endif %}
-                                            {% for region in saudi_regions %}
-                                            <option value="{{ region }}" {% if branch_row.region == region %}selected{% endif %}>{{ region }}</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
+                                    {{ location_fields(
+                                        "branch_location_" ~ branch_row.id,
+                                        branch_row.country_code,
+                                        branch_row.region,
+                                        branch_row.city,
+                                        "branch_edit_" ~ branch_row.id,
+                                        disabled=not can("branches.edit"),
+                                        compact=true,
+                                        required=false,
+                                        district_name=branch_row.district,
+                                        neighborhood_name=branch_row.neighborhood
+                                    ) }}
                                 </td>
                                 <td>
                                     <div class="table-field">
@@ -305,6 +382,7 @@
                                     {% if not branch_row.can_delete %}
                                     <span class="delete-note">Cannot delete while linked data exists or it is the only active branch.</span>
                                     {% endif %}
+                                    <span class="save-all-row-error" data-save-all-row-error role="alert" hidden></span>
                                 </td>
                             </tr>
                             {% else %}
@@ -334,24 +412,37 @@
                 {% endif %}
                 <div class="table-wrap">
                     <table class="data-table">
-                        <thead><tr><th>Academic Year</th><th>Status</th><th></th></tr></thead>
+                        <thead><tr><th>Academic Year</th><th>Status</th><th>Usage</th><th style="text-align:right;">Actions</th></tr></thead>
                         <tbody>
                             {% for year in school_academic_year_rows %}
                             <tr>
                                 <td>{{ year.year_name }}</td>
                                 <td><span class="status-pill {% if year.is_active %}is-success{% endif %}">{{ "Current" if year.is_active else "Inactive" }}</span></td>
                                 <td>
-                                    {% if not year.is_active and can("academic_years.activate") %}
-                                    <form method="post" action="/admin/current-year">
-                                        <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
-                                        <input type="hidden" name="academic_year_id" value="{{ year.id }}">
-                                        <button class="action-btn action-btn-secondary" type="submit">Set Current</button>
-                                    </form>
-                                    {% endif %}
+                                    <span class="status-pill {% if year.can_delete %}is-muted{% else %}is-warning{% endif %}">
+                                        {{ "Empty" if year.can_delete else year.linked_records_count ~ " linked records" }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="inline-actions" style="justify-content:flex-end;">
+                                        {% if not year.is_active and can("academic_years.activate") %}
+                                        <form method="post" action="/admin/current-year">
+                                            <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
+                                            <input type="hidden" name="academic_year_id" value="{{ year.id }}">
+                                            <button class="action-btn action-btn-secondary" type="submit">Set Current</button>
+                                        </form>
+                                        {% endif %}
+                                        {% if can("academic_years.delete") %}
+                                        <form method="post" action="/system-configuration/academic-years/{{ year.id }}/delete" onsubmit="return confirm('Delete academic year {{ year.year_name }} permanently? This only works while the year is empty.');">
+                                            <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
+                                            <button class="action-btn action-btn-danger" type="submit" {% if not year.can_delete %}disabled title="Cannot delete: {{ year.usage_summary }}"{% endif %}>{{ icon("trash", "icon") }} Delete</button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                             {% else %}
-                            <tr><td colspan="3">No academic years exist yet for this school.</td></tr>
+                            <tr><td colspan="4">No academic years exist yet for this school.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -394,6 +485,8 @@
 {% endblock %}
 
 {% block page_scripts %}
+<script src="/static/js/location-selects.js"></script>
+<script src="/static/js/save-all-changes.js"></script>
 <script>
 (() => {
     const branchPanel = document.querySelector("[data-collapsible-branches]");

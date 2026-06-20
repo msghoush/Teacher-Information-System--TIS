@@ -4,6 +4,7 @@
 {% block title %}Academic Calendar Configuration | TIS{% endblock %}
 
 {% block page_styles %}
+<link rel="stylesheet" href="/static/css/save-all-changes.css">
 <style>
     .config-page {
         display: grid;
@@ -327,7 +328,7 @@
         {% endfor %}
     </nav>
 
-    <section class="module-shell">
+    <section class="module-shell" data-save-all-container data-save-all-endpoint="/system-configuration/calendar/event-types/bulk/update">
         <div class="module-head">
             <div class="module-copy">
                 <h2>Academic Calendar Event Types</h2>
@@ -361,10 +362,19 @@
             <button class="btn is-primary" type="submit">{{ icon("add", "shell-icon") }} Add Type</button>
         </form>
 
+        {% if calendar_event_types %}
+        <div class="save-all-toolbar">
+            <span class="save-all-feedback" data-save-all-feedback role="status" aria-live="polite" hidden></span>
+            <button class="save-all-button" type="button" data-save-all-submit disabled>
+                Save All Changes (<span data-save-all-count>0</span>)
+            </button>
+        </div>
+        {% endif %}
+
         <div class="event-type-list">
             {% if calendar_event_types %}
                 {% for event_type in calendar_event_types %}
-                <form class="event-type-row" method="post" action="/system-configuration/calendar/event-types/{{ event_type.id }}">
+                <form class="event-type-row" method="post" action="/system-configuration/calendar/event-types/{{ event_type.id }}" data-save-all-row data-save-all-form data-save-all-id="{{ event_type.id }}">
                     <input type="hidden" name="return_to" value="/system-configuration/calendar">
                     <span class="type-swatch" style="--event-color: {{ event_type.color }};">{{ icon(event_type.icon, "type-icon") }}</span>
                     <div class="field">
@@ -406,6 +416,7 @@
                         >
                             {{ icon("trash", "shell-icon") }}
                         </button>
+                        <span class="save-all-row-error" data-save-all-row-error role="alert" hidden></span>
                     </div>
                 </form>
                 {% endfor %}
@@ -415,4 +426,8 @@
         </div>
     </section>
 </section>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="/static/js/save-all-changes.js"></script>
 {% endblock %}

@@ -760,6 +760,178 @@ def _demo_request_seen_columns(engine, connection):
     )
 
 
+def _platform_identity_and_access_scope(engine, connection):
+    _add_column_if_missing(connection, connection, "users", "user_type", "user_type VARCHAR(20) NOT NULL DEFAULT 'TENANT'")
+    _add_column_if_missing(connection, connection, "users", "platform_role", "platform_role VARCHAR(40)")
+    _add_column_if_missing(connection, connection, "users", "access_scope", "access_scope VARCHAR(20) NOT NULL DEFAULT 'BRANCH'")
+    if not _table_exists(connection, "users"):
+        return
+
+    _execute(
+        connection,
+        """
+        UPDATE users
+        SET user_type = 'TENANT', platform_role = NULL,
+            access_scope = CASE
+                WHEN LOWER(TRIM(COALESCE(position, ''))) IN
+                    ('education excellence', 'education excelency', 'management')
+                THEN 'ORGANIZATION' ELSE 'BRANCH' END,
+            role = CASE
+                WHEN LOWER(TRIM(COALESCE(position, ''))) IN
+                    ('education excellence', 'education excelency', 'management')
+                THEN 'Limited'
+                WHEN LOWER(TRIM(COALESCE(role, ''))) = 'limited access' THEN 'Limited'
+                ELSE role
+            END
+        WHERE LOWER(TRIM(COALESCE(role, ''))) != 'developer'
+        """,
+    )
+    _execute(
+        connection,
+        """
+        UPDATE users
+        SET user_type = 'PLATFORM', platform_role = 'Platform Developer',
+            access_scope = 'GLOBAL', role = NULL, position = NULL,
+            branch_id = NULL, academic_year_id = NULL
+        WHERE LOWER(TRIM(COALESCE(role, ''))) = 'developer'
+           OR (UPPER(TRIM(COALESCE(user_type, ''))) = 'PLATFORM'
+               AND LOWER(TRIM(COALESCE(platform_role, ''))) IN ('developer', 'platform developer'))
+        """,
+    )
+    if engine.dialect.name == "postgresql":
+        _execute(connection, "ALTER TABLE users ALTER COLUMN school_group_id DROP NOT NULL")
+        _execute(connection, "UPDATE users SET school_group_id = NULL WHERE user_type = 'PLATFORM'")
+
+    for index_name, column_name in (
+        ("ix_users_user_type", "user_type"),
+        ("ix_users_platform_role", "platform_role"),
+        ("ix_users_access_scope", "access_scope"),
+    ):
+        _create_index_if_missing(connection, connection, "users", index_name, column_name)
+
+
+def _sqlite_platform_user_scope_trigger(engine, connection):
+    if (
+        engine.dialect.name != "sqlite"
+        or not _table_exists(connection, "users")
+        or not _table_exists(connection, "school_groups")
+    ):
+        return
+
+    _execute(connection, "DROP TRIGGER IF EXISTS trg_users_school_group_fk_insert")
+    _execute(connection, "DROP TRIGGER IF EXISTS trg_users_school_group_fk_update")
+    _execute(
+        connection,
+        """
+        CREATE TRIGGER trg_users_school_group_fk_insert
+        BEFORE INSERT ON users
+        FOR EACH ROW
+        WHEN UPPER(TRIM(COALESCE(NEW.user_type, 'TENANT'))) != 'PLATFORM'
+         AND (
+             NEW.school_group_id IS NULL
+             OR NOT EXISTS (SELECT 1 FROM school_groups WHERE id = NEW.school_group_id)
+         )
+        BEGIN
+            SELECT RAISE(ABORT, 'users.school_group_id tenant foreign key violation');
+        END
+        """,
+    )
+    _execute(
+        connection,
+        """
+        CREATE TRIGGER trg_users_school_group_fk_update
+        BEFORE UPDATE OF school_group_id, user_type ON users
+        FOR EACH ROW
+        WHEN UPPER(TRIM(COALESCE(NEW.user_type, 'TENANT'))) != 'PLATFORM'
+         AND (
+             NEW.school_group_id IS NULL
+             OR NOT EXISTS (SELECT 1 FROM school_groups WHERE id = NEW.school_group_id)
+         )
+        BEGIN
+            SELECT RAISE(ABORT, 'users.school_group_id tenant foreign key violation');
+        END
+        """,
+    )
+
+
+def _normalize_organization_read_only_users(engine, connection):
+    if not _table_exists(connection, "users"):
+        return
+    _execute(
+        connection,
+        """
+        UPDATE users
+        SET role = 'Limited', access_scope = 'ORGANIZATION'
+        WHERE UPPER(TRIM(COALESCE(user_type, 'TENANT'))) = 'TENANT'
+          AND LOWER(TRIM(COALESCE(position, ''))) IN
+              ('education excellence', 'education excelency', 'management')
+        """,
+    )
+
+
+def _platform_hierarchy_and_permissions(engine, connection):
+    _add_column_if_missing(connection, connection, "users", "email", "email VARCHAR(180)")
+    _add_column_if_missing(
+        connection,
+        connection,
+        "users",
+        "platform_owner_kind",
+        "platform_owner_kind VARCHAR(20)",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "users",
+        "platform_permissions_initialized",
+        "platform_permissions_initialized BOOLEAN NOT NULL DEFAULT FALSE",
+    )
+    if _table_exists(connection, "users"):
+        _execute(
+            connection,
+            """
+            UPDATE users
+            SET platform_owner_kind = 'CO_OWNER'
+            WHERE UPPER(TRIM(COALESCE(user_type, ''))) = 'PLATFORM'
+              AND LOWER(TRIM(COALESCE(platform_role, ''))) IN ('owner', 'platform owner')
+              AND platform_owner_kind IS NULL
+            """,
+        )
+        _create_unique_index_if_missing(
+            connection,
+            connection,
+            "users",
+            "ix_users_email",
+            "email",
+        )
+
+    datetime_type = _datetime_type(engine)
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS platform_user_permissions (
+            id {id_sql},
+            platform_user_id INTEGER NOT NULL,
+            permission_key VARCHAR(120) NOT NULL,
+            is_allowed BOOLEAN NOT NULL DEFAULT TRUE,
+            updated_by_user_id VARCHAR(10),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_platform_user_permissions_user_key
+                UNIQUE (platform_user_id, permission_key),
+            FOREIGN KEY (platform_user_id) REFERENCES users (id)
+        )
+        """,
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "platform_user_permissions",
+        "ix_platform_user_permissions_user",
+        "platform_user_id",
+    )
+
+
 def _create_system_design_settings_table(engine, connection):
     datetime_type = _datetime_type(engine)
     id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
@@ -817,6 +989,101 @@ def _create_visual_design_settings_table(engine, connection):
     )
 
 
+def _global_location_columns(engine, connection):
+    for table_name in ("school_groups", "branches"):
+        _add_column_if_missing(
+            connection,
+            connection,
+            table_name,
+            "country_code",
+            "country_code VARCHAR(2)",
+        )
+        _add_column_if_missing(
+            connection,
+            connection,
+            table_name,
+            "country_name",
+            "country_name VARCHAR(120)",
+        )
+        _add_column_if_missing(
+            connection,
+            connection,
+            table_name,
+            "region_name",
+            "region_name VARCHAR(160)",
+        )
+        _add_column_if_missing(
+            connection,
+            connection,
+            table_name,
+            "city_name",
+            "city_name VARCHAR(160)",
+        )
+
+    if _table_exists(connection, "branches"):
+        _execute(
+            connection,
+            """
+            UPDATE branches
+            SET region_name = location
+            WHERE (region_name IS NULL OR TRIM(region_name) = '')
+              AND location IS NOT NULL
+              AND TRIM(location) != ''
+            """,
+        )
+        _execute(
+            connection,
+            """
+            UPDATE branches
+            SET country_code = 'SA', country_name = 'Saudi Arabia'
+            WHERE LOWER(TRIM(COALESCE(location, ''))) IN (
+                'riyadh', 'riyadh region', 'makkah', 'makkah region',
+                'madinah', 'madinah region',
+                'eastern province', 'al qassim region', 'hail region',
+                'qassim', 'ha''il', 'tabuk', 'tabuk region',
+                'northern borders', 'northern borders region',
+                'al jawf', 'al jawf region', 'jazan', 'jazan region',
+                'najran', 'najran region', 'al bahah', 'al bahah region',
+                'asir', 'asir region'
+            )
+            """,
+        )
+
+    if _table_exists(connection, "school_groups") and _table_exists(connection, "branches"):
+        _execute(
+            connection,
+            """
+            UPDATE school_groups
+            SET country_code = 'SA', country_name = 'Saudi Arabia'
+            WHERE (country_code IS NULL OR TRIM(country_code) = '')
+              AND EXISTS (
+                  SELECT 1
+                  FROM branches
+                  WHERE branches.school_group_id = school_groups.id
+                    AND branches.country_code = 'SA'
+              )
+            """,
+        )
+
+
+def _phase1_address_detail_columns(engine, connection):
+    for table_name in ("school_groups", "branches"):
+        _add_column_if_missing(
+            connection,
+            connection,
+            table_name,
+            "district_name",
+            "district_name VARCHAR(160)",
+        )
+        _add_column_if_missing(
+            connection,
+            connection,
+            table_name,
+            "neighborhood_name",
+            "neighborhood_name VARCHAR(160)",
+        )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -852,6 +1119,36 @@ MIGRATIONS = (
         migration_id="20260615_003_visual_design_settings",
         description="Create visual design studio component settings table",
         apply=_create_visual_design_settings_table,
+    ),
+    Migration(
+        migration_id="20260619_001_platform_identity_access_scope",
+        description="Separate platform identities, tenant roles, positions, and data scope",
+        apply=_platform_identity_and_access_scope,
+    ),
+    Migration(
+        migration_id="20260619_002_platform_sqlite_scope_trigger",
+        description="Keep SQLite tenant user guards while allowing unassigned platform identities",
+        apply=_sqlite_platform_user_scope_trigger,
+    ),
+    Migration(
+        migration_id="20260619_003_organization_read_only_positions",
+        description="Force Education Excellence and Management to Limited organization access",
+        apply=_normalize_organization_read_only_users,
+    ),
+    Migration(
+        migration_id="20260620_001_platform_hierarchy_permissions",
+        description="Add owner hierarchy and per-developer platform permissions",
+        apply=_platform_hierarchy_and_permissions,
+    ),
+    Migration(
+        migration_id="20260620_002_global_location_columns",
+        description="Add country, region, and city fields for organizations and branches",
+        apply=_global_location_columns,
+    ),
+    Migration(
+        migration_id="20260620_003_phase1_address_details",
+        description="Add optional district and neighborhood fields to organizations and branches",
+        apply=_phase1_address_detail_columns,
     ),
 )
 

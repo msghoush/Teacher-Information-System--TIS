@@ -1,0 +1,59 @@
+.save-all-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    border: 1px solid #c9d8eb;
+    border-radius: 10px;
+    background: #f7faff;
+}
+
+.save-all-button {
+    min-height: 36px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 8px 13px;
+    background: #0a4ea3;
+    color: #fff;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.save-all-button:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.save-all-button.is-saving {
+    cursor: progress;
+}
+
+.save-all-feedback {
+    flex: 1 1 280px;
+    color: #48607f;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.save-all-feedback[data-state="success"] { color: #027a48; }
+.save-all-feedback[data-state="error"] { color: #b42318; }
+.save-all-feedback[data-state="pending"] { color: #0a4ea3; }
+
+.is-save-all-dirty {
+    box-shadow: inset 3px 0 0 #0a4ea3;
+}
+
+.has-save-all-error {
+    box-shadow: inset 3px 0 0 #b42318;
+    background: #fff8f7;
+}
+
+.save-all-row-error {
+    display: block;
+    margin-top: 6px;
+    color: #b42318;
+    font-size: 11px;
+    font-weight: 800;
+}

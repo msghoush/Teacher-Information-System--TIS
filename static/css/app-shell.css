@@ -24,14 +24,14 @@
     --app-radius-md: 12px;
     --app-radius-sm: 8px;
     --header-platform-logo-scale: 1.15;
-    --header-brand-logo-height: 56px;
-    --header-brand-logo-max-width: 152px;
-    --header-brand-primary-logo-height: 80px;
-    --header-brand-primary-logo-max-width: 180px;
-    --header-brand-secondary-logo-height: 56px;
-    --header-brand-secondary-logo-max-width: 168px;
+    --header-brand-logo-height: 48px;
+    --header-brand-logo-max-width: 144px;
+    --header-brand-primary-logo-height: 48px;
+    --header-brand-primary-logo-max-width: 144px;
+    --header-brand-secondary-logo-height: 48px;
+    --header-brand-secondary-logo-max-width: 144px;
     --header-brand-accreditation-logo-height: 48px;
-    --header-brand-accreditation-logo-max-width: 54px;
+    --header-brand-accreditation-logo-max-width: 144px;
     --branding-preview-logo-height: 88px;
     --branding-preview-logo-max-width: 240px;
     --bg: #f5f7fb;
@@ -548,14 +548,14 @@ svg:is(
     align-items: center;
     gap: 18px;
     min-width: 0;
-    padding-bottom: 12px;
+    padding-bottom: 16px;
     border-bottom: 1px solid var(--app-line);
 }
 
 .header-primary-identity {
     display: flex;
     align-items: center;
-    gap: 18px;
+    gap: 40px;
     min-width: 0;
 }
 
@@ -571,7 +571,7 @@ svg:is(
 .header-platform-brand::after {
     position: absolute;
     top: 0;
-    right: -10px;
+    right: -26px;
     bottom: 0;
     width: 1px;
     background: var(--app-line-strong);
@@ -642,16 +642,26 @@ svg.page-title-icon[data-tis-icon] {
 }
 
 .header-tenant-brand {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, var(--header-brand-logo-max-width)));
     align-items: center;
     justify-content: flex-end;
-    flex-wrap: wrap;
     gap: 10px;
+    width: min(44vw, 452px);
     min-width: 0;
-    max-width: min(44vw, 520px);
+    max-width: 452px;
     min-height: calc(var(--header-brand-primary-logo-height) + 4px);
     padding-left: 18px;
     border-left: 1px solid var(--app-line);
+}
+
+.header-tenant-logo-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: calc(var(--header-brand-logo-height) + 4px);
+    min-width: 0;
 }
 
 .header-tenant-brand img {
@@ -664,6 +674,42 @@ svg.page-title-icon[data-tis-icon] {
     object-position: center;
     image-rendering: auto;
     flex: 0 1 auto;
+}
+
+.header-logo-placeholder {
+    display: grid;
+    align-content: center;
+    gap: 2px;
+    width: 100%;
+    height: var(--header-brand-logo-height);
+    min-width: 0;
+    padding: 5px 7px;
+    border: 1px dashed #c4d3e5;
+    border-radius: 8px;
+    background: #f8fbff;
+    text-align: center;
+}
+
+.header-logo-placeholder[hidden] {
+    display: none;
+}
+
+.header-logo-placeholder strong,
+.header-logo-placeholder span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.header-logo-placeholder strong {
+    color: var(--app-brand-deep);
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.header-logo-placeholder span {
+    color: var(--app-muted);
+    font-size: 9px;
 }
 
 .header-tenant-brand .header-tenant-logo--primary {
@@ -1152,6 +1198,105 @@ svg.page-title-icon[data-tis-icon] {
     line-height: 1.45;
 }
 
+/* Long card notes stay available without forcing every card to match their height. */
+.page-stage .has-compact-description-tooltip {
+    overflow: visible;
+}
+
+.page-stage .has-compact-description-tooltip:hover,
+.page-stage .has-compact-description-tooltip:focus-within {
+    z-index: 20;
+}
+
+.page-stage .compact-description.is-tooltip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    max-width: 100%;
+    min-height: 20px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+    line-height: 1;
+}
+
+.page-stage .compact-description-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--app-line-strong);
+    border-color: color-mix(in srgb, var(--tis-kpi-accent, var(--app-brand)) 35%, #ffffff);
+    border-radius: 50%;
+    background: var(--tis-kpi-accent-soft, var(--app-brand-soft));
+    color: var(--tis-kpi-accent, var(--app-brand));
+    font-family: Georgia, serif;
+    font-size: 12px;
+    font-style: italic;
+    font-weight: 700;
+    line-height: 1;
+    text-transform: none;
+    cursor: help;
+    transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+.page-stage .compact-description-trigger:hover,
+.page-stage .compact-description-trigger:focus-visible {
+    border-color: var(--tis-kpi-accent, var(--app-brand));
+    background: var(--tis-kpi-accent, var(--app-brand));
+    color: #ffffff;
+    outline: none;
+}
+
+.page-stage .compact-description-trigger:focus-visible {
+    box-shadow: var(--app-focus-ring);
+}
+
+.page-stage .compact-description-tooltip {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 8px);
+    z-index: 30;
+    width: max-content;
+    max-width: min(300px, calc(100vw - 32px));
+    padding: 8px 10px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    border-radius: 9px;
+    background: #172033;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.2);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.4;
+    text-align: left;
+    text-transform: none;
+    white-space: normal;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(4px);
+    transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+}
+
+.page-stage .compact-description.align-tooltip-right .compact-description-tooltip {
+    right: 0;
+    left: auto;
+}
+
+.page-stage .compact-description.is-tooltip-open .compact-description-tooltip {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+}
+
 .page-stage .tis-kpi-card--teal {
     --tis-kpi-accent: var(--app-brand);
     --tis-kpi-accent-soft: var(--app-brand-soft);
@@ -1321,7 +1466,7 @@ svg.page-title-icon[data-tis-icon] {
     }
 
     .header-primary-identity {
-        gap: 14px;
+        gap: 40px;
     }
 
     .header-platform-brand {

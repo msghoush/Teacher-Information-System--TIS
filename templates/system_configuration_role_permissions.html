@@ -129,11 +129,7 @@
                 <span class="permission-status">{{ role_permission_payload.allowed_count }} / {{ role_permission_payload.total_count }} enabled</span>
             </div>
 
-            {% if selected_permission_role == "Developer" %}
-            <div class="notice-banner">{{ icon("shield", "icon") }} Developer always has full system access and cannot be restricted.</div>
-            {% else %}
-            <div class="notice-banner">{{ icon("shield", "icon") }} Developer-only permissions are protected and cannot be assigned to this role.</div>
-            {% endif %}
+            <div class="notice-banner">{{ icon("shield", "icon") }} Platform-only permissions are protected and cannot be assigned to tenant roles.</div>
 
             <form method="post" action="/system-configuration/role-permissions">
                 <input type="hidden" name="role" value="{{ selected_permission_role }}">
@@ -163,7 +159,7 @@
                                     {{ permission.label }}
                                     <small>{{ permission.key }}</small>
                                     {% if permission.developer_only %}
-                                    <b class="developer-only-badge">Developer only</b>
+                                    <b class="developer-only-badge">Platform only</b>
                                     {% endif %}
                                 </span>
                             </label>

@@ -158,13 +158,11 @@ class PermissionEnforcementTests(unittest.TestCase):
         self.assertIsNotNone(denied_response)
         self.assertEqual(denied_response.status_code, 403)
 
-    def test_timetable_settings_page_accepts_manage_blocks_permission(self):
+    def test_limited_role_cannot_gain_manage_blocks_permission(self):
         request = self._build_request("/system-configuration/timetable-settings", user=self.limited_user)
         denied_response = authorization.enforce_route_permission(request, self.db)
-        self.assertIsNone(denied_response)
-        current_user, redirect_response = main._get_configuration_access(request, self.db)
-        self.assertIsNotNone(current_user)
-        self.assertIsNone(redirect_response)
+        self.assertIsNotNone(denied_response)
+        self.assertEqual(denied_response.status_code, 403)
 
     def test_demo_request_access_stays_developer_only(self):
         request = self._build_request(

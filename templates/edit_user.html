@@ -351,6 +351,15 @@
                     <div class="role-permission-groups" data-role-permission-groups></div>
                 </div>
                 <div class="field">
+                    <label for="access_scope">Access Scope</label>
+                    <select id="access_scope" name="access_scope" required>
+                        {% for scope in access_scope_choices %}
+                        <option value="{{ scope }}" {% if form_data.get('access_scope', 'BRANCH') == scope %}selected{% endif %}>{{ scope }}</option>
+                        {% endfor %}
+                    </select>
+                    <small class="hint">ORGANIZATION includes every branch in this school group. BRANCH is limited to the assigned branch.</small>
+                </div>
+                <div class="field">
                     <label for="branch_id">Branch</label>
                     <select id="branch_id" name="branch_id" required>
                         {% for branch in available_branches %}
@@ -364,7 +373,6 @@
                         <option value="active" {% if form_data.get('is_active', 'active' if user_row.is_active else 'inactive') == 'active' %}selected{% endif %}>Active</option>
                         <option value="inactive" {% if form_data.get('is_active', 'active' if user_row.is_active else 'inactive') == 'inactive' %}selected{% endif %} {% if not can_set_inactive %}disabled{% endif %}>Inactive</option>
                     </select>
-                    <small id="statusDeveloperHint" class="hint" style="margin:4px 0 0;{% if can_set_inactive %}display:none;{% endif %}">Developer accounts must remain active.</small>
                 </div>
                 <div class="field field-wide">
                     <label for="password">New Password (Optional)</label>
@@ -386,8 +394,8 @@
 const rolePermissionSummaryMap = {{ role_permission_summary_map | tojson }};
 const userIdInput = document.getElementById("user_id");
     const roleSelect = document.getElementById("role");
-    const statusSelect = document.getElementById("is_active");
-    const statusDeveloperHint = document.getElementById("statusDeveloperHint");
+    const positionSelect = document.getElementById("position");
+    const accessScopeSelect = document.getElementById("access_scope");
     const rolePermissionSummary = document.querySelector("[data-role-permission-summary]");
     const rolePermissionGroups = document.querySelector("[data-role-permission-groups]");
 
@@ -397,26 +405,35 @@ const userIdInput = document.getElementById("user_id");
             });
         }
 
-        const syncDeveloperStatusRule = () => {
-            if (!roleSelect || !statusSelect) {
-                return;
+        const syncOrganizationReadOnlyPosition = () => {
+            if (!positionSelect || !accessScopeSelect || !roleSelect) return;
+            const locked = ["Education Excellence", "Management"].includes(positionSelect.value);
+            if (locked) {
+                accessScopeSelect.value = "ORGANIZATION";
+                roleSelect.value = "Limited";
             }
-
-            const selectedRole = (roleSelect.value || "").trim().toLowerCase();
-            const inactiveOption = statusSelect.querySelector('option[value="inactive"]');
-            const isDeveloperRole = selectedRole === "developer";
-
-            if (inactiveOption) {
-                inactiveOption.disabled = isDeveloperRole;
+            accessScopeSelect.disabled = locked;
+            roleSelect.disabled = locked;
+            if (locked) {
+                for (const [id, name, value, parent] of [
+                    ["access_scope_mirror", "access_scope", "ORGANIZATION", accessScopeSelect.parentElement],
+                    ["role_mirror", "role", "Limited", roleSelect.parentElement],
+                ]) {
+                    let mirror = document.getElementById(id);
+                    if (!mirror) {
+                        mirror = document.createElement("input");
+                        mirror.type = "hidden";
+                        mirror.id = id;
+                        mirror.name = name;
+                        parent.appendChild(mirror);
+                    }
+                    mirror.value = value;
+                }
+            } else {
+                document.getElementById("access_scope_mirror")?.remove();
+                document.getElementById("role_mirror")?.remove();
             }
-
-            if (isDeveloperRole && statusSelect.value === "inactive") {
-                statusSelect.value = "active";
-            }
-
-            if (statusDeveloperHint) {
-                statusDeveloperHint.style.display = isDeveloperRole ? "block" : "none";
-            }
+            renderRolePermissions();
         };
 
         const renderRolePermissions = () => {
@@ -446,12 +463,12 @@ const userIdInput = document.getElementById("user_id");
 
         if (roleSelect) {
             roleSelect.addEventListener("change", () => {
-                syncDeveloperStatusRule();
                 renderRolePermissions();
             });
         }
 
-        syncDeveloperStatusRule();
+        positionSelect?.addEventListener("change", syncOrganizationReadOnlyPosition);
+        syncOrganizationReadOnlyPosition();
         renderRolePermissions();
     </script>
 {% endblock %}

@@ -287,8 +287,14 @@ PAGE_META = {
         "intro": "Review public marketing demo requests and manage platform follow-up status.",
         "icon": "message",
     },
+    "platform": {
+        "eyebrow": "Platform Administration",
+        "title": "Platform Console",
+        "intro": "Switch between organizations and branches without changing platform identity.",
+        "icon": "shield",
+    },
     "system-configuration": {
-        "eyebrow": "Developer Controls",
+        "eyebrow": "Platform Controls",
         "title": "System Configuration",
         "intro": "Manage branches, academic years, and future system-level modules from one controlled workspace.",
         "icon": "settings",
@@ -317,6 +323,12 @@ def _build_nav_items(
 
     items = []
     for item in (
+        {
+            "label": "Platform Console",
+            "href": "/platform",
+            "icon": "shield",
+            "permission_keys": ("system_owner.full_access",),
+        },
         {
             "label": "Dashboard",
             "href": "/dashboard",
@@ -439,9 +451,6 @@ def _get_allowed_permission_keys(
     normalized_role = permission_registry.normalize_managed_role(role)
     if not normalized_role:
         return set()
-    if normalized_role == auth.ROLE_DEVELOPER:
-        return set(permission_registry.ALL_PERMISSION_KEYS)
-
     allowed_keys = permission_registry.get_default_permissions_for_role(normalized_role)
     try:
         permission_rows = [
@@ -449,7 +458,7 @@ def _get_allowed_permission_keys(
             *(_get_role_permission_rows(db, normalized_role, school_group_id) if school_group_id else []),
         ]
     except Exception:
-        return allowed_keys - permission_registry.DEVELOPER_ONLY_PERMISSION_KEYS
+        return permission_registry.constrain_role_permissions(normalized_role, allowed_keys)
 
     for permission_row in permission_rows:
         if permission_row.permission_key not in permission_registry.PERMISSION_LABELS:
@@ -458,14 +467,14 @@ def _get_allowed_permission_keys(
             allowed_keys.add(permission_row.permission_key)
         else:
             allowed_keys.discard(permission_row.permission_key)
-    return allowed_keys - permission_registry.DEVELOPER_ONLY_PERMISSION_KEYS
+    return permission_registry.constrain_role_permissions(normalized_role, allowed_keys)
 
 
 def _build_permission_checker(db: Session, current_user, school_group_id: int | None = None):
-    allowed_keys = _get_allowed_permission_keys(
+    allowed_keys = auth.get_allowed_permission_keys(
         db,
-        getattr(current_user, "role", ""),
-        school_group_id,
+        current_user,
+        school_group_id=school_group_id,
     )
 
     def can(permission_key: str) -> bool:
@@ -497,7 +506,10 @@ def build_shell_context(
     branch = db.query(models.Branch).filter(
         models.Branch.id == scoped_branch_id
     ).first()
-    scoped_school_group_id = getattr(branch, "school_group_id", None)
+    scoped_school_group_id = (
+        getattr(branch, "school_group_id", None)
+        or getattr(current_user, "scope_school_group_id", None)
+    )
     school_group = db.query(models.SchoolGroup).filter(
         models.SchoolGroup.id == scoped_school_group_id
     ).first() if scoped_school_group_id else None
@@ -517,7 +529,7 @@ def build_shell_context(
     current_user.permission_keys = permission_keys
 
     def can(permission_key: str) -> bool:
-        return auth.is_developer(current_user) or str(permission_key or "").strip() in permission_keys
+        return str(permission_key or "").strip() in permission_keys
 
     def can_any(*permission_options: str) -> bool:
         return any(can(permission_key) for permission_key in permission_options)
@@ -539,12 +551,14 @@ def build_shell_context(
     can_switch_years = auth.can_access_all_years(current_user, db)
 
     if can_switch_branches:
-        available_scope_branch_query = db.query(models.Branch).filter(
-            models.Branch.status == True
-        )
+        available_scope_branch_query = auth.get_accessible_branch_query(db, current_user)
         if scoped_school_group_id:
             available_scope_branch_query = available_scope_branch_query.filter(
                 models.Branch.school_group_id == scoped_school_group_id
+            )
+        elif auth.get_access_scope(current_user) == auth.ACCESS_SCOPE_GLOBAL:
+            available_scope_branch_query = available_scope_branch_query.filter(
+                models.Branch.id == -1
             )
         available_scope_branches = available_scope_branch_query.order_by(models.Branch.name.asc()).all()
         if branch and not branch.status and available_scope_branches:
@@ -568,7 +582,11 @@ def build_shell_context(
         active_year = active_year_query.first()
         active_year_id = active_year.id if active_year else None
 
-    effective_role = getattr(current_user, "effective_role", None) or getattr(current_user, "role", "")
+    effective_role = (
+        getattr(current_user, "effective_role", None)
+        or auth.normalize_platform_role(getattr(current_user, "platform_role", ""))
+        or getattr(current_user, "role", "")
+    )
     avatar_payload = build_user_avatar_payload(request, current_user)
     profile_image_url = avatar_payload["image_url"]
     profile_initials = avatar_payload["initials"]
@@ -598,7 +616,7 @@ def build_shell_context(
         )
     except Exception:
         design_css = ""
-    can_use_design_studio = auth.is_developer(current_user) and can("design_control.manage")
+    can_use_design_studio = auth.is_platform_user(current_user) and can("design_control.manage")
     design_mode_enabled = (
         can_use_design_studio
         and str(request.query_params.get("design_mode", "") or "").strip().lower() in {"1", "true", "yes"}

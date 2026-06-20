@@ -36,12 +36,17 @@
     .section-card p { margin: 0; color: #60728c; font-size: 13px; line-height: 1.45; }
     .logo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
     .logo-card { display: grid; gap: 10px; padding: 12px; border: 1px solid #d8e2f0; border-radius: 12px; background: #fff; min-width: 0; }
-    .logo-preview { display: flex; align-items: center; justify-content: center; min-height: calc(var(--branding-preview-logo-height) + 28px); padding: 12px; border: 1px dashed #b8c9df; border-radius: 10px; background: #fff; }
+    .logo-preview { display: flex; align-items: center; justify-content: center; height: calc(var(--branding-preview-logo-height) + 28px); padding: 12px; border: 1px dashed #b8c9df; border-radius: 10px; background: linear-gradient(180deg, #fbfdff, #f5f8fc); }
     .logo-preview img { display: block; width: auto; height: auto; max-width: min(100%, var(--branding-preview-logo-max-width)); max-height: var(--branding-preview-logo-height); object-fit: contain; object-position: center; image-rendering: auto; }
     .logo-preview--secondary img { max-width: min(100%, calc(var(--branding-preview-logo-max-width) + 24px)); }
     .logo-preview--favicon img,
     .logo-preview--accreditation img { max-width: min(100%, var(--branding-preview-logo-height)); }
-    .logo-empty { color: #667085; font-size: 13px; font-weight: 800; }
+    .logo-empty { display: grid; justify-items: center; align-content: center; gap: 5px; width: 100%; min-width: 0; color: #60728c; text-align: center; }
+    .logo-empty[hidden] { display: none; }
+    .logo-empty-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; margin-bottom: 2px; border: 1px solid #cfe0f3; border-radius: 10px; background: #edf4ff; color: #0a4ea3; }
+    .logo-empty-icon .icon { width: 18px; height: 18px; }
+    .logo-empty strong { color: #17365d; font-size: 14px; }
+    .logo-empty span:last-child { max-width: 30ch; font-size: 12px; line-height: 1.4; }
     .logo-meta { display: grid; gap: 3px; }
     .logo-meta strong { color: #1f2737; overflow-wrap: anywhere; }
     .logo-meta span { color: #60728c; font-size: 12px; font-weight: 800; }
@@ -72,17 +77,42 @@
 {% set can_edit_logo = can("branding.manage_school_logos") if scope_type == "school_group" else can("branding.manage_branch_logos") %}
 <div class="logo-grid">
     {% for logo in logos %}
+    {% if logo.slot_key == "primary" %}
+        {% set empty_title = "Main Logo" %}
+        {% set empty_guidance = "Upload your organization's primary logo here" %}
+    {% elif logo.slot_key == "accreditation" %}
+        {% set empty_title = "Accreditation Logo" %}
+        {% set empty_guidance = "Upload your accreditation or certification logo here" %}
+    {% elif logo.slot_key == "secondary" %}
+        {% set empty_title = "Secondary Logo" %}
+        {% set empty_guidance = "Upload your secondary organization logo here" %}
+    {% elif logo.slot_key == "dark" %}
+        {% set empty_title = "Dark Logo" %}
+        {% set empty_guidance = "Upload your dark organization logo for light backgrounds" %}
+    {% elif logo.slot_key == "light" %}
+        {% set empty_title = "Light Logo" %}
+        {% set empty_guidance = "Upload your light organization logo for dark backgrounds" %}
+    {% elif logo.slot_key == "favicon" %}
+        {% set empty_title = "Organization Favicon" %}
+        {% set empty_guidance = "Upload your square browser icon here" %}
+    {% else %}
+        {% set empty_title = "Organization Logo" %}
+        {% set empty_guidance = "Upload your organization logo here" %}
+    {% endif %}
     <section class="logo-card">
         <div class="logo-preview logo-preview--{{ logo.slot_key }}">
             {% if logo.url %}
-            <img src="{{ logo.url }}" alt="{{ logo.label }} logo">
-            {% else %}
-            <span class="logo-empty">No logo uploaded</span>
+            <img src="{{ logo.url }}" alt="{{ logo.label }} logo" onerror="this.hidden=true; const placeholder=this.nextElementSibling; if (placeholder) placeholder.hidden=false;">
             {% endif %}
+            <div class="logo-empty" {% if logo.url %}hidden{% endif %}>
+                <span class="logo-empty-icon">{{ icon("upload", "icon") }}</span>
+                <strong>{{ empty_title }}</strong>
+                <span>{{ empty_guidance }}</span>
+            </div>
         </div>
         <div class="logo-meta">
             <strong>{{ logo.label }}</strong>
-            <span>{{ logo.source_label }}</span>
+            <span>{{ logo.source_label if logo.url else "Ready for first-time setup" }}</span>
         </div>
         <p class="logo-spec">{{ logo.recommendation }} PNG, JPG, WEBP, or safe SVG; maximum 4 MB.</p>
         <form class="logo-form" method="post" action="/system-configuration/logos" enctype="multipart/form-data">
@@ -138,10 +168,21 @@
             </div>
             <div class="group-list">
                 {% for group in logo_school_groups %}
+                {% if can_manage_all_logo_scopes %}
+                <form method="post" action="/scope/organization">
+                    <input type="hidden" name="school_group_id" value="{{ group.id }}">
+                    <input type="hidden" name="return_to" value="/system-configuration/logos?school_group_id={{ group.id }}">
+                    <button style="width:100%;border:0;text-align:left;" class="group-link {% if selected_school_group and group.id == selected_school_group.id %}is-active{% endif %}" type="submit">
+                        <strong>{{ group.name }}</strong>
+                        <span>{{ "Active" if group.status else "Inactive" }}</span>
+                    </button>
+                </form>
+                {% else %}
                 <a class="group-link {% if selected_school_group and group.id == selected_school_group.id %}is-active{% endif %}" href="/system-configuration/logos?school_group_id={{ group.id }}">
                     <strong>{{ group.name }}</strong>
                     <span>{{ "Active" if group.status else "Inactive" }}</span>
                 </a>
+                {% endif %}
                 {% endfor %}
             </div>
         </aside>
