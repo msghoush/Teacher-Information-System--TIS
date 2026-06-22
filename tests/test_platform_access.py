@@ -1,6 +1,9 @@
 import os
 import re
 import unittest
+from datetime import datetime
+from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 
 os.environ["TIS_SESSION_SECRET"] = "unit-test-session-secret-that-is-long-enough"
 
@@ -10,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 import auth
+import audit
 import authorization
 import db_migrations
 import main
@@ -774,6 +778,247 @@ class PlatformAccessTests(unittest.TestCase):
         self.assertFalse(auth.can_manage_target_user_account(self.branch_user, self.platform_owner))
         self.assertIn(auth.POSITION_MANAGEMENT, users.POSITIONS)
         self.assertNotIn("Admin", users.POSITIONS)
+
+    def test_owner_account_ui_shows_identity_status_and_blank_new_account_ids(self):
+        response = main.platform_console(
+            request=self._request("/platform", self.platform_owner),
+            db=self.db,
+        )
+        body = bytes(response.body).decode("utf-8")
+        self.assertIn("Owner Account", body)
+        self.assertIn('id="account_user_id" value="9001"', body)
+        self.assertIn("Unverified", body)
+        self.assertIn("Request Verification", body)
+        self.assertIn('form="ownerVerificationForm"', body)
+        verification_button = re.search(
+            r'<button[^>]*form="ownerVerificationForm"[^>]*>',
+            body,
+        )
+        self.assertIsNotNone(verification_button)
+        self.assertNotIn("disabled", verification_button.group(0))
+        self.assertIn('type="submit">Save</button>', body)
+        self.assertNotIn("Save Email", body)
+        self.assertNotIn("account-identity-mark", body)
+        self.assertIn('id="developer_user_id" name="developer_user_id" value=""', body)
+        self.assertIn('id="owner_user_id" name="co_owner_user_id" value=""', body)
+        self.assertNotIn('id="developer_user_id" name="developer_user_id" value="9001"', body)
+        self.assertNotIn('id="owner_user_id" name="co_owner_user_id" value="9001"', body)
+
+    def test_owner_email_change_requires_password_is_unique_and_resets_verification(self):
+        self.platform_owner.email_normalized = auth.normalize_email(self.platform_owner.email)
+        self.platform_owner.email_verified_at = datetime.now()
+        self.branch_user.email = "used@example.com"
+        self.branch_user.email_normalized = auth.normalize_email(self.branch_user.email)
+        self.db.commit()
+
+        wrong_password = main.update_platform_owner_email(
+            request=self._request("/platform/account/email", self.platform_owner, method="POST"),
+            email="new-owner@example.com",
+            current_password="wrong-password",
+            db=self.db,
+        )
+        self.assertEqual(wrong_password.status_code, 302)
+        self.db.refresh(self.platform_owner)
+        self.assertEqual(self.platform_owner.email, "owner@example.com")
+
+        duplicate = main.update_platform_owner_email(
+            request=self._request("/platform/account/email", self.platform_owner, method="POST"),
+            email=" USED@example.com ",
+            current_password="password123",
+            db=self.db,
+        )
+        self.assertEqual(duplicate.status_code, 302)
+        self.db.refresh(self.platform_owner)
+        self.assertEqual(self.platform_owner.email, "owner@example.com")
+
+        updated = main.update_platform_owner_email(
+            request=self._request("/platform/account/email", self.platform_owner, method="POST"),
+            email=" New-Owner@Example.com ",
+            current_password="password123",
+            db=self.db,
+        )
+        self.assertEqual(updated.status_code, 302)
+        self.db.refresh(self.platform_owner)
+        self.assertEqual(self.platform_owner.email, "New-Owner@Example.com")
+        self.assertEqual(self.platform_owner.email_normalized, "new-owner@example.com")
+        self.assertIsNone(self.platform_owner.email_verified_at)
+        self.assertEqual(
+            auth.authenticate_user(self.db, "NEW-OWNER@example.com", "password123").id,
+            self.platform_owner.id,
+        )
+
+    def test_owner_verification_request_reports_unconfigured_email_service(self):
+        self.platform_owner.email_normalized = auth.normalize_email(self.platform_owner.email)
+        self.platform_owner.email_verified_at = None
+        self.db.commit()
+        local_links = []
+        with (
+            patch.dict(
+                os.environ,
+                {"TIS_SMTP_HOST": "", "TIS_ENV": "local"},
+                clear=False,
+            ),
+            patch.object(
+                main,
+                "_write_local_email_verification_link",
+                side_effect=lambda user, url: local_links.append(url),
+            ),
+        ):
+            response = main.request_platform_owner_email_verification(
+                request=self._request(
+                    "/platform/account/request-email-verification",
+                    self.platform_owner,
+                    method="POST",
+                ),
+                db=self.db,
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            "Email+service+is+not+configured.+Verification+link+is+available+in+local+logs.",
+            response.headers["location"],
+        )
+        self.assertEqual(len(local_links), 1)
+        token = parse_qs(urlparse(local_links[0]).query)["token"][0]
+        self.assertIsNotNone(auth.decode_email_verification_token(token))
+        self.db.refresh(self.platform_owner)
+        self.assertIsNone(self.platform_owner.email_verified_at)
+
+    def test_production_never_logs_verification_token_without_smtp(self):
+        self.platform_owner.email_normalized = auth.normalize_email(self.platform_owner.email)
+        self.platform_owner.email_verified_at = None
+        self.db.commit()
+        with (
+            patch.dict(
+                os.environ,
+                {"TIS_SMTP_HOST": "", "TIS_ENV": "production"},
+                clear=False,
+            ),
+            patch.object(main, "_write_local_email_verification_link") as local_log,
+        ):
+            response = main.request_platform_owner_email_verification(
+                request=self._request(
+                    "/platform/account/request-email-verification",
+                    self.platform_owner,
+                    method="POST",
+                ),
+                db=self.db,
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("Email+service+is+not+configured.", response.headers["location"])
+        local_log.assert_not_called()
+
+    def test_owner_email_is_verified_only_after_signed_link_confirmation(self):
+        self.platform_owner.email_normalized = auth.normalize_email(self.platform_owner.email)
+        self.platform_owner.email_verified_at = None
+        self.db.commit()
+        sent_messages = []
+
+        with (
+            patch.dict(os.environ, {"TIS_SMTP_HOST": "smtp.example.test"}, clear=False),
+            patch.object(main, "_send_smtp_message", side_effect=sent_messages.append),
+        ):
+            response = main.request_platform_owner_email_verification(
+                request=self._request(
+                    "/platform/account/request-email-verification",
+                    self.platform_owner,
+                    method="POST",
+                ),
+                db=self.db,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(len(sent_messages), 1)
+        self.assertEqual(sent_messages[0]["To"], self.platform_owner.email)
+        self.db.refresh(self.platform_owner)
+        self.assertIsNone(self.platform_owner.email_verified_at)
+
+        match = re.search(r"https?://\S+", sent_messages[0].get_content())
+        self.assertIsNotNone(match)
+        token = parse_qs(urlparse(match.group(0)).query)["token"][0]
+        confirmed = main.verify_platform_owner_email(token=token, db=self.db)
+        self.assertEqual(confirmed.status_code, 302)
+        self.db.refresh(self.platform_owner)
+        self.assertIsNotNone(self.platform_owner.email_verified_at)
+
+    def test_owner_verification_link_is_rejected_after_email_changes(self):
+        self.platform_owner.email_normalized = auth.normalize_email(self.platform_owner.email)
+        token = auth.create_email_verification_token(self.platform_owner)
+        self.platform_owner.email = "changed@example.com"
+        self.platform_owner.email_normalized = auth.normalize_email(self.platform_owner.email)
+        self.db.commit()
+
+        response = main.verify_platform_owner_email(token=token, db=self.db)
+        self.assertEqual(response.status_code, 400)
+        self.db.refresh(self.platform_owner)
+        self.assertIsNone(self.platform_owner.email_verified_at)
+
+    def test_owner_password_change_requires_current_password_and_confirmation(self):
+        rejected = main.update_platform_owner_password(
+            request=self._request("/platform/account/password", self.platform_owner, method="POST"),
+            current_password="wrong-password",
+            new_password="new-password-123",
+            confirm_password="new-password-123",
+            db=self.db,
+        )
+        self.assertEqual(rejected.status_code, 302)
+        self.assertIsNotNone(auth.authenticate_user(self.db, self.platform_owner.user_id, "password123"))
+
+        mismatch = main.update_platform_owner_password(
+            request=self._request("/platform/account/password", self.platform_owner, method="POST"),
+            current_password="password123",
+            new_password="new-password-123",
+            confirm_password="different-password-123",
+            db=self.db,
+        )
+        self.assertEqual(mismatch.status_code, 302)
+        self.assertIsNotNone(auth.authenticate_user(self.db, self.platform_owner.user_id, "password123"))
+
+        updated = main.update_platform_owner_password(
+            request=self._request("/platform/account/password", self.platform_owner, method="POST"),
+            current_password="password123",
+            new_password="new-password-123",
+            confirm_password="new-password-123",
+            db=self.db,
+        )
+        self.assertEqual(updated.status_code, 302)
+        self.assertIsNone(auth.authenticate_user(self.db, self.platform_owner.user_id, "password123"))
+        self.assertIsNotNone(auth.authenticate_user(self.db, self.platform_owner.user_id, "new-password-123"))
+
+    def test_owner_id_cannot_be_reused_for_new_platform_account(self):
+        response = main.create_platform_developer(
+            request=self._request("/platform/developers", self.platform_owner, method="POST"),
+            user_id=self.platform_owner.user_id,
+            username="duplicate.owner.id",
+            email="different@example.com",
+            first_name="Different",
+            last_name="Account",
+            password="strongpassword123",
+            permission_keys=[],
+            db=self.db,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            self.db.query(models.User).filter(models.User.user_id == self.platform_owner.user_id).count(),
+            1,
+        )
+
+    def test_owner_account_changes_have_specific_audit_actions(self):
+        self.assertEqual(
+            audit._classify_action("POST", "/platform/account/email"),
+            "Update Platform Owner Email",
+        )
+        self.assertEqual(
+            audit._classify_action("POST", "/platform/account/password"),
+            "Change Platform Owner Password",
+        )
+        self.assertEqual(
+            audit._classify_action("POST", "/platform/account/request-email-verification"),
+            "Request Platform Owner Email Verification",
+        )
+        self.assertEqual(
+            audit._classify_action("GET", "/platform/account/verify-email"),
+            "Verify Platform Owner Email",
+        )
 
     def test_owner_creates_bounded_developer_permissions_and_controls_stay_hidden(self):
         request = self._request(

@@ -322,6 +322,10 @@
                     <input id="user_id" type="text" name="user_id" maxlength="10" inputmode="numeric" value="{{ form_data.get('user_id', user_row.user_id or user_row.username) }}" required>
                 </div>
                 <div class="field">
+                    <label for="email">Email (Optional)</label>
+                    <input id="email" type="email" name="email" maxlength="180" value="{{ form_data.get('email', user_row.email or '') }}" placeholder="name@organization.com" autocomplete="email">
+                </div>
+                <div class="field">
                     <label for="first_name">First Name</label>
                     <input id="first_name" type="text" name="first_name" value="{{ form_data.get('first_name', user_row.first_name) }}" required>
                 </div>

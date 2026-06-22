@@ -710,15 +710,19 @@
                     <div class="form-grid">
                         <div class="field">
                             <label for="user_id">User Iqama/National ID</label>
-                            <input id="user_id" type="text" name="user_id" maxlength="10" inputmode="numeric" placeholder="Unique Iqama/National ID (max 10 digits)" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+                            <input id="user_id" type="text" name="user_id" maxlength="10" inputmode="numeric" value="{{ form_data.get('user_id', '') }}" placeholder="Unique Iqama/National ID (max 10 digits)" autocomplete="off" autocapitalize="none" spellcheck="false" required>
+                        </div>
+                        <div class="field">
+                            <label for="email">Email (Optional)</label>
+                            <input id="email" type="email" name="email" maxlength="180" value="{{ form_data.get('email', '') }}" placeholder="name@organization.com" autocomplete="email">
                         </div>
                         <div class="field">
                             <label for="first_name">First Name</label>
-                            <input id="first_name" type="text" name="first_name" autocomplete="off" required>
+                            <input id="first_name" type="text" name="first_name" value="{{ form_data.get('first_name', '') }}" autocomplete="off" required>
                         </div>
                         <div class="field">
                             <label for="last_name">Last Name</label>
-                            <input id="last_name" type="text" name="last_name" autocomplete="off" required>
+                            <input id="last_name" type="text" name="last_name" value="{{ form_data.get('last_name', '') }}" autocomplete="off" required>
                         </div>
                         <div class="field">
                             <label for="position">Position</label>
@@ -788,7 +792,7 @@
                         </div>
                         <p>Review users and assignments.</p>
                     </div>
-                    <input id="usersSearch" class="search" type="text" placeholder="Search by name, user ID, role, branch">
+                    <input id="usersSearch" class="search" type="text" placeholder="Search by name, user ID, email, role, branch">
                 </div>
 
                 {% if users %}
@@ -803,6 +807,7 @@
                                 {% endif %}
                                 <th>Name</th>
                                 <th>User ID</th>
+                                <th>Email</th>
                                 <th>Position</th>
                                 <th>Role</th>
                                 <th>Access Scope</th>
@@ -843,6 +848,7 @@
                                     </div>
                                 </td>
                                 <td>{{ row.user_id or row.username or "-" }}</td>
+                                <td>{{ row.email or "-" }}</td>
                                 <td>{{ row.position or "-" }}</td>
                                 <td><span class="tag">{{ row.role }}</span></td>
                                 <td><span class="tag">{{ row.access_scope or "BRANCH" }}</span></td>
