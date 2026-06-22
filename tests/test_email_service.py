@@ -50,6 +50,7 @@ class ResendEmailServiceTests(unittest.TestCase):
                 to="owner@example.com",
                 subject="Verify email",
                 text="Verification body",
+                html="<strong>Verification body</strong>",
             )
 
         self.assertEqual(message_id, "email_123")
@@ -59,6 +60,7 @@ class ResendEmailServiceTests(unittest.TestCase):
         self.assertEqual(payload["reply_to"], ["support@tisplatform.com"])
         self.assertEqual(payload["subject"], "Verify email")
         self.assertEqual(payload["text"], "Verification body")
+        self.assertEqual(payload["html"], "<strong>Verification body</strong>")
         self.assertEqual(captured["timeout"], 9)
         self.assertEqual(
             captured["request"].get_header("Authorization"),

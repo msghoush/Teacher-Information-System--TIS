@@ -701,6 +701,58 @@ def is_valid_email(value: str | None) -> bool:
     )
 
 
+EMAIL_ALREADY_REGISTERED_MESSAGE = (
+    "This email is already registered on TIS Platform. Please sign in instead."
+)
+
+
+def get_email_identity_conflict(
+    db: Session,
+    email: str | None,
+    *,
+    exclude_user_pk: int | None = None,
+):
+    normalized_email = normalize_email(email)
+    if not normalized_email:
+        return None
+    query = db.query(models.User).filter(
+        models.User.email_normalized == normalized_email
+    )
+    if exclude_user_pk is not None:
+        query = query.filter(models.User.id != int(exclude_user_pk))
+    return query.first()
+
+
+def get_email_registration_error(
+    db: Session,
+    email: str | None,
+    *,
+    exclude_user_pk: int | None = None,
+) -> str:
+    return (
+        EMAIL_ALREADY_REGISTERED_MESSAGE
+        if get_email_identity_conflict(
+            db,
+            email,
+            exclude_user_pk=exclude_user_pk,
+        )
+        else ""
+    )
+
+
+def is_email_available_for_registration(
+    db: Session,
+    email: str | None,
+    *,
+    exclude_user_pk: int | None = None,
+) -> bool:
+    return not get_email_registration_error(
+        db,
+        email,
+        exclude_user_pk=exclude_user_pk,
+    )
+
+
 def resolve_login_user(db: Session, identifier: str):
     login_value = str(identifier or "").strip()
     if not login_value:

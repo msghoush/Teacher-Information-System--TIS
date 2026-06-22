@@ -961,6 +961,7 @@ class PlatformAccessTests(unittest.TestCase):
                     "RESEND_API_KEY": "re_test_key",
                     "EMAIL_FROM": "info@tisplatform.com",
                     "EMAIL_REPLY_TO": "info@tisplatform.com",
+                    "TIS_PUBLIC_BASE_URL": "https://tisplatform.com",
                 },
                 clear=False,
             ),
@@ -980,8 +981,14 @@ class PlatformAccessTests(unittest.TestCase):
         self.assertIn("Verification+email+has+been+sent.", response.headers["location"])
         self.assertEqual(len(sent_messages), 1)
         self.assertEqual(sent_messages[0]["to"], self.platform_owner.email)
-        self.assertEqual(sent_messages[0]["subject"], "Verify your TIS Owner email")
+        self.assertEqual(
+            sent_messages[0]["subject"],
+            "Verify your email address | TIS Platform",
+        )
         self.assertNotIn("forgot password", sent_messages[0]["text"].casefold())
+        self.assertIn("Verify Email", sent_messages[0]["html"])
+        self.assertIn("TIS%20Wordmark%20Only", sent_messages[0]["html"])
+        self.assertIn("https://tisplatform.com/static/branding/tis/logos/", sent_messages[0]["html"])
         self.assertEqual(self.db.query(models.SystemNotification).count(), notification_count)
         self.db.refresh(self.platform_owner)
         self.assertIsNone(self.platform_owner.email_verified_at)
@@ -1033,6 +1040,7 @@ class PlatformAccessTests(unittest.TestCase):
                     "RESEND_API_KEY": "re_test_key",
                     "EMAIL_FROM": "info@tisplatform.com",
                     "EMAIL_REPLY_TO": "support@tisplatform.com",
+                    "TIS_PUBLIC_BASE_URL": "https://tisplatform.com",
                 },
                 clear=False,
             ),
@@ -1050,8 +1058,12 @@ class PlatformAccessTests(unittest.TestCase):
         self.assertEqual(notification.title, "Forgot Password Request")
         self.assertEqual(len(sent_messages), 1)
         self.assertEqual(sent_messages[0]["to"], "support@tisplatform.com")
-        self.assertEqual(sent_messages[0]["subject"], "TIS Forgot Password Request")
+        self.assertEqual(
+            sent_messages[0]["subject"],
+            "Password reset request | TIS Platform",
+        )
         self.assertIn(self.branch_user.user_id, sent_messages[0]["text"])
+        self.assertIn("Open TIS Platform", sent_messages[0]["html"])
 
     def test_forgot_password_resend_failure_is_clear_and_keeps_internal_request(self):
         request = SimpleNamespace(
@@ -1067,6 +1079,7 @@ class PlatformAccessTests(unittest.TestCase):
                     "RESEND_API_KEY": "re_test_key",
                     "EMAIL_FROM": "info@tisplatform.com",
                     "EMAIL_REPLY_TO": "support@tisplatform.com",
+                    "TIS_PUBLIC_BASE_URL": "https://tisplatform.com",
                 },
                 clear=False,
             ),

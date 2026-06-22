@@ -70,6 +70,29 @@ class IdentityResolverTests(unittest.TestCase):
             self.db.commit()
         self.db.rollback()
 
+    def test_registration_helper_returns_shared_conflict_message(self):
+        error = auth.get_email_registration_error(
+            self.db,
+            "  OWNER@example.com ",
+        )
+        self.assertEqual(error, auth.EMAIL_ALREADY_REGISTERED_MESSAGE)
+        self.assertEqual(
+            error,
+            "This email is already registered on TIS Platform. Please sign in instead.",
+        )
+        self.assertFalse(
+            auth.is_email_available_for_registration(self.db, "owner@example.com")
+        )
+
+    def test_registration_helper_can_exclude_current_account(self):
+        self.assertTrue(
+            auth.is_email_available_for_registration(
+                self.db,
+                "OWNER@example.com",
+                exclude_user_pk=self.user.id,
+            )
+        )
+
 
 class IdentityMigrationTests(unittest.TestCase):
     @staticmethod
