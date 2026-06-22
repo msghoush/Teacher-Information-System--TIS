@@ -789,9 +789,10 @@ class PlatformAccessTests(unittest.TestCase):
         self.assertIn('id="account_user_id" value="9001"', body)
         self.assertIn("Unverified", body)
         self.assertIn("Request Verification", body)
-        self.assertIn('form="ownerVerificationForm"', body)
+        self.assertIn('action="/platform/account/request-email-verification"', body)
+        self.assertNotIn('action="/forgot-password"', body)
         verification_button = re.search(
-            r'<button[^>]*form="ownerVerificationForm"[^>]*>',
+            r'<button[^>]*>Request Verification</button>',
             body,
         )
         self.assertIsNotNone(verification_button)
@@ -912,9 +913,17 @@ class PlatformAccessTests(unittest.TestCase):
         self.platform_owner.email_verified_at = None
         self.db.commit()
         sent_messages = []
+        notification_count = self.db.query(models.SystemNotification).count()
 
         with (
-            patch.dict(os.environ, {"TIS_SMTP_HOST": "smtp.example.test"}, clear=False),
+            patch.dict(
+                os.environ,
+                {
+                    "TIS_SMTP_HOST": "smtp.example.test",
+                    "TIS_SMTP_FROM": "info@tisplatform.com",
+                },
+                clear=False,
+            ),
             patch.object(main, "_send_smtp_message", side_effect=sent_messages.append),
         ):
             response = main.request_platform_owner_email_verification(
@@ -927,10 +936,23 @@ class PlatformAccessTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 302)
+        self.assertIn("verification_sent=1", response.headers["location"])
+        self.assertIn("Verification+email+has+been+sent.", response.headers["location"])
         self.assertEqual(len(sent_messages), 1)
         self.assertEqual(sent_messages[0]["To"], self.platform_owner.email)
+        self.assertEqual(sent_messages[0]["From"], "info@tisplatform.com")
+        self.assertEqual(sent_messages[0]["Subject"], "Verify your TIS Owner email")
+        self.assertNotIn("forgot password", sent_messages[0].get_content().casefold())
+        self.assertEqual(self.db.query(models.SystemNotification).count(), notification_count)
         self.db.refresh(self.platform_owner)
         self.assertIsNone(self.platform_owner.email_verified_at)
+
+        sent_state_request = self._request("/platform", self.platform_owner)
+        sent_state_request.scope["query_string"] = b"verification_sent=1"
+        sent_state = main.platform_console(request=sent_state_request, db=self.db)
+        sent_state_body = bytes(sent_state.body).decode("utf-8")
+        self.assertIn("Verification Email Sent", sent_state_body)
+        self.assertNotIn(">Request Verification</button>", sent_state_body)
 
         match = re.search(r"https?://\S+", sent_messages[0].get_content())
         self.assertIsNotNone(match)

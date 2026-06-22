@@ -33,8 +33,10 @@
 .account-profile-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:16px; }
 .account-identity { display:flex; align-items:center; }
 .account-profile-forms { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
-.account-form { border-top:1px solid #e2e8f0; padding-top:15px; }
-.account-form h3 { margin:0 0 4px; font-size:15px; }
+.account-section-card { min-width:0; border:1px solid #dbe5f1; border-radius:12px; padding:17px; background:linear-gradient(145deg,#fff,#f8fbff); box-shadow:0 5px 15px rgba(15,23,42,.035); }
+.account-section-card h3 { margin:0 0 4px; color:#16243a; font-size:16px; }
+.account-email-form { display:grid; gap:12px; }
+.verification-request-form { display:inline-flex; margin:0; }
 .field input[readonly] { background:#f1f5f9; color:#475569; cursor:not-allowed; }
 .verification-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:10px 0 12px; }
 .verification-status { display:inline-flex; align-items:center; border-radius:999px; padding:4px 9px; background:#fff7e0; color:#8a5a00; font-size:12px; font-weight:800; }
@@ -130,39 +132,48 @@
         </div>
 
         <div class="account-profile-forms">
-            <form id="ownerVerificationForm" method="post" action="/platform/account/request-email-verification"></form>
-            <form class="account-form" method="post" action="/platform/account/email" autocomplete="off">
-                <h3>Identity &amp; Email</h3>
+            <section class="account-section-card" aria-labelledby="account-identity-title">
+                <h3 id="account-identity-title">Account Identity</h3>
                 <p class="muted">Your User ID is permanent and belongs only to this account.</p>
-                <div class="form-grid">
-                    <div class="field">
-                        <label for="account_user_id">User ID</label>
-                        <input id="account_user_id" value="{{ owner_account.user_id }}" readonly aria-readonly="true">
+                <form class="account-email-form" method="post" action="/platform/account/email" autocomplete="off">
+                    <div class="form-grid">
+                        <div class="field">
+                            <label for="account_user_id">User ID</label>
+                            <input id="account_user_id" value="{{ owner_account.user_id }}" readonly aria-readonly="true">
+                        </div>
+                        <div class="field">
+                            <label for="account_email">Email</label>
+                            <input id="account_email" name="email" type="email" maxlength="180" value="{{ owner_account.email or '' }}" autocomplete="email" required>
+                        </div>
+                        <div class="field">
+                            <label for="account_email_password">Current Password</label>
+                            <input id="account_email_password" name="current_password" type="password" autocomplete="current-password" required>
+                        </div>
                     </div>
-                    <div class="field">
-                        <label for="account_email">Email</label>
-                        <input id="account_email" name="email" type="email" maxlength="180" value="{{ owner_account.email or '' }}" autocomplete="email" required>
-                    </div>
-                    <div class="field">
-                        <label for="account_email_password">Current Password</label>
-                        <input id="account_email_password" name="current_password" type="password" autocomplete="current-password" required>
-                    </div>
-                </div>
+                    <button class="button" type="submit">Save</button>
+                </form>
                 <div class="verification-row">
                     {% if owner_account.email_verified_at %}
                     <span class="verification-status verified">Verified</span>
                     <span class="verification-note">Verified {{ owner_account.email_verified_at.strftime('%Y-%m-%d') }}</span>
                     {% else %}
                     <span class="verification-status">Unverified</span>
-                    <button class="button secondary" type="submit" form="ownerVerificationForm" {% if not owner_account.email %}disabled title="Save an email address first"{% endif %}>Request Verification</button>
+                    {% if request.query_params.get('verification_sent') == '1' %}
+                    <button class="button secondary" type="button" disabled>Verification Email Sent</button>
+                    {% elif request.query_params.get('verification_local') == '1' %}
+                    <button class="button secondary" type="button" disabled>Verification Link Available</button>
+                    {% else %}
+                    <form class="verification-request-form" method="post" action="/platform/account/request-email-verification">
+                        <button class="button secondary" type="submit" {% if not owner_account.email %}disabled title="Save an email address first"{% endif %}>Request Verification</button>
+                    </form>
+                    {% endif %}
                     <span class="verification-note">A verification link will be sent to the saved email address.</span>
                     {% endif %}
                 </div>
-                <button class="button" type="submit">Save</button>
-            </form>
+            </section>
 
-            <form class="account-form" method="post" action="/platform/account/password" autocomplete="off">
-                <h3>Change Password</h3>
+            <form class="account-section-card" method="post" action="/platform/account/password" autocomplete="off" aria-labelledby="account-security-title">
+                <h3 id="account-security-title">Security / Change Password</h3>
                 <p class="muted">Confirm the existing password before setting a new one.</p>
                 <div class="form-grid">
                     <div class="field">

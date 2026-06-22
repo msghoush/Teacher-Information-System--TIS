@@ -120,6 +120,7 @@ templates = Jinja2Templates(directory="templates")
 ACADEMIC_YEAR_NAME_PATTERN = re.compile(r"^\d{4}-\d{4}$")
 PUBLIC_LANDING_HOSTS = {"tisplatform.com", "www.tisplatform.com"}
 DEMO_REQUEST_EMAIL_TO = os.getenv("TIS_DEMO_REQUEST_EMAIL_TO", "info@tisplatform.com")
+PLATFORM_EMAIL_FROM = "info@tisplatform.com"
 DEMO_REQUEST_FIELDS = (
     ("school_name", "School Name"),
     ("full_name", "Contact Name"),
@@ -9664,8 +9665,9 @@ def _write_local_email_verification_link(user, verification_url: str) -> None:
 
 def _send_platform_owner_verification_email(user, request: Request) -> None:
     verification_url = _build_platform_owner_verification_url(user, request)
-    smtp_user = str(os.getenv("TIS_SMTP_USER") or "").strip()
-    smtp_from = str(os.getenv("TIS_SMTP_FROM") or smtp_user or DEMO_REQUEST_EMAIL_TO).strip()
+    smtp_from = str(os.getenv("TIS_SMTP_FROM") or PLATFORM_EMAIL_FROM).strip()
+    if smtp_from.casefold() != PLATFORM_EMAIL_FROM:
+        raise RuntimeError(f"TIS_SMTP_FROM must be {PLATFORM_EMAIL_FROM}")
     recipient = _clean_email_header(getattr(user, "email", ""), "")
     if not recipient:
         raise ValueError("The Owner account does not have a valid email address.")
@@ -9755,7 +9757,8 @@ def request_platform_owner_email_verification(
                 current_user.user_id,
             )
             return _platform_console_error("Verification link could not be created.")
-        return _platform_console_error(
+        return _redirect_with_notice(
+            "/platform?verification_local=1",
             "Email service is not configured. Verification link is available in local logs."
         )
 
@@ -9769,7 +9772,10 @@ def request_platform_owner_email_verification(
         return _platform_console_error(
             "Verification email could not be sent. Check the email service configuration."
         )
-    return _redirect_with_notice("/platform", "Verification email sent. Check your inbox.")
+    return _redirect_with_notice(
+        "/platform?verification_sent=1",
+        "Verification email has been sent.",
+    )
 
 
 @app.get("/platform/account/verify-email")

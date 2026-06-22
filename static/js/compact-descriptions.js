@@ -217,36 +217,30 @@
     };
 
     const alignTooltip = (description) => {
-        const trigger = description.querySelector(".compact-description-trigger");
-        if (!trigger) {
+        const surface = description._compactTooltipSurface;
+        if (!surface) {
             return;
         }
-        const triggerRect = trigger.getBoundingClientRect();
+        const surfaceRect = surface.getBoundingClientRect();
         const tooltipWidth = Math.min(300, window.innerWidth - 32);
         description.classList.toggle(
             "align-tooltip-right",
-            triggerRect.left + tooltipWidth > window.innerWidth - 16
+            surfaceRect.left + tooltipWidth > window.innerWidth - 16
         );
     };
 
     const showTooltip = (description) => {
         alignTooltip(description);
         description.classList.add("is-tooltip-open");
-        description.querySelector(".compact-description-trigger")?.setAttribute("aria-expanded", "true");
     };
 
-    const hideTooltip = (description, force = false) => {
-        if (!force && description.classList.contains("is-tooltip-pinned")) {
-            return;
-        }
+    const hideTooltip = (description) => {
         description.classList.remove("is-tooltip-open");
-        description.querySelector(".compact-description-trigger")?.setAttribute("aria-expanded", "false");
     };
 
     const closeAllTooltips = () => {
         document.querySelectorAll(".compact-description.is-tooltip-open").forEach((description) => {
-            description.classList.remove("is-tooltip-pinned");
-            hideTooltip(description, true);
+            hideTooltip(description);
         });
     };
 
@@ -254,7 +248,7 @@
         if (!isDescriptionCandidate(description)) {
             return;
         }
-        if (description.querySelector(":scope > .compact-description-trigger")) {
+        if (description.querySelector(":scope > .compact-description-tooltip")) {
             return;
         }
 
@@ -263,7 +257,6 @@
             "compact-description",
             "is-tooltip",
             "is-tooltip-open",
-            "is-tooltip-pinned",
             "align-tooltip-right"
         );
 
@@ -274,16 +267,7 @@
 
         tooltipSequence += 1;
         const tooltipId = `compact-description-tooltip-${tooltipSequence}`;
-        const trigger = document.createElement("span");
         const tooltip = document.createElement("span");
-
-        trigger.className = "compact-description-trigger";
-        trigger.tabIndex = 0;
-        trigger.setAttribute("role", "button");
-        trigger.setAttribute("aria-label", "Show description");
-        trigger.setAttribute("aria-describedby", tooltipId);
-        trigger.setAttribute("aria-expanded", "false");
-        trigger.textContent = "i";
 
         tooltip.id = tooltipId;
         tooltip.className = "compact-description-tooltip";
@@ -292,32 +276,29 @@
 
         description.textContent = "";
         description.classList.add("compact-description", "is-tooltip");
-        description.append(trigger, tooltip);
+        description.append(tooltip);
 
-        trigger.addEventListener("mouseenter", () => showTooltip(description));
-        trigger.addEventListener("mouseleave", () => hideTooltip(description));
-        trigger.addEventListener("focus", () => showTooltip(description));
-        trigger.addEventListener("blur", () => hideTooltip(description));
-        trigger.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            const shouldPin = !description.classList.contains("is-tooltip-pinned");
-            closeAllTooltips();
-            if (shouldPin) {
-                description.classList.add("is-tooltip-pinned");
-                showTooltip(description);
+        const surface = componentAncestors(description)[0] || description.parentElement;
+        if (!surface) {
+            return;
+        }
+        description._compactTooltipSurface = surface;
+        surface.classList.add("has-compact-description-tooltip");
+        const describedBy = new Set((surface.getAttribute("aria-describedby") || "").split(/\s+/).filter(Boolean));
+        describedBy.add(tooltipId);
+        surface.setAttribute("aria-describedby", Array.from(describedBy).join(" "));
+
+        surface.addEventListener("mouseenter", () => showTooltip(description));
+        surface.addEventListener("mouseleave", () => hideTooltip(description));
+        surface.addEventListener("focusin", () => showTooltip(description));
+        surface.addEventListener("focusout", (event) => {
+            if (!surface.contains(event.relatedTarget)) {
+                hideTooltip(description);
             }
         });
-        trigger.addEventListener("keydown", (event) => {
+        surface.addEventListener("keydown", (event) => {
             if (event.key === "Escape") {
-                description.classList.remove("is-tooltip-pinned");
-                hideTooltip(description, true);
-                trigger.blur();
-                return;
-            }
-            if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                trigger.click();
+                hideTooltip(description);
             }
         });
 
@@ -372,7 +353,7 @@
     observer.observe(document.body, { childList: true, characterData: true, subtree: true });
 
     document.addEventListener("click", (event) => {
-        if (event.target.closest(".compact-description")) {
+        if (event.target.closest(".has-compact-description-tooltip")) {
             return;
         }
         closeAllTooltips();
