@@ -1,4 +1,5 @@
 {% macro tis_logo_path(theme="light", layout="horizontal", compact=false) -%}
+{%- autoescape false -%}
 {%- set dark_background = theme in ("dark", "navy", "colored", "gradient") -%}
 {%- if compact -%}
 branding/tis/logos/TIS Wordmark Only – {{ "White" if dark_background else "Dark Blue" }}.png
@@ -7,6 +8,7 @@ branding/tis/logos/TIS Logo – {{ "White & Light Orange" if dark_background els
 {%- else -%}
 branding/tis/logos/TIS Logo – {{ "White & Light Orange" if dark_background else "Full Color" }} – Horizontal Layout.png
 {%- endif -%}
+{%- endautoescape -%}
 {%- endmacro %}
 
 {% macro tis_logo(theme="light", layout="horizontal", responsive=true, class_name="", alt="Teacher Information System") -%}

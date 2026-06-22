@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint, Index, LargeBinary, DateTime, Text
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint, Index, LargeBinary, DateTime, Text, text
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -133,10 +133,22 @@ class AcademicYear(Base):
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        Index(
+            "uq_users_email_normalized",
+            "email_normalized",
+            unique=True,
+            sqlite_where=text("email_normalized IS NOT NULL"),
+            postgresql_where=text("email_normalized IS NOT NULL"),
+        ),
+    )
+
     id = Column(Integer, primary_key=True)
     user_id = Column(String(10), unique=True, index=True)
     username = Column(String(50), unique=True, index=True)
     email = Column(String(180), unique=True, index=True)
+    email_normalized = Column(String(180))
+    email_verified_at = Column(DateTime)
     first_name = Column(String)
     last_name = Column(String)
     position = Column(String(50))
@@ -154,6 +166,9 @@ class User(Base):
     branch_id = Column(Integer, ForeignKey("branches.id"))
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
     is_active = Column(Boolean, default=True)
+    last_login_at = Column(DateTime)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class PlatformUserPermission(Base):

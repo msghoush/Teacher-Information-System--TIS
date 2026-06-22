@@ -5,6 +5,7 @@ import json
 import os
 import secrets
 import time
+import unicodedata
 
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -563,6 +564,51 @@ def decode_session_token(token: str):
     return payload
 
 
+def create_email_verification_token(user) -> str:
+    payload = {
+        "v": 1,
+        "purpose": "email_verification",
+        "user_id": str(getattr(user, "user_id", "") or "").strip(),
+        "email": normalize_email(getattr(user, "email", None)),
+        "iat": int(time.time()),
+        "nonce": secrets.token_urlsafe(16),
+    }
+    if not payload["user_id"] or not payload["email"]:
+        raise ValueError("A user ID and email are required for verification.")
+    payload_b64 = _base64url_encode(
+        json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    )
+    return f"{payload_b64}.{_sign_session_payload(payload_b64)}"
+
+
+def decode_email_verification_token(token: str, max_age_seconds: int = 3600):
+    cleaned = str(token or "").strip()
+    if "." not in cleaned:
+        return None
+    payload_b64, signature_b64 = cleaned.split(".", 1)
+    if not payload_b64 or not signature_b64:
+        return None
+    expected_signature = _sign_session_payload(payload_b64)
+    if not hmac.compare_digest(signature_b64, expected_signature):
+        return None
+    try:
+        payload = json.loads(_base64url_decode(payload_b64).decode("utf-8"))
+        issued_at = int(payload.get("iat") or 0)
+    except Exception:
+        return None
+    now = int(time.time())
+    if (
+        payload.get("purpose") != "email_verification"
+        or not str(payload.get("user_id") or "").strip()
+        or not normalize_email(payload.get("email"))
+        or issued_at <= 0
+        or issued_at > now + 300
+        or now - issued_at > max(1, int(max_age_seconds))
+    ):
+        return None
+    return payload
+
+
 def get_session_payload_from_request(request: Request):
     return decode_session_token(request.cookies.get(SESSION_COOKIE_KEY))
 
@@ -634,16 +680,56 @@ def verify_password(plain_password, hashed_password):
         return False
 
 
-def authenticate_user(db: Session, username: str, password: str):
-    login_value = username.strip()
+def normalize_email(value: str | None) -> str | None:
+    """Return the canonical form used for login and uniqueness checks."""
+    normalized = unicodedata.normalize("NFKC", str(value or "")).strip().casefold()
+    return normalized or None
+
+
+def is_valid_email(value: str | None) -> bool:
+    normalized = normalize_email(value)
+    if not normalized or len(normalized) > 180 or any(char.isspace() for char in normalized):
+        return False
+    local_part, separator, domain = normalized.rpartition("@")
+    return bool(
+        separator
+        and local_part
+        and domain
+        and "." in domain
+        and not domain.startswith(".")
+        and not domain.endswith(".")
+    )
+
+
+def resolve_login_user(db: Session, identifier: str):
+    login_value = str(identifier or "").strip()
+    if not login_value:
+        return None
+
+    # Preserve the established identifier precedence before trying new methods.
+    user = db.query(models.User).filter(models.User.user_id == login_value).first()
+    if user:
+        return user
+
+    normalized_email = normalize_email(login_value)
+    if "@" in login_value and normalized_email:
+        user = db.query(models.User).filter(
+            models.User.email_normalized == normalized_email
+        ).first()
+        if user:
+            return user
+
     lowered_login_value = login_value.lower()
-    user = db.query(models.User).filter(
+    return db.query(models.User).filter(
         or_(
             models.User.username == login_value,
             models.User.username == lowered_login_value,
-            models.User.user_id == login_value
         )
     ).first()
+
+
+def authenticate_user(db: Session, username: str, password: str):
+    user = resolve_login_user(db, username)
 
     if not user:
         return None

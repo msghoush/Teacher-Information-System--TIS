@@ -129,6 +129,14 @@ def _classify_action(method: str, path: str) -> str:
         return "Download Audit Log"
     if method == "GET" and path == "/system-configuration":
         return "View System Configuration"
+    if method == "POST" and path == "/platform/account/email":
+        return "Update Platform Owner Email"
+    if method == "POST" and path == "/platform/account/password":
+        return "Change Platform Owner Password"
+    if method == "POST" and path == "/platform/account/request-email-verification":
+        return "Request Platform Owner Email Verification"
+    if method == "GET" and path == "/platform/account/verify-email":
+        return "Verify Platform Owner Email"
     if method == "POST" and path == "/system-configuration/branches":
         return "Create Branch"
     if method == "POST" and path.startswith("/system-configuration/branches/") and path.endswith("/delete"):

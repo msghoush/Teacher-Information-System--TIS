@@ -25,10 +25,21 @@
 .button { display:inline-flex; align-items:center; justify-content:center; border:0; border-radius:9px; background:#0a4ea3; color:#fff; cursor:pointer; font-weight:700; padding:8px 11px; text-decoration:none; }
 .button.secondary { background:#475569; }
 .button.danger { background:#b42318; }
+.button:disabled { cursor:not-allowed; opacity:.55; }
 .ownership-form-action { margin-top:14px; }
 .platform-management { margin-top:22px; display:grid; gap:16px; }
 .management-card { background:#fff; border:1px solid #d8e2f0; border-radius:14px; padding:18px; }
 .management-card h2 { margin:0 0 5px; font-size:19px; }
+.account-profile-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:16px; }
+.account-identity { display:flex; align-items:center; }
+.account-profile-forms { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+.account-form { border-top:1px solid #e2e8f0; padding-top:15px; }
+.account-form h3 { margin:0 0 4px; font-size:15px; }
+.field input[readonly] { background:#f1f5f9; color:#475569; cursor:not-allowed; }
+.verification-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:10px 0 12px; }
+.verification-status { display:inline-flex; align-items:center; border-radius:999px; padding:4px 9px; background:#fff7e0; color:#8a5a00; font-size:12px; font-weight:800; }
+.verification-status.verified { background:#dcfce7; color:#166534; }
+.verification-note { margin:0; color:#64748b; font-size:12px; }
 .form-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; }
 .field { display:grid; gap:5px; }
 .field label { color:#334155; font-size:13px; font-weight:700; }
@@ -41,7 +52,7 @@
 .account-row:first-of-type { border-top:0; }
 .account-head { display:flex; justify-content:space-between; gap:12px; margin-bottom:8px; }
 .notice { background:#eff6ff; color:#1e3a8a; border-radius:10px; padding:10px 12px; margin-bottom:14px; }
-@media (max-width:700px) { .platform-toolbar,.organization-card summary,.branch-row,.account-head { align-items:stretch; flex-direction:column; } }
+@media (max-width:700px) { .platform-toolbar,.organization-card summary,.branch-row,.account-head,.account-profile-head { align-items:stretch; flex-direction:column; } .account-profile-forms { grid-template-columns:1fr; } }
 </style>
 {% endblock %}
 
@@ -107,17 +118,82 @@
 
 {% if can_manage_ownership %}
 <section class="platform-management" aria-label="Platform account management">
+    <article class="management-card" aria-labelledby="owner-account-title">
+        <div class="account-profile-head">
+            <div class="account-identity">
+                <div>
+                    <h2 id="owner-account-title">Owner Account</h2>
+                    <p class="muted">Manage the identity used to access the TIS Platform Console.</p>
+                </div>
+            </div>
+            <span class="status-pill active">{{ owner_account.platform_owner_kind or "OWNER" }}</span>
+        </div>
+
+        <div class="account-profile-forms">
+            <form id="ownerVerificationForm" method="post" action="/platform/account/request-email-verification"></form>
+            <form class="account-form" method="post" action="/platform/account/email" autocomplete="off">
+                <h3>Identity &amp; Email</h3>
+                <p class="muted">Your User ID is permanent and belongs only to this account.</p>
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="account_user_id">User ID</label>
+                        <input id="account_user_id" value="{{ owner_account.user_id }}" readonly aria-readonly="true">
+                    </div>
+                    <div class="field">
+                        <label for="account_email">Email</label>
+                        <input id="account_email" name="email" type="email" maxlength="180" value="{{ owner_account.email or '' }}" autocomplete="email" required>
+                    </div>
+                    <div class="field">
+                        <label for="account_email_password">Current Password</label>
+                        <input id="account_email_password" name="current_password" type="password" autocomplete="current-password" required>
+                    </div>
+                </div>
+                <div class="verification-row">
+                    {% if owner_account.email_verified_at %}
+                    <span class="verification-status verified">Verified</span>
+                    <span class="verification-note">Verified {{ owner_account.email_verified_at.strftime('%Y-%m-%d') }}</span>
+                    {% else %}
+                    <span class="verification-status">Unverified</span>
+                    <button class="button secondary" type="submit" form="ownerVerificationForm" {% if not owner_account.email %}disabled title="Save an email address first"{% endif %}>Request Verification</button>
+                    <span class="verification-note">A verification link will be sent to the saved email address.</span>
+                    {% endif %}
+                </div>
+                <button class="button" type="submit">Save</button>
+            </form>
+
+            <form class="account-form" method="post" action="/platform/account/password" autocomplete="off">
+                <h3>Change Password</h3>
+                <p class="muted">Confirm the existing password before setting a new one.</p>
+                <div class="form-grid">
+                    <div class="field">
+                        <label for="account_current_password">Current Password</label>
+                        <input id="account_current_password" name="current_password" type="password" autocomplete="current-password" required>
+                    </div>
+                    <div class="field">
+                        <label for="account_new_password">New Password</label>
+                        <input id="account_new_password" name="new_password" type="password" minlength="12" autocomplete="new-password" required>
+                    </div>
+                    <div class="field">
+                        <label for="account_confirm_password">Confirm New Password</label>
+                        <input id="account_confirm_password" name="confirm_password" type="password" minlength="12" autocomplete="new-password" required>
+                    </div>
+                </div>
+                <button class="button" type="submit">Change Password</button>
+            </form>
+        </div>
+    </article>
+
     <article class="management-card">
         <h2>Create Platform Developer</h2>
         <p class="muted">Developer permissions are explicitly assigned and can never include ownership controls.</p>
-        <form method="post" action="/platform/developers">
+        <form method="post" action="/platform/developers" autocomplete="off">
             <div class="form-grid">
-                <div class="field"><label for="developer_user_id">User ID</label><input id="developer_user_id" name="user_id" required></div>
-                <div class="field"><label for="developer_username">Username</label><input id="developer_username" name="username" required></div>
-                <div class="field"><label for="developer_email">Email</label><input id="developer_email" name="email" type="email" required></div>
+                <div class="field"><label for="developer_user_id">New Developer User ID</label><input id="developer_user_id" name="developer_user_id" value="" maxlength="10" inputmode="numeric" pattern="[0-9]{1,10}" autocomplete="off" required></div>
+                <div class="field"><label for="developer_username">Username</label><input id="developer_username" name="username" value="" autocomplete="off" required></div>
+                <div class="field"><label for="developer_email">Email</label><input id="developer_email" name="email" type="email" value="" autocomplete="off" required></div>
                 <div class="field"><label for="developer_first_name">First Name</label><input id="developer_first_name" name="first_name" required></div>
                 <div class="field"><label for="developer_last_name">Last Name</label><input id="developer_last_name" name="last_name" required></div>
-                <div class="field"><label for="developer_password">Initial Password</label><input id="developer_password" name="password" type="password" minlength="12" required></div>
+                <div class="field"><label for="developer_password">Initial Password</label><input id="developer_password" name="password" type="password" minlength="12" autocomplete="new-password" required></div>
             </div>
             <div class="permission-groups">
                 {% for group in developer_permission_groups %}
@@ -163,14 +239,14 @@
             {% endfor %}
         </div>
         <h3>Add Co-Owner</h3>
-        <form method="post" action="/platform/owners">
+        <form method="post" action="/platform/owners" autocomplete="off">
             <div class="form-grid">
-                <div class="field"><label for="owner_user_id">User ID</label><input id="owner_user_id" name="user_id" required></div>
-                <div class="field"><label for="owner_username">Username</label><input id="owner_username" name="username" required></div>
-                <div class="field"><label for="owner_email">Email</label><input id="owner_email" name="email" type="email" required></div>
+                <div class="field"><label for="owner_user_id">New Co-Owner User ID</label><input id="owner_user_id" name="co_owner_user_id" value="" maxlength="10" inputmode="numeric" pattern="[0-9]{1,10}" autocomplete="off" required></div>
+                <div class="field"><label for="owner_username">Username</label><input id="owner_username" name="username" value="" autocomplete="off" required></div>
+                <div class="field"><label for="owner_email">Email</label><input id="owner_email" name="email" type="email" value="" autocomplete="off" required></div>
                 <div class="field"><label for="owner_first_name">First Name</label><input id="owner_first_name" name="first_name" required></div>
                 <div class="field"><label for="owner_last_name">Last Name</label><input id="owner_last_name" name="last_name" required></div>
-                <div class="field"><label for="owner_password">Initial Password</label><input id="owner_password" name="password" type="password" minlength="12" required></div>
+                <div class="field"><label for="owner_password">Initial Password</label><input id="owner_password" name="password" type="password" minlength="12" autocomplete="new-password" required></div>
             </div>
             <button class="button ownership-form-action" type="submit">Add Co-Owner</button>
         </form>
@@ -180,8 +256,8 @@
         <p class="muted">The target must already be an active platform user. Your account will remain a Co-Owner.</p>
         <form method="post" action="/platform/ownership/transfer">
             <div class="form-grid">
-                <div class="field"><label for="target_user_id">Target Platform User ID</label><input id="target_user_id" name="target_user_id" required></div>
-                <div class="field"><label for="current_password">Current Password</label><input id="current_password" name="current_password" type="password" required></div>
+                <div class="field"><label for="target_user_id">Target Platform User ID</label><input id="target_user_id" name="target_user_id" value="" maxlength="10" inputmode="numeric" pattern="[0-9]{1,10}" autocomplete="off" required></div>
+                <div class="field"><label for="transfer_current_password">Current Password</label><input id="transfer_current_password" name="current_password" type="password" autocomplete="current-password" required></div>
                 <div class="field"><label for="confirmation">Type TRANSFER OWNERSHIP</label><input id="confirmation" name="confirmation" required></div>
             </div>
             <button class="button danger ownership-form-action" type="submit">Transfer Primary Ownership</button>

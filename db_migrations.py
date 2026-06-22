@@ -1,4 +1,5 @@
 import logging
+import unicodedata
 from dataclasses import dataclass
 from typing import Callable
 
@@ -151,6 +152,79 @@ def _dialect_column_sql(column_sql: str, engine) -> str:
     if engine.dialect.name != "postgresql":
         return column_sql
     return column_sql.replace("DATETIME", "TIMESTAMP")
+
+
+def _normalize_identity_email(value: str | None) -> str | None:
+    normalized = unicodedata.normalize("NFKC", str(value or "")).strip().casefold()
+    return normalized or None
+
+
+def _identity_foundation(engine, connection):
+    if not _table_exists(connection, "users"):
+        return
+
+    rows = connection.execute(
+        text("SELECT id, user_id, email FROM users WHERE email IS NOT NULL")
+    ).mappings().all()
+    normalized_by_user_id = {}
+    users_by_email = {}
+    for row in rows:
+        normalized = _normalize_identity_email(row["email"])
+        if not normalized:
+            continue
+        user_pk = int(row["id"])
+        normalized_by_user_id[user_pk] = normalized
+        users_by_email.setdefault(normalized, []).append(
+            str(row["user_id"] or f"pk:{user_pk}")
+        )
+
+    collisions = {
+        email: user_ids
+        for email, user_ids in users_by_email.items()
+        if len(user_ids) > 1
+    }
+    if collisions:
+        details = "; ".join(
+            f"{email}: {', '.join(user_ids)}"
+            for email, user_ids in sorted(collisions.items())
+        )
+        raise RuntimeError(
+            "Identity migration stopped: duplicate normalized emails found ("
+            f"{details}). Resolve the collisions before retrying."
+        )
+
+    datetime_type = _datetime_type(engine)
+    _add_column_if_missing(connection, connection, "users", "email_normalized", "email_normalized VARCHAR(180)")
+    _add_column_if_missing(connection, connection, "users", "email_verified_at", f"email_verified_at {datetime_type}")
+    _add_column_if_missing(connection, connection, "users", "last_login_at", f"last_login_at {datetime_type}")
+    _add_column_if_missing(connection, connection, "users", "created_at", f"created_at {datetime_type}")
+    _add_column_if_missing(connection, connection, "users", "updated_at", f"updated_at {datetime_type}")
+
+    _execute(connection, "UPDATE users SET email = NULL WHERE email IS NOT NULL AND TRIM(email) = ''")
+    for user_pk, normalized in normalized_by_user_id.items():
+        _execute(
+            connection,
+            "UPDATE users SET email_normalized = :email WHERE id = :user_pk",
+            {"email": normalized, "user_pk": user_pk},
+        )
+    _execute(
+        connection,
+        """
+        UPDATE users
+        SET created_at = COALESCE(created_at, CURRENT_TIMESTAMP),
+            updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP)
+        """,
+    )
+
+    if not _index_exists(connection, "users", "uq_users_email_normalized"):
+        _execute(
+            connection,
+            """
+            CREATE UNIQUE INDEX uq_users_email_normalized
+            ON users (email_normalized)
+            WHERE email_normalized IS NOT NULL
+            """,
+        )
 
 
 def _tenant_scope_columns_and_backfill(engine, connection):
@@ -1149,6 +1223,11 @@ MIGRATIONS = (
         migration_id="20260620_003_phase1_address_details",
         description="Add optional district and neighborhood fields to organizations and branches",
         apply=_phase1_address_detail_columns,
+    ),
+    Migration(
+        migration_id="20260622_001_identity_foundation",
+        description="Add canonical email identity fields and login audit timestamps",
+        apply=_identity_foundation,
     ),
 )
 

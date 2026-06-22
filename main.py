@@ -1579,12 +1579,15 @@ def _write_request_audit_log(
 ):
     try:
         actor = _resolve_audit_actor(request)
+        request_query = str(request.url.query)
+        if request.url.path == "/platform/account/verify-email":
+            request_query = "[redacted]"
         write_audit_event(
             {
                 "event_type": "http_request",
                 "method": request.method,
                 "path": request.url.path,
-                "query": str(request.url.query),
+                "query": request_query,
                 "status_code": status_code,
                 "duration_ms": duration_ms,
                 "client_ip": _resolve_client_ip(request),
@@ -8634,7 +8637,7 @@ def _create_demo_request_record(db: Session, demo_fields: dict[str, str], reques
     return demo_request
 
 
-def _send_demo_request_email(demo_fields: dict[str, str], request: Request) -> None:
+def _send_smtp_message(message: EmailMessage) -> None:
     smtp_host = str(os.getenv("TIS_SMTP_HOST") or "").strip()
     if not smtp_host:
         raise RuntimeError("TIS_SMTP_HOST is not configured")
@@ -8643,22 +8646,8 @@ def _send_demo_request_email(demo_fields: dict[str, str], request: Request) -> N
     smtp_timeout = _get_positive_int_env("TIS_SMTP_TIMEOUT_SECONDS", 12)
     smtp_user = str(os.getenv("TIS_SMTP_USER") or "").strip()
     smtp_password = str(os.getenv("TIS_SMTP_PASSWORD") or "").strip()
-    smtp_from = str(os.getenv("TIS_SMTP_FROM") or smtp_user or DEMO_REQUEST_EMAIL_TO).strip()
     use_ssl = _get_bool_env("TIS_SMTP_SSL", False)
     use_tls = _get_bool_env("TIS_SMTP_TLS", not use_ssl)
-
-    school_name = _clean_email_header(demo_fields.get("school_name"), "New school")
-    contact_name = _clean_email_header(demo_fields.get("full_name"), "Landing visitor")
-
-    message = EmailMessage()
-    message["Subject"] = f"TIS demo request - {school_name}"
-    message["From"] = smtp_from
-    message["To"] = DEMO_REQUEST_EMAIL_TO
-    reply_to = _clean_email_header(demo_fields.get("email"), "")
-    if reply_to:
-        message["Reply-To"] = reply_to
-    message.set_content(_build_demo_email_body(demo_fields, request))
-    message.add_header("X-TIS-Demo-Contact", contact_name)
 
     context = ssl.create_default_context()
     if use_ssl:
@@ -8676,6 +8665,25 @@ def _send_demo_request_email(demo_fields: dict[str, str], request: Request) -> N
         if smtp_user and smtp_password:
             server.login(smtp_user, smtp_password)
         server.send_message(message)
+
+
+def _send_demo_request_email(demo_fields: dict[str, str], request: Request) -> None:
+    smtp_user = str(os.getenv("TIS_SMTP_USER") or "").strip()
+    smtp_from = str(os.getenv("TIS_SMTP_FROM") or smtp_user or DEMO_REQUEST_EMAIL_TO).strip()
+
+    school_name = _clean_email_header(demo_fields.get("school_name"), "New school")
+    contact_name = _clean_email_header(demo_fields.get("full_name"), "Landing visitor")
+
+    message = EmailMessage()
+    message["Subject"] = f"TIS demo request - {school_name}"
+    message["From"] = smtp_from
+    message["To"] = DEMO_REQUEST_EMAIL_TO
+    reply_to = _clean_email_header(demo_fields.get("email"), "")
+    if reply_to:
+        message["Reply-To"] = reply_to
+    message.set_content(_build_demo_email_body(demo_fields, request))
+    message.add_header("X-TIS-Demo-Contact", contact_name)
+    _send_smtp_message(message)
 
 
 @app.post("/request-demo")
@@ -9318,7 +9326,7 @@ def login(
             request=request,
             db=db,
             username=username,
-            error="Invalid User ID or password.",
+            error="Invalid User ID, email, or password.",
             status_code=401
         )
 
@@ -9396,7 +9404,9 @@ def login(
         and getattr(user, "school_group_id", None) != scope_school_group_id
     ):
         user.school_group_id = scope_school_group_id
-        db.commit()
+
+    user.last_login_at = datetime.utcnow()
+    db.commit()
 
     response = RedirectResponse(
         url="/platform" if auth.is_platform_user(user) else "/dashboard",
@@ -9539,6 +9549,7 @@ def platform_console(
             "developer_default_permission_keys": permission_registry.PLATFORM_DEVELOPER_DEFAULT_PERMISSION_KEYS,
             "can_manage_ownership": auth.is_platform_owner(current_user),
             "can_transfer_ownership": auth.is_primary_platform_owner(current_user),
+            "owner_account": current_user,
             **build_shell_context(
                 request,
                 db,
@@ -9605,17 +9616,18 @@ def _validate_platform_account_fields(
         errors.append("Platform user ID must be numeric and up to 10 digits.")
     if not re.fullmatch(r"[A-Za-z0-9_.-]{3,50}", username):
         errors.append("Username must be 3-50 letters, numbers, dots, dashes, or underscores.")
-    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+    if not auth.is_valid_email(email):
         errors.append("Enter a valid email address.")
     if len(password) < 12:
         errors.append("Platform account passwords must be at least 12 characters.")
-    duplicate = db.query(models.User).filter(
-        or_(
-            models.User.user_id == user_id,
-            models.User.username == username,
-            models.User.email == email,
-        )
-    ).first()
+    duplicate_conditions = [
+        models.User.user_id == user_id,
+        models.User.username == username,
+    ]
+    email_normalized = auth.normalize_email(email)
+    if email_normalized:
+        duplicate_conditions.append(models.User.email_normalized == email_normalized)
+    duplicate = db.query(models.User).filter(or_(*duplicate_conditions)).first()
     if duplicate:
         errors.append("User ID, username, or email already exists.")
     return errors
@@ -9628,10 +9640,204 @@ def _platform_console_error(message: str):
     )
 
 
+def _build_platform_owner_verification_url(user, request: Request) -> str:
+    token = auth.create_email_verification_token(user)
+    return str(
+        request.url_for("verify_platform_owner_email").include_query_params(token=token)
+    )
+
+
+def _write_local_email_verification_link(user, verification_url: str) -> None:
+    log_path = os.getenv("TIS_LOCAL_EMAIL_VERIFICATION_LOG", "logs/email_verification.log")
+    log_path = os.path.abspath(str(log_path or "logs/email_verification.log"))
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    record = {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "purpose": "owner_email_verification",
+        "user_id": str(getattr(user, "user_id", "") or ""),
+        "email": str(getattr(user, "email", "") or ""),
+        "verification_url": verification_url,
+    }
+    with open(log_path, "a", encoding="utf-8") as log_file:
+        log_file.write(json.dumps(record, separators=(",", ":"), ensure_ascii=True) + "\n")
+
+
+def _send_platform_owner_verification_email(user, request: Request) -> None:
+    verification_url = _build_platform_owner_verification_url(user, request)
+    smtp_user = str(os.getenv("TIS_SMTP_USER") or "").strip()
+    smtp_from = str(os.getenv("TIS_SMTP_FROM") or smtp_user or DEMO_REQUEST_EMAIL_TO).strip()
+    recipient = _clean_email_header(getattr(user, "email", ""), "")
+    if not recipient:
+        raise ValueError("The Owner account does not have a valid email address.")
+
+    message = EmailMessage()
+    message["Subject"] = "Verify your TIS Owner email"
+    message["From"] = smtp_from
+    message["To"] = recipient
+    message.set_content(
+        "Verify the email address for your TIS Owner account by opening this link:\n\n"
+        f"{verification_url}\n\n"
+        "This link expires in one hour. If you did not request it, you can ignore this email."
+    )
+    _send_smtp_message(message)
+
+
+@app.post("/platform/account/email")
+def update_platform_owner_email(
+    request: Request,
+    email: str = Form(...),
+    current_password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    current_user, denied = _get_platform_owner_access(request, db)
+    if denied:
+        return denied
+
+    email = str(email or "").strip()
+    email_normalized = auth.normalize_email(email)
+    if not auth.verify_password(current_password, current_user.password):
+        return _platform_console_error("Current password is incorrect. Email was not changed.")
+    if not auth.is_valid_email(email) or not email_normalized:
+        return _platform_console_error("Enter a valid email address.")
+
+    duplicate = db.query(models.User).filter(
+        models.User.email_normalized == email_normalized,
+        models.User.id != current_user.id,
+    ).first()
+    if duplicate:
+        return _platform_console_error("Email address already belongs to another user.")
+
+    current_normalized = (
+        getattr(current_user, "email_normalized", None)
+        or auth.normalize_email(getattr(current_user, "email", None))
+    )
+    identity_changed = current_normalized != email_normalized
+    current_user.email = email
+    current_user.email_normalized = email_normalized
+    if identity_changed:
+        current_user.email_verified_at = None
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return _platform_console_error("Email address already belongs to another user.")
+
+    notice = (
+        "Owner email updated. Verification is required."
+        if identity_changed
+        else "Owner email saved."
+    )
+    return _redirect_with_notice("/platform", notice)
+
+
+@app.post("/platform/account/request-email-verification")
+def request_platform_owner_email_verification(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, denied = _get_platform_owner_access(request, db)
+    if denied:
+        return denied
+    if not auth.is_valid_email(getattr(current_user, "email", None)):
+        return _platform_console_error("Save a valid email address before requesting verification.")
+    if getattr(current_user, "email_verified_at", None):
+        return _redirect_with_notice("/platform", "Owner email is already verified.")
+    if not str(os.getenv("TIS_SMTP_HOST") or "").strip():
+        if auth.is_production_environment():
+            return _platform_console_error("Email service is not configured.")
+        try:
+            verification_url = _build_platform_owner_verification_url(current_user, request)
+            _write_local_email_verification_link(current_user, verification_url)
+        except Exception:
+            logging.exception(
+                "Local Owner email verification link creation failed for user_id=%s",
+                current_user.user_id,
+            )
+            return _platform_console_error("Verification link could not be created.")
+        return _platform_console_error(
+            "Email service is not configured. Verification link is available in local logs."
+        )
+
+    try:
+        _send_platform_owner_verification_email(current_user, request)
+    except Exception:
+        logging.exception(
+            "Owner email verification delivery failed for user_id=%s",
+            current_user.user_id,
+        )
+        return _platform_console_error(
+            "Verification email could not be sent. Check the email service configuration."
+        )
+    return _redirect_with_notice("/platform", "Verification email sent. Check your inbox.")
+
+
+@app.get("/platform/account/verify-email")
+def verify_platform_owner_email(
+    token: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    max_age_seconds = _get_positive_int_env("TIS_EMAIL_VERIFICATION_MAX_AGE_SECONDS", 3600)
+    payload = auth.decode_email_verification_token(token, max_age_seconds=max_age_seconds)
+    if not payload:
+        return PlainTextResponse("This email verification link is invalid or expired.", status_code=400)
+
+    user = db.query(models.User).filter(
+        models.User.user_id == str(payload.get("user_id") or "").strip(),
+        models.User.user_type == auth.USER_TYPE_PLATFORM,
+        models.User.platform_role == auth.PLATFORM_ROLE_OWNER,
+    ).first()
+    token_email = auth.normalize_email(payload.get("email"))
+    current_email = (
+        getattr(user, "email_normalized", None)
+        or auth.normalize_email(getattr(user, "email", None))
+        if user
+        else None
+    )
+    if not user or not token_email or token_email != current_email:
+        return PlainTextResponse(
+            "This email verification link no longer matches the Owner account.",
+            status_code=400,
+        )
+    if not getattr(user, "email_verified_at", None):
+        user.email_verified_at = datetime.utcnow()
+        db.commit()
+    return _redirect_with_notice("/platform", "Owner email verified successfully.")
+
+
+@app.post("/platform/account/password")
+def update_platform_owner_password(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    current_user, denied = _get_platform_owner_access(request, db)
+    if denied:
+        return denied
+
+    current_password = str(current_password or "")
+    new_password = str(new_password or "")
+    confirm_password = str(confirm_password or "")
+    if not auth.verify_password(current_password, current_user.password):
+        return _platform_console_error("Current password is incorrect. Password was not changed.")
+    if len(new_password) < 12:
+        return _platform_console_error("New password must be at least 12 characters.")
+    if new_password != confirm_password:
+        return _platform_console_error("New password confirmation does not match.")
+    if auth.verify_password(new_password, current_user.password):
+        return _platform_console_error("New password must be different from the current password.")
+
+    current_user.password = get_password_hash(new_password)
+    db.commit()
+    return _redirect_with_notice("/platform", "Owner password changed successfully.")
+
+
 @app.post("/platform/developers")
 def create_platform_developer(
     request: Request,
-    user_id: str = Form(...),
+    user_id: str = Form(..., alias="developer_user_id"),
     username: str = Form(...),
     email: str = Form(...),
     first_name: str = Form(...),
@@ -9645,7 +9851,8 @@ def create_platform_developer(
         return denied
     user_id = str(user_id or "").strip()
     username = str(username or "").strip().lower()
-    email = str(email or "").strip().lower()
+    email = str(email or "").strip()
+    email_normalized = auth.normalize_email(email)
     password = str(password or "")
     errors = _validate_platform_account_fields(
         db,
@@ -9663,6 +9870,7 @@ def create_platform_developer(
         user_id=user_id,
         username=username,
         email=email,
+        email_normalized=email_normalized,
         first_name=str(first_name or "").strip(),
         last_name=str(last_name or "").strip(),
         password=get_password_hash(password),
@@ -9739,7 +9947,7 @@ def update_platform_developer_permissions(
 @app.post("/platform/owners")
 def create_platform_co_owner(
     request: Request,
-    user_id: str = Form(...),
+    user_id: str = Form(..., alias="co_owner_user_id"),
     username: str = Form(...),
     email: str = Form(...),
     first_name: str = Form(...),
@@ -9752,7 +9960,8 @@ def create_platform_co_owner(
         return denied
     user_id = str(user_id or "").strip()
     username = str(username or "").strip().lower()
-    email = str(email or "").strip().lower()
+    email = str(email or "").strip()
+    email_normalized = auth.normalize_email(email)
     password = str(password or "")
     errors = _validate_platform_account_fields(
         db,
@@ -9767,6 +9976,7 @@ def create_platform_co_owner(
         user_id=user_id,
         username=username,
         email=email,
+        email_normalized=email_normalized,
         first_name=str(first_name or "").strip(),
         last_name=str(last_name or "").strip(),
         password=get_password_hash(password),

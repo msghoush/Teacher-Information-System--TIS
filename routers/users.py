@@ -282,7 +282,9 @@ def _render_users_page(
     error: str = "",
     success: str = "",
     detail_errors=None,
+    form_data=None,
 ):
+    form_data = dict(form_data or {})
     available_branches = _get_available_branches(db, current_user)
     can_manage_users = auth.can_manage_users(current_user)
     can_edit_user_accounts = auth.can_edit_user_accounts(current_user)
@@ -339,6 +341,7 @@ def _render_users_page(
             "error": error,
             "success": success,
             "detail_errors": detail_errors or [],
+            "form_data": form_data,
             "current_user": current_user,
             "can_manage_users": can_manage_users,
             "can_edit_user_accounts": can_edit_user_accounts,
@@ -420,6 +423,7 @@ def get_user_profile_photo(
 def create_user(
     request: Request,
     user_id: str = Form(...),
+    email: str = Form(""),
     first_name: str = Form(...),
     last_name: str = Form(...),
     position: str = Form(...),
@@ -437,6 +441,8 @@ def create_user(
         return RedirectResponse(url="/dashboard", status_code=302)
 
     user_id = _normalize_user_id(user_id)
+    email = email.strip() if isinstance(email, str) else ""
+    email_normalized = auth.normalize_email(email)
     first_name = _normalize_name(first_name)
     last_name = _normalize_name(last_name)
     role = auth.normalize_role(role)
@@ -449,6 +455,9 @@ def create_user(
     errors = []
     if not USER_ID_PATTERN.match(user_id):
         errors.append("User ID (Iqama/National ID) must be numeric and up to 10 digits.")
+
+    if email and not auth.is_valid_email(email):
+        errors.append("Enter a valid email address.")
 
     if not NAME_PATTERN.match(first_name):
         errors.append("First name must contain letters only.")
@@ -483,6 +492,11 @@ def create_user(
     if duplicate_user_id:
         errors.append("User ID already exists.")
 
+    if email_normalized and db.query(models.User).filter(
+        models.User.email_normalized == email_normalized
+    ).first():
+        errors.append("Email address already belongs to another user.")
+
     if errors:
         return _render_users_page(
             request=request,
@@ -490,6 +504,16 @@ def create_user(
             current_user=current_user,
             error="Unable to create user. Please fix the highlighted issues.",
             detail_errors=errors,
+            form_data={
+                "user_id": user_id,
+                "email": email,
+                "first_name": first_name,
+                "last_name": last_name,
+                "position": position,
+                "role": role,
+                "access_scope": access_scope,
+                "branch_id": branch_id,
+            },
         )
 
     selected_school_group_id = auth.get_branch_school_group_id(db, branch_id)
@@ -502,6 +526,8 @@ def create_user(
     new_user = models.User(
         user_id=user_id,
         username=user_id,
+        email=email or None,
+        email_normalized=email_normalized,
         first_name=first_name,
         last_name=last_name,
         position=position,
@@ -525,7 +551,7 @@ def create_user(
             request=request,
             db=db,
             current_user=current_user,
-            error="User creation failed due to a duplicate value. Check User ID.",
+            error="User creation failed due to a duplicate User ID or email address.",
         )
 
     return _render_users_page(
@@ -574,6 +600,7 @@ def update_user(
     request: Request,
     user_pk: int,
     user_id: str = Form(...),
+    email: str = Form(""),
     first_name: str = Form(...),
     last_name: str = Form(...),
     position: str = Form(...),
@@ -604,6 +631,8 @@ def update_user(
         )
 
     user_id = _normalize_user_id(user_id)
+    email = email.strip() if isinstance(email, str) else ""
+    email_normalized = auth.normalize_email(email)
     first_name = _normalize_name(first_name)
     last_name = _normalize_name(last_name)
     role = auth.normalize_role(role)
@@ -618,6 +647,9 @@ def update_user(
     errors = []
     if not USER_ID_PATTERN.match(user_id):
         errors.append("User ID (Iqama/National ID) must be numeric and up to 10 digits.")
+
+    if email and not auth.is_valid_email(email):
+        errors.append("Enter a valid email address.")
 
     if not NAME_PATTERN.match(first_name):
         errors.append("First name must contain letters only.")
@@ -656,9 +688,16 @@ def update_user(
     if duplicate_user_id:
         errors.append("User ID already exists.")
 
+    if email_normalized and db.query(models.User).filter(
+        models.User.email_normalized == email_normalized,
+        models.User.id != user_row.id,
+    ).first():
+        errors.append("Email address already belongs to another user.")
+
     if errors:
         form_data = {
             "user_id": user_id,
+            "email": email,
             "first_name": first_name,
             "last_name": last_name,
             "position": position,
@@ -686,6 +725,8 @@ def update_user(
 
     user_row.user_id = user_id
     user_row.username = user_id
+    user_row.email = email or None
+    user_row.email_normalized = email_normalized
     user_row.first_name = first_name
     user_row.last_name = last_name
     user_row.position = position
@@ -713,6 +754,7 @@ def update_user(
         db.rollback()
         form_data = {
             "user_id": user_id,
+            "email": email,
             "first_name": first_name,
             "last_name": last_name,
             "position": position,
@@ -726,7 +768,7 @@ def update_user(
             db=db,
             current_user=current_user,
             user_row=user_row,
-            error="User update failed due to a duplicate value. Check User ID.",
+            error="User update failed due to a duplicate User ID or email address.",
             form_data=form_data,
         )
 
