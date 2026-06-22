@@ -492,10 +492,9 @@ def create_user(
     if duplicate_user_id:
         errors.append("User ID already exists.")
 
-    if email_normalized and db.query(models.User).filter(
-        models.User.email_normalized == email_normalized
-    ).first():
-        errors.append("Email address already belongs to another user.")
+    email_error = auth.get_email_registration_error(db, email)
+    if email_error:
+        errors.append(email_error)
 
     if errors:
         return _render_users_page(
@@ -688,11 +687,13 @@ def update_user(
     if duplicate_user_id:
         errors.append("User ID already exists.")
 
-    if email_normalized and db.query(models.User).filter(
-        models.User.email_normalized == email_normalized,
-        models.User.id != user_row.id,
-    ).first():
-        errors.append("Email address already belongs to another user.")
+    email_error = auth.get_email_registration_error(
+        db,
+        email,
+        exclude_user_pk=user_row.id,
+    )
+    if email_error:
+        errors.append(email_error)
 
     if errors:
         form_data = {

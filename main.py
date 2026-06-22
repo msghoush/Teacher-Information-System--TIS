@@ -22,7 +22,7 @@ import smtplib
 import ssl
 import time
 from typing import Optional, Any
-from urllib.parse import quote_plus, urlencode
+from urllib.parse import quote, quote_plus, urlencode
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, PieChart, Reference
 from openpyxl.formatting.rule import DataBarRule
@@ -37,6 +37,7 @@ import authorization
 import branding_storage
 import db_migrations
 import email_service
+import email_templates
 import location_service
 import permission_registry
 from visual_design import (
@@ -9625,12 +9626,12 @@ def _validate_platform_account_fields(
         models.User.user_id == user_id,
         models.User.username == username,
     ]
-    email_normalized = auth.normalize_email(email)
-    if email_normalized:
-        duplicate_conditions.append(models.User.email_normalized == email_normalized)
     duplicate = db.query(models.User).filter(or_(*duplicate_conditions)).first()
     if duplicate:
-        errors.append("User ID, username, or email already exists.")
+        errors.append("User ID or username already exists.")
+    email_error = auth.get_email_registration_error(db, email)
+    if email_error:
+        errors.append(email_error)
     return errors
 
 
@@ -9645,6 +9646,25 @@ def _build_platform_owner_verification_url(user, request: Request) -> str:
     token = auth.create_email_verification_token(user)
     return str(
         request.url_for("verify_platform_owner_email").include_query_params(token=token)
+    )
+
+
+def _email_public_base_url(request: Request) -> str:
+    configured_url = str(os.getenv("TIS_PUBLIC_BASE_URL") or "").strip()
+    return (configured_url or str(request.base_url)).rstrip("/")
+
+
+def _email_public_asset_url(request: Request, static_path: str) -> str:
+    configured_url = str(os.getenv("TIS_PUBLIC_BASE_URL") or "").strip()
+    if configured_url:
+        return f"{configured_url.rstrip('/')}/static/{quote(static_path, safe='/')}"
+    return str(request.url_for("static", path=static_path))
+
+
+def _email_tis_logo_url(request: Request) -> str:
+    return _email_public_asset_url(
+        request,
+        branding_storage.tis_logo_relative_path(theme="light", compact=True),
     )
 
 
@@ -9699,14 +9719,15 @@ def _send_platform_owner_verification_email(user, request: Request) -> None:
     recipient = _clean_email_header(getattr(user, "email", ""), "")
     if not recipient:
         raise ValueError("The Owner account does not have a valid email address.")
+    email_content = email_templates.build_email_verification_email(
+        verification_url=verification_url,
+        logo_url=_email_tis_logo_url(request),
+    )
     email_service.send_email(
         to=recipient,
-        subject="Verify your TIS Owner email",
-        text=(
-            "Verify the email address for your TIS Owner account by opening this link:\n\n"
-            f"{verification_url}\n\n"
-            "This link expires in one hour. If you did not request it, you can ignore this email."
-        ),
+        subject=email_content.subject,
+        text=email_content.text,
+        html=email_content.html,
     )
 
 
@@ -9728,12 +9749,13 @@ def update_platform_owner_email(
     if not auth.is_valid_email(email) or not email_normalized:
         return _platform_console_error("Enter a valid email address.")
 
-    duplicate = db.query(models.User).filter(
-        models.User.email_normalized == email_normalized,
-        models.User.id != current_user.id,
-    ).first()
-    if duplicate:
-        return _platform_console_error("Email address already belongs to another user.")
+    email_error = auth.get_email_registration_error(
+        db,
+        email,
+        exclude_user_pk=current_user.id,
+    )
+    if email_error:
+        return _platform_console_error(email_error)
 
     current_normalized = (
         getattr(current_user, "email_normalized", None)
@@ -9749,7 +9771,7 @@ def update_platform_owner_email(
         db.commit()
     except IntegrityError:
         db.rollback()
-        return _platform_console_error("Email address already belongs to another user.")
+        return _platform_console_error(auth.EMAIL_ALREADY_REGISTERED_MESSAGE)
 
     notice = (
         "Owner email updated. Verification is required."
@@ -10092,6 +10114,7 @@ def _password_reset_email_recipient(db: Session) -> str:
 def _send_password_reset_request_email(
     db: Session,
     *,
+    request: Request,
     user_id: str,
     user_display: str,
 ) -> None:
@@ -10100,15 +10123,17 @@ def _send_password_reset_request_email(
         raise email_service.EmailDeliveryError(
             "No valid platform recipient email is configured for password reset requests."
         )
+    email_content = email_templates.build_password_reset_request_email(
+        requester_display=user_display,
+        user_id=user_id,
+        platform_url=f"{_email_public_base_url(request)}/notifications",
+        logo_url=_email_tis_logo_url(request),
+    )
     email_service.send_email(
         to=recipient,
-        subject="TIS Forgot Password Request",
-        text=(
-            "A manual password reset request was submitted in TIS.\n\n"
-            f"Requester: {user_display}\n"
-            f"User ID: {user_id}\n\n"
-            "Review the account inside TIS and follow the existing manual password reset process."
-        ),
+        subject=email_content.subject,
+        text=email_content.text,
+        html=email_content.html,
     )
 
 
@@ -10216,6 +10241,7 @@ async def forgot_password(
         try:
             _send_password_reset_request_email(
                 db,
+                request=request,
                 user_id=user_id,
                 user_display=user_display,
             )
