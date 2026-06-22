@@ -1,9 +1,13 @@
+import asyncio
+import json
 import os
 import re
+import tempfile
 import unittest
 from datetime import datetime
-from unittest.mock import patch
-from urllib.parse import parse_qs, urlparse
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+from urllib.parse import parse_qs, unquote_plus, urlparse
 
 os.environ["TIS_SESSION_SECRET"] = "unit-test-session-secret-that-is-long-enough"
 
@@ -853,16 +857,24 @@ class PlatformAccessTests(unittest.TestCase):
         self.platform_owner.email_verified_at = None
         self.db.commit()
         local_links = []
+        expected_log_path = os.path.normpath(
+            os.path.join(os.path.dirname(main.__file__), "logs", "email_verification.log")
+        )
+
+        def capture_local_link(user, url):
+            local_links.append(url)
+            return expected_log_path
+
         with (
             patch.dict(
                 os.environ,
-                {"TIS_SMTP_HOST": "", "TIS_ENV": "local"},
+                {"RESEND_API_KEY": "", "TIS_ENV": "local"},
                 clear=False,
             ),
             patch.object(
                 main,
                 "_write_local_email_verification_link",
-                side_effect=lambda user, url: local_links.append(url),
+                side_effect=capture_local_link,
             ),
         ):
             response = main.request_platform_owner_email_verification(
@@ -872,26 +884,49 @@ class PlatformAccessTests(unittest.TestCase):
                     method="POST",
                 ),
                 db=self.db,
-            )
-        self.assertEqual(response.status_code, 302)
-        self.assertIn(
-            "Email+service+is+not+configured.+Verification+link+is+available+in+local+logs.",
-            response.headers["location"],
         )
+        self.assertEqual(response.status_code, 302)
+        decoded_location = unquote_plus(response.headers["location"])
+        self.assertIn(
+            "Email service is not configured. Verification link is available in local logs:",
+            decoded_location,
+        )
+        self.assertIn(expected_log_path, decoded_location)
         self.assertEqual(len(local_links), 1)
         token = parse_qs(urlparse(local_links[0]).query)["token"][0]
         self.assertIsNotNone(auth.decode_email_verification_token(token))
         self.db.refresh(self.platform_owner)
         self.assertIsNone(self.platform_owner.email_verified_at)
 
-    def test_production_never_logs_verification_token_without_smtp(self):
+    def test_local_verification_writer_creates_folder_and_clear_log_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_path = os.path.join(temp_dir, "nested", "email_verification.log")
+            verification_url = "http://testserver/platform/account/verify-email?token=signed-token"
+            with patch.dict(
+                os.environ,
+                {"TIS_LOCAL_EMAIL_VERIFICATION_LOG": log_path},
+                clear=False,
+            ):
+                resolved_path = main._write_local_email_verification_link(
+                    self.platform_owner,
+                    verification_url,
+                )
+
+            self.assertEqual(resolved_path, os.path.normpath(os.path.abspath(log_path)))
+            self.assertTrue(os.path.isfile(resolved_path))
+            with open(resolved_path, "r", encoding="utf-8") as log_file:
+                contents = log_file.read()
+            self.assertIn("purpose=owner_email_verification", contents)
+            self.assertIn(f"verification_url={verification_url}", contents)
+
+    def test_production_never_logs_verification_token_without_resend(self):
         self.platform_owner.email_normalized = auth.normalize_email(self.platform_owner.email)
         self.platform_owner.email_verified_at = None
         self.db.commit()
         with (
             patch.dict(
                 os.environ,
-                {"TIS_SMTP_HOST": "", "TIS_ENV": "production"},
+                {"RESEND_API_KEY": "", "TIS_ENV": "production"},
                 clear=False,
             ),
             patch.object(main, "_write_local_email_verification_link") as local_log,
@@ -915,16 +950,21 @@ class PlatformAccessTests(unittest.TestCase):
         sent_messages = []
         notification_count = self.db.query(models.SystemNotification).count()
 
+        def capture_email(**message):
+            sent_messages.append(message)
+            return "resend-message-id"
+
         with (
             patch.dict(
                 os.environ,
                 {
-                    "TIS_SMTP_HOST": "smtp.example.test",
-                    "TIS_SMTP_FROM": "info@tisplatform.com",
+                    "RESEND_API_KEY": "re_test_key",
+                    "EMAIL_FROM": "info@tisplatform.com",
+                    "EMAIL_REPLY_TO": "info@tisplatform.com",
                 },
                 clear=False,
             ),
-            patch.object(main, "_send_smtp_message", side_effect=sent_messages.append),
+            patch.object(main.email_service, "send_email", side_effect=capture_email),
         ):
             response = main.request_platform_owner_email_verification(
                 request=self._request(
@@ -939,10 +979,9 @@ class PlatformAccessTests(unittest.TestCase):
         self.assertIn("verification_sent=1", response.headers["location"])
         self.assertIn("Verification+email+has+been+sent.", response.headers["location"])
         self.assertEqual(len(sent_messages), 1)
-        self.assertEqual(sent_messages[0]["To"], self.platform_owner.email)
-        self.assertEqual(sent_messages[0]["From"], "info@tisplatform.com")
-        self.assertEqual(sent_messages[0]["Subject"], "Verify your TIS Owner email")
-        self.assertNotIn("forgot password", sent_messages[0].get_content().casefold())
+        self.assertEqual(sent_messages[0]["to"], self.platform_owner.email)
+        self.assertEqual(sent_messages[0]["subject"], "Verify your TIS Owner email")
+        self.assertNotIn("forgot password", sent_messages[0]["text"].casefold())
         self.assertEqual(self.db.query(models.SystemNotification).count(), notification_count)
         self.db.refresh(self.platform_owner)
         self.assertIsNone(self.platform_owner.email_verified_at)
@@ -954,7 +993,7 @@ class PlatformAccessTests(unittest.TestCase):
         self.assertIn("Verification Email Sent", sent_state_body)
         self.assertNotIn(">Request Verification</button>", sent_state_body)
 
-        match = re.search(r"https?://\S+", sent_messages[0].get_content())
+        match = re.search(r"https?://\S+", sent_messages[0]["text"])
         self.assertIsNotNone(match)
         token = parse_qs(urlparse(match.group(0)).query)["token"][0]
         confirmed = main.verify_platform_owner_email(token=token, db=self.db)
@@ -973,6 +1012,83 @@ class PlatformAccessTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.db.refresh(self.platform_owner)
         self.assertIsNone(self.platform_owner.email_verified_at)
+
+    def test_forgot_password_keeps_internal_request_and_delivers_via_resend(self):
+        sent_messages = []
+
+        def capture_email(**message):
+            sent_messages.append(message)
+            return "resend-password-message-id"
+
+        request = SimpleNamespace(
+            method="POST",
+            client=SimpleNamespace(host="testclient"),
+            json=AsyncMock(return_value={"user_id": self.branch_user.user_id}),
+            form=AsyncMock(return_value={}),
+        )
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "RESEND_API_KEY": "re_test_key",
+                    "EMAIL_FROM": "info@tisplatform.com",
+                    "EMAIL_REPLY_TO": "support@tisplatform.com",
+                },
+                clear=False,
+            ),
+            patch.object(main.email_service, "send_email", side_effect=capture_email),
+        ):
+            response = asyncio.run(main.forgot_password(request=request, db=self.db))
+
+        payload = json.loads(bytes(response.body).decode("utf-8"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(payload["ok"])
+        notification = self.db.query(models.SystemNotification).filter(
+            models.SystemNotification.requesting_user_id == self.branch_user.user_id,
+            models.SystemNotification.request_type == main.NOTIFICATION_TYPE_FORGOT_PASSWORD,
+        ).one()
+        self.assertEqual(notification.title, "Forgot Password Request")
+        self.assertEqual(len(sent_messages), 1)
+        self.assertEqual(sent_messages[0]["to"], "support@tisplatform.com")
+        self.assertEqual(sent_messages[0]["subject"], "TIS Forgot Password Request")
+        self.assertIn(self.branch_user.user_id, sent_messages[0]["text"])
+
+    def test_forgot_password_resend_failure_is_clear_and_keeps_internal_request(self):
+        request = SimpleNamespace(
+            method="POST",
+            client=SimpleNamespace(host="testclient"),
+            json=AsyncMock(return_value={"user_id": self.branch_user.user_id}),
+            form=AsyncMock(return_value={}),
+        )
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "RESEND_API_KEY": "re_test_key",
+                    "EMAIL_FROM": "info@tisplatform.com",
+                    "EMAIL_REPLY_TO": "support@tisplatform.com",
+                },
+                clear=False,
+            ),
+            patch.object(
+                main.email_service,
+                "send_email",
+                side_effect=main.email_service.EmailDeliveryError("provider unavailable"),
+            ),
+        ):
+            response = asyncio.run(main.forgot_password(request=request, db=self.db))
+
+        payload = json.loads(bytes(response.body).decode("utf-8"))
+        self.assertEqual(response.status_code, 502)
+        self.assertFalse(payload["ok"])
+        self.assertIn("request was saved inside TIS", payload["message"])
+        self.assertEqual(
+            self.db.query(models.SystemNotification).filter(
+                models.SystemNotification.requesting_user_id == self.branch_user.user_id,
+                models.SystemNotification.request_type == main.NOTIFICATION_TYPE_FORGOT_PASSWORD,
+            ).count(),
+            1,
+        )
 
     def test_owner_password_change_requires_current_password_and_confirmation(self):
         rejected = main.update_platform_owner_password(

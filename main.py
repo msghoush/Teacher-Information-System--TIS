@@ -36,6 +36,7 @@ import auth
 import authorization
 import branding_storage
 import db_migrations
+import email_service
 import location_service
 import permission_registry
 from visual_design import (
@@ -120,7 +121,6 @@ templates = Jinja2Templates(directory="templates")
 ACADEMIC_YEAR_NAME_PATTERN = re.compile(r"^\d{4}-\d{4}$")
 PUBLIC_LANDING_HOSTS = {"tisplatform.com", "www.tisplatform.com"}
 DEMO_REQUEST_EMAIL_TO = os.getenv("TIS_DEMO_REQUEST_EMAIL_TO", "info@tisplatform.com")
-PLATFORM_EMAIL_FROM = "info@tisplatform.com"
 DEMO_REQUEST_FIELDS = (
     ("school_name", "School Name"),
     ("full_name", "Contact Name"),
@@ -9648,40 +9648,66 @@ def _build_platform_owner_verification_url(user, request: Request) -> str:
     )
 
 
-def _write_local_email_verification_link(user, verification_url: str) -> None:
-    log_path = os.getenv("TIS_LOCAL_EMAIL_VERIFICATION_LOG", "logs/email_verification.log")
-    log_path = os.path.abspath(str(log_path or "logs/email_verification.log"))
+def _local_email_verification_log_path() -> str:
+    configured_path = str(
+        os.getenv("TIS_LOCAL_EMAIL_VERIFICATION_LOG")
+        or os.path.join("logs", "email_verification.log")
+    ).strip()
+    if not os.path.isabs(configured_path):
+        configured_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), configured_path)
+    return os.path.normpath(os.path.abspath(configured_path))
+
+
+def _ensure_local_email_verification_log_file() -> str:
+    log_path = _local_email_verification_log_path()
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
-    record = {
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-        "purpose": "owner_email_verification",
-        "user_id": str(getattr(user, "user_id", "") or ""),
-        "email": str(getattr(user, "email", "") or ""),
-        "verification_url": verification_url,
-    }
+    with open(log_path, "a", encoding="utf-8"):
+        pass
+    return log_path
+
+
+def _write_local_email_verification_link(user, verification_url: str) -> str:
+    log_path = _ensure_local_email_verification_log_file()
     with open(log_path, "a", encoding="utf-8") as log_file:
-        log_file.write(json.dumps(record, separators=(",", ":"), ensure_ascii=True) + "\n")
+        log_file.write(
+            "\n".join(
+                (
+                    f"timestamp_utc={datetime.now(timezone.utc).isoformat()}",
+                    "purpose=owner_email_verification",
+                    f"user_id={str(getattr(user, 'user_id', '') or '')}",
+                    f"email={str(getattr(user, 'email', '') or '')}",
+                    f"verification_url={verification_url}",
+                    "---",
+                    "",
+                )
+            )
+        )
+        log_file.flush()
+        os.fsync(log_file.fileno())
+    return log_path
+
+
+if not auth.is_production_environment() and not email_service.is_resend_configured():
+    try:
+        _ensure_local_email_verification_log_file()
+    except OSError:
+        logging.exception("Could not initialize the local email verification log file.")
 
 
 def _send_platform_owner_verification_email(user, request: Request) -> None:
     verification_url = _build_platform_owner_verification_url(user, request)
-    smtp_from = str(os.getenv("TIS_SMTP_FROM") or PLATFORM_EMAIL_FROM).strip()
-    if smtp_from.casefold() != PLATFORM_EMAIL_FROM:
-        raise RuntimeError(f"TIS_SMTP_FROM must be {PLATFORM_EMAIL_FROM}")
     recipient = _clean_email_header(getattr(user, "email", ""), "")
     if not recipient:
         raise ValueError("The Owner account does not have a valid email address.")
-
-    message = EmailMessage()
-    message["Subject"] = "Verify your TIS Owner email"
-    message["From"] = smtp_from
-    message["To"] = recipient
-    message.set_content(
-        "Verify the email address for your TIS Owner account by opening this link:\n\n"
-        f"{verification_url}\n\n"
-        "This link expires in one hour. If you did not request it, you can ignore this email."
+    email_service.send_email(
+        to=recipient,
+        subject="Verify your TIS Owner email",
+        text=(
+            "Verify the email address for your TIS Owner account by opening this link:\n\n"
+            f"{verification_url}\n\n"
+            "This link expires in one hour. If you did not request it, you can ignore this email."
+        ),
     )
-    _send_smtp_message(message)
 
 
 @app.post("/platform/account/email")
@@ -9745,12 +9771,12 @@ def request_platform_owner_email_verification(
         return _platform_console_error("Save a valid email address before requesting verification.")
     if getattr(current_user, "email_verified_at", None):
         return _redirect_with_notice("/platform", "Owner email is already verified.")
-    if not str(os.getenv("TIS_SMTP_HOST") or "").strip():
+    if not email_service.is_resend_configured():
         if auth.is_production_environment():
             return _platform_console_error("Email service is not configured.")
         try:
             verification_url = _build_platform_owner_verification_url(current_user, request)
-            _write_local_email_verification_link(current_user, verification_url)
+            log_path = _write_local_email_verification_link(current_user, verification_url)
         except Exception:
             logging.exception(
                 "Local Owner email verification link creation failed for user_id=%s",
@@ -9759,18 +9785,20 @@ def request_platform_owner_email_verification(
             return _platform_console_error("Verification link could not be created.")
         return _redirect_with_notice(
             "/platform?verification_local=1",
-            "Email service is not configured. Verification link is available in local logs."
+            "Email service is not configured. Verification link is available in local logs: "
+            f"{log_path}"
         )
 
     try:
         _send_platform_owner_verification_email(current_user, request)
-    except Exception:
-        logging.exception(
-            "Owner email verification delivery failed for user_id=%s",
+    except email_service.EmailDeliveryError as exc:
+        logging.error(
+            "Owner verification email delivery failed user_id=%s provider=resend error=%s",
             current_user.user_id,
+            exc,
         )
         return _platform_console_error(
-            "Verification email could not be sent. Check the email service configuration."
+            "Verification email could not be sent. Please try again or contact support."
         )
     return _redirect_with_notice(
         "/platform?verification_sent=1",
@@ -10049,6 +10077,41 @@ def transfer_platform_ownership(
 # ---------------------------------------
 # FORGOT PASSWORD
 # ---------------------------------------
+def _password_reset_email_recipient(db: Session) -> str:
+    platform_recipient = db.query(models.User).filter(
+        models.User.user_id == DEVELOPER_USER_ID,
+        models.User.user_type == auth.USER_TYPE_PLATFORM,
+    ).first()
+    account_email = str(getattr(platform_recipient, "email", "") or "").strip()
+    if auth.is_valid_email(account_email):
+        return account_email
+    fallback_email = str(os.getenv("EMAIL_REPLY_TO") or "").strip()
+    return fallback_email if auth.is_valid_email(fallback_email) else ""
+
+
+def _send_password_reset_request_email(
+    db: Session,
+    *,
+    user_id: str,
+    user_display: str,
+) -> None:
+    recipient = _password_reset_email_recipient(db)
+    if not recipient:
+        raise email_service.EmailDeliveryError(
+            "No valid platform recipient email is configured for password reset requests."
+        )
+    email_service.send_email(
+        to=recipient,
+        subject="TIS Forgot Password Request",
+        text=(
+            "A manual password reset request was submitted in TIS.\n\n"
+            f"Requester: {user_display}\n"
+            f"User ID: {user_id}\n\n"
+            "Review the account inside TIS and follow the existing manual password reset process."
+        ),
+    )
+
+
 @app.post("/forgot-password")
 async def forgot_password(
     request: Request,
@@ -10148,6 +10211,42 @@ async def forgot_password(
         notification.requesting_user_id,
         notification.status,
     )
+
+    if email_service.is_resend_configured():
+        try:
+            _send_password_reset_request_email(
+                db,
+                user_id=user_id,
+                user_display=user_display,
+            )
+        except email_service.EmailDeliveryError as exc:
+            logging.error(
+                "Password reset email delivery failed user_id=%s provider=resend error=%s",
+                user_id,
+                exc,
+            )
+            return JSONResponse(
+                status_code=502,
+                content={
+                    "ok": False,
+                    "message": (
+                        "Your request was saved inside TIS, but the email notification "
+                        "could not be delivered. Please contact the system administrator."
+                    ),
+                },
+            )
+    elif auth.is_production_environment():
+        return JSONResponse(
+            status_code=503,
+            content={
+                "ok": False,
+                "message": (
+                    "Your request was saved inside TIS, but email service is not configured. "
+                    "Please contact the system administrator."
+                ),
+            },
+        )
+
     return JSONResponse(
         content={
             "ok": True,
