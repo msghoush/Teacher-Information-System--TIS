@@ -1,0 +1,49 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Provisioning Queue</h1>
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+<form method="get" action="/saas-admin/provisioning" class="actions" style="margin-bottom:18px;">
+    <input name="job_status" value="{{ job_status_filter }}" placeholder="Filter by job status">
+    <button class="btn secondary" type="submit">Filter</button>
+    <a class="btn secondary" href="/saas-admin/provisioning">Clear</a>
+</form>
+<form method="post" action="/saas-admin/provisioning/run" class="actions" style="margin-bottom:18px;">
+    <button class="btn" type="submit">Run provisioning worker</button>
+</form>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Organization</th>
+            <th>Job Status</th>
+            <th>Billing</th>
+            <th>Contract</th>
+            <th>Attempts</th>
+            <th>School Group</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in job_cards %}
+        <tr>
+            <td>{{ row.organization.organization_name if row.organization else "-" }}</td>
+            <td>{{ row.job.job_status }}</td>
+            <td>{{ row.organization.billing_status if row.organization else "-" }}</td>
+            <td>{{ row.contract.contract_status if row.contract else "-" }}</td>
+            <td>{{ row.job.attempt_count }} / {{ row.job.max_attempts }}</td>
+            <td>{% if row.tenant_link %}{{ row.tenant_link.school_group_id }}{% else %}-{% endif %}</td>
+            <td>
+                {% if row.job.job_status in ["failed", "retrying"] %}
+                <form method="post" action="/saas-admin/provisioning/{{ row.job.job_uuid }}/retry">
+                    <button class="btn secondary" type="submit">Retry</button>
+                </form>
+                {% else %}
+                -
+                {% endif %}
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7">No provisioning jobs found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

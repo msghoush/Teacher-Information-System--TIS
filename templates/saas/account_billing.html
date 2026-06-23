@@ -15,6 +15,17 @@
             <p>{{ onboarding_summary.organization.billing_status }}<br>Payment: {{ onboarding_summary.organization.payment_status }}</p>
         </div>
         <div class="stat">
+            <strong>Provisioning</strong>
+            <p>
+                {% if onboarding_summary.current_provisioning_job %}
+                Job: {{ onboarding_summary.current_provisioning_job.job_status }}
+                {% if onboarding_summary.current_tenant_link %}<br>Tenant: active{% endif %}
+                {% else %}
+                Not started yet.
+                {% endif %}
+            </p>
+        </div>
+        <div class="stat">
             <strong>Selected plan</strong>
             <p>
                 {% if onboarding_summary.current_plan %}

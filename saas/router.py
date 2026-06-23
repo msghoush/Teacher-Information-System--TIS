@@ -7,7 +7,7 @@ from urllib.parse import quote_plus
 import auth
 from dependencies import get_db
 import email_service
-from saas import billing_service, models, oauth, paddle_client, payment_service, pricing_service, service
+from saas import billing_service, models, oauth, paddle_client, payment_service, pricing_service, provisioning_service, service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -1115,6 +1115,84 @@ def payment_dashboard(
             "notice": request.query_params.get("notice", ""),
         },
     )
+
+
+@admin_router.get("/provisioning", response_class=HTMLResponse)
+def provisioning_dashboard(
+    request: Request,
+    job_status: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    jobs = provisioning_service.list_provisioning_jobs(db, job_status=job_status)
+    job_cards = []
+    for job in jobs:
+        organization = db.query(models.PendingOrganization).filter(
+            models.PendingOrganization.id == job.pending_organization_id
+        ).first()
+        contract = db.query(models.SubscriptionContract).filter(
+            models.SubscriptionContract.id == job.subscription_contract_id
+        ).first()
+        tenant_link = None
+        if getattr(job, "tenant_provisioning_link_id", None):
+            tenant_link = db.query(models.TenantProvisioningLink).filter(
+                models.TenantProvisioningLink.id == job.tenant_provisioning_link_id
+            ).first()
+        job_cards.append(
+            {
+                "job": job,
+                "organization": organization,
+                "contract": contract,
+                "tenant_link": tenant_link,
+            }
+        )
+    db.commit()
+    return _render(
+        request,
+        "saas/admin_provisioning.html",
+        {
+            "current_user": current_user,
+            "job_cards": job_cards,
+            "job_status_filter": job_status,
+            "notice": request.query_params.get("notice", ""),
+        },
+    )
+
+
+@admin_router.post("/provisioning/run")
+def run_provisioning_queue(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _require_platform_owner(request, db)
+    provisioning_service.process_pending_jobs(db, limit=25)
+    db.commit()
+    return RedirectResponse("/saas-admin/provisioning?notice=Provisioning+queue+processed.", status_code=302)
+
+
+@admin_router.post("/provisioning/{job_uuid}/retry")
+def retry_provisioning_job(
+    job_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _require_platform_owner(request, db)
+    job = db.query(models.ProvisioningJob).filter(
+        models.ProvisioningJob.job_uuid == str(job_uuid or "").strip()
+    ).first()
+    if not job:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Provisioning job not found.")
+    try:
+        provisioning_service.retry_job(db, job)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return RedirectResponse(
+            f"/saas-admin/provisioning?notice={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    return RedirectResponse("/saas-admin/provisioning?notice=Provisioning+job+retried.", status_code=302)
 
 
 @admin_router.post("/pending-organizations/{organization_uuid}/notes")

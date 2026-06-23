@@ -2480,6 +2480,180 @@ def _paddle_payment_collection(engine, connection):
     _create_index_if_missing(connection, connection, "payment_webhooks", "ix_payment_webhooks_received_at", "received_at")
 
 
+def _phase5_provisioning_engine(engine, connection):
+    datetime_type = _datetime_type(engine)
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS tenant_profiles (
+            id INTEGER PRIMARY KEY,
+            school_group_id INTEGER NOT NULL,
+            website VARCHAR(180),
+            timezone VARCHAR(80),
+            educational_program VARCHAR(20),
+            school_type VARCHAR(120),
+            estimated_staff_users INTEGER,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (school_group_id) REFERENCES school_groups (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "tenant_profiles",
+        "uq_tenant_profiles_school_group",
+        "school_group_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "tenant_profiles",
+        "ix_tenant_profiles_school_group",
+        "school_group_id",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS tenant_provisioning_links (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            subscription_contract_id INTEGER NOT NULL,
+            school_group_id INTEGER NOT NULL,
+            owner_operational_user_id INTEGER NOT NULL,
+            primary_branch_id INTEGER,
+            primary_academic_year_id INTEGER,
+            tenant_status VARCHAR(30) NOT NULL DEFAULT 'tenant_active',
+            activated_at {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (subscription_contract_id) REFERENCES subscription_contracts (id),
+            FOREIGN KEY (school_group_id) REFERENCES school_groups (id),
+            FOREIGN KEY (owner_operational_user_id) REFERENCES users (id),
+            FOREIGN KEY (primary_branch_id) REFERENCES branches (id),
+            FOREIGN KEY (primary_academic_year_id) REFERENCES academic_years (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "tenant_provisioning_links",
+        "uq_tenant_provisioning_links_pending_org",
+        "pending_organization_id",
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "tenant_provisioning_links",
+        "uq_tenant_provisioning_links_contract",
+        "subscription_contract_id",
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "tenant_provisioning_links",
+        "uq_tenant_provisioning_links_school_group",
+        "school_group_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "tenant_provisioning_links",
+        "ix_tenant_provisioning_links_status",
+        "tenant_status",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_account_user_links (
+            id INTEGER PRIMARY KEY,
+            saas_account_id INTEGER NOT NULL,
+            operational_user_id INTEGER NOT NULL,
+            pending_organization_id INTEGER,
+            school_group_id INTEGER NOT NULL,
+            link_type VARCHAR(30) NOT NULL DEFAULT 'tenant_owner',
+            linked_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (saas_account_id) REFERENCES saas_accounts (id),
+            FOREIGN KEY (operational_user_id) REFERENCES users (id),
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (school_group_id) REFERENCES school_groups (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "saas_account_user_links",
+        "uq_saas_account_user_links_account_user_group",
+        "saas_account_id, operational_user_id, school_group_id",
+    )
+    _create_index_if_missing(connection, connection, "saas_account_user_links", "ix_saas_account_user_links_account", "saas_account_id")
+    _create_index_if_missing(connection, connection, "saas_account_user_links", "ix_saas_account_user_links_user", "operational_user_id")
+    _create_index_if_missing(connection, connection, "saas_account_user_links", "ix_saas_account_user_links_school_group", "school_group_id")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS provisioning_jobs (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            subscription_contract_id INTEGER NOT NULL,
+            job_uuid VARCHAR(36) NOT NULL,
+            idempotency_key VARCHAR(160) NOT NULL,
+            job_type VARCHAR(40) NOT NULL DEFAULT 'tenant_provisioning',
+            trigger_source VARCHAR(40) NOT NULL DEFAULT 'payment_webhook',
+            job_status VARCHAR(30) NOT NULL DEFAULT 'queued',
+            target_school_group_id INTEGER,
+            tenant_provisioning_link_id INTEGER,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            max_attempts INTEGER NOT NULL DEFAULT 3,
+            next_attempt_at {datetime_type},
+            started_at {datetime_type},
+            completed_at {datetime_type},
+            failed_at {datetime_type},
+            last_error TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (subscription_contract_id) REFERENCES subscription_contracts (id),
+            FOREIGN KEY (target_school_group_id) REFERENCES school_groups (id),
+            FOREIGN KEY (tenant_provisioning_link_id) REFERENCES tenant_provisioning_links (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(connection, connection, "provisioning_jobs", "uq_provisioning_jobs_job_uuid", "job_uuid")
+    _create_unique_index_if_missing(connection, connection, "provisioning_jobs", "uq_provisioning_jobs_idempotency_key", "idempotency_key")
+    _create_index_if_missing(connection, connection, "provisioning_jobs", "ix_provisioning_jobs_pending_org", "pending_organization_id")
+    _create_index_if_missing(connection, connection, "provisioning_jobs", "ix_provisioning_jobs_status", "job_status")
+    _create_index_if_missing(connection, connection, "provisioning_jobs", "ix_provisioning_jobs_next_attempt_at", "next_attempt_at")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS provisioning_job_events (
+            id INTEGER PRIMARY KEY,
+            provisioning_job_id INTEGER NOT NULL,
+            event_type VARCHAR(40) NOT NULL,
+            event_status VARCHAR(20) NOT NULL DEFAULT 'ok',
+            details_json TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (provisioning_job_id) REFERENCES provisioning_jobs (id)
+        )
+        """,
+    )
+    _create_index_if_missing(connection, connection, "provisioning_job_events", "ix_provisioning_job_events_job", "provisioning_job_id")
+    _create_index_if_missing(connection, connection, "provisioning_job_events", "ix_provisioning_job_events_type", "event_type")
+    _create_index_if_missing(connection, connection, "provisioning_job_events", "ix_provisioning_job_events_created_at", "created_at")
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -2570,6 +2744,11 @@ MIGRATIONS = (
         migration_id="20260623_004_paddle_payment_collection",
         description="Add Paddle customer, attempt, subscription, and webhook payment collection tables",
         apply=_paddle_payment_collection,
+    ),
+    Migration(
+        migration_id="20260623_005_phase5_provisioning_engine",
+        description="Add provisioning jobs, links, and tenant profile storage for tenant activation",
+        apply=_phase5_provisioning_engine,
     ),
 )
 

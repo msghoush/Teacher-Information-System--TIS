@@ -37,6 +37,18 @@
             </p>
         </div>
         <div class="stat">
+            <strong>Provisioning</strong>
+            <p>
+                {% if card.current_provisioning_job %}
+                Job: {{ card.current_provisioning_job.job_status }}<br>
+                Attempts: {{ card.current_provisioning_job.attempt_count }} / {{ card.current_provisioning_job.max_attempts }}
+                {% if card.current_tenant_link %}<br>School Group ID: {{ card.current_tenant_link.school_group_id }}{% endif %}
+                {% else %}
+                No provisioning job queued yet.
+                {% endif %}
+            </p>
+        </div>
+        <div class="stat">
             <strong>Primary contact</strong>
             <p>{% if primary_contact %}{{ primary_contact.first_name }} {{ primary_contact.last_name }}<br>{{ primary_contact.email }}{% else %}No contact saved{% endif %}</p>
         </div>

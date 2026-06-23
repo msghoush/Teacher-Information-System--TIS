@@ -15,6 +15,12 @@
 {% if current_payment_subscription %}
 <p>Subscription status: {{ current_payment_subscription.status }}<br>Subscription ID: {{ current_payment_subscription.provider_subscription_id }}</p>
 {% endif %}
+{% if journey_card and journey_card.current_provisioning_job %}
+<p>Provisioning job: {{ journey_card.current_provisioning_job.job_status }}</p>
+{% endif %}
+{% if journey_card and journey_card.current_tenant_link %}
+<p>Tenant activation: active<br>School Group ID: {{ journey_card.current_tenant_link.school_group_id }}</p>
+{% endif %}
 <div class="actions">
     <a class="btn secondary" href="/saas/account">Back to dashboard</a>
     <a class="btn secondary" href="/saas/account/billing">Billing details</a>

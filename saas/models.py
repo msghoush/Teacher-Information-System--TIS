@@ -594,3 +594,98 @@ class PaymentWebhook(Base):
     processed_at = Column(DateTime)
     processing_status = Column(String(30), nullable=False, default="pending")
     processing_error = Column(Text)
+
+
+class ProvisioningJob(Base):
+    __tablename__ = "provisioning_jobs"
+    __table_args__ = (
+        Index("uq_provisioning_jobs_job_uuid", "job_uuid", unique=True),
+        Index("uq_provisioning_jobs_idempotency_key", "idempotency_key", unique=True),
+        Index("ix_provisioning_jobs_pending_org", "pending_organization_id"),
+        Index("ix_provisioning_jobs_status", "job_status"),
+        Index("ix_provisioning_jobs_next_attempt_at", "next_attempt_at"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
+    subscription_contract_id = Column(Integer, ForeignKey("subscription_contracts.id"), nullable=False, index=True)
+    job_uuid = Column(String(36), nullable=False, unique=True)
+    idempotency_key = Column(String(160), nullable=False, unique=True)
+    job_type = Column(String(40), nullable=False, default="tenant_provisioning")
+    trigger_source = Column(String(40), nullable=False, default="payment_webhook")
+    job_status = Column(String(30), nullable=False, default="queued")
+    target_school_group_id = Column(Integer, ForeignKey("school_groups.id"), index=True)
+    tenant_provisioning_link_id = Column(Integer, ForeignKey("tenant_provisioning_links.id"), index=True)
+    attempt_count = Column(Integer, nullable=False, default=0)
+    max_attempts = Column(Integer, nullable=False, default=3)
+    next_attempt_at = Column(DateTime)
+    started_at = Column(DateTime)
+    completed_at = Column(DateTime)
+    failed_at = Column(DateTime)
+    last_error = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ProvisioningJobEvent(Base):
+    __tablename__ = "provisioning_job_events"
+    __table_args__ = (
+        Index("ix_provisioning_job_events_job", "provisioning_job_id"),
+        Index("ix_provisioning_job_events_type", "event_type"),
+        Index("ix_provisioning_job_events_created_at", "created_at"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    provisioning_job_id = Column(Integer, ForeignKey("provisioning_jobs.id"), nullable=False, index=True)
+    event_type = Column(String(40), nullable=False)
+    event_status = Column(String(20), nullable=False, default="ok")
+    details_json = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class TenantProvisioningLink(Base):
+    __tablename__ = "tenant_provisioning_links"
+    __table_args__ = (
+        Index("uq_tenant_provisioning_links_pending_org", "pending_organization_id", unique=True),
+        Index("uq_tenant_provisioning_links_contract", "subscription_contract_id", unique=True),
+        Index("uq_tenant_provisioning_links_school_group", "school_group_id", unique=True),
+        Index("ix_tenant_provisioning_links_status", "tenant_status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, unique=True, index=True)
+    subscription_contract_id = Column(Integer, ForeignKey("subscription_contracts.id"), nullable=False, unique=True, index=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, unique=True, index=True)
+    owner_operational_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    primary_branch_id = Column(Integer, ForeignKey("branches.id"), index=True)
+    primary_academic_year_id = Column(Integer, ForeignKey("academic_years.id"), index=True)
+    tenant_status = Column(String(30), nullable=False, default="tenant_active")
+    activated_at = Column(DateTime)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SaaSAccountUserLink(Base):
+    __tablename__ = "saas_account_user_links"
+    __table_args__ = (
+        Index(
+            "uq_saas_account_user_links_account_user_group",
+            "saas_account_id",
+            "operational_user_id",
+            "school_group_id",
+            unique=True,
+        ),
+        Index("ix_saas_account_user_links_account", "saas_account_id"),
+        Index("ix_saas_account_user_links_user", "operational_user_id"),
+        Index("ix_saas_account_user_links_school_group", "school_group_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    saas_account_id = Column(Integer, ForeignKey("saas_accounts.id"), nullable=False, index=True)
+    operational_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), index=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    link_type = Column(String(30), nullable=False, default="tenant_owner")
+    linked_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

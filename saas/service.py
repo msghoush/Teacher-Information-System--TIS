@@ -25,7 +25,14 @@ SIGNUP_RATE_LIMIT_WINDOW_MINUTES = 60
 VERIFICATION_RATE_LIMIT_ATTEMPTS = 5
 VERIFICATION_RATE_LIMIT_WINDOW_MINUTES = 60
 ONBOARDING_STEPS = ("organization", "branches", "academic_setup", "contacts", "review")
-PENDING_ORGANIZATION_ACTIVE_STATUSES = ("draft", "in_progress", "changes_requested", "ready_for_checkout", "under_review")
+PENDING_ORGANIZATION_ACTIVE_STATUSES = (
+    "draft",
+    "in_progress",
+    "changes_requested",
+    "ready_for_checkout",
+    "under_review",
+    "activated",
+)
 READY_FOR_CHECKOUT_STATUS = "ready_for_checkout"
 PERSONAL_EMAIL_WARNING = (
     "Personal email domains are not recommended for school onboarding. You can continue now, "
@@ -58,6 +65,8 @@ class PendingOrganizationCard:
     current_payment_customer: object = None
     current_payment_attempt: object = None
     current_payment_subscription: object = None
+    current_provisioning_job: object = None
+    current_tenant_link: object = None
 
 
 def _utcnow() -> datetime:
@@ -576,6 +585,11 @@ def organization_step_url(organization) -> str:
         "payment_processing",
         "payment_confirmed",
         "ready_for_provisioning",
+        "provisioning_started",
+        "provisioning_completed",
+        "provisioning_retrying",
+        "provisioning_failed",
+        "tenant_active",
         "payment_failed",
         "payment_cancelled",
         "payment_refunded",
@@ -641,6 +655,11 @@ def update_pending_dashboard_status(account, organization, progress):
         "payment_processing",
         "payment_confirmed",
         "ready_for_provisioning",
+        "provisioning_started",
+        "provisioning_completed",
+        "provisioning_retrying",
+        "provisioning_failed",
+        "tenant_active",
         "payment_failed",
         "payment_cancelled",
         "payment_refunded",
@@ -842,7 +861,7 @@ def list_pending_events(db: Session, organization):
 def build_pending_card(db: Session, organization):
     if not organization:
         return None
-    from saas import billing_service, payment_service
+    from saas import billing_service, payment_service, provisioning_service
 
     progress = recalculate_pending_progress(db, organization)
     branches_count = db.query(models.PendingOrganizationBranch).filter(
@@ -859,6 +878,8 @@ def build_pending_card(db: Session, organization):
     payment_customer = payment_service.get_payment_customer(db, organization)
     payment_attempt = payment_service.get_current_payment_attempt(db, organization)
     payment_subscription = payment_service.get_payment_subscription(db, organization)
+    provisioning_job = provisioning_service.get_latest_provisioning_job(db, organization)
+    tenant_link = provisioning_service.get_tenant_provisioning_link(db, organization)
     return PendingOrganizationCard(
         organization=organization,
         progress=progress,
@@ -871,6 +892,8 @@ def build_pending_card(db: Session, organization):
         current_payment_customer=payment_customer,
         current_payment_attempt=payment_attempt,
         current_payment_subscription=payment_subscription,
+        current_provisioning_job=provisioning_job,
+        current_tenant_link=tenant_link,
     )
 
 
@@ -879,7 +902,7 @@ def build_pending_dashboard_summary(db: Session, account):
     if not organization:
         update_pending_dashboard_status(account, None, None)
         return None
-    from saas import billing_service, payment_service
+    from saas import billing_service, payment_service, provisioning_service
 
     progress = recalculate_pending_progress(db, organization)
     update_pending_dashboard_status(account, organization, progress)
@@ -897,6 +920,8 @@ def build_pending_dashboard_summary(db: Session, account):
     payment_customer = payment_service.get_payment_customer(db, organization)
     payment_attempt = payment_service.get_current_payment_attempt(db, organization)
     payment_subscription = payment_service.get_payment_subscription(db, organization)
+    provisioning_job = provisioning_service.get_latest_provisioning_job(db, organization)
+    tenant_link = provisioning_service.get_tenant_provisioning_link(db, organization)
     return {
         "organization": organization,
         "progress": progress,
@@ -909,6 +934,8 @@ def build_pending_dashboard_summary(db: Session, account):
         "current_payment_customer": payment_customer,
         "current_payment_attempt": payment_attempt,
         "current_payment_subscription": payment_subscription,
+        "current_provisioning_job": provisioning_job,
+        "current_tenant_link": tenant_link,
     }
 
 

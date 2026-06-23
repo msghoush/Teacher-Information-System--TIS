@@ -510,6 +510,15 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
             contract.payment_provider = PROVIDER
             contract.paid_at = contract.paid_at or _utcnow()
             contract.contract_status = "paid_pending_provisioning"
+            from saas import provisioning_service
+
+            provisioning_service.enqueue_ready_for_provisioning(
+                db,
+                organization,
+                contract,
+                trigger_source="payment_webhook",
+            )
+            provisioning_service.process_pending_jobs(db, limit=1)
         service.log_pending_event(db, organization=organization, event_type="payment_confirmed", details={"provider_transaction_id": str(data.get("id") or "")})
     elif event_type in {"transaction.payment_failed", "transaction.past_due"}:
         _apply_attempt_state(db, attempt, status=ATTEMPT_STATUS_PAYMENT_FAILED, failure_reason=str(data.get("status") or event_type))

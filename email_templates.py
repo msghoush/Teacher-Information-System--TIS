@@ -144,3 +144,26 @@ def build_password_reset_request_email(
             "Follow the existing manual password reset process inside TIS.",
         ),
     )
+
+
+def build_tenant_activation_email(
+    *,
+    organization_name: str,
+    login_url: str,
+    logo_url: str,
+) -> TransactionalEmail:
+    return render_transactional_email(
+        subject=f"{organization_name} is now active | TIS Platform",
+        title="Your TIS organization is active",
+        message="Provisioning is complete and your operational TIS workspace is now ready.",
+        logo_url=logo_url,
+        action_label="Open TIS Login",
+        action_url=login_url,
+        fallback_label="If the button does not work, open the operational login here:",
+        security_note="Sign in with the same email and password you used for your SaaS account when password-based sign-in is available.",
+        details=(
+            f"Organization: {organization_name}",
+            "Activation confirmed.",
+            "Next steps: sign in, review your branches and academic year, then begin operational setup inside TIS.",
+        ),
+    )

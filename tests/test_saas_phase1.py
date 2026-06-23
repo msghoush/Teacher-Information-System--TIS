@@ -804,22 +804,30 @@ class SaaSPhase1Tests(unittest.TestCase):
             payment_subscription = db.query(saas.models.PaymentSubscription).filter_by(
                 pending_organization_id=organization.id
             ).first()
+            tenant_link = db.query(saas.models.TenantProvisioningLink).filter_by(
+                pending_organization_id=organization.id
+            ).first()
             webhooks = db.query(saas.models.PaymentWebhook).all()
-            self.assertEqual(organization.billing_status, "ready_for_provisioning")
+            self.assertEqual(organization.billing_status, "tenant_active")
             self.assertEqual(organization.payment_status, "paid")
             self.assertEqual(attempt.status, "payment_confirmed")
             self.assertEqual(attempt.provider_subscription_id, "sub_webhook_123")
-            self.assertEqual(contract.contract_status, "paid_pending_provisioning")
+            self.assertEqual(contract.contract_status, "tenant_active")
             self.assertEqual(contract.payment_status, "paid")
             self.assertIsNotNone(payment_subscription)
             self.assertEqual(payment_subscription.provider_subscription_id, "sub_webhook_123")
             self.assertEqual(payment_subscription.status, "active")
+            self.assertIsNotNone(tenant_link)
             self.assertEqual(
                 db.query(saas.models.PaymentWebhook).filter_by(provider_event_id="evt_completed_123456789012345678901").count(),
                 1,
             )
             self.assertGreaterEqual(len(webhooks), 3)
-            self.assertEqual(operational_counts_before, self._operational_counts())
+            operational_counts_after = self._operational_counts()
+            self.assertGreater(operational_counts_after["school_groups"], operational_counts_before["school_groups"])
+            self.assertGreater(operational_counts_after["branches"], operational_counts_before["branches"])
+            self.assertGreater(operational_counts_after["academic_years"], operational_counts_before["academic_years"])
+            self.assertGreater(operational_counts_after["users"], operational_counts_before["users"])
         finally:
             db.close()
 
