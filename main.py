@@ -40,6 +40,7 @@ import email_service
 import email_templates
 import location_service
 import permission_registry
+import saas.models  # Register SaaS metadata before create_all.
 from visual_design import (
     VISUAL_COMPONENT_MAP,
     build_visual_design_config,
@@ -49,6 +50,7 @@ from visual_design import (
 )
 from dependencies import get_db
 from routers import subjects, users, teachers, planning, timetable, academic_calendar, observations
+from saas.router import router as saas_router
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
 from teacher_capacity import (
@@ -8568,6 +8570,7 @@ app.include_router(planning.router)
 app.include_router(timetable.router)
 app.include_router(academic_calendar.router)
 app.include_router(observations.router)
+app.include_router(saas_router)
 
 # ---------------------------------------
 # ROOT (public landing on tisplatform.com, app login elsewhere)

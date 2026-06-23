@@ -1158,6 +1158,231 @@ def _phase1_address_detail_columns(engine, connection):
         )
 
 
+def _saas_identity_foundation(engine, connection):
+    datetime_type = _datetime_type(engine)
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_accounts (
+            id INTEGER PRIMARY KEY,
+            account_uuid VARCHAR(36) NOT NULL,
+            email VARCHAR(180) NOT NULL,
+            email_normalized VARCHAR(180) NOT NULL,
+            password_hash VARCHAR(255),
+            first_name VARCHAR(120),
+            last_name VARCHAR(120),
+            status VARCHAR(20) NOT NULL DEFAULT 'pending_verification',
+            onboarding_status VARCHAR(30) NOT NULL DEFAULT 'not_started',
+            email_verified_at {datetime_type},
+            last_login_at {datetime_type},
+            locked_at {datetime_type},
+            locked_reason VARCHAR(120),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+    _create_unique_index_if_missing(connection, connection, "saas_accounts", "uq_saas_accounts_email_normalized", "email_normalized")
+    _create_unique_index_if_missing(connection, connection, "saas_accounts", "uq_saas_accounts_account_uuid", "account_uuid")
+    _create_index_if_missing(connection, connection, "saas_accounts", "ix_saas_accounts_status", "status")
+    _create_index_if_missing(connection, connection, "saas_accounts", "ix_saas_accounts_onboarding_status", "onboarding_status")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_auth_identities (
+            id INTEGER PRIMARY KEY,
+            saas_account_id INTEGER NOT NULL,
+            provider VARCHAR(30) NOT NULL,
+            provider_subject VARCHAR(255) NOT NULL,
+            provider_email VARCHAR(180),
+            provider_email_normalized VARCHAR(180),
+            provider_tenant_hint VARCHAR(255),
+            provider_profile_json TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "saas_auth_identities",
+        "uq_saas_auth_identities_provider_subject",
+        "provider, provider_subject",
+    )
+    _create_index_if_missing(connection, connection, "saas_auth_identities", "ix_saas_auth_identities_account", "saas_account_id")
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_auth_identities",
+        "ix_saas_auth_identities_email_normalized",
+        "provider_email_normalized",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_sessions (
+            id INTEGER PRIMARY KEY,
+            saas_account_id INTEGER NOT NULL,
+            session_token_hash VARCHAR(128) NOT NULL,
+            session_family_id VARCHAR(64) NOT NULL,
+            csrf_token_hash VARCHAR(128),
+            ip_address VARCHAR(80),
+            user_agent VARCHAR(255),
+            issued_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at {datetime_type} NOT NULL,
+            revoked_at {datetime_type},
+            revoke_reason VARCHAR(80),
+            FOREIGN KEY (saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(connection, connection, "saas_sessions", "uq_saas_sessions_token_hash", "session_token_hash")
+    _create_index_if_missing(connection, connection, "saas_sessions", "ix_saas_sessions_account", "saas_account_id")
+    _create_index_if_missing(connection, connection, "saas_sessions", "ix_saas_sessions_expires_at", "expires_at")
+    _create_index_if_missing(connection, connection, "saas_sessions", "ix_saas_sessions_revoked_at", "revoked_at")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_email_verification_tokens (
+            id INTEGER PRIMARY KEY,
+            saas_account_id INTEGER NOT NULL,
+            token_hash VARCHAR(128) NOT NULL,
+            email_normalized VARCHAR(180) NOT NULL,
+            expires_at {datetime_type} NOT NULL,
+            consumed_at {datetime_type},
+            request_ip VARCHAR(80),
+            user_agent VARCHAR(255),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "saas_email_verification_tokens",
+        "uq_saas_email_verification_tokens_hash",
+        "token_hash",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_email_verification_tokens",
+        "ix_saas_email_verification_tokens_account",
+        "saas_account_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_email_verification_tokens",
+        "ix_saas_email_verification_tokens_expires_at",
+        "expires_at",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_email_verification_tokens",
+        "ix_saas_email_verification_tokens_account_consumed",
+        "saas_account_id, consumed_at",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS blocked_email_domains (
+            id INTEGER PRIMARY KEY,
+            domain VARCHAR(180) NOT NULL,
+            domain_category VARCHAR(20) NOT NULL DEFAULT 'blocked',
+            enforcement VARCHAR(20) NOT NULL DEFAULT 'block',
+            reason VARCHAR(255),
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+    _create_unique_index_if_missing(connection, connection, "blocked_email_domains", "uq_blocked_email_domains_domain", "domain")
+    _create_index_if_missing(connection, connection, "blocked_email_domains", "ix_blocked_email_domains_active", "is_active")
+    _create_index_if_missing(connection, connection, "blocked_email_domains", "ix_blocked_email_domains_enforcement", "enforcement")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_auth_events (
+            id INTEGER PRIMARY KEY,
+            saas_account_id INTEGER,
+            event_type VARCHAR(40) NOT NULL,
+            event_status VARCHAR(20) NOT NULL DEFAULT 'ok',
+            ip_address VARCHAR(80),
+            user_agent VARCHAR(255),
+            details_json TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_index_if_missing(connection, connection, "saas_auth_events", "ix_saas_auth_events_account", "saas_account_id")
+    _create_index_if_missing(connection, connection, "saas_auth_events", "ix_saas_auth_events_event_type", "event_type")
+    _create_index_if_missing(connection, connection, "saas_auth_events", "ix_saas_auth_events_created_at", "created_at")
+
+    seeds = (
+        ("gmail.com", "personal", "warn", "Common personal email domain"),
+        ("outlook.com", "personal", "warn", "Common personal email domain"),
+        ("yahoo.com", "personal", "warn", "Common personal email domain"),
+        ("hotmail.com", "personal", "warn", "Common personal email domain"),
+        ("mailinator.com", "disposable", "block", "Disposable email domains are not permitted."),
+        ("guerrillamail.com", "disposable", "block", "Disposable email domains are not permitted."),
+        ("10minutemail.com", "disposable", "block", "Disposable email domains are not permitted."),
+        ("temp-mail.org", "disposable", "block", "Disposable email domains are not permitted."),
+    )
+    for domain, category, enforcement, reason in seeds:
+        existing = connection.execute(
+            text("SELECT id FROM blocked_email_domains WHERE domain = :domain LIMIT 1"),
+            {"domain": domain},
+        ).scalar()
+        if existing:
+            _execute(
+                connection,
+                """
+                UPDATE blocked_email_domains
+                SET domain_category = :category,
+                    enforcement = :enforcement,
+                    reason = :reason,
+                    is_active = TRUE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :row_id
+                """,
+                {
+                    "row_id": existing,
+                    "category": category,
+                    "enforcement": enforcement,
+                    "reason": reason,
+                },
+            )
+        else:
+            _execute(
+                connection,
+                """
+                INSERT INTO blocked_email_domains
+                    (domain, domain_category, enforcement, reason, is_active, created_at, updated_at)
+                VALUES
+                    (:domain, :category, :enforcement, :reason, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                {
+                    "domain": domain,
+                    "category": category,
+                    "enforcement": enforcement,
+                    "reason": reason,
+                },
+            )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -1228,6 +1453,11 @@ MIGRATIONS = (
         migration_id="20260622_001_identity_foundation",
         description="Add canonical email identity fields and login audit timestamps",
         apply=_identity_foundation,
+    ),
+    Migration(
+        migration_id="20260623_001_saas_identity_foundation",
+        description="Create SaaS identity, sessions, verification, and domain policy tables",
+        apply=_saas_identity_foundation,
     ),
 )
 

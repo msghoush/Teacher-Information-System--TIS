@@ -1,0 +1,40 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Sessions</h1>
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+<form method="post" action="/saas/account/sessions/revoke-others" style="margin-bottom:18px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button class="btn secondary" type="submit">Revoke other sessions</button>
+</form>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Session</th>
+            <th>Status</th>
+            <th>Issued</th>
+            <th>Last seen</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for session in sessions %}
+        <tr>
+            <td>ID {{ session.id }}</td>
+            <td>{% if session.revoked_at %}Revoked{% elif session.id == current_session_id %}Current{% else %}Active{% endif %}</td>
+            <td>{{ session.issued_at }}</td>
+            <td>{{ session.last_seen_at }}</td>
+            <td>
+                {% if session.id != current_session_id and not session.revoked_at %}
+                <form method="post" action="/saas/account/sessions/{{ session.id }}/revoke">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="btn secondary" type="submit">Revoke</button>
+                </form>
+                {% else %}
+                <span class="muted">Current session</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

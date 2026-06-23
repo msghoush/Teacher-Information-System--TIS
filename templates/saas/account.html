@@ -1,0 +1,40 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>SaaS account dashboard</h1>
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+<div class="grid two">
+    <div class="stat-list">
+        <div class="stat">
+            <strong>Account</strong>
+            <p>{{ account.first_name }} {{ account.last_name }}<br>{{ account.email }}</p>
+        </div>
+        <div class="stat">
+            <strong>Status</strong>
+            <p>{{ account.status }}{% if account.email_verified_at %}<br>Email verified{% else %}<br>Email not verified{% endif %}</p>
+        </div>
+        <div class="stat">
+            <strong>Onboarding status</strong>
+            <p>{{ account.onboarding_status }}</p>
+        </div>
+    </div>
+    <div class="stat-list">
+        <div class="stat">
+            <strong>Current session</strong>
+            <p>Last seen: {{ session_row.last_seen_at }}<br>Expires: {{ session_row.expires_at }}</p>
+        </div>
+        <div class="stat">
+            <strong>Linked sessions</strong>
+            <p>{{ sessions|length }} active session(s)</p>
+        </div>
+        <div class="stat">
+            <strong>Next phase ready</strong>
+            <p>This account now supports future onboarding and billing routing without creating any operational TIS user.</p>
+        </div>
+    </div>
+</div>
+<div class="actions" style="margin-top:20px;">
+    <a class="btn" href="/saas/account/profile">Edit profile</a>
+    <a class="btn secondary" href="/saas/account/security">Security</a>
+    <a class="btn secondary" href="/saas/account/sessions">Manage sessions</a>
+</div>
+{% endblock %}

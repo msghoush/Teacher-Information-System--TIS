@@ -1,0 +1,11 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Check your email</h1>
+{% if warning %}<div class="warning">{{ warning }}</div>{% endif %}
+<div class="notice">We sent a verification link to <strong>{{ email }}</strong>. The link uses the existing TIS Resend email integration and expires automatically.</div>
+<p class="muted">After verification, you can sign in and manage your SaaS account from the dashboard.</p>
+<div class="actions">
+    <a class="btn" href="/saas/login">Go to login</a>
+    <a class="btn secondary" href="/saas/signup">Create another account</a>
+</div>
+{% endblock %}
