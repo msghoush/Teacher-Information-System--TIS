@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, String, Text, text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, text
 
 from database import Base
 
@@ -183,6 +183,10 @@ class PendingOrganization(Base):
     reviewed_at = Column(DateTime)
     reviewed_by_user_id = Column(String(10))
     rejection_reason = Column(Text)
+    billing_status = Column(String(30), nullable=False, default="not_started")
+    selected_plan_id = Column(Integer, ForeignKey("subscription_plans.id"), index=True)
+    selected_billing_interval = Column(String(20))
+    checkout_ready_at = Column(DateTime)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -295,3 +299,173 @@ class PendingOrganizationNote(Base):
     note = Column(Text, nullable=False, default="")
     is_internal = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class SubscriptionPlan(Base):
+    __tablename__ = "subscription_plans"
+    __table_args__ = (
+        Index("uq_subscription_plans_code", "plan_code", unique=True),
+        Index("ix_subscription_plans_active", "is_active"),
+        Index("ix_subscription_plans_public", "is_public"),
+        Index("ix_subscription_plans_sort_order", "sort_order"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    plan_code = Column(String(40), nullable=False, unique=True, index=True)
+    plan_name = Column(String(120), nullable=False)
+    plan_family = Column(String(80))
+    description = Column(Text)
+    badge_text = Column(String(60))
+    is_most_popular = Column(Boolean, nullable=False, default=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    is_public = Column(Boolean, nullable=False, default=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    max_branches = Column(Integer)
+    max_staff_users = Column(Integer)
+    ai_enabled = Column(Boolean, nullable=False, default=False)
+    multi_branch_enabled = Column(Boolean, nullable=False, default=False)
+    advanced_reporting_enabled = Column(Boolean, nullable=False, default=False)
+    priority_support = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SubscriptionPlanPrice(Base):
+    __tablename__ = "subscription_plan_prices"
+    __table_args__ = (
+        Index("ix_subscription_plan_prices_plan", "plan_id"),
+        Index("ix_subscription_plan_prices_active", "is_active"),
+        Index(
+            "uq_subscription_plan_prices_version",
+            "plan_id",
+            "billing_interval",
+            "currency_code",
+            "plan_version",
+            unique=True,
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False, index=True)
+    billing_interval = Column(String(20), nullable=False)
+    currency_code = Column(String(3), nullable=False, default="USD")
+    amount_minor = Column(Integer, nullable=False)
+    compare_at_amount_minor = Column(Integer)
+    display_savings_percent = Column(Integer)
+    display_savings_amount_minor = Column(Integer)
+    plan_version = Column(Integer, nullable=False, default=1)
+    is_founding_offer = Column(Boolean, nullable=False, default=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    effective_from = Column(DateTime)
+    effective_to = Column(DateTime)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CurrencyProfile(Base):
+    __tablename__ = "currency_profiles"
+    __table_args__ = (
+        Index("uq_currency_profiles_code", "currency_code", unique=True),
+        Index("ix_currency_profiles_active", "is_active"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    currency_code = Column(String(3), nullable=False, unique=True, index=True)
+    currency_name = Column(String(60), nullable=False)
+    currency_symbol = Column(String(8), nullable=False)
+    minor_unit = Column(Integer, nullable=False, default=2)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CountryCurrencyMap(Base):
+    __tablename__ = "country_currency_map"
+    __table_args__ = (
+        Index("uq_country_currency_map_country", "country_code", unique=True),
+        Index("ix_country_currency_map_currency", "currency_code"),
+        Index("ix_country_currency_map_active", "is_active"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    country_code = Column(String(2), nullable=False, unique=True, index=True)
+    currency_code = Column(String(3), ForeignKey("currency_profiles.currency_code"), nullable=False, index=True)
+    display_locale = Column(String(20))
+    usd_display_rate = Column(Numeric(12, 6), nullable=False, default=1)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PendingOrganizationPlanSelection(Base):
+    __tablename__ = "pending_organization_plan_selections"
+    __table_args__ = (
+        Index("ix_pending_organization_plan_selections_org", "pending_organization_id"),
+        Index("ix_pending_organization_plan_selections_status", "selection_status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
+    plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False, index=True)
+    billing_interval = Column(String(20), nullable=False)
+    base_currency_code = Column(String(3), nullable=False, default="USD")
+    base_amount_minor = Column(Integer, nullable=False)
+    display_currency_code = Column(String(3), nullable=False, default="USD")
+    display_amount_minor = Column(Integer, nullable=False)
+    display_exchange_rate = Column(Numeric(12, 6), nullable=False, default=1)
+    annual_savings_amount_minor = Column(Integer)
+    annual_savings_percent = Column(Integer)
+    plan_version = Column(Integer, nullable=False, default=1)
+    is_founding_offer = Column(Boolean, nullable=False, default=False)
+    selection_status = Column(String(20), nullable=False, default="selected")
+    selected_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CheckoutSession(Base):
+    __tablename__ = "checkout_sessions"
+    __table_args__ = (
+        Index("ix_checkout_sessions_org", "pending_organization_id"),
+        Index("ix_checkout_sessions_status", "status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
+    plan_selection_id = Column(Integer, ForeignKey("pending_organization_plan_selections.id"), nullable=False, index=True)
+    status = Column(String(20), nullable=False, default="not_started")
+    provider = Column(String(30))
+    provider_checkout_id = Column(String(120))
+    currency_code = Column(String(3), nullable=False, default="USD")
+    amount_minor = Column(Integer, nullable=False)
+    billing_interval = Column(String(20), nullable=False)
+    started_at = Column(DateTime)
+    expires_at = Column(DateTime)
+    abandoned_at = Column(DateTime)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SubscriptionContract(Base):
+    __tablename__ = "subscription_contracts"
+    __table_args__ = (
+        Index("ix_subscription_contracts_pending_org", "pending_organization_id"),
+        Index("ix_subscription_contracts_status", "contract_status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), index=True)
+    plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False, index=True)
+    billing_interval = Column(String(20), nullable=False)
+    contract_status = Column(String(30), nullable=False, default="draft")
+    base_currency_code = Column(String(3), nullable=False, default="USD")
+    base_amount_minor = Column(Integer, nullable=False)
+    display_currency_code = Column(String(3), nullable=False, default="USD")
+    display_amount_minor = Column(Integer, nullable=False)
+    selected_checkout_session_id = Column(Integer, ForeignKey("checkout_sessions.id"), index=True)
+    contract_type = Column(String(30), nullable=False, default="self_serve")
+    plan_version = Column(Integer, nullable=False, default=1)
+    is_founding_offer = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -1554,6 +1554,634 @@ def _pending_organizations_zone(engine, connection):
     _create_index_if_missing(connection, connection, "pending_organization_notes", "ix_pending_organization_notes_created_at", "created_at")
 
 
+def _plans_pricing_billing_foundation(engine, connection):
+    datetime_type = _datetime_type(engine)
+
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "billing_status",
+        "billing_status VARCHAR(30) NOT NULL DEFAULT 'not_started'",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "selected_plan_id",
+        "selected_plan_id INTEGER",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "selected_billing_interval",
+        "selected_billing_interval VARCHAR(20)",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "checkout_ready_at",
+        f"checkout_ready_at {datetime_type}",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "ix_pending_organizations_selected_plan_id",
+        "selected_plan_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "ix_pending_organizations_billing_status",
+        "billing_status",
+    )
+    if _table_exists(connection, "pending_organizations"):
+        _execute(
+            connection,
+            """
+            UPDATE pending_organizations
+            SET billing_status = 'not_started'
+            WHERE billing_status IS NULL OR TRIM(billing_status) = ''
+            """,
+        )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS subscription_plans (
+            id INTEGER PRIMARY KEY,
+            plan_code VARCHAR(40) NOT NULL,
+            plan_name VARCHAR(120) NOT NULL,
+            plan_family VARCHAR(80),
+            description TEXT,
+            badge_text VARCHAR(60),
+            is_most_popular BOOLEAN NOT NULL DEFAULT FALSE,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            is_public BOOLEAN NOT NULL DEFAULT TRUE,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            max_branches INTEGER,
+            max_staff_users INTEGER,
+            ai_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+            multi_branch_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+            advanced_reporting_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+            priority_support BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "subscription_plans",
+        "uq_subscription_plans_code",
+        "plan_code",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_plans",
+        "ix_subscription_plans_active",
+        "is_active",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_plans",
+        "ix_subscription_plans_public",
+        "is_public",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_plans",
+        "ix_subscription_plans_sort_order",
+        "sort_order",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS subscription_plan_prices (
+            id INTEGER PRIMARY KEY,
+            plan_id INTEGER NOT NULL,
+            billing_interval VARCHAR(20) NOT NULL,
+            currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
+            amount_minor INTEGER NOT NULL,
+            compare_at_amount_minor INTEGER,
+            display_savings_percent INTEGER,
+            display_savings_amount_minor INTEGER,
+            plan_version INTEGER NOT NULL DEFAULT 1,
+            is_founding_offer BOOLEAN NOT NULL DEFAULT FALSE,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            effective_from {datetime_type},
+            effective_to {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (plan_id) REFERENCES subscription_plans (id)
+        )
+        """,
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_plan_prices",
+        "ix_subscription_plan_prices_plan",
+        "plan_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_plan_prices",
+        "ix_subscription_plan_prices_active",
+        "is_active",
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "subscription_plan_prices",
+        "uq_subscription_plan_prices_version",
+        "plan_id, billing_interval, currency_code, plan_version",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS currency_profiles (
+            id INTEGER PRIMARY KEY,
+            currency_code VARCHAR(3) NOT NULL,
+            currency_name VARCHAR(60) NOT NULL,
+            currency_symbol VARCHAR(8) NOT NULL,
+            minor_unit INTEGER NOT NULL DEFAULT 2,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "currency_profiles",
+        "uq_currency_profiles_code",
+        "currency_code",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "currency_profiles",
+        "ix_currency_profiles_active",
+        "is_active",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS country_currency_map (
+            id INTEGER PRIMARY KEY,
+            country_code VARCHAR(2) NOT NULL,
+            currency_code VARCHAR(3) NOT NULL,
+            display_locale VARCHAR(20),
+            usd_display_rate NUMERIC(12, 6) NOT NULL DEFAULT 1,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (currency_code) REFERENCES currency_profiles (currency_code)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "country_currency_map",
+        "uq_country_currency_map_country",
+        "country_code",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "country_currency_map",
+        "ix_country_currency_map_currency",
+        "currency_code",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "country_currency_map",
+        "ix_country_currency_map_active",
+        "is_active",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organization_plan_selections (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            plan_id INTEGER NOT NULL,
+            billing_interval VARCHAR(20) NOT NULL,
+            base_currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
+            base_amount_minor INTEGER NOT NULL,
+            display_currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
+            display_amount_minor INTEGER NOT NULL,
+            display_exchange_rate NUMERIC(12, 6) NOT NULL DEFAULT 1,
+            annual_savings_amount_minor INTEGER,
+            annual_savings_percent INTEGER,
+            plan_version INTEGER NOT NULL DEFAULT 1,
+            is_founding_offer BOOLEAN NOT NULL DEFAULT FALSE,
+            selection_status VARCHAR(20) NOT NULL DEFAULT 'selected',
+            selected_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (plan_id) REFERENCES subscription_plans (id)
+        )
+        """,
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "pending_organization_plan_selections",
+        "ix_pending_organization_plan_selections_org",
+        "pending_organization_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "pending_organization_plan_selections",
+        "ix_pending_organization_plan_selections_status",
+        "selection_status",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS checkout_sessions (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            plan_selection_id INTEGER NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'not_started',
+            provider VARCHAR(30),
+            provider_checkout_id VARCHAR(120),
+            currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
+            amount_minor INTEGER NOT NULL,
+            billing_interval VARCHAR(20) NOT NULL,
+            started_at {datetime_type},
+            expires_at {datetime_type},
+            abandoned_at {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (plan_selection_id) REFERENCES pending_organization_plan_selections (id)
+        )
+        """,
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "checkout_sessions",
+        "ix_checkout_sessions_org",
+        "pending_organization_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "checkout_sessions",
+        "ix_checkout_sessions_status",
+        "status",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS subscription_contracts (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            school_group_id INTEGER,
+            plan_id INTEGER NOT NULL,
+            billing_interval VARCHAR(20) NOT NULL,
+            contract_status VARCHAR(30) NOT NULL DEFAULT 'draft',
+            base_currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
+            base_amount_minor INTEGER NOT NULL,
+            display_currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
+            display_amount_minor INTEGER NOT NULL,
+            selected_checkout_session_id INTEGER,
+            contract_type VARCHAR(30) NOT NULL DEFAULT 'self_serve',
+            plan_version INTEGER NOT NULL DEFAULT 1,
+            is_founding_offer BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (school_group_id) REFERENCES school_groups (id),
+            FOREIGN KEY (plan_id) REFERENCES subscription_plans (id),
+            FOREIGN KEY (selected_checkout_session_id) REFERENCES checkout_sessions (id)
+        )
+        """,
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_contracts",
+        "ix_subscription_contracts_pending_org",
+        "pending_organization_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_contracts",
+        "ix_subscription_contracts_status",
+        "contract_status",
+    )
+
+    plan_rows = (
+        {
+            "plan_code": "starter",
+            "plan_name": "Starter",
+            "description": "Starter plan for smaller schools beginning with TIS SaaS.",
+            "badge_text": None,
+            "is_most_popular": False,
+            "sort_order": 10,
+            "max_branches": 1,
+            "max_staff_users": 25,
+            "ai_enabled": False,
+            "multi_branch_enabled": False,
+            "advanced_reporting_enabled": False,
+            "priority_support": False,
+        },
+        {
+            "plan_code": "professional",
+            "plan_name": "Professional",
+            "description": "Professional plan for growing schools and multi-campus operations.",
+            "badge_text": "Most Popular",
+            "is_most_popular": True,
+            "sort_order": 20,
+            "max_branches": 5,
+            "max_staff_users": 100,
+            "ai_enabled": False,
+            "multi_branch_enabled": True,
+            "advanced_reporting_enabled": True,
+            "priority_support": False,
+        },
+        {
+            "plan_code": "enterprise_ai",
+            "plan_name": "Enterprise AI",
+            "description": "Enterprise AI plan for larger organizations requiring advanced support.",
+            "badge_text": "AI Enabled",
+            "is_most_popular": False,
+            "sort_order": 30,
+            "max_branches": 25,
+            "max_staff_users": 500,
+            "ai_enabled": True,
+            "multi_branch_enabled": True,
+            "advanced_reporting_enabled": True,
+            "priority_support": True,
+        },
+    )
+    for plan in plan_rows:
+        existing_id = connection.execute(
+            text("SELECT id FROM subscription_plans WHERE plan_code = :plan_code LIMIT 1"),
+            {"plan_code": plan["plan_code"]},
+        ).scalar()
+        params = {
+            "plan_code": plan["plan_code"],
+            "plan_name": plan["plan_name"],
+            "plan_family": "standard",
+            "description": plan["description"],
+            "badge_text": plan["badge_text"],
+            "is_most_popular": plan["is_most_popular"],
+            "is_active": True,
+            "is_public": True,
+            "sort_order": plan["sort_order"],
+            "max_branches": plan["max_branches"],
+            "max_staff_users": plan["max_staff_users"],
+            "ai_enabled": plan["ai_enabled"],
+            "multi_branch_enabled": plan["multi_branch_enabled"],
+            "advanced_reporting_enabled": plan["advanced_reporting_enabled"],
+            "priority_support": plan["priority_support"],
+        }
+        if existing_id:
+            _execute(
+                connection,
+                """
+                UPDATE subscription_plans
+                SET plan_name = :plan_name,
+                    plan_family = :plan_family,
+                    description = :description,
+                    badge_text = :badge_text,
+                    is_most_popular = :is_most_popular,
+                    is_active = :is_active,
+                    is_public = :is_public,
+                    sort_order = :sort_order,
+                    max_branches = :max_branches,
+                    max_staff_users = :max_staff_users,
+                    ai_enabled = :ai_enabled,
+                    multi_branch_enabled = :multi_branch_enabled,
+                    advanced_reporting_enabled = :advanced_reporting_enabled,
+                    priority_support = :priority_support,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :row_id
+                """,
+                {**params, "row_id": existing_id},
+            )
+        else:
+            _execute(
+                connection,
+                """
+                INSERT INTO subscription_plans (
+                    plan_code, plan_name, plan_family, description, badge_text,
+                    is_most_popular, is_active, is_public, sort_order,
+                    max_branches, max_staff_users, ai_enabled, multi_branch_enabled,
+                    advanced_reporting_enabled, priority_support, created_at, updated_at
+                ) VALUES (
+                    :plan_code, :plan_name, :plan_family, :description, :badge_text,
+                    :is_most_popular, :is_active, :is_public, :sort_order,
+                    :max_branches, :max_staff_users, :ai_enabled, :multi_branch_enabled,
+                    :advanced_reporting_enabled, :priority_support, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """,
+                params,
+            )
+
+    price_rows = (
+        ("starter", "monthly", 2900, None, None),
+        ("starter", "annual", 29000, 5800, 17),
+        ("professional", "monthly", 7900, None, None),
+        ("professional", "annual", 79000, 15800, 17),
+        ("enterprise_ai", "monthly", 14900, None, None),
+        ("enterprise_ai", "annual", 149000, 29800, 17),
+    )
+    for plan_code, interval, amount_minor, savings_minor, savings_percent in price_rows:
+        plan_id = connection.execute(
+            text("SELECT id FROM subscription_plans WHERE plan_code = :plan_code LIMIT 1"),
+            {"plan_code": plan_code},
+        ).scalar()
+        if not plan_id:
+            continue
+        existing_price_id = connection.execute(
+            text(
+                """
+                SELECT id FROM subscription_plan_prices
+                WHERE plan_id = :plan_id
+                  AND billing_interval = :billing_interval
+                  AND currency_code = 'USD'
+                  AND plan_version = 1
+                LIMIT 1
+                """
+            ),
+            {"plan_id": plan_id, "billing_interval": interval},
+        ).scalar()
+        price_params = {
+            "plan_id": int(plan_id),
+            "billing_interval": interval,
+            "currency_code": "USD",
+            "amount_minor": amount_minor,
+            "compare_at_amount_minor": (amount_minor + savings_minor) if savings_minor else None,
+            "display_savings_percent": savings_percent,
+            "display_savings_amount_minor": savings_minor,
+            "plan_version": 1,
+            "is_founding_offer": True,
+            "is_active": True,
+        }
+        if existing_price_id:
+            _execute(
+                connection,
+                """
+                UPDATE subscription_plan_prices
+                SET amount_minor = :amount_minor,
+                    compare_at_amount_minor = :compare_at_amount_minor,
+                    display_savings_percent = :display_savings_percent,
+                    display_savings_amount_minor = :display_savings_amount_minor,
+                    is_founding_offer = :is_founding_offer,
+                    is_active = :is_active,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :row_id
+                """,
+                {**price_params, "row_id": existing_price_id},
+            )
+        else:
+            _execute(
+                connection,
+                """
+                INSERT INTO subscription_plan_prices (
+                    plan_id, billing_interval, currency_code, amount_minor,
+                    compare_at_amount_minor, display_savings_percent,
+                    display_savings_amount_minor, plan_version, is_founding_offer,
+                    is_active, created_at, updated_at
+                ) VALUES (
+                    :plan_id, :billing_interval, :currency_code, :amount_minor,
+                    :compare_at_amount_minor, :display_savings_percent,
+                    :display_savings_amount_minor, :plan_version, :is_founding_offer,
+                    :is_active, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """,
+                price_params,
+            )
+
+    currency_rows = (
+        ("USD", "US Dollar", "$", 2),
+        ("SAR", "Saudi Riyal", "SAR ", 2),
+        ("AED", "UAE Dirham", "AED ", 2),
+        ("QAR", "Qatari Riyal", "QAR ", 2),
+        ("EGP", "Egyptian Pound", "EGP ", 2),
+        ("EUR", "Euro", "EUR ", 2),
+    )
+    for code, name, symbol, minor_unit in currency_rows:
+        existing_currency_id = connection.execute(
+            text("SELECT id FROM currency_profiles WHERE currency_code = :currency_code LIMIT 1"),
+            {"currency_code": code},
+        ).scalar()
+        currency_params = {
+            "currency_code": code,
+            "currency_name": name,
+            "currency_symbol": symbol,
+            "minor_unit": minor_unit,
+        }
+        if existing_currency_id:
+            _execute(
+                connection,
+                """
+                UPDATE currency_profiles
+                SET currency_name = :currency_name,
+                    currency_symbol = :currency_symbol,
+                    minor_unit = :minor_unit,
+                    is_active = TRUE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :row_id
+                """,
+                {**currency_params, "row_id": existing_currency_id},
+            )
+        else:
+            _execute(
+                connection,
+                """
+                INSERT INTO currency_profiles (
+                    currency_code, currency_name, currency_symbol, minor_unit,
+                    is_active, created_at, updated_at
+                ) VALUES (
+                    :currency_code, :currency_name, :currency_symbol, :minor_unit,
+                    TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """,
+                currency_params,
+            )
+
+    country_rows = (
+        ("US", "USD", "en-US", "1.000000"),
+        ("SA", "SAR", "ar-SA", "3.750000"),
+        ("AE", "AED", "ar-AE", "3.670000"),
+        ("QA", "QAR", "ar-QA", "3.640000"),
+        ("EG", "EGP", "ar-EG", "48.000000"),
+        ("DE", "EUR", "de-DE", "0.920000"),
+        ("FR", "EUR", "fr-FR", "0.920000"),
+        ("ES", "EUR", "es-ES", "0.920000"),
+        ("IT", "EUR", "it-IT", "0.920000"),
+        ("NL", "EUR", "nl-NL", "0.920000"),
+    )
+    for country_code, currency_code, locale, usd_display_rate in country_rows:
+        existing_map_id = connection.execute(
+            text("SELECT id FROM country_currency_map WHERE country_code = :country_code LIMIT 1"),
+            {"country_code": country_code},
+        ).scalar()
+        map_params = {
+            "country_code": country_code,
+            "currency_code": currency_code,
+            "display_locale": locale,
+            "usd_display_rate": usd_display_rate,
+        }
+        if existing_map_id:
+            _execute(
+                connection,
+                """
+                UPDATE country_currency_map
+                SET currency_code = :currency_code,
+                    display_locale = :display_locale,
+                    usd_display_rate = :usd_display_rate,
+                    is_active = TRUE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :row_id
+                """,
+                {**map_params, "row_id": existing_map_id},
+            )
+        else:
+            _execute(
+                connection,
+                """
+                INSERT INTO country_currency_map (
+                    country_code, currency_code, display_locale, usd_display_rate,
+                    is_active, created_at, updated_at
+                ) VALUES (
+                    :country_code, :currency_code, :display_locale, :usd_display_rate,
+                    TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """,
+                map_params,
+            )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -1634,6 +2262,11 @@ MIGRATIONS = (
         migration_id="20260623_002_pending_organizations_zone",
         description="Create pending organizations onboarding zone tables",
         apply=_pending_organizations_zone,
+    ),
+    Migration(
+        migration_id="20260623_003_plans_pricing_billing_foundation",
+        description="Create SaaS plans, pricing, currency, and checkout foundation tables",
+        apply=_plans_pricing_billing_foundation,
     ),
 )
 

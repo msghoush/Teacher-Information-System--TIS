@@ -87,6 +87,100 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertEqual(login_response.status_code, 302)
         self.assertEqual(login_response.headers["location"], "/saas/account")
 
+    def _start_pending_organization(self):
+        start_response = self.client.post("/saas/onboarding/start", follow_redirects=False)
+        self.assertEqual(start_response.status_code, 302)
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).order_by(
+                saas.models.PendingOrganization.id.desc()
+            ).first()
+            self.assertIsNotNone(organization)
+            return organization.organization_uuid
+        finally:
+            db.close()
+
+    def _complete_pending_organization_to_ready_for_checkout(self, email="leader@academy.edu"):
+        self._signup_and_verify(email)
+        org_uuid = self._start_pending_organization()
+
+        organization_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/organization",
+            data={
+                "organization_name": "Andalus Academy",
+                "legal_name": "Andalus Academy LLC",
+                "website": "https://andalus.example.com",
+                "primary_domain": "andalus.example.com",
+                "phone": "+9665000000",
+                "educational_program": "BOTH",
+                "country_code": "SA",
+                "country_name": "Saudi Arabia",
+                "region_name": "Makkah",
+                "city_name": "Jeddah",
+                "district_name": "Al Zahra",
+                "neighborhood_name": "North",
+                "school_type": "K-12",
+                "expected_branch_count": "2",
+                "expected_student_count": "1200",
+                "expected_teacher_count": "90",
+                "estimated_staff_users": "35",
+                "timezone": "Asia/Riyadh",
+                "save_action": "continue",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(organization_response.status_code, 302)
+
+        branches_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/branches",
+            data={
+                "branch_name": ["Main Campus", "Girls Campus"],
+                "location": ["Central", "North"],
+                "country_code": ["SA", "SA"],
+                "country_name": ["Saudi Arabia", "Saudi Arabia"],
+                "region_name": ["Makkah", "Makkah"],
+                "city_name": ["Jeddah", "Jeddah"],
+                "district_name": ["Al Zahra", "Al Nahda"],
+                "neighborhood_name": ["North", "East"],
+                "save_action": "continue",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(branches_response.status_code, 302)
+
+        academic_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/academic_setup",
+            data={
+                "first_academic_year_name": "2026-2027",
+                "create_default_branch": "1",
+                "notes": "Launch year",
+                "save_action": "continue",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(academic_response.status_code, 302)
+
+        contacts_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/contacts",
+            data={
+                "first_name": "Amina",
+                "last_name": "Rahman",
+                "job_title": "Principal",
+                "email": email,
+                "phone": "+9665111111",
+                "save_action": "continue",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(contacts_response.status_code, 302)
+
+        submit_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/submit",
+            follow_redirects=False,
+        )
+        self.assertEqual(submit_response.status_code, 302)
+        return org_uuid
+
     def test_domain_policy_seeds_warn_and_block_entries(self):
         db = self._db()
         try:
@@ -221,6 +315,41 @@ class SaaSPhase1Tests(unittest.TestCase):
             self.assertEqual(db.query(models.User).count(), 0)
         finally:
             db.close()
+
+    def test_phase3_plan_catalog_is_seeded_and_public(self):
+        db = self._db()
+        try:
+            plans = db.query(saas.models.SubscriptionPlan).order_by(
+                saas.models.SubscriptionPlan.sort_order.asc()
+            ).all()
+            self.assertEqual([plan.plan_name for plan in plans], ["Starter", "Professional", "Enterprise AI"])
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            self.assertTrue(professional.is_most_popular)
+            monthly_price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+                plan_id=professional.id,
+                billing_interval="monthly",
+                currency_code="USD",
+                plan_version=1,
+            ).first()
+            annual_price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+                plan_id=professional.id,
+                billing_interval="annual",
+                currency_code="USD",
+                plan_version=1,
+            ).first()
+            self.assertEqual(monthly_price.amount_minor, 7900)
+            self.assertEqual(annual_price.amount_minor, 79000)
+            saudi_map = db.query(saas.models.CountryCurrencyMap).filter_by(country_code="SA").first()
+            self.assertEqual(saudi_map.currency_code, "SAR")
+        finally:
+            db.close()
+
+        public_plans_response = self.client.get("/saas/plans?country_code=SA")
+        self.assertEqual(public_plans_response.status_code, 200)
+        self.assertIn("Starter", public_plans_response.text)
+        self.assertIn("Professional", public_plans_response.text)
+        self.assertIn("Most Popular", public_plans_response.text)
+        self.assertIn("SAR", public_plans_response.text)
 
     def test_pending_organization_onboarding_flow_stays_outside_operational_tables(self):
         self._signup_and_verify("leader@academy.edu")
@@ -361,6 +490,102 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Pending organization journey", dashboard_response.text)
         self.assertIn("ready_for_checkout", dashboard_response.text)
 
+    def test_plan_selection_requires_ready_for_checkout(self):
+        self._signup_and_verify("gated@academy.edu")
+        org_uuid = self._start_pending_organization()
+
+        plan_response = self.client.get(
+            f"/saas/onboarding/{org_uuid}/plan",
+            follow_redirects=False,
+        )
+        self.assertEqual(plan_response.status_code, 302)
+        self.assertIn("/saas/account?notice=", plan_response.headers["location"])
+
+    def test_phase3_plan_selection_and_checkout_foundation_preserves_operational_isolation(self):
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("billing@academy.edu")
+
+        db = self._db()
+        try:
+            operational_counts_before = {
+                "school_groups": db.query(models.SchoolGroup).count(),
+                "branches": db.query(models.Branch).count(),
+                "academic_years": db.query(models.AcademicYear).count(),
+                "users": db.query(models.User).count(),
+                "role_permissions": db.query(models.RolePermission).count(),
+            }
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            self.assertIsNotNone(professional)
+            professional_id = professional.id
+        finally:
+            db.close()
+
+        plan_page = self.client.get(f"/saas/onboarding/{org_uuid}/plan")
+        self.assertEqual(plan_page.status_code, 200)
+        self.assertIn("Select a subscription plan", plan_page.text)
+
+        select_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "annual"},
+            follow_redirects=False,
+        )
+        self.assertEqual(select_response.status_code, 302)
+        self.assertIn(f"/saas/onboarding/{org_uuid}/checkout", select_response.headers["location"])
+
+        checkout_response = self.client.get(f"/saas/onboarding/{org_uuid}/checkout")
+        self.assertEqual(checkout_response.status_code, 200)
+        self.assertIn("Professional", checkout_response.text)
+        self.assertIn("annual", checkout_response.text)
+
+        prepare_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/checkout/start",
+            follow_redirects=False,
+        )
+        self.assertEqual(prepare_response.status_code, 302)
+
+        billing_status_response = self.client.get(f"/saas/onboarding/{org_uuid}/billing-status")
+        self.assertEqual(billing_status_response.status_code, 200)
+        self.assertIn("checkout_ready", billing_status_response.text)
+
+        dashboard_response = self.client.get("/saas/account")
+        self.assertEqual(dashboard_response.status_code, 200)
+        self.assertIn("Selected plan: Professional", dashboard_response.text)
+        self.assertIn("[Done] Plan Selection", dashboard_response.text)
+        self.assertIn("[Done] Checkout", dashboard_response.text)
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            self.assertEqual(organization.billing_status, "checkout_ready")
+            self.assertEqual(organization.selected_plan_id, professional_id)
+            self.assertEqual(organization.selected_billing_interval, "annual")
+            selection = db.query(saas.models.PendingOrganizationPlanSelection).filter_by(
+                pending_organization_id=organization.id,
+                selection_status="selected",
+            ).first()
+            self.assertIsNotNone(selection)
+            self.assertEqual(selection.plan_version, 1)
+            self.assertTrue(selection.is_founding_offer)
+            checkout_session = db.query(saas.models.CheckoutSession).filter_by(
+                pending_organization_id=organization.id
+            ).first()
+            self.assertIsNotNone(checkout_session)
+            self.assertEqual(checkout_session.status, "ready")
+            contract = db.query(saas.models.SubscriptionContract).filter_by(
+                pending_organization_id=organization.id
+            ).first()
+            self.assertIsNotNone(contract)
+            self.assertEqual(contract.contract_status, "checkout_pending")
+            operational_counts_after = {
+                "school_groups": db.query(models.SchoolGroup).count(),
+                "branches": db.query(models.Branch).count(),
+                "academic_years": db.query(models.AcademicYear).count(),
+                "users": db.query(models.User).count(),
+                "role_permissions": db.query(models.RolePermission).count(),
+            }
+            self.assertEqual(operational_counts_before, operational_counts_after)
+        finally:
+            db.close()
+
     def test_resume_later_and_platform_owner_pending_dashboard(self):
         self._signup_and_verify("resume@academy.edu")
 
@@ -390,6 +615,56 @@ class SaaSPhase1Tests(unittest.TestCase):
             platform_login_cookie = auth.create_session_token(platform_owner)
         finally:
             db.close()
+
+    def test_platform_owner_pending_dashboard_shows_phase3_billing_visibility(self):
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("owner-ops@academy.edu")
+
+        db = self._db()
+        try:
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            platform_owner = models.User(
+                user_id="9002",
+                username="platform.billing",
+                email="platform.billing@example.com",
+                email_normalized=auth.normalize_email("platform.billing@example.com"),
+                first_name="Platform",
+                last_name="Billing",
+                password=auth.get_password_hash("PlatformPass123!"),
+                user_type=auth.USER_TYPE_PLATFORM,
+                platform_role=auth.PLATFORM_ROLE_OWNER,
+                platform_owner_kind=auth.PLATFORM_OWNER_PRIMARY,
+                access_scope=auth.ACCESS_SCOPE_GLOBAL,
+                is_active=True,
+            )
+            db.add(platform_owner)
+            db.commit()
+            platform_login_cookie = auth.create_session_token(platform_owner)
+            professional_id = professional.id
+        finally:
+            db.close()
+
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "monthly"},
+            follow_redirects=False,
+        )
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/checkout/start",
+            follow_redirects=False,
+        )
+
+        admin_client = TestClient(self.app)
+        admin_client.cookies.set(auth.SESSION_COOKIE_KEY, platform_login_cookie)
+
+        dashboard_response = admin_client.get("/saas-admin/pending-organizations")
+        self.assertEqual(dashboard_response.status_code, 200)
+        self.assertIn("Professional", dashboard_response.text)
+        self.assertIn("checkout_ready", dashboard_response.text)
+
+        detail_response = admin_client.get(f"/saas-admin/pending-organizations/{org_uuid}")
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertIn("Professional", detail_response.text)
+        self.assertIn("Checkout: ready", detail_response.text)
 
         save_draft_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/organization",

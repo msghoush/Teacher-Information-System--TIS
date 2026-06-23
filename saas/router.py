@@ -7,7 +7,7 @@ from urllib.parse import quote_plus
 import auth
 from dependencies import get_db
 import email_service
-from saas import models, oauth, service
+from saas import billing_service, models, oauth, pricing_service, service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -62,6 +62,22 @@ def _onboarding_context(db: Session, account, organization):
         "primary_contact": primary_contact,
         "branches": branches,
         "journey_card": summary,
+    }
+
+
+def _plan_context(db: Session, account, organization):
+    summary = service.build_pending_dashboard_summary(db, account)
+    checkout_summary = billing_service.build_checkout_summary(db, organization)
+    return {
+        "account": account,
+        "organization": organization,
+        "journey_card": summary,
+        "plan_catalog": pricing_service.build_plan_catalog(
+            db,
+            country_code=str(getattr(organization, "country_code", "") or ""),
+        ),
+        "current_plan_selection": checkout_summary["selection"] if checkout_summary else None,
+        "checkout_summary": checkout_summary,
     }
 
 
@@ -329,6 +345,22 @@ def account_dashboard(request: Request, db: Session = Depends(get_db)):
             "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
             "notice": request.query_params.get("notice", ""),
             "onboarding_summary": onboarding_summary,
+        },
+    )
+
+
+@router.get("/plans", response_class=HTMLResponse)
+def public_plan_catalog(
+    request: Request,
+    country_code: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    return _render(
+        request,
+        "saas/plan_catalog.html",
+        {
+            "account": _current_account(request, db),
+            "plan_catalog": pricing_service.build_plan_catalog(db, country_code=country_code),
         },
     )
 
@@ -785,6 +817,119 @@ def submit_onboarding(
         db.rollback()
         return _redirect_error(f"/saas/onboarding/{organization_uuid}/review", str(exc))
     return RedirectResponse("/saas/account?notice=Organization+is+ready+for+checkout.", status_code=302)
+
+
+@router.get("/onboarding/{organization_uuid}/plan", response_class=HTMLResponse)
+def plan_selection_step(
+    organization_uuid: str,
+    request: Request,
+    error: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    try:
+        billing_service.ensure_ready_for_checkout(organization)
+    except ValueError as exc:
+        db.rollback()
+        return RedirectResponse(f"/saas/account?notice={quote_plus(str(exc))}", status_code=302)
+    context = _plan_context(db, account, organization)
+    db.commit()
+    context.update({"error": error})
+    return _render(request, "saas/plan_selection.html", context)
+
+
+@router.post("/onboarding/{organization_uuid}/plan")
+def select_plan_step(
+    organization_uuid: str,
+    request: Request,
+    plan_id: str = Form(""),
+    billing_interval: str = Form("monthly"),
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    try:
+        selection = billing_service.select_plan(
+            db,
+            organization,
+            plan_id=int(plan_id or 0),
+            billing_interval=billing_interval,
+        )
+        service.update_pending_dashboard_status(account, organization, service.recalculate_pending_progress(db, organization))
+        db.commit()
+    except (ValueError, TypeError) as exc:
+        db.rollback()
+        return _redirect_error(f"/saas/onboarding/{organization_uuid}/plan", str(exc))
+    return RedirectResponse(
+        f"/saas/onboarding/{organization_uuid}/checkout?notice={quote_plus('Plan selected successfully.')}",
+        status_code=302,
+    )
+
+
+@router.get("/onboarding/{organization_uuid}/checkout", response_class=HTMLResponse)
+def checkout_summary_step(
+    organization_uuid: str,
+    request: Request,
+    error: str = Query(""),
+    notice: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    context = _plan_context(db, account, organization)
+    db.commit()
+    context.update({"error": error, "notice": notice})
+    return _render(request, "saas/checkout_summary.html", context)
+
+
+@router.post("/onboarding/{organization_uuid}/checkout/start")
+def prepare_checkout_step(
+    organization_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    try:
+        billing_service.create_or_update_checkout_session(db, organization)
+        service.update_pending_dashboard_status(account, organization, service.recalculate_pending_progress(db, organization))
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return _redirect_error(f"/saas/onboarding/{organization_uuid}/checkout", str(exc))
+    return RedirectResponse(
+        f"/saas/onboarding/{organization_uuid}/checkout?notice={quote_plus('Checkout summary is ready.')}",
+        status_code=302,
+    )
+
+
+@router.get("/onboarding/{organization_uuid}/billing-status", response_class=HTMLResponse)
+def billing_status_step(
+    organization_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    context = _plan_context(db, account, organization)
+    db.commit()
+    return _render(request, "saas/billing_status.html", context)
 
 
 @admin_router.get("/pending-organizations", response_class=HTMLResponse)

@@ -1,0 +1,14 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Billing Status</h1>
+<div class="notice">Current billing state for this pending organization: <strong>{{ organization.billing_status }}</strong></div>
+{% if current_plan_selection %}
+<p>Plan ID: {{ current_plan_selection.plan_id }} | Interval: {{ current_plan_selection.billing_interval }}</p>
+{% endif %}
+{% if checkout_summary and checkout_summary.checkout_session %}
+<p>Checkout session status: {{ checkout_summary.checkout_session.status }}</p>
+{% endif %}
+<div class="actions">
+    <a class="btn secondary" href="/saas/account">Back to dashboard</a>
+</div>
+{% endblock %}

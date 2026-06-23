@@ -7,7 +7,19 @@
     <div class="stat-list">
         <div class="stat">
             <strong>{{ organization.organization_name or "Untitled draft" }}</strong>
-            <p>Status: {{ organization.status }}<br>Progress: {{ card.progress.completion_percent }}%<br>Educational Program: {{ organization.educational_program or "-" }}</p>
+            <p>Status: {{ organization.status }}<br>Billing: {{ organization.billing_status }}<br>Progress: {{ card.progress.completion_percent }}%<br>Educational Program: {{ organization.educational_program or "-" }}</p>
+        </div>
+        <div class="stat">
+            <strong>Commercial selection</strong>
+            <p>
+                {% if card.current_plan_selection %}
+                Plan: {{ card.current_plan.plan_name if card.current_plan else card.current_plan_selection.plan_id }}<br>
+                Interval: {{ card.current_plan_selection.billing_interval }}<br>
+                Checkout: {{ card.current_checkout_session.status if card.current_checkout_session else "not_started" }}
+                {% else %}
+                No plan selected yet.
+                {% endif %}
+            </p>
         </div>
         <div class="stat">
             <strong>Primary contact</strong>

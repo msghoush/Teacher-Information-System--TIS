@@ -51,6 +51,10 @@ class PendingOrganizationCard:
     progress: object
     branches_count: int
     current_step_url: str
+    current_plan: object = None
+    current_plan_selection: object = None
+    current_checkout_session: object = None
+    current_subscription_contract: object = None
 
 
 def _utcnow() -> datetime:
@@ -562,6 +566,9 @@ def _clean_text(value, max_length: int = 180) -> str:
 
 
 def organization_step_url(organization) -> str:
+    status = str(getattr(organization, "status", "") or "").strip().lower()
+    if status == READY_FOR_CHECKOUT_STATUS:
+        return f"/saas/onboarding/{organization.organization_uuid}/plan"
     step = str(getattr(organization, "onboarding_step", "") or "organization").strip() or "organization"
     return f"/saas/onboarding/{organization.organization_uuid}/{step}"
 
@@ -611,7 +618,10 @@ def update_pending_dashboard_status(account, organization, progress):
         account.onboarding_status = "not_started"
         return
     status = str(getattr(organization, "status", "") or "").strip().lower()
-    if status == READY_FOR_CHECKOUT_STATUS:
+    billing_status = str(getattr(organization, "billing_status", "") or "").strip().lower()
+    if billing_status in {"plan_selected", "checkout_ready", "checkout_initiated"}:
+        account.onboarding_status = billing_status
+    elif status == READY_FOR_CHECKOUT_STATUS:
         account.onboarding_status = READY_FOR_CHECKOUT_STATUS
     elif status in {"under_review", "changes_requested", "rejected"}:
         account.onboarding_status = status
@@ -807,15 +817,29 @@ def list_pending_events(db: Session, organization):
 def build_pending_card(db: Session, organization):
     if not organization:
         return None
+    from saas import billing_service
+
     progress = recalculate_pending_progress(db, organization)
     branches_count = db.query(models.PendingOrganizationBranch).filter(
         models.PendingOrganizationBranch.pending_organization_id == organization.id
     ).count()
+    selection = billing_service.get_current_plan_selection(db, organization)
+    checkout_session = billing_service.get_current_checkout_session(db, organization)
+    contract = billing_service.get_current_subscription_contract(db, organization)
+    current_plan = None
+    if selection:
+        current_plan = db.query(models.SubscriptionPlan).filter(
+            models.SubscriptionPlan.id == selection.plan_id
+        ).first()
     return PendingOrganizationCard(
         organization=organization,
         progress=progress,
         branches_count=int(branches_count or 0),
         current_step_url=organization_step_url(organization),
+        current_plan=current_plan,
+        current_plan_selection=selection,
+        current_checkout_session=checkout_session,
+        current_subscription_contract=contract,
     )
 
 
@@ -824,16 +848,30 @@ def build_pending_dashboard_summary(db: Session, account):
     if not organization:
         update_pending_dashboard_status(account, None, None)
         return None
+    from saas import billing_service
+
     progress = recalculate_pending_progress(db, organization)
     update_pending_dashboard_status(account, organization, progress)
     branches_count = db.query(models.PendingOrganizationBranch).filter(
         models.PendingOrganizationBranch.pending_organization_id == organization.id
     ).count()
+    selection = billing_service.get_current_plan_selection(db, organization)
+    checkout_session = billing_service.get_current_checkout_session(db, organization)
+    contract = billing_service.get_current_subscription_contract(db, organization)
+    current_plan = None
+    if selection:
+        current_plan = db.query(models.SubscriptionPlan).filter(
+            models.SubscriptionPlan.id == selection.plan_id
+        ).first()
     return {
         "organization": organization,
         "progress": progress,
         "branches_count": int(branches_count or 0),
         "current_step_url": organization_step_url(organization),
+        "current_plan": current_plan,
+        "current_plan_selection": selection,
+        "current_checkout_session": checkout_session,
+        "current_subscription_contract": contract,
     }
 
 
