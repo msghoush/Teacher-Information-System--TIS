@@ -16,6 +16,22 @@
             <strong>Onboarding status</strong>
             <p>{{ account.onboarding_status }}</p>
         </div>
+        <div class="stat">
+            <strong>Pending organization journey</strong>
+            {% if onboarding_summary %}
+            <p>{{ onboarding_summary.organization.organization_name or "Draft organization" }}<br>Status: {{ onboarding_summary.organization.status }}<br>Progress: {{ onboarding_summary.progress.completion_percent }}%</p>
+            <div class="actions">
+                <a class="btn" href="{{ onboarding_summary.current_step_url }}">Resume onboarding</a>
+            </div>
+            {% else %}
+            <p>No pending organization draft has been started yet.</p>
+            <div class="actions">
+                <form method="post" action="/saas/onboarding/start">
+                    <button class="btn" type="submit">Start organization setup</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
     </div>
     <div class="stat-list">
         <div class="stat">
@@ -27,8 +43,12 @@
             <p>{{ sessions|length }} active session(s)</p>
         </div>
         <div class="stat">
-            <strong>Next phase ready</strong>
-            <p>This account now supports future onboarding and billing routing without creating any operational TIS user.</p>
+            <strong>Journey card</strong>
+            {% if onboarding_summary %}
+            <p>Current step: {{ onboarding_summary.organization.onboarding_step }}<br>Branches added: {{ onboarding_summary.branches_count }}<br>Last saved: {{ onboarding_summary.organization.draft_saved_at or onboarding_summary.organization.updated_at }}</p>
+            {% else %}
+            <p>Create a pending organization draft to begin the onboarding wizard. No operational TIS tenant records are created in this zone.</p>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -36,5 +56,8 @@
     <a class="btn" href="/saas/account/profile">Edit profile</a>
     <a class="btn secondary" href="/saas/account/security">Security</a>
     <a class="btn secondary" href="/saas/account/sessions">Manage sessions</a>
+    {% if onboarding_summary %}
+    <a class="btn secondary" href="{{ onboarding_summary.current_step_url }}">Open onboarding</a>
+    {% endif %}
 </div>
 {% endblock %}

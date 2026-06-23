@@ -4,6 +4,7 @@ import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from fastapi import Request
 from sqlalchemy.orm import Session
@@ -23,6 +24,9 @@ SIGNUP_RATE_LIMIT_ATTEMPTS = 8
 SIGNUP_RATE_LIMIT_WINDOW_MINUTES = 60
 VERIFICATION_RATE_LIMIT_ATTEMPTS = 5
 VERIFICATION_RATE_LIMIT_WINDOW_MINUTES = 60
+ONBOARDING_STEPS = ("organization", "branches", "academic_setup", "contacts", "review")
+PENDING_ORGANIZATION_ACTIVE_STATUSES = ("draft", "in_progress", "changes_requested", "ready_for_checkout", "under_review")
+READY_FOR_CHECKOUT_STATUS = "ready_for_checkout"
 PERSONAL_EMAIL_WARNING = (
     "Personal email domains are not recommended for school onboarding. You can continue now, "
     "but a work email will be requested during organization setup."
@@ -39,6 +43,14 @@ class DomainPolicyResult:
     warning: str = ""
     reason: str = ""
     enforcement: str = ""
+
+
+@dataclass(frozen=True)
+class PendingOrganizationCard:
+    organization: object
+    progress: object
+    branches_count: int
+    current_step_url: str
 
 
 def _utcnow() -> datetime:
@@ -414,6 +426,456 @@ def validate_csrf(request: Request, session_row) -> bool:
 
 
 hash_value = _hash_value
+
+
+def _workspace_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def pending_logo_dir() -> Path:
+    target = _workspace_root() / "static" / "uploads" / "saas" / "pending_logos"
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def pending_logo_public_path(filename: str) -> str:
+    return f"uploads/saas/pending_logos/{filename}"
+
+
+def save_pending_logo(upload_file) -> str:
+    filename = str(getattr(upload_file, "filename", "") or "").strip()
+    if not filename:
+        return ""
+    content_type = str(getattr(upload_file, "content_type", "") or "").strip().lower()
+    allowed_content_types = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
+    if content_type not in allowed_content_types:
+        raise ValueError("Organization logo must be a PNG, JPG, or WEBP image.")
+    suffix = Path(filename).suffix.lower()
+    if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
+        raise ValueError("Organization logo file extension is not supported.")
+    stored_name = f"{uuid.uuid4().hex}{suffix}"
+    target_path = pending_logo_dir() / stored_name
+    with target_path.open("wb") as output:
+        output.write(upload_file.file.read())
+    return pending_logo_public_path(stored_name)
+
+
+def get_pending_organization_for_account(db: Session, account):
+    return db.query(models.PendingOrganization).filter(
+        models.PendingOrganization.owner_saas_account_id == account.id,
+        models.PendingOrganization.status.in_(PENDING_ORGANIZATION_ACTIVE_STATUSES),
+    ).order_by(models.PendingOrganization.updated_at.desc(), models.PendingOrganization.id.desc()).first()
+
+
+def get_pending_organization_by_uuid(db: Session, organization_uuid: str):
+    return db.query(models.PendingOrganization).filter(
+        models.PendingOrganization.organization_uuid == str(organization_uuid or "").strip()
+    ).first()
+
+
+def get_owned_pending_organization(db: Session, account, organization_uuid: str):
+    organization = get_pending_organization_by_uuid(db, organization_uuid)
+    if not organization or organization.owner_saas_account_id != account.id:
+        return None
+    return organization
+
+
+def get_or_create_pending_progress(db: Session, organization):
+    row = db.query(models.PendingOrganizationProgress).filter(
+        models.PendingOrganizationProgress.pending_organization_id == organization.id
+    ).first()
+    if row:
+        return row
+    row = models.PendingOrganizationProgress(pending_organization_id=organization.id)
+    db.add(row)
+    db.flush()
+    return row
+
+
+def get_or_create_academic_setup(db: Session, organization):
+    row = db.query(models.PendingOrganizationAcademicSetup).filter(
+        models.PendingOrganizationAcademicSetup.pending_organization_id == organization.id
+    ).first()
+    if row:
+        return row
+    row = models.PendingOrganizationAcademicSetup(pending_organization_id=organization.id)
+    db.add(row)
+    db.flush()
+    return row
+
+
+def get_primary_contact(db: Session, organization):
+    return db.query(models.PendingOrganizationContact).filter(
+        models.PendingOrganizationContact.pending_organization_id == organization.id,
+        models.PendingOrganizationContact.is_primary == True,
+    ).order_by(models.PendingOrganizationContact.id.asc()).first()
+
+
+def create_pending_organization(db: Session, account, request: Request | None = None):
+    existing = get_pending_organization_for_account(db, account)
+    if existing:
+        return existing
+    organization = models.PendingOrganization(
+        organization_uuid=str(uuid.uuid4()),
+        owner_saas_account_id=account.id,
+        status="draft",
+        onboarding_step="organization",
+        draft_saved_at=_utcnow(),
+    )
+    db.add(organization)
+    db.flush()
+    get_or_create_pending_progress(db, organization)
+    log_pending_event(
+        db,
+        organization=organization,
+        account=account,
+        event_type="created",
+        details={"status": "draft"},
+    )
+    account.onboarding_status = "organization_in_progress"
+    return organization
+
+
+def log_pending_event(db: Session, *, organization, account=None, event_type: str, details: dict | None = None):
+    db.add(
+        models.PendingOrganizationEvent(
+            pending_organization_id=organization.id,
+            actor_saas_account_id=getattr(account, "id", None),
+            event_type=str(event_type or "").strip()[:40] or "unknown",
+            details_json=json.dumps(details or {}, separators=(",", ":")) if details else None,
+        )
+    )
+
+
+def _safe_int(value, default: int | None = None) -> int | None:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return default
+    try:
+        return int(cleaned)
+    except ValueError:
+        return default
+
+
+def _clean_text(value, max_length: int = 180) -> str:
+    return str(value or "").strip()[:max_length]
+
+
+def organization_step_url(organization) -> str:
+    step = str(getattr(organization, "onboarding_step", "") or "organization").strip() or "organization"
+    return f"/saas/onboarding/{organization.organization_uuid}/{step}"
+
+
+def recalculate_pending_progress(db: Session, organization):
+    progress = get_or_create_pending_progress(db, organization)
+    progress.organization_profile_complete = bool(
+        _clean_text(getattr(organization, "organization_name", ""), 160)
+        and _clean_text(getattr(organization, "educational_program", ""), 20)
+        and _clean_text(getattr(organization, "timezone", ""), 80)
+    )
+    branches_count = db.query(models.PendingOrganizationBranch).filter(
+        models.PendingOrganizationBranch.pending_organization_id == organization.id
+    ).count()
+    progress.branches_complete = branches_count > 0
+    academic_setup = get_or_create_academic_setup(db, organization)
+    progress.academic_setup_complete = bool(_clean_text(academic_setup.first_academic_year_name, 40))
+    primary_contact = get_primary_contact(db, organization)
+    progress.contacts_complete = bool(
+        primary_contact
+        and _clean_text(primary_contact.first_name, 120)
+        and _clean_text(primary_contact.last_name, 120)
+        and auth.is_valid_email(primary_contact.email)
+    )
+    completion_flags = [
+        progress.organization_profile_complete,
+        progress.branches_complete,
+        progress.academic_setup_complete,
+        progress.contacts_complete,
+    ]
+    progress.completion_percent = int(round((sum(1 for flag in completion_flags if flag) / len(completion_flags)) * 100))
+    last_completed_step = ""
+    if progress.organization_profile_complete:
+        last_completed_step = "organization"
+    if progress.branches_complete:
+        last_completed_step = "branches"
+    if progress.academic_setup_complete:
+        last_completed_step = "academic_setup"
+    if progress.contacts_complete:
+        last_completed_step = "contacts"
+    progress.last_completed_step = last_completed_step or None
+    return progress
+
+
+def update_pending_dashboard_status(account, organization, progress):
+    if not organization:
+        account.onboarding_status = "not_started"
+        return
+    status = str(getattr(organization, "status", "") or "").strip().lower()
+    if status == READY_FOR_CHECKOUT_STATUS:
+        account.onboarding_status = READY_FOR_CHECKOUT_STATUS
+    elif status in {"under_review", "changes_requested", "rejected"}:
+        account.onboarding_status = status
+    elif int(getattr(progress, "completion_percent", 0) or 0) > 0:
+        account.onboarding_status = "organization_in_progress"
+    else:
+        account.onboarding_status = "not_started"
+
+
+def save_organization_profile(
+    db: Session,
+    organization,
+    *,
+    organization_name: str,
+    legal_name: str,
+    website: str,
+    primary_domain: str,
+    phone: str,
+    educational_program: str,
+    country_code: str,
+    country_name: str,
+    region_name: str,
+    city_name: str,
+    district_name: str,
+    neighborhood_name: str,
+    school_type: str,
+    expected_branch_count,
+    expected_student_count,
+    expected_teacher_count,
+    estimated_staff_users,
+    timezone: str,
+    logo_file=None,
+):
+    cleaned_program = _clean_text(educational_program, 20).upper()
+    if cleaned_program not in {"NATIONAL", "INTERNATIONAL", "BOTH"}:
+        raise ValueError("Educational Program must be National, International, or Both.")
+    organization.organization_name = _clean_text(organization_name, 160)
+    if not organization.organization_name:
+        raise ValueError("Organization name is required.")
+    organization.legal_name = _clean_text(legal_name, 180)
+    organization.website = _clean_text(website, 180)
+    organization.primary_domain = _extract_domain(primary_domain) or _clean_text(primary_domain, 180)
+    organization.phone = _clean_text(phone, 80)
+    organization.educational_program = cleaned_program
+    organization.country_code = _clean_text(country_code, 2).upper()
+    organization.country_name = _clean_text(country_name, 120)
+    organization.region_name = _clean_text(region_name, 160)
+    organization.city_name = _clean_text(city_name, 160)
+    organization.district_name = _clean_text(district_name, 160)
+    organization.neighborhood_name = _clean_text(neighborhood_name, 160)
+    organization.school_type = _clean_text(school_type, 120)
+    organization.expected_branch_count = _safe_int(expected_branch_count)
+    organization.expected_student_count = _safe_int(expected_student_count)
+    organization.expected_teacher_count = _safe_int(expected_teacher_count)
+    organization.estimated_staff_users = _safe_int(estimated_staff_users)
+    organization.timezone = _clean_text(timezone, 80)
+    if logo_file is not None and str(getattr(logo_file, "filename", "") or "").strip():
+        organization.organization_logo_path = save_pending_logo(logo_file)
+    organization.onboarding_step = "branches"
+    organization.status = "in_progress"
+    organization.draft_saved_at = _utcnow()
+
+
+def replace_branches(db: Session, organization, branch_rows: list[dict]):
+    db.query(models.PendingOrganizationBranch).filter(
+        models.PendingOrganizationBranch.pending_organization_id == organization.id
+    ).delete(synchronize_session=False)
+    cleaned_rows = []
+    for index, row in enumerate(branch_rows):
+        branch_name = _clean_text(row.get("branch_name"), 160)
+        if not branch_name:
+            continue
+        cleaned_rows.append(
+            models.PendingOrganizationBranch(
+                pending_organization_id=organization.id,
+                branch_name=branch_name,
+                location=_clean_text(row.get("location"), 180),
+                country_code=_clean_text(row.get("country_code"), 2).upper(),
+                country_name=_clean_text(row.get("country_name"), 120),
+                region_name=_clean_text(row.get("region_name"), 160),
+                city_name=_clean_text(row.get("city_name"), 160),
+                district_name=_clean_text(row.get("district_name"), 160),
+                neighborhood_name=_clean_text(row.get("neighborhood_name"), 160),
+                sort_order=index,
+                status=True,
+            )
+        )
+    if not cleaned_rows:
+        raise ValueError("Add at least one branch.")
+    for row in cleaned_rows:
+        db.add(row)
+    organization.onboarding_step = "academic_setup"
+    organization.status = "in_progress"
+    organization.draft_saved_at = _utcnow()
+
+
+def save_academic_setup(db: Session, organization, *, first_academic_year_name: str, create_default_branch: str, notes: str):
+    row = get_or_create_academic_setup(db, organization)
+    row.first_academic_year_name = _clean_text(first_academic_year_name, 40)
+    if not row.first_academic_year_name:
+        raise ValueError("First academic year is required.")
+    row.create_default_branch = str(create_default_branch or "").strip().lower() in {"1", "true", "yes", "on"}
+    row.notes = str(notes or "").strip()[:4000]
+    organization.onboarding_step = "contacts"
+    organization.status = "in_progress"
+    organization.draft_saved_at = _utcnow()
+    return row
+
+
+def save_primary_contact(
+    db: Session,
+    organization,
+    *,
+    first_name: str,
+    last_name: str,
+    job_title: str,
+    email: str,
+    phone: str,
+):
+    cleaned_email = _clean_text(email, 180)
+    if not auth.is_valid_email(cleaned_email):
+        raise ValueError("Primary contact email is invalid.")
+    row = get_primary_contact(db, organization)
+    if not row:
+        row = models.PendingOrganizationContact(
+            pending_organization_id=organization.id,
+            contact_type="owner",
+            is_primary=True,
+        )
+        db.add(row)
+    row.first_name = _clean_text(first_name, 120)
+    row.last_name = _clean_text(last_name, 120)
+    row.job_title = _clean_text(job_title, 120)
+    row.email = cleaned_email
+    row.email_normalized = auth.normalize_email(cleaned_email)
+    row.phone = _clean_text(phone, 80)
+    if not row.first_name or not row.last_name:
+        raise ValueError("Primary contact first and last name are required.")
+    organization.onboarding_step = "review"
+    organization.status = "in_progress"
+    organization.draft_saved_at = _utcnow()
+    return row
+
+
+def save_draft(db: Session, account, organization, *, current_step: str):
+    organization.onboarding_step = current_step if current_step in ONBOARDING_STEPS else "organization"
+    organization.status = "in_progress"
+    organization.draft_saved_at = _utcnow()
+    progress = recalculate_pending_progress(db, organization)
+    update_pending_dashboard_status(account, organization, progress)
+    log_pending_event(
+        db,
+        organization=organization,
+        account=account,
+        event_type="draft_saved",
+        details={"step": organization.onboarding_step, "completion_percent": progress.completion_percent},
+    )
+    return progress
+
+
+def submit_pending_organization(db: Session, account, organization):
+    progress = recalculate_pending_progress(db, organization)
+    if progress.completion_percent < 100:
+        raise ValueError("Complete all onboarding steps before submitting.")
+    progress.review_complete = True
+    organization.status = READY_FOR_CHECKOUT_STATUS
+    organization.onboarding_step = "review"
+    organization.submitted_at = _utcnow()
+    organization.draft_saved_at = _utcnow()
+    update_pending_dashboard_status(account, organization, progress)
+    log_pending_event(
+        db,
+        organization=organization,
+        account=account,
+        event_type="submitted",
+        details={"status": READY_FOR_CHECKOUT_STATUS},
+    )
+    return progress
+
+
+def list_pending_branches(db: Session, organization):
+    return db.query(models.PendingOrganizationBranch).filter(
+        models.PendingOrganizationBranch.pending_organization_id == organization.id
+    ).order_by(models.PendingOrganizationBranch.sort_order.asc(), models.PendingOrganizationBranch.id.asc()).all()
+
+
+def list_pending_events(db: Session, organization):
+    return db.query(models.PendingOrganizationEvent).filter(
+        models.PendingOrganizationEvent.pending_organization_id == organization.id
+    ).order_by(models.PendingOrganizationEvent.created_at.desc(), models.PendingOrganizationEvent.id.desc()).all()
+
+
+def build_pending_card(db: Session, organization):
+    if not organization:
+        return None
+    progress = recalculate_pending_progress(db, organization)
+    branches_count = db.query(models.PendingOrganizationBranch).filter(
+        models.PendingOrganizationBranch.pending_organization_id == organization.id
+    ).count()
+    return PendingOrganizationCard(
+        organization=organization,
+        progress=progress,
+        branches_count=int(branches_count or 0),
+        current_step_url=organization_step_url(organization),
+    )
+
+
+def build_pending_dashboard_summary(db: Session, account):
+    organization = get_pending_organization_for_account(db, account)
+    if not organization:
+        update_pending_dashboard_status(account, None, None)
+        return None
+    progress = recalculate_pending_progress(db, organization)
+    update_pending_dashboard_status(account, organization, progress)
+    branches_count = db.query(models.PendingOrganizationBranch).filter(
+        models.PendingOrganizationBranch.pending_organization_id == organization.id
+    ).count()
+    return {
+        "organization": organization,
+        "progress": progress,
+        "branches_count": int(branches_count or 0),
+        "current_step_url": organization_step_url(organization),
+    }
+
+
+def list_pending_organizations(db: Session, *, status: str = ""):
+    query = db.query(models.PendingOrganization)
+    cleaned_status = str(status or "").strip().lower()
+    if cleaned_status:
+        query = query.filter(models.PendingOrganization.status == cleaned_status)
+    return query.order_by(models.PendingOrganization.updated_at.desc(), models.PendingOrganization.id.desc()).all()
+
+
+def add_pending_note(db: Session, organization, *, author_type: str, author_ref: str, note: str, is_internal: bool = True):
+    cleaned_note = str(note or "").strip()
+    if not cleaned_note:
+        raise ValueError("Note is required.")
+    db.add(
+        models.PendingOrganizationNote(
+            pending_organization_id=organization.id,
+            author_type=str(author_type or "platform_owner")[:20],
+            author_ref=str(author_ref or "")[:80] or None,
+            note=cleaned_note[:4000],
+            is_internal=bool(is_internal),
+        )
+    )
+
+
+def list_pending_notes(db: Session, organization):
+    return db.query(models.PendingOrganizationNote).filter(
+        models.PendingOrganizationNote.pending_organization_id == organization.id
+    ).order_by(models.PendingOrganizationNote.created_at.desc(), models.PendingOrganizationNote.id.desc()).all()
+
+
+def update_pending_status(db: Session, organization, *, status: str, reviewer_user_id: str = "", rejection_reason: str = ""):
+    cleaned_status = str(status or "").strip().lower()
+    allowed = {"under_review", "changes_requested", "rejected", READY_FOR_CHECKOUT_STATUS}
+    if cleaned_status not in allowed:
+        raise ValueError("Unsupported pending organization status.")
+    organization.status = cleaned_status
+    organization.reviewed_at = _utcnow()
+    organization.reviewed_by_user_id = str(reviewer_user_id or "").strip()[:10] or None
+    organization.rejection_reason = str(rejection_reason or "").strip()[:4000] or None
+    return organization
 
 
 def link_or_create_social_account(

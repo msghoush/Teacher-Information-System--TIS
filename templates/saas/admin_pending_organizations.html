@@ -1,0 +1,34 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Pending Organizations</h1>
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+<form method="get" action="/saas-admin/pending-organizations" class="actions" style="margin-bottom:18px;">
+    <input name="status" value="{{ status_filter }}" placeholder="Filter by status">
+    <button class="btn secondary" type="submit">Filter</button>
+    <a class="btn secondary" href="/saas-admin/pending-organizations">Clear</a>
+</form>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Organization</th>
+            <th>Status</th>
+            <th>Progress</th>
+            <th>Branches</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for card in cards %}
+        <tr>
+            <td>{{ card.organization.organization_name or "Untitled draft" }}</td>
+            <td>{{ card.organization.status }}</td>
+            <td>{{ card.progress.completion_percent }}%</td>
+            <td>{{ card.branches_count }}</td>
+            <td><a class="btn secondary" href="/saas-admin/pending-organizations/{{ card.organization.organization_uuid }}">Open</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5">No pending organizations found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1383,6 +1383,177 @@ def _saas_identity_foundation(engine, connection):
             )
 
 
+def _pending_organizations_zone(engine, connection):
+    datetime_type = _datetime_type(engine)
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organizations (
+            id INTEGER PRIMARY KEY,
+            organization_uuid VARCHAR(36) NOT NULL,
+            owner_saas_account_id INTEGER NOT NULL,
+            status VARCHAR(30) NOT NULL DEFAULT 'draft',
+            onboarding_step VARCHAR(40) NOT NULL DEFAULT 'organization',
+            organization_name VARCHAR(160) NOT NULL DEFAULT '',
+            legal_name VARCHAR(180),
+            website VARCHAR(180),
+            primary_domain VARCHAR(180),
+            phone VARCHAR(80),
+            organization_logo_path VARCHAR(255),
+            educational_program VARCHAR(20),
+            country_code VARCHAR(2),
+            country_name VARCHAR(120),
+            region_name VARCHAR(160),
+            city_name VARCHAR(160),
+            district_name VARCHAR(160),
+            neighborhood_name VARCHAR(160),
+            school_type VARCHAR(120),
+            expected_branch_count INTEGER,
+            expected_student_count INTEGER,
+            expected_teacher_count INTEGER,
+            estimated_staff_users INTEGER,
+            timezone VARCHAR(80),
+            draft_saved_at {datetime_type},
+            submitted_at {datetime_type},
+            reviewed_at {datetime_type},
+            reviewed_by_user_id VARCHAR(10),
+            rejection_reason TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (owner_saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(connection, connection, "pending_organizations", "uq_pending_organizations_uuid", "organization_uuid")
+    _create_index_if_missing(connection, connection, "pending_organizations", "ix_pending_organizations_owner", "owner_saas_account_id")
+    _create_index_if_missing(connection, connection, "pending_organizations", "ix_pending_organizations_status", "status")
+    _create_index_if_missing(connection, connection, "pending_organizations", "ix_pending_organizations_step", "onboarding_step")
+    _create_index_if_missing(connection, connection, "pending_organizations", "ix_pending_organizations_name", "organization_name")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organization_branches (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            branch_name VARCHAR(160) NOT NULL,
+            location VARCHAR(180),
+            country_code VARCHAR(2),
+            country_name VARCHAR(120),
+            region_name VARCHAR(160),
+            city_name VARCHAR(160),
+            district_name VARCHAR(160),
+            neighborhood_name VARCHAR(160),
+            status BOOLEAN NOT NULL DEFAULT TRUE,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id)
+        )
+        """,
+    )
+    _create_index_if_missing(connection, connection, "pending_organization_branches", "ix_pending_organization_branches_org", "pending_organization_id")
+    _create_index_if_missing(connection, connection, "pending_organization_branches", "ix_pending_organization_branches_order", "pending_organization_id, sort_order")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organization_academic_setup (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            first_academic_year_name VARCHAR(40) NOT NULL DEFAULT '',
+            create_default_branch BOOLEAN NOT NULL DEFAULT FALSE,
+            notes TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(connection, connection, "pending_organization_academic_setup", "uq_pending_organization_academic_setup_org", "pending_organization_id")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organization_contacts (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            contact_type VARCHAR(30) NOT NULL DEFAULT 'owner',
+            first_name VARCHAR(120) NOT NULL DEFAULT '',
+            last_name VARCHAR(120) NOT NULL DEFAULT '',
+            job_title VARCHAR(120),
+            email VARCHAR(180) NOT NULL DEFAULT '',
+            email_normalized VARCHAR(180),
+            phone VARCHAR(80),
+            is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id)
+        )
+        """,
+    )
+    _create_index_if_missing(connection, connection, "pending_organization_contacts", "ix_pending_organization_contacts_org", "pending_organization_id")
+    _create_index_if_missing(connection, connection, "pending_organization_contacts", "ix_pending_organization_contacts_email_normalized", "email_normalized")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organization_progress (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            organization_profile_complete BOOLEAN NOT NULL DEFAULT FALSE,
+            branches_complete BOOLEAN NOT NULL DEFAULT FALSE,
+            academic_setup_complete BOOLEAN NOT NULL DEFAULT FALSE,
+            contacts_complete BOOLEAN NOT NULL DEFAULT FALSE,
+            review_complete BOOLEAN NOT NULL DEFAULT FALSE,
+            completion_percent INTEGER NOT NULL DEFAULT 0,
+            last_completed_step VARCHAR(40),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(connection, connection, "pending_organization_progress", "uq_pending_organization_progress_org", "pending_organization_id")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organization_events (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            actor_saas_account_id INTEGER,
+            event_type VARCHAR(40) NOT NULL,
+            details_json TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (actor_saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_index_if_missing(connection, connection, "pending_organization_events", "ix_pending_organization_events_org", "pending_organization_id")
+    _create_index_if_missing(connection, connection, "pending_organization_events", "ix_pending_organization_events_type", "event_type")
+    _create_index_if_missing(connection, connection, "pending_organization_events", "ix_pending_organization_events_created_at", "created_at")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organization_notes (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            author_type VARCHAR(20) NOT NULL DEFAULT 'owner',
+            author_ref VARCHAR(80),
+            note TEXT NOT NULL DEFAULT '',
+            is_internal BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id)
+        )
+        """,
+    )
+    _create_index_if_missing(connection, connection, "pending_organization_notes", "ix_pending_organization_notes_org", "pending_organization_id")
+    _create_index_if_missing(connection, connection, "pending_organization_notes", "ix_pending_organization_notes_created_at", "created_at")
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -1458,6 +1629,11 @@ MIGRATIONS = (
         migration_id="20260623_001_saas_identity_foundation",
         description="Create SaaS identity, sessions, verification, and domain policy tables",
         apply=_saas_identity_foundation,
+    ),
+    Migration(
+        migration_id="20260623_002_pending_organizations_zone",
+        description="Create pending organizations onboarding zone tables",
+        apply=_pending_organizations_zone,
     ),
 )
 

@@ -50,7 +50,7 @@ from visual_design import (
 )
 from dependencies import get_db
 from routers import subjects, users, teachers, planning, timetable, academic_calendar, observations
-from saas.router import router as saas_router
+from saas.router import admin_router as saas_admin_router, router as saas_router
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
 from teacher_capacity import (
@@ -8571,6 +8571,7 @@ app.include_router(timetable.router)
 app.include_router(academic_calendar.router)
 app.include_router(observations.router)
 app.include_router(saas_router)
+app.include_router(saas_admin_router)
 
 # ---------------------------------------
 # ROOT (public landing on tisplatform.com, app login elsewhere)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -11,6 +11,7 @@ from saas import models, oauth, service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
+admin_router = APIRouter(prefix="/saas-admin", tags=["saas-admin"])
 
 
 def _safe_next(next_path: str | None) -> str:
@@ -30,9 +31,38 @@ def _require_account(request: Request, db: Session):
     return account, session_row
 
 
+def _require_platform_owner(request: Request, db: Session):
+    current_user = auth.get_current_user(request, db)
+    if not current_user or not auth.is_platform_owner(current_user):
+        raise HTTPException(status_code=403, detail="Platform Owner access is required.")
+    return current_user
+
+
 def _render(request: Request, template_name: str, context: dict, status_code: int = 200):
     merged = {"request": request, **context}
     return templates.TemplateResponse(request, template_name, merged, status_code=status_code)
+
+
+def _redirect_error(path: str, message: str):
+    separator = "&" if "?" in path else "?"
+    return RedirectResponse(f"{path}{separator}error={quote_plus(str(message or ''))}", status_code=302)
+
+
+def _onboarding_context(db: Session, account, organization):
+    summary = service.build_pending_dashboard_summary(db, account)
+    progress = summary["progress"] if summary else service.get_or_create_pending_progress(db, organization)
+    academic_setup = service.get_or_create_academic_setup(db, organization)
+    primary_contact = service.get_primary_contact(db, organization)
+    branches = service.list_pending_branches(db, organization)
+    return {
+        "account": account,
+        "organization": organization,
+        "progress": progress,
+        "academic_setup": academic_setup,
+        "primary_contact": primary_contact,
+        "branches": branches,
+        "journey_card": summary,
+    }
 
 
 @router.get("", response_class=HTMLResponse)
@@ -191,12 +221,7 @@ def login(
             status_code=302,
         )
     session_token, csrf_token, _session_row = service.create_session(db, account, request=request)
-    service.log_auth_event(
-        db,
-        event_type="login",
-        account_id=account.id,
-        request=request,
-    )
+    service.log_auth_event(db, event_type="login", account_id=account.id, request=request)
     db.commit()
     response = RedirectResponse(url=_safe_next(next_path), status_code=302)
     return service.set_session_cookies(
@@ -229,11 +254,7 @@ def verification_sent_page(
     email: str = Query(""),
     warning: str = Query(""),
 ):
-    return _render(
-        request,
-        "saas/verification_sent.html",
-        {"email": email, "warning": warning},
-    )
+    return _render(request, "saas/verification_sent.html", {"email": email, "warning": warning})
 
 
 @router.get("/auth/verify-email", response_class=HTMLResponse)
@@ -296,6 +317,7 @@ def account_dashboard(request: Request, db: Session = Depends(get_db)):
         models.SaaSSession.saas_account_id == account.id,
         models.SaaSSession.revoked_at.is_(None),
     ).order_by(models.SaaSSession.last_seen_at.desc()).all()
+    onboarding_summary = service.build_pending_dashboard_summary(db, account)
     db.commit()
     return _render(
         request,
@@ -306,6 +328,7 @@ def account_dashboard(request: Request, db: Session = Depends(get_db)):
             "sessions": sessions,
             "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
             "notice": request.query_params.get("notice", ""),
+            "onboarding_summary": onboarding_summary,
         },
     )
 
@@ -352,11 +375,7 @@ def account_security(request: Request, db: Session = Depends(get_db)):
     return _render(
         request,
         "saas/security.html",
-        {
-            "account": account,
-            "identities": identities,
-            "notice": request.query_params.get("notice", ""),
-        },
+        {"account": account, "identities": identities, "notice": request.query_params.get("notice", "")},
     )
 
 
@@ -412,6 +431,498 @@ def revoke_single_session(
         service.revoke_session(db, target, reason="manual_revoke")
     db.commit()
     return RedirectResponse("/saas/account/sessions?notice=Session+revoked.", status_code=302)
+
+
+@router.get("/onboarding")
+def onboarding_root(request: Request, db: Session = Depends(get_db)):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_pending_organization_for_account(db, account)
+    db.commit()
+    if not organization:
+        return RedirectResponse("/saas/account", status_code=302)
+    return RedirectResponse(service.organization_step_url(organization), status_code=302)
+
+
+@router.post("/onboarding/start")
+def start_onboarding(request: Request, db: Session = Depends(get_db)):
+    account, _session_row = _require_account(request, db)
+    organization = service.create_pending_organization(db, account, request=request)
+    progress = service.recalculate_pending_progress(db, organization)
+    service.update_pending_dashboard_status(account, organization, progress)
+    db.commit()
+    return RedirectResponse(service.organization_step_url(organization), status_code=302)
+
+
+@router.get("/onboarding/{organization_uuid}/resume")
+def resume_onboarding(organization_uuid: str, request: Request, db: Session = Depends(get_db)):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account?notice=No+pending+organization+draft+was+found.", status_code=302)
+    db.commit()
+    return RedirectResponse(service.organization_step_url(organization), status_code=302)
+
+
+@router.get("/onboarding/{organization_uuid}/organization", response_class=HTMLResponse)
+def organization_step(
+    organization_uuid: str,
+    request: Request,
+    error: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    context = _onboarding_context(db, account, organization)
+    db.commit()
+    context.update({"account": account, "error": error, "step_key": "organization"})
+    return _render(request, "saas/onboarding_organization.html", context)
+
+
+@router.post("/onboarding/{organization_uuid}/organization")
+async def save_organization_step(
+    organization_uuid: str,
+    request: Request,
+    organization_name: str = Form(""),
+    legal_name: str = Form(""),
+    website: str = Form(""),
+    primary_domain: str = Form(""),
+    phone: str = Form(""),
+    educational_program: str = Form(""),
+    country_code: str = Form(""),
+    country_name: str = Form(""),
+    region_name: str = Form(""),
+    city_name: str = Form(""),
+    district_name: str = Form(""),
+    neighborhood_name: str = Form(""),
+    school_type: str = Form(""),
+    expected_branch_count: str = Form(""),
+    expected_student_count: str = Form(""),
+    expected_teacher_count: str = Form(""),
+    estimated_staff_users: str = Form(""),
+    timezone: str = Form(""),
+    save_action: str = Form("continue"),
+    organization_logo: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    try:
+        service.save_organization_profile(
+            db,
+            organization,
+            organization_name=organization_name,
+            legal_name=legal_name,
+            website=website,
+            primary_domain=primary_domain,
+            phone=phone,
+            educational_program=educational_program,
+            country_code=country_code,
+            country_name=country_name,
+            region_name=region_name,
+            city_name=city_name,
+            district_name=district_name,
+            neighborhood_name=neighborhood_name,
+            school_type=school_type,
+            expected_branch_count=expected_branch_count,
+            expected_student_count=expected_student_count,
+            expected_teacher_count=expected_teacher_count,
+            estimated_staff_users=estimated_staff_users,
+            timezone=timezone,
+            logo_file=organization_logo,
+        )
+        progress = service.save_draft(db, account, organization, current_step="branches")
+        service.log_pending_event(db, organization=organization, account=account, event_type="organization_saved", details={"completion_percent": progress.completion_percent})
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return _redirect_error(f"/saas/onboarding/{organization_uuid}/organization", str(exc))
+    if str(save_action or "").strip().lower() == "save_exit":
+        return RedirectResponse("/saas/account?notice=Draft+saved.", status_code=302)
+    return RedirectResponse(f"/saas/onboarding/{organization_uuid}/branches", status_code=302)
+
+
+@router.get("/onboarding/{organization_uuid}/branches", response_class=HTMLResponse)
+def branches_step(
+    organization_uuid: str,
+    request: Request,
+    error: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    context = _onboarding_context(db, account, organization)
+    db.commit()
+    context.update({"account": account, "error": error, "step_key": "branches"})
+    return _render(request, "saas/onboarding_branches.html", context)
+
+
+@router.post("/onboarding/{organization_uuid}/branches")
+def save_branches_step(
+    organization_uuid: str,
+    request: Request,
+    branch_name: list[str] = Form([]),
+    location: list[str] = Form([]),
+    country_code: list[str] = Form([]),
+    country_name: list[str] = Form([]),
+    region_name: list[str] = Form([]),
+    city_name: list[str] = Form([]),
+    district_name: list[str] = Form([]),
+    neighborhood_name: list[str] = Form([]),
+    save_action: str = Form("continue"),
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    branch_rows = []
+    max_rows = max(
+        len(branch_name),
+        len(location),
+        len(country_code),
+        len(country_name),
+        len(region_name),
+        len(city_name),
+        len(district_name),
+        len(neighborhood_name),
+        0,
+    )
+    for index in range(max_rows):
+        branch_rows.append(
+            {
+                "branch_name": branch_name[index] if index < len(branch_name) else "",
+                "location": location[index] if index < len(location) else "",
+                "country_code": country_code[index] if index < len(country_code) else "",
+                "country_name": country_name[index] if index < len(country_name) else "",
+                "region_name": region_name[index] if index < len(region_name) else "",
+                "city_name": city_name[index] if index < len(city_name) else "",
+                "district_name": district_name[index] if index < len(district_name) else "",
+                "neighborhood_name": neighborhood_name[index] if index < len(neighborhood_name) else "",
+            }
+        )
+    try:
+        service.replace_branches(db, organization, branch_rows)
+        progress = service.save_draft(db, account, organization, current_step="academic_setup")
+        service.log_pending_event(db, organization=organization, account=account, event_type="branches_saved", details={"completion_percent": progress.completion_percent})
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return _redirect_error(f"/saas/onboarding/{organization_uuid}/branches", str(exc))
+    if str(save_action or "").strip().lower() == "save_exit":
+        return RedirectResponse("/saas/account?notice=Draft+saved.", status_code=302)
+    return RedirectResponse(f"/saas/onboarding/{organization_uuid}/academic_setup", status_code=302)
+
+
+@router.get("/onboarding/{organization_uuid}/academic_setup", response_class=HTMLResponse)
+def academic_setup_step(
+    organization_uuid: str,
+    request: Request,
+    error: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    context = _onboarding_context(db, account, organization)
+    db.commit()
+    context.update({"account": account, "error": error, "step_key": "academic_setup"})
+    return _render(request, "saas/onboarding_academic_setup.html", context)
+
+
+@router.post("/onboarding/{organization_uuid}/academic_setup")
+def save_academic_setup_step(
+    organization_uuid: str,
+    request: Request,
+    first_academic_year_name: str = Form(""),
+    create_default_branch: str = Form(""),
+    notes: str = Form(""),
+    save_action: str = Form("continue"),
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    try:
+        service.save_academic_setup(
+            db,
+            organization,
+            first_academic_year_name=first_academic_year_name,
+            create_default_branch=create_default_branch,
+            notes=notes,
+        )
+        progress = service.save_draft(db, account, organization, current_step="contacts")
+        service.log_pending_event(db, organization=organization, account=account, event_type="academic_setup_saved", details={"completion_percent": progress.completion_percent})
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return _redirect_error(f"/saas/onboarding/{organization_uuid}/academic_setup", str(exc))
+    if str(save_action or "").strip().lower() == "save_exit":
+        return RedirectResponse("/saas/account?notice=Draft+saved.", status_code=302)
+    return RedirectResponse(f"/saas/onboarding/{organization_uuid}/contacts", status_code=302)
+
+
+@router.get("/onboarding/{organization_uuid}/contacts", response_class=HTMLResponse)
+def contacts_step(
+    organization_uuid: str,
+    request: Request,
+    error: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    context = _onboarding_context(db, account, organization)
+    db.commit()
+    context.update({"account": account, "error": error, "step_key": "contacts"})
+    return _render(request, "saas/onboarding_contacts.html", context)
+
+
+@router.post("/onboarding/{organization_uuid}/contacts")
+def save_contacts_step(
+    organization_uuid: str,
+    request: Request,
+    first_name: str = Form(""),
+    last_name: str = Form(""),
+    job_title: str = Form(""),
+    email: str = Form(""),
+    phone: str = Form(""),
+    save_action: str = Form("continue"),
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    try:
+        service.save_primary_contact(
+            db,
+            organization,
+            first_name=first_name or account.first_name or "",
+            last_name=last_name or account.last_name or "",
+            job_title=job_title,
+            email=email or account.email or "",
+            phone=phone,
+        )
+        progress = service.save_draft(db, account, organization, current_step="review")
+        service.log_pending_event(db, organization=organization, account=account, event_type="contacts_saved", details={"completion_percent": progress.completion_percent})
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return _redirect_error(f"/saas/onboarding/{organization_uuid}/contacts", str(exc))
+    if str(save_action or "").strip().lower() == "save_exit":
+        return RedirectResponse("/saas/account?notice=Draft+saved.", status_code=302)
+    return RedirectResponse(f"/saas/onboarding/{organization_uuid}/review", status_code=302)
+
+
+@router.get("/onboarding/{organization_uuid}/review", response_class=HTMLResponse)
+def review_step(
+    organization_uuid: str,
+    request: Request,
+    error: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    context = _onboarding_context(db, account, organization)
+    db.commit()
+    context.update({"account": account, "error": error, "step_key": "review"})
+    return _render(request, "saas/onboarding_review.html", context)
+
+
+@router.post("/onboarding/{organization_uuid}/save-draft")
+def save_draft_exit(
+    organization_uuid: str,
+    request: Request,
+    current_step: str = Form("organization"),
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    service.save_draft(db, account, organization, current_step=current_step)
+    db.commit()
+    return RedirectResponse("/saas/account?notice=Draft+saved.", status_code=302)
+
+
+@router.post("/onboarding/{organization_uuid}/submit")
+def submit_onboarding(
+    organization_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    try:
+        service.submit_pending_organization(db, account, organization)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return _redirect_error(f"/saas/onboarding/{organization_uuid}/review", str(exc))
+    return RedirectResponse("/saas/account?notice=Organization+is+ready+for+checkout.", status_code=302)
+
+
+@admin_router.get("/pending-organizations", response_class=HTMLResponse)
+def pending_organizations_dashboard(
+    request: Request,
+    status: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    organizations = service.list_pending_organizations(db, status=status)
+    cards = [service.build_pending_card(db, organization) for organization in organizations]
+    db.commit()
+    return _render(
+        request,
+        "saas/admin_pending_organizations.html",
+        {
+            "current_user": current_user,
+            "cards": cards,
+            "status_filter": status,
+            "notice": request.query_params.get("notice", ""),
+        },
+    )
+
+
+@admin_router.get("/pending-organizations/{organization_uuid}", response_class=HTMLResponse)
+def pending_organization_detail(
+    organization_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    organization = service.get_pending_organization_by_uuid(db, organization_uuid)
+    if not organization:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Pending organization not found.")
+    card = service.build_pending_card(db, organization)
+    academic_setup = service.get_or_create_academic_setup(db, organization)
+    primary_contact = service.get_primary_contact(db, organization)
+    branches = service.list_pending_branches(db, organization)
+    events = service.list_pending_events(db, organization)
+    notes = service.list_pending_notes(db, organization)
+    db.commit()
+    return _render(
+        request,
+        "saas/admin_pending_organization_detail.html",
+        {
+            "current_user": current_user,
+            "card": card,
+            "organization": organization,
+            "academic_setup": academic_setup,
+            "primary_contact": primary_contact,
+            "branches": branches,
+            "events": events,
+            "notes": notes,
+            "notice": request.query_params.get("notice", ""),
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@admin_router.post("/pending-organizations/{organization_uuid}/notes")
+def add_pending_organization_note(
+    organization_uuid: str,
+    request: Request,
+    note: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    organization = service.get_pending_organization_by_uuid(db, organization_uuid)
+    if not organization:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Pending organization not found.")
+    try:
+        service.add_pending_note(
+            db,
+            organization,
+            author_type="platform_owner",
+            author_ref=str(getattr(current_user, "user_id", "") or ""),
+            note=note,
+            is_internal=True,
+        )
+        service.log_pending_event(
+            db,
+            organization=organization,
+            event_type="note_added",
+            details={"author_user_id": str(getattr(current_user, "user_id", "") or "")},
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return RedirectResponse(
+            f"/saas-admin/pending-organizations/{organization_uuid}?error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    return RedirectResponse(
+        f"/saas-admin/pending-organizations/{organization_uuid}?notice=Note+saved.",
+        status_code=302,
+    )
+
+
+@admin_router.post("/pending-organizations/{organization_uuid}/status")
+def update_pending_organization_status(
+    organization_uuid: str,
+    request: Request,
+    status: str = Form(""),
+    rejection_reason: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    organization = service.get_pending_organization_by_uuid(db, organization_uuid)
+    if not organization:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Pending organization not found.")
+    try:
+        service.update_pending_status(
+            db,
+            organization,
+            status=status,
+            reviewer_user_id=str(getattr(current_user, "user_id", "") or ""),
+            rejection_reason=rejection_reason,
+        )
+        service.log_pending_event(
+            db,
+            organization=organization,
+            event_type="status_changed",
+            details={"status": str(status or "").strip().lower()},
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return RedirectResponse(
+            f"/saas-admin/pending-organizations/{organization_uuid}?error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    return RedirectResponse(
+        f"/saas-admin/pending-organizations/{organization_uuid}?notice=Status+updated.",
+        status_code=302,
+    )
 
 
 @router.get("/auth/{provider}/start")

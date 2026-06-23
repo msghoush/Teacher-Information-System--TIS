@@ -142,3 +142,156 @@ class SaaSAuthEvent(Base):
     user_agent = Column(String(255))
     details_json = Column(Text)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class PendingOrganization(Base):
+    __tablename__ = "pending_organizations"
+    __table_args__ = (
+        Index("uq_pending_organizations_uuid", "organization_uuid", unique=True),
+        Index("ix_pending_organizations_owner", "owner_saas_account_id"),
+        Index("ix_pending_organizations_status", "status"),
+        Index("ix_pending_organizations_step", "onboarding_step"),
+        Index("ix_pending_organizations_name", "organization_name"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    organization_uuid = Column(String(36), nullable=False, unique=True, index=True)
+    owner_saas_account_id = Column(Integer, ForeignKey("saas_accounts.id"), nullable=False, index=True)
+    status = Column(String(30), nullable=False, default="draft")
+    onboarding_step = Column(String(40), nullable=False, default="organization")
+    organization_name = Column(String(160), nullable=False, default="")
+    legal_name = Column(String(180))
+    website = Column(String(180))
+    primary_domain = Column(String(180))
+    phone = Column(String(80))
+    organization_logo_path = Column(String(255))
+    educational_program = Column(String(20))
+    country_code = Column(String(2))
+    country_name = Column(String(120))
+    region_name = Column(String(160))
+    city_name = Column(String(160))
+    district_name = Column(String(160))
+    neighborhood_name = Column(String(160))
+    school_type = Column(String(120))
+    expected_branch_count = Column(Integer)
+    expected_student_count = Column(Integer)
+    expected_teacher_count = Column(Integer)
+    estimated_staff_users = Column(Integer)
+    timezone = Column(String(80))
+    draft_saved_at = Column(DateTime)
+    submitted_at = Column(DateTime)
+    reviewed_at = Column(DateTime)
+    reviewed_by_user_id = Column(String(10))
+    rejection_reason = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PendingOrganizationBranch(Base):
+    __tablename__ = "pending_organization_branches"
+    __table_args__ = (
+        Index("ix_pending_organization_branches_org", "pending_organization_id"),
+        Index("ix_pending_organization_branches_order", "pending_organization_id", "sort_order"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
+    branch_name = Column(String(160), nullable=False)
+    location = Column(String(180))
+    country_code = Column(String(2))
+    country_name = Column(String(120))
+    region_name = Column(String(160))
+    city_name = Column(String(160))
+    district_name = Column(String(160))
+    neighborhood_name = Column(String(160))
+    status = Column(Boolean, nullable=False, default=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PendingOrganizationAcademicSetup(Base):
+    __tablename__ = "pending_organization_academic_setup"
+    __table_args__ = (
+        Index("uq_pending_organization_academic_setup_org", "pending_organization_id", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, unique=True, index=True)
+    first_academic_year_name = Column(String(40), nullable=False, default="")
+    create_default_branch = Column(Boolean, nullable=False, default=False)
+    notes = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PendingOrganizationContact(Base):
+    __tablename__ = "pending_organization_contacts"
+    __table_args__ = (
+        Index("ix_pending_organization_contacts_org", "pending_organization_id"),
+        Index("ix_pending_organization_contacts_email_normalized", "email_normalized"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
+    contact_type = Column(String(30), nullable=False, default="owner")
+    first_name = Column(String(120), nullable=False, default="")
+    last_name = Column(String(120), nullable=False, default="")
+    job_title = Column(String(120))
+    email = Column(String(180), nullable=False, default="")
+    email_normalized = Column(String(180))
+    phone = Column(String(80))
+    is_primary = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PendingOrganizationProgress(Base):
+    __tablename__ = "pending_organization_progress"
+    __table_args__ = (
+        Index("uq_pending_organization_progress_org", "pending_organization_id", unique=True),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, unique=True, index=True)
+    organization_profile_complete = Column(Boolean, nullable=False, default=False)
+    branches_complete = Column(Boolean, nullable=False, default=False)
+    academic_setup_complete = Column(Boolean, nullable=False, default=False)
+    contacts_complete = Column(Boolean, nullable=False, default=False)
+    review_complete = Column(Boolean, nullable=False, default=False)
+    completion_percent = Column(Integer, nullable=False, default=0)
+    last_completed_step = Column(String(40))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PendingOrganizationEvent(Base):
+    __tablename__ = "pending_organization_events"
+    __table_args__ = (
+        Index("ix_pending_organization_events_org", "pending_organization_id"),
+        Index("ix_pending_organization_events_type", "event_type"),
+        Index("ix_pending_organization_events_created_at", "created_at"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
+    actor_saas_account_id = Column(Integer, ForeignKey("saas_accounts.id"), index=True)
+    event_type = Column(String(40), nullable=False)
+    details_json = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class PendingOrganizationNote(Base):
+    __tablename__ = "pending_organization_notes"
+    __table_args__ = (
+        Index("ix_pending_organization_notes_org", "pending_organization_id"),
+        Index("ix_pending_organization_notes_created_at", "created_at"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
+    author_type = Column(String(20), nullable=False, default="owner")
+    author_ref = Column(String(80))
+    note = Column(Text, nullable=False, default="")
+    is_internal = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
