@@ -2182,6 +2182,304 @@ def _plans_pricing_billing_foundation(engine, connection):
             )
 
 
+def _paddle_payment_collection(engine, connection):
+    datetime_type = _datetime_type(engine)
+
+    _add_column_if_missing(
+        connection,
+        connection,
+        "subscription_plan_prices",
+        "provider_price_id",
+        "provider_price_id VARCHAR(120)",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_plan_prices",
+        "ix_subscription_plan_prices_provider_price_id",
+        "provider_price_id",
+    )
+
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "payment_status",
+        "payment_status VARCHAR(30) NOT NULL DEFAULT 'pending'",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "payment_confirmed_at",
+        f"payment_confirmed_at {datetime_type}",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "payment_failed_at",
+        f"payment_failed_at {datetime_type}",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "last_payment_attempt_id",
+        "last_payment_attempt_id INTEGER",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "ix_pending_organizations_payment_status",
+        "payment_status",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "ix_pending_organizations_last_payment_attempt_id",
+        "last_payment_attempt_id",
+    )
+    if _table_exists(connection, "pending_organizations"):
+        _execute(
+            connection,
+            """
+            UPDATE pending_organizations
+            SET payment_status = 'pending'
+            WHERE payment_status IS NULL OR TRIM(payment_status) = ''
+            """,
+        )
+
+    _add_column_if_missing(
+        connection,
+        connection,
+        "checkout_sessions",
+        "checkout_url",
+        "checkout_url TEXT",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "checkout_sessions",
+        "provider_price_id",
+        "provider_price_id VARCHAR(120)",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "checkout_sessions",
+        "last_payment_attempt_id",
+        "last_payment_attempt_id INTEGER",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "checkout_sessions",
+        "ix_checkout_sessions_last_payment_attempt_id",
+        "last_payment_attempt_id",
+    )
+
+    _add_column_if_missing(
+        connection,
+        connection,
+        "subscription_contracts",
+        "payment_status",
+        "payment_status VARCHAR(30) NOT NULL DEFAULT 'pending'",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "subscription_contracts",
+        "paid_at",
+        f"paid_at {datetime_type}",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "subscription_contracts",
+        "payment_provider",
+        "payment_provider VARCHAR(30)",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_contracts",
+        "ix_subscription_contracts_payment_status",
+        "payment_status",
+    )
+    if _table_exists(connection, "subscription_contracts"):
+        _execute(
+            connection,
+            """
+            UPDATE subscription_contracts
+            SET payment_status = 'pending'
+            WHERE payment_status IS NULL OR TRIM(payment_status) = ''
+            """,
+        )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS payment_customers (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER,
+            saas_account_id INTEGER NOT NULL,
+            provider VARCHAR(30) NOT NULL DEFAULT 'paddle',
+            provider_customer_id VARCHAR(120) NOT NULL,
+            email VARCHAR(180),
+            name VARCHAR(180),
+            country_code VARCHAR(2),
+            status VARCHAR(30) NOT NULL DEFAULT 'active',
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "payment_customers",
+        "uq_payment_customers_provider_customer_id",
+        "provider_customer_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "payment_customers",
+        "ix_payment_customers_pending_org",
+        "pending_organization_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "payment_customers",
+        "ix_payment_customers_saas_account",
+        "saas_account_id",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS payment_attempts (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            checkout_session_id INTEGER NOT NULL,
+            plan_selection_id INTEGER NOT NULL,
+            payment_customer_id INTEGER,
+            provider VARCHAR(30) NOT NULL DEFAULT 'paddle',
+            attempt_uuid VARCHAR(36) NOT NULL,
+            provider_checkout_id VARCHAR(120),
+            provider_transaction_id VARCHAR(120),
+            provider_subscription_id VARCHAR(120),
+            status VARCHAR(30) NOT NULL DEFAULT 'checkout_started',
+            currency_code VARCHAR(3),
+            amount_minor INTEGER,
+            billing_interval VARCHAR(20) NOT NULL,
+            started_at {datetime_type},
+            expires_at {datetime_type},
+            completed_at {datetime_type},
+            failed_at {datetime_type},
+            cancelled_at {datetime_type},
+            failure_reason TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (checkout_session_id) REFERENCES checkout_sessions (id),
+            FOREIGN KEY (plan_selection_id) REFERENCES pending_organization_plan_selections (id),
+            FOREIGN KEY (payment_customer_id) REFERENCES payment_customers (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "payment_attempts",
+        "uq_payment_attempts_attempt_uuid",
+        "attempt_uuid",
+    )
+    _create_index_if_missing(connection, connection, "payment_attempts", "ix_payment_attempts_pending_org", "pending_organization_id")
+    _create_index_if_missing(connection, connection, "payment_attempts", "ix_payment_attempts_checkout_session", "checkout_session_id")
+    _create_index_if_missing(connection, connection, "payment_attempts", "ix_payment_attempts_status", "status")
+    _create_index_if_missing(connection, connection, "payment_attempts", "ix_payment_attempts_provider_transaction_id", "provider_transaction_id")
+    _create_index_if_missing(connection, connection, "payment_attempts", "ix_payment_attempts_provider_subscription_id", "provider_subscription_id")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS payment_subscriptions (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            subscription_contract_id INTEGER NOT NULL,
+            payment_customer_id INTEGER,
+            provider VARCHAR(30) NOT NULL DEFAULT 'paddle',
+            provider_subscription_id VARCHAR(120) NOT NULL,
+            provider_price_id VARCHAR(120),
+            plan_id INTEGER NOT NULL,
+            billing_interval VARCHAR(20) NOT NULL,
+            status VARCHAR(30) NOT NULL DEFAULT 'pending',
+            current_period_start {datetime_type},
+            current_period_end {datetime_type},
+            next_billed_at {datetime_type},
+            cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
+            cancelled_at {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (subscription_contract_id) REFERENCES subscription_contracts (id),
+            FOREIGN KEY (payment_customer_id) REFERENCES payment_customers (id),
+            FOREIGN KEY (plan_id) REFERENCES subscription_plans (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "payment_subscriptions",
+        "uq_payment_subscriptions_provider_subscription_id",
+        "provider_subscription_id",
+    )
+    _create_index_if_missing(connection, connection, "payment_subscriptions", "ix_payment_subscriptions_pending_org", "pending_organization_id")
+    _create_index_if_missing(connection, connection, "payment_subscriptions", "ix_payment_subscriptions_contract", "subscription_contract_id")
+    _create_index_if_missing(connection, connection, "payment_subscriptions", "ix_payment_subscriptions_status", "status")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS payment_webhooks (
+            id INTEGER PRIMARY KEY,
+            provider VARCHAR(30) NOT NULL DEFAULT 'paddle',
+            provider_event_id VARCHAR(120),
+            event_type VARCHAR(80),
+            signature_valid BOOLEAN NOT NULL DEFAULT FALSE,
+            delivery_attempt INTEGER NOT NULL DEFAULT 1,
+            payload_hash VARCHAR(128),
+            headers_json TEXT,
+            payload_json TEXT,
+            received_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            processed_at {datetime_type},
+            processing_status VARCHAR(30) NOT NULL DEFAULT 'pending',
+            processing_error TEXT
+        )
+        """,
+    )
+    if not _index_exists(connection, "payment_webhooks", "uq_payment_webhooks_provider_event_id"):
+        _execute(
+            connection,
+            """
+            CREATE UNIQUE INDEX uq_payment_webhooks_provider_event_id
+            ON payment_webhooks (provider_event_id)
+            WHERE provider_event_id IS NOT NULL
+            """,
+        )
+    _create_index_if_missing(connection, connection, "payment_webhooks", "ix_payment_webhooks_event_type", "event_type")
+    _create_index_if_missing(connection, connection, "payment_webhooks", "ix_payment_webhooks_processing_status", "processing_status")
+    _create_index_if_missing(connection, connection, "payment_webhooks", "ix_payment_webhooks_received_at", "received_at")
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -2267,6 +2565,11 @@ MIGRATIONS = (
         migration_id="20260623_003_plans_pricing_billing_foundation",
         description="Create SaaS plans, pricing, currency, and checkout foundation tables",
         apply=_plans_pricing_billing_foundation,
+    ),
+    Migration(
+        migration_id="20260623_004_paddle_payment_collection",
+        description="Add Paddle customer, attempt, subscription, and webhook payment collection tables",
+        apply=_paddle_payment_collection,
     ),
 )
 

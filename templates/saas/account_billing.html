@@ -1,0 +1,65 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Billing and Subscription</h1>
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% if onboarding_summary %}
+<div class="grid two">
+    <div class="stat-list">
+        <div class="stat">
+            <strong>Organization</strong>
+            <p>{{ onboarding_summary.organization.organization_name or "Draft organization" }}</p>
+        </div>
+        <div class="stat">
+            <strong>Billing state</strong>
+            <p>{{ onboarding_summary.organization.billing_status }}<br>Payment: {{ onboarding_summary.organization.payment_status }}</p>
+        </div>
+        <div class="stat">
+            <strong>Selected plan</strong>
+            <p>
+                {% if onboarding_summary.current_plan %}
+                {{ onboarding_summary.current_plan.plan_name }}<br>{{ onboarding_summary.current_plan_selection.billing_interval }}
+                {% else %}
+                No plan selected yet.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+    <div class="stat-list">
+        <div class="stat">
+            <strong>Latest payment attempt</strong>
+            <p>
+                {% if onboarding_summary.current_payment_attempt %}
+                Status: {{ onboarding_summary.current_payment_attempt.status }}<br>
+                Transaction: {{ onboarding_summary.current_payment_attempt.provider_transaction_id or "-" }}<br>
+                Attempt ID: {{ onboarding_summary.current_payment_attempt.attempt_uuid }}
+                {% else %}
+                No payment attempt launched yet.
+                {% endif %}
+            </p>
+        </div>
+        <div class="stat">
+            <strong>Subscription</strong>
+            <p>
+                {% if onboarding_summary.current_payment_subscription %}
+                Status: {{ onboarding_summary.current_payment_subscription.status }}<br>
+                Subscription ID: {{ onboarding_summary.current_payment_subscription.provider_subscription_id }}
+                {% else %}
+                Subscription not confirmed yet.
+                {% endif %}
+            </p>
+        </div>
+        <div class="stat">
+            <strong>Next step</strong>
+            <p>Payment confirmation must come from verified Paddle webhooks. Browser redirects never activate TIS access.</p>
+        </div>
+    </div>
+</div>
+<div class="actions" style="margin-top:20px;">
+    <a class="btn secondary" href="/saas/account">Back to dashboard</a>
+    <a class="btn secondary" href="{{ onboarding_summary.current_step_url }}">Open current billing step</a>
+</div>
+{% else %}
+<div class="error">No pending organization billing record is available yet.</div>
+{% endif %}
+{% endblock %}

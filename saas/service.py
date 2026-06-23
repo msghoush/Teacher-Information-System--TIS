@@ -55,6 +55,9 @@ class PendingOrganizationCard:
     current_plan_selection: object = None
     current_checkout_session: object = None
     current_subscription_contract: object = None
+    current_payment_customer: object = None
+    current_payment_attempt: object = None
+    current_payment_subscription: object = None
 
 
 def _utcnow() -> datetime:
@@ -567,6 +570,17 @@ def _clean_text(value, max_length: int = 180) -> str:
 
 def organization_step_url(organization) -> str:
     status = str(getattr(organization, "status", "") or "").strip().lower()
+    billing_status = str(getattr(organization, "billing_status", "") or "").strip().lower()
+    if billing_status in {
+        "checkout_started",
+        "payment_processing",
+        "payment_confirmed",
+        "ready_for_provisioning",
+        "payment_failed",
+        "payment_cancelled",
+        "payment_refunded",
+    }:
+        return f"/saas/onboarding/{organization.organization_uuid}/billing-status"
     if status == READY_FOR_CHECKOUT_STATUS:
         return f"/saas/onboarding/{organization.organization_uuid}/plan"
     step = str(getattr(organization, "onboarding_step", "") or "organization").strip() or "organization"
@@ -619,7 +633,18 @@ def update_pending_dashboard_status(account, organization, progress):
         return
     status = str(getattr(organization, "status", "") or "").strip().lower()
     billing_status = str(getattr(organization, "billing_status", "") or "").strip().lower()
-    if billing_status in {"plan_selected", "checkout_ready", "checkout_initiated"}:
+    if billing_status in {
+        "plan_selected",
+        "checkout_ready",
+        "checkout_initiated",
+        "checkout_started",
+        "payment_processing",
+        "payment_confirmed",
+        "ready_for_provisioning",
+        "payment_failed",
+        "payment_cancelled",
+        "payment_refunded",
+    }:
         account.onboarding_status = billing_status
     elif status == READY_FOR_CHECKOUT_STATUS:
         account.onboarding_status = READY_FOR_CHECKOUT_STATUS
@@ -817,7 +842,7 @@ def list_pending_events(db: Session, organization):
 def build_pending_card(db: Session, organization):
     if not organization:
         return None
-    from saas import billing_service
+    from saas import billing_service, payment_service
 
     progress = recalculate_pending_progress(db, organization)
     branches_count = db.query(models.PendingOrganizationBranch).filter(
@@ -831,6 +856,9 @@ def build_pending_card(db: Session, organization):
         current_plan = db.query(models.SubscriptionPlan).filter(
             models.SubscriptionPlan.id == selection.plan_id
         ).first()
+    payment_customer = payment_service.get_payment_customer(db, organization)
+    payment_attempt = payment_service.get_current_payment_attempt(db, organization)
+    payment_subscription = payment_service.get_payment_subscription(db, organization)
     return PendingOrganizationCard(
         organization=organization,
         progress=progress,
@@ -840,6 +868,9 @@ def build_pending_card(db: Session, organization):
         current_plan_selection=selection,
         current_checkout_session=checkout_session,
         current_subscription_contract=contract,
+        current_payment_customer=payment_customer,
+        current_payment_attempt=payment_attempt,
+        current_payment_subscription=payment_subscription,
     )
 
 
@@ -848,7 +879,7 @@ def build_pending_dashboard_summary(db: Session, account):
     if not organization:
         update_pending_dashboard_status(account, None, None)
         return None
-    from saas import billing_service
+    from saas import billing_service, payment_service
 
     progress = recalculate_pending_progress(db, organization)
     update_pending_dashboard_status(account, organization, progress)
@@ -863,6 +894,9 @@ def build_pending_dashboard_summary(db: Session, account):
         current_plan = db.query(models.SubscriptionPlan).filter(
             models.SubscriptionPlan.id == selection.plan_id
         ).first()
+    payment_customer = payment_service.get_payment_customer(db, organization)
+    payment_attempt = payment_service.get_current_payment_attempt(db, organization)
+    payment_subscription = payment_service.get_payment_subscription(db, organization)
     return {
         "organization": organization,
         "progress": progress,
@@ -872,6 +906,9 @@ def build_pending_dashboard_summary(db: Session, account):
         "current_plan_selection": selection,
         "current_checkout_session": checkout_session,
         "current_subscription_contract": contract,
+        "current_payment_customer": payment_customer,
+        "current_payment_attempt": payment_attempt,
+        "current_payment_subscription": payment_subscription,
     }
 
 

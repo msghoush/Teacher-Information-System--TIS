@@ -153,6 +153,15 @@ def create_or_update_checkout_session(db: Session, organization):
     selection = get_current_plan_selection(db, organization)
     if not selection:
         raise ValueError("Select a subscription plan before continuing to checkout.")
+    plan_price = db.query(models.SubscriptionPlanPrice).filter(
+        models.SubscriptionPlanPrice.plan_id == selection.plan_id,
+        models.SubscriptionPlanPrice.billing_interval == selection.billing_interval,
+        models.SubscriptionPlanPrice.currency_code == "USD",
+        models.SubscriptionPlanPrice.is_active == True,
+    ).order_by(
+        models.SubscriptionPlanPrice.plan_version.desc(),
+        models.SubscriptionPlanPrice.id.desc(),
+    ).first()
 
     checkout_session = get_current_checkout_session(db, organization)
     if not checkout_session:
@@ -160,10 +169,11 @@ def create_or_update_checkout_session(db: Session, organization):
             pending_organization_id=organization.id,
             plan_selection_id=selection.id,
             status="ready",
-            provider=None,
+            provider="paddle",
             currency_code=selection.display_currency_code,
             amount_minor=selection.display_amount_minor,
             billing_interval=selection.billing_interval,
+            provider_price_id=str(getattr(plan_price, "provider_price_id", "") or "").strip() or None,
             started_at=_utcnow(),
         )
         db.add(checkout_session)
@@ -171,10 +181,11 @@ def create_or_update_checkout_session(db: Session, organization):
     else:
         checkout_session.plan_selection_id = selection.id
         checkout_session.status = "ready"
-        checkout_session.provider = None
+        checkout_session.provider = "paddle"
         checkout_session.currency_code = selection.display_currency_code
         checkout_session.amount_minor = selection.display_amount_minor
         checkout_session.billing_interval = selection.billing_interval
+        checkout_session.provider_price_id = str(getattr(plan_price, "provider_price_id", "") or "").strip() or None
         checkout_session.started_at = checkout_session.started_at or _utcnow()
 
     contract = get_current_subscription_contract(db, organization)

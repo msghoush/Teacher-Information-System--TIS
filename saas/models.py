@@ -187,6 +187,10 @@ class PendingOrganization(Base):
     selected_plan_id = Column(Integer, ForeignKey("subscription_plans.id"), index=True)
     selected_billing_interval = Column(String(20))
     checkout_ready_at = Column(DateTime)
+    payment_status = Column(String(30), nullable=False, default="pending")
+    payment_confirmed_at = Column(DateTime)
+    payment_failed_at = Column(DateTime)
+    last_payment_attempt_id = Column(Integer, ForeignKey("payment_attempts.id"), index=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -353,6 +357,7 @@ class SubscriptionPlanPrice(Base):
     compare_at_amount_minor = Column(Integer)
     display_savings_percent = Column(Integer)
     display_savings_amount_minor = Column(Integer)
+    provider_price_id = Column(String(120), index=True)
     plan_version = Column(Integer, nullable=False, default=1)
     is_founding_offer = Column(Boolean, nullable=False, default=False)
     is_active = Column(Boolean, nullable=False, default=True)
@@ -436,9 +441,12 @@ class CheckoutSession(Base):
     status = Column(String(20), nullable=False, default="not_started")
     provider = Column(String(30))
     provider_checkout_id = Column(String(120))
+    checkout_url = Column(Text)
+    provider_price_id = Column(String(120))
     currency_code = Column(String(3), nullable=False, default="USD")
     amount_minor = Column(Integer, nullable=False)
     billing_interval = Column(String(20), nullable=False)
+    last_payment_attempt_id = Column(Integer, ForeignKey("payment_attempts.id"), index=True)
     started_at = Column(DateTime)
     expires_at = Column(DateTime)
     abandoned_at = Column(DateTime)
@@ -467,5 +475,122 @@ class SubscriptionContract(Base):
     contract_type = Column(String(30), nullable=False, default="self_serve")
     plan_version = Column(Integer, nullable=False, default=1)
     is_founding_offer = Column(Boolean, nullable=False, default=False)
+    payment_status = Column(String(30), nullable=False, default="pending")
+    paid_at = Column(DateTime)
+    payment_provider = Column(String(30))
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PaymentCustomer(Base):
+    __tablename__ = "payment_customers"
+    __table_args__ = (
+        Index("uq_payment_customers_provider_customer_id", "provider_customer_id", unique=True),
+        Index("ix_payment_customers_pending_org", "pending_organization_id"),
+        Index("ix_payment_customers_saas_account", "saas_account_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), index=True)
+    saas_account_id = Column(Integer, ForeignKey("saas_accounts.id"), nullable=False, index=True)
+    provider = Column(String(30), nullable=False, default="paddle")
+    provider_customer_id = Column(String(120), nullable=False, unique=True)
+    email = Column(String(180))
+    name = Column(String(180))
+    country_code = Column(String(2))
+    status = Column(String(30), nullable=False, default="active")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PaymentAttempt(Base):
+    __tablename__ = "payment_attempts"
+    __table_args__ = (
+        Index("uq_payment_attempts_attempt_uuid", "attempt_uuid", unique=True),
+        Index("ix_payment_attempts_pending_org", "pending_organization_id"),
+        Index("ix_payment_attempts_checkout_session", "checkout_session_id"),
+        Index("ix_payment_attempts_status", "status"),
+        Index("ix_payment_attempts_provider_transaction_id", "provider_transaction_id"),
+        Index("ix_payment_attempts_provider_subscription_id", "provider_subscription_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
+    checkout_session_id = Column(Integer, ForeignKey("checkout_sessions.id"), nullable=False, index=True)
+    plan_selection_id = Column(Integer, ForeignKey("pending_organization_plan_selections.id"), nullable=False, index=True)
+    payment_customer_id = Column(Integer, ForeignKey("payment_customers.id"), index=True)
+    provider = Column(String(30), nullable=False, default="paddle")
+    attempt_uuid = Column(String(36), nullable=False, unique=True)
+    provider_checkout_id = Column(String(120))
+    provider_transaction_id = Column(String(120))
+    provider_subscription_id = Column(String(120))
+    status = Column(String(30), nullable=False, default="checkout_started")
+    currency_code = Column(String(3))
+    amount_minor = Column(Integer)
+    billing_interval = Column(String(20), nullable=False)
+    started_at = Column(DateTime)
+    expires_at = Column(DateTime)
+    completed_at = Column(DateTime)
+    failed_at = Column(DateTime)
+    cancelled_at = Column(DateTime)
+    failure_reason = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PaymentSubscription(Base):
+    __tablename__ = "payment_subscriptions"
+    __table_args__ = (
+        Index("uq_payment_subscriptions_provider_subscription_id", "provider_subscription_id", unique=True),
+        Index("ix_payment_subscriptions_pending_org", "pending_organization_id"),
+        Index("ix_payment_subscriptions_contract", "subscription_contract_id"),
+        Index("ix_payment_subscriptions_status", "status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
+    subscription_contract_id = Column(Integer, ForeignKey("subscription_contracts.id"), nullable=False, index=True)
+    payment_customer_id = Column(Integer, ForeignKey("payment_customers.id"), index=True)
+    provider = Column(String(30), nullable=False, default="paddle")
+    provider_subscription_id = Column(String(120), nullable=False, unique=True)
+    provider_price_id = Column(String(120))
+    plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False, index=True)
+    billing_interval = Column(String(20), nullable=False)
+    status = Column(String(30), nullable=False, default="pending")
+    current_period_start = Column(DateTime)
+    current_period_end = Column(DateTime)
+    next_billed_at = Column(DateTime)
+    cancel_at_period_end = Column(Boolean, nullable=False, default=False)
+    cancelled_at = Column(DateTime)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PaymentWebhook(Base):
+    __tablename__ = "payment_webhooks"
+    __table_args__ = (
+        Index(
+            "uq_payment_webhooks_provider_event_id",
+            "provider_event_id",
+            unique=True,
+            sqlite_where=text("provider_event_id IS NOT NULL"),
+            postgresql_where=text("provider_event_id IS NOT NULL"),
+        ),
+        Index("ix_payment_webhooks_event_type", "event_type"),
+        Index("ix_payment_webhooks_processing_status", "processing_status"),
+        Index("ix_payment_webhooks_received_at", "received_at"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    provider = Column(String(30), nullable=False, default="paddle")
+    provider_event_id = Column(String(120))
+    event_type = Column(String(80))
+    signature_valid = Column(Boolean, nullable=False, default=False)
+    delivery_attempt = Column(Integer, nullable=False, default=1)
+    payload_hash = Column(String(128))
+    headers_json = Column(Text)
+    payload_json = Column(Text)
+    received_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    processed_at = Column(DateTime)
+    processing_status = Column(String(30), nullable=False, default="pending")
+    processing_error = Column(Text)

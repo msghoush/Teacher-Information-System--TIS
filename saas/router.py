@@ -7,7 +7,7 @@ from urllib.parse import quote_plus
 import auth
 from dependencies import get_db
 import email_service
-from saas import billing_service, models, oauth, pricing_service, service
+from saas import billing_service, models, oauth, paddle_client, payment_service, pricing_service, service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -68,6 +68,9 @@ def _onboarding_context(db: Session, account, organization):
 def _plan_context(db: Session, account, organization):
     summary = service.build_pending_dashboard_summary(db, account)
     checkout_summary = billing_service.build_checkout_summary(db, organization)
+    payment_attempt = payment_service.get_current_payment_attempt(db, organization)
+    payment_customer = payment_service.get_payment_customer(db, organization)
+    payment_subscription = payment_service.get_payment_subscription(db, organization)
     return {
         "account": account,
         "organization": organization,
@@ -78,6 +81,9 @@ def _plan_context(db: Session, account, organization):
         ),
         "current_plan_selection": checkout_summary["selection"] if checkout_summary else None,
         "checkout_summary": checkout_summary,
+        "current_payment_attempt": payment_attempt,
+        "current_payment_customer": payment_customer,
+        "current_payment_subscription": payment_subscription,
     }
 
 
@@ -408,6 +414,23 @@ def account_security(request: Request, db: Session = Depends(get_db)):
         request,
         "saas/security.html",
         {"account": account, "identities": identities, "notice": request.query_params.get("notice", "")},
+    )
+
+
+@router.get("/account/billing", response_class=HTMLResponse)
+def account_billing(request: Request, db: Session = Depends(get_db)):
+    account, _session_row = _require_account(request, db)
+    onboarding_summary = service.build_pending_dashboard_summary(db, account)
+    db.commit()
+    return _render(
+        request,
+        "saas/account_billing.html",
+        {
+            "account": account,
+            "onboarding_summary": onboarding_summary,
+            "notice": request.query_params.get("notice", ""),
+            "error": request.query_params.get("error", ""),
+        },
     )
 
 
@@ -916,6 +939,76 @@ def prepare_checkout_step(
     )
 
 
+@router.post("/onboarding/{organization_uuid}/checkout/launch")
+def launch_checkout_step(
+    organization_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    try:
+        launch = payment_service.launch_checkout(db, organization, account, request)
+        service.update_pending_dashboard_status(account, organization, service.recalculate_pending_progress(db, organization))
+        db.commit()
+    except (ValueError, paddle_client.PaddleAPIError) as exc:
+        db.rollback()
+        return _redirect_error(f"/saas/onboarding/{organization_uuid}/checkout", str(exc))
+    checkout_url = str(launch.get("checkout_url") or "").strip()
+    if not checkout_url:
+        return _redirect_error(
+            f"/saas/onboarding/{organization_uuid}/checkout",
+            "Paddle checkout URL was not returned.",
+        )
+    return RedirectResponse(checkout_url, status_code=302)
+
+
+@router.get("/checkout/return", response_class=HTMLResponse)
+def checkout_return_page(
+    request: Request,
+    attempt: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    onboarding_summary = service.build_pending_dashboard_summary(db, account)
+    current_attempt = None
+    if onboarding_summary and attempt:
+        current_attempt = onboarding_summary.get("current_payment_attempt")
+        if not current_attempt or str(getattr(current_attempt, "attempt_uuid", "") or "") != str(attempt or "").strip():
+            current_attempt = None
+    db.commit()
+    return _render(
+        request,
+        "saas/checkout_return.html",
+        {
+            "account": account,
+            "onboarding_summary": onboarding_summary,
+            "current_attempt": current_attempt,
+        },
+    )
+
+
+@router.get("/checkout/cancel", response_class=HTMLResponse)
+def checkout_cancel_page(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    account, _session_row = _require_account(request, db)
+    onboarding_summary = service.build_pending_dashboard_summary(db, account)
+    db.commit()
+    return _render(
+        request,
+        "saas/checkout_cancel.html",
+        {
+            "account": account,
+            "onboarding_summary": onboarding_summary,
+        },
+    )
+
+
 @router.get("/onboarding/{organization_uuid}/billing-status", response_class=HTMLResponse)
 def billing_status_step(
     organization_uuid: str,
@@ -930,6 +1023,21 @@ def billing_status_step(
     context = _plan_context(db, account, organization)
     db.commit()
     return _render(request, "saas/billing_status.html", context)
+
+
+@router.post("/webhooks/paddle")
+async def paddle_webhook(request: Request, db: Session = Depends(get_db)):
+    raw_body = await request.body()
+    try:
+        result = payment_service.process_webhook(db, raw_body=raw_body, headers=dict(request.headers))
+        db.commit()
+    except ValueError as exc:
+        db.commit()
+        return PlainTextResponse(str(exc), status_code=400)
+    except Exception:
+        db.rollback()
+        return PlainTextResponse("Webhook processing failed.", status_code=500)
+    return PlainTextResponse(str(result.get("status") or "ok"), status_code=200)
 
 
 @admin_router.get("/pending-organizations", response_class=HTMLResponse)
@@ -986,6 +1094,25 @@ def pending_organization_detail(
             "notes": notes,
             "notice": request.query_params.get("notice", ""),
             "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@admin_router.get("/payments", response_class=HTMLResponse)
+def payment_dashboard(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    attempts = payment_service.list_payment_attempts(db)
+    db.commit()
+    return _render(
+        request,
+        "saas/admin_payments.html",
+        {
+            "current_user": current_user,
+            "attempts": attempts,
+            "notice": request.query_params.get("notice", ""),
         },
     )
 

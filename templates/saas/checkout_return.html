@@ -1,0 +1,15 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Payment Return</h1>
+<div class="notice">Your browser returned from Paddle. Payment confirmation still depends on verified webhook processing.</div>
+{% if onboarding_summary %}
+<p>Current billing state: <strong>{{ onboarding_summary.organization.billing_status }}</strong><br>Payment status: <strong>{{ onboarding_summary.organization.payment_status }}</strong></p>
+{% endif %}
+{% if current_attempt %}
+<p>Attempt: {{ current_attempt.attempt_uuid }}<br>Status: {{ current_attempt.status }}</p>
+{% endif %}
+<div class="actions">
+    <a class="btn secondary" href="/saas/account/billing">View billing status</a>
+    <a class="btn secondary" href="/saas/account">Back to dashboard</a>
+</div>
+{% endblock %}

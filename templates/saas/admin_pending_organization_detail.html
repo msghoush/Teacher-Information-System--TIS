@@ -7,7 +7,7 @@
     <div class="stat-list">
         <div class="stat">
             <strong>{{ organization.organization_name or "Untitled draft" }}</strong>
-            <p>Status: {{ organization.status }}<br>Billing: {{ organization.billing_status }}<br>Progress: {{ card.progress.completion_percent }}%<br>Educational Program: {{ organization.educational_program or "-" }}</p>
+            <p>Status: {{ organization.status }}<br>Billing: {{ organization.billing_status }}<br>Payment: {{ organization.payment_status }}<br>Progress: {{ card.progress.completion_percent }}%<br>Educational Program: {{ organization.educational_program or "-" }}</p>
         </div>
         <div class="stat">
             <strong>Commercial selection</strong>
@@ -18,6 +18,21 @@
                 Checkout: {{ card.current_checkout_session.status if card.current_checkout_session else "not_started" }}
                 {% else %}
                 No plan selected yet.
+                {% endif %}
+            </p>
+        </div>
+        <div class="stat">
+            <strong>Payment tracking</strong>
+            <p>
+                {% if card.current_payment_attempt %}
+                Attempt: {{ card.current_payment_attempt.status }}<br>
+                Transaction: {{ card.current_payment_attempt.provider_transaction_id or "-" }}<br>
+                {% if card.current_payment_subscription %}
+                Subscription: {{ card.current_payment_subscription.status }}<br>
+                Subscription ID: {{ card.current_payment_subscription.provider_subscription_id }}
+                {% endif %}
+                {% else %}
+                No payment attempt launched yet.
                 {% endif %}
             </p>
         </div>

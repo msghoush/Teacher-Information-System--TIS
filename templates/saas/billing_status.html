@@ -8,7 +8,15 @@
 {% if checkout_summary and checkout_summary.checkout_session %}
 <p>Checkout session status: {{ checkout_summary.checkout_session.status }}</p>
 {% endif %}
+<p>Payment status: {{ organization.payment_status }}</p>
+{% if current_payment_attempt %}
+<p>Latest payment attempt: {{ current_payment_attempt.status }}{% if current_payment_attempt.provider_transaction_id %}<br>Transaction: {{ current_payment_attempt.provider_transaction_id }}{% endif %}</p>
+{% endif %}
+{% if current_payment_subscription %}
+<p>Subscription status: {{ current_payment_subscription.status }}<br>Subscription ID: {{ current_payment_subscription.provider_subscription_id }}</p>
+{% endif %}
 <div class="actions">
     <a class="btn secondary" href="/saas/account">Back to dashboard</a>
+    <a class="btn secondary" href="/saas/account/billing">Billing details</a>
 </div>
 {% endblock %}

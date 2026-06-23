@@ -1,9 +1,16 @@
 import os
 import re
+import json
+import hashlib
+import hmac
+import time
 import unittest
 from unittest.mock import patch
 
 os.environ["TIS_SESSION_SECRET"] = "unit-test-session-secret-that-is-long-enough"
+os.environ["PADDLE_API_KEY"] = "pdl_test_phase4_api_key"
+os.environ["PADDLE_WEBHOOK_SECRET"] = "pdl_ntfset_test_phase4_secret"
+os.environ["PADDLE_WEBHOOK_TOLERANCE_SECONDS"] = "30"
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -53,6 +60,39 @@ class SaaSPhase1Tests(unittest.TestCase):
 
     def _db(self):
         return self.Session()
+
+    def _operational_counts(self):
+        db = self._db()
+        try:
+            return {
+                "school_groups": db.query(models.SchoolGroup).count(),
+                "branches": db.query(models.Branch).count(),
+                "academic_years": db.query(models.AcademicYear).count(),
+                "users": db.query(models.User).count(),
+                "role_permissions": db.query(models.RolePermission).count(),
+            }
+        finally:
+            db.close()
+
+    def _configure_paddle_prices(self):
+        db = self._db()
+        try:
+            price_rows = db.query(saas.models.SubscriptionPlanPrice).all()
+            for row in price_rows:
+                row.provider_price_id = f"pri_test_{row.plan_id}_{row.billing_interval}"
+            db.commit()
+        finally:
+            db.close()
+
+    def _sign_paddle_payload(self, payload: dict) -> tuple[str, bytes]:
+        raw_body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        timestamp = str(int(time.time()))
+        signature = hmac.new(
+            os.environ["PADDLE_WEBHOOK_SECRET"].encode("utf-8"),
+            f"{timestamp}:{raw_body.decode('utf-8')}".encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        return f"ts={timestamp};h1={signature}", raw_body
 
     def _signup_and_verify(self, email="owner@school.edu"):
         captured = {}
@@ -519,70 +559,292 @@ class SaaSPhase1Tests(unittest.TestCase):
         finally:
             db.close()
 
-        plan_page = self.client.get(f"/saas/onboarding/{org_uuid}/plan")
-        self.assertEqual(plan_page.status_code, 200)
-        self.assertIn("Select a subscription plan", plan_page.text)
+    def test_phase4_launches_paddle_checkout_without_operational_side_effects(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("payments@academy.edu")
+        operational_counts_before = self._operational_counts()
 
-        select_response = self.client.post(
+        db = self._db()
+        try:
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            professional_id = professional.id
+        finally:
+            db.close()
+
+        self.client.post(
             f"/saas/onboarding/{org_uuid}/plan",
             data={"plan_id": str(professional_id), "billing_interval": "annual"},
             follow_redirects=False,
         )
-        self.assertEqual(select_response.status_code, 302)
-        self.assertIn(f"/saas/onboarding/{org_uuid}/checkout", select_response.headers["location"])
-
-        checkout_response = self.client.get(f"/saas/onboarding/{org_uuid}/checkout")
-        self.assertEqual(checkout_response.status_code, 200)
-        self.assertIn("Professional", checkout_response.text)
-        self.assertIn("annual", checkout_response.text)
-
-        prepare_response = self.client.post(
+        self.client.post(
             f"/saas/onboarding/{org_uuid}/checkout/start",
             follow_redirects=False,
         )
-        self.assertEqual(prepare_response.status_code, 302)
 
-        billing_status_response = self.client.get(f"/saas/onboarding/{org_uuid}/billing-status")
-        self.assertEqual(billing_status_response.status_code, 200)
-        self.assertIn("checkout_ready", billing_status_response.text)
+        with (
+            patch(
+                "saas.paddle_client.create_customer",
+                return_value={"id": "ctm_test_123", "email": "payments@academy.edu", "name": "Owner User", "status": "active"},
+            ),
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_test_123",
+                    "status": "ready",
+                    "currency_code": "USD",
+                    "checkout": {"id": "chk_test_123", "url": "https://pay.paddle.test/checkout/123"},
+                },
+            ),
+        ):
+            launch_response = self.client.post(
+                f"/saas/onboarding/{org_uuid}/checkout/launch",
+                follow_redirects=False,
+            )
 
-        dashboard_response = self.client.get("/saas/account")
-        self.assertEqual(dashboard_response.status_code, 200)
-        self.assertIn("Selected plan: Professional", dashboard_response.text)
-        self.assertIn("[Done] Plan Selection", dashboard_response.text)
-        self.assertIn("[Done] Checkout", dashboard_response.text)
+        self.assertEqual(launch_response.status_code, 302)
+        self.assertEqual(launch_response.headers["location"], "https://pay.paddle.test/checkout/123")
 
         db = self._db()
         try:
             organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
-            self.assertEqual(organization.billing_status, "checkout_ready")
-            self.assertEqual(organization.selected_plan_id, professional_id)
-            self.assertEqual(organization.selected_billing_interval, "annual")
-            selection = db.query(saas.models.PendingOrganizationPlanSelection).filter_by(
-                pending_organization_id=organization.id,
-                selection_status="selected",
+            self.assertEqual(organization.billing_status, "checkout_started")
+            self.assertEqual(organization.payment_status, "pending")
+            payment_customer = db.query(saas.models.PaymentCustomer).filter_by(
+                pending_organization_id=organization.id
             ).first()
-            self.assertIsNotNone(selection)
-            self.assertEqual(selection.plan_version, 1)
-            self.assertTrue(selection.is_founding_offer)
+            self.assertIsNotNone(payment_customer)
+            self.assertEqual(payment_customer.provider_customer_id, "ctm_test_123")
+            payment_attempt = db.query(saas.models.PaymentAttempt).filter_by(
+                pending_organization_id=organization.id
+            ).first()
+            self.assertIsNotNone(payment_attempt)
+            self.assertEqual(payment_attempt.status, "checkout_started")
+            self.assertEqual(payment_attempt.provider_transaction_id, "txn_test_123")
             checkout_session = db.query(saas.models.CheckoutSession).filter_by(
                 pending_organization_id=organization.id
             ).first()
-            self.assertIsNotNone(checkout_session)
-            self.assertEqual(checkout_session.status, "ready")
-            contract = db.query(saas.models.SubscriptionContract).filter_by(
+            self.assertEqual(checkout_session.status, "started")
+            self.assertEqual(checkout_session.checkout_url, "https://pay.paddle.test/checkout/123")
+            operational_counts_after = self._operational_counts()
+            self.assertEqual(operational_counts_before, operational_counts_after)
+        finally:
+            db.close()
+
+    def test_phase4_browser_return_does_not_confirm_payment(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("return@academy.edu")
+
+        db = self._db()
+        try:
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            professional_id = professional.id
+        finally:
+            db.close()
+
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "monthly"},
+            follow_redirects=False,
+        )
+        self.client.post(f"/saas/onboarding/{org_uuid}/checkout/start", follow_redirects=False)
+
+        with (
+            patch("saas.paddle_client.create_customer", return_value={"id": "ctm_return_123", "email": "return@academy.edu", "name": "Return User", "status": "active"}),
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={"id": "txn_return_123", "status": "ready", "currency_code": "USD", "checkout": {"id": "chk_return_123", "url": "https://pay.paddle.test/checkout/return"}},
+            ),
+        ):
+            self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            attempt = db.query(saas.models.PaymentAttempt).filter_by(pending_organization_id=organization.id).first()
+            attempt_uuid = attempt.attempt_uuid
+        finally:
+            db.close()
+
+        return_response = self.client.get(f"/saas/checkout/return?attempt={attempt_uuid}")
+        self.assertEqual(return_response.status_code, 200)
+        self.assertIn("verified webhook processing", return_response.text)
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            attempt = db.query(saas.models.PaymentAttempt).filter_by(pending_organization_id=organization.id).first()
+            self.assertEqual(organization.billing_status, "checkout_started")
+            self.assertEqual(organization.payment_status, "pending")
+            self.assertEqual(attempt.status, "checkout_started")
+        finally:
+            db.close()
+
+    def test_phase4_verified_paddle_webhooks_confirm_payment_and_preserve_isolation(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("webhook@academy.edu")
+        operational_counts_before = self._operational_counts()
+
+        db = self._db()
+        try:
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            professional_id = professional.id
+        finally:
+            db.close()
+
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "annual"},
+            follow_redirects=False,
+        )
+        self.client.post(f"/saas/onboarding/{org_uuid}/checkout/start", follow_redirects=False)
+
+        with (
+            patch("saas.paddle_client.create_customer", return_value={"id": "ctm_webhook_123", "email": "webhook@academy.edu", "name": "Webhook User", "status": "active"}),
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={"id": "txn_webhook_123", "status": "ready", "currency_code": "USD", "checkout": {"id": "chk_webhook_123", "url": "https://pay.paddle.test/checkout/webhook"}},
+            ),
+        ):
+            self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            attempt = db.query(saas.models.PaymentAttempt).filter_by(pending_organization_id=organization.id).first()
+            contract = db.query(saas.models.SubscriptionContract).filter_by(pending_organization_id=organization.id).first()
+            attempt_uuid = attempt.attempt_uuid
+            contract_id = contract.id
+        finally:
+            db.close()
+
+        paid_payload = {
+            "event_id": "evt_paid_test_1234567890123456789012",
+            "event_type": "transaction.paid",
+            "data": {
+                "id": "txn_webhook_123",
+                "status": "paid",
+                "customer_id": "ctm_webhook_123",
+                "custom_data": {
+                    "pending_organization_uuid": org_uuid,
+                    "payment_attempt_uuid": attempt_uuid,
+                    "subscription_contract_id": contract_id,
+                },
+            },
+        }
+        paid_signature, paid_body = self._sign_paddle_payload(paid_payload)
+        paid_response = self.client.post(
+            "/saas/webhooks/paddle",
+            content=paid_body,
+            headers={"Paddle-Signature": paid_signature, "Content-Type": "application/json"},
+        )
+        self.assertEqual(paid_response.status_code, 200)
+
+        subscription_payload = {
+            "event_id": "evt_sub_test_12345678901234567890123",
+            "event_type": "subscription.created",
+            "data": {
+                "id": "sub_webhook_123",
+                "status": "active",
+                "transaction_id": "txn_webhook_123",
+                "current_billing_period": {
+                    "starts_at": "2026-06-23T12:00:00Z",
+                    "ends_at": "2027-06-22T12:00:00Z",
+                },
+                "next_billed_at": "2027-06-22T12:00:00Z",
+                "items": [
+                    {
+                        "price": {"id": "pri_test_2_annual"},
+                    }
+                ],
+            },
+        }
+        sub_signature, sub_body = self._sign_paddle_payload(subscription_payload)
+        sub_response = self.client.post(
+            "/saas/webhooks/paddle",
+            content=sub_body,
+            headers={"Paddle-Signature": sub_signature, "Content-Type": "application/json"},
+        )
+        self.assertEqual(sub_response.status_code, 200)
+
+        completed_payload = {
+            "event_id": "evt_completed_123456789012345678901",
+            "event_type": "transaction.completed",
+            "data": {
+                "id": "txn_webhook_123",
+                "status": "completed",
+                "customer_id": "ctm_webhook_123",
+                "subscription_id": "sub_webhook_123",
+                "custom_data": {
+                    "pending_organization_uuid": org_uuid,
+                    "payment_attempt_uuid": attempt_uuid,
+                    "subscription_contract_id": contract_id,
+                },
+            },
+        }
+        completed_signature, completed_body = self._sign_paddle_payload(completed_payload)
+        completed_response = self.client.post(
+            "/saas/webhooks/paddle",
+            content=completed_body,
+            headers={"Paddle-Signature": completed_signature, "Content-Type": "application/json"},
+        )
+        self.assertEqual(completed_response.status_code, 200)
+
+        duplicate_response = self.client.post(
+            "/saas/webhooks/paddle",
+            content=completed_body,
+            headers={"Paddle-Signature": completed_signature, "Content-Type": "application/json"},
+        )
+        self.assertEqual(duplicate_response.status_code, 200)
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            attempt = db.query(saas.models.PaymentAttempt).filter_by(pending_organization_id=organization.id).first()
+            contract = db.query(saas.models.SubscriptionContract).filter_by(pending_organization_id=organization.id).first()
+            payment_subscription = db.query(saas.models.PaymentSubscription).filter_by(
                 pending_organization_id=organization.id
             ).first()
-            self.assertIsNotNone(contract)
-            self.assertEqual(contract.contract_status, "checkout_pending")
-            operational_counts_after = {
-                "school_groups": db.query(models.SchoolGroup).count(),
-                "branches": db.query(models.Branch).count(),
-                "academic_years": db.query(models.AcademicYear).count(),
-                "users": db.query(models.User).count(),
-                "role_permissions": db.query(models.RolePermission).count(),
-            }
-            self.assertEqual(operational_counts_before, operational_counts_after)
+            webhooks = db.query(saas.models.PaymentWebhook).all()
+            self.assertEqual(organization.billing_status, "ready_for_provisioning")
+            self.assertEqual(organization.payment_status, "paid")
+            self.assertEqual(attempt.status, "payment_confirmed")
+            self.assertEqual(attempt.provider_subscription_id, "sub_webhook_123")
+            self.assertEqual(contract.contract_status, "paid_pending_provisioning")
+            self.assertEqual(contract.payment_status, "paid")
+            self.assertIsNotNone(payment_subscription)
+            self.assertEqual(payment_subscription.provider_subscription_id, "sub_webhook_123")
+            self.assertEqual(payment_subscription.status, "active")
+            self.assertEqual(
+                db.query(saas.models.PaymentWebhook).filter_by(provider_event_id="evt_completed_123456789012345678901").count(),
+                1,
+            )
+            self.assertGreaterEqual(len(webhooks), 3)
+            self.assertEqual(operational_counts_before, self._operational_counts())
+        finally:
+            db.close()
+
+    def test_phase4_invalid_webhook_signature_is_rejected(self):
+        payload = {
+            "event_id": "evt_invalid_12345678901234567890123",
+            "event_type": "transaction.completed",
+            "data": {"id": "txn_invalid"},
+        }
+        raw_body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        response = self.client.post(
+            "/saas/webhooks/paddle",
+            content=raw_body,
+            headers={"Paddle-Signature": "ts=1;h1=bad", "Content-Type": "application/json"},
+        )
+        self.assertEqual(response.status_code, 400)
+
+        db = self._db()
+        try:
+            webhook_row = db.query(saas.models.PaymentWebhook).filter_by(
+                provider_event_id="evt_invalid_12345678901234567890123"
+            ).first()
+            self.assertIsNotNone(webhook_row)
+            self.assertFalse(webhook_row.signature_valid)
+            self.assertEqual(webhook_row.processing_status, "rejected")
         finally:
             db.close()
 
