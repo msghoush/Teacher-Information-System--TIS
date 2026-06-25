@@ -1,0 +1,89 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Organization Profile</h1>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<p class="muted">Step 1 of 5. This creates a pending organization draft only.</p>
+<div class="notice">Progress: {{ progress.completion_percent }}% | Status: {{ organization.status }}</div>
+<form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/organization" enctype="multipart/form-data">
+    <label for="organization_name">Organization name</label>
+    <input id="organization_name" name="organization_name" value="{{ organization.organization_name or '' }}" required>
+    <label for="legal_name">Legal name</label>
+    <input id="legal_name" name="legal_name" value="{{ organization.legal_name or '' }}">
+    <label for="website">Website</label>
+    <input id="website" name="website" value="{{ organization.website or '' }}">
+    <label for="primary_domain">Primary domain</label>
+    <input id="primary_domain" name="primary_domain" value="{{ organization.primary_domain or '' }}">
+    <label for="phone">Phone</label>
+    <input id="phone" name="phone" value="{{ organization.phone or '' }}">
+    <label for="organization_logo">Organization logo</label>
+    <input id="organization_logo" name="organization_logo" type="file" accept=".png,.jpg,.jpeg,.webp">
+    {% if organization.organization_logo_path %}
+    <p class="muted">Current logo: <a href="{{ url_for('static', path=organization.organization_logo_path) }}" target="_blank">View uploaded logo</a></p>
+    {% endif %}
+    <label for="educational_program">Educational Program</label>
+    <select id="educational_program" name="educational_program">
+        <option value="">Select a program</option>
+        <option value="NATIONAL" {% if organization.educational_program == "NATIONAL" %}selected{% endif %}>National</option>
+        <option value="INTERNATIONAL" {% if organization.educational_program == "INTERNATIONAL" %}selected{% endif %}>International</option>
+        <option value="BOTH" {% if organization.educational_program == "BOTH" %}selected{% endif %}>Both</option>
+    </select>
+    <label for="school_type">School type</label>
+    <input id="school_type" name="school_type" value="{{ organization.school_type or '' }}">
+    <div class="grid two">
+        <div>
+            <label for="country_code">Country code</label>
+            <input id="country_code" name="country_code" value="{{ organization.country_code or '' }}">
+        </div>
+        <div>
+            <label for="country_name">Country name</label>
+            <input id="country_name" name="country_name" value="{{ organization.country_name or '' }}">
+        </div>
+    </div>
+    <div class="grid two">
+        <div>
+            <label for="region_name">Region</label>
+            <input id="region_name" name="region_name" value="{{ organization.region_name or '' }}">
+        </div>
+        <div>
+            <label for="city_name">City</label>
+            <input id="city_name" name="city_name" value="{{ organization.city_name or '' }}">
+        </div>
+    </div>
+    <div class="grid two">
+        <div>
+            <label for="district_name">District</label>
+            <input id="district_name" name="district_name" value="{{ organization.district_name or '' }}">
+        </div>
+        <div>
+            <label for="neighborhood_name">Neighborhood</label>
+            <input id="neighborhood_name" name="neighborhood_name" value="{{ organization.neighborhood_name or '' }}">
+        </div>
+    </div>
+    <div class="grid two">
+        <div>
+            <label for="expected_branch_count">Estimated branches</label>
+            <input id="expected_branch_count" name="expected_branch_count" value="{{ organization.expected_branch_count or '' }}">
+        </div>
+        <div>
+            <label for="estimated_staff_users">Estimated staff users</label>
+            <input id="estimated_staff_users" name="estimated_staff_users" value="{{ organization.estimated_staff_users or '' }}">
+        </div>
+    </div>
+    <div class="grid two">
+        <div>
+            <label for="expected_teacher_count">Estimated teachers</label>
+            <input id="expected_teacher_count" name="expected_teacher_count" value="{{ organization.expected_teacher_count or '' }}">
+        </div>
+        <div>
+            <label for="expected_student_count">Estimated students</label>
+            <input id="expected_student_count" name="expected_student_count" value="{{ organization.expected_student_count or '' }}">
+        </div>
+    </div>
+    <label for="timezone">Timezone</label>
+    <input id="timezone" name="timezone" value="{{ organization.timezone or '' }}" placeholder="Asia/Riyadh">
+    <div class="actions">
+        <button class="btn" type="submit" name="save_action" value="continue">Save and continue</button>
+        <button class="btn secondary" type="submit" name="save_action" value="save_exit">Save draft</button>
+    </div>
+</form>
+{% endblock %}

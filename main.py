@@ -40,6 +40,8 @@ import email_service
 import email_templates
 import location_service
 import permission_registry
+import role_permission_service
+import saas.models  # Register SaaS metadata before create_all.
 from visual_design import (
     VISUAL_COMPONENT_MAP,
     build_visual_design_config,
@@ -49,6 +51,7 @@ from visual_design import (
 )
 from dependencies import get_db
 from routers import subjects, users, teachers, planning, timetable, academic_calendar, observations
+from saas.router import admin_router as saas_admin_router, router as saas_router
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
 from teacher_capacity import (
@@ -994,16 +997,10 @@ def _set_role_permission_rows(
 
 
 def _seed_global_role_permissions(db: Session):
-    for role in permission_registry.MANAGED_ROLES:
-        if _get_role_permission_rows(db, role, None):
-            continue
-        _set_role_permission_rows(
-            db,
-            role=role,
-            allowed_keys=permission_registry.get_default_permissions_for_role(role),
-            school_group_id=None,
-            updated_by_user_id="system",
-        )
+    role_permission_service.seed_global_role_permissions(
+        db,
+        updated_by_user_id="system",
+    )
     db.commit()
 
 
@@ -8568,6 +8565,8 @@ app.include_router(planning.router)
 app.include_router(timetable.router)
 app.include_router(academic_calendar.router)
 app.include_router(observations.router)
+app.include_router(saas_router)
+app.include_router(saas_admin_router)
 
 # ---------------------------------------
 # ROOT (public landing on tisplatform.com, app login elsewhere)

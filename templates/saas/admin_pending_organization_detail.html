@@ -1,0 +1,118 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Pending Organization Detail</h1>
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<div class="grid two">
+    <div class="stat-list">
+        <div class="stat">
+            <strong>{{ organization.organization_name or "Untitled draft" }}</strong>
+            <p>Status: {{ organization.status }}<br>Billing: {{ organization.billing_status }}<br>Payment: {{ organization.payment_status }}<br>Progress: {{ card.progress.completion_percent }}%<br>Educational Program: {{ organization.educational_program or "-" }}</p>
+        </div>
+        <div class="stat">
+            <strong>Commercial selection</strong>
+            <p>
+                {% if card.current_plan_selection %}
+                Plan: {{ card.current_plan.plan_name if card.current_plan else card.current_plan_selection.plan_id }}<br>
+                Interval: {{ card.current_plan_selection.billing_interval }}<br>
+                Checkout: {{ card.current_checkout_session.status if card.current_checkout_session else "not_started" }}
+                {% else %}
+                No plan selected yet.
+                {% endif %}
+            </p>
+        </div>
+        <div class="stat">
+            <strong>Payment tracking</strong>
+            <p>
+                {% if card.current_payment_attempt %}
+                Attempt: {{ card.current_payment_attempt.status }}<br>
+                Transaction: {{ card.current_payment_attempt.provider_transaction_id or "-" }}<br>
+                {% if card.current_payment_subscription %}
+                Subscription: {{ card.current_payment_subscription.status }}<br>
+                Subscription ID: {{ card.current_payment_subscription.provider_subscription_id }}
+                {% endif %}
+                {% else %}
+                No payment attempt launched yet.
+                {% endif %}
+            </p>
+        </div>
+        <div class="stat">
+            <strong>Provisioning</strong>
+            <p>
+                {% if card.current_provisioning_job %}
+                Job: {{ card.current_provisioning_job.job_status }}<br>
+                Attempts: {{ card.current_provisioning_job.attempt_count }} / {{ card.current_provisioning_job.max_attempts }}
+                {% if card.current_tenant_link %}<br>School Group ID: {{ card.current_tenant_link.school_group_id }}{% endif %}
+                {% else %}
+                No provisioning job queued yet.
+                {% endif %}
+            </p>
+        </div>
+        <div class="stat">
+            <strong>Primary contact</strong>
+            <p>{% if primary_contact %}{{ primary_contact.first_name }} {{ primary_contact.last_name }}<br>{{ primary_contact.email }}{% else %}No contact saved{% endif %}</p>
+        </div>
+        <div class="stat">
+            <strong>Academic setup</strong>
+            <p>{{ academic_setup.first_academic_year_name or "-" }}</p>
+        </div>
+    </div>
+    <div class="stat-list">
+        <div class="stat">
+            <strong>Update status</strong>
+            <form method="post" action="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/status">
+                <label>Status</label>
+                <select name="status">
+                    <option value="ready_for_checkout" {% if organization.status == "ready_for_checkout" %}selected{% endif %}>ready_for_checkout</option>
+                    <option value="under_review" {% if organization.status == "under_review" %}selected{% endif %}>under_review</option>
+                    <option value="changes_requested" {% if organization.status == "changes_requested" %}selected{% endif %}>changes_requested</option>
+                    <option value="rejected" {% if organization.status == "rejected" %}selected{% endif %}>rejected</option>
+                </select>
+                <label>Reason / note</label>
+                <input name="rejection_reason" value="{{ organization.rejection_reason or '' }}">
+                <div class="actions"><button class="btn" type="submit">Save status</button></div>
+            </form>
+        </div>
+        <div class="stat">
+            <strong>Add internal note</strong>
+            <form method="post" action="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/notes">
+                <input name="note" placeholder="Add an internal note">
+                <div class="actions"><button class="btn secondary" type="submit">Save note</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+<h2 style="margin-top:24px;">Branches</h2>
+<table class="table">
+    <thead><tr><th>Name</th><th>City</th><th>Country</th></tr></thead>
+    <tbody>
+        {% for branch in branches %}
+        <tr><td>{{ branch.branch_name }}</td><td>{{ branch.city_name or branch.location or "-" }}</td><td>{{ branch.country_name or "-" }}</td></tr>
+        {% else %}
+        <tr><td colspan="3">No branches saved.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+<h2 style="margin-top:24px;">Timeline</h2>
+<table class="table">
+    <thead><tr><th>Event</th><th>Created</th></tr></thead>
+    <tbody>
+        {% for event in events %}
+        <tr><td>{{ event.event_type }}</td><td>{{ event.created_at }}</td></tr>
+        {% else %}
+        <tr><td colspan="2">No events recorded.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+<h2 style="margin-top:24px;">Internal Notes</h2>
+<table class="table">
+    <thead><tr><th>Note</th><th>Created</th></tr></thead>
+    <tbody>
+        {% for note in notes %}
+        <tr><td>{{ note.note }}</td><td>{{ note.created_at }}</td></tr>
+        {% else %}
+        <tr><td colspan="2">No notes yet.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

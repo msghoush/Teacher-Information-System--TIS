@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title or "TIS SaaS" }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/branding.css') }}">
+    <style>
+        :root {
+            --bg: #eef4fb;
+            --panel: #ffffff;
+            --ink: #10233f;
+            --muted: #5a6d86;
+            --line: #d8e3f0;
+            --brand: #0a4ea3;
+            --brand-dark: #093b7b;
+            --accent: #f4bd3f;
+            --warn: #8b5e00;
+            --warn-bg: #fff5d6;
+            --error: #a11d2f;
+            --error-bg: #ffe4e8;
+            --ok: #0b6b48;
+            --ok-bg: #dcf8ea;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+            background:
+                radial-gradient(520px 340px at 0% 0%, rgba(10, 78, 163, .13), transparent 70%),
+                radial-gradient(560px 360px at 100% 100%, rgba(244, 189, 63, .12), transparent 72%),
+                linear-gradient(160deg, #edf3fa, #dfe9f4);
+            color: var(--ink);
+            min-height: 100vh;
+        }
+        .shell {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 32px 18px 48px;
+        }
+        .hero {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .hero a {
+            color: var(--brand);
+            text-decoration: none;
+            font-weight: 700;
+        }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            box-shadow: 0 18px 45px rgba(16, 35, 63, .08);
+            padding: 24px;
+        }
+        .grid {
+            display: grid;
+            gap: 20px;
+        }
+        .grid.two {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        h1,h2,h3,p { margin-top: 0; }
+        h1 { font-size: 30px; margin-bottom: 8px; }
+        .muted { color: var(--muted); }
+        .notice, .warning, .error, .success {
+            border-radius: 14px;
+            padding: 14px 16px;
+            margin-bottom: 18px;
+            font-size: 14px;
+        }
+        .notice, .success { background: var(--ok-bg); color: var(--ok); border: 1px solid #b5ecd1; }
+        .warning { background: var(--warn-bg); color: var(--warn); border: 1px solid #f3d27d; }
+        .error { background: var(--error-bg); color: var(--error); border: 1px solid #f0a7b2; }
+        label { display: block; font-weight: 700; margin-bottom: 6px; }
+        input, select {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+            font: inherit;
+            background: #fff;
+        }
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 8px;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 18px;
+            border-radius: 12px;
+            border: 1px solid transparent;
+            background: var(--brand);
+            color: #fff;
+            text-decoration: none;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .btn.secondary {
+            background: #fff;
+            color: var(--brand);
+            border-color: var(--line);
+        }
+        .btn.oauth {
+            background: #fff;
+            color: var(--ink);
+            border-color: var(--line);
+        }
+        .stat-list {
+            display: grid;
+            gap: 12px;
+        }
+        .stat {
+            padding: 14px 16px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: #f9fbfe;
+        }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .table th, .table td {
+            text-align: left;
+            padding: 12px 10px;
+            border-bottom: 1px solid var(--line);
+            vertical-align: top;
+        }
+        @media (max-width: 800px) {
+            .grid.two { grid-template-columns: 1fr; }
+            .hero { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <div class="hero">
+            <div>
+                <a href="/saas">TIS SaaS</a>
+                <p class="muted">Public-zone account foundation for onboarding and billing access.</p>
+            </div>
+            {% if account %}
+            <div class="actions">
+                <a class="btn secondary" href="/saas/account">Dashboard</a>
+                <a class="btn secondary" href="/saas/account/profile">Profile</a>
+                <a class="btn secondary" href="/saas/account/billing">Billing</a>
+                <a class="btn secondary" href="/saas/account/sessions">Sessions</a>
+                <form method="post" action="/saas/auth/logout">
+                    <button class="btn" type="submit">Sign Out</button>
+                </form>
+            </div>
+            {% else %}
+            <div class="actions">
+                <a class="btn secondary" href="/saas/login">Login</a>
+                <a class="btn" href="/saas/signup">Create Account</a>
+            </div>
+            {% endif %}
+        </div>
+        <div class="card">
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+</body>
+</html>

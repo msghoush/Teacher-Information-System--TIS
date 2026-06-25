@@ -1,0 +1,10 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Email verification</h1>
+{% if success %}<div class="success">{{ success }}</div>{% endif %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<div class="actions">
+    <a class="btn" href="/saas/login">Login</a>
+    <a class="btn secondary" href="/saas/signup">Create account</a>
+</div>
+{% endblock %}

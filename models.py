@@ -36,6 +36,24 @@ class SchoolGroup(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class TenantProfile(Base):
+    __tablename__ = "tenant_profiles"
+    __table_args__ = (
+        UniqueConstraint("school_group_id", name="uq_tenant_profiles_school_group"),
+        Index("ix_tenant_profiles_school_group", "school_group_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    website = Column(String(180))
+    timezone = Column(String(80))
+    educational_program = Column(String(20))
+    school_type = Column(String(120))
+    estimated_staff_users = Column(Integer)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class SchoolGroupLogo(Base):
     __tablename__ = "school_group_logos"
     __table_args__ = (

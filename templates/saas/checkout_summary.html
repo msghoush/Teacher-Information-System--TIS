@@ -1,0 +1,59 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Checkout Summary</h1>
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% if checkout_summary and checkout_summary.selection and checkout_summary.plan %}
+<div class="grid two">
+    <div class="stat-list">
+        <div class="stat">
+            <strong>Organization</strong>
+            <p>{{ organization.organization_name }}</p>
+        </div>
+        <div class="stat">
+            <strong>Plan</strong>
+            <p>{{ checkout_summary.plan.plan_name }}<br>{{ checkout_summary.selection.billing_interval }}</p>
+        </div>
+        <div class="stat">
+            <strong>Display price</strong>
+            <p>{{ checkout_summary.selection.display_currency_code }} {{ "%.2f"|format((checkout_summary.selection.display_amount_minor or 0) / 100) }}</p>
+        </div>
+    </div>
+    <div class="stat-list">
+        <div class="stat">
+            <strong>Base price</strong>
+            <p>{{ checkout_summary.selection.base_currency_code }} {{ "%.2f"|format((checkout_summary.selection.base_amount_minor or 0) / 100) }}</p>
+        </div>
+        <div class="stat">
+            <strong>Contract status</strong>
+            <p>{{ checkout_summary.contract.contract_status if checkout_summary.contract else "draft" }}</p>
+        </div>
+        <div class="stat">
+            <strong>Checkout status</strong>
+            <p>{{ checkout_summary.checkout_session.status if checkout_summary.checkout_session else organization.billing_status }}</p>
+        </div>
+        <div class="stat">
+            <strong>Payment status</strong>
+            <p>{{ organization.payment_status }}</p>
+        </div>
+    </div>
+</div>
+<div class="actions" style="margin-top:18px;">
+    <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/plan">Back to plan selection</a>
+    <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/start">
+        <button class="btn" type="submit">Prepare checkout</button>
+    </form>
+    {% if checkout_summary.checkout_session and checkout_summary.checkout_session.status == "ready" %}
+    <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/launch">
+        <button class="btn" type="submit">Continue to Secure Payment</button>
+    </form>
+    {% endif %}
+</div>
+{% if current_payment_attempt %}
+<div class="notice" style="margin-top:18px;">Latest payment attempt: {{ current_payment_attempt.status }}</div>
+{% endif %}
+{% else %}
+<div class="error">Select a plan before continuing to checkout.</div>
+<div class="actions"><a class="btn" href="/saas/onboarding/{{ organization.organization_uuid }}/plan">Go to plan selection</a></div>
+{% endif %}
+{% endblock %}

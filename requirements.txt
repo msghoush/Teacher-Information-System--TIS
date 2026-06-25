@@ -10,3 +10,4 @@ openpyxl
 pillow
 tzdata
 reportlab
+httpx

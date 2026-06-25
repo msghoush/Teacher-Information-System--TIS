@@ -1,0 +1,24 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Profile</h1>
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+<form method="post" action="/saas/account/profile">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="grid two">
+        <div>
+            <label for="first_name">First name</label>
+            <input id="first_name" name="first_name" value="{{ account.first_name or '' }}" required>
+        </div>
+        <div>
+            <label for="last_name">Last name</label>
+            <input id="last_name" name="last_name" value="{{ account.last_name or '' }}" required>
+        </div>
+    </div>
+    <label>Email</label>
+    <input value="{{ account.email }}" disabled>
+    <div class="actions">
+        <button class="btn" type="submit">Save profile</button>
+        <a class="btn secondary" href="/saas/account">Back</a>
+    </div>
+</form>
+{% endblock %}

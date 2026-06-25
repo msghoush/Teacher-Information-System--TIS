@@ -1,0 +1,22 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Security</h1>
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+<div class="stat-list">
+    <div class="stat">
+        <strong>Email verification</strong>
+        <p>{% if account.email_verified_at %}Verified at {{ account.email_verified_at }}{% else %}Not verified yet{% endif %}</p>
+    </div>
+    <div class="stat">
+        <strong>Linked sign-in methods</strong>
+        <ul>
+            {% for identity in identities %}
+            <li>{{ identity.provider }}{% if identity.provider_email %} - {{ identity.provider_email }}{% endif %}</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+<div class="actions">
+    <a class="btn secondary" href="/saas/account">Back to dashboard</a>
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Billing Status</h1>
+<div class="notice">Current billing state for this pending organization: <strong>{{ organization.billing_status }}</strong></div>
+{% if current_plan_selection %}
+<p>Plan ID: {{ current_plan_selection.plan_id }} | Interval: {{ current_plan_selection.billing_interval }}</p>
+{% endif %}
+{% if checkout_summary and checkout_summary.checkout_session %}
+<p>Checkout session status: {{ checkout_summary.checkout_session.status }}</p>
+{% endif %}
+<p>Payment status: {{ organization.payment_status }}</p>
+{% if current_payment_attempt %}
+<p>Latest payment attempt: {{ current_payment_attempt.status }}{% if current_payment_attempt.provider_transaction_id %}<br>Transaction: {{ current_payment_attempt.provider_transaction_id }}{% endif %}</p>
+{% endif %}
+{% if current_payment_subscription %}
+<p>Subscription status: {{ current_payment_subscription.status }}<br>Subscription ID: {{ current_payment_subscription.provider_subscription_id }}</p>
+{% endif %}
+{% if journey_card and journey_card.current_provisioning_job %}
+<p>Provisioning job: {{ journey_card.current_provisioning_job.job_status }}</p>
+{% endif %}
+{% if journey_card and journey_card.current_tenant_link %}
+<p>Tenant activation: active<br>School Group ID: {{ journey_card.current_tenant_link.school_group_id }}</p>
+{% endif %}
+<div class="actions">
+    <a class="btn secondary" href="/saas/account">Back to dashboard</a>
+    <a class="btn secondary" href="/saas/account/billing">Billing details</a>
+</div>
+{% endblock %}

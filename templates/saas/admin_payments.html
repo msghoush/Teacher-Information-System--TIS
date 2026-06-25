@@ -1,0 +1,33 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Paddle Payments</h1>
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Attempt</th>
+            <th>Pending Org ID</th>
+            <th>Status</th>
+            <th>Transaction</th>
+            <th>Subscription</th>
+            <th>Amount</th>
+            <th>Started</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for attempt in attempts %}
+        <tr>
+            <td>{{ attempt.attempt_uuid }}</td>
+            <td>{{ attempt.pending_organization_id }}</td>
+            <td>{{ attempt.status }}</td>
+            <td>{{ attempt.provider_transaction_id or "-" }}</td>
+            <td>{{ attempt.provider_subscription_id or "-" }}</td>
+            <td>{{ attempt.currency_code or "USD" }} {{ "%.2f"|format((attempt.amount_minor or 0) / 100) }}</td>
+            <td>{{ attempt.started_at or attempt.created_at }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7">No Paddle payment attempts found.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

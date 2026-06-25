@@ -1,0 +1,30 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Primary Contact</h1>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<p class="muted">Step 4 of 5. This contact will become the future organization owner reference.</p>
+<div class="notice">Progress: {{ progress.completion_percent }}%</div>
+<form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/contacts">
+    <div class="grid two">
+        <div>
+            <label for="first_name">First name</label>
+            <input id="first_name" name="first_name" value="{{ primary_contact.first_name if primary_contact else account.first_name or '' }}" required>
+        </div>
+        <div>
+            <label for="last_name">Last name</label>
+            <input id="last_name" name="last_name" value="{{ primary_contact.last_name if primary_contact else account.last_name or '' }}" required>
+        </div>
+    </div>
+    <label for="job_title">Job title</label>
+    <input id="job_title" name="job_title" value="{{ primary_contact.job_title if primary_contact else '' }}">
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" value="{{ primary_contact.email if primary_contact else account.email or '' }}" required>
+    <label for="phone">Phone</label>
+    <input id="phone" name="phone" value="{{ primary_contact.phone if primary_contact else organization.phone or '' }}">
+    <div class="actions">
+        <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/academic_setup">Back</a>
+        <button class="btn" type="submit" name="save_action" value="continue">Save and continue</button>
+        <button class="btn secondary" type="submit" name="save_action" value="save_exit">Save draft</button>
+    </div>
+</form>
+{% endblock %}

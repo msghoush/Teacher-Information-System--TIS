@@ -1158,6 +1158,1502 @@ def _phase1_address_detail_columns(engine, connection):
         )
 
 
+def _saas_identity_foundation(engine, connection):
+    datetime_type = _datetime_type(engine)
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_accounts (
+            id INTEGER PRIMARY KEY,
+            account_uuid VARCHAR(36) NOT NULL,
+            email VARCHAR(180) NOT NULL,
+            email_normalized VARCHAR(180) NOT NULL,
+            password_hash VARCHAR(255),
+            first_name VARCHAR(120),
+            last_name VARCHAR(120),
+            status VARCHAR(20) NOT NULL DEFAULT 'pending_verification',
+            onboarding_status VARCHAR(30) NOT NULL DEFAULT 'not_started',
+            email_verified_at {datetime_type},
+            last_login_at {datetime_type},
+            locked_at {datetime_type},
+            locked_reason VARCHAR(120),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+    _create_unique_index_if_missing(connection, connection, "saas_accounts", "uq_saas_accounts_email_normalized", "email_normalized")
+    _create_unique_index_if_missing(connection, connection, "saas_accounts", "uq_saas_accounts_account_uuid", "account_uuid")
+    _create_index_if_missing(connection, connection, "saas_accounts", "ix_saas_accounts_status", "status")
+    _create_index_if_missing(connection, connection, "saas_accounts", "ix_saas_accounts_onboarding_status", "onboarding_status")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_auth_identities (
+            id INTEGER PRIMARY KEY,
+            saas_account_id INTEGER NOT NULL,
+            provider VARCHAR(30) NOT NULL,
+            provider_subject VARCHAR(255) NOT NULL,
+            provider_email VARCHAR(180),
+            provider_email_normalized VARCHAR(180),
+            provider_tenant_hint VARCHAR(255),
+            provider_profile_json TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "saas_auth_identities",
+        "uq_saas_auth_identities_provider_subject",
+        "provider, provider_subject",
+    )
+    _create_index_if_missing(connection, connection, "saas_auth_identities", "ix_saas_auth_identities_account", "saas_account_id")
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_auth_identities",
+        "ix_saas_auth_identities_email_normalized",
+        "provider_email_normalized",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_sessions (
+            id INTEGER PRIMARY KEY,
+            saas_account_id INTEGER NOT NULL,
+            session_token_hash VARCHAR(128) NOT NULL,
+            session_family_id VARCHAR(64) NOT NULL,
+            csrf_token_hash VARCHAR(128),
+            ip_address VARCHAR(80),
+            user_agent VARCHAR(255),
+            issued_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at {datetime_type} NOT NULL,
+            revoked_at {datetime_type},
+            revoke_reason VARCHAR(80),
+            FOREIGN KEY (saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(connection, connection, "saas_sessions", "uq_saas_sessions_token_hash", "session_token_hash")
+    _create_index_if_missing(connection, connection, "saas_sessions", "ix_saas_sessions_account", "saas_account_id")
+    _create_index_if_missing(connection, connection, "saas_sessions", "ix_saas_sessions_expires_at", "expires_at")
+    _create_index_if_missing(connection, connection, "saas_sessions", "ix_saas_sessions_revoked_at", "revoked_at")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_email_verification_tokens (
+            id INTEGER PRIMARY KEY,
+            saas_account_id INTEGER NOT NULL,
+            token_hash VARCHAR(128) NOT NULL,
+            email_normalized VARCHAR(180) NOT NULL,
+            expires_at {datetime_type} NOT NULL,
+            consumed_at {datetime_type},
+            request_ip VARCHAR(80),
+            user_agent VARCHAR(255),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "saas_email_verification_tokens",
+        "uq_saas_email_verification_tokens_hash",
+        "token_hash",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_email_verification_tokens",
+        "ix_saas_email_verification_tokens_account",
+        "saas_account_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_email_verification_tokens",
+        "ix_saas_email_verification_tokens_expires_at",
+        "expires_at",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_email_verification_tokens",
+        "ix_saas_email_verification_tokens_account_consumed",
+        "saas_account_id, consumed_at",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS blocked_email_domains (
+            id INTEGER PRIMARY KEY,
+            domain VARCHAR(180) NOT NULL,
+            domain_category VARCHAR(20) NOT NULL DEFAULT 'blocked',
+            enforcement VARCHAR(20) NOT NULL DEFAULT 'block',
+            reason VARCHAR(255),
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+    _create_unique_index_if_missing(connection, connection, "blocked_email_domains", "uq_blocked_email_domains_domain", "domain")
+    _create_index_if_missing(connection, connection, "blocked_email_domains", "ix_blocked_email_domains_active", "is_active")
+    _create_index_if_missing(connection, connection, "blocked_email_domains", "ix_blocked_email_domains_enforcement", "enforcement")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_auth_events (
+            id INTEGER PRIMARY KEY,
+            saas_account_id INTEGER,
+            event_type VARCHAR(40) NOT NULL,
+            event_status VARCHAR(20) NOT NULL DEFAULT 'ok',
+            ip_address VARCHAR(80),
+            user_agent VARCHAR(255),
+            details_json TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_index_if_missing(connection, connection, "saas_auth_events", "ix_saas_auth_events_account", "saas_account_id")
+    _create_index_if_missing(connection, connection, "saas_auth_events", "ix_saas_auth_events_event_type", "event_type")
+    _create_index_if_missing(connection, connection, "saas_auth_events", "ix_saas_auth_events_created_at", "created_at")
+
+    seeds = (
+        ("gmail.com", "personal", "warn", "Common personal email domain"),
+        ("outlook.com", "personal", "warn", "Common personal email domain"),
+        ("yahoo.com", "personal", "warn", "Common personal email domain"),
+        ("hotmail.com", "personal", "warn", "Common personal email domain"),
+        ("mailinator.com", "disposable", "block", "Disposable email domains are not permitted."),
+        ("guerrillamail.com", "disposable", "block", "Disposable email domains are not permitted."),
+        ("10minutemail.com", "disposable", "block", "Disposable email domains are not permitted."),
+        ("temp-mail.org", "disposable", "block", "Disposable email domains are not permitted."),
+    )
+    for domain, category, enforcement, reason in seeds:
+        existing = connection.execute(
+            text("SELECT id FROM blocked_email_domains WHERE domain = :domain LIMIT 1"),
+            {"domain": domain},
+        ).scalar()
+        if existing:
+            _execute(
+                connection,
+                """
+                UPDATE blocked_email_domains
+                SET domain_category = :category,
+                    enforcement = :enforcement,
+                    reason = :reason,
+                    is_active = TRUE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :row_id
+                """,
+                {
+                    "row_id": existing,
+                    "category": category,
+                    "enforcement": enforcement,
+                    "reason": reason,
+                },
+            )
+        else:
+            _execute(
+                connection,
+                """
+                INSERT INTO blocked_email_domains
+                    (domain, domain_category, enforcement, reason, is_active, created_at, updated_at)
+                VALUES
+                    (:domain, :category, :enforcement, :reason, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                {
+                    "domain": domain,
+                    "category": category,
+                    "enforcement": enforcement,
+                    "reason": reason,
+                },
+            )
+
+
+def _pending_organizations_zone(engine, connection):
+    datetime_type = _datetime_type(engine)
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organizations (
+            id INTEGER PRIMARY KEY,
+            organization_uuid VARCHAR(36) NOT NULL,
+            owner_saas_account_id INTEGER NOT NULL,
+            status VARCHAR(30) NOT NULL DEFAULT 'draft',
+            onboarding_step VARCHAR(40) NOT NULL DEFAULT 'organization',
+            organization_name VARCHAR(160) NOT NULL DEFAULT '',
+            legal_name VARCHAR(180),
+            website VARCHAR(180),
+            primary_domain VARCHAR(180),
+            phone VARCHAR(80),
+            organization_logo_path VARCHAR(255),
+            educational_program VARCHAR(20),
+            country_code VARCHAR(2),
+            country_name VARCHAR(120),
+            region_name VARCHAR(160),
+            city_name VARCHAR(160),
+            district_name VARCHAR(160),
+            neighborhood_name VARCHAR(160),
+            school_type VARCHAR(120),
+            expected_branch_count INTEGER,
+            expected_student_count INTEGER,
+            expected_teacher_count INTEGER,
+            estimated_staff_users INTEGER,
+            timezone VARCHAR(80),
+            draft_saved_at {datetime_type},
+            submitted_at {datetime_type},
+            reviewed_at {datetime_type},
+            reviewed_by_user_id VARCHAR(10),
+            rejection_reason TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (owner_saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(connection, connection, "pending_organizations", "uq_pending_organizations_uuid", "organization_uuid")
+    _create_index_if_missing(connection, connection, "pending_organizations", "ix_pending_organizations_owner", "owner_saas_account_id")
+    _create_index_if_missing(connection, connection, "pending_organizations", "ix_pending_organizations_status", "status")
+    _create_index_if_missing(connection, connection, "pending_organizations", "ix_pending_organizations_step", "onboarding_step")
+    _create_index_if_missing(connection, connection, "pending_organizations", "ix_pending_organizations_name", "organization_name")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organization_branches (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            branch_name VARCHAR(160) NOT NULL,
+            location VARCHAR(180),
+            country_code VARCHAR(2),
+            country_name VARCHAR(120),
+            region_name VARCHAR(160),
+            city_name VARCHAR(160),
+            district_name VARCHAR(160),
+            neighborhood_name VARCHAR(160),
+            status BOOLEAN NOT NULL DEFAULT TRUE,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id)
+        )
+        """,
+    )
+    _create_index_if_missing(connection, connection, "pending_organization_branches", "ix_pending_organization_branches_org", "pending_organization_id")
+    _create_index_if_missing(connection, connection, "pending_organization_branches", "ix_pending_organization_branches_order", "pending_organization_id, sort_order")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organization_academic_setup (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            first_academic_year_name VARCHAR(40) NOT NULL DEFAULT '',
+            create_default_branch BOOLEAN NOT NULL DEFAULT FALSE,
+            notes TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(connection, connection, "pending_organization_academic_setup", "uq_pending_organization_academic_setup_org", "pending_organization_id")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organization_contacts (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            contact_type VARCHAR(30) NOT NULL DEFAULT 'owner',
+            first_name VARCHAR(120) NOT NULL DEFAULT '',
+            last_name VARCHAR(120) NOT NULL DEFAULT '',
+            job_title VARCHAR(120),
+            email VARCHAR(180) NOT NULL DEFAULT '',
+            email_normalized VARCHAR(180),
+            phone VARCHAR(80),
+            is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id)
+        )
+        """,
+    )
+    _create_index_if_missing(connection, connection, "pending_organization_contacts", "ix_pending_organization_contacts_org", "pending_organization_id")
+    _create_index_if_missing(connection, connection, "pending_organization_contacts", "ix_pending_organization_contacts_email_normalized", "email_normalized")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organization_progress (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            organization_profile_complete BOOLEAN NOT NULL DEFAULT FALSE,
+            branches_complete BOOLEAN NOT NULL DEFAULT FALSE,
+            academic_setup_complete BOOLEAN NOT NULL DEFAULT FALSE,
+            contacts_complete BOOLEAN NOT NULL DEFAULT FALSE,
+            review_complete BOOLEAN NOT NULL DEFAULT FALSE,
+            completion_percent INTEGER NOT NULL DEFAULT 0,
+            last_completed_step VARCHAR(40),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(connection, connection, "pending_organization_progress", "uq_pending_organization_progress_org", "pending_organization_id")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organization_events (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            actor_saas_account_id INTEGER,
+            event_type VARCHAR(40) NOT NULL,
+            details_json TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (actor_saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_index_if_missing(connection, connection, "pending_organization_events", "ix_pending_organization_events_org", "pending_organization_id")
+    _create_index_if_missing(connection, connection, "pending_organization_events", "ix_pending_organization_events_type", "event_type")
+    _create_index_if_missing(connection, connection, "pending_organization_events", "ix_pending_organization_events_created_at", "created_at")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organization_notes (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            author_type VARCHAR(20) NOT NULL DEFAULT 'owner',
+            author_ref VARCHAR(80),
+            note TEXT NOT NULL DEFAULT '',
+            is_internal BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id)
+        )
+        """,
+    )
+    _create_index_if_missing(connection, connection, "pending_organization_notes", "ix_pending_organization_notes_org", "pending_organization_id")
+    _create_index_if_missing(connection, connection, "pending_organization_notes", "ix_pending_organization_notes_created_at", "created_at")
+
+
+def _plans_pricing_billing_foundation(engine, connection):
+    datetime_type = _datetime_type(engine)
+
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "billing_status",
+        "billing_status VARCHAR(30) NOT NULL DEFAULT 'not_started'",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "selected_plan_id",
+        "selected_plan_id INTEGER",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "selected_billing_interval",
+        "selected_billing_interval VARCHAR(20)",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "checkout_ready_at",
+        f"checkout_ready_at {datetime_type}",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "ix_pending_organizations_selected_plan_id",
+        "selected_plan_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "ix_pending_organizations_billing_status",
+        "billing_status",
+    )
+    if _table_exists(connection, "pending_organizations"):
+        _execute(
+            connection,
+            """
+            UPDATE pending_organizations
+            SET billing_status = 'not_started'
+            WHERE billing_status IS NULL OR TRIM(billing_status) = ''
+            """,
+        )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS subscription_plans (
+            id INTEGER PRIMARY KEY,
+            plan_code VARCHAR(40) NOT NULL,
+            plan_name VARCHAR(120) NOT NULL,
+            plan_family VARCHAR(80),
+            description TEXT,
+            badge_text VARCHAR(60),
+            is_most_popular BOOLEAN NOT NULL DEFAULT FALSE,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            is_public BOOLEAN NOT NULL DEFAULT TRUE,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            max_branches INTEGER,
+            max_staff_users INTEGER,
+            ai_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+            multi_branch_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+            advanced_reporting_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+            priority_support BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "subscription_plans",
+        "uq_subscription_plans_code",
+        "plan_code",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_plans",
+        "ix_subscription_plans_active",
+        "is_active",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_plans",
+        "ix_subscription_plans_public",
+        "is_public",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_plans",
+        "ix_subscription_plans_sort_order",
+        "sort_order",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS subscription_plan_prices (
+            id INTEGER PRIMARY KEY,
+            plan_id INTEGER NOT NULL,
+            billing_interval VARCHAR(20) NOT NULL,
+            currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
+            amount_minor INTEGER NOT NULL,
+            compare_at_amount_minor INTEGER,
+            display_savings_percent INTEGER,
+            display_savings_amount_minor INTEGER,
+            plan_version INTEGER NOT NULL DEFAULT 1,
+            is_founding_offer BOOLEAN NOT NULL DEFAULT FALSE,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            effective_from {datetime_type},
+            effective_to {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (plan_id) REFERENCES subscription_plans (id)
+        )
+        """,
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_plan_prices",
+        "ix_subscription_plan_prices_plan",
+        "plan_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_plan_prices",
+        "ix_subscription_plan_prices_active",
+        "is_active",
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "subscription_plan_prices",
+        "uq_subscription_plan_prices_version",
+        "plan_id, billing_interval, currency_code, plan_version",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS currency_profiles (
+            id INTEGER PRIMARY KEY,
+            currency_code VARCHAR(3) NOT NULL,
+            currency_name VARCHAR(60) NOT NULL,
+            currency_symbol VARCHAR(8) NOT NULL,
+            minor_unit INTEGER NOT NULL DEFAULT 2,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "currency_profiles",
+        "uq_currency_profiles_code",
+        "currency_code",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "currency_profiles",
+        "ix_currency_profiles_active",
+        "is_active",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS country_currency_map (
+            id INTEGER PRIMARY KEY,
+            country_code VARCHAR(2) NOT NULL,
+            currency_code VARCHAR(3) NOT NULL,
+            display_locale VARCHAR(20),
+            usd_display_rate NUMERIC(12, 6) NOT NULL DEFAULT 1,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (currency_code) REFERENCES currency_profiles (currency_code)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "country_currency_map",
+        "uq_country_currency_map_country",
+        "country_code",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "country_currency_map",
+        "ix_country_currency_map_currency",
+        "currency_code",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "country_currency_map",
+        "ix_country_currency_map_active",
+        "is_active",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS pending_organization_plan_selections (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            plan_id INTEGER NOT NULL,
+            billing_interval VARCHAR(20) NOT NULL,
+            base_currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
+            base_amount_minor INTEGER NOT NULL,
+            display_currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
+            display_amount_minor INTEGER NOT NULL,
+            display_exchange_rate NUMERIC(12, 6) NOT NULL DEFAULT 1,
+            annual_savings_amount_minor INTEGER,
+            annual_savings_percent INTEGER,
+            plan_version INTEGER NOT NULL DEFAULT 1,
+            is_founding_offer BOOLEAN NOT NULL DEFAULT FALSE,
+            selection_status VARCHAR(20) NOT NULL DEFAULT 'selected',
+            selected_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (plan_id) REFERENCES subscription_plans (id)
+        )
+        """,
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "pending_organization_plan_selections",
+        "ix_pending_organization_plan_selections_org",
+        "pending_organization_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "pending_organization_plan_selections",
+        "ix_pending_organization_plan_selections_status",
+        "selection_status",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS checkout_sessions (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            plan_selection_id INTEGER NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'not_started',
+            provider VARCHAR(30),
+            provider_checkout_id VARCHAR(120),
+            currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
+            amount_minor INTEGER NOT NULL,
+            billing_interval VARCHAR(20) NOT NULL,
+            started_at {datetime_type},
+            expires_at {datetime_type},
+            abandoned_at {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (plan_selection_id) REFERENCES pending_organization_plan_selections (id)
+        )
+        """,
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "checkout_sessions",
+        "ix_checkout_sessions_org",
+        "pending_organization_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "checkout_sessions",
+        "ix_checkout_sessions_status",
+        "status",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS subscription_contracts (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            school_group_id INTEGER,
+            plan_id INTEGER NOT NULL,
+            billing_interval VARCHAR(20) NOT NULL,
+            contract_status VARCHAR(30) NOT NULL DEFAULT 'draft',
+            base_currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
+            base_amount_minor INTEGER NOT NULL,
+            display_currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
+            display_amount_minor INTEGER NOT NULL,
+            selected_checkout_session_id INTEGER,
+            contract_type VARCHAR(30) NOT NULL DEFAULT 'self_serve',
+            plan_version INTEGER NOT NULL DEFAULT 1,
+            is_founding_offer BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (school_group_id) REFERENCES school_groups (id),
+            FOREIGN KEY (plan_id) REFERENCES subscription_plans (id),
+            FOREIGN KEY (selected_checkout_session_id) REFERENCES checkout_sessions (id)
+        )
+        """,
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_contracts",
+        "ix_subscription_contracts_pending_org",
+        "pending_organization_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_contracts",
+        "ix_subscription_contracts_status",
+        "contract_status",
+    )
+
+    plan_rows = (
+        {
+            "plan_code": "starter",
+            "plan_name": "Starter",
+            "description": "Starter plan for smaller schools beginning with TIS SaaS.",
+            "badge_text": None,
+            "is_most_popular": False,
+            "sort_order": 10,
+            "max_branches": 1,
+            "max_staff_users": 25,
+            "ai_enabled": False,
+            "multi_branch_enabled": False,
+            "advanced_reporting_enabled": False,
+            "priority_support": False,
+        },
+        {
+            "plan_code": "professional",
+            "plan_name": "Professional",
+            "description": "Professional plan for growing schools and multi-campus operations.",
+            "badge_text": "Most Popular",
+            "is_most_popular": True,
+            "sort_order": 20,
+            "max_branches": 5,
+            "max_staff_users": 100,
+            "ai_enabled": False,
+            "multi_branch_enabled": True,
+            "advanced_reporting_enabled": True,
+            "priority_support": False,
+        },
+        {
+            "plan_code": "enterprise_ai",
+            "plan_name": "Enterprise AI",
+            "description": "Enterprise AI plan for larger organizations requiring advanced support.",
+            "badge_text": "AI Enabled",
+            "is_most_popular": False,
+            "sort_order": 30,
+            "max_branches": 25,
+            "max_staff_users": 500,
+            "ai_enabled": True,
+            "multi_branch_enabled": True,
+            "advanced_reporting_enabled": True,
+            "priority_support": True,
+        },
+    )
+    for plan in plan_rows:
+        existing_id = connection.execute(
+            text("SELECT id FROM subscription_plans WHERE plan_code = :plan_code LIMIT 1"),
+            {"plan_code": plan["plan_code"]},
+        ).scalar()
+        params = {
+            "plan_code": plan["plan_code"],
+            "plan_name": plan["plan_name"],
+            "plan_family": "standard",
+            "description": plan["description"],
+            "badge_text": plan["badge_text"],
+            "is_most_popular": plan["is_most_popular"],
+            "is_active": True,
+            "is_public": True,
+            "sort_order": plan["sort_order"],
+            "max_branches": plan["max_branches"],
+            "max_staff_users": plan["max_staff_users"],
+            "ai_enabled": plan["ai_enabled"],
+            "multi_branch_enabled": plan["multi_branch_enabled"],
+            "advanced_reporting_enabled": plan["advanced_reporting_enabled"],
+            "priority_support": plan["priority_support"],
+        }
+        if existing_id:
+            _execute(
+                connection,
+                """
+                UPDATE subscription_plans
+                SET plan_name = :plan_name,
+                    plan_family = :plan_family,
+                    description = :description,
+                    badge_text = :badge_text,
+                    is_most_popular = :is_most_popular,
+                    is_active = :is_active,
+                    is_public = :is_public,
+                    sort_order = :sort_order,
+                    max_branches = :max_branches,
+                    max_staff_users = :max_staff_users,
+                    ai_enabled = :ai_enabled,
+                    multi_branch_enabled = :multi_branch_enabled,
+                    advanced_reporting_enabled = :advanced_reporting_enabled,
+                    priority_support = :priority_support,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :row_id
+                """,
+                {**params, "row_id": existing_id},
+            )
+        else:
+            _execute(
+                connection,
+                """
+                INSERT INTO subscription_plans (
+                    plan_code, plan_name, plan_family, description, badge_text,
+                    is_most_popular, is_active, is_public, sort_order,
+                    max_branches, max_staff_users, ai_enabled, multi_branch_enabled,
+                    advanced_reporting_enabled, priority_support, created_at, updated_at
+                ) VALUES (
+                    :plan_code, :plan_name, :plan_family, :description, :badge_text,
+                    :is_most_popular, :is_active, :is_public, :sort_order,
+                    :max_branches, :max_staff_users, :ai_enabled, :multi_branch_enabled,
+                    :advanced_reporting_enabled, :priority_support, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """,
+                params,
+            )
+
+    price_rows = (
+        ("starter", "monthly", 2900, None, None),
+        ("starter", "annual", 29000, 5800, 17),
+        ("professional", "monthly", 7900, None, None),
+        ("professional", "annual", 79000, 15800, 17),
+        ("enterprise_ai", "monthly", 14900, None, None),
+        ("enterprise_ai", "annual", 149000, 29800, 17),
+    )
+    for plan_code, interval, amount_minor, savings_minor, savings_percent in price_rows:
+        plan_id = connection.execute(
+            text("SELECT id FROM subscription_plans WHERE plan_code = :plan_code LIMIT 1"),
+            {"plan_code": plan_code},
+        ).scalar()
+        if not plan_id:
+            continue
+        existing_price_id = connection.execute(
+            text(
+                """
+                SELECT id FROM subscription_plan_prices
+                WHERE plan_id = :plan_id
+                  AND billing_interval = :billing_interval
+                  AND currency_code = 'USD'
+                  AND plan_version = 1
+                LIMIT 1
+                """
+            ),
+            {"plan_id": plan_id, "billing_interval": interval},
+        ).scalar()
+        price_params = {
+            "plan_id": int(plan_id),
+            "billing_interval": interval,
+            "currency_code": "USD",
+            "amount_minor": amount_minor,
+            "compare_at_amount_minor": (amount_minor + savings_minor) if savings_minor else None,
+            "display_savings_percent": savings_percent,
+            "display_savings_amount_minor": savings_minor,
+            "plan_version": 1,
+            "is_founding_offer": True,
+            "is_active": True,
+        }
+        if existing_price_id:
+            _execute(
+                connection,
+                """
+                UPDATE subscription_plan_prices
+                SET amount_minor = :amount_minor,
+                    compare_at_amount_minor = :compare_at_amount_minor,
+                    display_savings_percent = :display_savings_percent,
+                    display_savings_amount_minor = :display_savings_amount_minor,
+                    is_founding_offer = :is_founding_offer,
+                    is_active = :is_active,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :row_id
+                """,
+                {**price_params, "row_id": existing_price_id},
+            )
+        else:
+            _execute(
+                connection,
+                """
+                INSERT INTO subscription_plan_prices (
+                    plan_id, billing_interval, currency_code, amount_minor,
+                    compare_at_amount_minor, display_savings_percent,
+                    display_savings_amount_minor, plan_version, is_founding_offer,
+                    is_active, created_at, updated_at
+                ) VALUES (
+                    :plan_id, :billing_interval, :currency_code, :amount_minor,
+                    :compare_at_amount_minor, :display_savings_percent,
+                    :display_savings_amount_minor, :plan_version, :is_founding_offer,
+                    :is_active, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """,
+                price_params,
+            )
+
+    currency_rows = (
+        ("USD", "US Dollar", "$", 2),
+        ("SAR", "Saudi Riyal", "SAR ", 2),
+        ("AED", "UAE Dirham", "AED ", 2),
+        ("QAR", "Qatari Riyal", "QAR ", 2),
+        ("EGP", "Egyptian Pound", "EGP ", 2),
+        ("EUR", "Euro", "EUR ", 2),
+    )
+    for code, name, symbol, minor_unit in currency_rows:
+        existing_currency_id = connection.execute(
+            text("SELECT id FROM currency_profiles WHERE currency_code = :currency_code LIMIT 1"),
+            {"currency_code": code},
+        ).scalar()
+        currency_params = {
+            "currency_code": code,
+            "currency_name": name,
+            "currency_symbol": symbol,
+            "minor_unit": minor_unit,
+        }
+        if existing_currency_id:
+            _execute(
+                connection,
+                """
+                UPDATE currency_profiles
+                SET currency_name = :currency_name,
+                    currency_symbol = :currency_symbol,
+                    minor_unit = :minor_unit,
+                    is_active = TRUE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :row_id
+                """,
+                {**currency_params, "row_id": existing_currency_id},
+            )
+        else:
+            _execute(
+                connection,
+                """
+                INSERT INTO currency_profiles (
+                    currency_code, currency_name, currency_symbol, minor_unit,
+                    is_active, created_at, updated_at
+                ) VALUES (
+                    :currency_code, :currency_name, :currency_symbol, :minor_unit,
+                    TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """,
+                currency_params,
+            )
+
+    country_rows = (
+        ("US", "USD", "en-US", "1.000000"),
+        ("SA", "SAR", "ar-SA", "3.750000"),
+        ("AE", "AED", "ar-AE", "3.670000"),
+        ("QA", "QAR", "ar-QA", "3.640000"),
+        ("EG", "EGP", "ar-EG", "48.000000"),
+        ("DE", "EUR", "de-DE", "0.920000"),
+        ("FR", "EUR", "fr-FR", "0.920000"),
+        ("ES", "EUR", "es-ES", "0.920000"),
+        ("IT", "EUR", "it-IT", "0.920000"),
+        ("NL", "EUR", "nl-NL", "0.920000"),
+    )
+    for country_code, currency_code, locale, usd_display_rate in country_rows:
+        existing_map_id = connection.execute(
+            text("SELECT id FROM country_currency_map WHERE country_code = :country_code LIMIT 1"),
+            {"country_code": country_code},
+        ).scalar()
+        map_params = {
+            "country_code": country_code,
+            "currency_code": currency_code,
+            "display_locale": locale,
+            "usd_display_rate": usd_display_rate,
+        }
+        if existing_map_id:
+            _execute(
+                connection,
+                """
+                UPDATE country_currency_map
+                SET currency_code = :currency_code,
+                    display_locale = :display_locale,
+                    usd_display_rate = :usd_display_rate,
+                    is_active = TRUE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :row_id
+                """,
+                {**map_params, "row_id": existing_map_id},
+            )
+        else:
+            _execute(
+                connection,
+                """
+                INSERT INTO country_currency_map (
+                    country_code, currency_code, display_locale, usd_display_rate,
+                    is_active, created_at, updated_at
+                ) VALUES (
+                    :country_code, :currency_code, :display_locale, :usd_display_rate,
+                    TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """,
+                map_params,
+            )
+
+
+def _paddle_payment_collection(engine, connection):
+    datetime_type = _datetime_type(engine)
+
+    _add_column_if_missing(
+        connection,
+        connection,
+        "subscription_plan_prices",
+        "provider_price_id",
+        "provider_price_id VARCHAR(120)",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_plan_prices",
+        "ix_subscription_plan_prices_provider_price_id",
+        "provider_price_id",
+    )
+
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "payment_status",
+        "payment_status VARCHAR(30) NOT NULL DEFAULT 'pending'",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "payment_confirmed_at",
+        f"payment_confirmed_at {datetime_type}",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "payment_failed_at",
+        f"payment_failed_at {datetime_type}",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "last_payment_attempt_id",
+        "last_payment_attempt_id INTEGER",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "ix_pending_organizations_payment_status",
+        "payment_status",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "ix_pending_organizations_last_payment_attempt_id",
+        "last_payment_attempt_id",
+    )
+    if _table_exists(connection, "pending_organizations"):
+        _execute(
+            connection,
+            """
+            UPDATE pending_organizations
+            SET payment_status = 'pending'
+            WHERE payment_status IS NULL OR TRIM(payment_status) = ''
+            """,
+        )
+
+    _add_column_if_missing(
+        connection,
+        connection,
+        "checkout_sessions",
+        "checkout_url",
+        "checkout_url TEXT",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "checkout_sessions",
+        "provider_price_id",
+        "provider_price_id VARCHAR(120)",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "checkout_sessions",
+        "last_payment_attempt_id",
+        "last_payment_attempt_id INTEGER",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "checkout_sessions",
+        "ix_checkout_sessions_last_payment_attempt_id",
+        "last_payment_attempt_id",
+    )
+
+    _add_column_if_missing(
+        connection,
+        connection,
+        "subscription_contracts",
+        "payment_status",
+        "payment_status VARCHAR(30) NOT NULL DEFAULT 'pending'",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "subscription_contracts",
+        "paid_at",
+        f"paid_at {datetime_type}",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "subscription_contracts",
+        "payment_provider",
+        "payment_provider VARCHAR(30)",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "subscription_contracts",
+        "ix_subscription_contracts_payment_status",
+        "payment_status",
+    )
+    if _table_exists(connection, "subscription_contracts"):
+        _execute(
+            connection,
+            """
+            UPDATE subscription_contracts
+            SET payment_status = 'pending'
+            WHERE payment_status IS NULL OR TRIM(payment_status) = ''
+            """,
+        )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS payment_customers (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER,
+            saas_account_id INTEGER NOT NULL,
+            provider VARCHAR(30) NOT NULL DEFAULT 'paddle',
+            provider_customer_id VARCHAR(120) NOT NULL,
+            email VARCHAR(180),
+            name VARCHAR(180),
+            country_code VARCHAR(2),
+            status VARCHAR(30) NOT NULL DEFAULT 'active',
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "payment_customers",
+        "uq_payment_customers_provider_customer_id",
+        "provider_customer_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "payment_customers",
+        "ix_payment_customers_pending_org",
+        "pending_organization_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "payment_customers",
+        "ix_payment_customers_saas_account",
+        "saas_account_id",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS payment_attempts (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            checkout_session_id INTEGER NOT NULL,
+            plan_selection_id INTEGER NOT NULL,
+            payment_customer_id INTEGER,
+            provider VARCHAR(30) NOT NULL DEFAULT 'paddle',
+            attempt_uuid VARCHAR(36) NOT NULL,
+            provider_checkout_id VARCHAR(120),
+            provider_transaction_id VARCHAR(120),
+            provider_subscription_id VARCHAR(120),
+            status VARCHAR(30) NOT NULL DEFAULT 'checkout_started',
+            currency_code VARCHAR(3),
+            amount_minor INTEGER,
+            billing_interval VARCHAR(20) NOT NULL,
+            started_at {datetime_type},
+            expires_at {datetime_type},
+            completed_at {datetime_type},
+            failed_at {datetime_type},
+            cancelled_at {datetime_type},
+            failure_reason TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (checkout_session_id) REFERENCES checkout_sessions (id),
+            FOREIGN KEY (plan_selection_id) REFERENCES pending_organization_plan_selections (id),
+            FOREIGN KEY (payment_customer_id) REFERENCES payment_customers (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "payment_attempts",
+        "uq_payment_attempts_attempt_uuid",
+        "attempt_uuid",
+    )
+    _create_index_if_missing(connection, connection, "payment_attempts", "ix_payment_attempts_pending_org", "pending_organization_id")
+    _create_index_if_missing(connection, connection, "payment_attempts", "ix_payment_attempts_checkout_session", "checkout_session_id")
+    _create_index_if_missing(connection, connection, "payment_attempts", "ix_payment_attempts_status", "status")
+    _create_index_if_missing(connection, connection, "payment_attempts", "ix_payment_attempts_provider_transaction_id", "provider_transaction_id")
+    _create_index_if_missing(connection, connection, "payment_attempts", "ix_payment_attempts_provider_subscription_id", "provider_subscription_id")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS payment_subscriptions (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            subscription_contract_id INTEGER NOT NULL,
+            payment_customer_id INTEGER,
+            provider VARCHAR(30) NOT NULL DEFAULT 'paddle',
+            provider_subscription_id VARCHAR(120) NOT NULL,
+            provider_price_id VARCHAR(120),
+            plan_id INTEGER NOT NULL,
+            billing_interval VARCHAR(20) NOT NULL,
+            status VARCHAR(30) NOT NULL DEFAULT 'pending',
+            current_period_start {datetime_type},
+            current_period_end {datetime_type},
+            next_billed_at {datetime_type},
+            cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
+            cancelled_at {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (subscription_contract_id) REFERENCES subscription_contracts (id),
+            FOREIGN KEY (payment_customer_id) REFERENCES payment_customers (id),
+            FOREIGN KEY (plan_id) REFERENCES subscription_plans (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "payment_subscriptions",
+        "uq_payment_subscriptions_provider_subscription_id",
+        "provider_subscription_id",
+    )
+    _create_index_if_missing(connection, connection, "payment_subscriptions", "ix_payment_subscriptions_pending_org", "pending_organization_id")
+    _create_index_if_missing(connection, connection, "payment_subscriptions", "ix_payment_subscriptions_contract", "subscription_contract_id")
+    _create_index_if_missing(connection, connection, "payment_subscriptions", "ix_payment_subscriptions_status", "status")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS payment_webhooks (
+            id INTEGER PRIMARY KEY,
+            provider VARCHAR(30) NOT NULL DEFAULT 'paddle',
+            provider_event_id VARCHAR(120),
+            event_type VARCHAR(80),
+            signature_valid BOOLEAN NOT NULL DEFAULT FALSE,
+            delivery_attempt INTEGER NOT NULL DEFAULT 1,
+            payload_hash VARCHAR(128),
+            headers_json TEXT,
+            payload_json TEXT,
+            received_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            processed_at {datetime_type},
+            processing_status VARCHAR(30) NOT NULL DEFAULT 'pending',
+            processing_error TEXT
+        )
+        """,
+    )
+    if not _index_exists(connection, "payment_webhooks", "uq_payment_webhooks_provider_event_id"):
+        _execute(
+            connection,
+            """
+            CREATE UNIQUE INDEX uq_payment_webhooks_provider_event_id
+            ON payment_webhooks (provider_event_id)
+            WHERE provider_event_id IS NOT NULL
+            """,
+        )
+    _create_index_if_missing(connection, connection, "payment_webhooks", "ix_payment_webhooks_event_type", "event_type")
+    _create_index_if_missing(connection, connection, "payment_webhooks", "ix_payment_webhooks_processing_status", "processing_status")
+    _create_index_if_missing(connection, connection, "payment_webhooks", "ix_payment_webhooks_received_at", "received_at")
+
+
+def _phase5_provisioning_engine(engine, connection):
+    datetime_type = _datetime_type(engine)
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS tenant_profiles (
+            id INTEGER PRIMARY KEY,
+            school_group_id INTEGER NOT NULL,
+            website VARCHAR(180),
+            timezone VARCHAR(80),
+            educational_program VARCHAR(20),
+            school_type VARCHAR(120),
+            estimated_staff_users INTEGER,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (school_group_id) REFERENCES school_groups (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "tenant_profiles",
+        "uq_tenant_profiles_school_group",
+        "school_group_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "tenant_profiles",
+        "ix_tenant_profiles_school_group",
+        "school_group_id",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS tenant_provisioning_links (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            subscription_contract_id INTEGER NOT NULL,
+            school_group_id INTEGER NOT NULL,
+            owner_operational_user_id INTEGER NOT NULL,
+            primary_branch_id INTEGER,
+            primary_academic_year_id INTEGER,
+            tenant_status VARCHAR(30) NOT NULL DEFAULT 'tenant_active',
+            activated_at {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (subscription_contract_id) REFERENCES subscription_contracts (id),
+            FOREIGN KEY (school_group_id) REFERENCES school_groups (id),
+            FOREIGN KEY (owner_operational_user_id) REFERENCES users (id),
+            FOREIGN KEY (primary_branch_id) REFERENCES branches (id),
+            FOREIGN KEY (primary_academic_year_id) REFERENCES academic_years (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "tenant_provisioning_links",
+        "uq_tenant_provisioning_links_pending_org",
+        "pending_organization_id",
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "tenant_provisioning_links",
+        "uq_tenant_provisioning_links_contract",
+        "subscription_contract_id",
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "tenant_provisioning_links",
+        "uq_tenant_provisioning_links_school_group",
+        "school_group_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "tenant_provisioning_links",
+        "ix_tenant_provisioning_links_status",
+        "tenant_status",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_account_user_links (
+            id INTEGER PRIMARY KEY,
+            saas_account_id INTEGER NOT NULL,
+            operational_user_id INTEGER NOT NULL,
+            pending_organization_id INTEGER,
+            school_group_id INTEGER NOT NULL,
+            link_type VARCHAR(30) NOT NULL DEFAULT 'tenant_owner',
+            linked_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (saas_account_id) REFERENCES saas_accounts (id),
+            FOREIGN KEY (operational_user_id) REFERENCES users (id),
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (school_group_id) REFERENCES school_groups (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "saas_account_user_links",
+        "uq_saas_account_user_links_account_user_group",
+        "saas_account_id, operational_user_id, school_group_id",
+    )
+    _create_index_if_missing(connection, connection, "saas_account_user_links", "ix_saas_account_user_links_account", "saas_account_id")
+    _create_index_if_missing(connection, connection, "saas_account_user_links", "ix_saas_account_user_links_user", "operational_user_id")
+    _create_index_if_missing(connection, connection, "saas_account_user_links", "ix_saas_account_user_links_school_group", "school_group_id")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS provisioning_jobs (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            subscription_contract_id INTEGER NOT NULL,
+            job_uuid VARCHAR(36) NOT NULL,
+            idempotency_key VARCHAR(160) NOT NULL,
+            job_type VARCHAR(40) NOT NULL DEFAULT 'tenant_provisioning',
+            trigger_source VARCHAR(40) NOT NULL DEFAULT 'payment_webhook',
+            job_status VARCHAR(30) NOT NULL DEFAULT 'queued',
+            target_school_group_id INTEGER,
+            tenant_provisioning_link_id INTEGER,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            max_attempts INTEGER NOT NULL DEFAULT 3,
+            next_attempt_at {datetime_type},
+            started_at {datetime_type},
+            completed_at {datetime_type},
+            failed_at {datetime_type},
+            last_error TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (subscription_contract_id) REFERENCES subscription_contracts (id),
+            FOREIGN KEY (target_school_group_id) REFERENCES school_groups (id),
+            FOREIGN KEY (tenant_provisioning_link_id) REFERENCES tenant_provisioning_links (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(connection, connection, "provisioning_jobs", "uq_provisioning_jobs_job_uuid", "job_uuid")
+    _create_unique_index_if_missing(connection, connection, "provisioning_jobs", "uq_provisioning_jobs_idempotency_key", "idempotency_key")
+    _create_index_if_missing(connection, connection, "provisioning_jobs", "ix_provisioning_jobs_pending_org", "pending_organization_id")
+    _create_index_if_missing(connection, connection, "provisioning_jobs", "ix_provisioning_jobs_status", "job_status")
+    _create_index_if_missing(connection, connection, "provisioning_jobs", "ix_provisioning_jobs_next_attempt_at", "next_attempt_at")
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS provisioning_job_events (
+            id INTEGER PRIMARY KEY,
+            provisioning_job_id INTEGER NOT NULL,
+            event_type VARCHAR(40) NOT NULL,
+            event_status VARCHAR(20) NOT NULL DEFAULT 'ok',
+            details_json TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (provisioning_job_id) REFERENCES provisioning_jobs (id)
+        )
+        """,
+    )
+    _create_index_if_missing(connection, connection, "provisioning_job_events", "ix_provisioning_job_events_job", "provisioning_job_id")
+    _create_index_if_missing(connection, connection, "provisioning_job_events", "ix_provisioning_job_events_type", "event_type")
+    _create_index_if_missing(connection, connection, "provisioning_job_events", "ix_provisioning_job_events_created_at", "created_at")
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -1228,6 +2724,31 @@ MIGRATIONS = (
         migration_id="20260622_001_identity_foundation",
         description="Add canonical email identity fields and login audit timestamps",
         apply=_identity_foundation,
+    ),
+    Migration(
+        migration_id="20260623_001_saas_identity_foundation",
+        description="Create SaaS identity, sessions, verification, and domain policy tables",
+        apply=_saas_identity_foundation,
+    ),
+    Migration(
+        migration_id="20260623_002_pending_organizations_zone",
+        description="Create pending organizations onboarding zone tables",
+        apply=_pending_organizations_zone,
+    ),
+    Migration(
+        migration_id="20260623_003_plans_pricing_billing_foundation",
+        description="Create SaaS plans, pricing, currency, and checkout foundation tables",
+        apply=_plans_pricing_billing_foundation,
+    ),
+    Migration(
+        migration_id="20260623_004_paddle_payment_collection",
+        description="Add Paddle customer, attempt, subscription, and webhook payment collection tables",
+        apply=_paddle_payment_collection,
+    ),
+    Migration(
+        migration_id="20260623_005_phase5_provisioning_engine",
+        description="Add provisioning jobs, links, and tenant profile storage for tenant activation",
+        apply=_phase5_provisioning_engine,
     ),
 )
 

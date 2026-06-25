@@ -1,0 +1,22 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Academic Setup</h1>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<p class="muted">Step 3 of 5. Capture the first academic year to provision later.</p>
+<div class="notice">Progress: {{ progress.completion_percent }}%</div>
+<form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/academic_setup">
+    <label for="first_academic_year_name">First academic year</label>
+    <input id="first_academic_year_name" name="first_academic_year_name" value="{{ academic_setup.first_academic_year_name or '' }}" placeholder="2026-2027" required>
+    <label>
+        <input type="checkbox" name="create_default_branch" value="1" {% if academic_setup.create_default_branch %}checked{% endif %}>
+        Use a single default branch if the organization launches with one campus
+    </label>
+    <label for="notes">Implementation notes</label>
+    <input id="notes" name="notes" value="{{ academic_setup.notes or '' }}">
+    <div class="actions">
+        <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/branches">Back</a>
+        <button class="btn" type="submit" name="save_action" value="continue">Save and continue</button>
+        <button class="btn secondary" type="submit" name="save_action" value="save_exit">Save draft</button>
+    </div>
+</form>
+{% endblock %}

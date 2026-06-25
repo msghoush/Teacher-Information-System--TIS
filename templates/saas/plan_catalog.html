@@ -1,0 +1,18 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>TIS SaaS Plans</h1>
+<p class="muted">Pricing is database-driven and displayed in the resolved local currency for review only.</p>
+<div class="grid two">
+    {% for plan_view in plan_catalog %}
+    <div class="stat">
+        <strong>{{ plan_view.plan.plan_name }}</strong>
+        {% if plan_view.plan.is_most_popular %}<p><span class="notice">Most Popular</span></p>{% endif %}
+        <p>{{ plan_view.monthly.display_formatted }}/month</p>
+        <p>{{ plan_view.annual.display_formatted }}/year</p>
+        {% if plan_view.annual.annual_savings_percent %}
+        <p class="muted">Annual savings: {{ plan_view.annual.annual_savings_percent }}%</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
