@@ -82,7 +82,8 @@ Current priority is the TIS Knowledge Management System:
 - Change history preserves chronological change context.
 - ADRs preserve major decisions.
 - Module history preserves deeper area-specific evolution.
-- Future app-facing Knowledge Center is not implemented yet.
+- Platform Owner Knowledge Center is implemented as a read-only owner utility.
+- The Knowledge Center uses protected routes for PDF view/download and does not link directly to static PDF paths.
 
 ## Critical Rules
 
@@ -93,7 +94,7 @@ Current priority is the TIS Knowledge Management System:
 - Do not bypass permissions or platform owner checks.
 - Do not merge platform user, SaaS account, and tenant user concepts.
 - Do not change landing page implementation unless explicitly approved.
-- Do not add Platform Owner Knowledge Center routes until Phase 2C is approved.
+- Do not add a KMS regenerate button until explicitly approved.
 - Do not push or commit unless explicitly requested.
 
 ## KMS Policy
@@ -135,4 +136,4 @@ The public landing implementation is in `tis-landing-website/`. Marketing docs l
 
 ## Next Planned Work
 
-After Phase 2A and 2B review, the likely next phase is Phase 2C: a protected Platform Owner Knowledge Center that displays documentation status and exposes view/download routes for the generated PDF. It should not silently rewrite Markdown source docs.
+After Phase 2C review, a possible future enhancement is an explicit owner-only regenerate action. It should rebuild the PDF from reviewed Markdown source files only and must not silently rewrite Markdown source docs.

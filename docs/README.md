@@ -53,6 +53,7 @@ Current module history areas:
 - `docs/history/workforce-planning/`
 - `docs/history/saas-onboarding/`
 - `docs/history/provisioning/`
+- `docs/history/platform-knowledge/`
 
 ## Supporting Documents
 
@@ -100,4 +101,4 @@ A task is not complete until KIA is assessed. If included source docs change, re
 
 Phase 2A and Phase 2B establish KMS governance, ADRs, module history, AI context, and PDF/manifest generation.
 
-The Platform Owner Knowledge Center is not implemented yet. Do not add app routes, protected PDF routes, platform navigation, or route permission changes until Phase 2C is explicitly approved.
+The Platform Owner Knowledge Center is implemented as a read-only owner utility. Do not add a regenerate button or app-side Markdown rewriting unless explicitly approved.

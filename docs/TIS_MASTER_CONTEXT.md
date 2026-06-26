@@ -306,6 +306,14 @@ Generated KMS artifacts:
 - `static/docs/TIS_Project_Reference_Booklet.pdf`
 - `static/docs/docs_manifest.json`
 
+Owner-only app access:
+
+- `/platform/knowledge`: read-only Platform Owner Knowledge Center.
+- `/platform/knowledge/booklet`: protected inline PDF view.
+- `/platform/knowledge/booklet/download`: protected PDF download.
+
+The Knowledge Center is protected by the existing Platform Owner access pattern. It is not public, not a landing page, and does not regenerate or rewrite source docs.
+
 ## Development Workflow
 
 Default workflow for approved implementation tasks:
@@ -362,8 +370,8 @@ The generated booklet output is:
 - Do not bypass route permissions or platform owner checks.
 - Do not merge platform user, SaaS account, and tenant user concepts.
 - Do not change the landing page design or legacy landing files unless explicitly approved.
-- Do not modify `main.py`, `ui_shell.py`, or `authorization.py` for KMS Phase 2A/2B work.
-- Do not create platform documentation routes until Phase 2C is approved.
+- Do not add KMS regenerate behavior unless explicitly approved.
+- Do not expose the KMS PDF through direct public static links in the app UI.
 - Do not push or commit unless explicitly requested.
 - Prefer conservative, dependency-light automation.
 - Use `reportlab` for the documentation PDF generator.

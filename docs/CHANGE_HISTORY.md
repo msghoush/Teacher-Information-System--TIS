@@ -27,6 +27,48 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-06-26 - Added Platform Owner Knowledge Center
+
+Area/module:
+Platform Knowledge Center and KMS access
+
+Previous state:
+TIS had KMS source docs, ADRs, module history, a generated PDF booklet, and a manifest, but no protected in-app owner page for KMS status or booklet access.
+
+New state:
+TIS now has a read-only Platform Owner Knowledge Center with KMS health score, manifest metadata, freshness detection, source document status, coverage checks, latest change-history entries, ADR list, module history areas, KIA checklist, and protected PDF view/download routes.
+
+Reason:
+Platform owners need an internal utility for verifying KMS health and accessing the generated PDF without exposing direct public static links.
+
+Files changed:
+- `knowledge_service.py`
+- `main.py`
+- `templates/platform_knowledge_center.html`
+- `templates/platform_console.html`
+- `scripts/generate_docs_pdf.py`
+- `docs/TIS_MASTER_CONTEXT.md`
+- `docs/PROJECT_STATE.md`
+- `docs/README.md`
+- `docs/CHANGE_HISTORY.md`
+- `docs/AI_PROJECT_CONTEXT.md`
+- `docs/history/platform-knowledge/README.md`
+- `docs/history/platform-knowledge/2026-06-26-platform-owner-knowledge-center.md`
+- `static/docs/TIS_Project_Reference_Booklet.pdf`
+- `static/docs/docs_manifest.json`
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+Approved for Phase 2C only. Regenerate button, SaaS changes, database changes, migrations, landing page changes, commits, and pushes remain out of scope.
+
 ## 2026-06-26 - Established Knowledge Management System Foundation
 
 Area/module:

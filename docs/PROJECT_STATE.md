@@ -84,11 +84,20 @@ Phase 2A and Phase 2B scope:
 - Update PDF generator to include KMS docs and manifest metadata.
 - Regenerate `static/docs/TIS_Project_Reference_Booklet.pdf`.
 
-Out of scope for this phase:
+Phase 2C completed scope:
 
-- Platform Owner Knowledge Center.
-- App routes.
-- `main.py`, `ui_shell.py`, `authorization.py`.
+- Added read-only `knowledge_service.py` as the single KMS app access layer.
+- Added owner-protected `/platform/knowledge` page.
+- Added owner-protected PDF view/download routes.
+- Added an owner-only Platform Console card.
+- Added platform knowledge module history.
+- Regenerated the PDF and manifest after documentation updates.
+
+Still out of scope:
+
+- Regenerate button.
+- Additional app routes beyond the approved read-only Knowledge Center routes.
+- `ui_shell.py` and `authorization.py` changes unless separately approved.
 - SaaS flows.
 - Operational logic.
 - Database, migrations, or `tis.db`.
@@ -100,19 +109,18 @@ Known issues and watch points:
 
 - KMS policy depends on future developers and AI agents consistently completing the Knowledge Impact Assessment.
 - Generated PDF can become stale if included Markdown docs change without regeneration.
-- The owner-only Knowledge Center is not implemented yet.
+- The owner-only Knowledge Center is implemented as read-only; there is no regenerate button yet.
 - Public static storage is not sufficient access control for sensitive docs; Phase 2C should serve docs through protected owner-only routes.
 - Render deployment constraints should continue to guide dependency choices.
 - Broad filesystem scans may warn about `tis_scope_test_5i3yf0h5/` access denial.
 
 ## Next Planned Work
 
-Next planned work after Phase 2A and Phase 2B review:
+Next planned work after Phase 2C review:
 
-- Review KMS docs, ADRs, module history, AI context, PDF, and manifest.
+- Review Knowledge Center behavior, access control, KMS freshness display, PDF routes, docs, PDF, and manifest.
 - Approve corrections if needed.
-- Plan Phase 2C protected Platform Owner Knowledge Center.
-- Later add owner-only status page, view/download routes, stale detection UI, source list, and optional explicit regeneration workflow.
+- Later consider an explicit owner-only regenerate workflow.
 
 ## Landing Page Baseline Situation
 
@@ -163,4 +171,5 @@ A task is not complete until KIA is assessed. If included docs change, regenerat
 - Do not touch database migrations or `tis.db` unless explicitly approved.
 - Do not change the landing page unless explicitly approved.
 - Do not add Platform Owner Knowledge Center routes until reviewed and approved.
+- Do not add a KMS regenerate button until separately approved.
 - Do not commit or push unless explicitly requested.

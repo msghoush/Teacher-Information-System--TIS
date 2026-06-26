@@ -41,16 +41,7 @@ CORE_SOURCE_DOCS = [
 
 ADR_DOCS = sorted((ROOT / "docs" / "adr").glob("*.md"))
 
-HISTORY_DOCS = [
-    ROOT / "docs" / "history" / "README.md",
-    ROOT / "docs" / "history" / "subscriptions" / "README.md",
-    ROOT / "docs" / "history" / "landing-page" / "README.md",
-    ROOT / "docs" / "history" / "academic-calendar" / "README.md",
-    ROOT / "docs" / "history" / "workforce-planning" / "README.md",
-    ROOT / "docs" / "history" / "saas-onboarding" / "README.md",
-    ROOT / "docs" / "history" / "provisioning" / "README.md",
-    ROOT / "docs" / "history" / "provisioning" / "2026-06-26-kms-foundation.md",
-]
+HISTORY_DOCS = sorted((ROOT / "docs" / "history").glob("**/*.md"))
 
 SUPPORTING_DOCS = [
     ROOT / "docs" / "marketing" / "landing_page_source_of_truth.md",
