@@ -63,6 +63,10 @@ For deeper onboarding, read:
 - `docs/engineering/TIS_MODULE_MAP.md`
 - `docs/engineering/REPOSITORY_ARCHITECTURE.md`
 - `docs/engineering/USER_AND_SYSTEM_FLOWS.md`
+- `docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md`
+- `docs/engineering/DEVELOPMENT_STANDARDS.md`
+- `docs/engineering/UI_UX_DESIGN_PHILOSOPHY.md`
+- `docs/engineering/PRODUCT_ROADMAP.md`
 
 These files explain module ownership, repository boundaries, end-to-end flows, and what must not be changed casually.
 
@@ -96,6 +100,7 @@ Current priority is the TIS Knowledge Management System:
 - Platform Owner Knowledge Center is implemented as a read-only owner utility.
 - The Knowledge Center uses protected routes for PDF view/download and does not link directly to static PDF paths.
 - KMS v3.0 Phase 3A adds a true engineering handbook with module map, repository architecture, workflows, and developer onboarding.
+- KMS v3.0 Phase 3B adds database architecture, development standards, UI/UX philosophy, product roadmap, and stronger human/AI developer guidance.
 
 ## Critical Rules
 
@@ -135,13 +140,14 @@ If included docs change, regenerate:
 1. Read this file first.
 2. Read `docs/TIS_MASTER_CONTEXT.md` and `docs/PROJECT_STATE.md`.
 3. Read `docs/engineering/README.md`.
-4. Read relevant engineering docs, ADRs, module history, and supporting docs.
-5. Inspect code before editing.
-6. Keep changes scoped.
-7. Update KMS docs when meaningful behavior, architecture, product state, module map, repository ownership, or workflow changes.
-8. Regenerate PDF if included source docs changed.
-9. Run validation.
-10. Report KIA in final response.
+4. Read `docs/engineering/DEVELOPMENT_STANDARDS.md`.
+5. Read relevant engineering docs, ADRs, module history, and supporting docs.
+6. Inspect code before editing.
+7. Keep changes scoped.
+8. Update KMS docs when meaningful behavior, architecture, product state, module map, repository ownership, data model, design philosophy, roadmap, or workflow changes.
+9. Regenerate PDF if included source docs changed.
+10. Run validation.
+11. Report KIA in final response.
 
 ## Landing Page Situation
 

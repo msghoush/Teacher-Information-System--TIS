@@ -27,6 +27,10 @@ Recommended onboarding order:
 - `TIS_MODULE_MAP.md`: product and system module map with purpose, files, maturity, docs, risks, and guardrails.
 - `REPOSITORY_ARCHITECTURE.md`: repository structure and responsibilities.
 - `USER_AND_SYSTEM_FLOWS.md`: end-to-end public, SaaS, payment, provisioning, operational, platform owner, and KMS flows.
+- `DATABASE_ARCHITECTURE_OVERVIEW.md`: high-level data model relationships and isolation boundaries.
+- `DEVELOPMENT_STANDARDS.md`: non-negotiable engineering rules for humans and AI assistants.
+- `UI_UX_DESIGN_PHILOSOPHY.md`: design principles for operational app, platform owner tools, SaaS onboarding, Knowledge Center, and landing website.
+- `PRODUCT_ROADMAP.md`: completed, current, next, and future roadmap.
 
 ## Before Coding
 

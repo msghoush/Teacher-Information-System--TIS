@@ -47,6 +47,10 @@ If the task touches the public website, also read:
 - `docs/engineering/TIS_MODULE_MAP.md`: complete module map with purpose, files, maturity, docs, risks, and guardrails.
 - `docs/engineering/REPOSITORY_ARCHITECTURE.md`: repository structure and ownership boundaries.
 - `docs/engineering/USER_AND_SYSTEM_FLOWS.md`: public customer, SaaS identity, payment, provisioning, operational login, platform owner, KMS, and developer onboarding flows.
+- `docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md`: conceptual data model and tenant/identity isolation rules.
+- `docs/engineering/DEVELOPMENT_STANDARDS.md`: non-negotiable engineering rules.
+- `docs/engineering/UI_UX_DESIGN_PHILOSOPHY.md`: UI/UX principles by product surface.
+- `docs/engineering/PRODUCT_ROADMAP.md`: completed, current, next, and future roadmap.
 
 ## Decision And History Documents
 
@@ -110,4 +114,4 @@ A task is not complete until KIA is assessed. If included source docs change, re
 
 Phase 2A and Phase 2B establish KMS governance, ADRs, module history, AI context, and PDF/manifest generation.
 
-KMS v3.0 Phase 3A adds the engineering handbook layer. The Platform Owner Knowledge Center is implemented as a read-only owner utility. Do not add a regenerate button or app-side Markdown rewriting unless explicitly approved.
+KMS v3.0 Phase 3B expands the engineering handbook with database architecture, development standards, UI/UX philosophy, roadmap, and stronger onboarding guidance. The Platform Owner Knowledge Center is implemented as a read-only owner utility. Do not add a regenerate button or app-side Markdown rewriting unless explicitly approved.

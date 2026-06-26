@@ -320,6 +320,10 @@ Engineering handbook:
 - `docs/engineering/TIS_MODULE_MAP.md` maps product/system modules and guardrails.
 - `docs/engineering/REPOSITORY_ARCHITECTURE.md` explains repository ownership and risky files.
 - `docs/engineering/USER_AND_SYSTEM_FLOWS.md` documents end-to-end customer, SaaS, payment, provisioning, operational, platform owner, KMS, and developer flows.
+- `docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md` explains data areas, ownership boundaries, and tenant isolation rules.
+- `docs/engineering/DEVELOPMENT_STANDARDS.md` defines non-negotiable engineering rules.
+- `docs/engineering/UI_UX_DESIGN_PHILOSOPHY.md` defines design direction for operational, platform, SaaS, Knowledge Center, and landing surfaces.
+- `docs/engineering/PRODUCT_ROADMAP.md` records completed, current, next, and future roadmap.
 
 ## Development Workflow
 

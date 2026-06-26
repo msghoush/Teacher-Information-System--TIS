@@ -27,6 +27,47 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-06-26 - Added KMS v3.0 Phase 3B Engineering Layers
+
+Area/module:
+Knowledge Management System and engineering handbook
+
+Previous state:
+KMS v3.0 Phase 3A added module map, repository architecture, user/system flows, and onboarding structure. The handbook still needed database architecture, development standards, UI/UX philosophy, roadmap, and stronger human/AI guidance.
+
+New state:
+TIS now has Phase 3B engineering docs for database architecture, development standards, UI/UX design philosophy, and product roadmap. Core KMS docs and AI onboarding guidance reference these layers, and the PDF generator includes them.
+
+Reason:
+Make the generated booklet more useful for new senior developers, Codex conversations, ChatGPT conversations, and future technical reviewers.
+
+Files changed:
+- `docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md`
+- `docs/engineering/DEVELOPMENT_STANDARDS.md`
+- `docs/engineering/UI_UX_DESIGN_PHILOSOPHY.md`
+- `docs/engineering/PRODUCT_ROADMAP.md`
+- `docs/engineering/README.md`
+- `docs/TIS_MASTER_CONTEXT.md`
+- `docs/AI_PROJECT_CONTEXT.md`
+- `docs/PROJECT_STATE.md`
+- `docs/README.md`
+- `docs/CHANGE_HISTORY.md`
+- `scripts/generate_docs_pdf.py`
+- `static/docs/TIS_Project_Reference_Booklet.pdf`
+- `static/docs/docs_manifest.json`
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+Approved for KMS v3.0 Phase 3B only. App behavior, SaaS flows, landing page code, database, migrations, routes, commits, and pushes remain out of scope.
+
 ## 2026-06-26 - Added KMS v3.0 Engineering Handbook
 
 Area/module:
