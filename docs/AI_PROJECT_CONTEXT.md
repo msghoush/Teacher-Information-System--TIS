@@ -1,0 +1,138 @@
+---
+title: TIS AI Project Context
+documentation_version: 2.0
+last_updated: 2026-06-26
+recommended_first_read: true
+---
+
+# TIS AI Project Context
+
+This is the first file future Codex or ChatGPT coding conversations should load. It is a compact project onboarding reference; detailed source of truth remains in the other Markdown docs.
+
+## What TIS Is
+
+TIS is Teacher Information System, a developing SaaS academic operations platform for schools and school groups. It connects teacher information, staffing and workload planning, academic calendars, observations, branch context, SaaS onboarding, billing, provisioning, and future AI-assisted academic decision support.
+
+Public URLs:
+
+- Public website: `https://tisplatform.com`
+- Application portal: `https://app.tisplatform.com`
+
+Important routes:
+
+- Operational login: `/login`
+- SaaS signup: `/saas/signup`
+- SaaS login: `/saas/login`
+- SaaS account: `/saas/account`
+- Platform console: `/platform`
+
+## Current Architecture
+
+The operational app is a FastAPI application at the repository root.
+
+Key files and folders:
+
+- `main.py`: primary FastAPI app and many route handlers.
+- `auth.py`: authentication, roles, platform identity helpers, permissions, sessions.
+- `authorization.py`: protected route rules and access-denied handling.
+- `permission_registry.py`: permission keys, groups, defaults, and developer-assignable permissions.
+- `ui_shell.py`: shared app shell/navigation/page metadata.
+- `models.py`, `database.py`, `db_migrations.py`: data model, DB setup, local schema repair/migration logic.
+- `routers/`: modular operational routes.
+- `saas/`: SaaS account, onboarding, payment, billing, and provisioning services/routes.
+- `templates/`: Jinja templates.
+- `static/`: static assets and generated documentation output.
+- `tests/`: pytest coverage.
+
+The public marketing website is separate:
+
+- `tis-landing-website/`
+- Next.js / Node runtime
+- Source of truth for public landing implementation
+
+Legacy FastAPI landing files are not the source of truth:
+
+- `templates/landing.html`
+- `static/landing/landing.css`
+
+## Domains And Routing
+
+The public website lives at `https://tisplatform.com`. The app portal lives at `https://app.tisplatform.com`.
+
+SaaS account routes are under `/saas`. Platform-owner SaaS administration routes are under `/saas-admin`. Operational tenant workflows use routes such as `/dashboard`, `/teachers`, `/subjects`, `/planning`, `/timetable`, `/academic-calendar`, and `/observations`.
+
+## Completed M1-M5 Milestones
+
+M1: SaaS identity foundation and separation between platform, tenant, and SaaS account identities.
+
+M2: SaaS onboarding flow for organization, contacts, branches, academic setup, and review.
+
+M3: Billing and plan foundation with plan catalog, checkout, billing status, and payment service boundaries.
+
+M4: Tenant provisioning foundation with pending organizations, provisioning jobs, retry/run actions, and platform owner oversight.
+
+M5: Platform access and owner controls, including platform owner/developer identities, permissions, and platform console behavior.
+
+## Current Priority
+
+Current priority is the TIS Knowledge Management System:
+
+- Markdown is source of truth.
+- PDF is generated snapshot.
+- Change history preserves chronological change context.
+- ADRs preserve major decisions.
+- Module history preserves deeper area-specific evolution.
+- Future app-facing Knowledge Center is not implemented yet.
+
+## Critical Rules
+
+- Do not touch SaaS flows unless explicitly approved.
+- Do not touch operational logic unless required by the approved task.
+- Do not touch database migrations or `tis.db` unless explicitly approved.
+- Do not weaken tenant isolation.
+- Do not bypass permissions or platform owner checks.
+- Do not merge platform user, SaaS account, and tenant user concepts.
+- Do not change landing page implementation unless explicitly approved.
+- Do not add Platform Owner Knowledge Center routes until Phase 2C is approved.
+- Do not push or commit unless explicitly requested.
+
+## KMS Policy
+
+Every implementation must include a Knowledge Impact Assessment:
+
+```md
+Knowledge impact: Yes/No
+Docs updated:
+Change history updated: Yes/No
+ADR needed: Yes/No
+Module history updated: Yes/No
+PDF regenerated: Yes/No
+AI project context updated: Yes/No
+Reason if not updated:
+```
+
+If included docs change, regenerate:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py
+```
+
+## Development Workflow
+
+1. Read this file first.
+2. Read `docs/TIS_MASTER_CONTEXT.md` and `docs/PROJECT_STATE.md`.
+3. Read relevant ADRs, module history, and supporting docs.
+4. Inspect code before editing.
+5. Keep changes scoped.
+6. Update KMS docs when meaningful behavior, architecture, product state, or workflow changes.
+7. Regenerate PDF if included source docs changed.
+8. Run validation.
+9. Report KIA in final response.
+
+## Landing Page Situation
+
+The public landing implementation is in `tis-landing-website/`. Marketing docs live under `docs/marketing/`. Do not modify legacy FastAPI landing files unless explicitly approved.
+
+## Next Planned Work
+
+After Phase 2A and 2B review, the likely next phase is Phase 2C: a protected Platform Owner Knowledge Center that displays documentation status and exposes view/download routes for the generated PDF. It should not silently rewrite Markdown source docs.

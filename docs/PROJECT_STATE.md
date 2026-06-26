@@ -1,10 +1,17 @@
+---
+title: TIS Project State
+documentation_version: 2.0
+last_updated: 2026-06-26
+source_of_truth: true
+---
+
 # TIS Project State
 
 ## Last Updated
 
 Last updated: 2026-06-26
 
-Update this date after every approved implementation that changes project behavior, architecture, documentation, deployment, or roadmap status.
+Update this file after every meaningful milestone, active development change, roadmap shift, known issue change, or documentation/KMS change.
 
 ## Current Branch Strategy
 
@@ -14,13 +21,13 @@ Branch strategy:
 
 - Development work should happen on `dev` unless the owner explicitly requests another branch.
 - Production/live branch is assumed to be separate from active development.
+- Confirm production branch before any deployment, merge, or production-sensitive change.
 - Do not push, merge, or commit unless explicitly requested.
-- Before major implementation work, check the current branch and working tree.
 - Preserve unrelated local changes.
 
 ## Production / Live Branch Assumption
 
-The live production branch is assumed to be the branch deployed to the public app environment, while `dev` is the active development branch. This assumption must be confirmed before any deployment, merge, or production-sensitive change.
+The live production branch is assumed to be the branch deployed to the public app environment, while `dev` is the active development branch. This assumption must be confirmed before deployment.
 
 Production domains:
 
@@ -57,44 +64,55 @@ M5: Platform access and owner controls
 - Platform console and owner/developer management controls exist.
 - Permission registry and platform access tests support this boundary.
 
+Documentation/KMS milestones:
+
+- Phase 1 documentation foundation completed and pushed to `dev`.
+- Phase 2A and Phase 2B KMS foundation approved for implementation.
+
 ## Current Priority
 
-Current priority: establish a permanent documentation source of truth and a reliable generated PDF reference booklet.
+Current priority: upgrade Phase 1 documentation into the TIS Knowledge Management System.
 
-Phase 1 priority:
+Phase 2A and Phase 2B scope:
 
-- Create master project documentation.
-- Create living project state documentation.
-- Create documentation index.
-- Add conservative PDF generation foundation.
-- Generate `static/docs/TIS_Project_Reference_Booklet.pdf`.
+- Create documentation update policy.
+- Create change history.
+- Create ADR foundation and initial accepted ADRs.
+- Create module history foundation.
+- Create AI project context.
+- Update master context, project state, and documentation index.
+- Update PDF generator to include KMS docs and manifest metadata.
+- Regenerate `static/docs/TIS_Project_Reference_Booklet.pdf`.
 
-Phase 2 is not yet approved:
+Out of scope for this phase:
 
-- Do not add the Platform Owner documentation center.
-- Do not add app routes for documentation.
-- Do not modify platform navigation or route permissions for docs yet.
+- Platform Owner Knowledge Center.
+- App routes.
+- `main.py`, `ui_shell.py`, `authorization.py`.
+- SaaS flows.
+- Operational logic.
+- Database, migrations, or `tis.db`.
+- Landing page implementation.
 
 ## Current Known Issues
 
 Known issues and watch points:
 
-- `PROJECT_STATE.md` can become stale unless updated as part of every approved implementation.
-- Generated PDF can become stale unless regenerated after documentation changes.
-- The current documentation center is Phase 1 only; there is not yet a protected in-app owner page for viewing/downloading the booklet.
-- Public static storage is not sufficient access control for sensitive platform documentation; Phase 2 should serve the booklet through protected routes.
+- KMS policy depends on future developers and AI agents consistently completing the Knowledge Impact Assessment.
+- Generated PDF can become stale if included Markdown docs change without regeneration.
+- The owner-only Knowledge Center is not implemented yet.
+- Public static storage is not sufficient access control for sensitive docs; Phase 2C should serve docs through protected owner-only routes.
 - Render deployment constraints should continue to guide dependency choices.
-- The repository contains a directory named `tis_scope_test_5i3yf0h5` that may deny access during broad filesystem scans.
+- Broad filesystem scans may warn about `tis_scope_test_5i3yf0h5/` access denial.
 
 ## Next Planned Work
 
-Next planned work after Phase 1 review:
+Next planned work after Phase 2A and Phase 2B review:
 
-- Review generated documentation and booklet output.
-- Approve, adjust, or expand source documents.
-- Plan Phase 2 protected Platform Owner documentation center.
-- Add owner-only page, PDF view/download routes, version/date display, source list, and optional regeneration status.
-- Add tests for owner-only access before exposing the booklet inside the app.
+- Review KMS docs, ADRs, module history, AI context, PDF, and manifest.
+- Approve corrections if needed.
+- Plan Phase 2C protected Platform Owner Knowledge Center.
+- Later add owner-only status page, view/download routes, stale detection UI, source list, and optional explicit regeneration workflow.
 
 ## Landing Page Baseline Situation
 
@@ -102,10 +120,15 @@ The public landing page source of truth is:
 
 - `tis-landing-website/`
 
-The marketing documentation references are:
+Marketing docs:
 
 - `docs/marketing/landing_page_source_of_truth.md`
 - `docs/marketing/tis_landing_page_master_content.md`
+
+Relevant ADRs:
+
+- `docs/adr/0001-separate-nextjs-landing-website.md`
+- `docs/adr/0007-landing-page-visual-system-strategy.md`
 
 Legacy FastAPI landing files are not the current public website source of truth:
 
@@ -114,18 +137,22 @@ Legacy FastAPI landing files are not the current public website source of truth:
 
 Do not modify landing page design, landing copy, or legacy landing files unless explicitly approved.
 
-## Documentation Update Policy
+## Knowledge Update Policy
 
-Every approved implementation must:
+Every approved implementation must complete the KIA:
 
-1. Check whether documentation is affected.
-2. Update relevant Markdown docs.
-3. Regenerate the PDF booklet if docs changed.
-4. Mention documentation changes in the final report.
+```md
+Knowledge impact: Yes/No
+Docs updated:
+Change history updated: Yes/No
+ADR needed: Yes/No
+Module history updated: Yes/No
+PDF regenerated: Yes/No
+AI project context updated: Yes/No
+Reason if not updated:
+```
 
-A task is not complete until relevant documentation is updated.
-
-Generated booklet path:
+A task is not complete until KIA is assessed. If included docs change, regenerate:
 
 - `static/docs/TIS_Project_Reference_Booklet.pdf`
 
@@ -135,5 +162,5 @@ Generated booklet path:
 - Do not touch operational logic unless required by the approved task.
 - Do not touch database migrations or `tis.db` unless explicitly approved.
 - Do not change the landing page unless explicitly approved.
-- Do not add Phase 2 documentation routes until reviewed and approved.
+- Do not add Platform Owner Knowledge Center routes until reviewed and approved.
 - Do not commit or push unless explicitly requested.

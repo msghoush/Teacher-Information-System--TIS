@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import re
+import subprocess
 import textwrap
 from datetime import datetime
 from html import escape
@@ -22,16 +25,77 @@ from reportlab.platypus import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+DOCUMENTATION_VERSION = "2.0"
 OUTPUT_PATH = ROOT / "static" / "docs" / "TIS_Project_Reference_Booklet.pdf"
+MANIFEST_PATH = ROOT / "static" / "docs" / "docs_manifest.json"
 
-SOURCE_DOCS = [
+CORE_SOURCE_DOCS = [
     ROOT / "docs" / "README.md",
+    ROOT / "docs" / "AI_PROJECT_CONTEXT.md",
+    ROOT / "docs" / "DOCUMENTATION_UPDATE_POLICY.md",
     ROOT / "docs" / "TIS_MASTER_CONTEXT.md",
     ROOT / "docs" / "PROJECT_STATE.md",
+    ROOT / "docs" / "CHANGE_HISTORY.md",
+    ROOT / "docs" / "adr" / "README.md",
+]
+
+ADR_DOCS = sorted((ROOT / "docs" / "adr").glob("*.md"))
+
+HISTORY_DOCS = [
+    ROOT / "docs" / "history" / "README.md",
+    ROOT / "docs" / "history" / "subscriptions" / "README.md",
+    ROOT / "docs" / "history" / "landing-page" / "README.md",
+    ROOT / "docs" / "history" / "academic-calendar" / "README.md",
+    ROOT / "docs" / "history" / "workforce-planning" / "README.md",
+    ROOT / "docs" / "history" / "saas-onboarding" / "README.md",
+    ROOT / "docs" / "history" / "provisioning" / "README.md",
+    ROOT / "docs" / "history" / "provisioning" / "2026-06-26-kms-foundation.md",
+]
+
+SUPPORTING_DOCS = [
     ROOT / "docs" / "marketing" / "landing_page_source_of_truth.md",
     ROOT / "docs" / "marketing" / "tis_landing_page_master_content.md",
     ROOT / "docs" / "location-data-roadmap.md",
 ]
+
+SOURCE_DOCS = []
+for source in [*CORE_SOURCE_DOCS, *ADR_DOCS, *HISTORY_DOCS, *SUPPORTING_DOCS]:
+    if source not in SOURCE_DOCS:
+        SOURCE_DOCS.append(source)
+
+
+def _run_git(args: list[str]) -> str:
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except Exception:
+        return "unknown"
+    value = result.stdout.strip()
+    return value or "unknown"
+
+
+def _source_hash(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 64), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _source_metadata(path: Path) -> dict:
+    stat = path.stat()
+    return {
+        "path": path.relative_to(ROOT).as_posix(),
+        "modified_at": datetime.fromtimestamp(stat.st_mtime).astimezone().isoformat(),
+        "size_bytes": stat.st_size,
+        "sha256": _source_hash(path),
+    }
 
 
 def _clean_text(value: str) -> str:
@@ -59,6 +123,15 @@ def _inline_markup(value: str) -> str:
     return text
 
 
+def _strip_front_matter(text: str) -> str:
+    lines = text.splitlines()
+    if lines and lines[0].strip() == "---":
+        for index in range(1, len(lines)):
+            if lines[index].strip() == "---":
+                return "\n".join(lines[index + 1 :])
+    return text
+
+
 def _styles():
     sample = getSampleStyleSheet()
     return {
@@ -75,10 +148,10 @@ def _styles():
             "BookletSubtitle",
             parent=sample["BodyText"],
             fontName="Helvetica",
-            fontSize=11,
-            leading=15,
+            fontSize=10.5,
+            leading=14.5,
             textColor=colors.HexColor("#475569"),
-            spaceAfter=8,
+            spaceAfter=7,
         ),
         "h1": ParagraphStyle(
             "Heading1",
@@ -114,8 +187,8 @@ def _styles():
             "Body",
             parent=sample["BodyText"],
             fontName="Helvetica",
-            fontSize=9.6,
-            leading=13.4,
+            fontSize=9.4,
+            leading=13.2,
             textColor=colors.HexColor("#111827"),
             spaceAfter=6,
         ),
@@ -123,8 +196,8 @@ def _styles():
             "Bullet",
             parent=sample["BodyText"],
             fontName="Helvetica",
-            fontSize=9.3,
-            leading=12.8,
+            fontSize=9.1,
+            leading=12.6,
             leftIndent=14,
             firstLineIndent=0,
             spaceAfter=3,
@@ -133,8 +206,8 @@ def _styles():
             "Code",
             parent=sample["Code"],
             fontName="Courier",
-            fontSize=7.5,
-            leading=9.5,
+            fontSize=7.4,
+            leading=9.4,
             backColor=colors.HexColor("#F1F5F9"),
             borderColor=colors.HexColor("#CBD5E1"),
             borderWidth=0.25,
@@ -196,7 +269,7 @@ def _markdown_to_flowables(path: Path, styles: dict) -> list:
     code_lines: list[str] = []
     in_code = False
 
-    text = path.read_text(encoding="utf-8")
+    text = _strip_front_matter(path.read_text(encoding="utf-8"))
     for raw_line in text.splitlines():
         line = raw_line.rstrip()
 
@@ -275,10 +348,34 @@ def _footer(canvas, doc) -> None:
     canvas.restoreState()
 
 
+def _write_manifest(
+    *,
+    generated_at_iso: str,
+    branch: str,
+    commit_sha: str,
+    included_docs: list[Path],
+) -> None:
+    manifest = {
+        "pdf_path": OUTPUT_PATH.relative_to(ROOT).as_posix(),
+        "manifest_path": MANIFEST_PATH.relative_to(ROOT).as_posix(),
+        "generated_at": generated_at_iso,
+        "documentation_version": DOCUMENTATION_VERSION,
+        "branch": branch,
+        "commit_sha": commit_sha,
+        "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
+        "included_source_files": [_source_metadata(path) for path in included_docs],
+    }
+    MANIFEST_PATH.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+
 def build_pdf() -> Path:
     styles = _styles()
     included_docs = [path for path in SOURCE_DOCS if path.exists()]
-    generated_at = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
+    generated_at_dt = datetime.now().astimezone()
+    generated_at_display = generated_at_dt.strftime("%Y-%m-%d %H:%M %Z")
+    generated_at_iso = generated_at_dt.isoformat()
+    branch = _run_git(["rev-parse", "--abbrev-ref", "HEAD"])
+    commit_sha = _run_git(["rev-parse", "--short", "HEAD"])
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
@@ -295,8 +392,14 @@ def build_pdf() -> Path:
 
     story: list = [
         Paragraph("TIS Project Reference Booklet", styles["title"]),
-        Paragraph("Permanent documentation reference generated from Markdown source files.", styles["subtitle"]),
-        Paragraph(f"Generated: {escape(generated_at)}", styles["subtitle"]),
+        Paragraph("Documentation version: " + escape(DOCUMENTATION_VERSION), styles["subtitle"]),
+        Paragraph(f"Generated: {escape(generated_at_display)}", styles["subtitle"]),
+        Paragraph(f"Branch: {escape(branch)}", styles["subtitle"]),
+        Paragraph(f"Git commit SHA: {escape(commit_sha)}", styles["subtitle"]),
+        Paragraph(
+            "Source of truth: Markdown files under docs/ are authoritative. This PDF is a generated snapshot and must not be edited manually.",
+            styles["subtitle"],
+        ),
         Spacer(1, 12),
         Paragraph("Source Documents Included", styles["h2"]),
     ]
@@ -314,9 +417,16 @@ def build_pdf() -> Path:
         story.extend(_markdown_to_flowables(source_path, styles))
 
     doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
+    _write_manifest(
+        generated_at_iso=generated_at_iso,
+        branch=branch,
+        commit_sha=commit_sha,
+        included_docs=included_docs,
+    )
     return OUTPUT_PATH
 
 
 if __name__ == "__main__":
     output = build_pdf()
     print(f"Generated {output.relative_to(ROOT).as_posix()}")
+    print(f"Generated {MANIFEST_PATH.relative_to(ROOT).as_posix()}")

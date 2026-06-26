@@ -1,4 +1,15 @@
+---
+title: TIS Master Context
+documentation_version: 2.0
+last_updated: 2026-06-26
+source_of_truth: true
+---
+
 # TIS Master Context
+
+Documentation version: 2.0
+
+Last major context update: 2026-06-26
 
 ## Product Identity
 
@@ -268,6 +279,33 @@ Long-term customer experience:
 - Intelligent recommendations based on verified tenant data.
 - Richer executive visibility across branches and academic years.
 
+## Knowledge Management System
+
+TIS uses a Knowledge Management System (KMS) to preserve source-of-truth documentation, current project state, decision history, module history, and generated snapshots.
+
+KMS source documents:
+
+- `docs/AI_PROJECT_CONTEXT.md`: first-read compact onboarding context for future Codex and ChatGPT conversations.
+- `docs/TIS_MASTER_CONTEXT.md`: durable product, architecture, workflow, roadmap, and critical rules.
+- `docs/PROJECT_STATE.md`: living project state.
+- `docs/DOCUMENTATION_UPDATE_POLICY.md`: mandatory KMS and Knowledge Impact Assessment rules.
+- `docs/CHANGE_HISTORY.md`: chronological summary of meaningful changes.
+- `docs/adr/`: Architecture Decision Records.
+- `docs/history/`: module-specific history.
+
+PDF philosophy:
+
+- Markdown files are the source of truth.
+- The PDF booklet is a generated snapshot.
+- The PDF must never be edited manually.
+- The PDF must be regenerated when included Markdown source docs change.
+- The PDF should later be served through owner-only protected routes.
+
+Generated KMS artifacts:
+
+- `static/docs/TIS_Project_Reference_Booklet.pdf`
+- `static/docs/docs_manifest.json`
+
 ## Development Workflow
 
 Default workflow for approved implementation tasks:
@@ -276,22 +314,40 @@ Default workflow for approved implementation tasks:
 2. Keep changes scoped to the approved task.
 3. Preserve tenant isolation, permission checks, SaaS flows, and landing page boundaries.
 4. Update tests or add focused tests when behavior changes.
-5. Check whether documentation is affected.
+5. Complete the Knowledge Impact Assessment.
 6. Update relevant Markdown docs.
-7. Regenerate the documentation PDF if docs changed.
-8. Run reasonable validation.
-9. Report code changes, docs changes, validation, assumptions, and known issues.
+7. Update change history, ADRs, module history, and AI project context when needed.
+8. Regenerate the documentation PDF if included docs changed.
+9. Run reasonable validation.
+10. Report code changes, docs changes, KIA, validation, assumptions, and known issues.
 
-## Documentation Update Rule
+## Knowledge Impact Assessment Rule
 
 Every approved implementation must:
 
-1. Check whether documentation is affected.
+1. Assess knowledge impact.
 2. Update relevant Markdown docs.
-3. Regenerate the PDF booklet if docs changed.
-4. Mention documentation changes in the final report.
+3. Update `docs/CHANGE_HISTORY.md` for meaningful changes.
+4. Create or update ADRs when major decisions change.
+5. Update module history when a module's documented state changes.
+6. Update `docs/AI_PROJECT_CONTEXT.md` when high-level AI onboarding context changes.
+7. Regenerate the PDF booklet if included docs changed.
+8. Mention KIA details in the final report.
 
-A task is not complete until relevant documentation is updated.
+A task is not complete until the KIA is assessed.
+
+Required final report KIA template:
+
+```md
+Knowledge impact: Yes/No
+Docs updated:
+Change history updated: Yes/No
+ADR needed: Yes/No
+Module history updated: Yes/No
+PDF regenerated: Yes/No
+AI project context updated: Yes/No
+Reason if not updated:
+```
 
 The generated booklet output is:
 
@@ -306,9 +362,10 @@ The generated booklet output is:
 - Do not bypass route permissions or platform owner checks.
 - Do not merge platform user, SaaS account, and tenant user concepts.
 - Do not change the landing page design or legacy landing files unless explicitly approved.
-- Do not modify `main.py`, `ui_shell.py`, or `authorization.py` for documentation Phase 1 work.
-- Do not create platform documentation routes until Phase 2 is approved.
+- Do not modify `main.py`, `ui_shell.py`, or `authorization.py` for KMS Phase 2A/2B work.
+- Do not create platform documentation routes until Phase 2C is approved.
 - Do not push or commit unless explicitly requested.
 - Prefer conservative, dependency-light automation.
 - Use `reportlab` for the documentation PDF generator.
 - Do not require LaTeX, Playwright, Chromium, external network calls, or system font dependencies for PDF generation.
+- Always include a Knowledge Impact Assessment in implementation final reports.
