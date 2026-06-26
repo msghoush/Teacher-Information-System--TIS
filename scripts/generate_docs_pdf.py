@@ -52,6 +52,13 @@ ENGINEERING_DOCS = [
     ROOT / "docs" / "engineering" / "VISUAL_DOCUMENTATION_GUIDE.md",
     ROOT / "docs" / "engineering" / "AI_OPTIMIZATION_GUIDE.md",
     ROOT / "docs" / "engineering" / "PROJECT_GOVERNANCE.md",
+    ROOT / "docs" / "engineering" / "KNOWLEDGE_LIFECYCLE.md",
+    ROOT / "docs" / "engineering" / "DOCUMENTATION_AUTOMATION.md",
+    ROOT / "docs" / "engineering" / "KNOWLEDGE_IMPACT_ASSESSMENT_STANDARD.md",
+    ROOT / "docs" / "engineering" / "SELF_EVOLVING_WORKFLOW.md",
+    ROOT / "docs" / "engineering" / "DOCUMENTATION_DEPENDENCY_MAP.md",
+    ROOT / "docs" / "engineering" / "AI_CODING_WORKFLOW.md",
+    ROOT / "docs" / "engineering" / "FUTURE_AUTOMATION_ROADMAP.md",
 ]
 
 ADR_DOCS = sorted((ROOT / "docs" / "adr").glob("*.md"))

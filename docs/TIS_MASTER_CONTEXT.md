@@ -328,6 +328,17 @@ Engineering handbook:
 - `docs/engineering/VISUAL_DOCUMENTATION_GUIDE.md` defines future visual documentation standards.
 - `docs/engineering/AI_OPTIMIZATION_GUIDE.md` guides future AI assistants.
 - `docs/engineering/PROJECT_GOVERNANCE.md` defines ownership, approvals, quality gates, documentation gates, and traceability.
+- `docs/engineering/KNOWLEDGE_LIFECYCLE.md` defines documentation, engineering, approval, review, release, and maintenance lifecycle.
+- `docs/engineering/DOCUMENTATION_AUTOMATION.md` defines current automation and future automation rules.
+- `docs/engineering/KNOWLEDGE_IMPACT_ASSESSMENT_STANDARD.md` formalizes KIA.
+- `docs/engineering/SELF_EVOLVING_WORKFLOW.md` defines the official task-to-deployment workflow.
+- `docs/engineering/DOCUMENTATION_DEPENDENCY_MAP.md` explains KMS propagation.
+- `docs/engineering/AI_CODING_WORKFLOW.md` defines future AI coding discipline.
+- `docs/engineering/FUTURE_AUTOMATION_ROADMAP.md` records future automation opportunities.
+
+KMS v1.0 status:
+
+KMS v3.0 Phase 3D completes the KMS v1.0 lifecycle foundation. Future work should improve automation, search, visuals, route inventories, test strategy docs, deployment runbooks, and deeper module guides only through approved phases.
 
 ## Development Workflow
 

@@ -35,6 +35,13 @@ Recommended onboarding order:
 - `VISUAL_DOCUMENTATION_GUIDE.md`: future screenshot and diagram standards.
 - `AI_OPTIMIZATION_GUIDE.md`: definitive onboarding and operating guide for future AI assistants.
 - `PROJECT_GOVERNANCE.md`: ownership, approvals, quality gates, documentation gates, and decision traceability.
+- `KNOWLEDGE_LIFECYCLE.md`: documentation, engineering, approval, review, release, and maintenance lifecycle.
+- `DOCUMENTATION_AUTOMATION.md`: current and future documentation automation rules.
+- `KNOWLEDGE_IMPACT_ASSESSMENT_STANDARD.md`: formal KIA standard with examples, decision tree, and failure cases.
+- `SELF_EVOLVING_WORKFLOW.md`: official task-to-deployment workflow.
+- `DOCUMENTATION_DEPENDENCY_MAP.md`: relationships and propagation rules across KMS documents.
+- `AI_CODING_WORKFLOW.md`: required workflow for future AI coding assistants.
+- `FUTURE_AUTOMATION_ROADMAP.md`: possible future automation improvements.
 
 ## Before Coding
 

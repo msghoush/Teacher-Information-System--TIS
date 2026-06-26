@@ -55,6 +55,13 @@ If the task touches the public website, also read:
 - `docs/engineering/VISUAL_DOCUMENTATION_GUIDE.md`: screenshot, diagram, naming, storage, and visual update standards.
 - `docs/engineering/AI_OPTIMIZATION_GUIDE.md`: definitive onboarding guide for future AI assistants.
 - `docs/engineering/PROJECT_GOVERNANCE.md`: governance, approvals, quality gates, and decision traceability.
+- `docs/engineering/KNOWLEDGE_LIFECYCLE.md`: lifecycle from planning through production and maintenance.
+- `docs/engineering/DOCUMENTATION_AUTOMATION.md`: current/future KMS automation model.
+- `docs/engineering/KNOWLEDGE_IMPACT_ASSESSMENT_STANDARD.md`: formal KIA engineering standard.
+- `docs/engineering/SELF_EVOLVING_WORKFLOW.md`: official workflow that keeps software and KMS synchronized.
+- `docs/engineering/DOCUMENTATION_DEPENDENCY_MAP.md`: propagation map between source docs, manifest, PDF, and Knowledge Center.
+- `docs/engineering/AI_CODING_WORKFLOW.md`: disciplined workflow for future AI coding assistants.
+- `docs/engineering/FUTURE_AUTOMATION_ROADMAP.md`: future automation opportunities.
 
 ## Decision And History Documents
 
@@ -118,4 +125,4 @@ A task is not complete until KIA is assessed. If included source docs change, re
 
 Phase 2A and Phase 2B establish KMS governance, ADRs, module history, AI context, and PDF/manifest generation.
 
-KMS v3.0 Phase 3C expands the engineering handbook with rejected decisions, visual documentation framework, AI optimization guidance, project governance, and engineering decision traceability. The Platform Owner Knowledge Center is implemented as a read-only owner utility. Do not add a regenerate button or app-side Markdown rewriting unless explicitly approved.
+KMS v3.0 Phase 3D completes the KMS v1.0 lifecycle foundation with self-evolving documentation workflow, KIA standard, dependency map, AI coding workflow, and future automation roadmap. The Platform Owner Knowledge Center is implemented as a read-only owner utility. Do not add a regenerate button or app-side Markdown rewriting unless explicitly approved.
