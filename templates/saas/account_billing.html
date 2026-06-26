@@ -1,6 +1,10 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>Billing and Subscription</h1>
+<header class="page-header">
+    <span class="page-eyebrow">Subscription Setup</span>
+    <h1>Billing and subscription</h1>
+    <p class="page-subtitle">Review payment activity and current activation progress for your organization.</p>
+</header>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 {% if onboarding_summary %}
@@ -12,14 +16,29 @@
         </div>
         <div class="stat">
             <strong>Billing state</strong>
-            <p>{{ onboarding_summary.organization.billing_status }}<br>Payment: {{ onboarding_summary.organization.payment_status }}</p>
+            <p>
+                {% if onboarding_summary.organization.billing_status in ['not_started', 'plan_selected'] %}
+                Subscription setup in progress
+                {% elif onboarding_summary.organization.billing_status in ['checkout_ready', 'checkout_started'] %}
+                Ready for payment
+                {% elif onboarding_summary.organization.billing_status == 'payment_processing' %}
+                Payment processing
+                {% elif onboarding_summary.organization.billing_status == 'payment_confirmed' %}
+                Payment confirmed
+                {% elif onboarding_summary.organization.billing_status == 'tenant_active' %}
+                Platform access active
+                {% else %}
+                {{ onboarding_summary.organization.billing_status }}
+                {% endif %}
+                <br>Payment: {{ onboarding_summary.organization.payment_status }}
+            </p>
         </div>
         <div class="stat">
-            <strong>Provisioning</strong>
+            <strong>Platform access</strong>
             <p>
                 {% if onboarding_summary.current_provisioning_job %}
-                Job: {{ onboarding_summary.current_provisioning_job.job_status }}
-                {% if onboarding_summary.current_tenant_link %}<br>Tenant: active{% endif %}
+                Activation job: {{ onboarding_summary.current_provisioning_job.job_status }}
+                {% if onboarding_summary.current_tenant_link %}<br>Access: active{% endif %}
                 {% else %}
                 Not started yet.
                 {% endif %}
@@ -62,15 +81,15 @@
         </div>
         <div class="stat">
             <strong>Next step</strong>
-            <p>Payment confirmation must come from verified Paddle webhooks. Browser redirects never activate TIS access.</p>
+            <p>Payment confirmation is finalized after secure verification is received. Browser redirects alone do not activate access.</p>
         </div>
     </div>
 </div>
 <div class="actions" style="margin-top:20px;">
-    <a class="btn secondary" href="/saas/account">Back to dashboard</a>
+    <a class="btn secondary" href="/saas/account">Back to account</a>
     <a class="btn secondary" href="{{ onboarding_summary.current_step_url }}">Open current billing step</a>
 </div>
 {% else %}
-<div class="error">No pending organization billing record is available yet.</div>
+<div class="error">No organization billing record is available yet.</div>
 {% endif %}
 {% endblock %}

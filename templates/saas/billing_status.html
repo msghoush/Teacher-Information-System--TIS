@@ -1,7 +1,28 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>Billing Status</h1>
-<div class="notice">Current billing state for this pending organization: <strong>{{ organization.billing_status }}</strong></div>
+<header class="page-header">
+    <span class="page-eyebrow">Subscription Setup</span>
+    <h1>Billing status</h1>
+    <p class="page-subtitle">Track payment and activation progress for your organization application.</p>
+</header>
+<div class="notice">
+    Current billing state:
+    <strong>
+        {% if organization.billing_status in ['not_started', 'plan_selected'] %}
+        Subscription setup in progress
+        {% elif organization.billing_status in ['checkout_ready', 'checkout_started'] %}
+        Ready for payment
+        {% elif organization.billing_status == 'payment_processing' %}
+        Payment processing
+        {% elif organization.billing_status == 'payment_confirmed' %}
+        Payment confirmed
+        {% elif organization.billing_status == 'tenant_active' %}
+        Platform access active
+        {% else %}
+        {{ organization.billing_status }}
+        {% endif %}
+    </strong>
+</div>
 {% if current_plan_selection %}
 <p>Plan ID: {{ current_plan_selection.plan_id }} | Interval: {{ current_plan_selection.billing_interval }}</p>
 {% endif %}
@@ -16,13 +37,13 @@
 <p>Subscription status: {{ current_payment_subscription.status }}<br>Subscription ID: {{ current_payment_subscription.provider_subscription_id }}</p>
 {% endif %}
 {% if journey_card and journey_card.current_provisioning_job %}
-<p>Provisioning job: {{ journey_card.current_provisioning_job.job_status }}</p>
+<p>Activation job: {{ journey_card.current_provisioning_job.job_status }}</p>
 {% endif %}
 {% if journey_card and journey_card.current_tenant_link %}
-<p>Tenant activation: active<br>School Group ID: {{ journey_card.current_tenant_link.school_group_id }}</p>
+<p>Platform access: active<br>School Group ID: {{ journey_card.current_tenant_link.school_group_id }}</p>
 {% endif %}
 <div class="actions">
-    <a class="btn secondary" href="/saas/account">Back to dashboard</a>
-    <a class="btn secondary" href="/saas/account/billing">Billing details</a>
+    <a class="btn secondary" href="/saas/account">Back to account</a>
+    <a class="btn secondary" href="/saas/account/billing">Subscription details</a>
 </div>
 {% endblock %}

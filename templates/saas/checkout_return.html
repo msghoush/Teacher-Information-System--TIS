@@ -1,15 +1,36 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>Payment Return</h1>
-<div class="notice">Your browser returned from Paddle. Payment confirmation still depends on verified webhook processing.</div>
+<header class="page-header">
+    <span class="page-eyebrow">Subscription Setup</span>
+    <h1>Payment return</h1>
+    <p class="page-subtitle">Your browser returned from the payment screen. Confirmation is finalized after secure verification is processed.</p>
+</header>
 {% if onboarding_summary %}
-<p>Current billing state: <strong>{{ onboarding_summary.organization.billing_status }}</strong><br>Payment status: <strong>{{ onboarding_summary.organization.payment_status }}</strong></p>
+<p>
+    Current billing state:
+    <strong>
+        {% if onboarding_summary.organization.billing_status in ['not_started', 'plan_selected'] %}
+        Subscription setup in progress
+        {% elif onboarding_summary.organization.billing_status in ['checkout_ready', 'checkout_started'] %}
+        Ready for payment
+        {% elif onboarding_summary.organization.billing_status == 'payment_processing' %}
+        Payment processing
+        {% elif onboarding_summary.organization.billing_status == 'payment_confirmed' %}
+        Payment confirmed
+        {% elif onboarding_summary.organization.billing_status == 'tenant_active' %}
+        Platform access active
+        {% else %}
+        {{ onboarding_summary.organization.billing_status }}
+        {% endif %}
+    </strong><br>
+    Payment status: <strong>{{ onboarding_summary.organization.payment_status }}</strong>
+</p>
 {% endif %}
 {% if current_attempt %}
 <p>Attempt: {{ current_attempt.attempt_uuid }}<br>Status: {{ current_attempt.status }}</p>
 {% endif %}
 <div class="actions">
     <a class="btn secondary" href="/saas/account/billing">View billing status</a>
-    <a class="btn secondary" href="/saas/account">Back to dashboard</a>
+    <a class="btn secondary" href="/saas/account">Back to account</a>
 </div>
 {% endblock %}

@@ -1,6 +1,10 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>Security</h1>
+<header class="page-header">
+    <span class="page-eyebrow">Account Setup</span>
+    <h1>Security</h1>
+    <p class="page-subtitle">Review verification and connected sign-in methods.</p>
+</header>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 <div class="stat-list">
     <div class="stat">
@@ -17,6 +21,6 @@
     </div>
 </div>
 <div class="actions">
-    <a class="btn secondary" href="/saas/account">Back to dashboard</a>
+    <a class="btn secondary" href="/saas/account">Back to account</a>
 </div>
 {% endblock %}

@@ -1,8 +1,11 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>Primary Contact</h1>
+<header class="page-header">
+    <span class="page-eyebrow">Step 4 of 5</span>
+    <h1>Contact information</h1>
+    <p class="page-subtitle">Add the primary contact for your organization application.</p>
+</header>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
-<p class="muted">Step 4 of 5. This contact will become the future organization owner reference.</p>
 <div class="notice">Progress: {{ progress.completion_percent }}%</div>
 <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/contacts">
     <div class="grid two">

@@ -1,7 +1,10 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>Sign in to TIS SaaS</h1>
-<p class="muted">Use your SaaS account to manage verification, onboarding status, and future billing access.</p>
+<header class="page-header">
+    <span class="page-eyebrow">Account Setup</span>
+    <h1>Sign in</h1>
+    <p class="page-subtitle">Access your account to continue organization setup, review status, and subscription progress.</p>
+</header>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 <form method="post" action="/saas/auth/login">
     <label for="email">Email</label>
@@ -10,7 +13,7 @@
     <input id="password" name="password" type="password" autocomplete="current-password" required>
     <input type="hidden" name="next_path" value="/saas/account">
     <div class="actions">
-        <button class="btn" type="submit">Login</button>
+        <button class="btn" type="submit">Sign In</button>
         <a class="btn secondary" href="/saas/signup">Create account</a>
     </div>
 </form>
@@ -19,8 +22,8 @@
     {% if microsoft_enabled %}<a class="btn oauth" href="/saas/auth/microsoft/start">Continue with Microsoft</a>{% endif %}
 </div>
 <form method="post" action="/saas/auth/resend-verification" style="margin-top:20px;">
-    <label for="resend_email">Need a new verification email?</label>
+    <label for="resend_email">Need a new email verification link?</label>
     <input id="resend_email" name="email" type="email" value="{{ email }}" autocomplete="email" required>
-    <button class="btn secondary" type="submit">Resend Verification</button>
+    <button class="btn secondary" type="submit">Resend verification</button>
 </form>
 {% endblock %}

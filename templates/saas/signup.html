@@ -1,33 +1,105 @@
 {% extends "saas/base.html" %}
+{% block page_scripts %}
+<style>
+    .auth-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(250px, .8fr);
+        gap: 16px;
+        align-items: start;
+    }
+    .auth-panel {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: linear-gradient(165deg, #ffffff, #f6fbff);
+        padding: 16px;
+        box-shadow: 0 10px 22px rgba(16, 35, 63, .06);
+    }
+    .auth-checklist {
+        margin: 0;
+        padding-left: 18px;
+        display: grid;
+        gap: 7px;
+        color: var(--muted);
+        line-height: 1.45;
+    }
+    .auth-kpis {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 9px;
+        margin-top: 12px;
+    }
+    .auth-kpi {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #fff;
+        padding: 10px;
+    }
+    .auth-kpi strong {
+        display: block;
+        color: var(--brand);
+        font-size: 17px;
+        line-height: 1;
+    }
+    .auth-kpi span {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+    @media (max-width: 900px) {
+        .auth-layout { grid-template-columns: 1fr; }
+        .auth-kpis { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
 {% block content %}
-<h1>Create a TIS SaaS account</h1>
-<p class="muted">This creates only a SaaS account. Organization onboarding and activation happen in later phases.</p>
+<header class="page-header">
+    <span class="page-eyebrow">Account Setup</span>
+    <h1>Create your account</h1>
+    <p class="page-subtitle">Start with your personal account, then continue to organization profile, branch setup, and subscription setup.</p>
+</header>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 {% if warning %}<div class="warning">{{ warning }}</div>{% endif %}
-<form method="post" action="/saas/auth/signup">
-    <div class="grid two">
-        <div>
-            <label for="first_name">First name</label>
-            <input id="first_name" name="first_name" value="{{ first_name }}" autocomplete="given-name" required>
+<section class="auth-layout" aria-label="Signup workspace">
+    <form method="post" action="/saas/auth/signup">
+        <div class="grid two">
+            <div>
+                <label for="first_name">First name</label>
+                <input id="first_name" name="first_name" value="{{ first_name }}" autocomplete="given-name" required>
+            </div>
+            <div>
+                <label for="last_name">Last name</label>
+                <input id="last_name" name="last_name" value="{{ last_name }}" autocomplete="family-name" required>
+            </div>
         </div>
-        <div>
-            <label for="last_name">Last name</label>
-            <input id="last_name" name="last_name" value="{{ last_name }}" autocomplete="family-name" required>
+        <label for="email">Work email</label>
+        <input id="email" name="email" type="email" value="{{ email }}" autocomplete="email" required>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="new-password" required>
+        <label for="confirm_password">Confirm password</label>
+        <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required>
+        <div class="actions">
+            <button class="btn" type="submit">Create Account</button>
+            <a class="btn secondary" href="/saas/login">Back to sign in</a>
         </div>
-    </div>
-    <label for="email">Work email</label>
-    <input id="email" name="email" type="email" value="{{ email }}" autocomplete="email" required>
-    <label for="password">Password</label>
-    <input id="password" name="password" type="password" autocomplete="new-password" required>
-    <label for="confirm_password">Confirm password</label>
-    <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required>
-    <div class="actions">
-        <button class="btn" type="submit">Create Account</button>
-        <a class="btn secondary" href="/saas/login">Back to login</a>
-    </div>
-</form>
-<div class="actions" style="margin-top:18px;">
-    {% if google_enabled %}<a class="btn oauth" href="/saas/auth/google/start">Continue with Google</a>{% endif %}
-    {% if microsoft_enabled %}<a class="btn oauth" href="/saas/auth/microsoft/start">Continue with Microsoft</a>{% endif %}
-</div>
+        <div class="actions" style="margin-top:18px;">
+            {% if google_enabled %}<a class="btn oauth" href="/saas/auth/google/start">Continue with Google</a>{% endif %}
+            {% if microsoft_enabled %}<a class="btn oauth" href="/saas/auth/microsoft/start">Continue with Microsoft</a>{% endif %}
+        </div>
+    </form>
+    <aside class="auth-panel" aria-label="Signup highlights">
+        <h3 style="margin:0 0 8px;">What happens after signup?</h3>
+        <ul class="auth-checklist">
+            <li>Complete your organization profile and branch setup.</li>
+            <li>Review your subscription summary before activation.</li>
+            <li>Track progress from your account dashboard.</li>
+        </ul>
+        <div class="auth-kpis" aria-label="Setup highlights">
+            <div class="auth-kpi"><strong>5</strong><span>Guided Steps</span></div>
+            <div class="auth-kpi"><strong>1</strong><span>Owner Account</span></div>
+            <div class="auth-kpi"><strong>Ready</strong><span>Activation Flow</span></div>
+        </div>
+    </aside>
+</section>
 {% endblock %}

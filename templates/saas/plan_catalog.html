@@ -1,7 +1,10 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>TIS SaaS Plans</h1>
-<p class="muted">Pricing is database-driven and displayed in the resolved local currency for review only.</p>
+<header class="page-header">
+    <span class="page-eyebrow">Subscription Setup</span>
+    <h1>TIS plans</h1>
+    <p class="page-subtitle">Pricing is shown in your resolved local currency for review.</p>
+</header>
 <div class="grid two">
     {% for plan_view in plan_catalog %}
     <div class="stat">
