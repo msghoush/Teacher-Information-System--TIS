@@ -67,6 +67,10 @@ For deeper onboarding, read:
 - `docs/engineering/DEVELOPMENT_STANDARDS.md`
 - `docs/engineering/UI_UX_DESIGN_PHILOSOPHY.md`
 - `docs/engineering/PRODUCT_ROADMAP.md`
+- `docs/engineering/REJECTED_DECISIONS.md`
+- `docs/engineering/VISUAL_DOCUMENTATION_GUIDE.md`
+- `docs/engineering/AI_OPTIMIZATION_GUIDE.md`
+- `docs/engineering/PROJECT_GOVERNANCE.md`
 
 These files explain module ownership, repository boundaries, end-to-end flows, and what must not be changed casually.
 
@@ -101,6 +105,7 @@ Current priority is the TIS Knowledge Management System:
 - The Knowledge Center uses protected routes for PDF view/download and does not link directly to static PDF paths.
 - KMS v3.0 Phase 3A adds a true engineering handbook with module map, repository architecture, workflows, and developer onboarding.
 - KMS v3.0 Phase 3B adds database architecture, development standards, UI/UX philosophy, product roadmap, and stronger human/AI developer guidance.
+- KMS v3.0 Phase 3C adds rejected decisions, visual documentation framework, AI optimization guidance, project governance, and decision traceability.
 
 ## Critical Rules
 
@@ -141,13 +146,14 @@ If included docs change, regenerate:
 2. Read `docs/TIS_MASTER_CONTEXT.md` and `docs/PROJECT_STATE.md`.
 3. Read `docs/engineering/README.md`.
 4. Read `docs/engineering/DEVELOPMENT_STANDARDS.md`.
-5. Read relevant engineering docs, ADRs, module history, and supporting docs.
-6. Inspect code before editing.
-7. Keep changes scoped.
-8. Update KMS docs when meaningful behavior, architecture, product state, module map, repository ownership, data model, design philosophy, roadmap, or workflow changes.
-9. Regenerate PDF if included source docs changed.
-10. Run validation.
-11. Report KIA in final response.
+5. Read `docs/engineering/AI_OPTIMIZATION_GUIDE.md`.
+6. Read relevant engineering docs, ADRs, module history, and supporting docs.
+7. Inspect code before editing.
+8. Keep changes scoped.
+9. Update KMS docs when meaningful behavior, architecture, product state, module map, repository ownership, data model, design philosophy, roadmap, governance, decision traceability, or workflow changes.
+10. Regenerate PDF if included source docs changed.
+11. Run validation.
+12. Report KIA in final response.
 
 ## Landing Page Situation
 

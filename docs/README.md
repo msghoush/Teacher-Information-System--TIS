@@ -51,6 +51,10 @@ If the task touches the public website, also read:
 - `docs/engineering/DEVELOPMENT_STANDARDS.md`: non-negotiable engineering rules.
 - `docs/engineering/UI_UX_DESIGN_PHILOSOPHY.md`: UI/UX principles by product surface.
 - `docs/engineering/PRODUCT_ROADMAP.md`: completed, current, next, and future roadmap.
+- `docs/engineering/REJECTED_DECISIONS.md`: major rejected alternatives and long-term consequences.
+- `docs/engineering/VISUAL_DOCUMENTATION_GUIDE.md`: screenshot, diagram, naming, storage, and visual update standards.
+- `docs/engineering/AI_OPTIMIZATION_GUIDE.md`: definitive onboarding guide for future AI assistants.
+- `docs/engineering/PROJECT_GOVERNANCE.md`: governance, approvals, quality gates, and decision traceability.
 
 ## Decision And History Documents
 
@@ -114,4 +118,4 @@ A task is not complete until KIA is assessed. If included source docs change, re
 
 Phase 2A and Phase 2B establish KMS governance, ADRs, module history, AI context, and PDF/manifest generation.
 
-KMS v3.0 Phase 3B expands the engineering handbook with database architecture, development standards, UI/UX philosophy, roadmap, and stronger onboarding guidance. The Platform Owner Knowledge Center is implemented as a read-only owner utility. Do not add a regenerate button or app-side Markdown rewriting unless explicitly approved.
+KMS v3.0 Phase 3C expands the engineering handbook with rejected decisions, visual documentation framework, AI optimization guidance, project governance, and engineering decision traceability. The Platform Owner Knowledge Center is implemented as a read-only owner utility. Do not add a regenerate button or app-side Markdown rewriting unless explicitly approved.

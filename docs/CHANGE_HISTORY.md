@@ -27,6 +27,48 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-06-26 - Added KMS v3.0 Phase 3C Governance And AI Traceability
+
+Area/module:
+Knowledge Management System and engineering handbook
+
+Previous state:
+KMS v3.0 Phase 3B documented database architecture, development standards, UI/UX design philosophy, roadmap, and stronger onboarding guidance. It did not yet preserve rejected decisions, visual documentation standards, a definitive AI optimization guide, project governance, or explicit decision traceability.
+
+New state:
+TIS now has Phase 3C engineering docs for rejected decisions, visual documentation framework, AI optimization, project governance, and decision traceability. The PDF generator includes these docs.
+
+Reason:
+Future developers and AI assistants need to understand why TIS became what it is, not only what currently exists.
+
+Files changed:
+- `docs/engineering/REJECTED_DECISIONS.md`
+- `docs/engineering/VISUAL_DOCUMENTATION_GUIDE.md`
+- `docs/engineering/AI_OPTIMIZATION_GUIDE.md`
+- `docs/engineering/PROJECT_GOVERNANCE.md`
+- `docs/engineering/README.md`
+- `docs/TIS_MASTER_CONTEXT.md`
+- `docs/AI_PROJECT_CONTEXT.md`
+- `docs/PROJECT_STATE.md`
+- `docs/README.md`
+- `docs/CHANGE_HISTORY.md`
+- `docs/history/engineering-handbook/2026-06-26-kms-v3-phase-3c-governance-ai-traceability.md`
+- `scripts/generate_docs_pdf.py`
+- `static/docs/TIS_Project_Reference_Booklet.pdf`
+- `static/docs/docs_manifest.json`
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+Approved for KMS v3.0 Phase 3C only. App behavior, SaaS flows, landing page code, database, migrations, routes, commits, and pushes remain out of scope.
+
 ## 2026-06-26 - Added KMS v3.0 Phase 3B Engineering Layers
 
 Area/module:

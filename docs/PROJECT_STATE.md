@@ -71,6 +71,7 @@ Documentation/KMS milestones:
 - Phase 2C Platform Owner Knowledge Center completed and pushed to `dev`.
 - KMS v3.0 Phase 3A Engineering Handbook approved for implementation.
 - KMS v3.0 Phase 3B approved for implementation.
+- KMS v3.0 Phase 3C approved for implementation.
 
 ## Current Priority
 
@@ -125,6 +126,15 @@ KMS v3.0 Phase 3B scope:
 - Update generator to include the new engineering docs.
 - Regenerate the PDF and manifest.
 
+KMS v3.0 Phase 3C scope:
+
+- Add rejected architectural decisions.
+- Add visual documentation framework.
+- Add AI optimization guide.
+- Add project governance and decision traceability.
+- Update generator to include the new engineering docs.
+- Regenerate the PDF and manifest.
+
 ## Current Known Issues
 
 Known issues and watch points:
@@ -140,7 +150,7 @@ Known issues and watch points:
 
 Next planned work after Phase 2C review:
 
-- Review KMS v3.0 Phase 3B handbook coverage, PDF readability, and manifest inclusion.
+- Review KMS v3.0 Phase 3C handbook coverage, AI readiness, decision traceability, PDF readability, and manifest inclusion.
 - Approve corrections if needed.
 - Later consider an explicit owner-only regenerate workflow.
 
@@ -196,4 +206,5 @@ A task is not complete until KIA is assessed. If included docs change, regenerat
 - Do not add a KMS regenerate button until separately approved.
 - Do not implement Phase 3B until reviewed and approved.
 - Do not implement Phase 3C until reviewed and approved.
+- Do not implement Phase 3D until reviewed and approved.
 - Do not commit or push unless explicitly requested.

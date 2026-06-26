@@ -31,6 +31,10 @@ Recommended onboarding order:
 - `DEVELOPMENT_STANDARDS.md`: non-negotiable engineering rules for humans and AI assistants.
 - `UI_UX_DESIGN_PHILOSOPHY.md`: design principles for operational app, platform owner tools, SaaS onboarding, Knowledge Center, and landing website.
 - `PRODUCT_ROADMAP.md`: completed, current, next, and future roadmap.
+- `REJECTED_DECISIONS.md`: significant rejected architectural/product alternatives and why they were declined.
+- `VISUAL_DOCUMENTATION_GUIDE.md`: future screenshot and diagram standards.
+- `AI_OPTIMIZATION_GUIDE.md`: definitive onboarding and operating guide for future AI assistants.
+- `PROJECT_GOVERNANCE.md`: ownership, approvals, quality gates, documentation gates, and decision traceability.
 
 ## Before Coding
 

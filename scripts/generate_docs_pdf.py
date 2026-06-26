@@ -48,6 +48,10 @@ ENGINEERING_DOCS = [
     ROOT / "docs" / "engineering" / "DEVELOPMENT_STANDARDS.md",
     ROOT / "docs" / "engineering" / "UI_UX_DESIGN_PHILOSOPHY.md",
     ROOT / "docs" / "engineering" / "PRODUCT_ROADMAP.md",
+    ROOT / "docs" / "engineering" / "REJECTED_DECISIONS.md",
+    ROOT / "docs" / "engineering" / "VISUAL_DOCUMENTATION_GUIDE.md",
+    ROOT / "docs" / "engineering" / "AI_OPTIMIZATION_GUIDE.md",
+    ROOT / "docs" / "engineering" / "PROJECT_GOVERNANCE.md",
 ]
 
 ADR_DOCS = sorted((ROOT / "docs" / "adr").glob("*.md"))

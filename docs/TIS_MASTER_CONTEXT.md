@@ -324,6 +324,10 @@ Engineering handbook:
 - `docs/engineering/DEVELOPMENT_STANDARDS.md` defines non-negotiable engineering rules.
 - `docs/engineering/UI_UX_DESIGN_PHILOSOPHY.md` defines design direction for operational, platform, SaaS, Knowledge Center, and landing surfaces.
 - `docs/engineering/PRODUCT_ROADMAP.md` records completed, current, next, and future roadmap.
+- `docs/engineering/REJECTED_DECISIONS.md` records significant rejected alternatives.
+- `docs/engineering/VISUAL_DOCUMENTATION_GUIDE.md` defines future visual documentation standards.
+- `docs/engineering/AI_OPTIMIZATION_GUIDE.md` guides future AI assistants.
+- `docs/engineering/PROJECT_GOVERNANCE.md` defines ownership, approvals, quality gates, documentation gates, and traceability.
 
 ## Development Workflow
 
