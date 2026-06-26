@@ -1,6 +1,10 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>SaaS account dashboard</h1>
+<header class="page-header">
+    <span class="page-eyebrow">Account Setup</span>
+    <h1>Organization setup dashboard</h1>
+    <p class="page-subtitle">Track your application progress, finish setup steps, and continue subscription activation.</p>
+</header>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 <div class="grid two">
     <div class="stat-list">
@@ -9,25 +13,60 @@
             <p>{{ account.first_name }} {{ account.last_name }}<br>{{ account.email }}</p>
         </div>
         <div class="stat">
-            <strong>Status</strong>
-            <p>{{ account.status }}{% if account.email_verified_at %}<br>Email verified{% else %}<br>Email not verified{% endif %}</p>
+            <strong>Account status</strong>
+            <p>{{ account.status }}{% if account.email_verified_at %}<br>Email verified{% else %}<br>Email verification required{% endif %}</p>
         </div>
         <div class="stat">
-            <strong>Onboarding status</strong>
-            <p>{{ account.onboarding_status }}</p>
+            <strong>Setup status</strong>
+            <p>
+                {% if account.onboarding_status == 'not_started' %}
+                Not started
+                {% elif account.onboarding_status in ['organization_in_progress', 'draft'] %}
+                Organization setup in progress
+                {% elif account.onboarding_status in ['ready_for_checkout'] %}
+                Subscription setup ready
+                {% elif account.onboarding_status in ['under_review'] %}
+                Application under review
+                {% elif account.onboarding_status in ['changes_requested'] %}
+                Changes requested
+                {% elif account.onboarding_status in ['rejected'] %}
+                Application not approved
+                {% elif account.onboarding_status in ['tenant_active'] %}
+                Platform access active
+                {% else %}
+                {{ account.onboarding_status }}
+                {% endif %}
+            </p>
         </div>
         <div class="stat">
-            <strong>Pending organization journey</strong>
+            <strong>Application progress</strong>
             {% if onboarding_summary %}
-            <p>{{ onboarding_summary.organization.organization_name or "Draft organization" }}<br>Status: {{ onboarding_summary.organization.status }}<br>Billing: {{ onboarding_summary.organization.billing_status }}<br>Progress: {{ onboarding_summary.progress.completion_percent }}%</p>
+            <p>
+                {{ onboarding_summary.organization.organization_name or "Draft organization" }}<br>
+                Status:
+                {% if onboarding_summary.organization.status in ['draft', 'in_progress'] %}
+                In setup
+                {% elif onboarding_summary.organization.status == 'ready_for_checkout' %}
+                Subscription setup ready
+                {% elif onboarding_summary.organization.status == 'under_review' %}
+                Application under review
+                {% elif onboarding_summary.organization.status == 'changes_requested' %}
+                Changes requested
+                {% elif onboarding_summary.organization.status == 'rejected' %}
+                Not approved
+                {% else %}
+                {{ onboarding_summary.organization.status }}
+                {% endif %}
+                <br>Progress: {{ onboarding_summary.progress.completion_percent }}%
+            </p>
             <div class="actions">
-                <a class="btn" href="{{ onboarding_summary.current_step_url }}">Resume onboarding</a>
+                <a class="btn" href="{{ onboarding_summary.current_step_url }}">Continue setup</a>
             </div>
             {% else %}
-            <p>No pending organization draft has been started yet.</p>
+            <p>No organization application has been started yet.</p>
             <div class="actions">
                 <form method="post" action="/saas/onboarding/start">
-                    <button class="btn" type="submit">Start organization setup</button>
+                    <button class="btn" type="submit">Set up your organization</button>
                 </form>
             </div>
             {% endif %}
@@ -43,17 +82,17 @@
             <p>{{ sessions|length }} active session(s)</p>
         </div>
         <div class="stat">
-            <strong>Journey card</strong>
+            <strong>Setup journey</strong>
             {% if onboarding_summary %}
-            <p>
-                [Done] Account Created<br>
-                {% if account.email_verified_at %}[Done]{% else %}[Open]{% endif %} Email Verified<br>
-                {% if onboarding_summary.progress.completion_percent == 100 %}[Done]{% else %}[Open]{% endif %} Organization Setup<br>
-                {% if onboarding_summary.current_plan_selection %}[Done]{% else %}[Open]{% endif %} Plan Selection<br>
-                {% if onboarding_summary.organization.billing_status in ["checkout_ready", "checkout_started", "payment_processing", "payment_confirmed", "ready_for_provisioning", "provisioning_started", "provisioning_completed", "provisioning_retrying", "provisioning_failed", "tenant_active"] %}[Done]{% else %}[Open]{% endif %} Checkout<br>
-                {% if onboarding_summary.organization.billing_status in ["payment_confirmed", "ready_for_provisioning", "provisioning_started", "provisioning_completed", "provisioning_retrying", "provisioning_failed", "tenant_active"] %}[Done]{% else %}[Open]{% endif %} Payment Confirmed<br>
-                {% if onboarding_summary.organization.billing_status == "tenant_active" %}[Done]{% elif onboarding_summary.current_provisioning_job %}[In Progress]{% else %}[Open]{% endif %} Activation
-            </p>
+            <div class="journey-list">
+                <div class="journey-item"><span>Account Created</span><span class="journey-state is-done">Done</span></div>
+                <div class="journey-item"><span>Email Verified</span><span class="journey-state {% if account.email_verified_at %}is-done{% else %}is-open{% endif %}">{% if account.email_verified_at %}Done{% else %}Open{% endif %}</span></div>
+                <div class="journey-item"><span>Organization Setup</span><span class="journey-state {% if onboarding_summary.progress.completion_percent == 100 %}is-done{% else %}is-open{% endif %}">{% if onboarding_summary.progress.completion_percent == 100 %}Done{% else %}Open{% endif %}</span></div>
+                <div class="journey-item"><span>Plan Selection</span><span class="journey-state {% if onboarding_summary.current_plan_selection %}is-done{% else %}is-open{% endif %}">{% if onboarding_summary.current_plan_selection %}Done{% else %}Open{% endif %}</span></div>
+                <div class="journey-item"><span>Checkout</span><span class="journey-state {% if onboarding_summary.organization.billing_status in ["checkout_ready", "checkout_started", "payment_processing", "payment_confirmed", "ready_for_provisioning", "provisioning_started", "provisioning_completed", "provisioning_retrying", "provisioning_failed", "tenant_active"] %}is-done{% else %}is-open{% endif %}">{% if onboarding_summary.organization.billing_status in ["checkout_ready", "checkout_started", "payment_processing", "payment_confirmed", "ready_for_provisioning", "provisioning_started", "provisioning_completed", "provisioning_retrying", "provisioning_failed", "tenant_active"] %}Done{% else %}Open{% endif %}</span></div>
+                <div class="journey-item"><span>Payment Confirmed</span><span class="journey-state {% if onboarding_summary.organization.billing_status in ["payment_confirmed", "ready_for_provisioning", "provisioning_started", "provisioning_completed", "provisioning_retrying", "provisioning_failed", "tenant_active"] %}is-done{% else %}is-open{% endif %}">{% if onboarding_summary.organization.billing_status in ["payment_confirmed", "ready_for_provisioning", "provisioning_started", "provisioning_completed", "provisioning_retrying", "provisioning_failed", "tenant_active"] %}Done{% else %}Open{% endif %}</span></div>
+                <div class="journey-item"><span>Activation</span><span class="journey-state {% if onboarding_summary.organization.billing_status == "tenant_active" %}is-done{% elif onboarding_summary.current_provisioning_job %}is-progress{% else %}is-open{% endif %}">{% if onboarding_summary.organization.billing_status == "tenant_active" %}Done{% elif onboarding_summary.current_provisioning_job %}In Progress{% else %}Open{% endif %}</span></div>
+            </div>
             <p>Current step: {{ onboarding_summary.organization.onboarding_step }}<br>Branches added: {{ onboarding_summary.branches_count }}<br>Last saved: {{ onboarding_summary.organization.draft_saved_at or onboarding_summary.organization.updated_at }}</p>
             {% if onboarding_summary.current_plan_selection %}
             <p>Selected plan: {{ onboarding_summary.current_plan.plan_name if onboarding_summary.current_plan else onboarding_summary.current_plan_selection.plan_id }} | Interval: {{ onboarding_summary.current_plan_selection.billing_interval }}</p>
@@ -62,10 +101,10 @@
             <p>Payment attempt: {{ onboarding_summary.current_payment_attempt.status }}{% if onboarding_summary.current_payment_subscription %}<br>Subscription: {{ onboarding_summary.current_payment_subscription.status }}{% endif %}</p>
             {% endif %}
             {% if onboarding_summary.current_provisioning_job %}
-            <p>Provisioning job: {{ onboarding_summary.current_provisioning_job.job_status }}{% if onboarding_summary.current_tenant_link %}<br>Tenant active: school group {{ onboarding_summary.current_tenant_link.school_group_id }}{% endif %}</p>
+            <p>Activation status: {{ onboarding_summary.current_provisioning_job.job_status }}{% if onboarding_summary.current_tenant_link %}<br>Organization access is active{% endif %}</p>
             {% endif %}
             {% else %}
-            <p>Create a pending organization draft to begin the onboarding wizard. No operational TIS tenant records are created in this zone.</p>
+            <p>Start your organization setup to open the guided application flow.</p>
             {% endif %}
         </div>
     </div>
@@ -75,11 +114,11 @@
     <a class="btn secondary" href="/saas/account/security">Security</a>
     <a class="btn secondary" href="/saas/account/sessions">Manage sessions</a>
     {% if onboarding_summary %}
-    <a class="btn secondary" href="{{ onboarding_summary.current_step_url }}">Open onboarding</a>
+    <a class="btn secondary" href="{{ onboarding_summary.current_step_url }}">Continue setup</a>
     {% if onboarding_summary.organization.status == "ready_for_checkout" or onboarding_summary.current_plan_selection %}
-    <a class="btn secondary" href="/saas/onboarding/{{ onboarding_summary.organization.organization_uuid }}/plan">Plan selection</a>
+    <a class="btn secondary" href="/saas/onboarding/{{ onboarding_summary.organization.organization_uuid }}/plan">Subscription setup</a>
     {% endif %}
-    <a class="btn secondary" href="/saas/account/billing">Billing</a>
+    <a class="btn secondary" href="/saas/account/billing">Subscription</a>
     {% endif %}
 </div>
 {% endblock %}

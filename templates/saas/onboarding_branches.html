@@ -1,9 +1,12 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>Branches</h1>
+<header class="page-header">
+    <span class="page-eyebrow">Step 2 of 5</span>
+    <h1>Branch setup</h1>
+    <p class="page-subtitle">Add the branches or campuses included in your application.</p>
+</header>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
-<p class="muted">Step 2 of 5. Add the branches that should be created later during provisioning.</p>
-<div class="notice">Progress: {{ progress.completion_percent }}% | Current draft: {{ organization.organization_name or "Unnamed organization" }}</div>
+<div class="notice">Progress: {{ progress.completion_percent }}% | Organization: {{ organization.organization_name or "Unnamed organization" }}</div>
 <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/branches">
     {% set rows = branches if branches else [None, None, None] %}
     {% for branch in rows %}

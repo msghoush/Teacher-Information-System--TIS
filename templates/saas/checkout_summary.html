@@ -1,6 +1,10 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>Checkout Summary</h1>
+<header class="page-header">
+    <span class="page-eyebrow">Subscription Setup</span>
+    <h1>Checkout summary</h1>
+    <p class="page-subtitle">Review subscription details before launching secure payment.</p>
+</header>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 {% if checkout_summary and checkout_summary.selection and checkout_summary.plan %}
@@ -39,7 +43,7 @@
     </div>
 </div>
 <div class="actions" style="margin-top:18px;">
-    <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/plan">Back to plan selection</a>
+    <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/plan">Back to subscription setup</a>
     <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/start">
         <button class="btn" type="submit">Prepare checkout</button>
     </form>
@@ -54,6 +58,6 @@
 {% endif %}
 {% else %}
 <div class="error">Select a plan before continuing to checkout.</div>
-<div class="actions"><a class="btn" href="/saas/onboarding/{{ organization.organization_uuid }}/plan">Go to plan selection</a></div>
+<div class="actions"><a class="btn" href="/saas/onboarding/{{ organization.organization_uuid }}/plan">Go to subscription setup</a></div>
 {% endif %}
 {% endblock %}

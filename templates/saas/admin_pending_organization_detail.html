@@ -80,6 +80,14 @@
                 <div class="actions"><button class="btn secondary" type="submit">Save note</button></div>
             </form>
         </div>
+        <div class="stat">
+            <strong>Delete pending organization</strong>
+            <p class="muted">Delete this pending organization? This action only removes the pending application and cannot be undone.</p>
+            <form method="post" action="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/delete" onsubmit="return confirm('Delete this pending organization? This action only removes the pending application and cannot be undone.');">
+                <input type="hidden" name="confirm_delete" value="1">
+                <div class="actions"><button class="btn danger" type="submit">Delete</button></div>
+            </form>
+        </div>
     </div>
 </div>
 <h2 style="margin-top:24px;">Branches</h2>

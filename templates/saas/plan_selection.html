@@ -1,8 +1,12 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>Select a subscription plan</h1>
+<header class="page-header">
+    <span class="page-eyebrow">Subscription Setup</span>
+    <h1>Select a subscription plan</h1>
+    <p class="page-subtitle">Choose the plan and billing interval for your organization.</p>
+</header>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
-<div class="notice">This step is available only after your pending organization reaches <code>ready_for_checkout</code>.</div>
+<div class="notice">This step is available after your application is submitted and ready for subscription setup.</div>
 <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/plan">
     <label for="plan_id">Plan</label>
     <select id="plan_id" name="plan_id" required>
@@ -33,7 +37,7 @@
         {% endfor %}
     </div>
     <div class="actions">
-        <a class="btn secondary" href="/saas/account">Back to dashboard</a>
+        <a class="btn secondary" href="/saas/account">Back to account</a>
         <button class="btn" type="submit">Save plan and continue</button>
     </div>
 </form>

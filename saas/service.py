@@ -33,6 +33,14 @@ PENDING_ORGANIZATION_ACTIVE_STATUSES = (
     "under_review",
     "activated",
 )
+BLOCKED_DELETE_BILLING_STATUSES = {
+    "ready_for_provisioning",
+    "provisioning_started",
+    "provisioning_completed",
+    "provisioning_retrying",
+    "provisioning_failed",
+    "tenant_active",
+}
 READY_FOR_CHECKOUT_STATUS = "ready_for_checkout"
 PERSONAL_EMAIL_WARNING = (
     "Personal email domains are not recommended for school onboarding. You can continue now, "
@@ -55,6 +63,7 @@ class DomainPolicyResult:
 @dataclass(frozen=True)
 class PendingOrganizationCard:
     organization: object
+    owner_account: object
     progress: object
     branches_count: int
     current_step_url: str
@@ -456,6 +465,20 @@ def pending_logo_dir() -> Path:
 
 def pending_logo_public_path(filename: str) -> str:
     return f"uploads/saas/pending_logos/{filename}"
+
+
+def _delete_pending_logo_file(logo_path: str | None) -> None:
+    relative = str(logo_path or "").strip()
+    if not relative:
+        return
+    static_root = (_workspace_root() / "static").resolve()
+    target_path = (static_root / Path(*relative.split("/"))).resolve()
+    try:
+        target_path.relative_to(static_root)
+    except ValueError:
+        return
+    if target_path.is_file():
+        target_path.unlink(missing_ok=True)
 
 
 def save_pending_logo(upload_file) -> str:
@@ -863,6 +886,9 @@ def build_pending_card(db: Session, organization):
         return None
     from saas import billing_service, payment_service, provisioning_service
 
+    owner_account = db.query(models.SaaSAccount).filter(
+        models.SaaSAccount.id == organization.owner_saas_account_id
+    ).first()
     progress = recalculate_pending_progress(db, organization)
     branches_count = db.query(models.PendingOrganizationBranch).filter(
         models.PendingOrganizationBranch.pending_organization_id == organization.id
@@ -882,6 +908,7 @@ def build_pending_card(db: Session, organization):
     tenant_link = provisioning_service.get_tenant_provisioning_link(db, organization)
     return PendingOrganizationCard(
         organization=organization,
+        owner_account=owner_account,
         progress=progress,
         branches_count=int(branches_count or 0),
         current_step_url=organization_step_url(organization),
@@ -978,6 +1005,157 @@ def update_pending_status(db: Session, organization, *, status: str, reviewer_us
     organization.reviewed_by_user_id = str(reviewer_user_id or "").strip()[:10] or None
     organization.rejection_reason = str(rejection_reason or "").strip()[:4000] or None
     return organization
+
+
+def validate_pending_organization_can_be_deleted(db: Session, organization) -> None:
+    if not organization:
+        raise ValueError("Pending organization not found.")
+
+    status = str(getattr(organization, "status", "") or "").strip().lower()
+    billing_status = str(getattr(organization, "billing_status", "") or "").strip().lower()
+    if status in {"activated"} or billing_status in BLOCKED_DELETE_BILLING_STATUSES:
+        raise ValueError(
+            "This organization cannot be deleted because it is already provisioned or linked to an active tenant."
+        )
+
+    tenant_link = db.query(models.TenantProvisioningLink).filter(
+        models.TenantProvisioningLink.pending_organization_id == organization.id
+    ).first()
+    if tenant_link:
+        raise ValueError(
+            "This organization cannot be deleted because it is already provisioned or linked to an active tenant."
+        )
+
+    linked_contract = db.query(models.SubscriptionContract).filter(
+        models.SubscriptionContract.pending_organization_id == organization.id,
+        models.SubscriptionContract.school_group_id.isnot(None),
+    ).first()
+    if linked_contract:
+        raise ValueError(
+            "This organization cannot be deleted because it is already provisioned or linked to an active tenant."
+        )
+
+    linked_user = db.query(models.SaaSAccountUserLink).filter(
+        models.SaaSAccountUserLink.pending_organization_id == organization.id,
+        models.SaaSAccountUserLink.school_group_id.isnot(None),
+    ).first()
+    if linked_user:
+        raise ValueError(
+            "This organization cannot be deleted because it is already provisioned or linked to an active tenant."
+        )
+
+
+def delete_pending_organization(db: Session, organization, *, actor_user_id: str = "") -> None:
+    validate_pending_organization_can_be_deleted(db, organization)
+
+    pending_organization_id = int(organization.id)
+    owner_account_id = int(getattr(organization, "owner_saas_account_id", 0) or 0)
+    logo_path = str(getattr(organization, "organization_logo_path", "") or "").strip()
+
+    db.query(models.PendingOrganization).filter(
+        models.PendingOrganization.id == pending_organization_id
+    ).update(
+        {models.PendingOrganization.last_payment_attempt_id: None},
+        synchronize_session=False,
+    )
+    db.query(models.CheckoutSession).filter(
+        models.CheckoutSession.pending_organization_id == pending_organization_id
+    ).update(
+        {models.CheckoutSession.last_payment_attempt_id: None},
+        synchronize_session=False,
+    )
+    db.query(models.SubscriptionContract).filter(
+        models.SubscriptionContract.pending_organization_id == pending_organization_id
+    ).update(
+        {models.SubscriptionContract.selected_checkout_session_id: None},
+        synchronize_session=False,
+    )
+
+    provisioning_job_ids = [
+        int(row_id)
+        for (row_id,) in db.query(models.ProvisioningJob.id).filter(
+            models.ProvisioningJob.pending_organization_id == pending_organization_id
+        ).all()
+    ]
+    if provisioning_job_ids:
+        db.query(models.ProvisioningJobEvent).filter(
+            models.ProvisioningJobEvent.provisioning_job_id.in_(provisioning_job_ids)
+        ).delete(synchronize_session=False)
+
+    db.query(models.ProvisioningJob).filter(
+        models.ProvisioningJob.pending_organization_id == pending_organization_id
+    ).delete(synchronize_session=False)
+
+    db.query(models.PaymentSubscription).filter(
+        models.PaymentSubscription.pending_organization_id == pending_organization_id
+    ).delete(synchronize_session=False)
+
+    db.query(models.PaymentAttempt).filter(
+        models.PaymentAttempt.pending_organization_id == pending_organization_id
+    ).delete(synchronize_session=False)
+
+    db.query(models.CheckoutSession).filter(
+        models.CheckoutSession.pending_organization_id == pending_organization_id
+    ).delete(synchronize_session=False)
+
+    db.query(models.SubscriptionContract).filter(
+        models.SubscriptionContract.pending_organization_id == pending_organization_id
+    ).delete(synchronize_session=False)
+
+    db.query(models.PendingOrganizationPlanSelection).filter(
+        models.PendingOrganizationPlanSelection.pending_organization_id == pending_organization_id
+    ).delete(synchronize_session=False)
+
+    db.query(models.PaymentCustomer).filter(
+        models.PaymentCustomer.pending_organization_id == pending_organization_id
+    ).delete(synchronize_session=False)
+
+    db.query(models.SaaSAccountUserLink).filter(
+        models.SaaSAccountUserLink.pending_organization_id == pending_organization_id
+    ).delete(synchronize_session=False)
+
+    db.query(models.PendingOrganizationBranch).filter(
+        models.PendingOrganizationBranch.pending_organization_id == pending_organization_id
+    ).delete(synchronize_session=False)
+    db.query(models.PendingOrganizationAcademicSetup).filter(
+        models.PendingOrganizationAcademicSetup.pending_organization_id == pending_organization_id
+    ).delete(synchronize_session=False)
+    db.query(models.PendingOrganizationContact).filter(
+        models.PendingOrganizationContact.pending_organization_id == pending_organization_id
+    ).delete(synchronize_session=False)
+    db.query(models.PendingOrganizationProgress).filter(
+        models.PendingOrganizationProgress.pending_organization_id == pending_organization_id
+    ).delete(synchronize_session=False)
+    db.query(models.PendingOrganizationNote).filter(
+        models.PendingOrganizationNote.pending_organization_id == pending_organization_id
+    ).delete(synchronize_session=False)
+    db.query(models.PendingOrganizationEvent).filter(
+        models.PendingOrganizationEvent.pending_organization_id == pending_organization_id
+    ).delete(synchronize_session=False)
+
+    db.query(models.PendingOrganization).filter(
+        models.PendingOrganization.id == pending_organization_id
+    ).delete(synchronize_session=False)
+
+    _delete_pending_logo_file(logo_path)
+
+    owner_account = None
+    if owner_account_id > 0:
+        owner_account = db.query(models.SaaSAccount).filter(models.SaaSAccount.id == owner_account_id).first()
+
+    if owner_account:
+        remaining = get_pending_organization_for_account(db, owner_account)
+        if remaining:
+            progress = recalculate_pending_progress(db, remaining)
+            update_pending_dashboard_status(owner_account, remaining, progress)
+        else:
+            owner_account.onboarding_status = "not_started"
+        log_auth_event(
+            db,
+            event_type="pending_organization_deleted",
+            account_id=owner_account.id,
+            details={"actor_user_id": str(actor_user_id or "")[:10]},
+        )
 
 
 def link_or_create_social_account(

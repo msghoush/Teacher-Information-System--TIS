@@ -83,6 +83,7 @@
         const selectedCountry = container.dataset.selectedCountry || "";
         const selectedRegion = container.dataset.selectedRegion || "";
         const selectedCity = container.dataset.selectedCity || "";
+        const apiBase = (container.dataset.locationApiBase || "/api/locations").replace(/\/$/, "");
         let requestVersion = 0;
 
         const setStatus = (message = "") => {
@@ -104,7 +105,7 @@
             replaceOptions(citySelect, "Loading cities...", [], "id");
             try {
                 const cities = await getItems(
-                    `/api/locations/cities?country_code=${encodeURIComponent(countryCode)}&region_id=${encodeURIComponent(regionId)}`
+                    `${apiBase}/cities?country_code=${encodeURIComponent(countryCode)}&region_id=${encodeURIComponent(regionId)}`
                 );
                 if (version !== requestVersion) {
                     return;
@@ -174,7 +175,7 @@
             replaceOptions(regionSelect, "Loading regions...", [], "id");
             try {
                 const regions = await getItems(
-                    `/api/locations/regions?country_code=${encodeURIComponent(countryCode)}`
+                    `${apiBase}/regions?country_code=${encodeURIComponent(countryCode)}`
                 );
                 if (version !== requestVersion) {
                     return;
@@ -204,7 +205,7 @@
 
         countrySelect.disabled = true;
         try {
-            const countries = await getItems("/api/locations/countries");
+            const countries = await getItems(`${apiBase}/countries`);
             replaceOptions(
                 countrySelect,
                 locationRequired ? "Select country" : "Not set",

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from urllib.parse import quote_plus
@@ -7,6 +7,7 @@ from urllib.parse import quote_plus
 import auth
 from dependencies import get_db
 import email_service
+import location_service
 from saas import billing_service, models, oauth, paddle_client, payment_service, pricing_service, provisioning_service, service
 
 templates = Jinja2Templates(directory="templates")
@@ -85,6 +86,74 @@ def _plan_context(db: Session, account, organization):
         "current_payment_customer": payment_customer,
         "current_payment_subscription": payment_subscription,
     }
+
+
+def _resolve_optional_location(
+    *,
+    country_code: str,
+    region_id: str,
+    region_manual: str,
+    city_id: str,
+    city_manual: str,
+):
+    has_location_picker_input = any(
+        str(value or "").strip()
+        for value in (region_id, region_manual, city_id, city_manual)
+    )
+    if not has_location_picker_input:
+        return None
+    return location_service.resolve_location(
+        country_code=country_code,
+        region_id=region_id,
+        region_manual=region_manual,
+        city_id=city_id,
+        city_manual=city_manual,
+        require_city=False,
+    )
+
+
+@router.get("/locations/countries")
+def saas_location_countries(request: Request, db: Session = Depends(get_db)):
+    _require_account(request, db)
+    return JSONResponse(
+        {"items": location_service.list_countries()},
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
+@router.get("/locations/regions")
+def saas_location_regions(
+    request: Request,
+    country_code: str = Query(..., min_length=2, max_length=2),
+    db: Session = Depends(get_db),
+):
+    _require_account(request, db)
+    try:
+        items = location_service.list_regions(country_code)
+    except location_service.LocationValidationError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+    return JSONResponse(
+        {"items": items},
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
+
+
+@router.get("/locations/cities")
+def saas_location_cities(
+    request: Request,
+    country_code: str = Query(..., min_length=2, max_length=2),
+    region_id: int = Query(..., gt=0),
+    db: Session = Depends(get_db),
+):
+    _require_account(request, db)
+    try:
+        items = location_service.list_cities(country_code, region_id)
+    except location_service.LocationValidationError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+    return JSONResponse(
+        {"items": items},
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
 
 
 @router.get("", response_class=HTMLResponse)
@@ -549,7 +618,11 @@ async def save_organization_step(
     educational_program: str = Form(""),
     country_code: str = Form(""),
     country_name: str = Form(""),
+    region_id: str = Form(""),
+    region_manual: str = Form(""),
     region_name: str = Form(""),
+    city_id: str = Form(""),
+    city_manual: str = Form(""),
     city_name: str = Form(""),
     district_name: str = Form(""),
     neighborhood_name: str = Form(""),
@@ -569,6 +642,18 @@ async def save_organization_step(
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
     try:
+        resolved_location = _resolve_optional_location(
+            country_code=country_code,
+            region_id=region_id,
+            region_manual=region_manual,
+            city_id=city_id,
+            city_manual=city_manual,
+        )
+        if resolved_location:
+            country_code = resolved_location.country_code
+            country_name = resolved_location.country_name
+            region_name = resolved_location.region_name
+            city_name = resolved_location.city_name
         service.save_organization_profile(
             db,
             organization,
@@ -1058,6 +1143,7 @@ def pending_organizations_dashboard(
             "cards": cards,
             "status_filter": status,
             "notice": request.query_params.get("notice", ""),
+            "error": request.query_params.get("error", ""),
         },
     )
 
@@ -1271,6 +1357,50 @@ def update_pending_organization_status(
         )
     return RedirectResponse(
         f"/saas-admin/pending-organizations/{organization_uuid}?notice=Status+updated.",
+        status_code=302,
+    )
+
+
+@admin_router.post("/pending-organizations/{organization_uuid}/delete")
+def delete_pending_organization(
+    organization_uuid: str,
+    request: Request,
+    confirm_delete: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    organization = service.get_pending_organization_by_uuid(db, organization_uuid)
+    if not organization:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Pending organization not found.")
+
+    if str(confirm_delete or "").strip().lower() not in {"1", "true", "yes", "on"}:
+        db.rollback()
+        return RedirectResponse(
+            f"/saas-admin/pending-organizations/{organization_uuid}?error="
+            + quote_plus(
+                "Delete confirmation is required before removing this pending organization."
+            ),
+            status_code=302,
+        )
+
+    try:
+        service.delete_pending_organization(
+            db,
+            organization,
+            actor_user_id=str(getattr(current_user, "user_id", "") or ""),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return RedirectResponse(
+            f"/saas-admin/pending-organizations/{organization_uuid}?error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+
+    return RedirectResponse(
+        "/saas-admin/pending-organizations?notice="
+        + quote_plus("Pending organization deleted."),
         status_code=302,
     )
 

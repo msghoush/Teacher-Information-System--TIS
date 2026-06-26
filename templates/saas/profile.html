@@ -1,6 +1,10 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>Profile</h1>
+<header class="page-header">
+    <span class="page-eyebrow">Account Setup</span>
+    <h1>Profile</h1>
+    <p class="page-subtitle">Update your account profile details.</p>
+</header>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 <form method="post" action="/saas/account/profile">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -18,7 +22,7 @@
     <input value="{{ account.email }}" disabled>
     <div class="actions">
         <button class="btn" type="submit">Save profile</button>
-        <a class="btn secondary" href="/saas/account">Back</a>
+        <a class="btn secondary" href="/saas/account">Back to account</a>
     </div>
 </form>
 {% endblock %}

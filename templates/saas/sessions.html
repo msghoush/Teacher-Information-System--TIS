@@ -1,6 +1,10 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>Sessions</h1>
+<header class="page-header">
+    <span class="page-eyebrow">Account Setup</span>
+    <h1>Sessions</h1>
+    <p class="page-subtitle">Manage active sessions connected to your account.</p>
+</header>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 <form method="post" action="/saas/account/sessions/revoke-others" style="margin-bottom:18px;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

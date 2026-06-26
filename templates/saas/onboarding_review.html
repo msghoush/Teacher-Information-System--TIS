@@ -1,8 +1,12 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>Review Pending Organization</h1>
+<header class="page-header">
+    <span class="page-eyebrow">Step 5 of 5</span>
+    <h1>Review and submit</h1>
+    <p class="page-subtitle">Review your organization profile, branch setup, and contact information before submission.</p>
+</header>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
-<div class="notice">Progress: {{ progress.completion_percent }}% | Status: {{ organization.status }}</div>
+<div class="notice">Progress: {{ progress.completion_percent }}% | Ready for final review</div>
 <div class="grid two">
     <div class="stat-list">
         <div class="stat">
@@ -28,8 +32,8 @@
             {% endif %}
         </div>
         <div class="stat">
-            <strong>Checkout readiness</strong>
-            <p>Once all steps are complete, submitting this draft moves it directly to <code>ready_for_checkout</code>. Manual review remains optional for exceptions only.</p>
+            <strong>Subscription setup readiness</strong>
+            <p>Once all steps are complete, submission moves this application to the next subscription setup stage.</p>
         </div>
     </div>
 </div>
@@ -40,7 +44,7 @@
         <button class="btn secondary" type="submit">Save draft</button>
     </form>
     <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/submit">
-        <button class="btn" type="submit">Submit and mark ready for checkout</button>
+        <button class="btn" type="submit">Submit application</button>
     </form>
 </div>
 {% endblock %}

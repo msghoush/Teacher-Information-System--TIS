@@ -9533,6 +9533,53 @@ def platform_console(
             developer_permission_groups.append(
                 {"key": group["key"], "label": group["label"], "permissions": permissions}
             )
+    saas_admin_summary = {
+        "pending_count": 0,
+        "ready_count": 0,
+        "draft_count": 0,
+        "account_count": 0,
+        "recent": [],
+    }
+    if auth.is_platform_owner(current_user):
+        try:
+            pending_query = db.query(saas.models.PendingOrganization)
+            recent_pending = pending_query.order_by(
+                saas.models.PendingOrganization.updated_at.desc(),
+                saas.models.PendingOrganization.id.desc(),
+            ).limit(5).all()
+            owner_ids = {
+                row.owner_saas_account_id
+                for row in recent_pending
+                if getattr(row, "owner_saas_account_id", None)
+            }
+            owner_accounts = {
+                row.id: row
+                for row in db.query(saas.models.SaaSAccount).filter(
+                    saas.models.SaaSAccount.id.in_(owner_ids)
+                ).all()
+            } if owner_ids else {}
+            saas_admin_summary = {
+                "pending_count": pending_query.count(),
+                "ready_count": db.query(saas.models.PendingOrganization).filter(
+                    saas.models.PendingOrganization.status == "ready_for_checkout"
+                ).count(),
+                "draft_count": db.query(saas.models.PendingOrganization).filter(
+                    saas.models.PendingOrganization.status.in_(("draft", "in_progress"))
+                ).count(),
+                "account_count": db.query(saas.models.SaaSAccount).count(),
+                "recent": [
+                    {
+                        "organization": row,
+                        "owner_email": getattr(owner_accounts.get(row.owner_saas_account_id), "email", ""),
+                    }
+                    for row in recent_pending
+                ],
+            }
+        except Exception as exc:
+            logging.getLogger("uvicorn.error").warning(
+                "Unable to load SaaS admin summary for Platform Console: %s",
+                exc,
+            )
 
     return templates.TemplateResponse(
         request,
@@ -9551,6 +9598,7 @@ def platform_console(
             "developer_default_permission_keys": permission_registry.PLATFORM_DEVELOPER_DEFAULT_PERMISSION_KEYS,
             "can_manage_ownership": auth.is_platform_owner(current_user),
             "can_transfer_ownership": auth.is_primary_platform_owner(current_user),
+            "saas_admin_summary": saas_admin_summary,
             "owner_account": current_user,
             **build_shell_context(
                 request,
