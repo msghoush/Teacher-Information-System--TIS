@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}TIS Knowledge Center | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+.knowledge-grid { display:grid; gap:16px; }
+.knowledge-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.knowledge-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.knowledge-card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+.knowledge-card { background:#fff; border:1px solid #d8e2f0; border-radius:12px; padding:15px; box-shadow:0 7px 20px rgba(15,23,42,.045); }
+.knowledge-card h2,.knowledge-card h3 { margin:0 0 6px; color:#17233b; font-size:15px; }
+.knowledge-value { font-size:22px; font-weight:800; color:#0a4ea3; overflow-wrap:anywhere; }
+.knowledge-muted { color:#64748b; font-size:13px; }
+.knowledge-section { background:#fff; border:1px solid #d8e2f0; border-radius:12px; padding:16px; box-shadow:0 7px 20px rgba(15,23,42,.045); }
+.knowledge-section h2 { margin:0 0 10px; font-size:18px; color:#17233b; }
+.status-pill { display:inline-flex; align-items:center; border-radius:999px; padding:4px 9px; font-size:12px; font-weight:800; background:#e2e8f0; color:#334155; }
+.status-current,.status-healthy { background:#dcfce7; color:#166534; }
+.status-stale,.status-warning,.status-needs-attention { background:#fff7e0; color:#8a5a00; }
+.status-missing,.status-missing_pdf,.status-missing_manifest,.status-critical { background:#fee2e2; color:#991b1b; }
+.knowledge-table-wrap { overflow:auto; border:1px solid #e2e8f0; border-radius:10px; }
+.knowledge-table { width:100%; border-collapse:collapse; min-width:760px; }
+.knowledge-table th,.knowledge-table td { padding:9px 10px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; font-size:13px; }
+.knowledge-table th { background:#f8fafc; color:#334155; font-size:12px; text-transform:uppercase; letter-spacing:.02em; }
+.knowledge-table tr:last-child td { border-bottom:0; }
+.knowledge-list { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.knowledge-list li { border:1px solid #e2e8f0; border-radius:9px; padding:9px 10px; }
+.coverage-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px; }
+.coverage-item { display:flex; justify-content:space-between; gap:10px; border:1px solid #e2e8f0; border-radius:9px; padding:9px 10px; }
+.kia-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:8px; margin-top:8px; }
+.kia-item { border:1px solid #e2e8f0; border-radius:9px; padding:9px 10px; background:#f8fafc; font-weight:700; color:#334155; }
+.button { display:inline-flex; align-items:center; justify-content:center; border:0; border-radius:9px; background:#0a4ea3; color:#fff; cursor:pointer; font-weight:700; padding:8px 11px; text-decoration:none; }
+.button.secondary { background:#475569; }
+.button.disabled { opacity:.55; pointer-events:none; cursor:not-allowed; }
+@media (max-width:700px) { .knowledge-header { flex-direction:column; } .knowledge-actions { width:100%; } .button { width:100%; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="knowledge-grid" aria-label="TIS Knowledge Center">
+    <div class="knowledge-header">
+        <div>
+            <h2>TIS Knowledge Center</h2>
+            <p class="knowledge-muted">Owner-only view of the TIS Knowledge Management System. Markdown remains the source of truth; the PDF is a generated snapshot.</p>
+        </div>
+        <div class="knowledge-actions">
+            <a class="button {% if not knowledge.pdf.exists %}disabled{% endif %}" href="/platform/knowledge/booklet" target="_blank" rel="noopener">View PDF</a>
+            <a class="button secondary {% if not knowledge.pdf.exists %}disabled{% endif %}" href="/platform/knowledge/booklet/download">Download PDF</a>
+        </div>
+    </div>
+
+    <div class="knowledge-card-grid">
+        <article class="knowledge-card">
+            <h2>Knowledge Health</h2>
+            <div class="knowledge-value">{{ knowledge.health.score }}%</div>
+            <span class="status-pill status-{{ knowledge.health.label|lower|replace(' ', '-') }}">{{ knowledge.health.label }}</span>
+        </article>
+        <article class="knowledge-card">
+            <h2>Documentation Version</h2>
+            <div class="knowledge-value">{{ knowledge.documentation_version }}</div>
+        </article>
+        <article class="knowledge-card">
+            <h2>Generated</h2>
+            <div class="knowledge-muted">{{ knowledge.generated_at or "Not available" }}</div>
+        </article>
+        <article class="knowledge-card">
+            <h2>Branch</h2>
+            <div class="knowledge-value">{{ knowledge.branch }}</div>
+        </article>
+        <article class="knowledge-card">
+            <h2>Commit SHA</h2>
+            <div class="knowledge-value">{{ knowledge.commit_sha }}</div>
+        </article>
+        <article class="knowledge-card">
+            <h2>PDF Status</h2>
+            <span class="status-pill status-{{ knowledge.pdf.status }}">{{ knowledge.pdf.status|replace('_', ' ')|title }}</span>
+            <p class="knowledge-muted">{{ knowledge.pdf.size_label }}</p>
+        </article>
+    </div>
+
+    <section class="knowledge-section">
+        <h2>Documentation Coverage</h2>
+        <div class="coverage-grid">
+            {% for item in knowledge.coverage %}
+            <div class="coverage-item">
+                <span>{{ item.label }}</span>
+                <span class="status-pill {% if item.exists %}status-current{% else %}status-missing{% endif %}">{{ "Available" if item.exists else "Missing" }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="knowledge-section">
+        <h2>Source Documents Included</h2>
+        {% if knowledge.manifest_error %}
+        <p class="knowledge-muted">Manifest status: {{ knowledge.manifest_error|replace('_', ' ')|title }}</p>
+        {% endif %}
+        <div class="knowledge-table-wrap">
+            <table class="knowledge-table">
+                <thead>
+                    <tr>
+                        <th>Path</th>
+                        <th>Status</th>
+                        <th>Hash</th>
+                        <th>Modified</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for source in knowledge.sources %}
+                    <tr>
+                        <td><code>{{ source.path }}</code></td>
+                        <td><span class="status-pill status-{{ source.status }}">{{ source.status|title }}</span></td>
+                        <td><code>{{ source.short_hash or "n/a" }}</code></td>
+                        <td>{{ source.current_modified_at or source.manifest_modified_at or "n/a" }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4">No source document metadata is available.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="knowledge-section">
+        <h2>Latest Knowledge Activity</h2>
+        <div class="knowledge-card-grid">
+            <article>
+                <h3>Change History</h3>
+                <ul class="knowledge-list">
+                    {% for entry in knowledge.change_entries %}
+                    <li><strong>{{ entry.title }}</strong><br><span class="knowledge-muted">{{ entry.path }}</span></li>
+                    {% else %}
+                    <li>No change-history entries found.</li>
+                    {% endfor %}
+                </ul>
+            </article>
+            <article>
+                <h3>ADRs</h3>
+                <ul class="knowledge-list">
+                    {% for adr in knowledge.adrs %}
+                    <li><strong>{{ adr.title }}</strong><br><span class="knowledge-muted">{{ adr.status }}{% if adr.date %} | {{ adr.date }}{% endif %} | {{ adr.path }}</span></li>
+                    {% else %}
+                    <li>No ADRs found.</li>
+                    {% endfor %}
+                </ul>
+            </article>
+            <article>
+                <h3>Module History</h3>
+                <ul class="knowledge-list">
+                    {% for area in knowledge.module_history_areas %}
+                    <li><strong>{{ area.title }}</strong><br><span class="knowledge-muted">{{ area.path }}</span></li>
+                    {% else %}
+                    <li>No module history areas found.</li>
+                    {% endfor %}
+                </ul>
+            </article>
+        </div>
+    </section>
+
+    <section class="knowledge-section">
+        <h2>Knowledge Impact Assessment</h2>
+        <p class="knowledge-muted">Every future implementation report must include this checklist.</p>
+        <div class="kia-grid">
+            {% for item in knowledge.kia_items %}
+            <div class="kia-item">{{ item }}</div>
+            {% endfor %}
+        </div>
+    </section>
+</section>
+{% endblock %}

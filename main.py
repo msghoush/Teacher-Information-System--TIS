@@ -39,6 +39,7 @@ import db_migrations
 import email_service
 import email_templates
 import location_service
+import knowledge_service
 import permission_registry
 import role_permission_service
 import saas.models  # Register SaaS metadata before create_all.
@@ -9590,6 +9591,72 @@ def _get_platform_owner_access(request: Request, db: Session, *, primary: bool =
             page_key="platform",
             message="Only the Platform Owner can perform this action.",
         ),
+    )
+
+
+@app.get("/platform/knowledge", response_class=HTMLResponse)
+def platform_knowledge_center(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user, denied = _get_platform_owner_access(request, db)
+    if denied:
+        return denied
+
+    knowledge_payload = knowledge_service.get_knowledge_center_payload()
+    return templates.TemplateResponse(
+        request,
+        "platform_knowledge_center.html",
+        {
+            "request": request,
+            "knowledge": knowledge_payload,
+            **build_shell_context(
+                request,
+                db,
+                current_user,
+                page_key="platform",
+                title="TIS Knowledge Center",
+                eyebrow="Platform Knowledge",
+                intro="Review the Knowledge Management System status, source coverage, and generated documentation snapshot.",
+                icon="shield",
+            ),
+        },
+    )
+
+
+@app.get("/platform/knowledge/booklet")
+def view_platform_knowledge_booklet(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _current_user, denied = _get_platform_owner_access(request, db)
+    if denied:
+        return denied
+    if not knowledge_service.PDF_PATH.exists():
+        return PlainTextResponse("The TIS documentation booklet is not available.", status_code=404)
+    return FileResponse(
+        knowledge_service.PDF_PATH,
+        media_type="application/pdf",
+        filename="TIS_Project_Reference_Booklet.pdf",
+        headers={"Content-Disposition": 'inline; filename="TIS_Project_Reference_Booklet.pdf"'},
+    )
+
+
+@app.get("/platform/knowledge/booklet/download")
+def download_platform_knowledge_booklet(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _current_user, denied = _get_platform_owner_access(request, db)
+    if denied:
+        return denied
+    if not knowledge_service.PDF_PATH.exists():
+        return PlainTextResponse("The TIS documentation booklet is not available.", status_code=404)
+    return FileResponse(
+        knowledge_service.PDF_PATH,
+        media_type="application/pdf",
+        filename="TIS_Project_Reference_Booklet.pdf",
+        headers={"Content-Disposition": 'attachment; filename="TIS_Project_Reference_Booklet.pdf"'},
     )
 
 

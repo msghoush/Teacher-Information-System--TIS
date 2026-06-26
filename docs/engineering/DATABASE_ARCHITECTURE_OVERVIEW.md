@@ -1,0 +1,334 @@
+---
+title: TIS Database Architecture Overview
+documentation_version: 3.0
+last_updated: 2026-06-26
+source_of_truth: true
+---
+
+# TIS Database Architecture Overview
+
+This document explains the conceptual TIS data model. It is intentionally high level and does not list every field. Use `models.py`, `saas/models.py`, and tests for exact implementation details.
+
+## Core Boundary Principle
+
+TIS has three identity/data worlds that must never be casually mixed:
+
+- Platform data: platform owners, co-owners, developers, platform permissions, and cross-organization oversight.
+- SaaS account data: public signup, onboarding, billing, pending organizations, and payment/provisioning readiness.
+- Operational tenant data: provisioned school groups, branches, academic years, users, teachers, subjects, planning, timetable, calendar, and observations.
+
+The safest mental model:
+
+```text
+Platform Owner oversees many organizations.
+SaaS account prepares an organization for subscription/provisioning.
+Operational tenant data belongs to one provisioned school group/branch/year context.
+```
+
+## Platform Identities
+
+Represents:
+Platform Owner, Co-Owner, and Platform Developer identities.
+
+Ownership boundary:
+Platform identities can operate outside ordinary tenant scope only through approved platform workflows.
+
+Must never be mixed:
+- Platform Developer must not become Platform Owner through permission drift.
+- Platform users must not be treated as normal tenant users unless an explicit context workflow establishes scope.
+
+Related files:
+- `auth.py`
+- `models.py`
+- `permission_registry.py`
+- `main.py`
+
+## SaaS Accounts
+
+Represents:
+Public SaaS signup/login/account identities used before or alongside operational tenant access.
+
+Ownership boundary:
+SaaS accounts own onboarding and billing/account state, not operational school records directly.
+
+Must never be mixed:
+- SaaS account identity is not operational user identity.
+- SaaS account creation must not directly create live tenant data.
+
+Related files:
+- `saas/models.py`
+- `saas/service.py`
+- `saas/router.py`
+- `docs/adr/0002-separate-saas-identity-and-operational-users.md`
+
+## Pending Organizations
+
+Represents:
+An organization moving through SaaS onboarding before operational provisioning.
+
+Ownership boundary:
+Pending organization data belongs to the SaaS onboarding/provisioning pipeline.
+
+Must never be mixed:
+- Pending organization data is not the live school group until provisioning creates or connects operational records.
+
+Related files:
+- `saas/models.py`
+- `saas/service.py`
+- `saas/provisioning_service.py`
+
+## Payment Records
+
+Represents:
+Payment, billing, checkout, and provider-confirmed subscription state.
+
+Ownership boundary:
+Payment state belongs to SaaS billing/subscription logic and should not be embedded directly into academic modules.
+
+Must never be mixed:
+- Checkout return navigation must not be treated as verified payment.
+- Payment/provider details must not leak into operational teacher/planning/calendar logic.
+
+Related files:
+- `saas/payment_service.py`
+- `saas/billing_service.py`
+- `saas/paddle_client.py`
+- `docs/adr/0003-paddle-payment-architecture.md`
+- `docs/adr/0004-webhook-only-payment-confirmation.md`
+
+## Provisioning Jobs
+
+Represents:
+Controlled work that turns a ready pending organization into operational school structures.
+
+Ownership boundary:
+Provisioning bridges SaaS data and operational tenant data, but only through explicit platform-owner-visible workflows.
+
+Must never be mixed:
+- Do not directly create operational tenant records from public signup or checkout return pages.
+- Do not create records under the wrong school group.
+
+Related files:
+- `saas/provisioning_service.py`
+- `saas/router.py`
+- `docs/adr/0005-delayed-tenant-provisioning-after-verified-payment.md`
+
+## School Groups / Organizations
+
+Represents:
+The top-level operational tenant boundary.
+
+Ownership boundary:
+Most tenant operational data belongs to a school group directly or through branch/year relationships.
+
+Must never be mixed:
+- Data from one school group must not appear in another school group's operational workflows.
+
+Related files:
+- `models.py`
+- `main.py`
+
+## Branches
+
+Represents:
+Campuses or branches inside a school group.
+
+Ownership boundary:
+Branches scope users, teachers, planning, timetable, academic calendar, branding, and reports.
+
+Must never be mixed:
+- Branch-scoped data must not silently cross campuses.
+- Platform context switching must remain explicit.
+
+Related files:
+- `models.py`
+- `main.py`
+- `ui_shell.py`
+
+## Academic Years
+
+Represents:
+The academic period used to scope operational records.
+
+Ownership boundary:
+Planning, timetable, subjects, calendar, and related data may depend on active academic year.
+
+Must never be mixed:
+- Do not copy or read current-year data into another year unless the workflow explicitly does so.
+
+Related files:
+- `models.py`
+- `main.py`
+- `year_copy.py`
+
+## Operational Users
+
+Represents:
+Users who work inside an operational school group/branch/year context.
+
+Ownership boundary:
+Operational users belong to tenant structures and are governed by roles, permissions, branch scope, and active status.
+
+Must never be mixed:
+- Operational users are not SaaS accounts by default.
+- Tenant users should not gain platform owner access.
+
+Related files:
+- `models.py`
+- `auth.py`
+- `routers/users.py`
+
+## Roles And Permissions
+
+Represents:
+Role packages, permission keys, platform developer permissions, and route/action authorization.
+
+Ownership boundary:
+Permissions decide what a user can view or change in the current scope.
+
+Must never be mixed:
+- UI hiding is not enough; protected actions need route/service checks.
+- Owner controls must remain outside developer-assignable permission drift.
+
+Related files:
+- `permission_registry.py`
+- `role_permission_service.py`
+- `authorization.py`
+- `auth.py`
+
+## Teachers
+
+Represents:
+Teacher records, qualifications, capacity, workload, and staffing-relevant academic data.
+
+Ownership boundary:
+Teacher records are tenant/branch/year-sensitive operational data.
+
+Must never be mixed:
+- Teacher data from one branch or school group must not appear in another tenant's planning/reporting.
+
+Related files:
+- `routers/teachers.py`
+- `teacher_qualifications.py`
+- `teacher_capacity.py`
+- `models.py`
+
+## Subjects
+
+Represents:
+Subject catalog, colors, requirements, qualification relationships, planning and timetable dependencies.
+
+Ownership boundary:
+Subjects are academic configuration data inside tenant/year context.
+
+Must never be mixed:
+- Subject changes can affect planning, timetable, teacher matching, and reports; update all affected docs/tests.
+
+Related files:
+- `routers/subjects.py`
+- `subject_colors.py`
+- `models.py`
+
+## Sections / Classes
+
+Represents:
+Class sections used by planning and timetabling.
+
+Ownership boundary:
+Sections belong to operational branch/year structures.
+
+Must never be mixed:
+- Section structures should not cross branch/year boundaries accidentally.
+
+Related files:
+- `routers/planning.py`
+- `models.py`
+
+## Workforce Planning
+
+Represents:
+Teacher assignments, homeroom ownership, capacity, workload, subject coverage, and staffing needs.
+
+Ownership boundary:
+Planning is operational data tied to school group, branch, academic year, teachers, subjects, and sections.
+
+Must never be mixed:
+- Planning changes can affect dashboards, reports, timetable, and staffing decisions.
+
+Related files:
+- `routers/planning.py`
+- `teacher_capacity.py`
+- `homeroom_defaults.py`
+
+## Timetable
+
+Represents:
+Weekly lesson placement and timetable settings.
+
+Ownership boundary:
+Timetable data depends on planning, teacher, subject, section, branch, and year context.
+
+Must never be mixed:
+- Timetable edits must preserve scheduling constraints and scope.
+
+Related files:
+- `routers/timetable.py`
+- `timetable_logic.py`
+
+## Academic Calendar
+
+Represents:
+Events, academic dates, responsibilities, exports, and calendar settings.
+
+Ownership boundary:
+Calendar records are branch/year/tenant scoped.
+
+Must never be mixed:
+- Calendar events for one tenant or branch must not appear in another.
+
+Related files:
+- `routers/academic_calendar.py`
+- `templates/academic_calendar.html`
+
+## Observations
+
+Represents:
+Teacher observation records, feedback, scoring, evidence, and history.
+
+Ownership boundary:
+Observation data is sensitive tenant operational data.
+
+Must never be mixed:
+- Observation records must remain tenant-scoped and permission-protected.
+
+Related files:
+- `routers/observations.py`
+- `templates/observation_*.html`
+
+## Knowledge Management System Artifacts
+
+Represents:
+Markdown docs, ADRs, module history, generated PDF, manifest, and Knowledge Center read-only status.
+
+Ownership boundary:
+Markdown under `docs/` is source of truth. Generated artifacts under `static/docs/` are snapshots.
+
+Must never be mixed:
+- The app must not silently rewrite Markdown source docs.
+- The PDF must not be edited manually.
+- Protected documentation access should go through owner-only routes.
+
+Related files:
+- `docs/`
+- `scripts/generate_docs_pdf.py`
+- `static/docs/`
+- `knowledge_service.py`
+
+## Tenant Isolation Rules
+
+- Always know the current school group, branch, and academic year.
+- Do not assume platform users have tenant scope.
+- Do not assume SaaS accounts have operational records.
+- Keep pending SaaS organization state separate from provisioned operational data.
+- Preserve route permissions and service-level checks.
+- Tests touching cross-tenant data should be treated as high value.

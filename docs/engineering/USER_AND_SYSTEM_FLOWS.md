@@ -1,0 +1,206 @@
+---
+title: TIS User And System Flows
+documentation_version: 3.0
+last_updated: 2026-06-26
+source_of_truth: true
+---
+
+# TIS User And System Flows
+
+This document describes the major end-to-end flows a developer must understand before changing TIS.
+
+## Public Customer Flow
+
+Flow:
+
+1. Public visitor opens `https://tisplatform.com`.
+2. Visitor clicks a signup/get-started path.
+3. Visitor reaches SaaS signup at `/saas/signup`.
+4. SaaS account is created.
+5. Email verification is completed when required.
+6. User signs into SaaS account through `/saas/login`.
+7. User enters `/saas/account`.
+8. User completes organization onboarding:
+   - organization details,
+   - contacts,
+   - branches,
+   - academic setup,
+   - review.
+9. User selects a plan.
+10. User enters checkout.
+11. Paddle handles payment.
+12. Return/cancel page informs the user of checkout navigation result.
+13. Paddle webhook confirms payment.
+14. Local payment/billing state is updated.
+15. Pending organization becomes ready for provisioning.
+16. Platform owner reviews/runs provisioning.
+17. Operational tenant structures are created.
+18. Operational login becomes available through `/login`.
+
+Guardrails:
+
+- Checkout return is not authoritative payment confirmation.
+- Public signup must not directly create operational tenant data.
+- Provisioning should occur only through the approved flow.
+
+## SaaS Identity Flow
+
+Flow:
+
+1. User signs up through `/saas/signup`.
+2. SaaS account/session records are created.
+3. User signs in through `/saas/login`.
+4. Account dashboard is available at `/saas/account`.
+5. User can access profile, sessions, security, billing status, and onboarding state.
+
+Important distinction:
+
+- SaaS account identity is not the same as operational tenant user identity.
+- Platform identity is also separate.
+
+Guardrails:
+
+- Do not merge SaaS accounts with operational users unless an approved provisioning flow creates the needed operational records.
+- Keep SaaS authentication and operational authentication boundaries clear.
+
+## Payment Flow
+
+Flow:
+
+1. User selects a plan.
+2. App creates or references a checkout session.
+3. User goes to Paddle checkout.
+4. User returns through checkout return or cancel pages.
+5. Paddle sends webhook events.
+6. Webhook-confirmed payment updates local payment/billing state.
+7. Verified payment can make a pending organization ready for provisioning.
+
+Guardrails:
+
+- Webhook confirmation is authoritative.
+- Do not use return-page navigation as proof of payment.
+- Keep Paddle-specific details inside `saas/` payment/client service boundaries.
+
+## Provisioning Flow
+
+Flow:
+
+1. Pending organization has completed required onboarding.
+2. Payment is verified or owner-approved readiness is satisfied.
+3. Provisioning job is queued or run.
+4. Operational records are created or connected:
+   - school group,
+   - branch,
+   - academic year,
+   - initial operational user,
+   - permissions/role context,
+   - required setup defaults.
+5. Provisioning status is updated.
+6. Activation/access email may be sent.
+7. User enters operational portal through `/login`.
+
+Guardrails:
+
+- Keep provisioning idempotent where possible.
+- Do not mix school groups.
+- Do not skip platform owner visibility.
+
+## Operational Login Flow
+
+Flow:
+
+1. User opens `/login`.
+2. Credentials are verified.
+3. Active-user status is checked.
+4. Platform users route toward platform context.
+5. Tenant users receive branch/year scope.
+6. Session and scope cookies are set.
+7. User lands on `/platform` or `/dashboard`.
+8. Middleware enforces route permissions.
+
+Guardrails:
+
+- Preserve platform vs tenant branching.
+- Preserve idle timeout behavior for tenant users.
+- Do not bypass permission middleware.
+
+## Platform Owner Flow
+
+Flow:
+
+1. Platform owner logs in through `/login`.
+2. Owner lands in platform context.
+3. Owner uses `/platform` for organization context and owner/developer controls.
+4. Owner uses SaaS admin pages for pending organizations, payments, and provisioning.
+5. Owner uses `/platform/knowledge` to review KMS health.
+6. Owner views/downloads the PDF through protected routes:
+   - `/platform/knowledge/booklet`
+   - `/platform/knowledge/booklet/download`
+
+Guardrails:
+
+- Platform developers are not owners.
+- Owner-only pages must use existing owner access helpers.
+- Do not expose KMS PDF through direct static links.
+
+## Knowledge Management Flow
+
+Flow:
+
+1. Developer or Codex reads `docs/AI_PROJECT_CONTEXT.md`.
+2. Developer reads master context, project state, engineering docs, relevant ADRs, and module history.
+3. Approved change is implemented.
+4. Knowledge Impact Assessment is completed.
+5. Relevant docs are updated:
+   - master context,
+   - project state,
+   - change history,
+   - ADRs if needed,
+   - module history if needed,
+   - AI project context if needed,
+   - engineering docs if architecture/module/flow understanding changed.
+6. PDF generator runs.
+7. PDF snapshot and manifest are regenerated.
+8. Knowledge Center checks manifest freshness and health.
+
+Guardrails:
+
+- Markdown remains source of truth.
+- PDF is generated and must not be edited manually.
+- App must not silently rewrite source docs.
+- Regenerate button is not implemented yet.
+
+## Human / AI Developer Onboarding Flow
+
+Flow:
+
+1. Read `docs/AI_PROJECT_CONTEXT.md`.
+2. Read `docs/README.md`.
+3. Read `docs/TIS_MASTER_CONTEXT.md`.
+4. Read `docs/PROJECT_STATE.md`.
+5. Read `docs/engineering/TIS_MODULE_MAP.md`.
+6. Read `docs/engineering/REPOSITORY_ARCHITECTURE.md`.
+7. Read `docs/engineering/USER_AND_SYSTEM_FLOWS.md`.
+8. Read relevant ADRs and module history.
+9. Inspect code with `rg` before editing.
+10. Make scoped changes only.
+11. Update KMS docs and regenerate the PDF if needed.
+12. Report the KIA.
+
+Before coding, inspect:
+
+- affected routes,
+- models and scope fields,
+- permission rules,
+- templates/forms,
+- tests for the touched module,
+- related docs/ADRs/history.
+
+After coding, update:
+
+- `docs/CHANGE_HISTORY.md` for meaningful changes,
+- module history for area-specific changes,
+- ADRs for major decisions,
+- engineering docs when module maps, architecture, or flows change,
+- AI context when onboarding truth changes,
+- project state when priority/status changes.
