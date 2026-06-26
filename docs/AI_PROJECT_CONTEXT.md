@@ -1,6 +1,6 @@
 ---
 title: TIS AI Project Context
-documentation_version: 2.0
+documentation_version: 3.0
 last_updated: 2026-06-26
 recommended_first_read: true
 ---
@@ -55,6 +55,17 @@ Legacy FastAPI landing files are not the source of truth:
 - `templates/landing.html`
 - `static/landing/landing.css`
 
+## Engineering Handbook
+
+For deeper onboarding, read:
+
+- `docs/engineering/README.md`
+- `docs/engineering/TIS_MODULE_MAP.md`
+- `docs/engineering/REPOSITORY_ARCHITECTURE.md`
+- `docs/engineering/USER_AND_SYSTEM_FLOWS.md`
+
+These files explain module ownership, repository boundaries, end-to-end flows, and what must not be changed casually.
+
 ## Domains And Routing
 
 The public website lives at `https://tisplatform.com`. The app portal lives at `https://app.tisplatform.com`.
@@ -84,6 +95,7 @@ Current priority is the TIS Knowledge Management System:
 - Module history preserves deeper area-specific evolution.
 - Platform Owner Knowledge Center is implemented as a read-only owner utility.
 - The Knowledge Center uses protected routes for PDF view/download and does not link directly to static PDF paths.
+- KMS v3.0 Phase 3A adds a true engineering handbook with module map, repository architecture, workflows, and developer onboarding.
 
 ## Critical Rules
 
@@ -122,13 +134,14 @@ If included docs change, regenerate:
 
 1. Read this file first.
 2. Read `docs/TIS_MASTER_CONTEXT.md` and `docs/PROJECT_STATE.md`.
-3. Read relevant ADRs, module history, and supporting docs.
-4. Inspect code before editing.
-5. Keep changes scoped.
-6. Update KMS docs when meaningful behavior, architecture, product state, or workflow changes.
-7. Regenerate PDF if included source docs changed.
-8. Run validation.
-9. Report KIA in final response.
+3. Read `docs/engineering/README.md`.
+4. Read relevant engineering docs, ADRs, module history, and supporting docs.
+5. Inspect code before editing.
+6. Keep changes scoped.
+7. Update KMS docs when meaningful behavior, architecture, product state, module map, repository ownership, or workflow changes.
+8. Regenerate PDF if included source docs changed.
+9. Run validation.
+10. Report KIA in final response.
 
 ## Landing Page Situation
 

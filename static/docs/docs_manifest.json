@@ -1,23 +1,23 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-06-26T12:21:29.801821+03:00",
-  "documentation_version": "2.0",
+  "generated_at": "2026-06-26T12:48:03.978192+03:00",
+  "documentation_version": "3.0",
   "branch": "dev",
-  "commit_sha": "746a9a0",
+  "commit_sha": "eab8f83",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
   "included_source_files": [
     {
       "path": "docs/README.md",
-      "modified_at": "2026-06-26T12:21:10.667611+03:00",
-      "size_bytes": 3568,
-      "sha256": "56817a31c0c49bd7558e7d6cd75f861409e17c20b4d843a5007cf7a7cda81a2b"
+      "modified_at": "2026-06-26T12:47:56.230950+03:00",
+      "size_bytes": 4213,
+      "sha256": "a3705b0e6388da2a5f716b1440a0de78cf42a2c71ced6a1bdf1db78b54f0a7a1"
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-06-26T12:21:10.669609+03:00",
-      "size_bytes": 5411,
-      "sha256": "43afa3706fa6e56c9c7b3239baae2bdbb67ae4e9b24aee69413e2b9bafd9d887"
+      "modified_at": "2026-06-26T12:47:35.874424+03:00",
+      "size_bytes": 5973,
+      "sha256": "d0eb4a33ce132fa268ffb0790f1f667e9f67928ef42450b85029905efa410ba1"
     },
     {
       "path": "docs/DOCUMENTATION_UPDATE_POLICY.md",
@@ -27,27 +27,51 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-06-26T12:21:10.671604+03:00",
-      "size_bytes": 16363,
-      "sha256": "a5907e36ae8fc061e7c1bbde2ad2d132c4bb23b804a1fae73e92e52520b718d8"
+      "modified_at": "2026-06-26T12:47:35.876418+03:00",
+      "size_bytes": 16857,
+      "sha256": "43780c05cdfa0d2275ef5aa609c3f0c97d7235b2a3c0200495c84af0c6c761b7"
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-06-26T12:21:17.808212+03:00",
-      "size_bytes": 5928,
-      "sha256": "a741bf8f63017c120597b34b198e52437c8e317e0247dfb68a540ab8772f6316"
+      "modified_at": "2026-06-26T12:47:35.878414+03:00",
+      "size_bytes": 6382,
+      "sha256": "3392e65a7aaeefa53dd5ee9bab8286a6731848d2748af94cb02a65bbfeca9325"
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-06-26T12:21:10.665235+03:00",
-      "size_bytes": 4054,
-      "sha256": "f8a9da92f0e665634176f77352bff27d54ddc43ecd5ed64daee3d0e2320a58d3"
+      "modified_at": "2026-06-26T12:47:35.880408+03:00",
+      "size_bytes": 5519,
+      "sha256": "1de41e9bfac7f8190c9f211f3f3fd32ca56d718933f2221920f2633010068ebf"
     },
     {
       "path": "docs/adr/README.md",
       "modified_at": "2026-06-26T12:01:39.551060+03:00",
       "size_bytes": 1074,
       "sha256": "340514e6dcca9dd522e9ffbc72abdb9cde45790326d92210d83976dc0764e368"
+    },
+    {
+      "path": "docs/engineering/README.md",
+      "modified_at": "2026-06-26T12:46:55.044472+03:00",
+      "size_bytes": 1781,
+      "sha256": "898382f93badf020d062b6c6d4a517172c6d7aeec8324296dfecf77e765f467d"
+    },
+    {
+      "path": "docs/engineering/TIS_MODULE_MAP.md",
+      "modified_at": "2026-06-26T12:46:55.046791+03:00",
+      "size_bytes": 13699,
+      "sha256": "a6c63682c90614a3b85b96021a245fc7dbfb4da12b569fd7c9b59ce1ba6a1d32"
+    },
+    {
+      "path": "docs/engineering/REPOSITORY_ARCHITECTURE.md",
+      "modified_at": "2026-06-26T12:46:55.049809+03:00",
+      "size_bytes": 5728,
+      "sha256": "8ab07b2ddf0ad1d25478a908db457342aecae8727992c9f67a88ac6c035ddbc6"
+    },
+    {
+      "path": "docs/engineering/USER_AND_SYSTEM_FLOWS.md",
+      "modified_at": "2026-06-26T12:46:55.052429+03:00",
+      "size_bytes": 6191,
+      "sha256": "7de0507141c0aa42e06990beee901fb9b158aed361fc6870f366653cd179b2fc"
     },
     {
       "path": "docs/adr/0001-separate-nextjs-landing-website.md",
@@ -96,6 +120,18 @@
       "modified_at": "2026-06-26T12:01:39.591102+03:00",
       "size_bytes": 367,
       "sha256": "f2e21ac28b38079b715ab86736afe8fdd4ded0ed86e301a5097ff6aef62bd263"
+    },
+    {
+      "path": "docs/history/engineering-handbook/2026-06-26-kms-v3-engineering-handbook.md",
+      "modified_at": "2026-06-26T12:47:56.230444+03:00",
+      "size_bytes": 1861,
+      "sha256": "9df47871dc9a1f90d51358fb655b9776d67fecf750cbfc7dfa0321f503c5dead"
+    },
+    {
+      "path": "docs/history/engineering-handbook/README.md",
+      "modified_at": "2026-06-26T12:47:56.229446+03:00",
+      "size_bytes": 514,
+      "sha256": "e06efaafe64de24f5c35241e61edc9e46b6d84ee3498ca7b3eb60717b40ba859"
     },
     {
       "path": "docs/history/landing-page/README.md",

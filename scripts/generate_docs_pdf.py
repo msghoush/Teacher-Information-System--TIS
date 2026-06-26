@@ -25,7 +25,7 @@ from reportlab.platypus import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOCUMENTATION_VERSION = "2.0"
+DOCUMENTATION_VERSION = "3.0"
 OUTPUT_PATH = ROOT / "static" / "docs" / "TIS_Project_Reference_Booklet.pdf"
 MANIFEST_PATH = ROOT / "static" / "docs" / "docs_manifest.json"
 
@@ -39,6 +39,13 @@ CORE_SOURCE_DOCS = [
     ROOT / "docs" / "adr" / "README.md",
 ]
 
+ENGINEERING_DOCS = [
+    ROOT / "docs" / "engineering" / "README.md",
+    ROOT / "docs" / "engineering" / "TIS_MODULE_MAP.md",
+    ROOT / "docs" / "engineering" / "REPOSITORY_ARCHITECTURE.md",
+    ROOT / "docs" / "engineering" / "USER_AND_SYSTEM_FLOWS.md",
+]
+
 ADR_DOCS = sorted((ROOT / "docs" / "adr").glob("*.md"))
 
 HISTORY_DOCS = sorted((ROOT / "docs" / "history").glob("**/*.md"))
@@ -50,7 +57,7 @@ SUPPORTING_DOCS = [
 ]
 
 SOURCE_DOCS = []
-for source in [*CORE_SOURCE_DOCS, *ADR_DOCS, *HISTORY_DOCS, *SUPPORTING_DOCS]:
+for source in [*CORE_SOURCE_DOCS, *ENGINEERING_DOCS, *ADR_DOCS, *HISTORY_DOCS, *SUPPORTING_DOCS]:
     if source not in SOURCE_DOCS:
         SOURCE_DOCS.append(source)
 

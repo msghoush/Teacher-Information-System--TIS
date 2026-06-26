@@ -1,6 +1,6 @@
 ---
 title: TIS Change History
-documentation_version: 2.0
+documentation_version: 3.0
 last_updated: 2026-06-26
 source_of_truth: true
 ---
@@ -26,6 +26,46 @@ PDF regenerated:
 AI project context updated:
 Reviewer/approval notes:
 ```
+
+## 2026-06-26 - Added KMS v3.0 Engineering Handbook
+
+Area/module:
+Knowledge Management System and engineering onboarding
+
+Previous state:
+The generated booklet included KMS source documents, ADRs, module history, AI context, and the Knowledge Center foundation, but it did not fully onboard a new human developer or future Codex/ChatGPT conversation into TIS modules, repository architecture, and end-to-end flows.
+
+New state:
+TIS now has an engineering handbook layer with a complete module map, repository architecture guide, user/system flow guide, and engineering onboarding index. The PDF generator includes these docs and emits documentation version 3.0.
+
+Reason:
+Make the generated booklet a true TIS Engineering Handbook rather than only a documentation bundle.
+
+Files changed:
+- `docs/engineering/README.md`
+- `docs/engineering/TIS_MODULE_MAP.md`
+- `docs/engineering/REPOSITORY_ARCHITECTURE.md`
+- `docs/engineering/USER_AND_SYSTEM_FLOWS.md`
+- `docs/TIS_MASTER_CONTEXT.md`
+- `docs/AI_PROJECT_CONTEXT.md`
+- `docs/PROJECT_STATE.md`
+- `docs/README.md`
+- `docs/CHANGE_HISTORY.md`
+- `scripts/generate_docs_pdf.py`
+- `static/docs/TIS_Project_Reference_Booklet.pdf`
+- `static/docs/docs_manifest.json`
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+Approved for KMS v3.0 Phase 3A only. App behavior, SaaS flows, landing page code, database, migrations, routes, commits, and pushes remain out of scope.
 
 ## 2026-06-26 - Added Platform Owner Knowledge Center
 

@@ -1,6 +1,6 @@
 ---
 title: TIS Documentation Index
-documentation_version: 2.0
+documentation_version: 3.0
 last_updated: 2026-06-26
 source_of_truth: true
 ---
@@ -24,6 +24,7 @@ Then load:
 - `docs/DOCUMENTATION_UPDATE_POLICY.md`
 - relevant ADRs under `docs/adr/`
 - relevant module history under `docs/history/`
+- engineering handbook docs under `docs/engineering/`
 
 If the task touches the public website, also read:
 
@@ -40,6 +41,13 @@ If the task touches the public website, also read:
 - `docs/DOCUMENTATION_UPDATE_POLICY.md`: non-negotiable KMS and Knowledge Impact Assessment policy.
 - `docs/CHANGE_HISTORY.md`: chronological summary of meaningful changes.
 
+## Engineering Handbook
+
+- `docs/engineering/README.md`: engineering onboarding order and handbook index.
+- `docs/engineering/TIS_MODULE_MAP.md`: complete module map with purpose, files, maturity, docs, risks, and guardrails.
+- `docs/engineering/REPOSITORY_ARCHITECTURE.md`: repository structure and ownership boundaries.
+- `docs/engineering/USER_AND_SYSTEM_FLOWS.md`: public customer, SaaS identity, payment, provisioning, operational login, platform owner, KMS, and developer onboarding flows.
+
 ## Decision And History Documents
 
 - `docs/adr/`: Architecture Decision Records for major accepted decisions.
@@ -54,6 +62,7 @@ Current module history areas:
 - `docs/history/saas-onboarding/`
 - `docs/history/provisioning/`
 - `docs/history/platform-knowledge/`
+- `docs/history/engineering-handbook/`
 
 ## Supporting Documents
 
@@ -101,4 +110,4 @@ A task is not complete until KIA is assessed. If included source docs change, re
 
 Phase 2A and Phase 2B establish KMS governance, ADRs, module history, AI context, and PDF/manifest generation.
 
-The Platform Owner Knowledge Center is implemented as a read-only owner utility. Do not add a regenerate button or app-side Markdown rewriting unless explicitly approved.
+KMS v3.0 Phase 3A adds the engineering handbook layer. The Platform Owner Knowledge Center is implemented as a read-only owner utility. Do not add a regenerate button or app-side Markdown rewriting unless explicitly approved.

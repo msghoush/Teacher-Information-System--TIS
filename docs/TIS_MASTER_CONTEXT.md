@@ -1,13 +1,13 @@
 ---
 title: TIS Master Context
-documentation_version: 2.0
+documentation_version: 3.0
 last_updated: 2026-06-26
 source_of_truth: true
 ---
 
 # TIS Master Context
 
-Documentation version: 2.0
+Documentation version: 3.0
 
 Last major context update: 2026-06-26
 
@@ -292,6 +292,7 @@ KMS source documents:
 - `docs/CHANGE_HISTORY.md`: chronological summary of meaningful changes.
 - `docs/adr/`: Architecture Decision Records.
 - `docs/history/`: module-specific history.
+- `docs/engineering/`: engineering handbook with module map, repository architecture, user/system flows, and developer onboarding.
 
 PDF philosophy:
 
@@ -313,6 +314,12 @@ Owner-only app access:
 - `/platform/knowledge/booklet/download`: protected PDF download.
 
 The Knowledge Center is protected by the existing Platform Owner access pattern. It is not public, not a landing page, and does not regenerate or rewrite source docs.
+
+Engineering handbook:
+
+- `docs/engineering/TIS_MODULE_MAP.md` maps product/system modules and guardrails.
+- `docs/engineering/REPOSITORY_ARCHITECTURE.md` explains repository ownership and risky files.
+- `docs/engineering/USER_AND_SYSTEM_FLOWS.md` documents end-to-end customer, SaaS, payment, provisioning, operational, platform owner, KMS, and developer flows.
 
 ## Development Workflow
 

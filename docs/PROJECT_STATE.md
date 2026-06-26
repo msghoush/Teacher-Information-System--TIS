@@ -1,6 +1,6 @@
 ---
 title: TIS Project State
-documentation_version: 2.0
+documentation_version: 3.0
 last_updated: 2026-06-26
 source_of_truth: true
 ---
@@ -68,10 +68,12 @@ Documentation/KMS milestones:
 
 - Phase 1 documentation foundation completed and pushed to `dev`.
 - Phase 2A and Phase 2B KMS foundation approved for implementation.
+- Phase 2C Platform Owner Knowledge Center completed and pushed to `dev`.
+- KMS v3.0 Phase 3A Engineering Handbook approved for implementation.
 
 ## Current Priority
 
-Current priority: upgrade Phase 1 documentation into the TIS Knowledge Management System.
+Current priority: upgrade the generated reference booklet into a true TIS Engineering Handbook.
 
 Phase 2A and Phase 2B scope:
 
@@ -103,6 +105,15 @@ Still out of scope:
 - Database, migrations, or `tis.db`.
 - Landing page implementation.
 
+KMS v3.0 Phase 3A scope:
+
+- Add complete TIS module map.
+- Add repository architecture map.
+- Add end-to-end user/system workflows.
+- Add clear AI/human developer onboarding structure.
+- Update generator to include engineering docs.
+- Regenerate the PDF and manifest.
+
 ## Current Known Issues
 
 Known issues and watch points:
@@ -118,7 +129,7 @@ Known issues and watch points:
 
 Next planned work after Phase 2C review:
 
-- Review Knowledge Center behavior, access control, KMS freshness display, PDF routes, docs, PDF, and manifest.
+- Review KMS v3.0 engineering handbook coverage, PDF readability, and manifest inclusion.
 - Approve corrections if needed.
 - Later consider an explicit owner-only regenerate workflow.
 
@@ -172,4 +183,5 @@ A task is not complete until KIA is assessed. If included docs change, regenerat
 - Do not change the landing page unless explicitly approved.
 - Do not add Platform Owner Knowledge Center routes until reviewed and approved.
 - Do not add a KMS regenerate button until separately approved.
+- Do not implement Phase 3B until reviewed and approved.
 - Do not commit or push unless explicitly requested.
