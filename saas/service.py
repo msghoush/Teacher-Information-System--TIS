@@ -295,7 +295,10 @@ def build_verification_url(request: Request, token: str) -> str:
 def send_verification_email(db: Session, account, request: Request) -> None:
     token = create_email_verification_token(db, account, request=request)
     verification_url = build_verification_url(request, token)
-    logo_url = f"{email_public_base_url(request)}/static/branding/tis/logos/tis-wordmark-dark-blue.png"
+    logo_url = (
+        f"{email_public_base_url(request)}"
+        "/static/branding/tis/logos/TIS%20Wordmark%20Only%20%E2%80%93%20Dark%20Blue.png"
+    )
     email_content = email_templates.build_email_verification_email(
         verification_url=verification_url,
         logo_url=logo_url,

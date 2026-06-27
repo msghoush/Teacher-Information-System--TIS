@@ -2,8 +2,8 @@
 {% block content %}
 <header class="page-header">
     <span class="page-eyebrow">Subscription Setup</span>
-    <h1>Checkout summary</h1>
-    <p class="page-subtitle">Review subscription details before launching secure payment.</p>
+    <h1>Secure Payment summary</h1>
+    <p class="page-subtitle">Review Subscription Setup details before launching Secure Payment.</p>
 </header>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
@@ -19,33 +19,33 @@
             <p>{{ checkout_summary.plan.plan_name }}<br>{{ checkout_summary.selection.billing_interval }}</p>
         </div>
         <div class="stat">
-            <strong>Display price</strong>
+            <strong>Price</strong>
             <p>{{ checkout_summary.selection.display_currency_code }} {{ "%.2f"|format((checkout_summary.selection.display_amount_minor or 0) / 100) }}</p>
         </div>
     </div>
     <div class="stat-list">
         <div class="stat">
-            <strong>Base price</strong>
+            <strong>Base subscription price</strong>
             <p>{{ checkout_summary.selection.base_currency_code }} {{ "%.2f"|format((checkout_summary.selection.base_amount_minor or 0) / 100) }}</p>
         </div>
         <div class="stat">
-            <strong>Contract status</strong>
-            <p>{{ checkout_summary.contract.contract_status if checkout_summary.contract else "draft" }}</p>
+            <strong>Subscription agreement status</strong>
+            <p>{{ customer_status_label(checkout_summary.contract.contract_status if checkout_summary.contract else "draft") }}</p>
         </div>
         <div class="stat">
-            <strong>Checkout status</strong>
-            <p>{{ checkout_summary.checkout_session.status if checkout_summary.checkout_session else organization.billing_status }}</p>
+            <strong>Secure Payment status</strong>
+            <p>{{ customer_status_label(checkout_summary.checkout_session.status if checkout_summary.checkout_session else organization.billing_status) }}</p>
         </div>
         <div class="stat">
             <strong>Payment status</strong>
-            <p>{{ organization.payment_status }}</p>
+            <p>{{ customer_status_label(organization.payment_status) }}</p>
         </div>
     </div>
 </div>
 <div class="actions" style="margin-top:18px;">
     <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/plan">Back to subscription setup</a>
     <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/start">
-        <button class="btn" type="submit">Prepare checkout</button>
+        <button class="btn" type="submit">Prepare Secure Payment</button>
     </form>
     {% if checkout_summary.checkout_session and checkout_summary.checkout_session.status == "ready" %}
     <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/launch">
@@ -54,10 +54,10 @@
     {% endif %}
 </div>
 {% if current_payment_attempt %}
-<div class="notice" style="margin-top:18px;">Latest payment attempt: {{ current_payment_attempt.status }}</div>
+<div class="notice" style="margin-top:18px;">Latest payment update: {{ customer_status_label(current_payment_attempt.status) }}</div>
 {% endif %}
 {% else %}
-<div class="error">Select a plan before continuing to checkout.</div>
+<div class="error">Select a plan before continuing to Secure Payment.</div>
 <div class="actions"><a class="btn" href="/saas/onboarding/{{ organization.organization_uuid }}/plan">Go to subscription setup</a></div>
 {% endif %}
 {% endblock %}

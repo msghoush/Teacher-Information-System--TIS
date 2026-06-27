@@ -369,6 +369,11 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         self.assertGreaterEqual(len(sent_messages), 2)
         activation_email = sent_messages[-1]
         self.assertIn("is now active", activation_email["subject"])
+        self.assertIn("Your School Workspace is active", activation_email["html"])
+        self.assertIn("Workspace Activation is complete", activation_email["text"])
+        self.assertIn("TIS Account", activation_email["text"])
+        self.assertIn("TIS%20Wordmark%20Only%20%E2%80%93%20Dark%20Blue.png", activation_email["html"])
+        self.assertNotIn("SaaS account", activation_email["text"])
         self.assertIn("http://testserver/login", activation_email["text"])
 
     def test_provisioning_retry_logic_recovers_after_transient_failure(self):

@@ -2,35 +2,23 @@
 {% block content %}
 <header class="page-header">
     <span class="page-eyebrow">Subscription Setup</span>
-    <h1>Checkout cancelled</h1>
+    <h1>Payment cancelled</h1>
     <p class="page-subtitle">The payment window was closed before confirmation.</p>
 </header>
-<div class="warning">You can safely return to the checkout summary and continue when ready.</div>
+<div class="warning">You can safely return to the Secure Payment summary and continue when ready.</div>
 {% if onboarding_summary %}
 <p>
-    Current billing state:
+    Current subscription status:
     <strong>
-        {% if onboarding_summary.organization.billing_status in ['not_started', 'plan_selected'] %}
-        Subscription setup in progress
-        {% elif onboarding_summary.organization.billing_status in ['checkout_ready', 'checkout_started'] %}
-        Ready for payment
-        {% elif onboarding_summary.organization.billing_status == 'payment_processing' %}
-        Payment processing
-        {% elif onboarding_summary.organization.billing_status == 'payment_confirmed' %}
-        Payment confirmed
-        {% elif onboarding_summary.organization.billing_status == 'tenant_active' %}
-        Platform access active
-        {% else %}
-        {{ onboarding_summary.organization.billing_status }}
-        {% endif %}
+        {{ customer_status_label(onboarding_summary.organization.billing_status) }}
     </strong><br>
-    Payment status: <strong>{{ onboarding_summary.organization.payment_status }}</strong>
+    Payment status: <strong>{{ customer_status_label(onboarding_summary.organization.payment_status) }}</strong>
 </p>
 {% endif %}
 <div class="actions">
     {% if onboarding_summary %}
-    <a class="btn" href="/saas/onboarding/{{ onboarding_summary.organization.organization_uuid }}/checkout">Return to checkout summary</a>
+    <a class="btn" href="/saas/onboarding/{{ onboarding_summary.organization.organization_uuid }}/checkout">Return to Secure Payment summary</a>
     {% endif %}
-    <a class="btn secondary" href="/saas/account">Back to account</a>
+    <a class="btn secondary" href="/saas/account">Back to Account Dashboard</a>
 </div>
 {% endblock %}

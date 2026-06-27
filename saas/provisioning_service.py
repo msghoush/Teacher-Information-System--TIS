@@ -55,7 +55,10 @@ def operational_login_url() -> str:
 
 
 def _email_logo_url() -> str:
-    return f"{_public_base_url()}/static/branding/tis/logos/tis-wordmark-dark-blue.png"
+    return (
+        f"{_public_base_url()}"
+        "/static/branding/tis/logos/TIS%20Wordmark%20Only%20%E2%80%93%20Dark%20Blue.png"
+    )
 
 
 def get_tenant_provisioning_link(db: Session, organization):

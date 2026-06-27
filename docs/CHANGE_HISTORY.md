@@ -27,6 +27,66 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-06-27 - Accepted TIS Account Customer-Facing Wording And Logo Cleanup
+
+Area/module:
+SaaS customer account pages, school workspace setup pages, billing/subscription status views, transactional account emails, and KMS documentation
+
+Previous state:
+Customer-facing TIS Account and school workspace setup pages could display internal or technical language such as SaaS-oriented product copy, raw status labels, checkout/payment internals, provider identifiers, tenant/provisioning terms, or account setup labels that were less polished. The shared customer account shell did not consistently present an official TIS logo image across inherited customer forms/pages.
+
+New state:
+Customer-facing account/setup pages use professional labels such as TIS Account, Account Dashboard, School Workspace Setup, Organization Profile, Branch Setup, Academic Setup, Subscription Setup, Secure Payment, and Workspace Activation. Customer views use display labels for internal statuses and hide customer-irrelevant provider transaction/subscription IDs, attempt UUIDs, checkout session internals, plan IDs, and school group IDs. The shared customer account shell uses the official full-color horizontal TIS logo, and transactional TIS Account emails use an existing official dark-blue TIS wordmark asset.
+
+Reason:
+The accepted Phase 2 plan required a focused customer-facing wording cleanup and official logo usage pass before any larger account setup UI redesign.
+
+Files changed:
+- `saas/router.py`
+- `saas/service.py`
+- `saas/provisioning_service.py`
+- `email_templates.py`
+- `templates/saas/base.html`
+- `templates/saas/signup.html`
+- `templates/saas/login.html`
+- `templates/saas/account.html`
+- `templates/saas/account_billing.html`
+- `templates/saas/billing_status.html`
+- `templates/saas/onboarding_organization.html`
+- `templates/saas/onboarding_branches.html`
+- `templates/saas/onboarding_academic_setup.html`
+- `templates/saas/onboarding_contacts.html`
+- `templates/saas/onboarding_review.html`
+- `templates/saas/plan_selection.html`
+- `templates/saas/checkout_summary.html`
+- `templates/saas/checkout_return.html`
+- `templates/saas/checkout_cancel.html`
+- `templates/saas/profile.html`
+- `templates/saas/security.html`
+- `templates/saas/sessions.html`
+- `tests/test_saas_phase1.py`
+- `tests/test_saas_phase5.py`
+- `tests/test_email_templates.py`
+- `docs/AI_PROJECT_CONTEXT.md`
+- `docs/TIS_MASTER_CONTEXT.md`
+- `docs/PROJECT_STATE.md`
+- `docs/CHANGE_HISTORY.md`
+- `docs/history/saas-onboarding/README.md`
+- `static/docs/TIS_Project_Reference_Booklet.pdf`
+- `static/docs/docs_manifest.json`
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+Phase 2 implementation only. No Phase 3 UI redesign, Google/Microsoft login, internal route/module rename, payment behavior change, billing behavior change, provisioning behavior change, database schema change, migration change, operational module change, Next.js landing website change, commit, or push was performed.
+
 ## 2026-06-27 - Accepted TIS Account Email Verification Recovery
 
 Area/module:

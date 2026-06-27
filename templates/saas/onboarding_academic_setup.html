@@ -2,7 +2,7 @@
 {% block content %}
 <header class="page-header">
     <span class="page-eyebrow">Step 3 of 5</span>
-    <h1>Academic setup</h1>
+    <h1>Academic Setup</h1>
     <p class="page-subtitle">Define the first academic year and initial setup preferences.</p>
 </header>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
@@ -12,7 +12,7 @@
     <input id="first_academic_year_name" name="first_academic_year_name" value="{{ academic_setup.first_academic_year_name or '' }}" placeholder="2026-2027" required>
     <label>
         <input type="checkbox" name="create_default_branch" value="1" {% if academic_setup.create_default_branch %}checked{% endif %}>
-        Use a single default branch if your organization launches with one campus
+        Use a single default branch if your School Workspace launches with one campus
     </label>
     <label for="notes">Notes</label>
     <input id="notes" name="notes" value="{{ academic_setup.notes or '' }}">

@@ -53,6 +53,20 @@ class TransactionalEmailTemplateTests(unittest.TestCase):
         self.assertIn("Open TIS Platform", email.html)
         self.assertIn("https://app.tisplatform.com/notifications", email.text)
 
+    def test_activation_email_uses_customer_facing_workspace_language(self):
+        email = email_templates.build_tenant_activation_email(
+            organization_name="Andalus Academy",
+            login_url="https://app.tisplatform.com/login",
+            logo_url="https://app.tisplatform.com/static/branding/tis/logos/TIS%20Wordmark%20Only%20%E2%80%93%20Dark%20Blue.png",
+        )
+
+        self.assertIn("Your School Workspace is active", email.html)
+        self.assertIn("Workspace Activation is complete", email.text)
+        self.assertIn("TIS Account", email.text)
+        self.assertIn("TIS%20Wordmark%20Only%20%E2%80%93%20Dark%20Blue.png", email.html)
+        self.assertNotIn("SaaS account", email.text)
+        self.assertNotIn("Provisioning is complete", email.text)
+
 
 if __name__ == "__main__":
     unittest.main()
