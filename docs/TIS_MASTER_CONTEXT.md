@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
 documentation_version: 3.0
-last_updated: 2026-06-26
+last_updated: 2026-06-27
 source_of_truth: true
 ---
 
@@ -9,7 +9,7 @@ source_of_truth: true
 
 Documentation version: 3.0
 
-Last major context update: 2026-06-26
+Last major context update: 2026-06-27
 
 ## Product Identity
 
@@ -399,6 +399,7 @@ The generated booklet output is:
 - Do not add KMS regenerate behavior unless explicitly approved.
 - Do not expose the KMS PDF through direct public static links in the app UI.
 - Do not push or commit unless explicitly requested.
+- Treat production memory as a hard budget. Do not add unbounded full-dataset caches, duplicate production template renders, startup-heavy work, or normal-request diagnostic logging that can trigger Render restarts and 502s.
 - Prefer conservative, dependency-light automation.
 - Use `reportlab` for the documentation PDF generator.
 - Do not require LaTeX, Playwright, Chromium, external network calls, or system font dependencies for PDF generation.

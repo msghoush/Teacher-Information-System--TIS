@@ -1,10 +1,10 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-06-26T13:28:14.122882+03:00",
+  "generated_at": "2026-06-27T11:09:44.871155+03:00",
   "documentation_version": "3.0",
   "branch": "dev",
-  "commit_sha": "bb1ad2b",
+  "commit_sha": "1a53a89",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
   "included_source_files": [
     {
@@ -15,9 +15,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-06-26T13:27:49.431687+03:00",
-      "size_bytes": 7226,
-      "sha256": "94a514c16d1a69027c90d5599691164276b54a351efd6027fc57ee4ac0d968b9"
+      "modified_at": "2026-06-27T11:08:59.525127+03:00",
+      "size_bytes": 7599,
+      "sha256": "993475d9e5935ebdeeef4feb481e79948b0cb3cb1e8c3ff6041121359bb1ea4e"
     },
     {
       "path": "docs/DOCUMENTATION_UPDATE_POLICY.md",
@@ -27,21 +27,21 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-06-26T13:27:49.436204+03:00",
-      "size_bytes": 18613,
-      "sha256": "8f4e98ec7df9ae8256528685c57ca8784477e27fe8de700b349000ad56f1b022"
+      "modified_at": "2026-06-27T11:09:08.405983+03:00",
+      "size_bytes": 18838,
+      "sha256": "7e489a9105eafdc1e27a416b0df41a1d5552876b20a7d4d84a4665898807368e"
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-06-26T13:27:49.437205+03:00",
-      "size_bytes": 7636,
-      "sha256": "4ec34a98abc343a46442ca674ea06744734380ba518121dbf5c61ad4762ac8b7"
+      "modified_at": "2026-06-27T11:08:50.585719+03:00",
+      "size_bytes": 8293,
+      "sha256": "2cc2bbb2535db805087c9ff96501d759b304d633430e73daf7ddd39f176129d4"
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-06-26T13:27:49.440932+03:00",
-      "size_bytes": 10587,
-      "sha256": "4ed91f601a821a13fee3e68610f9df34691bb0c309cff980b02d7fca9b921175"
+      "modified_at": "2026-06-27T11:09:21.524556+03:00",
+      "size_bytes": 12536,
+      "sha256": "503a0b668b55563434168fde1ec83f413e39c0b479eba11a69781c2136e61f90"
     },
     {
       "path": "docs/adr/README.md",
@@ -81,9 +81,9 @@
     },
     {
       "path": "docs/engineering/DEVELOPMENT_STANDARDS.md",
-      "modified_at": "2026-06-26T13:05:13.056070+03:00",
-      "size_bytes": 4491,
-      "sha256": "af192b59d7b7df80abfcea09cc4d62b2df1dc511a1e3250c07bfb5f5591583cd"
+      "modified_at": "2026-06-27T11:08:40.400991+03:00",
+      "size_bytes": 6381,
+      "sha256": "24bafb2185e3ff6041d8bfaecb03a3b8279c6d62e819067882162060b6cb66e2"
     },
     {
       "path": "docs/engineering/UI_UX_DESIGN_PHILOSOPHY.md",
@@ -234,6 +234,12 @@
       "modified_at": "2026-06-26T13:28:04.787479+03:00",
       "size_bytes": 2128,
       "sha256": "8eddf233477470a196aef60df65c021f734b2714bc897f86200ea9d176b0743e"
+    },
+    {
+      "path": "docs/history/engineering-handbook/2026-06-27-production-memory-stability-guardrails.md",
+      "modified_at": "2026-06-27T11:09:37.033374+03:00",
+      "size_bytes": 3131,
+      "sha256": "b71464ac5dcf855f8a1d325e6fdda0e32dbc6a1ba2bab6ae14529d8b4ba5010a"
     },
     {
       "path": "docs/history/engineering-handbook/README.md",

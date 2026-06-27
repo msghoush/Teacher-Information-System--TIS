@@ -70,6 +70,15 @@ class ResolvedLocation:
     city_name: str
 
 
+@dataclass(frozen=True, slots=True)
+class CountryLocation:
+    country: Country
+    regions: tuple[Region, ...]
+    regions_by_id: dict[int, Region]
+    cities_by_region: dict[int, tuple[City, ...]]
+    cities_by_id: dict[int, City]
+
+
 def _clean_text(value: object) -> str:
     return " ".join(str(value or "").split())
 
@@ -83,12 +92,138 @@ def _clean_manual_name(value: object, label: str) -> str:
     return cleaned
 
 
+def _iter_raw_countries():
+    decoder = json.JSONDecoder()
+    buffer: list[str] = []
+    depth = 0
+    in_string = False
+    escaped = False
+    collecting = False
+
+    with DATASET_PATH.open("r", encoding="utf-8") as dataset_file:
+        while True:
+            chunk = dataset_file.read(1024 * 64)
+            if not chunk:
+                break
+            for character in chunk:
+                if not collecting:
+                    if character == "{":
+                        collecting = True
+                        depth = 1
+                        in_string = False
+                        escaped = False
+                        buffer = [character]
+                    continue
+
+                buffer.append(character)
+                if in_string:
+                    if escaped:
+                        escaped = False
+                    elif character == "\\":
+                        escaped = True
+                    elif character == '"':
+                        in_string = False
+                    continue
+
+                if character == '"':
+                    in_string = True
+                elif character == "{":
+                    depth += 1
+                elif character == "}":
+                    depth -= 1
+                    if depth == 0:
+                        yield decoder.decode("".join(buffer))
+                        collecting = False
+                        buffer = []
+
+
+def _country_from_raw(raw_country: dict) -> Country | None:
+    country_code = _clean_text(raw_country.get("iso2")).upper()
+    country_name = _clean_text(raw_country.get("name"))
+    if len(country_code) != 2 or not country_name:
+        return None
+    return Country(code=country_code, name=country_name)
+
+
+def _build_country_location(raw_country: dict) -> CountryLocation | None:
+    country = _country_from_raw(raw_country)
+    if not country:
+        return None
+
+    regions: list[Region] = []
+    regions_by_id: dict[int, Region] = {}
+    cities_by_region: dict[int, tuple[City, ...]] = {}
+    cities_by_id: dict[int, City] = {}
+
+    for raw_region in raw_country.get("states") or ():
+        try:
+            region_id = int(raw_region.get("id"))
+        except (TypeError, ValueError):
+            continue
+        region_name = _clean_text(raw_region.get("name"))
+        if not region_name:
+            continue
+
+        region = Region(
+            id=region_id,
+            country_code=country.code,
+            name=region_name,
+        )
+        regions.append(region)
+        regions_by_id[region_id] = region
+
+        region_cities: list[City] = []
+        seen_city_names: set[str] = set()
+        for raw_city in raw_region.get("cities") or ():
+            try:
+                city_id = int(raw_city.get("id"))
+            except (TypeError, ValueError):
+                continue
+            city_name = _clean_text(raw_city.get("name"))
+            city_key = city_name.casefold()
+            if not city_name or city_key in seen_city_names:
+                continue
+            seen_city_names.add(city_key)
+            city = City(id=city_id, region_id=region_id, name=city_name)
+            region_cities.append(city)
+            cities_by_id[city_id] = city
+
+        cities_by_region[region_id] = tuple(
+            sorted(region_cities, key=lambda city: city.name.casefold())
+        )
+
+    return CountryLocation(
+        country=country,
+        regions=tuple(sorted(regions, key=lambda region: region.name.casefold())),
+        regions_by_id=regions_by_id,
+        cities_by_region=cities_by_region,
+        cities_by_id=cities_by_id,
+    )
+
+
+@lru_cache(maxsize=1)
+def _countries() -> tuple[Country, ...]:
+    countries = [
+        country
+        for raw_country in _iter_raw_countries()
+        if (country := _country_from_raw(raw_country))
+    ]
+    return tuple(sorted(countries, key=lambda country: country.name.casefold()))
+
+
+@lru_cache(maxsize=32)
+def _country_location(country_code: str) -> CountryLocation | None:
+    normalized_code = _clean_text(country_code).upper()
+    for raw_country in _iter_raw_countries():
+        if _clean_text(raw_country.get("iso2")).upper() != normalized_code:
+            continue
+        return _build_country_location(raw_country)
+    return None
+
+
 @lru_cache(maxsize=1)
 def get_location_index() -> LocationIndex:
     """Load and compact the local dataset once for the lifetime of this process."""
-    with DATASET_PATH.open("r", encoding="utf-8") as dataset_file:
-        raw_countries = json.load(dataset_file)
-
     countries: list[Country] = []
     countries_by_code: dict[str, Country] = {}
     regions_by_country: dict[str, tuple[Region, ...]] = {}
@@ -96,57 +231,18 @@ def get_location_index() -> LocationIndex:
     cities_by_region: dict[int, tuple[City, ...]] = {}
     cities_by_id: dict[int, City] = {}
 
-    for raw_country in raw_countries:
-        country_code = _clean_text(raw_country.get("iso2")).upper()
-        country_name = _clean_text(raw_country.get("name"))
-        if len(country_code) != 2 or not country_name:
+    for raw_country in _iter_raw_countries():
+        country_location = _build_country_location(raw_country)
+        if not country_location:
             continue
 
-        country = Country(code=country_code, name=country_name)
+        country = country_location.country
         countries.append(country)
-        countries_by_code[country_code] = country
-
-        country_regions: list[Region] = []
-        for raw_region in raw_country.get("states") or ():
-            try:
-                region_id = int(raw_region.get("id"))
-            except (TypeError, ValueError):
-                continue
-            region_name = _clean_text(raw_region.get("name"))
-            if not region_name:
-                continue
-
-            region = Region(
-                id=region_id,
-                country_code=country_code,
-                name=region_name,
-            )
-            country_regions.append(region)
-            regions_by_id[region_id] = region
-
-            region_cities: list[City] = []
-            seen_city_names: set[str] = set()
-            for raw_city in raw_region.get("cities") or ():
-                try:
-                    city_id = int(raw_city.get("id"))
-                except (TypeError, ValueError):
-                    continue
-                city_name = _clean_text(raw_city.get("name"))
-                city_key = city_name.casefold()
-                if not city_name or city_key in seen_city_names:
-                    continue
-                seen_city_names.add(city_key)
-                city = City(id=city_id, region_id=region_id, name=city_name)
-                region_cities.append(city)
-                cities_by_id[city_id] = city
-
-            cities_by_region[region_id] = tuple(
-                sorted(region_cities, key=lambda city: city.name.casefold())
-            )
-
-        regions_by_country[country_code] = tuple(
-            sorted(country_regions, key=lambda region: region.name.casefold())
-        )
+        countries_by_code[country.code] = country
+        regions_by_country[country.code] = country_location.regions
+        regions_by_id.update(country_location.regions_by_id)
+        cities_by_region.update(country_location.cities_by_region)
+        cities_by_id.update(country_location.cities_by_id)
 
     countries.sort(key=lambda country: country.name.casefold())
     return LocationIndex(
@@ -162,30 +258,32 @@ def get_location_index() -> LocationIndex:
 def list_countries() -> list[dict[str, object]]:
     return [
         {"code": country.code, "name": country.name}
-        for country in get_location_index().countries
+        for country in _countries()
     ]
 
 
 def list_regions(country_code: str) -> list[dict[str, object]]:
     normalized_code = _clean_text(country_code).upper()
-    index = get_location_index()
-    if normalized_code not in index.countries_by_code:
+    country_location = _country_location(normalized_code)
+    if not country_location:
         raise LocationValidationError("Select a valid country.")
     return [
         {"id": region.id, "name": region.name}
-        for region in index.regions_by_country.get(normalized_code, ())
+        for region in country_location.regions
     ]
 
 
 def list_cities(country_code: str, region_id: int) -> list[dict[str, object]]:
     normalized_code = _clean_text(country_code).upper()
-    index = get_location_index()
-    region = index.regions_by_id.get(int(region_id))
+    country_location = _country_location(normalized_code)
+    if not country_location:
+        raise LocationValidationError("Select a valid country.")
+    region = country_location.regions_by_id.get(int(region_id))
     if not region or region.country_code != normalized_code:
         raise LocationValidationError("Select a valid region for the selected country.")
     return [
         {"id": city.id, "name": city.name}
-        for city in index.cities_by_region.get(region.id, ())
+        for city in country_location.cities_by_region.get(region.id, ())
     ]
 
 
@@ -198,11 +296,11 @@ def resolve_location(
     city_manual: str,
     require_city: bool = True,
 ) -> ResolvedLocation:
-    index = get_location_index()
     normalized_code = _clean_text(country_code).upper()
-    country = index.countries_by_code.get(normalized_code)
-    if not country:
+    country_location = _country_location(normalized_code)
+    if not country_location:
         raise LocationValidationError("Select a valid country.")
+    country = country_location.country
 
     submitted_region_id = _clean_text(region_id)
     if submitted_region_id == OTHER_VALUE:
@@ -212,7 +310,7 @@ def resolve_location(
             raise LocationValidationError("Enter the region/state/province name.")
     else:
         try:
-            region = index.regions_by_id.get(int(submitted_region_id))
+            region = country_location.regions_by_id.get(int(submitted_region_id))
         except (TypeError, ValueError):
             region = None
         if not region or region.country_code != normalized_code:
@@ -234,7 +332,7 @@ def resolve_location(
             raise LocationValidationError("Enter the city name.")
     else:
         try:
-            city = index.cities_by_id.get(int(submitted_city_id))
+            city = country_location.cities_by_id.get(int(submitted_city_id))
         except (TypeError, ValueError):
             city = None
         if not region or not city or city.region_id != region.id:
@@ -257,10 +355,12 @@ def infer_legacy_saudi_location(region_name: str) -> ResolvedLocation | None:
         cleaned_region.casefold(),
         cleaned_region,
     )
-    index = get_location_index()
-    for region in index.regions_by_country.get("SA", ()):
+    country_location = _country_location("SA")
+    if not country_location:
+        return None
+    for region in country_location.regions:
         if region.name.casefold() == canonical_name.casefold():
-            country = index.countries_by_code["SA"]
+            country = country_location.country
             return ResolvedLocation(
                 country_code=country.code,
                 country_name=country.name,
