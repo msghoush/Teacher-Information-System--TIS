@@ -70,7 +70,13 @@
             </div>
             <div>
                 <label for="timezone">Timezone</label>
-                <input id="timezone" name="timezone" value="{{ fd.get('timezone', organization.timezone or '') }}" placeholder="Asia/Riyadh">
+                {% set selected_timezone = fd.get('timezone', organization.timezone or '') %}
+                <select id="timezone" name="timezone" data-location-timezone data-selected-timezone="{{ selected_timezone }}">
+                    <option value="">Select a time zone</option>
+                    {% if selected_timezone %}
+                    <option value="{{ selected_timezone }}" selected>{{ selected_timezone }}</option>
+                    {% endif %}
+                </select>
             </div>
         </div>
         <div class="location-fields"
