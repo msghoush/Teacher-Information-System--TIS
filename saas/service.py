@@ -674,7 +674,7 @@ def get_onboarding_missing_requirements(db: Session, organization) -> list[dict]
     if not _clean_text(getattr(organization, "educational_program", ""), 20):
         missing.append({"step": "Organization Profile", "field": "Educational program"})
     if not _clean_text(getattr(organization, "timezone", ""), 80):
-        missing.append({"step": "Organization Profile", "field": "Timezone"})
+        missing.append({"step": "Organization Profile", "field": "Time Zone"})
 
     branches_count = db.query(models.PendingOrganizationBranch).filter(
         models.PendingOrganizationBranch.pending_organization_id == organization.id

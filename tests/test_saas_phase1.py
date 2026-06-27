@@ -1025,7 +1025,10 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         review_response = self.client.get(f"/saas/onboarding/{org_uuid}/review")
         self.assertEqual(review_response.status_code, 200)
-        self.assertIn("Organization Profile: Timezone", review_response.text)
+        self.assertIn("Missing: Time Zone", review_response.text)
+        self.assertIn("Time Zone: Not selected", review_response.text)
+        self.assertIn("Go to Organization Profile", review_response.text)
+        self.assertIn(f'/saas/onboarding/{org_uuid}/organization', review_response.text)
         self.assertNotIn("Complete all onboarding steps before submitting.", review_response.text)
 
         blocked_submit = self.client.post(
@@ -1034,7 +1037,9 @@ class SaaSPhase1Tests(unittest.TestCase):
         )
         self.assertEqual(blocked_submit.status_code, 422)
         self.assertIn("Complete these items before submitting", blocked_submit.text)
-        self.assertIn("Organization Profile: Timezone", blocked_submit.text)
+        self.assertIn("Organization Profile: Time Zone", blocked_submit.text)
+        self.assertIn("Missing: Time Zone", blocked_submit.text)
+        self.assertIn("Go to Organization Profile", blocked_submit.text)
 
         fixed_organization_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/organization",

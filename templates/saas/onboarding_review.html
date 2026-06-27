@@ -4,11 +4,23 @@
 {% if missing_requirements %}
 <div class="error">
     <strong>Complete these items before submitting:</strong>
-    <ul>
-        {% for item in missing_requirements %}
-        <li>{{ item.step }}: {{ item.field }}</li>
-        {% endfor %}
-    </ul>
+    <div class="review-grid">
+    {% for item in missing_requirements %}
+        <div class="review-card">
+            <strong>{{ item.step }}</strong>
+            <p>Missing: {{ item.field }}</p>
+            {% if item.step == "Organization Profile" %}
+            <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/organization">Go to Organization Profile</a>
+            {% elif item.step == "Branch Setup" %}
+            <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/branches">Go to Branch Setup</a>
+            {% elif item.step == "Academic Setup" %}
+            <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/academic_setup">Go to Academic Setup</a>
+            {% elif item.step == "Primary Contact" %}
+            <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/contacts">Go to Primary Contact</a>
+            {% endif %}
+        </div>
+    {% endfor %}
+    </div>
 </div>
 {% endif %}
 <section class="wizard-section">
@@ -19,22 +31,42 @@
     <div class="review-grid">
         <div class="review-card">
             <strong>Organization Profile</strong>
-            <p>{{ organization.organization_name }}<br>{{ organization.educational_program }}<br>{{ organization.country_name }}{% if organization.city_name %}, {{ organization.city_name }}{% endif %}</p>
+            <p>
+                Organization Name: {{ organization.organization_name or "Not provided" }}<br>
+                Educational Program: {{ organization.educational_program or "Not selected" }}<br>
+                Country / City: {% if organization.country_name or organization.city_name %}{{ organization.country_name or "Not specified" }}{% if organization.city_name %}, {{ organization.city_name }}{% endif %}{% else %}Not specified{% endif %}<br>
+                Time Zone: {{ organization.timezone or "Not selected" }}
+            </p>
         </div>
         <div class="review-card">
             <strong>Branch Setup</strong>
-            <p>{{ branches|length }} branch{% if branches|length != 1 %}es{% endif %} saved<br>Estimated branches: {{ organization.expected_branch_count or "Not specified" }}</p>
+            <p>
+                Saved Branches: {% if branches|length %}{{ branches|length }} branch{% if branches|length != 1 %}es{% endif %}{% else %}Not added{% endif %}<br>
+                Estimated Branches: {{ organization.expected_branch_count or "Not specified" }}
+            </p>
         </div>
         <div class="review-card">
             <strong>Academic Setup</strong>
-            <p>{{ academic_setup.first_academic_year_name }}{% if academic_setup.create_default_branch %}<br>Single default branch allowed{% endif %}</p>
+            <p>
+                First Academic Year: {{ academic_setup.first_academic_year_name or "Not provided" }}{% if academic_setup.create_default_branch %}<br>
+                Single default branch allowed{% endif %}
+            </p>
         </div>
         <div class="review-card">
             <strong>Primary Contact</strong>
             {% if primary_contact %}
-            <p>{{ primary_contact.first_name }} {{ primary_contact.last_name }}<br>{{ primary_contact.email }}{% if primary_contact.job_title %}<br>{{ primary_contact.job_title }}{% endif %}</p>
+            <p>
+                First Name: {{ primary_contact.first_name or "Not provided" }}<br>
+                Last Name: {{ primary_contact.last_name or "Not provided" }}<br>
+                Email: {{ primary_contact.email or "Not provided" }}{% if primary_contact.job_title %}<br>
+                Job Title: {{ primary_contact.job_title }}{% endif %}
+            </p>
             {% else %}
-            <p>No primary contact saved yet.</p>
+            <p>
+                First Name: Not provided<br>
+                Last Name: Not provided<br>
+                Email: Not provided
+            </p>
             {% endif %}
         </div>
         <div class="review-card">
