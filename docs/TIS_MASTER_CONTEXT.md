@@ -217,6 +217,10 @@ Phase 3B applies this shared framework to the five School Workspace Setup onboar
 
 The Phase 3B onboarding redesign preserves existing form actions, field names, validation behavior, draft behavior, route names, and onboarding state transitions. Subscription/payment/status pages remain future Phase 3 work.
 
+Phase 3C applies the same guided framework to Subscription Selection, Secure Payment summary, Payment Return, Payment Cancel, Subscription Status, and Workspace Activation status pages. These pages use one shared-shell primary CTA, customer-safe status labels, concise supporting cards, and explicit messaging that browser return from checkout does not itself confirm payment and that TIS Platform access becomes available after Workspace Activation.
+
+The Phase 3C redesign preserves payment behavior, billing behavior, provisioning behavior, webhook logic, checkout start/launch behavior, stored statuses, route names, database schema, migrations, operational modules, the landing website, OAuth behavior, and admin views.
+
 ## M1-M5 Completed Milestone Summary
 
 M1: Identity and SaaS foundation

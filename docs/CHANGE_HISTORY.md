@@ -27,6 +27,49 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-06-27 - Accepted Subscription And Workspace Activation Guided Journey Phase 3C
+
+Area/module:
+Subscription Selection, Secure Payment summary, Payment Return/Cancel, Subscription Status, Workspace Activation status, tests, and KMS documentation
+
+Previous state:
+The subscription, secure payment, billing status, payment return/cancel, and workspace activation pages were functionally correct but still used page-local CTAs, dense status blocks, and inconsistent guidance. Browser return messaging existed but was not part of the shared guided setup experience.
+
+New state:
+Subscription Selection, Secure Payment summary, Payment Return, Payment Cancel, Subscription Status, and Workspace Activation status pages now use the Phase 3A shared setup shell and Phase 3B guided page style. Each page has one shared-shell primary CTA, customer-safe status labels, concise supporting cards, clear browser-return guidance, and explicit messaging that TIS Platform access becomes available after Workspace Activation.
+
+Reason:
+The accepted Phase 3C scope required making subscription/payment/activation pages feel like one guided customer journey while preserving payment, billing, provisioning, webhook, checkout start/launch, database, and operational behavior.
+
+Files changed:
+- `saas/router.py`
+- `templates/saas/plan_selection.html`
+- `templates/saas/checkout_summary.html`
+- `templates/saas/checkout_return.html`
+- `templates/saas/checkout_cancel.html`
+- `templates/saas/account_billing.html`
+- `templates/saas/billing_status.html`
+- `tests/test_saas_phase1.py`
+- `docs/AI_PROJECT_CONTEXT.md`
+- `docs/TIS_MASTER_CONTEXT.md`
+- `docs/PROJECT_STATE.md`
+- `docs/CHANGE_HISTORY.md`
+- `docs/history/saas-onboarding/README.md`
+- `static/docs/TIS_Project_Reference_Booklet.pdf`
+- `static/docs/docs_manifest.json`
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+Phase 3C customer-facing subscription/payment/status redesign only. No payment behavior change, billing behavior change, provisioning behavior change, webhook logic change, checkout start/launch behavior change, database schema change, migration, operational module change, Next.js landing website change, OAuth change, internal `/saas` route rename, stored-status change, admin view change, commit, or push was performed.
+
 ## 2026-06-27 - Accepted School Workspace Setup Guided Wizard Phase 3B
 
 Area/module:

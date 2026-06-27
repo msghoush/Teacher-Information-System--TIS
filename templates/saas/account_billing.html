@@ -1,80 +1,76 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<header class="page-header">
-    <span class="page-eyebrow">Subscription Setup</span>
-    <h1>Subscription status</h1>
-    <p class="page-subtitle">Review Secure Payment activity and Workspace Activation progress for your School Workspace.</p>
-</header>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 {% if onboarding_summary %}
-<div class="grid two">
-    <div class="stat-list">
-        <div class="stat">
-            <strong>Organization</strong>
+<section class="wizard-section">
+    <div class="wizard-section-header">
+        <strong>Subscription and activation overview</strong>
+        <p>Track the customer journey from Subscription Selection through Workspace Activation.</p>
+    </div>
+    <div class="review-grid">
+        <div class="review-card">
+            <strong>School Workspace</strong>
             <p>{{ onboarding_summary.organization.organization_name or "Draft School Workspace" }}</p>
         </div>
-        <div class="stat">
-            <strong>Subscription status</strong>
+        <div class="review-card">
+            <strong>Selected subscription</strong>
             <p>
-                {{ customer_status_label(onboarding_summary.organization.billing_status) }}
-                <br>Payment: {{ customer_status_label(onboarding_summary.organization.payment_status) }}
+                {% if onboarding_summary.current_plan %}
+                {{ onboarding_summary.current_plan.plan_name }}<br>{{ onboarding_summary.current_plan_selection.billing_interval }}
+                {% else %}
+                No subscription selected yet.
+                {% endif %}
             </p>
         </div>
-        <div class="stat">
+        <div class="review-card">
+            <strong>Secure Payment</strong>
+            <p>{{ customer_status_label(onboarding_summary.organization.payment_status) }}</p>
+        </div>
+        <div class="review-card">
+            <strong>Subscription Setup</strong>
+            <p>
+                {% if onboarding_summary.current_payment_subscription %}
+                {{ customer_status_label(onboarding_summary.current_payment_subscription.status) }}
+                {% else %}
+                Not confirmed yet.
+                {% endif %}
+            </p>
+        </div>
+        <div class="review-card">
             <strong>Workspace Activation</strong>
             <p>
-                {% if onboarding_summary.current_provisioning_job %}
+                {% if onboarding_summary.current_tenant_link %}
+                School Workspace active
+                {% elif onboarding_summary.current_provisioning_job %}
                 {{ customer_status_label(onboarding_summary.current_provisioning_job.job_status) }}
-                {% if onboarding_summary.current_tenant_link %}<br>School Workspace active{% endif %}
                 {% else %}
                 Not started yet.
                 {% endif %}
             </p>
         </div>
-        <div class="stat">
-            <strong>Selected plan</strong>
-            <p>
-                {% if onboarding_summary.current_plan %}
-                {{ onboarding_summary.current_plan.plan_name }}<br>{{ onboarding_summary.current_plan_selection.billing_interval }}
-                {% else %}
-                No plan selected yet.
-                {% endif %}
-            </p>
+        <div class="review-card">
+            <strong>TIS Platform access</strong>
+            <p>Access becomes available after Workspace Activation is complete.</p>
         </div>
     </div>
-    <div class="stat-list">
-        <div class="stat">
-            <strong>Latest payment update</strong>
-            <p>
-                {% if onboarding_summary.current_payment_attempt %}
-                Status: {{ customer_status_label(onboarding_summary.current_payment_attempt.status) }}
-                {% else %}
-                No Secure Payment has been launched yet.
-                {% endif %}
-            </p>
-        </div>
-        <div class="stat">
-            <strong>Subscription</strong>
-            <p>
-                {% if onboarding_summary.current_payment_subscription %}
-                Status: {{ customer_status_label(onboarding_summary.current_payment_subscription.status) }}
-                {% else %}
-                Subscription not confirmed yet.
-                {% endif %}
-            </p>
-        </div>
-        <div class="stat">
-            <strong>Next step</strong>
-            <p>Payment confirmation is finalized after secure verification is received. Browser redirects alone do not activate the School Workspace.</p>
-        </div>
+</section>
+<section class="wizard-section">
+    <div class="wizard-section-header">
+        <strong>What happens next?</strong>
+        <p>Browser redirects do not confirm payment by themselves. Secure confirmation must be received before Workspace Activation can continue.</p>
     </div>
-</div>
-<div class="actions" style="margin-top:20px;">
-    <a class="btn secondary" href="/saas/account">Back to Account Dashboard</a>
-    <a class="btn secondary" href="{{ onboarding_summary.current_step_url }}">Open current Subscription Setup step</a>
+</section>
+<div class="wizard-actions">
+    <a class="btn secondary" href="/saas/account">Back to Account Setup</a>
+    <a class="btn secondary" href="{{ onboarding_summary.current_step_url }}">Open current step</a>
 </div>
 {% else %}
-<div class="error">No Subscription Setup record is available yet.</div>
+<section class="wizard-section">
+    <div class="wizard-section-header">
+        <strong>No subscription setup yet</strong>
+        <p>Start School Workspace Setup before choosing a subscription.</p>
+    </div>
+</section>
 {% endif %}
 {% endblock %}

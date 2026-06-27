@@ -1,44 +1,56 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<header class="page-header">
-    <span class="page-eyebrow">Subscription Setup</span>
-    <h1>Select a subscription plan</h1>
-    <p class="page-subtitle">Choose the plan and billing interval for your organization.</p>
-</header>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
-<div class="notice">This step is available after your School Workspace Setup is submitted and ready for Subscription Setup.</div>
-<form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/plan">
-    <label for="plan_id">Plan</label>
-    <select id="plan_id" name="plan_id" required>
-        <option value="">Choose a plan</option>
-        {% for plan_view in plan_catalog %}
-        <option value="{{ plan_view.plan.id }}" {% if current_plan_selection and current_plan_selection.plan_id == plan_view.plan.id %}selected{% endif %}>
-            {{ plan_view.plan.plan_name }}{% if plan_view.plan.is_most_popular %} - Most Popular{% endif %}
-        </option>
-        {% endfor %}
-    </select>
-    <label for="billing_interval">Billing interval</label>
-    <select id="billing_interval" name="billing_interval" required>
-        <option value="monthly" {% if current_plan_selection and current_plan_selection.billing_interval == "monthly" %}selected{% endif %}>Monthly</option>
-        <option value="annual" {% if current_plan_selection and current_plan_selection.billing_interval == "annual" %}selected{% endif %}>Annual</option>
-    </select>
-    <div class="grid two">
-        {% for plan_view in plan_catalog %}
-        <div class="stat">
-            <strong>{{ plan_view.plan.plan_name }}</strong>
-            {% if plan_view.plan.badge_text %}<p class="notice">{{ plan_view.plan.badge_text }}</p>{% endif %}
-            <p>{{ plan_view.monthly.display_formatted }}/month</p>
-            <p>{{ plan_view.annual.display_formatted }}/year</p>
-            {% if plan_view.annual.annual_savings_percent %}
-            <p class="muted">Save {{ plan_view.annual.annual_savings_percent }}% annually</p>
-            {% endif %}
-            <p class="muted">Branches: {{ plan_view.plan.max_branches or "Custom" }} | Staff users: {{ plan_view.plan.max_staff_users or "Custom" }}</p>
+<form id="plan-selection-form" class="wizard-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/plan">
+    <section class="wizard-section">
+        <div class="wizard-section-header">
+            <strong>Subscription Selection</strong>
+            <p>Choose the plan and billing interval that fit your School Workspace.</p>
         </div>
-        {% endfor %}
-    </div>
-    <div class="actions">
-        <a class="btn secondary" href="/saas/account">Back to Account Dashboard</a>
-        <button class="btn" type="submit">Save plan and continue</button>
+        <div class="wizard-grid">
+            <div>
+                <label for="plan_id">Plan</label>
+                <select id="plan_id" name="plan_id" required>
+                    <option value="">Choose a plan</option>
+                    {% for plan_view in plan_catalog %}
+                    <option value="{{ plan_view.plan.id }}" {% if current_plan_selection and current_plan_selection.plan_id == plan_view.plan.id %}selected{% endif %}>
+                        {{ plan_view.plan.plan_name }}{% if plan_view.plan.is_most_popular %} - Most Popular{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="billing_interval">Billing interval</label>
+                <select id="billing_interval" name="billing_interval" required>
+                    <option value="monthly" {% if current_plan_selection and current_plan_selection.billing_interval == "monthly" %}selected{% endif %}>Monthly</option>
+                    <option value="annual" {% if current_plan_selection and current_plan_selection.billing_interval == "annual" %}selected{% endif %}>Annual</option>
+                </select>
+            </div>
+        </div>
+    </section>
+
+    <section class="wizard-section">
+        <div class="wizard-section-header">
+            <strong>Available plans</strong>
+            <p>Review the options below, then use the selectors above to save your choice.</p>
+        </div>
+        <div class="review-grid">
+            {% for plan_view in plan_catalog %}
+            <div class="review-card">
+                <strong>{{ plan_view.plan.plan_name }}</strong>
+                {% if plan_view.plan.badge_text %}<p>{{ plan_view.plan.badge_text }}</p>{% endif %}
+                <p>{{ plan_view.monthly.display_formatted }}/month<br>{{ plan_view.annual.display_formatted }}/year</p>
+                {% if plan_view.annual.annual_savings_percent %}
+                <p>Save {{ plan_view.annual.annual_savings_percent }}% annually</p>
+                {% endif %}
+                <p>Branches: {{ plan_view.plan.max_branches or "Custom" }}<br>Staff users: {{ plan_view.plan.max_staff_users or "Custom" }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <div class="wizard-actions">
+        <a class="btn secondary" href="/saas/account">Back to Account Setup</a>
     </div>
 </form>
 {% endblock %}

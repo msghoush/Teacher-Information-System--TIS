@@ -1,63 +1,46 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<header class="page-header">
-    <span class="page-eyebrow">Subscription Setup</span>
-    <h1>Secure Payment summary</h1>
-    <p class="page-subtitle">Review Subscription Setup details before launching Secure Payment.</p>
-</header>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 {% if checkout_summary and checkout_summary.selection and checkout_summary.plan %}
-<div class="grid two">
-    <div class="stat-list">
-        <div class="stat">
-            <strong>Organization</strong>
+<section class="wizard-section">
+    <div class="wizard-section-header">
+        <strong>Secure Payment summary</strong>
+        <p>Confirm your subscription details before opening the secure payment screen.</p>
+    </div>
+    <div class="review-grid">
+        <div class="review-card">
+            <strong>School Workspace</strong>
             <p>{{ organization.organization_name }}</p>
         </div>
-        <div class="stat">
-            <strong>Plan</strong>
+        <div class="review-card">
+            <strong>Selected subscription</strong>
             <p>{{ checkout_summary.plan.plan_name }}<br>{{ checkout_summary.selection.billing_interval }}</p>
         </div>
-        <div class="stat">
-            <strong>Price</strong>
+        <div class="review-card">
+            <strong>Payment amount</strong>
             <p>{{ checkout_summary.selection.display_currency_code }} {{ "%.2f"|format((checkout_summary.selection.display_amount_minor or 0) / 100) }}</p>
         </div>
-    </div>
-    <div class="stat-list">
-        <div class="stat">
-            <strong>Base subscription price</strong>
-            <p>{{ checkout_summary.selection.base_currency_code }} {{ "%.2f"|format((checkout_summary.selection.base_amount_minor or 0) / 100) }}</p>
-        </div>
-        <div class="stat">
-            <strong>Subscription agreement status</strong>
-            <p>{{ customer_status_label(checkout_summary.contract.contract_status if checkout_summary.contract else "draft") }}</p>
-        </div>
-        <div class="stat">
-            <strong>Secure Payment status</strong>
+        <div class="review-card">
+            <strong>Secure Payment</strong>
             <p>{{ customer_status_label(checkout_summary.checkout_session.status if checkout_summary.checkout_session else organization.billing_status) }}</p>
         </div>
-        <div class="stat">
-            <strong>Payment status</strong>
-            <p>{{ customer_status_label(organization.payment_status) }}</p>
-        </div>
     </div>
-</div>
-<div class="actions" style="margin-top:18px;">
-    <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/plan">Back to subscription setup</a>
-    <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/start">
-        <button class="btn" type="submit">Prepare Secure Payment</button>
-    </form>
-    {% if checkout_summary.checkout_session and checkout_summary.checkout_session.status == "ready" %}
-    <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/launch">
-        <button class="btn" type="submit">Continue to Secure Payment</button>
-    </form>
-    {% endif %}
-</div>
-{% if current_payment_attempt %}
-<div class="notice" style="margin-top:18px;">Latest payment update: {{ customer_status_label(current_payment_attempt.status) }}</div>
+</section>
+<form id="checkout-start-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/start"></form>
+{% if checkout_summary.checkout_session and checkout_summary.checkout_session.status == "ready" %}
+<form id="checkout-launch-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/launch"></form>
 {% endif %}
+<div class="wizard-actions">
+    <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/plan">Back to Subscription Selection</a>
+    <a class="btn secondary" href="/saas/account/billing">View Subscription Status</a>
+</div>
 {% else %}
-<div class="error">Select a plan before continuing to Secure Payment.</div>
-<div class="actions"><a class="btn" href="/saas/onboarding/{{ organization.organization_uuid }}/plan">Go to subscription setup</a></div>
+<section class="wizard-section">
+    <div class="wizard-section-header">
+        <strong>Subscription required</strong>
+        <p>Select a subscription before continuing to Secure Payment.</p>
+    </div>
+</section>
 {% endif %}
 {% endblock %}
