@@ -71,13 +71,10 @@
         }
         .brand-symbol {
             display: block;
-            width: 132px;
-            max-width: 42vw;
+            width: clamp(150px, 18vw, 210px);
+            max-width: 58vw;
             height: auto;
         }
-        .brand-copy { display: grid; gap: 2px; }
-        .brand-copy span { font-size: 16px; }
-        .brand-copy small { color: var(--muted); font-size: 12px; font-weight: 700; }
         .card {
             position: relative;
             overflow: hidden;
@@ -416,6 +413,96 @@
         .setup-card::before {
             display: none;
         }
+        .wizard-form {
+            display: grid;
+            gap: 18px;
+        }
+        .wizard-section {
+            border: 1px solid rgba(216, 227, 240, .92);
+            border-radius: 22px;
+            background: rgba(255, 255, 255, .9);
+            padding: 18px;
+            box-shadow: 0 12px 30px rgba(16, 35, 63, .045);
+        }
+        .wizard-section-header {
+            margin-bottom: 14px;
+        }
+        .wizard-section-header strong {
+            display: block;
+            color: var(--ink);
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        .wizard-section-header p {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.55;
+            margin-bottom: 0;
+        }
+        .wizard-grid {
+            display: grid;
+            gap: 14px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .wizard-grid.three {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .wizard-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-start;
+        }
+        .logo-upload-panel {
+            border: 1px dashed #b8cbe0;
+            border-radius: 18px;
+            background: #f8fbff;
+            padding: 16px;
+        }
+        .logo-upload-panel input {
+            margin-bottom: 8px;
+        }
+        .branch-list {
+            display: grid;
+            gap: 14px;
+        }
+        .branch-panel {
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: #fff;
+            padding: 16px;
+        }
+        .branch-panel-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .branch-panel-header strong {
+            color: var(--ink);
+        }
+        .review-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+        .review-card {
+            border: 1px solid rgba(216, 227, 240, .92);
+            border-radius: 18px;
+            background: rgba(255, 255, 255, .92);
+            padding: 16px;
+        }
+        .review-card strong {
+            display: block;
+            color: var(--ink);
+            margin-bottom: 8px;
+        }
+        .review-card p {
+            color: var(--muted);
+            line-height: 1.6;
+            margin-bottom: 0;
+        }
         .step-pill {
             border: 1px solid var(--line);
             border-radius: 999px;
@@ -490,7 +577,7 @@
             .hero { align-items: stretch; flex-direction: column; }
             .hero .actions { width: 100%; }
             .hero .btn { flex: 1 1 auto; }
-            .grid.two, .location-fields, .step-track, .setup-console-head, .setup-journey-track, .form-grid, .form-grid.three, .summary-grid { grid-template-columns: 1fr; }
+            .grid.two, .location-fields, .step-track, .setup-console-head, .setup-journey-track, .form-grid, .form-grid.three, .summary-grid, .wizard-grid, .wizard-grid.three, .review-grid { grid-template-columns: 1fr; }
             .card { border-radius: 22px; padding: 22px 16px; }
             .table { display: block; overflow-x: auto; }
         }
@@ -501,17 +588,15 @@
         <header class="hero">
             <a class="brand-mark" href="/saas">
                 <img class="brand-symbol" src="{{ url_for('static', path='branding/tis/logos/TIS Logo – Full Color – Horizontal Layout.png') }}" alt="TIS Platform">
-                <span class="brand-copy">
-                    <span>TIS Platform</span>
-                    <small>Academic operations account setup</small>
-                </span>
             </a>
             {% if account %}
             <nav class="actions" aria-label="Account setup navigation">
                 <a class="btn secondary" href="/saas/account">Account Setup</a>
+                {% if not (setup_console is defined and setup_console and organization is defined and organization) %}
                 <a class="btn secondary" href="/saas/account/profile">Profile</a>
                 <a class="btn secondary" href="/saas/account/billing">Subscription</a>
                 <a class="btn secondary" href="/saas/account/sessions">Sessions</a>
+                {% endif %}
                 <form method="post" action="/saas/auth/logout">
                     <button class="btn secondary" type="submit">Sign Out</button>
                 </form>
@@ -540,12 +625,14 @@
                 </div>
                 <aside class="setup-primary-panel" aria-label="Primary next action">
                     <strong>Next action</strong>
-                    {% if setup_console.primary_action["method"] == "post" %}
-                    <form method="post" action="{{ setup_console.primary_action["url"] }}">
-                        <button class="btn" data-primary-cta="true" type="submit">{{ setup_console.primary_action["label"] }}</button>
+                    {% if setup_console.primary_action.get("form_id") %}
+                    <button class="btn" data-primary-cta="true" type="submit" form="{{ setup_console.primary_action['form_id'] }}"{% if setup_console.primary_action.get("name") %} name="{{ setup_console.primary_action['name'] }}"{% endif %}{% if setup_console.primary_action.get("value") %} value="{{ setup_console.primary_action['value'] }}"{% endif %}>{{ setup_console.primary_action['label'] }}</button>
+                    {% elif setup_console.primary_action["method"] == "post" %}
+                    <form method="post" action="{{ setup_console.primary_action['url'] }}">
+                        <button class="btn" data-primary-cta="true" type="submit">{{ setup_console.primary_action['label'] }}</button>
                     </form>
                     {% else %}
-                    <a class="btn" data-primary-cta="true" href="{{ setup_console.primary_action["url"] }}">{{ setup_console.primary_action["label"] }}</a>
+                    <a class="btn" data-primary-cta="true" href="{{ setup_console.primary_action['url'] }}">{{ setup_console.primary_action['label'] }}</a>
                     {% endif %}
                 </aside>
             </div>
@@ -563,7 +650,7 @@
         </section>
         {% endif %}
 
-        {% if organization is defined and organization %}
+        {% if organization is defined and organization and not (setup_console is defined and setup_console) %}
         {% set active_step = step_key|default(organization.onboarding_step|default("")) %}
         <section class="onboarding-progress" aria-label="Onboarding progress">
             <div class="step-track">

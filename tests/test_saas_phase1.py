@@ -664,6 +664,15 @@ class SaaSPhase1Tests(unittest.TestCase):
         finally:
             db.close()
 
+        organization_get = self.client.get(f"/saas/onboarding/{org_uuid}/organization")
+        self.assertEqual(organization_get.status_code, 200)
+        self.assertIn("Organization Profile", organization_get.text)
+        self.assertIn("Organization identity", organization_get.text)
+        self.assertIn("TIS Logo", organization_get.text)
+        self.assertEqual(organization_get.text.count('data-primary-cta="true"'), 1)
+        self.assertIn('form="organization-form"', organization_get.text)
+        self.assertNotIn('href="/saas/account/profile"', organization_get.text)
+
         organization_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/organization",
             data={
@@ -692,6 +701,13 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertEqual(organization_response.status_code, 302)
         self.assertTrue(organization_response.headers["location"].endswith("/branches"))
 
+        branches_get = self.client.get(f"/saas/onboarding/{org_uuid}/branches")
+        self.assertEqual(branches_get.status_code, 200)
+        self.assertIn("Branch Setup", branches_get.text)
+        self.assertIn("Branches and campuses", branches_get.text)
+        self.assertEqual(branches_get.text.count('data-primary-cta="true"'), 1)
+        self.assertIn('form="branches-form"', branches_get.text)
+
         branches_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/branches",
             data={
@@ -710,6 +726,13 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertEqual(branches_response.status_code, 302)
         self.assertTrue(branches_response.headers["location"].endswith("/academic_setup"))
 
+        academic_get = self.client.get(f"/saas/onboarding/{org_uuid}/academic_setup")
+        self.assertEqual(academic_get.status_code, 200)
+        self.assertIn("Academic Setup", academic_get.text)
+        self.assertIn("Initial academic structure", academic_get.text)
+        self.assertEqual(academic_get.text.count('data-primary-cta="true"'), 1)
+        self.assertIn('form="academic-setup-form"', academic_get.text)
+
         academic_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/academic_setup",
             data={
@@ -722,6 +745,13 @@ class SaaSPhase1Tests(unittest.TestCase):
         )
         self.assertEqual(academic_response.status_code, 302)
         self.assertTrue(academic_response.headers["location"].endswith("/contacts"))
+
+        contacts_get = self.client.get(f"/saas/onboarding/{org_uuid}/contacts")
+        self.assertEqual(contacts_get.status_code, 200)
+        self.assertIn("Primary Contact", contacts_get.text)
+        self.assertIn("Primary setup contact", contacts_get.text)
+        self.assertEqual(contacts_get.text.count('data-primary-cta="true"'), 1)
+        self.assertIn('form="contacts-form"', contacts_get.text)
 
         contacts_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/contacts",
@@ -741,6 +771,10 @@ class SaaSPhase1Tests(unittest.TestCase):
         review_response = self.client.get(f"/saas/onboarding/{org_uuid}/review")
         self.assertEqual(review_response.status_code, 200)
         self.assertIn("Review School Workspace Setup", review_response.text)
+        self.assertIn("Ready to continue", review_response.text)
+        self.assertEqual(review_response.text.count('data-primary-cta="true"'), 1)
+        self.assertIn('form="review-submit-form"', review_response.text)
+        self.assertNotIn("ready_for_checkout", review_response.text)
 
         submit_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/submit",

@@ -27,6 +27,49 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-06-27 - Accepted School Workspace Setup Guided Wizard Phase 3B
+
+Area/module:
+School Workspace Setup onboarding templates, shared SaaS customer shell, onboarding setup context, tests, and KMS documentation
+
+Previous state:
+The five onboarding pages used functional but dense form layouts with repeated progress notices, mixed card styles, and page-local primary actions. Branch setup felt like repeated blank blocks, organization logo upload was plain, and the review page felt like a basic summary rather than a confident handoff to Subscription Selection.
+
+New state:
+Organization Profile, Branch Setup, Academic Setup, Primary Contact, and Review School Workspace Setup now use a consistent guided enterprise setup wizard style on top of the Phase 3A shared shell. Each page has one shared-shell primary CTA, secondary Back/Save Draft actions, grouped form sections, concise guidance, cleaner spacing, a more premium logo upload area, compact branch panels, and a stronger review summary.
+
+Reason:
+The accepted Phase 3B scope required redesigning only the School Workspace Setup onboarding pages while preserving all business logic, routes, field names, validation, draft behavior, payment, billing, provisioning, database, and operational boundaries.
+
+Files changed:
+- `saas/router.py`
+- `templates/saas/base.html`
+- `templates/saas/onboarding_organization.html`
+- `templates/saas/onboarding_branches.html`
+- `templates/saas/onboarding_academic_setup.html`
+- `templates/saas/onboarding_contacts.html`
+- `templates/saas/onboarding_review.html`
+- `tests/test_saas_phase1.py`
+- `docs/AI_PROJECT_CONTEXT.md`
+- `docs/TIS_MASTER_CONTEXT.md`
+- `docs/PROJECT_STATE.md`
+- `docs/CHANGE_HISTORY.md`
+- `docs/history/saas-onboarding/README.md`
+- `static/docs/TIS_Project_Reference_Booklet.pdf`
+- `static/docs/docs_manifest.json`
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+Phase 3B onboarding page redesign only. No backend business logic change, route rename, form field rename, validation change, onboarding progression change, draft behavior change, payment behavior change, billing behavior change, provisioning behavior change, database schema change, migration, operational module change, Next.js landing website change, OAuth change, commit, or push was performed.
+
 ## 2026-06-27 - Accepted TIS Account Guided Setup Framework Phase 3A
 
 Area/module:

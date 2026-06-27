@@ -213,7 +213,9 @@ The shared framework provides:
 
 The journey steps are TIS Account, Email Verification, School Workspace Setup, Review & Confirmation, Subscription Selection, Secure Payment, Workspace Activation, and Enter TIS Platform. Step state is derived from existing account, pending organization, onboarding progress, billing, payment, and activation data. Internal route names, stored statuses, billing/payment/provisioning behavior, database schema, migrations, operational modules, the landing website, and OAuth behavior remain unchanged.
 
-Onboarding forms and subscription/payment/status pages have not yet been redesigned under this framework; they remain future Phase 3 work.
+Phase 3B applies this shared framework to the five School Workspace Setup onboarding pages: Organization Profile, Branch Setup, Academic Setup, Primary Contact, and Review School Workspace Setup. These pages now use a consistent guided wizard structure with grouped sections, one shared-shell primary CTA, secondary Back/Save Draft actions, concise guidance, and reduced visual clutter.
+
+The Phase 3B onboarding redesign preserves existing form actions, field names, validation behavior, draft behavior, route names, and onboarding state transitions. Subscription/payment/status pages remain future Phase 3 work.
 
 ## M1-M5 Completed Milestone Summary
 

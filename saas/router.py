@@ -163,6 +163,76 @@ def _onboarding_context(db: Session, account, organization):
     }
 
 
+ONBOARDING_STEP_CONSOLE = {
+    "organization": {
+        "title": "Organization Profile",
+        "subtitle": "Add the core details that identify your school workspace.",
+        "status": "Start with the organization profile. Save and continue when the basics are ready.",
+        "label": "Save and continue",
+        "form_id": "organization-form",
+        "help": "This step captures the official organization profile, brand logo, location, and estimated size.",
+    },
+    "branches": {
+        "title": "Branch Setup",
+        "subtitle": "Add the campuses or branches that should be included in this workspace.",
+        "status": "Add at least one branch, then continue to Academic Setup.",
+        "label": "Save and continue",
+        "form_id": "branches-form",
+        "help": "Branches help TIS prepare the right school structure before activation.",
+    },
+    "academic_setup": {
+        "title": "Academic Setup",
+        "subtitle": "Confirm the first academic year and launch preferences.",
+        "status": "Set the academic year that TIS should prepare first.",
+        "label": "Save and continue",
+        "form_id": "academic-setup-form",
+        "help": "This gives the workspace a starting academic structure for activation.",
+    },
+    "contacts": {
+        "title": "Primary Contact",
+        "subtitle": "Confirm who should be contacted about this workspace setup.",
+        "status": "Add the primary contact, then continue to final review.",
+        "label": "Save and continue",
+        "form_id": "contacts-form",
+        "help": "Use a reliable school contact who can answer setup or activation questions.",
+    },
+    "review": {
+        "title": "Review School Workspace Setup",
+        "subtitle": "Check the setup summary before moving to Subscription Selection.",
+        "status": "Review the information below. Submit when the setup is ready to continue.",
+        "label": "Submit setup",
+        "form_id": "review-submit-form",
+        "help": "After submission, you will choose a subscription and continue toward Secure Payment.",
+    },
+}
+
+
+def _onboarding_setup_console(db: Session, account, step_key: str) -> dict:
+    console = service.build_setup_console_context(db, account)
+    config = ONBOARDING_STEP_CONSOLE.get(step_key, ONBOARDING_STEP_CONSOLE["organization"])
+    console.update(
+        {
+            "title": config["title"],
+            "subtitle": config["subtitle"],
+            "status_banner": config["status"],
+            "current_step": "school_workspace_setup" if step_key != "review" else "review_confirmation",
+            "primary_action": {
+                "label": config["label"],
+                "method": "form",
+                "form_id": config["form_id"],
+                "name": "save_action",
+                "value": "continue",
+            },
+            "help_title": "What should I do next?",
+            "help_text": config["help"],
+        }
+    )
+    for step in console.get("steps", []):
+        if step.get("key") == console["current_step"] and step.get("state") != "complete":
+            step["state"] = "current"
+    return console
+
+
 def _plan_context(db: Session, account, organization):
     summary = service.build_pending_dashboard_summary(db, account)
     checkout_summary = billing_service.build_checkout_summary(db, organization)
@@ -786,7 +856,12 @@ def organization_step(
         return RedirectResponse("/saas/account", status_code=302)
     context = _onboarding_context(db, account, organization)
     db.commit()
-    context.update({"account": account, "error": error, "step_key": "organization"})
+    context.update({
+        "account": account,
+        "error": error,
+        "step_key": "organization",
+        "setup_console": _onboarding_setup_console(db, account, "organization"),
+    })
     return _render(request, "saas/onboarding_organization.html", context)
 
 
@@ -890,7 +965,12 @@ def branches_step(
         return RedirectResponse("/saas/account", status_code=302)
     context = _onboarding_context(db, account, organization)
     db.commit()
-    context.update({"account": account, "error": error, "step_key": "branches"})
+    context.update({
+        "account": account,
+        "error": error,
+        "step_key": "branches",
+        "setup_console": _onboarding_setup_console(db, account, "branches"),
+    })
     return _render(request, "saas/onboarding_branches.html", context)
 
 
@@ -970,7 +1050,12 @@ def academic_setup_step(
         return RedirectResponse("/saas/account", status_code=302)
     context = _onboarding_context(db, account, organization)
     db.commit()
-    context.update({"account": account, "error": error, "step_key": "academic_setup"})
+    context.update({
+        "account": account,
+        "error": error,
+        "step_key": "academic_setup",
+        "setup_console": _onboarding_setup_console(db, account, "academic_setup"),
+    })
     return _render(request, "saas/onboarding_academic_setup.html", context)
 
 
@@ -1026,7 +1111,12 @@ def contacts_step(
         return RedirectResponse("/saas/account", status_code=302)
     context = _onboarding_context(db, account, organization)
     db.commit()
-    context.update({"account": account, "error": error, "step_key": "contacts"})
+    context.update({
+        "account": account,
+        "error": error,
+        "step_key": "contacts",
+        "setup_console": _onboarding_setup_console(db, account, "contacts"),
+    })
     return _render(request, "saas/onboarding_contacts.html", context)
 
 
@@ -1086,7 +1176,12 @@ def review_step(
         return RedirectResponse("/saas/account", status_code=302)
     context = _onboarding_context(db, account, organization)
     db.commit()
-    context.update({"account": account, "error": error, "step_key": "review"})
+    context.update({
+        "account": account,
+        "error": error,
+        "step_key": "review",
+        "setup_console": _onboarding_setup_console(db, account, "review"),
+    })
     return _render(request, "saas/onboarding_review.html", context)
 
 

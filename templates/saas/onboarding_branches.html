@@ -1,56 +1,60 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<header class="page-header">
-    <span class="page-eyebrow">Step 2 of 5</span>
-    <h1>Branch Setup</h1>
-    <p class="page-subtitle">Add the branches or campuses included in your School Workspace Setup.</p>
-</header>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
-<div class="notice">Progress: {{ progress.completion_percent }}% | School Workspace: {{ organization.organization_name or "Unnamed School Workspace" }}</div>
-<form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/branches">
-    {% set rows = branches if branches else [None, None, None] %}
-    {% for branch in rows %}
-    <div class="stat" style="margin-bottom:14px;">
-        <strong>Branch {{ loop.index }}</strong>
-        <label>Branch name</label>
-        <input name="branch_name" value="{{ branch.branch_name if branch else '' }}">
-        <label>Location summary</label>
-        <input name="location" value="{{ branch.location if branch else '' }}">
-        <div class="grid two">
-            <div>
-                <label>Country code</label>
-                <input name="country_code" value="{{ branch.country_code if branch else organization.country_code or '' }}">
-            </div>
-            <div>
-                <label>Country name</label>
-                <input name="country_name" value="{{ branch.country_name if branch else organization.country_name or '' }}">
-            </div>
+<form id="branches-form" class="wizard-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/branches">
+    <section class="wizard-section">
+        <div class="wizard-section-header">
+            <strong>Branches and campuses</strong>
+            <p>Add each branch that should exist in the initial School Workspace. You can leave unused rows blank.</p>
         </div>
-        <div class="grid two">
-            <div>
-                <label>Region</label>
-                <input name="region_name" value="{{ branch.region_name if branch else organization.region_name or '' }}">
+        <div class="branch-list">
+            {% set rows = branches if branches else [None, None, None] %}
+            {% for branch in rows %}
+            <div class="branch-panel">
+                <div class="branch-panel-header">
+                    <strong>Branch {{ loop.index }}</strong>
+                    <span class="muted">{% if loop.first %}At least one branch is required{% else %}Optional{% endif %}</span>
+                </div>
+                <div class="wizard-grid">
+                    <div>
+                        <label>Branch name</label>
+                        <input name="branch_name" value="{{ branch.branch_name if branch else '' }}">
+                    </div>
+                    <div>
+                        <label>Location summary</label>
+                        <input name="location" value="{{ branch.location if branch else '' }}">
+                    </div>
+                    <div>
+                        <label>Country code</label>
+                        <input name="country_code" value="{{ branch.country_code if branch else organization.country_code or '' }}">
+                    </div>
+                    <div>
+                        <label>Country name</label>
+                        <input name="country_name" value="{{ branch.country_name if branch else organization.country_name or '' }}">
+                    </div>
+                    <div>
+                        <label>Region</label>
+                        <input name="region_name" value="{{ branch.region_name if branch else organization.region_name or '' }}">
+                    </div>
+                    <div>
+                        <label>City</label>
+                        <input name="city_name" value="{{ branch.city_name if branch else organization.city_name or '' }}">
+                    </div>
+                    <div>
+                        <label>District</label>
+                        <input name="district_name" value="{{ branch.district_name if branch else organization.district_name or '' }}">
+                    </div>
+                    <div>
+                        <label>Neighborhood</label>
+                        <input name="neighborhood_name" value="{{ branch.neighborhood_name if branch else organization.neighborhood_name or '' }}">
+                    </div>
+                </div>
             </div>
-            <div>
-                <label>City</label>
-                <input name="city_name" value="{{ branch.city_name if branch else organization.city_name or '' }}">
-            </div>
+            {% endfor %}
         </div>
-        <div class="grid two">
-            <div>
-                <label>District</label>
-                <input name="district_name" value="{{ branch.district_name if branch else organization.district_name or '' }}">
-            </div>
-            <div>
-                <label>Neighborhood</label>
-                <input name="neighborhood_name" value="{{ branch.neighborhood_name if branch else organization.neighborhood_name or '' }}">
-            </div>
-        </div>
-    </div>
-    {% endfor %}
-    <div class="actions">
+    </section>
+    <div class="wizard-actions">
         <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/organization">Back</a>
-        <button class="btn" type="submit" name="save_action" value="continue">Save and continue</button>
         <button class="btn secondary" type="submit" name="save_action" value="save_exit">Save draft</button>
     </div>
 </form>
