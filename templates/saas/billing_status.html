@@ -1,37 +1,66 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<header class="page-header">
-    <span class="page-eyebrow">Subscription Setup</span>
-    <h1>Subscription status</h1>
-    <p class="page-subtitle">Track Secure Payment and Workspace Activation progress for your School Workspace Setup.</p>
-</header>
-<div class="notice">
-    Current Subscription Setup status:
-    <strong>
-        {{ customer_status_label(organization.billing_status) }}
-    </strong>
-</div>
-{% if current_plan_selection %}
-<p>Billing interval: {{ current_plan_selection.billing_interval }}</p>
-{% endif %}
-{% if checkout_summary and checkout_summary.checkout_session %}
-<p>Secure Payment status: {{ customer_status_label(checkout_summary.checkout_session.status) }}</p>
-{% endif %}
-<p>Payment status: {{ customer_status_label(organization.payment_status) }}</p>
-{% if current_payment_attempt %}
-<p>Latest payment update: {{ customer_status_label(current_payment_attempt.status) }}</p>
-{% endif %}
-{% if current_payment_subscription %}
-<p>Subscription status: {{ customer_status_label(current_payment_subscription.status) }}</p>
-{% endif %}
-{% if journey_card and journey_card.current_provisioning_job %}
-<p>Workspace Activation: {{ customer_status_label(journey_card.current_provisioning_job.job_status) }}</p>
-{% endif %}
-{% if journey_card and journey_card.current_tenant_link %}
-<p>School Workspace: active</p>
-{% endif %}
-<div class="actions">
-    <a class="btn secondary" href="/saas/account">Back to Account Dashboard</a>
-    <a class="btn secondary" href="/saas/account/billing">Subscription details</a>
+<section class="wizard-section">
+    <div class="wizard-section-header">
+        <strong>Subscription and Workspace Activation status</strong>
+        <p>Use this page to understand whether Secure Payment is complete and whether the workspace is ready for TIS Platform access.</p>
+    </div>
+    <div class="review-grid">
+        <div class="review-card">
+            <strong>Subscription Setup</strong>
+            <p>{{ customer_status_label(organization.billing_status) }}</p>
+        </div>
+        <div class="review-card">
+            <strong>Secure Payment</strong>
+            <p>{{ customer_status_label(organization.payment_status) }}</p>
+        </div>
+        {% if current_plan_selection %}
+        <div class="review-card">
+            <strong>Billing interval</strong>
+            <p>{{ current_plan_selection.billing_interval }}</p>
+        </div>
+        {% endif %}
+        {% if checkout_summary and checkout_summary.checkout_session %}
+        <div class="review-card">
+            <strong>Payment readiness</strong>
+            <p>{{ customer_status_label(checkout_summary.checkout_session.status) }}</p>
+        </div>
+        {% endif %}
+        {% if current_payment_attempt %}
+        <div class="review-card">
+            <strong>Latest payment update</strong>
+            <p>{{ customer_status_label(current_payment_attempt.status) }}</p>
+        </div>
+        {% endif %}
+        {% if current_payment_subscription %}
+        <div class="review-card">
+            <strong>Subscription</strong>
+            <p>{{ customer_status_label(current_payment_subscription.status) }}</p>
+        </div>
+        {% endif %}
+        <div class="review-card">
+            <strong>Workspace Activation</strong>
+            {% if journey_card and journey_card.current_tenant_link %}
+            <p>School Workspace active</p>
+            {% elif journey_card and journey_card.current_provisioning_job %}
+            <p>{{ customer_status_label(journey_card.current_provisioning_job.job_status) }}</p>
+            {% else %}
+            <p>Not started yet.</p>
+            {% endif %}
+        </div>
+        <div class="review-card">
+            <strong>TIS Platform access</strong>
+            <p>Access becomes available after Workspace Activation is complete.</p>
+        </div>
+    </div>
+</section>
+<section class="wizard-section">
+    <div class="wizard-section-header">
+        <strong>What happens next?</strong>
+        <p>Workspace Activation follows secure payment confirmation. Browser redirects do not activate the workspace by themselves.</p>
+    </div>
+</section>
+<div class="wizard-actions">
+    <a class="btn secondary" href="/saas/account">Back to Account Setup</a>
 </div>
 {% endblock %}

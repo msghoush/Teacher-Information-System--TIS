@@ -233,6 +233,106 @@ def _onboarding_setup_console(db: Session, account, step_key: str) -> dict:
     return console
 
 
+def _payment_setup_console(
+    db: Session,
+    account,
+    page_key: str,
+    *,
+    organization=None,
+    checkout_summary=None,
+    onboarding_summary=None,
+) -> dict:
+    console = service.build_setup_console_context(db, account)
+    summary = onboarding_summary or service.build_pending_dashboard_summary(db, account)
+    organization = organization or (summary["organization"] if summary else None)
+    org_uuid = str(getattr(organization, "organization_uuid", "") or "")
+    workspace_name = str(getattr(organization, "organization_name", "") or "").strip() or "School Workspace"
+
+    def action(label: str, url: str, method: str = "get", form_id: str = "") -> dict:
+        data = {"label": label, "url": url, "method": method}
+        if form_id:
+            data["form_id"] = form_id
+        return data
+
+    config = {
+        "plan": {
+            "title": "Choose your subscription",
+            "subtitle": f"Select the plan and billing interval for {workspace_name}.",
+            "status": "Next step: save your subscription selection to continue to Secure Payment.",
+            "current": "subscription_selection",
+            "primary": action("Save plan and continue", "", "form", "plan-selection-form"),
+            "help": "Your subscription choice prepares Secure Payment. Workspace Activation begins only after payment is confirmed.",
+        },
+        "checkout": {
+            "title": "Secure Payment summary",
+            "subtitle": f"Review the selected subscription for {workspace_name}.",
+            "status": "Next step: prepare Secure Payment.",
+            "current": "secure_payment",
+            "primary": action("Prepare Secure Payment", "", "form", "checkout-start-form"),
+            "help": "Secure Payment opens after the payment session is prepared. Browser redirects alone do not activate the workspace.",
+        },
+        "return": {
+            "title": "Payment status",
+            "subtitle": "Your browser returned from Secure Payment.",
+            "status": "Browser return received. Payment confirmation is finalized only after secure verification is processed.",
+            "current": "secure_payment",
+            "primary": action("View Subscription Status", "/saas/account/billing"),
+            "help": "Keep this page as a status checkpoint. If payment is confirmed, Workspace Activation will continue automatically.",
+        },
+        "cancel": {
+            "title": "Payment cancelled",
+            "subtitle": "The payment window was closed before confirmation.",
+            "status": "Your setup is still saved. You can return to Secure Payment when ready.",
+            "current": "secure_payment",
+            "primary": action("Return to Secure Payment", f"/saas/onboarding/{org_uuid}/checkout" if org_uuid else "/saas/account/billing"),
+            "help": "No workspace activation starts until payment is confirmed. You can safely resume from the Secure Payment summary.",
+        },
+        "account_billing": {
+            "title": "Subscription and activation status",
+            "subtitle": "Track Secure Payment, Subscription Setup, and Workspace Activation.",
+            "status": "Use this page to understand what happens next before TIS Platform access becomes available.",
+            "current": console.get("current_step", "secure_payment"),
+            "primary": console.get("primary_action", action("View Account Status", "/saas/account")),
+            "help": "TIS Platform access becomes available after Workspace Activation is complete.",
+        },
+        "billing_status": {
+            "title": "Workspace Activation status",
+            "subtitle": f"Track subscription and activation progress for {workspace_name}.",
+            "status": "Payment confirmation and Workspace Activation status are shown here with customer-safe labels.",
+            "current": console.get("current_step", "secure_payment"),
+            "primary": action("View Subscription Details", "/saas/account/billing"),
+            "help": "Browser redirects do not activate the workspace by themselves. Activation follows secure payment confirmation.",
+        },
+    }[page_key]
+
+    if page_key == "checkout":
+        has_selection = bool(checkout_summary and checkout_summary.get("selection") and checkout_summary.get("plan"))
+        checkout_session = checkout_summary.get("checkout_session") if checkout_summary else None
+        checkout_ready = str(getattr(checkout_session, "status", "") or "").strip().lower() == "ready"
+        if not has_selection:
+            config["status"] = "Select a subscription before continuing to Secure Payment."
+            config["primary"] = action("Choose Subscription", f"/saas/onboarding/{org_uuid}/plan")
+        elif checkout_ready:
+            config["status"] = "Secure Payment is ready to open."
+            config["primary"] = action("Continue to Secure Payment", "", "form", "checkout-launch-form")
+
+    console.update(
+        {
+            "title": config["title"],
+            "subtitle": config["subtitle"],
+            "status_banner": config["status"],
+            "current_step": config["current"],
+            "primary_action": config["primary"],
+            "help_title": "What should I do next?",
+            "help_text": config["help"],
+        }
+    )
+    for step in console.get("steps", []):
+        if step.get("key") == console["current_step"] and step.get("state") != "complete":
+            step["state"] = "current"
+    return console
+
+
 def _plan_context(db: Session, account, organization):
     summary = service.build_pending_dashboard_summary(db, account)
     checkout_summary = billing_service.build_checkout_summary(db, organization)
@@ -730,6 +830,12 @@ def account_billing(request: Request, db: Session = Depends(get_db)):
     if redirect:
         return redirect
     onboarding_summary = service.build_pending_dashboard_summary(db, account)
+    setup_console = _payment_setup_console(
+        db,
+        account,
+        "account_billing",
+        onboarding_summary=onboarding_summary,
+    )
     db.commit()
     return _render(
         request,
@@ -737,6 +843,7 @@ def account_billing(request: Request, db: Session = Depends(get_db)):
         {
             "account": account,
             "onboarding_summary": onboarding_summary,
+            "setup_console": setup_console,
             "notice": request.query_params.get("notice", ""),
             "error": request.query_params.get("error", ""),
         },
@@ -1246,8 +1353,18 @@ def plan_selection_step(
         db.rollback()
         return RedirectResponse(f"/saas/account?notice={quote_plus(str(exc))}", status_code=302)
     context = _plan_context(db, account, organization)
+    context.update({
+        "error": error,
+        "setup_console": _payment_setup_console(
+            db,
+            account,
+            "plan",
+            organization=organization,
+            checkout_summary=context.get("checkout_summary"),
+            onboarding_summary=context.get("journey_card"),
+        ),
+    })
     db.commit()
-    context.update({"error": error})
     return _render(request, "saas/plan_selection.html", context)
 
 
@@ -1300,8 +1417,19 @@ def checkout_summary_step(
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
     context = _plan_context(db, account, organization)
+    context.update({
+        "error": error,
+        "notice": notice,
+        "setup_console": _payment_setup_console(
+            db,
+            account,
+            "checkout",
+            organization=organization,
+            checkout_summary=context.get("checkout_summary"),
+            onboarding_summary=context.get("journey_card"),
+        ),
+    })
     db.commit()
-    context.update({"error": error, "notice": notice})
     return _render(request, "saas/checkout_summary.html", context)
 
 
@@ -1375,14 +1503,24 @@ def checkout_return_page(
         current_attempt = onboarding_summary.get("current_payment_attempt")
         if not current_attempt or str(getattr(current_attempt, "attempt_uuid", "") or "") != str(attempt or "").strip():
             current_attempt = None
+    organization = onboarding_summary["organization"] if onboarding_summary else None
+    setup_console = _payment_setup_console(
+        db,
+        account,
+        "return",
+        organization=organization,
+        onboarding_summary=onboarding_summary,
+    )
     db.commit()
     return _render(
         request,
         "saas/checkout_return.html",
         {
             "account": account,
+            "organization": organization,
             "onboarding_summary": onboarding_summary,
             "current_attempt": current_attempt,
+            "setup_console": setup_console,
         },
     )
 
@@ -1396,13 +1534,23 @@ def checkout_cancel_page(
     if redirect:
         return redirect
     onboarding_summary = service.build_pending_dashboard_summary(db, account)
+    organization = onboarding_summary["organization"] if onboarding_summary else None
+    setup_console = _payment_setup_console(
+        db,
+        account,
+        "cancel",
+        organization=organization,
+        onboarding_summary=onboarding_summary,
+    )
     db.commit()
     return _render(
         request,
         "saas/checkout_cancel.html",
         {
             "account": account,
+            "organization": organization,
             "onboarding_summary": onboarding_summary,
+            "setup_console": setup_console,
         },
     )
 
@@ -1421,6 +1569,16 @@ def billing_status_step(
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
     context = _plan_context(db, account, organization)
+    context.update({
+        "setup_console": _payment_setup_console(
+            db,
+            account,
+            "billing_status",
+            organization=organization,
+            checkout_summary=context.get("checkout_summary"),
+            onboarding_summary=context.get("journey_card"),
+        )
+    })
     db.commit()
     return _render(request, "saas/billing_status.html", context)
 

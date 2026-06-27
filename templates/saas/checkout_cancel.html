@@ -1,24 +1,30 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<header class="page-header">
-    <span class="page-eyebrow">Subscription Setup</span>
-    <h1>Payment cancelled</h1>
-    <p class="page-subtitle">The payment window was closed before confirmation.</p>
-</header>
-<div class="warning">You can safely return to the Secure Payment summary and continue when ready.</div>
-{% if onboarding_summary %}
-<p>
-    Current subscription status:
-    <strong>
-        {{ customer_status_label(onboarding_summary.organization.billing_status) }}
-    </strong><br>
-    Payment status: <strong>{{ customer_status_label(onboarding_summary.organization.payment_status) }}</strong>
-</p>
-{% endif %}
-<div class="actions">
+<section class="wizard-section">
+    <div class="wizard-section-header">
+        <strong>Secure Payment was not completed</strong>
+        <p>The payment window was closed before confirmation. Your School Workspace Setup remains saved.</p>
+    </div>
     {% if onboarding_summary %}
-    <a class="btn" href="/saas/onboarding/{{ onboarding_summary.organization.organization_uuid }}/checkout">Return to Secure Payment summary</a>
+    <div class="review-grid">
+        <div class="review-card">
+            <strong>Subscription Setup</strong>
+            <p>{{ customer_status_label(onboarding_summary.organization.billing_status) }}</p>
+        </div>
+        <div class="review-card">
+            <strong>Payment</strong>
+            <p>{{ customer_status_label(onboarding_summary.organization.payment_status) }}</p>
+        </div>
+    </div>
     {% endif %}
-    <a class="btn secondary" href="/saas/account">Back to Account Dashboard</a>
+</section>
+<section class="wizard-section">
+    <div class="wizard-section-header">
+        <strong>What happens next?</strong>
+        <p>You can return to Secure Payment when ready. Workspace Activation begins only after payment is confirmed.</p>
+    </div>
+</section>
+<div class="wizard-actions">
+    <a class="btn secondary" href="/saas/account">Back to Account Setup</a>
 </div>
 {% endblock %}

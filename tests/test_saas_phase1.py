@@ -842,6 +842,56 @@ class SaaSPhase1Tests(unittest.TestCase):
         finally:
             db.close()
 
+        plan_page = self.client.get(f"/saas/onboarding/{org_uuid}/plan")
+        self.assertEqual(plan_page.status_code, 200)
+        self.assertIn("Choose your subscription", plan_page.text)
+        self.assertIn("Subscription Selection", plan_page.text)
+        self.assertIn('form="plan-selection-form"', plan_page.text)
+        self.assertEqual(plan_page.text.count('data-primary-cta="true"'), 1)
+        self.assertNotIn("Plan ID", plan_page.text)
+
+        plan_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "annual"},
+            follow_redirects=False,
+        )
+        self.assertEqual(plan_response.status_code, 302)
+        self.assertIn(f"/saas/onboarding/{org_uuid}/checkout", plan_response.headers["location"])
+
+        checkout_page = self.client.get(f"/saas/onboarding/{org_uuid}/checkout")
+        self.assertEqual(checkout_page.status_code, 200)
+        self.assertIn("Secure Payment summary", checkout_page.text)
+        self.assertIn('form="checkout-start-form"', checkout_page.text)
+        self.assertEqual(checkout_page.text.count('data-primary-cta="true"'), 1)
+        self.assertNotIn("checkout_ready", checkout_page.text)
+        self.assertNotIn("provider", checkout_page.text.lower())
+
+        start_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/checkout/start",
+            follow_redirects=False,
+        )
+        self.assertEqual(start_response.status_code, 302)
+
+        ready_checkout_page = self.client.get(f"/saas/onboarding/{org_uuid}/checkout")
+        self.assertEqual(ready_checkout_page.status_code, 200)
+        self.assertIn('form="checkout-launch-form"', ready_checkout_page.text)
+        self.assertIn("Continue to Secure Payment", ready_checkout_page.text)
+        self.assertEqual(ready_checkout_page.text.count('data-primary-cta="true"'), 1)
+
+        billing_page = self.client.get("/saas/account/billing")
+        self.assertEqual(billing_page.status_code, 200)
+        self.assertIn("Subscription and activation overview", billing_page.text)
+        self.assertIn("TIS Platform access", billing_page.text)
+        self.assertEqual(billing_page.text.count('data-primary-cta="true"'), 1)
+        self.assertNotIn("checkout_ready", billing_page.text)
+        self.assertNotIn("provider", billing_page.text.lower())
+
+        status_page = self.client.get(f"/saas/onboarding/{org_uuid}/billing-status")
+        self.assertEqual(status_page.status_code, 200)
+        self.assertIn("Subscription and Workspace Activation status", status_page.text)
+        self.assertIn("Browser redirects do not activate the workspace by themselves.", status_page.text)
+        self.assertEqual(status_page.text.count('data-primary-cta="true"'), 1)
+
     def test_phase4_launches_paddle_checkout_without_operational_side_effects(self):
         self._configure_paddle_prices()
         org_uuid = self._complete_pending_organization_to_ready_for_checkout("payments@academy.edu")
@@ -951,6 +1001,10 @@ class SaaSPhase1Tests(unittest.TestCase):
         return_response = self.client.get(f"/saas/checkout/return?attempt={attempt_uuid}")
         self.assertEqual(return_response.status_code, 200)
         self.assertIn("secure verification is processed", return_response.text)
+        self.assertIn("This does not by itself confirm payment", return_response.text)
+        self.assertEqual(return_response.text.count('data-primary-cta="true"'), 1)
+        self.assertNotIn(attempt_uuid, return_response.text)
+        self.assertNotIn("checkout_started", return_response.text)
 
         db = self._db()
         try:
@@ -961,6 +1015,12 @@ class SaaSPhase1Tests(unittest.TestCase):
             self.assertEqual(attempt.status, "checkout_started")
         finally:
             db.close()
+
+        cancel_response = self.client.get("/saas/checkout/cancel")
+        self.assertEqual(cancel_response.status_code, 200)
+        self.assertIn("Secure Payment was not completed", cancel_response.text)
+        self.assertIn("Workspace Activation begins only after payment is confirmed.", cancel_response.text)
+        self.assertEqual(cancel_response.text.count('data-primary-cta="true"'), 1)
 
     def test_phase4_verified_paddle_webhooks_confirm_payment_and_preserve_isolation(self):
         self._configure_paddle_prices()

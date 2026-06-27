@@ -8,6 +8,33 @@ last_updated: 2026-06-27
 
 This folder tracks meaningful changes to signup, login, account, organization onboarding, contacts, branches, academic setup, review, and account self-service.
 
+## 2026-06-27 - Subscription And Workspace Activation Guided Journey Phase 3C
+
+Phase 3C subscription, payment, and activation page redesign is accepted.
+
+What changed:
+
+- Subscription Selection, Secure Payment summary, Payment Return, Payment Cancel, Subscription Status, and Workspace Activation status pages now use the Phase 3A shared shell and Phase 3B guided style.
+- Each page now has one shared-shell primary CTA and keeps secondary actions visually secondary.
+- Secure Payment pages now clearly explain that browser return from checkout does not itself confirm payment.
+- Subscription and activation status pages now use concise customer-safe cards for payment, subscription, activation, and TIS Platform access state.
+- Customer-facing pages now consistently explain that TIS Platform access becomes available after Workspace Activation.
+
+Scope notes:
+
+- Payment behavior, billing behavior, provisioning behavior, webhook logic, checkout start/launch behavior, stored statuses, database schema, migrations, operational modules, the Next.js landing website, OAuth behavior, internal `/saas` route names, and admin views were not changed.
+
+Related files:
+
+- `saas/router.py`
+- `templates/saas/plan_selection.html`
+- `templates/saas/checkout_summary.html`
+- `templates/saas/checkout_return.html`
+- `templates/saas/checkout_cancel.html`
+- `templates/saas/account_billing.html`
+- `templates/saas/billing_status.html`
+- `tests/test_saas_phase1.py`
+
 ## 2026-06-27 - School Workspace Setup Guided Wizard Phase 3B
 
 Phase 3B School Workspace Setup onboarding page redesign is accepted.
