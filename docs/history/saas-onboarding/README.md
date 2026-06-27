@@ -8,6 +8,35 @@ last_updated: 2026-06-27
 
 This folder tracks meaningful changes to signup, login, account, organization onboarding, contacts, branches, academic setup, review, and account self-service.
 
+## 2026-06-27 - School Workspace Setup Guided Wizard Phase 3B
+
+Phase 3B School Workspace Setup onboarding page redesign is accepted.
+
+What changed:
+
+- Organization Profile, Branch Setup, Academic Setup, Primary Contact, and Review School Workspace Setup now use a consistent guided wizard structure on top of the Phase 3A shared shell.
+- Each onboarding page now has one shared-shell primary CTA and keeps Back/Save Draft actions visually secondary.
+- Organization Profile groups identity, logo upload, program/location, and estimated scale fields.
+- Branch Setup uses compact branch panels instead of heavy repeated blank blocks.
+- Academic Setup and Primary Contact use focused single-step sections with concise guidance.
+- Review School Workspace Setup now presents a clearer ready-to-continue summary before Subscription Selection.
+
+Scope notes:
+
+- Form actions, field names, routes, validation behavior, draft behavior, onboarding progression, payment behavior, billing behavior, provisioning behavior, database schema, migrations, operational modules, the Next.js landing website, OAuth behavior, internal `/saas` route names, and admin views were not changed.
+- Subscription/payment/status pages remain future Phase 3 work.
+
+Related files:
+
+- `saas/router.py`
+- `templates/saas/base.html`
+- `templates/saas/onboarding_organization.html`
+- `templates/saas/onboarding_branches.html`
+- `templates/saas/onboarding_academic_setup.html`
+- `templates/saas/onboarding_contacts.html`
+- `templates/saas/onboarding_review.html`
+- `tests/test_saas_phase1.py`
+
 ## 2026-06-27 - TIS Account Guided Setup Framework Phase 3A
 
 Phase 3A shared guided setup framework is accepted.

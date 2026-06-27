@@ -1,50 +1,48 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<header class="page-header">
-    <span class="page-eyebrow">Step 5 of 5</span>
-    <h1>Review School Workspace Setup</h1>
-    <p class="page-subtitle">Review your Organization Profile, Branch Setup, Academic Setup, and Primary Contact before submission.</p>
-</header>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
-<div class="notice">Progress: {{ progress.completion_percent }}% | Ready for final review</div>
-<div class="grid two">
-    <div class="stat-list">
-        <div class="stat">
-            <strong>Organization</strong>
+<section class="wizard-section">
+    <div class="wizard-section-header">
+        <strong>Ready to continue</strong>
+        <p>Confirm the saved setup details before moving to Subscription Selection.</p>
+    </div>
+    <div class="review-grid">
+        <div class="review-card">
+            <strong>Organization Profile</strong>
             <p>{{ organization.organization_name }}<br>{{ organization.educational_program }}<br>{{ organization.country_name }}{% if organization.city_name %}, {{ organization.city_name }}{% endif %}</p>
         </div>
-        <div class="stat">
-            <strong>Capacity snapshot</strong>
-            <p>Branches: {{ branches|length }}<br>Teachers: {{ organization.expected_teacher_count or 0 }}<br>Students: {{ organization.expected_student_count or 0 }}<br>Staff users: {{ organization.estimated_staff_users or 0 }}</p>
+        <div class="review-card">
+            <strong>Branch Setup</strong>
+            <p>{{ branches|length }} branch{% if branches|length != 1 %}es{% endif %} saved<br>Estimated branches: {{ organization.expected_branch_count or "Not specified" }}</p>
         </div>
-        <div class="stat">
+        <div class="review-card">
             <strong>Academic Setup</strong>
-            <p>{{ academic_setup.first_academic_year_name }}{% if academic_setup.create_default_branch %}<br>Default branch allowed{% endif %}</p>
+            <p>{{ academic_setup.first_academic_year_name }}{% if academic_setup.create_default_branch %}<br>Single default branch allowed{% endif %}</p>
         </div>
-    </div>
-    <div class="stat-list">
-        <div class="stat">
-            <strong>Primary contact</strong>
+        <div class="review-card">
+            <strong>Primary Contact</strong>
             {% if primary_contact %}
-            <p>{{ primary_contact.first_name }} {{ primary_contact.last_name }}<br>{{ primary_contact.email }}<br>{{ primary_contact.job_title or "" }}</p>
+            <p>{{ primary_contact.first_name }} {{ primary_contact.last_name }}<br>{{ primary_contact.email }}{% if primary_contact.job_title %}<br>{{ primary_contact.job_title }}{% endif %}</p>
             {% else %}
             <p>No primary contact saved yet.</p>
             {% endif %}
         </div>
-        <div class="stat">
-            <strong>Subscription Setup readiness</strong>
-            <p>Once all steps are complete, submission moves this School Workspace Setup to the next Subscription Setup stage.</p>
+        <div class="review-card">
+            <strong>Estimated Scale</strong>
+            <p>Teachers: {{ organization.expected_teacher_count or "Not specified" }}<br>Students: {{ organization.expected_student_count or "Not specified" }}<br>Staff users: {{ organization.estimated_staff_users or "Not specified" }}</p>
+        </div>
+        <div class="review-card">
+            <strong>Next Stage</strong>
+            <p>After submission, you will choose a subscription and continue toward Secure Payment.</p>
         </div>
     </div>
-</div>
-<div class="actions" style="margin-top:18px;">
+</section>
+<div class="wizard-actions">
     <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/contacts">Back</a>
     <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/save-draft">
         <input type="hidden" name="current_step" value="review">
         <button class="btn secondary" type="submit">Save draft</button>
     </form>
-    <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/submit">
-        <button class="btn" type="submit">Submit setup</button>
-    </form>
 </div>
+<form id="review-submit-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/submit"></form>
 {% endblock %}

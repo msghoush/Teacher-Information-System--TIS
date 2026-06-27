@@ -93,6 +93,9 @@ SaaS guided setup framework:
 - The account page now uses the framework and removes the old dense dashboard statistics from the customer account landing page.
 - Journey state is derived from existing account, onboarding, billing, payment, and activation data without changing stored statuses.
 - Onboarding forms, subscription/payment pages, billing/status pages, payment behavior, billing behavior, provisioning behavior, database schema, migrations, operational modules, the landing website, internal `/saas` route names, and Google/Microsoft login were not changed.
+- Phase 3B redesigned the five School Workspace Setup onboarding pages on top of the shared setup shell.
+- Organization Profile, Branch Setup, Academic Setup, Primary Contact, and Review School Workspace Setup now use consistent guided wizard sections, one shared-shell primary CTA, and secondary Back/Save Draft actions.
+- Phase 3B preserved backend logic, form actions, field names, validation behavior, draft behavior, onboarding progression, payment/billing/provisioning behavior, database schema, migrations, operational modules, the landing website, internal `/saas` route names, and OAuth behavior.
 
 Documentation/KMS milestones:
 

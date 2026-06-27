@@ -1,32 +1,37 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<header class="page-header">
-    <span class="page-eyebrow">Step 4 of 5</span>
-    <h1>Primary Contact</h1>
-    <p class="page-subtitle">Add the primary contact for your School Workspace Setup.</p>
-</header>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
-<div class="notice">Progress: {{ progress.completion_percent }}%</div>
-<form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/contacts">
-    <div class="grid two">
-        <div>
-            <label for="first_name">First name</label>
-            <input id="first_name" name="first_name" value="{{ primary_contact.first_name if primary_contact else account.first_name or '' }}" required>
+<form id="contacts-form" class="wizard-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/contacts">
+    <section class="wizard-section">
+        <div class="wizard-section-header">
+            <strong>Primary setup contact</strong>
+            <p>This person should be able to confirm setup details during review and activation.</p>
         </div>
-        <div>
-            <label for="last_name">Last name</label>
-            <input id="last_name" name="last_name" value="{{ primary_contact.last_name if primary_contact else account.last_name or '' }}" required>
+        <div class="wizard-grid">
+            <div>
+                <label for="first_name">First name</label>
+                <input id="first_name" name="first_name" value="{{ primary_contact.first_name if primary_contact else account.first_name or '' }}" required>
+            </div>
+            <div>
+                <label for="last_name">Last name</label>
+                <input id="last_name" name="last_name" value="{{ primary_contact.last_name if primary_contact else account.last_name or '' }}" required>
+            </div>
+            <div>
+                <label for="job_title">Job title</label>
+                <input id="job_title" name="job_title" value="{{ primary_contact.job_title if primary_contact else '' }}">
+            </div>
+            <div>
+                <label for="email">Email</label>
+                <input id="email" name="email" type="email" value="{{ primary_contact.email if primary_contact else account.email or '' }}" required>
+            </div>
+            <div>
+                <label for="phone">Phone</label>
+                <input id="phone" name="phone" value="{{ primary_contact.phone if primary_contact else organization.phone or '' }}">
+            </div>
         </div>
-    </div>
-    <label for="job_title">Job title</label>
-    <input id="job_title" name="job_title" value="{{ primary_contact.job_title if primary_contact else '' }}">
-    <label for="email">Email</label>
-    <input id="email" name="email" type="email" value="{{ primary_contact.email if primary_contact else account.email or '' }}" required>
-    <label for="phone">Phone</label>
-    <input id="phone" name="phone" value="{{ primary_contact.phone if primary_contact else organization.phone or '' }}">
-    <div class="actions">
+    </section>
+    <div class="wizard-actions">
         <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/academic_setup">Back</a>
-        <button class="btn" type="submit" name="save_action" value="continue">Save and continue</button>
         <button class="btn secondary" type="submit" name="save_action" value="save_exit">Save draft</button>
     </div>
 </form>
