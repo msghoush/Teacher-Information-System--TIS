@@ -112,7 +112,7 @@ def build_email_verification_email(*, verification_url: str, logo_url: str) -> T
     return render_transactional_email(
         subject="Verify your email address | TIS Platform",
         title="Verify your email address",
-        message="Confirm this email address to secure your TIS Platform account and enable verified account communications.",
+        message="Confirm this email address to secure your TIS Account and continue school workspace setup.",
         logo_url=logo_url,
         action_label="Verify Email",
         action_url=verification_url,

@@ -6,8 +6,17 @@
     <p class="page-subtitle">A verification link has been sent to confirm your account email address.</p>
 </header>
 {% if warning %}<div class="warning">{{ warning }}</div>{% endif %}
-<div class="notice">We sent a verification link to <strong>{{ email }}</strong>. The link uses the existing TIS Resend email integration and expires automatically.</div>
-<p class="muted">After verification, you can sign in and continue organization setup from your account dashboard.</p>
+{% if notice %}
+<div class="notice">{{ notice }}</div>
+{% else %}
+<div class="notice">We sent a verification link to <strong>{{ email }}</strong>. The link expires automatically.</div>
+{% endif %}
+<p class="muted">After verification, you can sign in and continue school workspace setup from your account dashboard.</p>
+<form method="post" action="/saas/auth/resend-verification" style="margin-top:18px;">
+    <label for="resend_email">Need another verification link?</label>
+    <input id="resend_email" name="email" type="email" value="{{ email }}" autocomplete="email" required>
+    <button class="btn secondary" type="submit">Resend verification</button>
+</form>
 <div class="actions">
     <a class="btn" href="/saas/login">Go to sign in</a>
     <a class="btn secondary" href="/saas/signup">Create another account</a>

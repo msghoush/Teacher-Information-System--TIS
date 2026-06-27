@@ -161,6 +161,21 @@ Related SaaS areas include plan selection, onboarding organization details, cont
 
 Platform owner SaaS administration exists under `/saas-admin` for pending organizations, payments, and provisioning workflows.
 
+### TIS Account Email Verification Recovery
+
+The accepted Phase 1 verification recovery improvement strengthens the public TIS Account setup journey without changing payment, billing, provisioning, tenant activation, database schema, migrations, operational modules, or the landing website.
+
+Current verification behavior:
+
+- Valid email verification links mark the account email verified/active and redirect to `/saas/login` with a professional success notice: the customer is told their email has been verified and asked to sign in to continue school workspace setup.
+- Expired or invalid verification links show a recovery page instead of a dead-end generic error.
+- The recovery page includes a resend verification form.
+- Resend verification safely handles unverified accounts, already verified accounts, and unknown email addresses without exposing whether an account exists.
+- Password-based accounts that are still pending verification cannot start or continue school workspace setup.
+- New customer-facing verification language in this flow uses "TIS Account" and "school workspace setup".
+
+Google and Microsoft sign-in remain future work. OAuth-based verification bypass rules should not be expanded without a separate approved identity decision.
+
 ## M1-M5 Completed Milestone Summary
 
 M1: Identity and SaaS foundation

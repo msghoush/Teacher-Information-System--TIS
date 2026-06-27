@@ -64,6 +64,17 @@ M5: Platform access and owner controls
 - Platform console and owner/developer management controls exist.
 - Permission registry and platform access tests support this boundary.
 
+SaaS account setup stabilization:
+
+- Phase 1 TIS Account email verification recovery is accepted.
+- Valid verification links now redirect to TIS Account login with a professional success notice.
+- Expired or invalid verification links now show a recovery page with a resend option.
+- Resend verification safely handles unverified, already verified, and unknown-email cases.
+- Unverified password-based accounts are blocked from starting or continuing school workspace setup.
+- New verification-flow wording uses "TIS Account" and "school workspace setup".
+- Payment, billing, provisioning, database schema, migrations, operational modules, and the landing website were not changed.
+- Google/Microsoft login remains future work and was not implemented.
+
 Documentation/KMS milestones:
 
 - Phase 1 documentation foundation completed and pushed to `dev`.
@@ -158,6 +169,7 @@ Known issues and watch points:
 - Render deployment constraints should continue to guide dependency choices.
 - Production memory must be treated as a hard constraint. The 2026-06-27 Render restart/502 investigation found two avoidable memory risks: observation diagnostics doing extra production template renders and global location lookup parsing a 47 MB dataset into a complete in-memory index for simple picker requests. Local stabilization changes now gate observation diagnostics and use scoped location loading; future work must follow the Production Memory and Render Stability standards.
 - Broad filesystem scans may warn about `tis_scope_test_5i3yf0h5/` access denial.
+- Google/Microsoft login is still future work; password-based accounts must remain email-verified before school workspace setup.
 
 ## Next Planned Work
 

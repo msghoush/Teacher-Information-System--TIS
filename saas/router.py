@@ -32,6 +32,25 @@ def _require_account(request: Request, db: Session):
     return account, session_row
 
 
+def _account_needs_verification(account) -> bool:
+    status = str(getattr(account, "status", "") or "").strip().lower()
+    return status == "pending_verification" or not getattr(account, "email_verified_at", None)
+
+
+def _verification_required_redirect(email: str = ""):
+    target = "/saas/auth/verification-required"
+    if email:
+        target += "?email=" + quote_plus(str(email or ""))
+    return RedirectResponse(target, status_code=302)
+
+
+def _require_verified_account(request: Request, db: Session):
+    account, session_row = _require_account(request, db)
+    if _account_needs_verification(account):
+        return None, None, _verification_required_redirect(str(getattr(account, "email", "") or ""))
+    return account, session_row, None
+
+
 def _require_platform_owner(request: Request, db: Session):
     current_user = auth.get_current_user(request, db)
     if not current_user or not auth.is_platform_owner(current_user):
@@ -114,7 +133,9 @@ def _resolve_optional_location(
 
 @router.get("/locations/countries")
 def saas_location_countries(request: Request, db: Session = Depends(get_db)):
-    _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     return JSONResponse(
         {"items": location_service.list_countries()},
         headers={"Cache-Control": "private, max-age=86400"},
@@ -127,7 +148,9 @@ def saas_location_regions(
     country_code: str = Query(..., min_length=2, max_length=2),
     db: Session = Depends(get_db),
 ):
-    _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     try:
         items = location_service.list_regions(country_code)
     except location_service.LocationValidationError as exc:
@@ -145,7 +168,9 @@ def saas_location_cities(
     region_id: int = Query(..., gt=0),
     db: Session = Depends(get_db),
 ):
-    _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     try:
         items = location_service.list_cities(country_code, region_id)
     except location_service.LocationValidationError as exc:
@@ -166,6 +191,7 @@ def saas_root(request: Request, db: Session = Depends(get_db)):
 def login_page(
     request: Request,
     error: str = Query(""),
+    notice: str = Query(""),
     email: str = Query(""),
     db: Session = Depends(get_db),
 ):
@@ -176,6 +202,7 @@ def login_page(
         "saas/login.html",
         {
             "error": error,
+            "notice": notice,
             "email": email,
             "google_enabled": oauth.is_provider_configured("google"),
             "microsoft_enabled": oauth.is_provider_configured("microsoft"),
@@ -311,6 +338,14 @@ def login(
             url="/saas/login?error=Invalid+email+or+password.&email=" + quote_plus(str(email or "")),
             status_code=302,
         )
+    if _account_needs_verification(account):
+        return RedirectResponse(
+            url=(
+                "/saas/auth/verification-required?email="
+                + quote_plus(str(getattr(account, "email", "") or email or ""))
+            ),
+            status_code=302,
+        )
     session_token, csrf_token, _session_row = service.create_session(db, account, request=request)
     service.log_auth_event(db, event_type="login", account_id=account.id, request=request)
     db.commit()
@@ -344,8 +379,33 @@ def verification_sent_page(
     request: Request,
     email: str = Query(""),
     warning: str = Query(""),
+    notice: str = Query(""),
 ):
-    return _render(request, "saas/verification_sent.html", {"email": email, "warning": warning})
+    return _render(
+        request,
+        "saas/verification_sent.html",
+        {"email": email, "warning": warning, "notice": notice},
+    )
+
+
+@router.get("/auth/verification-required", response_class=HTMLResponse)
+def verification_required_page(
+    request: Request,
+    email: str = Query(""),
+):
+    return _render(
+        request,
+        "saas/verify_email.html",
+        {
+            "error": "",
+            "success": "",
+            "email": email,
+            "show_resend": True,
+            "recovery_message": (
+                "Please verify your email before continuing your school workspace setup."
+            ),
+        },
+    )
 
 
 @router.get("/auth/verify-email", response_class=HTMLResponse)
@@ -357,12 +417,28 @@ def verify_email_page(
     account, error = service.verify_email_token(db, token)
     if not account:
         db.rollback()
-        return _render(request, "saas/verify_email.html", {"error": error, "success": ""}, status_code=400)
+        return _render(
+            request,
+            "saas/verify_email.html",
+            {
+                "error": error,
+                "success": "",
+                "email": "",
+                "show_resend": True,
+                "recovery_message": (
+                    "Enter your email address below and, if a TIS Account exists for it, "
+                    "we will send a fresh verification link."
+                ),
+            },
+            status_code=400,
+        )
     db.commit()
-    return _render(
-        request,
-        "saas/verify_email.html",
-        {"success": "Your SaaS account email has been verified. You can now sign in.", "error": ""},
+    return RedirectResponse(
+        "/saas/login?notice="
+        + quote_plus("Your email has been verified. Please sign in to continue your school workspace setup.")
+        + "&email="
+        + quote_plus(str(getattr(account, "email", "") or "")),
+        status_code=302,
     )
 
 
@@ -386,17 +462,30 @@ def resend_verification(
         )
     account = service.get_account_by_email(db, email)
     if account:
-        try:
-            service.send_verification_email(db, account, request)
-            db.commit()
-        except email_service.EmailDeliveryError:
+        if _account_needs_verification(account):
+            try:
+                service.send_verification_email(db, account, request)
+                db.commit()
+            except email_service.EmailDeliveryError:
+                db.rollback()
+                return RedirectResponse(
+                    url="/saas/login?error=Verification+email+could+not+be+sent.&email=" + quote_plus(str(email or "")),
+                    status_code=302,
+                )
+        else:
             db.rollback()
             return RedirectResponse(
-                url="/saas/login?error=Verification+email+could+not+be+sent.&email=" + quote_plus(str(email or "")),
+                url="/saas/login?notice="
+                + quote_plus("This TIS Account is already verified. Please sign in to continue.")
+                + "&email="
+                + quote_plus(str(email or "")),
                 status_code=302,
             )
     return RedirectResponse(
-        url="/saas/auth/verification-sent?email=" + quote_plus(str(email or "")),
+        url="/saas/auth/verification-sent?email="
+        + quote_plus(str(email or ""))
+        + "&notice="
+        + quote_plus("If a TIS Account exists for this email, a new verification link has been sent."),
         status_code=302,
     )
 
@@ -404,6 +493,8 @@ def resend_verification(
 @router.get("/account", response_class=HTMLResponse)
 def account_dashboard(request: Request, db: Session = Depends(get_db)):
     account, session_row = _require_account(request, db)
+    if _account_needs_verification(account):
+        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
     sessions = db.query(models.SaaSSession).filter(
         models.SaaSSession.saas_account_id == account.id,
         models.SaaSSession.revoked_at.is_(None),
@@ -443,6 +534,8 @@ def public_plan_catalog(
 @router.get("/account/profile", response_class=HTMLResponse)
 def account_profile(request: Request, db: Session = Depends(get_db)):
     account, _session_row = _require_account(request, db)
+    if _account_needs_verification(account):
+        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
     db.commit()
     return _render(
         request,
@@ -464,6 +557,8 @@ def update_profile(
     db: Session = Depends(get_db),
 ):
     account, session_row = _require_account(request, db)
+    if _account_needs_verification(account):
+        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
     if service.hash_value(csrf_token) != str(session_row.csrf_token_hash or ""):
         raise HTTPException(status_code=403, detail="Invalid CSRF token.")
     account.first_name = str(first_name or "").strip()[:120]
@@ -475,6 +570,8 @@ def update_profile(
 @router.get("/account/security", response_class=HTMLResponse)
 def account_security(request: Request, db: Session = Depends(get_db)):
     account, _session_row = _require_account(request, db)
+    if _account_needs_verification(account):
+        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
     identities = db.query(models.SaaSAuthIdentity).filter(
         models.SaaSAuthIdentity.saas_account_id == account.id
     ).order_by(models.SaaSAuthIdentity.provider.asc()).all()
@@ -489,6 +586,8 @@ def account_security(request: Request, db: Session = Depends(get_db)):
 @router.get("/account/billing", response_class=HTMLResponse)
 def account_billing(request: Request, db: Session = Depends(get_db)):
     account, _session_row = _require_account(request, db)
+    if _account_needs_verification(account):
+        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
     onboarding_summary = service.build_pending_dashboard_summary(db, account)
     db.commit()
     return _render(
@@ -506,6 +605,8 @@ def account_billing(request: Request, db: Session = Depends(get_db)):
 @router.get("/account/sessions", response_class=HTMLResponse)
 def account_sessions(request: Request, db: Session = Depends(get_db)):
     account, session_row = _require_account(request, db)
+    if _account_needs_verification(account):
+        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
     sessions = db.query(models.SaaSSession).filter(
         models.SaaSSession.saas_account_id == account.id
     ).order_by(models.SaaSSession.last_seen_at.desc()).all()
@@ -530,6 +631,8 @@ def revoke_other_sessions(
     db: Session = Depends(get_db),
 ):
     account, session_row = _require_account(request, db)
+    if _account_needs_verification(account):
+        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
     if service.hash_value(csrf_token) != str(session_row.csrf_token_hash or ""):
         raise HTTPException(status_code=403, detail="Invalid CSRF token.")
     service.revoke_other_sessions(db, account, session_row.id)
@@ -545,6 +648,8 @@ def revoke_single_session(
     db: Session = Depends(get_db),
 ):
     account, current_session = _require_account(request, db)
+    if _account_needs_verification(account):
+        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
     if service.hash_value(csrf_token) != str(current_session.csrf_token_hash or ""):
         raise HTTPException(status_code=403, detail="Invalid CSRF token.")
     target = db.query(models.SaaSSession).filter(
@@ -559,7 +664,9 @@ def revoke_single_session(
 
 @router.get("/onboarding")
 def onboarding_root(request: Request, db: Session = Depends(get_db)):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_pending_organization_for_account(db, account)
     db.commit()
     if not organization:
@@ -569,7 +676,9 @@ def onboarding_root(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/onboarding/start")
 def start_onboarding(request: Request, db: Session = Depends(get_db)):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.create_pending_organization(db, account, request=request)
     progress = service.recalculate_pending_progress(db, organization)
     service.update_pending_dashboard_status(account, organization, progress)
@@ -579,7 +688,9 @@ def start_onboarding(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/onboarding/{organization_uuid}/resume")
 def resume_onboarding(organization_uuid: str, request: Request, db: Session = Depends(get_db)):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -595,7 +706,9 @@ def organization_step(
     error: str = Query(""),
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -636,7 +749,9 @@ async def save_organization_step(
     organization_logo: UploadFile | None = File(None),
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -695,7 +810,9 @@ def branches_step(
     error: str = Query(""),
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -721,7 +838,9 @@ def save_branches_step(
     save_action: str = Form("continue"),
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -771,7 +890,9 @@ def academic_setup_step(
     error: str = Query(""),
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -792,7 +913,9 @@ def save_academic_setup_step(
     save_action: str = Form("continue"),
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -823,7 +946,9 @@ def contacts_step(
     error: str = Query(""),
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -846,7 +971,9 @@ def save_contacts_step(
     save_action: str = Form("continue"),
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -879,7 +1006,9 @@ def review_step(
     error: str = Query(""),
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -897,7 +1026,9 @@ def save_draft_exit(
     current_step: str = Form("organization"),
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -913,7 +1044,9 @@ def submit_onboarding(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -934,7 +1067,9 @@ def plan_selection_step(
     error: str = Query(""),
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -958,7 +1093,9 @@ def select_plan_step(
     billing_interval: str = Form("monthly"),
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -989,7 +1126,9 @@ def checkout_summary_step(
     notice: str = Query(""),
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -1006,7 +1145,9 @@ def prepare_checkout_step(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -1030,7 +1171,9 @@ def launch_checkout_step(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -1057,7 +1200,9 @@ def checkout_return_page(
     attempt: str = Query(""),
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     onboarding_summary = service.build_pending_dashboard_summary(db, account)
     current_attempt = None
     if onboarding_summary and attempt:
@@ -1081,7 +1226,9 @@ def checkout_cancel_page(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     onboarding_summary = service.build_pending_dashboard_summary(db, account)
     db.commit()
     return _render(
@@ -1100,7 +1247,9 @@ def billing_status_step(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    account, _session_row = _require_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()

@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import time
 import unittest
+from datetime import timedelta
 from unittest.mock import patch
 
 os.environ["TIS_SESSION_SECRET"] = "unit-test-session-secret-that-is-long-enough"
@@ -117,8 +118,9 @@ class SaaSPhase1Tests(unittest.TestCase):
         token_match = re.search(r"token=([A-Za-z0-9._\-]+)", captured["text"])
         self.assertIsNotNone(token_match)
         token = token_match.group(1)
-        verify_response = self.client.get(f"/saas/auth/verify-email?token={token}")
-        self.assertEqual(verify_response.status_code, 200)
+        verify_response = self.client.get(f"/saas/auth/verify-email?token={token}", follow_redirects=False)
+        self.assertEqual(verify_response.status_code, 302)
+        self.assertIn("/saas/login?notice=", verify_response.headers["location"])
         login_response = self.client.post(
             "/saas/auth/login",
             data={"email": email, "password": "strong-password-123", "next_path": "/saas/account"},
@@ -289,6 +291,187 @@ class SaaSPhase1Tests(unittest.TestCase):
         finally:
             db.close()
 
+    def test_valid_token_verifies_account_and_redirects_to_login_notice(self):
+        sent_messages = []
+
+        def fake_send_email(**kwargs):
+            sent_messages.append(kwargs)
+            return "email_valid"
+
+        with patch("email_service.send_email", side_effect=fake_send_email):
+            self.client.post(
+                "/saas/auth/signup",
+                data={
+                    "first_name": "Verify",
+                    "last_name": "User",
+                    "email": "verify@school.edu",
+                    "password": "strong-password-123",
+                    "confirm_password": "strong-password-123",
+                },
+                follow_redirects=False,
+            )
+
+        token = re.search(r"token=([A-Za-z0-9._\-]+)", sent_messages[0]["text"]).group(1)
+        response = self.client.get(f"/saas/auth/verify-email?token={token}", follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/saas/login?notice=", response.headers["location"])
+        self.assertIn("email=verify%40school.edu", response.headers["location"])
+
+        db = self._db()
+        try:
+            account = db.query(saas.models.SaaSAccount).filter_by(email_normalized="verify@school.edu").first()
+            self.assertEqual(account.status, "active")
+            self.assertIsNotNone(account.email_verified_at)
+        finally:
+            db.close()
+
+    def test_expired_token_shows_recovery_resend_path(self):
+        sent_messages = []
+
+        def fake_send_email(**kwargs):
+            sent_messages.append(kwargs)
+            return "email_expired"
+
+        with patch("email_service.send_email", side_effect=fake_send_email):
+            self.client.post(
+                "/saas/auth/signup",
+                data={
+                    "first_name": "Expired",
+                    "last_name": "User",
+                    "email": "expired@school.edu",
+                    "password": "strong-password-123",
+                    "confirm_password": "strong-password-123",
+                },
+                follow_redirects=False,
+            )
+
+        token = re.search(r"token=([A-Za-z0-9._\-]+)", sent_messages[0]["text"]).group(1)
+        db = self._db()
+        try:
+            row = db.query(saas.models.SaaSEmailVerificationToken).first()
+            row.expires_at = service._utcnow() - timedelta(minutes=1)  # noqa: SLF001 - test-only expiry
+            db.commit()
+        finally:
+            db.close()
+
+        response = self.client.get(f"/saas/auth/verify-email?token={token}")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("This email verification link is invalid or expired.", response.text)
+        self.assertIn("Send a new verification link", response.text)
+
+    def test_invalid_token_shows_safe_recovery_page(self):
+        response = self.client.get("/saas/auth/verify-email?token=not-a-real-token")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("This email verification link is invalid or expired.", response.text)
+        self.assertIn("Send a new verification link", response.text)
+        self.assertIn("/saas/auth/resend-verification", response.text)
+
+    def test_resend_verification_issues_new_token_for_unverified_account(self):
+        sent_messages = []
+
+        def fake_send_email(**kwargs):
+            sent_messages.append(kwargs)
+            return f"email_{len(sent_messages)}"
+
+        with patch("email_service.send_email", side_effect=fake_send_email):
+            self.client.post(
+                "/saas/auth/signup",
+                data={
+                    "first_name": "Resend",
+                    "last_name": "User",
+                    "email": "resend@school.edu",
+                    "password": "strong-password-123",
+                    "confirm_password": "strong-password-123",
+                },
+                follow_redirects=False,
+            )
+            response = self.client.post(
+                "/saas/auth/resend-verification",
+                data={"email": "resend@school.edu"},
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/saas/auth/verification-sent", response.headers["location"])
+        self.assertEqual(len(sent_messages), 2)
+        first_token = re.search(r"token=([A-Za-z0-9._\-]+)", sent_messages[0]["text"]).group(1)
+        second_token = re.search(r"token=([A-Za-z0-9._\-]+)", sent_messages[1]["text"]).group(1)
+        self.assertNotEqual(first_token, second_token)
+
+        db = self._db()
+        try:
+            rows = db.query(saas.models.SaaSEmailVerificationToken).all()
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(sum(1 for row in rows if row.consumed_at is None), 1)
+        finally:
+            db.close()
+
+    def test_resend_for_verified_account_redirects_to_safe_sign_in_notice(self):
+        self._signup_and_verify("verified-resend@school.edu")
+
+        with patch("email_service.send_email") as fake_send_email:
+            response = self.client.post(
+                "/saas/auth/resend-verification",
+                data={"email": "verified-resend@school.edu"},
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/saas/login?notice=", response.headers["location"])
+        fake_send_email.assert_not_called()
+
+    def test_unknown_email_resend_does_not_reveal_account_existence(self):
+        with patch("email_service.send_email") as fake_send_email:
+            response = self.client.post(
+                "/saas/auth/resend-verification",
+                data={"email": "unknown@school.edu"},
+                follow_redirects=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("If a TIS Account exists for this email, a new verification link has been sent.", response.text)
+        fake_send_email.assert_not_called()
+
+    def test_unverified_password_account_cannot_start_onboarding(self):
+        captured = {}
+
+        def fake_send_email(**kwargs):
+            captured["text"] = kwargs["text"]
+            return "email_gate"
+
+        with patch("email_service.send_email", side_effect=fake_send_email):
+            self.client.post(
+                "/saas/auth/signup",
+                data={
+                    "first_name": "Gate",
+                    "last_name": "User",
+                    "email": "gate@school.edu",
+                    "password": "strong-password-123",
+                    "confirm_password": "strong-password-123",
+                },
+                follow_redirects=False,
+            )
+
+        db = self._db()
+        try:
+            account = db.query(saas.models.SaaSAccount).filter_by(email_normalized="gate@school.edu").first()
+            session_token, csrf_token, _session_row = service.create_session(db, account)
+            db.commit()
+        finally:
+            db.close()
+
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, session_token)
+        self.client.cookies.set(service.SAAS_CSRF_COOKIE, csrf_token)
+        response = self.client.post("/saas/onboarding/start", follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/saas/auth/verification-required", response.headers["location"])
+
+        db = self._db()
+        try:
+            self.assertEqual(db.query(saas.models.PendingOrganization).count(), 0)
+        finally:
+            db.close()
+
     def test_verify_email_then_login_and_logout(self):
         self._signup_and_verify("owner@school.edu")
         self.assertIn(service.SAAS_SESSION_COOKIE, self.client.cookies)
@@ -296,7 +479,7 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         dashboard_response = self.client.get("/saas/account")
         self.assertEqual(dashboard_response.status_code, 200)
-        self.assertIn("SaaS account dashboard", dashboard_response.text)
+        self.assertIn("Organization setup dashboard", dashboard_response.text)
 
         logout_response = self.client.post("/saas/auth/logout", follow_redirects=False)
         self.assertEqual(logout_response.status_code, 302)
@@ -494,7 +677,7 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         review_response = self.client.get(f"/saas/onboarding/{org_uuid}/review")
         self.assertEqual(review_response.status_code, 200)
-        self.assertIn("ready_for_checkout", review_response.text)
+        self.assertIn("Review and submit", review_response.text)
 
         submit_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/submit",
@@ -527,8 +710,8 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         dashboard_response = self.client.get("/saas/account")
         self.assertEqual(dashboard_response.status_code, 200)
-        self.assertIn("Pending organization journey", dashboard_response.text)
-        self.assertIn("ready_for_checkout", dashboard_response.text)
+        self.assertIn("Setup journey", dashboard_response.text)
+        self.assertIn("Subscription setup ready", dashboard_response.text)
 
     def test_plan_selection_requires_ready_for_checkout(self):
         self._signup_and_verify("gated@academy.edu")
@@ -667,7 +850,7 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         return_response = self.client.get(f"/saas/checkout/return?attempt={attempt_uuid}")
         self.assertEqual(return_response.status_code, 200)
-        self.assertIn("verified webhook processing", return_response.text)
+        self.assertIn("secure verification is processed", return_response.text)
 
         db = self._db()
         try:

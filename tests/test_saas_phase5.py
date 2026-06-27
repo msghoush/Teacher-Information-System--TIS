@@ -103,9 +103,11 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             token_match = re.search(r"token=([A-Za-z0-9._\\-]+)", sent_messages[0]["text"])
             self.assertIsNotNone(token_match)
             verify_response = self.client.get(
-                f"/saas/auth/verify-email?token={token_match.group(1)}"
+                f"/saas/auth/verify-email?token={token_match.group(1)}",
+                follow_redirects=False,
             )
-            self.assertEqual(verify_response.status_code, 200)
+            self.assertEqual(verify_response.status_code, 302)
+            self.assertIn("/saas/login?notice=", verify_response.headers["location"])
 
         login_response = self.client.post(
             "/saas/auth/login",
