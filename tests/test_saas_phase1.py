@@ -223,6 +223,42 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertEqual(submit_response.status_code, 302)
         return org_uuid
 
+    def test_customer_account_page_requires_login_without_raw_json(self):
+        response = self.client.get("/saas/account", follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/saas/login?notice=", response.headers["location"])
+        self.assertIn("Please+sign+in+to+your+TIS+Account", response.headers["location"])
+        self.assertNotIn('{"detail"', response.text)
+
+        login_response = self.client.get(response.headers["location"])
+        self.assertEqual(login_response.status_code, 200)
+        self.assertIn("Please sign in to your TIS Account.", login_response.text)
+        self.assertIn("Sign in", login_response.text)
+
+    def test_customer_protected_pages_require_login_without_raw_json(self):
+        protected_paths = [
+            "/saas/account/profile",
+            "/saas/account/security",
+            "/saas/account/sessions",
+            "/saas/account/billing",
+            "/saas/onboarding",
+            "/saas/onboarding/start",
+            "/saas/onboarding/missing-organization/resume",
+            "/saas/onboarding/missing-organization/organization",
+            "/saas/onboarding/missing-organization/plan",
+            "/saas/onboarding/missing-organization/checkout",
+            "/saas/onboarding/missing-organization/billing-status",
+            "/saas/checkout/return",
+            "/saas/checkout/cancel",
+        ]
+        for path in protected_paths:
+            with self.subTest(path=path):
+                method = self.client.post if path == "/saas/onboarding/start" else self.client.get
+                response = method(path, follow_redirects=False)
+                self.assertEqual(response.status_code, 302)
+                self.assertIn("/saas/login?notice=", response.headers["location"])
+                self.assertNotIn('{"detail"', response.text)
+
     def test_domain_policy_seeds_warn_and_block_entries(self):
         db = self._db()
         try:

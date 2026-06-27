@@ -112,8 +112,18 @@ def _verification_required_redirect(email: str = ""):
     return RedirectResponse(target, status_code=302)
 
 
+def _login_required_redirect():
+    return RedirectResponse(
+        "/saas/login?notice=" + quote_plus("Please sign in to your TIS Account."),
+        status_code=302,
+    )
+
+
 def _require_verified_account(request: Request, db: Session):
-    account, session_row = _require_account(request, db)
+    account = _current_account(request, db)
+    if not account:
+        return None, None, _login_required_redirect()
+    session_row = service.get_session_from_request(db, request)
     if _account_needs_verification(account):
         return None, None, _verification_required_redirect(str(getattr(account, "email", "") or ""))
     return account, session_row, None
@@ -560,9 +570,9 @@ def resend_verification(
 
 @router.get("/account", response_class=HTMLResponse)
 def account_dashboard(request: Request, db: Session = Depends(get_db)):
-    account, session_row = _require_account(request, db)
-    if _account_needs_verification(account):
-        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     sessions = db.query(models.SaaSSession).filter(
         models.SaaSSession.saas_account_id == account.id,
         models.SaaSSession.revoked_at.is_(None),
@@ -601,9 +611,9 @@ def public_plan_catalog(
 
 @router.get("/account/profile", response_class=HTMLResponse)
 def account_profile(request: Request, db: Session = Depends(get_db)):
-    account, _session_row = _require_account(request, db)
-    if _account_needs_verification(account):
-        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     db.commit()
     return _render(
         request,
@@ -624,9 +634,9 @@ def update_profile(
     csrf_token: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    account, session_row = _require_account(request, db)
-    if _account_needs_verification(account):
-        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     if service.hash_value(csrf_token) != str(session_row.csrf_token_hash or ""):
         raise HTTPException(status_code=403, detail="Invalid CSRF token.")
     account.first_name = str(first_name or "").strip()[:120]
@@ -637,9 +647,9 @@ def update_profile(
 
 @router.get("/account/security", response_class=HTMLResponse)
 def account_security(request: Request, db: Session = Depends(get_db)):
-    account, _session_row = _require_account(request, db)
-    if _account_needs_verification(account):
-        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     identities = db.query(models.SaaSAuthIdentity).filter(
         models.SaaSAuthIdentity.saas_account_id == account.id
     ).order_by(models.SaaSAuthIdentity.provider.asc()).all()
@@ -653,9 +663,9 @@ def account_security(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/account/billing", response_class=HTMLResponse)
 def account_billing(request: Request, db: Session = Depends(get_db)):
-    account, _session_row = _require_account(request, db)
-    if _account_needs_verification(account):
-        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     onboarding_summary = service.build_pending_dashboard_summary(db, account)
     db.commit()
     return _render(
@@ -672,9 +682,9 @@ def account_billing(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/account/sessions", response_class=HTMLResponse)
 def account_sessions(request: Request, db: Session = Depends(get_db)):
-    account, session_row = _require_account(request, db)
-    if _account_needs_verification(account):
-        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     sessions = db.query(models.SaaSSession).filter(
         models.SaaSSession.saas_account_id == account.id
     ).order_by(models.SaaSSession.last_seen_at.desc()).all()
@@ -698,9 +708,9 @@ def revoke_other_sessions(
     csrf_token: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    account, session_row = _require_account(request, db)
-    if _account_needs_verification(account):
-        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     if service.hash_value(csrf_token) != str(session_row.csrf_token_hash or ""):
         raise HTTPException(status_code=403, detail="Invalid CSRF token.")
     service.revoke_other_sessions(db, account, session_row.id)
@@ -715,9 +725,9 @@ def revoke_single_session(
     csrf_token: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    account, current_session = _require_account(request, db)
-    if _account_needs_verification(account):
-        return _verification_required_redirect(str(getattr(account, "email", "") or ""))
+    account, current_session, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
     if service.hash_value(csrf_token) != str(current_session.csrf_token_hash or ""):
         raise HTTPException(status_code=403, detail="Invalid CSRF token.")
     target = db.query(models.SaaSSession).filter(
