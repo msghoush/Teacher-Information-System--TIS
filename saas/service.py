@@ -47,7 +47,7 @@ PERSONAL_EMAIL_WARNING = (
     "but a work email will be requested during organization setup."
 )
 DISPOSABLE_EMAIL_BLOCK_MESSAGE = (
-    "Disposable email domains are not allowed for TIS SaaS account registration."
+    "Disposable email domains are not allowed for TIS Account registration."
 )
 
 
@@ -230,7 +230,7 @@ def create_account(
     if len(str(password or "")) < 12:
         raise ValueError("Password must be at least 12 characters.")
     if get_account_by_email(db, cleaned_email):
-        raise ValueError("This email is already registered for a TIS SaaS account.")
+        raise ValueError("This email is already registered for a TIS Account.")
 
     account = models.SaaSAccount(
         account_uuid=str(uuid.uuid4()),

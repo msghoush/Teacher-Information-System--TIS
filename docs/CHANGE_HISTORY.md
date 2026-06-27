@@ -27,6 +27,49 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-06-27 - Accepted TIS Account Email Verification Recovery
+
+Area/module:
+SaaS onboarding, TIS Account email verification, verification resend recovery, and school workspace setup gate
+
+Previous state:
+Valid verification links rendered a static verification page instead of continuing the customer toward account setup. Expired or invalid verification links could feel like a dead end. Resend verification existed but did not provide a fully professional recovery path for expired links, already verified accounts, and unknown emails. Password-based accounts that were still pending verification could sign in and reach account/setup routes.
+
+New state:
+Valid verification links mark the account email verified/active and redirect to the TIS Account login page with a professional success notice. Expired or invalid links show a recovery page with a resend option. Resend verification safely handles unverified accounts, already verified accounts, and unknown-email cases without revealing account existence. Unverified password-based accounts are blocked from starting or continuing school workspace setup. New visible wording in this verification flow uses "TIS Account" and "school workspace setup".
+
+Reason:
+Testing showed that the customer account setup journey could be blocked after email verification, especially when a verification link expired or the customer needed to recover/resend the link.
+
+Files changed:
+- `saas/router.py`
+- `saas/service.py`
+- `templates/saas/login.html`
+- `templates/saas/verify_email.html`
+- `templates/saas/verification_sent.html`
+- `email_templates.py`
+- `tests/test_saas_phase1.py`
+- `tests/test_saas_phase5.py`
+- `docs/AI_PROJECT_CONTEXT.md`
+- `docs/TIS_MASTER_CONTEXT.md`
+- `docs/PROJECT_STATE.md`
+- `docs/CHANGE_HISTORY.md`
+- `docs/history/saas-onboarding/README.md`
+- `static/docs/TIS_Project_Reference_Booklet.pdf`
+- `static/docs/docs_manifest.json`
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+Phase 1 verification recovery implementation accepted. Phase 2 wording cleanup, Phase 3 setup UI redesign, Google/Microsoft login, payment behavior, billing behavior, provisioning behavior, database schema, migrations, operational modules, and the Next.js landing website were not changed. No commit or push was performed.
+
 ## 2026-06-27 - Added Production Memory Stability Guardrails
 
 Area/module:

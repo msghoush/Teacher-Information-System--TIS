@@ -97,6 +97,14 @@ M4: Tenant provisioning foundation with pending organizations, provisioning jobs
 
 M5: Platform access and owner controls, including platform owner/developer identities, permissions, and platform console behavior.
 
+## Current SaaS Account Verification State
+
+Phase 1 TIS Account email verification recovery is accepted. Valid verification links now mark the SaaS account email verified/active and redirect to the TIS Account login page with a professional success notice so the customer can continue school workspace setup.
+
+Expired or invalid verification links no longer dead-end. They show a recovery page with a resend verification form. Resend verification handles unverified accounts, already verified accounts, and unknown email addresses with safe customer-facing messaging that does not reveal account existence. Password-based accounts that remain unverified are blocked from starting or continuing school workspace setup.
+
+This Phase 1 verification recovery work did not change payment, billing, provisioning, database schema, migrations, operational modules, or the Next.js landing website. Google/Microsoft login remains future work and was not implemented.
+
 ## Current Priority
 
 Current priority is the TIS Knowledge Management System:
