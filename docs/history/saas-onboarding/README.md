@@ -8,6 +8,31 @@ last_updated: 2026-06-27
 
 This folder tracks meaningful changes to signup, login, account, organization onboarding, contacts, branches, academic setup, review, and account self-service.
 
+## 2026-06-27 - TIS Account Guided Setup Framework Phase 3A
+
+Phase 3A shared guided setup framework is accepted.
+
+What changed:
+
+- The shared customer account shell now supports a guided setup console when setup context is provided.
+- The TIS Account page now uses an 8-step customer journey: TIS Account, Email Verification, School Workspace Setup, Review & Confirmation, Subscription Selection, Secure Payment, Workspace Activation, and Enter TIS Platform.
+- The account page now focuses on the current step, one primary next action, concise account/workspace context, and guidance that TIS Platform access becomes available after Workspace Activation.
+- The old customer account dashboard statistics and session detail blocks were removed from the account landing page.
+- Journey state is calculated from existing account, onboarding, billing, payment, and activation data without changing stored statuses.
+
+Scope notes:
+
+- Onboarding forms, subscription/payment pages, billing/status pages, payment behavior, billing behavior, provisioning behavior, database schema, migrations, operational modules, the Next.js landing website, internal `/saas` route names, admin views, and Google/Microsoft login were not changed.
+- This phase prepares the shared framework for later Phase 3 onboarding and payment page redesign work.
+
+Related files:
+
+- `saas/router.py`
+- `saas/service.py`
+- `templates/saas/base.html`
+- `templates/saas/account.html`
+- `tests/test_saas_phase1.py`
+
 ## 2026-06-27 - TIS Account Customer-Facing Wording And Logo Cleanup
 
 Phase 2 customer-facing wording cleanup is accepted.

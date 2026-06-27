@@ -515,8 +515,33 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         dashboard_response = self.client.get("/saas/account")
         self.assertEqual(dashboard_response.status_code, 200)
-        self.assertIn("Account Dashboard", dashboard_response.text)
+        self.assertIn("Start your School Workspace Setup", dashboard_response.text)
+        self.assertIn("What should I do next?", dashboard_response.text)
         self.assertIn("TIS Logo", dashboard_response.text)
+        self.assertEqual(dashboard_response.text.count('data-primary-cta="true"'), 1)
+        expected_steps = [
+            "TIS Account",
+            "Email Verification",
+            "School Workspace Setup",
+            "Review &amp; Confirmation",
+            "Subscription Selection",
+            "Secure Payment",
+            "Workspace Activation",
+            "Enter TIS Platform",
+        ]
+        for step_label in expected_steps:
+            self.assertIn(step_label, dashboard_response.text)
+        self.assertIn('data-setup-step="tis_account" data-setup-state="complete"', dashboard_response.text)
+        self.assertIn('data-setup-step="email_verification" data-setup-state="complete"', dashboard_response.text)
+        self.assertIn('data-setup-step="school_workspace_setup" data-setup-state="current"', dashboard_response.text)
+        self.assertIn('data-setup-step="subscription_selection" data-setup-state="locked"', dashboard_response.text)
+        self.assertIn("TIS Platform access becomes available after Workspace Activation.", dashboard_response.text)
+        self.assertNotIn("Last seen:", dashboard_response.text)
+        self.assertNotIn("active session", dashboard_response.text)
+        self.assertNotIn("Current session", dashboard_response.text)
+        self.assertNotIn("checkout_ready", dashboard_response.text)
+        self.assertNotIn("tenant_active", dashboard_response.text)
+        self.assertNotIn("ready_for_provisioning", dashboard_response.text)
         self.assertNotIn(">SaaS<", dashboard_response.text)
 
         logout_response = self.client.post("/saas/auth/logout", follow_redirects=False)
@@ -748,8 +773,11 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         dashboard_response = self.client.get("/saas/account")
         self.assertEqual(dashboard_response.status_code, 200)
-        self.assertIn("Setup journey", dashboard_response.text)
-        self.assertIn("Subscription Setup ready", dashboard_response.text)
+        self.assertIn("Choose your subscription", dashboard_response.text)
+        self.assertIn('data-setup-step="review_confirmation" data-setup-state="complete"', dashboard_response.text)
+        self.assertIn('data-setup-step="subscription_selection" data-setup-state="current"', dashboard_response.text)
+        self.assertEqual(dashboard_response.text.count('data-primary-cta="true"'), 1)
+        self.assertNotIn("ready_for_checkout", dashboard_response.text)
 
     def test_plan_selection_requires_ready_for_checkout(self):
         self._signup_and_verify("gated@academy.edu")

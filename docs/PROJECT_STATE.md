@@ -86,6 +86,14 @@ SaaS customer-facing wording and branding:
 - Payment, billing, provisioning behavior, database schema, migrations, operational modules, and the landing website were not changed.
 - Google/Microsoft login remains future work and was not implemented.
 
+SaaS guided setup framework:
+
+- Phase 3A shared TIS Account guided setup framework is accepted.
+- The customer account shell now supports an official-logo guided setup console with an 8-step journey stepper, status banner, one primary next action, main content area, and help/guidance area.
+- The account page now uses the framework and removes the old dense dashboard statistics from the customer account landing page.
+- Journey state is derived from existing account, onboarding, billing, payment, and activation data without changing stored statuses.
+- Onboarding forms, subscription/payment pages, billing/status pages, payment behavior, billing behavior, provisioning behavior, database schema, migrations, operational modules, the landing website, internal `/saas` route names, and Google/Microsoft login were not changed.
+
 Documentation/KMS milestones:
 
 - Phase 1 documentation foundation completed and pushed to `dev`.

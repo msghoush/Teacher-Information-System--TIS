@@ -280,6 +280,142 @@
             grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 8px;
         }
+        .setup-console {
+            display: grid;
+            gap: 18px;
+        }
+        .setup-console-head {
+            display: grid;
+            grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr);
+            gap: 18px;
+            align-items: stretch;
+            margin-bottom: 18px;
+        }
+        .setup-title-panel,
+        .setup-help-panel,
+        .setup-primary-panel {
+            border: 1px solid rgba(216, 227, 240, .92);
+            border-radius: 22px;
+            background: rgba(255, 255, 255, .88);
+            padding: 18px;
+            box-shadow: 0 12px 32px rgba(16, 35, 63, .055);
+        }
+        .setup-title-panel h1 {
+            margin-bottom: 8px;
+        }
+        .setup-status {
+            border: 1px solid #bdebd2;
+            border-radius: 16px;
+            background: var(--ok-bg);
+            color: var(--ok);
+            font-size: 14px;
+            font-weight: 850;
+            line-height: 1.5;
+            margin-top: 14px;
+            padding: 12px 14px;
+        }
+        .setup-journey {
+            border: 1px solid rgba(216, 227, 240, .92);
+            border-radius: 22px;
+            background: rgba(255, 255, 255, .84);
+            padding: 14px;
+            box-shadow: 0 12px 32px rgba(16, 35, 63, .055);
+        }
+        .setup-journey-track {
+            display: grid;
+            grid-template-columns: repeat(8, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .setup-step {
+            min-width: 0;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: #fff;
+            color: var(--muted);
+            padding: 10px 8px;
+            text-align: center;
+        }
+        .setup-step-number {
+            display: inline-flex;
+            width: 22px;
+            height: 22px;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            background: #eef4fb;
+            color: #486174;
+            font-size: 11px;
+            font-weight: 900;
+            margin-bottom: 6px;
+        }
+        .setup-step-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 900;
+            line-height: 1.25;
+        }
+        .setup-step-state {
+            display: block;
+            margin-top: 4px;
+            font-size: 10px;
+            font-weight: 850;
+            text-transform: capitalize;
+        }
+        .setup-step.is-complete {
+            border-color: rgba(22, 138, 136, .28);
+            background: #eafbf7;
+            color: var(--teal);
+        }
+        .setup-step.is-complete .setup-step-number {
+            background: var(--teal);
+            color: #fff;
+        }
+        .setup-step.is-current {
+            border-color: rgba(10, 78, 163, .34);
+            background: #edf6ff;
+            color: var(--brand-dark);
+            box-shadow: inset 0 0 0 1px rgba(10, 78, 163, .1);
+        }
+        .setup-step.is-current .setup-step-number {
+            background: var(--brand);
+            color: #fff;
+        }
+        .setup-step.is-attention {
+            border-color: #f5d98a;
+            background: var(--warn-bg);
+            color: var(--warn);
+        }
+        .setup-step.is-locked,
+        .setup-step.is-pending {
+            background: #f8fafc;
+        }
+        .setup-primary-panel {
+            display: grid;
+            gap: 12px;
+            align-content: start;
+        }
+        .setup-primary-panel .btn {
+            width: 100%;
+        }
+        .setup-help-panel {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .setup-help-panel strong {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--ink);
+        }
+        .setup-card {
+            padding: 0;
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+        .setup-card::before {
+            display: none;
+        }
         .step-pill {
             border: 1px solid var(--line);
             border-radius: 999px;
@@ -354,7 +490,7 @@
             .hero { align-items: stretch; flex-direction: column; }
             .hero .actions { width: 100%; }
             .hero .btn { flex: 1 1 auto; }
-            .grid.two, .location-fields, .step-track, .form-grid, .form-grid.three, .summary-grid { grid-template-columns: 1fr; }
+            .grid.two, .location-fields, .step-track, .setup-console-head, .setup-journey-track, .form-grid, .form-grid.three, .summary-grid { grid-template-columns: 1fr; }
             .card { border-radius: 22px; padding: 22px 16px; }
             .table { display: block; overflow-x: auto; }
         }
@@ -377,7 +513,7 @@
                 <a class="btn secondary" href="/saas/account/billing">Subscription</a>
                 <a class="btn secondary" href="/saas/account/sessions">Sessions</a>
                 <form method="post" action="/saas/auth/logout">
-                    <button class="btn" type="submit">Sign Out</button>
+                    <button class="btn secondary" type="submit">Sign Out</button>
                 </form>
             </nav>
             {% elif current_user is defined and current_user %}
@@ -393,6 +529,40 @@
             {% endif %}
         </header>
 
+        {% if setup_console is defined and setup_console %}
+        <section class="setup-console" aria-label="TIS Account guided setup">
+            <div class="setup-console-head">
+                <div class="setup-title-panel">
+                    <span class="page-eyebrow">Account Setup</span>
+                    <h1>{{ setup_console.title }}</h1>
+                    <p class="page-subtitle">{{ setup_console.subtitle }}</p>
+                    <div class="setup-status">{{ setup_console.status_banner }}</div>
+                </div>
+                <aside class="setup-primary-panel" aria-label="Primary next action">
+                    <strong>Next action</strong>
+                    {% if setup_console.primary_action["method"] == "post" %}
+                    <form method="post" action="{{ setup_console.primary_action["url"] }}">
+                        <button class="btn" data-primary-cta="true" type="submit">{{ setup_console.primary_action["label"] }}</button>
+                    </form>
+                    {% else %}
+                    <a class="btn" data-primary-cta="true" href="{{ setup_console.primary_action["url"] }}">{{ setup_console.primary_action["label"] }}</a>
+                    {% endif %}
+                </aside>
+            </div>
+            <section class="setup-journey" aria-label="Setup progress">
+                <div class="setup-journey-track">
+                    {% for step in setup_console.steps %}
+                    <div class="setup-step is-{{ step.state }}" data-setup-step="{{ step.key }}" data-setup-state="{{ step.state }}">
+                        <span class="setup-step-number">{{ loop.index }}</span>
+                        <span class="setup-step-label">{{ step.label }}</span>
+                        <span class="setup-step-state">{{ step.state }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
+        </section>
+        {% endif %}
+
         {% if organization is defined and organization %}
         {% set active_step = step_key|default(organization.onboarding_step|default("")) %}
         <section class="onboarding-progress" aria-label="Onboarding progress">
@@ -406,9 +576,16 @@
         </section>
         {% endif %}
 
-        <main class="card">
+        <main class="card {% if setup_console is defined and setup_console %}setup-card{% endif %}">
             {% block content %}{% endblock %}
         </main>
+        {% if setup_console is defined and setup_console %}
+        <aside class="setup-help-panel" aria-label="Setup guidance">
+            <strong>{{ setup_console.help_title }}</strong>
+            <p>{{ setup_console.help_text }}</p>
+            <p>{{ setup_console.portal_access_message }}</p>
+        </aside>
+        {% endif %}
     </div>
     <script src="/static/js/location-selects.js"></script>
     {% block page_scripts %}{% endblock %}
