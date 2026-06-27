@@ -163,6 +163,34 @@ def _onboarding_context(db: Session, account, organization):
     }
 
 
+def _render_onboarding_step(
+    request: Request,
+    db: Session,
+    account,
+    organization,
+    template_name: str,
+    step_key: str,
+    *,
+    error: str = "",
+    status_code: int = 200,
+    extra_context: dict | None = None,
+):
+    context = _onboarding_context(db, account, organization)
+    missing_requirements = service.get_onboarding_missing_requirements(db, organization) if step_key == "review" else []
+    context.update({
+        "account": account,
+        "error": error,
+        "step_key": step_key,
+        "setup_console": _onboarding_setup_console(db, account, step_key),
+        "form_data": {},
+        "form_branches": [],
+        "missing_requirements": missing_requirements,
+    })
+    if extra_context:
+        context.update(extra_context)
+    return _render(request, template_name, context, status_code=status_code)
+
+
 ONBOARDING_STEP_CONSOLE = {
     "organization": {
         "title": "Organization Profile",
@@ -1050,7 +1078,45 @@ async def save_organization_step(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        return _redirect_error(f"/saas/onboarding/{organization_uuid}/organization", str(exc))
+        organization = service.get_owned_pending_organization(db, account, organization_uuid)
+        if not organization:
+            return RedirectResponse("/saas/account", status_code=302)
+        return _render_onboarding_step(
+            request,
+            db,
+            account,
+            organization,
+            "saas/onboarding_organization.html",
+            "organization",
+            error=str(exc),
+            status_code=422,
+            extra_context={
+                "form_data": {
+                    "organization_name": organization_name,
+                    "legal_name": legal_name,
+                    "website": website,
+                    "primary_domain": primary_domain,
+                    "phone": phone,
+                    "educational_program": educational_program,
+                    "country_code": country_code,
+                    "country_name": country_name,
+                    "region_id": region_id,
+                    "region_manual": region_manual,
+                    "region_name": region_name,
+                    "city_id": city_id,
+                    "city_manual": city_manual,
+                    "city_name": city_name,
+                    "district_name": district_name,
+                    "neighborhood_name": neighborhood_name,
+                    "school_type": school_type,
+                    "expected_branch_count": expected_branch_count,
+                    "expected_student_count": expected_student_count,
+                    "expected_teacher_count": expected_teacher_count,
+                    "estimated_staff_users": estimated_staff_users,
+                    "timezone": timezone,
+                },
+            },
+        )
     if str(save_action or "").strip().lower() == "save_exit":
         return RedirectResponse("/saas/account?notice=Draft+saved.", status_code=302)
     return RedirectResponse(f"/saas/onboarding/{organization_uuid}/branches", status_code=302)
@@ -1135,7 +1201,20 @@ def save_branches_step(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        return _redirect_error(f"/saas/onboarding/{organization_uuid}/branches", str(exc))
+        organization = service.get_owned_pending_organization(db, account, organization_uuid)
+        if not organization:
+            return RedirectResponse("/saas/account", status_code=302)
+        return _render_onboarding_step(
+            request,
+            db,
+            account,
+            organization,
+            "saas/onboarding_branches.html",
+            "branches",
+            error=str(exc),
+            status_code=422,
+            extra_context={"form_branches": branch_rows},
+        )
     if str(save_action or "").strip().lower() == "save_exit":
         return RedirectResponse("/saas/account?notice=Draft+saved.", status_code=302)
     return RedirectResponse(f"/saas/onboarding/{organization_uuid}/academic_setup", status_code=302)
@@ -1196,7 +1275,26 @@ def save_academic_setup_step(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        return _redirect_error(f"/saas/onboarding/{organization_uuid}/academic_setup", str(exc))
+        organization = service.get_owned_pending_organization(db, account, organization_uuid)
+        if not organization:
+            return RedirectResponse("/saas/account", status_code=302)
+        return _render_onboarding_step(
+            request,
+            db,
+            account,
+            organization,
+            "saas/onboarding_academic_setup.html",
+            "academic_setup",
+            error=str(exc),
+            status_code=422,
+            extra_context={
+                "form_data": {
+                    "first_academic_year_name": first_academic_year_name,
+                    "create_default_branch": create_default_branch,
+                    "notes": notes,
+                },
+            },
+        )
     if str(save_action or "").strip().lower() == "save_exit":
         return RedirectResponse("/saas/account?notice=Draft+saved.", status_code=302)
     return RedirectResponse(f"/saas/onboarding/{organization_uuid}/contacts", status_code=302)
@@ -1261,7 +1359,28 @@ def save_contacts_step(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        return _redirect_error(f"/saas/onboarding/{organization_uuid}/contacts", str(exc))
+        organization = service.get_owned_pending_organization(db, account, organization_uuid)
+        if not organization:
+            return RedirectResponse("/saas/account", status_code=302)
+        return _render_onboarding_step(
+            request,
+            db,
+            account,
+            organization,
+            "saas/onboarding_contacts.html",
+            "contacts",
+            error=str(exc),
+            status_code=422,
+            extra_context={
+                "form_data": {
+                    "first_name": first_name,
+                    "last_name": last_name,
+                    "job_title": job_title,
+                    "email": email,
+                    "phone": phone,
+                },
+            },
+        )
     if str(save_action or "").strip().lower() == "save_exit":
         return RedirectResponse("/saas/account?notice=Draft+saved.", status_code=302)
     return RedirectResponse(f"/saas/onboarding/{organization_uuid}/review", status_code=302)
@@ -1288,6 +1407,7 @@ def review_step(
         "error": error,
         "step_key": "review",
         "setup_console": _onboarding_setup_console(db, account, "review"),
+        "missing_requirements": service.get_onboarding_missing_requirements(db, organization),
     })
     return _render(request, "saas/onboarding_review.html", context)
 
@@ -1329,7 +1449,19 @@ def submit_onboarding(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        return _redirect_error(f"/saas/onboarding/{organization_uuid}/review", str(exc))
+        organization = service.get_owned_pending_organization(db, account, organization_uuid)
+        if not organization:
+            return RedirectResponse("/saas/account", status_code=302)
+        return _render_onboarding_step(
+            request,
+            db,
+            account,
+            organization,
+            "saas/onboarding_review.html",
+            "review",
+            error=str(exc),
+            status_code=422,
+        )
     return RedirectResponse("/saas/account?notice=Your+School+Workspace+Setup+is+ready+for+Subscription+Setup.", status_code=302)
 
 

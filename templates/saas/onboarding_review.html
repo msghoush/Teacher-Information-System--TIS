@@ -1,6 +1,16 @@
 {% extends "saas/base.html" %}
 {% block content %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% if missing_requirements %}
+<div class="error">
+    <strong>Complete these items before submitting:</strong>
+    <ul>
+        {% for item in missing_requirements %}
+        <li>{{ item.step }}: {{ item.field }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
 <section class="wizard-section">
     <div class="wizard-section-header">
         <strong>Ready to continue</strong>

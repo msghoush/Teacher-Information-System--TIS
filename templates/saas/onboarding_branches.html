@@ -8,7 +8,7 @@
             <p>Add each branch that should exist in the initial School Workspace. You can leave unused rows blank.</p>
         </div>
         <div class="branch-list">
-            {% set rows = branches if branches else [None, None, None] %}
+            {% set rows = form_branches if form_branches else branches if branches else [None, None, None] %}
             {% for branch in rows %}
             <div class="branch-panel">
                 <div class="branch-panel-header">
