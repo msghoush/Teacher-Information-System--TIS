@@ -1,96 +1,19 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<header class="page-header">
-    <span class="page-eyebrow">Account Setup</span>
-    <h1>Account Dashboard</h1>
-    <p class="page-subtitle">Track School Workspace Setup, Subscription Setup, and Workspace Activation.</p>
-</header>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
-<div class="grid two">
-    <div class="stat-list">
-        <div class="stat">
-            <strong>Account</strong>
-            <p>{{ account.first_name }} {{ account.last_name }}<br>{{ account.email }}</p>
-        </div>
-        <div class="stat">
-            <strong>Account status</strong>
-            <p>{{ customer_status_label(account.status) }}{% if account.email_verified_at %}<br>Email verified{% else %}<br>Email verification required{% endif %}</p>
-        </div>
-        <div class="stat">
-            <strong>Setup status</strong>
-            <p>
-                {{ customer_status_label(account.onboarding_status) }}
-            </p>
-        </div>
-        <div class="stat">
-            <strong>School Workspace Setup progress</strong>
-            {% if onboarding_summary %}
-            <p>
-                {{ onboarding_summary.organization.organization_name or "Draft School Workspace" }}<br>
-                Status:
-                {{ customer_status_label(onboarding_summary.organization.status) }}
-                <br>Progress: {{ onboarding_summary.progress.completion_percent }}%
-            </p>
-            <div class="actions">
-                <a class="btn" href="{{ onboarding_summary.current_step_url }}">Continue setup</a>
-            </div>
-            {% else %}
-            <p>No School Workspace Setup has been started yet.</p>
-            <div class="actions">
-                <form method="post" action="/saas/onboarding/start">
-                    <button class="btn" type="submit">Start School Workspace Setup</button>
-                </form>
-            </div>
-            {% endif %}
-        </div>
+<section class="setup-title-panel">
+    <span class="page-eyebrow">{{ setup_console.current_step|replace("_", " ")|title }}</span>
+    <h2>What should I do next?</h2>
+    <p class="page-subtitle">{{ setup_console.help_text }}</p>
+</section>
+<section class="grid two" style="margin-top:18px;">
+    <div class="setup-help-panel">
+        <strong>TIS Account</strong>
+        <p>{{ account.first_name }} {{ account.last_name }}<br>{{ account.email }}</p>
     </div>
-    <div class="stat-list">
-        <div class="stat">
-            <strong>Current session</strong>
-            <p>Last seen: {{ session_row.last_seen_at }}<br>Expires: {{ session_row.expires_at }}</p>
-        </div>
-        <div class="stat">
-            <strong>Linked sessions</strong>
-            <p>{{ sessions|length }} active session(s)</p>
-        </div>
-        <div class="stat">
-            <strong>Setup journey</strong>
-            {% if onboarding_summary %}
-            <div class="journey-list">
-                <div class="journey-item"><span>Account Created</span><span class="journey-state is-done">Done</span></div>
-                <div class="journey-item"><span>Email Verified</span><span class="journey-state {% if account.email_verified_at %}is-done{% else %}is-open{% endif %}">{% if account.email_verified_at %}Done{% else %}Open{% endif %}</span></div>
-                <div class="journey-item"><span>School Workspace Setup</span><span class="journey-state {% if onboarding_summary.progress.completion_percent == 100 %}is-done{% else %}is-open{% endif %}">{% if onboarding_summary.progress.completion_percent == 100 %}Done{% else %}Open{% endif %}</span></div>
-                <div class="journey-item"><span>Subscription Setup</span><span class="journey-state {% if onboarding_summary.current_plan_selection %}is-done{% else %}is-open{% endif %}">{% if onboarding_summary.current_plan_selection %}Done{% else %}Open{% endif %}</span></div>
-                <div class="journey-item"><span>Secure Payment</span><span class="journey-state {% if onboarding_summary.organization.billing_status in ["checkout_ready", "checkout_started", "payment_processing", "payment_confirmed", "ready_for_provisioning", "provisioning_started", "provisioning_completed", "provisioning_retrying", "provisioning_failed", "tenant_active"] %}is-done{% else %}is-open{% endif %}">{% if onboarding_summary.organization.billing_status in ["checkout_ready", "checkout_started", "payment_processing", "payment_confirmed", "ready_for_provisioning", "provisioning_started", "provisioning_completed", "provisioning_retrying", "provisioning_failed", "tenant_active"] %}Done{% else %}Open{% endif %}</span></div>
-                <div class="journey-item"><span>Payment Confirmed</span><span class="journey-state {% if onboarding_summary.organization.billing_status in ["payment_confirmed", "ready_for_provisioning", "provisioning_started", "provisioning_completed", "provisioning_retrying", "provisioning_failed", "tenant_active"] %}is-done{% else %}is-open{% endif %}">{% if onboarding_summary.organization.billing_status in ["payment_confirmed", "ready_for_provisioning", "provisioning_started", "provisioning_completed", "provisioning_retrying", "provisioning_failed", "tenant_active"] %}Done{% else %}Open{% endif %}</span></div>
-                <div class="journey-item"><span>Workspace Activation</span><span class="journey-state {% if onboarding_summary.organization.billing_status == "tenant_active" %}is-done{% elif onboarding_summary.current_provisioning_job %}is-progress{% else %}is-open{% endif %}">{% if onboarding_summary.organization.billing_status == "tenant_active" %}Done{% elif onboarding_summary.current_provisioning_job %}In Progress{% else %}Open{% endif %}</span></div>
-            </div>
-            <p>Current step: {{ customer_status_label(onboarding_summary.organization.onboarding_step) }}<br>Branches added: {{ onboarding_summary.branches_count }}<br>Last saved: {{ onboarding_summary.organization.draft_saved_at or onboarding_summary.organization.updated_at }}</p>
-            {% if onboarding_summary.current_plan_selection %}
-            <p>Selected plan: {{ onboarding_summary.current_plan.plan_name if onboarding_summary.current_plan else onboarding_summary.current_plan_selection.plan_id }} | Interval: {{ onboarding_summary.current_plan_selection.billing_interval }}</p>
-            {% endif %}
-            {% if onboarding_summary.current_payment_attempt %}
-            <p>Payment update: {{ customer_status_label(onboarding_summary.current_payment_attempt.status) }}{% if onboarding_summary.current_payment_subscription %}<br>Subscription: {{ customer_status_label(onboarding_summary.current_payment_subscription.status) }}{% endif %}</p>
-            {% endif %}
-            {% if onboarding_summary.current_provisioning_job %}
-            <p>Workspace Activation: {{ customer_status_label(onboarding_summary.current_provisioning_job.job_status) }}{% if onboarding_summary.current_tenant_link %}<br>School Workspace is active{% endif %}</p>
-            {% endif %}
-            {% else %}
-            <p>Start School Workspace Setup to open the guided setup flow.</p>
-            {% endif %}
-        </div>
+    <div class="setup-help-panel">
+        <strong>School Workspace</strong>
+        <p>{{ setup_console.workspace_name }}</p>
     </div>
-</div>
-<div class="actions" style="margin-top:20px;">
-    <a class="btn" href="/saas/account/profile">Edit profile</a>
-    <a class="btn secondary" href="/saas/account/security">Security</a>
-    <a class="btn secondary" href="/saas/account/sessions">Manage sessions</a>
-    {% if onboarding_summary %}
-    <a class="btn secondary" href="{{ onboarding_summary.current_step_url }}">Continue setup</a>
-    {% if onboarding_summary.organization.status == "ready_for_checkout" or onboarding_summary.current_plan_selection %}
-    <a class="btn secondary" href="/saas/onboarding/{{ onboarding_summary.organization.organization_uuid }}/plan">Subscription setup</a>
-    {% endif %}
-    <a class="btn secondary" href="/saas/account/billing">Subscription</a>
-    {% endif %}
-</div>
+</section>
 {% endblock %}

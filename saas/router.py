@@ -570,25 +570,18 @@ def resend_verification(
 
 @router.get("/account", response_class=HTMLResponse)
 def account_dashboard(request: Request, db: Session = Depends(get_db)):
-    account, session_row, redirect = _require_verified_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
     if redirect:
         return redirect
-    sessions = db.query(models.SaaSSession).filter(
-        models.SaaSSession.saas_account_id == account.id,
-        models.SaaSSession.revoked_at.is_(None),
-    ).order_by(models.SaaSSession.last_seen_at.desc()).all()
-    onboarding_summary = service.build_pending_dashboard_summary(db, account)
+    setup_console = service.build_setup_console_context(db, account)
     db.commit()
     return _render(
         request,
         "saas/account.html",
         {
             "account": account,
-            "session_row": session_row,
-            "sessions": sessions,
-            "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
             "notice": request.query_params.get("notice", ""),
-            "onboarding_summary": onboarding_summary,
+            "setup_console": setup_console,
         },
     )
 

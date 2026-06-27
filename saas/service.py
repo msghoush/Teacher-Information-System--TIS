@@ -969,6 +969,191 @@ def build_pending_dashboard_summary(db: Session, account):
     }
 
 
+def _setup_step(key: str, label: str, state: str, *, url: str = "", summary: str = "") -> dict:
+    return {
+        "key": key,
+        "label": label,
+        "state": state,
+        "url": url,
+        "summary": summary,
+    }
+
+
+def build_setup_console_context(db: Session, account) -> dict:
+    summary = build_pending_dashboard_summary(db, account)
+    organization = summary["organization"] if summary else None
+    progress = summary["progress"] if summary else None
+    organization_status = str(getattr(organization, "status", "") or "").strip().lower()
+    billing_status = str(getattr(organization, "billing_status", "") or "").strip().lower()
+    payment_status = str(getattr(organization, "payment_status", "") or "").strip().lower()
+    progress_percent = int(getattr(progress, "completion_percent", 0) or 0)
+    has_plan = bool(summary and summary.get("current_plan_selection"))
+    has_tenant_link = bool(summary and summary.get("current_tenant_link"))
+    workspace_name = str(getattr(organization, "organization_name", "") or "").strip() or "School Workspace"
+    account_verified = bool(getattr(account, "email_verified_at", None))
+
+    payment_attention = billing_status in {"payment_failed", "payment_cancelled", "payment_refunded"} or payment_status in {
+        "failed",
+        "cancelled",
+        "refunded",
+    }
+    payment_complete = billing_status in {
+        "payment_confirmed",
+        "ready_for_provisioning",
+        "provisioning_started",
+        "provisioning_completed",
+        "provisioning_retrying",
+        "provisioning_failed",
+        "tenant_active",
+    }
+    payment_started = billing_status in {"checkout_ready", "checkout_initiated", "checkout_started", "payment_processing"}
+    activation_started = billing_status in {
+        "ready_for_provisioning",
+        "provisioning_started",
+        "provisioning_retrying",
+        "provisioning_failed",
+        "provisioning_completed",
+        "tenant_active",
+    }
+    activation_complete = billing_status in {"provisioning_completed", "tenant_active"} or has_tenant_link
+
+    school_setup_complete = progress_percent >= 100
+    review_complete = organization_status == READY_FOR_CHECKOUT_STATUS or has_plan or payment_started or payment_complete or activation_started
+
+    if not organization:
+        current_key = "school_workspace_setup"
+        title = "Start your School Workspace Setup"
+        subtitle = "Your TIS Account is ready. Set up your school workspace to continue."
+        status_banner = "Next step: start School Workspace Setup."
+        primary_action = {
+            "label": "Start School Workspace Setup",
+            "url": "/saas/onboarding/start",
+            "method": "post",
+        }
+        help_text = "This guided setup collects your organization profile, branches, academic setup, and primary contact."
+    elif not school_setup_complete:
+        current_key = "school_workspace_setup"
+        title = "Continue your School Workspace Setup"
+        subtitle = f"{workspace_name} is saved as a draft."
+        status_banner = f"School Workspace Setup is {progress_percent}% complete."
+        primary_action = {
+            "label": "Continue School Workspace Setup",
+            "url": summary["current_step_url"],
+            "method": "get",
+        }
+        help_text = "Complete the workspace setup sections, then review and confirm the information before choosing a subscription."
+    elif not review_complete:
+        current_key = "review_confirmation"
+        title = "Review and confirm your setup"
+        subtitle = f"{workspace_name} is ready for review."
+        status_banner = "Next step: review and submit your School Workspace Setup."
+        primary_action = {
+            "label": "Review School Workspace Setup",
+            "url": summary["current_step_url"],
+            "method": "get",
+        }
+        help_text = "After confirmation, you can choose a subscription and continue to Secure Payment."
+    elif not has_plan:
+        current_key = "subscription_selection"
+        title = "Choose your subscription"
+        subtitle = f"{workspace_name} is ready for Subscription Selection."
+        status_banner = "Next step: select the subscription that fits your school."
+        primary_action = {
+            "label": "Choose Subscription",
+            "url": f"/saas/onboarding/{organization.organization_uuid}/plan",
+            "method": "get",
+        }
+        help_text = "Subscription Selection opens after your School Workspace Setup is submitted."
+    elif payment_attention:
+        current_key = "secure_payment"
+        title = "Secure Payment needs attention"
+        subtitle = f"{workspace_name} has a saved subscription selection."
+        status_banner = "Your payment was not completed. You can return to Secure Payment when ready."
+        primary_action = {
+            "label": "Continue to Secure Payment",
+            "url": f"/saas/onboarding/{organization.organization_uuid}/checkout",
+            "method": "get",
+        }
+        help_text = "Your setup remains saved. Workspace Activation begins only after payment is confirmed."
+    elif not payment_complete:
+        current_key = "secure_payment"
+        title = "Continue to Secure Payment"
+        subtitle = f"{workspace_name} has a saved subscription selection."
+        status_banner = "Next step: complete Secure Payment."
+        primary_action = {
+            "label": "Continue to Secure Payment",
+            "url": f"/saas/onboarding/{organization.organization_uuid}/checkout",
+            "method": "get",
+        }
+        help_text = "Payment confirmation is processed securely before Workspace Activation begins."
+    elif not activation_complete:
+        current_key = "workspace_activation"
+        title = "Workspace Activation is in progress"
+        subtitle = f"{workspace_name} is waiting for activation to complete."
+        status_banner = "Payment is confirmed. Workspace Activation is the next step."
+        primary_action = {
+            "label": "View Subscription Status",
+            "url": "/saas/account/billing",
+            "method": "get",
+        }
+        help_text = "The TIS team completes Workspace Activation after secure payment confirmation."
+    else:
+        current_key = "enter_tis_platform"
+        title = "Your workspace is active"
+        subtitle = f"{workspace_name} is ready."
+        status_banner = "Workspace Activation is complete."
+        primary_action = {
+            "label": "View Account Status",
+            "url": "/saas/account/billing",
+            "method": "get",
+        }
+        help_text = "TIS Platform access is available after Workspace Activation. Use your TIS Account credentials when access is provided."
+
+    order = [
+        ("tis_account", "TIS Account"),
+        ("email_verification", "Email Verification"),
+        ("school_workspace_setup", "School Workspace Setup"),
+        ("review_confirmation", "Review & Confirmation"),
+        ("subscription_selection", "Subscription Selection"),
+        ("secure_payment", "Secure Payment"),
+        ("workspace_activation", "Workspace Activation"),
+        ("enter_tis_platform", "Enter TIS Platform"),
+    ]
+    completed = {
+        "tis_account": True,
+        "email_verification": account_verified,
+        "school_workspace_setup": bool(organization and school_setup_complete),
+        "review_confirmation": bool(organization and review_complete),
+        "subscription_selection": has_plan,
+        "secure_payment": payment_complete,
+        "workspace_activation": activation_complete,
+        "enter_tis_platform": activation_complete,
+    }
+    current_index = next((idx for idx, (key, _label) in enumerate(order) if key == current_key), 0)
+    steps = []
+    for idx, (key, label) in enumerate(order):
+        state = "complete" if completed.get(key) else "locked"
+        if key == current_key and not completed.get(key):
+            state = "attention" if key == "secure_payment" and payment_attention else "current"
+        elif idx < current_index and not completed.get(key):
+            state = "pending"
+        steps.append(_setup_step(key, label, state))
+
+    return {
+        "title": title,
+        "subtitle": subtitle,
+        "status_banner": status_banner,
+        "steps": steps,
+        "current_step": current_key,
+        "primary_action": primary_action,
+        "help_title": "What happens next?",
+        "help_text": help_text,
+        "portal_access_message": "TIS Platform access becomes available after Workspace Activation.",
+        "workspace_name": workspace_name,
+        "progress_percent": progress_percent,
+    }
+
+
 def list_pending_organizations(db: Session, *, status: str = ""):
     query = db.query(models.PendingOrganization)
     cleaned_status = str(status or "").strip().lower()

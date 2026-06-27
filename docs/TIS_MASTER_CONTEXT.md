@@ -197,6 +197,24 @@ Customer pages should not expose "SaaS" as product copy, raw database statuses, 
 
 The shared customer account shell includes the official full-color horizontal TIS logo on the light account background. Transactional TIS Account emails use an existing official dark-blue TIS wordmark URL. This Phase 2 cleanup did not change payment, billing, provisioning behavior, tenant activation behavior, database schema, migrations, operational modules, or the Next.js landing website. Google/Microsoft login remains future work.
 
+### TIS Account Guided Setup Framework
+
+The accepted Phase 3A implementation introduces the shared customer setup framework for the TIS Account dashboard only. The account page now behaves like a guided onboarding console rather than a dense admin dashboard.
+
+The shared framework provides:
+
+- Official TIS logo/header.
+- An 8-step customer journey stepper.
+- Current step and status banner.
+- One primary next action.
+- Main content area.
+- Help/guidance area.
+- Clear messaging that TIS Platform access becomes available after Workspace Activation.
+
+The journey steps are TIS Account, Email Verification, School Workspace Setup, Review & Confirmation, Subscription Selection, Secure Payment, Workspace Activation, and Enter TIS Platform. Step state is derived from existing account, pending organization, onboarding progress, billing, payment, and activation data. Internal route names, stored statuses, billing/payment/provisioning behavior, database schema, migrations, operational modules, the landing website, and OAuth behavior remain unchanged.
+
+Onboarding forms and subscription/payment/status pages have not yet been redesigned under this framework; they remain future Phase 3 work.
+
 ## M1-M5 Completed Milestone Summary
 
 M1: Identity and SaaS foundation

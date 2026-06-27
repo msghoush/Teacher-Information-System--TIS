@@ -1,10 +1,10 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-06-27T13:13:36.823183+03:00",
+  "generated_at": "2026-06-27T16:34:41.335335+03:00",
   "documentation_version": "3.0",
   "branch": "dev",
-  "commit_sha": "1c303d6",
+  "commit_sha": "f74b951",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
   "included_source_files": [
     {
@@ -15,9 +15,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-06-27T13:11:40.951190+03:00",
-      "size_bytes": 10017,
-      "sha256": "59be51cc857b0edb1731d2ca3cc0b41f031dbaa98c13abc08920f6792450475f"
+      "modified_at": "2026-06-27T16:33:47.386363+03:00",
+      "size_bytes": 11115,
+      "sha256": "76f60524b76f6dc58f8e82ffcd601e1f44bbf3355ce0fd13233985823bfa3796"
     },
     {
       "path": "docs/DOCUMENTATION_UPDATE_POLICY.md",
@@ -27,21 +27,21 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-06-27T13:11:48.833718+03:00",
-      "size_bytes": 21464,
-      "sha256": "9cc71cb9fc0067712ce594ad1319be96e5c866670bd86f21bb6d778ab48aa8a5"
+      "modified_at": "2026-06-27T16:34:00.586249+03:00",
+      "size_bytes": 22658,
+      "sha256": "1ff2aa6f2344323dd65be162256dda5d82c82770d845183dcd7682b4714cc5e7"
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-06-27T13:11:56.316281+03:00",
-      "size_bytes": 10200,
-      "sha256": "9228c1302a32eba10a64f6c07c3090155c1b24e4132b7eb9db75e5dd8e710174"
+      "modified_at": "2026-06-27T16:34:08.670208+03:00",
+      "size_bytes": 11030,
+      "sha256": "1ad24572e0414b62ebb12478b1682efd6dbff228b5dfdac09ede2003a0e12f6c"
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-06-27T13:12:12.377557+03:00",
-      "size_bytes": 17889,
-      "sha256": "55a1173ec54cec747a7dfb757013864e427508fda828ddd92baaf9064fa27a66"
+      "modified_at": "2026-06-27T16:34:22.575741+03:00",
+      "size_bytes": 19999,
+      "sha256": "32df82a56a895fbf0e50187bf48d3fabb3e4b3401ac9146bdefe42f5447cf82a"
     },
     {
       "path": "docs/adr/README.md",
@@ -285,9 +285,9 @@
     },
     {
       "path": "docs/history/saas-onboarding/README.md",
-      "modified_at": "2026-06-27T13:12:22.936825+03:00",
-      "size_bytes": 3275,
-      "sha256": "3ef8777c2cdc91e5f20d680d03783c371002e897d1a3291e1ab53e156affd893"
+      "modified_at": "2026-06-27T16:34:35.215856+03:00",
+      "size_bytes": 4748,
+      "sha256": "9ae6c9e2f654f2e68b2fcf5641aedb5edb3a463222d2c1b8b6e1e90bb380a8ba"
     },
     {
       "path": "docs/history/subscriptions/README.md",

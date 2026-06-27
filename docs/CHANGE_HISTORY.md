@@ -27,6 +27,46 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-06-27 - Accepted TIS Account Guided Setup Framework Phase 3A
+
+Area/module:
+TIS Account customer dashboard, shared SaaS customer shell, setup journey display helper, and KMS documentation
+
+Previous state:
+The customer account page still behaved like a dense dashboard with statistics, session details, multiple competing actions, and page-specific journey fragments. The shared customer shell had a logo and onboarding-specific progress UI, but it did not yet provide a reusable 8-step guided setup framework.
+
+New state:
+The shared customer shell supports a guided setup console for pages that pass setup context. The TIS Account page now presents an official-logo guided console with an 8-step journey stepper, current-step/status area, one primary next action, concise account/workspace context, and guidance that TIS Platform access becomes available after Workspace Activation. Journey state is calculated from existing account, onboarding, billing, payment, and activation data without changing stored statuses.
+
+Reason:
+The accepted Phase 3A scope required only the shared framework and account page foundation for a professional TIS Account / School Workspace Setup experience, while leaving full onboarding and payment page redesigns for later phases.
+
+Files changed:
+- `saas/router.py`
+- `saas/service.py`
+- `templates/saas/base.html`
+- `templates/saas/account.html`
+- `tests/test_saas_phase1.py`
+- `docs/AI_PROJECT_CONTEXT.md`
+- `docs/TIS_MASTER_CONTEXT.md`
+- `docs/PROJECT_STATE.md`
+- `docs/CHANGE_HISTORY.md`
+- `docs/history/saas-onboarding/README.md`
+- `static/docs/TIS_Project_Reference_Booklet.pdf`
+- `static/docs/docs_manifest.json`
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+Phase 3A shared framework only. Onboarding forms, subscription/payment pages, billing/status pages, payment behavior, billing behavior, provisioning behavior, database schema, migrations, operational modules, the Next.js landing website, Google/Microsoft login, internal `/saas` route names, admin views, commits, and pushes were not changed.
+
 ## 2026-06-27 - Accepted TIS Account Customer-Facing Wording And Logo Cleanup
 
 Area/module:
