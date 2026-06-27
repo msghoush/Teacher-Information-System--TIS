@@ -70,14 +70,10 @@
             font-weight: 900;
         }
         .brand-symbol {
-            display: grid;
-            width: 42px;
-            height: 42px;
-            place-items: center;
-            border-radius: 14px;
-            background: linear-gradient(135deg, var(--brand), var(--teal));
-            color: #fff;
-            box-shadow: 0 14px 30px rgba(10, 78, 163, .22);
+            display: block;
+            width: 132px;
+            max-width: 42vw;
+            height: auto;
         }
         .brand-copy { display: grid; gap: 2px; }
         .brand-copy span { font-size: 16px; }
@@ -368,7 +364,7 @@
     <div class="shell">
         <header class="hero">
             <a class="brand-mark" href="/saas">
-                <span class="brand-symbol">TIS</span>
+                <img class="brand-symbol" src="{{ url_for('static', path='branding/tis/logos/TIS Logo – Full Color – Horizontal Layout.png') }}" alt="TIS Platform">
                 <span class="brand-copy">
                     <span>TIS Platform</span>
                     <small>Academic operations account setup</small>

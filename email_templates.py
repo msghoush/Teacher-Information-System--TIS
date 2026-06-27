@@ -154,13 +154,13 @@ def build_tenant_activation_email(
 ) -> TransactionalEmail:
     return render_transactional_email(
         subject=f"{organization_name} is now active | TIS Platform",
-        title="Your TIS organization is active",
-        message="Provisioning is complete and your operational TIS workspace is now ready.",
+        title="Your School Workspace is active",
+        message="Workspace Activation is complete and your TIS School Workspace is now ready.",
         logo_url=logo_url,
         action_label="Open TIS Login",
         action_url=login_url,
-        fallback_label="If the button does not work, open the operational login here:",
-        security_note="Sign in with the same email and password you used for your SaaS account when password-based sign-in is available.",
+        fallback_label="If the button does not work, open the TIS login here:",
+        security_note="Sign in with the same email and password you used for your TIS Account when password-based sign-in is available.",
         details=(
             f"Organization: {organization_name}",
             "Activation confirmed.",

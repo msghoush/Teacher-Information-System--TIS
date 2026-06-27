@@ -56,8 +56,8 @@
 {% block content %}
 <header class="page-header">
     <span class="page-eyebrow">Account Setup</span>
-    <h1>Create your account</h1>
-    <p class="page-subtitle">Start with your personal account, then continue to organization profile, branch setup, and subscription setup.</p>
+    <h1>Create your TIS Account</h1>
+    <p class="page-subtitle">Start with your TIS Account, then continue to Organization Profile, Branch Setup, and Subscription Setup.</p>
 </header>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 {% if warning %}<div class="warning">{{ warning }}</div>{% endif %}
@@ -80,7 +80,7 @@
         <label for="confirm_password">Confirm password</label>
         <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required>
         <div class="actions">
-            <button class="btn" type="submit">Create Account</button>
+            <button class="btn" type="submit">Create TIS Account</button>
             <a class="btn secondary" href="/saas/login">Back to sign in</a>
         </div>
         <div class="actions" style="margin-top:18px;">
@@ -92,13 +92,13 @@
         <h3 style="margin:0 0 8px;">What happens after signup?</h3>
         <ul class="auth-checklist">
             <li>Complete your organization profile and branch setup.</li>
-            <li>Review your subscription summary before activation.</li>
+            <li>Review your Subscription Setup before Workspace Activation.</li>
             <li>Track progress from your account dashboard.</li>
         </ul>
         <div class="auth-kpis" aria-label="Setup highlights">
             <div class="auth-kpi"><strong>5</strong><span>Guided Steps</span></div>
             <div class="auth-kpi"><strong>1</strong><span>Owner Account</span></div>
-            <div class="auth-kpi"><strong>Ready</strong><span>Activation Flow</span></div>
+            <div class="auth-kpi"><strong>Ready</strong><span>Workspace Activation</span></div>
         </div>
     </aside>
 </section>

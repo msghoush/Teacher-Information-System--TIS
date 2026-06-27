@@ -2,11 +2,11 @@
 {% block content %}
 <header class="page-header">
     <span class="page-eyebrow">Step 1 of 5</span>
-    <h1>Organization profile</h1>
+    <h1>Organization Profile</h1>
     <p class="page-subtitle">Set up your organization details, brand information, and location profile.</p>
 </header>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
-<div class="notice">Progress: {{ progress.completion_percent }}% | Application in progress</div>
+<div class="notice">Progress: {{ progress.completion_percent }}% | School Workspace Setup in progress</div>
 <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/organization" enctype="multipart/form-data">
     <label for="organization_name">Organization name</label>
     <input id="organization_name" name="organization_name" value="{{ organization.organization_name or '' }}" required>

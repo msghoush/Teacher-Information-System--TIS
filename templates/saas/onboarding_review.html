@@ -2,8 +2,8 @@
 {% block content %}
 <header class="page-header">
     <span class="page-eyebrow">Step 5 of 5</span>
-    <h1>Review and submit</h1>
-    <p class="page-subtitle">Review your organization profile, branch setup, and contact information before submission.</p>
+    <h1>Review School Workspace Setup</h1>
+    <p class="page-subtitle">Review your Organization Profile, Branch Setup, Academic Setup, and Primary Contact before submission.</p>
 </header>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 <div class="notice">Progress: {{ progress.completion_percent }}% | Ready for final review</div>
@@ -18,7 +18,7 @@
             <p>Branches: {{ branches|length }}<br>Teachers: {{ organization.expected_teacher_count or 0 }}<br>Students: {{ organization.expected_student_count or 0 }}<br>Staff users: {{ organization.estimated_staff_users or 0 }}</p>
         </div>
         <div class="stat">
-            <strong>Academic setup</strong>
+            <strong>Academic Setup</strong>
             <p>{{ academic_setup.first_academic_year_name }}{% if academic_setup.create_default_branch %}<br>Default branch allowed{% endif %}</p>
         </div>
     </div>
@@ -32,8 +32,8 @@
             {% endif %}
         </div>
         <div class="stat">
-            <strong>Subscription setup readiness</strong>
-            <p>Once all steps are complete, submission moves this application to the next subscription setup stage.</p>
+            <strong>Subscription Setup readiness</strong>
+            <p>Once all steps are complete, submission moves this School Workspace Setup to the next Subscription Setup stage.</p>
         </div>
     </div>
 </div>
@@ -44,7 +44,7 @@
         <button class="btn secondary" type="submit">Save draft</button>
     </form>
     <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/submit">
-        <button class="btn" type="submit">Submit application</button>
+        <button class="btn" type="submit">Submit setup</button>
     </form>
 </div>
 {% endblock %}

@@ -2,8 +2,8 @@
 {% block content %}
 <header class="page-header">
     <span class="page-eyebrow">Subscription Setup</span>
-    <h1>Billing and subscription</h1>
-    <p class="page-subtitle">Review payment activity and current activation progress for your organization.</p>
+    <h1>Subscription status</h1>
+    <p class="page-subtitle">Review Secure Payment activity and Workspace Activation progress for your School Workspace.</p>
 </header>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
@@ -12,33 +12,21 @@
     <div class="stat-list">
         <div class="stat">
             <strong>Organization</strong>
-            <p>{{ onboarding_summary.organization.organization_name or "Draft organization" }}</p>
+            <p>{{ onboarding_summary.organization.organization_name or "Draft School Workspace" }}</p>
         </div>
         <div class="stat">
-            <strong>Billing state</strong>
+            <strong>Subscription status</strong>
             <p>
-                {% if onboarding_summary.organization.billing_status in ['not_started', 'plan_selected'] %}
-                Subscription setup in progress
-                {% elif onboarding_summary.organization.billing_status in ['checkout_ready', 'checkout_started'] %}
-                Ready for payment
-                {% elif onboarding_summary.organization.billing_status == 'payment_processing' %}
-                Payment processing
-                {% elif onboarding_summary.organization.billing_status == 'payment_confirmed' %}
-                Payment confirmed
-                {% elif onboarding_summary.organization.billing_status == 'tenant_active' %}
-                Platform access active
-                {% else %}
-                {{ onboarding_summary.organization.billing_status }}
-                {% endif %}
-                <br>Payment: {{ onboarding_summary.organization.payment_status }}
+                {{ customer_status_label(onboarding_summary.organization.billing_status) }}
+                <br>Payment: {{ customer_status_label(onboarding_summary.organization.payment_status) }}
             </p>
         </div>
         <div class="stat">
-            <strong>Platform access</strong>
+            <strong>Workspace Activation</strong>
             <p>
                 {% if onboarding_summary.current_provisioning_job %}
-                Activation job: {{ onboarding_summary.current_provisioning_job.job_status }}
-                {% if onboarding_summary.current_tenant_link %}<br>Access: active{% endif %}
+                {{ customer_status_label(onboarding_summary.current_provisioning_job.job_status) }}
+                {% if onboarding_summary.current_tenant_link %}<br>School Workspace active{% endif %}
                 {% else %}
                 Not started yet.
                 {% endif %}
@@ -57,14 +45,12 @@
     </div>
     <div class="stat-list">
         <div class="stat">
-            <strong>Latest payment attempt</strong>
+            <strong>Latest payment update</strong>
             <p>
                 {% if onboarding_summary.current_payment_attempt %}
-                Status: {{ onboarding_summary.current_payment_attempt.status }}<br>
-                Transaction: {{ onboarding_summary.current_payment_attempt.provider_transaction_id or "-" }}<br>
-                Attempt ID: {{ onboarding_summary.current_payment_attempt.attempt_uuid }}
+                Status: {{ customer_status_label(onboarding_summary.current_payment_attempt.status) }}
                 {% else %}
-                No payment attempt launched yet.
+                No Secure Payment has been launched yet.
                 {% endif %}
             </p>
         </div>
@@ -72,8 +58,7 @@
             <strong>Subscription</strong>
             <p>
                 {% if onboarding_summary.current_payment_subscription %}
-                Status: {{ onboarding_summary.current_payment_subscription.status }}<br>
-                Subscription ID: {{ onboarding_summary.current_payment_subscription.provider_subscription_id }}
+                Status: {{ customer_status_label(onboarding_summary.current_payment_subscription.status) }}
                 {% else %}
                 Subscription not confirmed yet.
                 {% endif %}
@@ -81,15 +66,15 @@
         </div>
         <div class="stat">
             <strong>Next step</strong>
-            <p>Payment confirmation is finalized after secure verification is received. Browser redirects alone do not activate access.</p>
+            <p>Payment confirmation is finalized after secure verification is received. Browser redirects alone do not activate the School Workspace.</p>
         </div>
     </div>
 </div>
 <div class="actions" style="margin-top:20px;">
-    <a class="btn secondary" href="/saas/account">Back to account</a>
-    <a class="btn secondary" href="{{ onboarding_summary.current_step_url }}">Open current billing step</a>
+    <a class="btn secondary" href="/saas/account">Back to Account Dashboard</a>
+    <a class="btn secondary" href="{{ onboarding_summary.current_step_url }}">Open current Subscription Setup step</a>
 </div>
 {% else %}
-<div class="error">No organization billing record is available yet.</div>
+<div class="error">No Subscription Setup record is available yet.</div>
 {% endif %}
 {% endblock %}

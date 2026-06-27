@@ -479,7 +479,9 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         dashboard_response = self.client.get("/saas/account")
         self.assertEqual(dashboard_response.status_code, 200)
-        self.assertIn("Organization setup dashboard", dashboard_response.text)
+        self.assertIn("Account Dashboard", dashboard_response.text)
+        self.assertIn("TIS Logo", dashboard_response.text)
+        self.assertNotIn(">SaaS<", dashboard_response.text)
 
         logout_response = self.client.post("/saas/auth/logout", follow_redirects=False)
         self.assertEqual(logout_response.status_code, 302)
@@ -677,7 +679,7 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         review_response = self.client.get(f"/saas/onboarding/{org_uuid}/review")
         self.assertEqual(review_response.status_code, 200)
-        self.assertIn("Review and submit", review_response.text)
+        self.assertIn("Review School Workspace Setup", review_response.text)
 
         submit_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/submit",
@@ -711,7 +713,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         dashboard_response = self.client.get("/saas/account")
         self.assertEqual(dashboard_response.status_code, 200)
         self.assertIn("Setup journey", dashboard_response.text)
-        self.assertIn("Subscription setup ready", dashboard_response.text)
+        self.assertIn("Subscription Setup ready", dashboard_response.text)
 
     def test_plan_selection_requires_ready_for_checkout(self):
         self._signup_and_verify("gated@academy.edu")

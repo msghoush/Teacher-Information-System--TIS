@@ -75,6 +75,17 @@ SaaS account setup stabilization:
 - Payment, billing, provisioning, database schema, migrations, operational modules, and the landing website were not changed.
 - Google/Microsoft login remains future work and was not implemented.
 
+SaaS customer-facing wording and branding:
+
+- Phase 2 TIS Account customer-facing wording cleanup is accepted.
+- Customer account/setup pages now use professional labels such as TIS Account, Account Dashboard, School Workspace Setup, Organization Profile, Branch Setup, Academic Setup, Subscription Setup, Secure Payment, and Workspace Activation.
+- The shared customer account shell uses the official full-color horizontal TIS logo on the light account background.
+- Transactional TIS Account emails use an existing official dark-blue TIS wordmark asset.
+- Customer views label internal statuses through customer-safe wording instead of exposing raw tenant, provisioning, checkout, provider, plan, school group, or attempt identifiers.
+- Internal `/saas` route/module/model names and stored statuses were not renamed.
+- Payment, billing, provisioning behavior, database schema, migrations, operational modules, and the landing website were not changed.
+- Google/Microsoft login remains future work and was not implemented.
+
 Documentation/KMS milestones:
 
 - Phase 1 documentation foundation completed and pushed to `dev`.

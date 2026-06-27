@@ -176,6 +176,27 @@ Current verification behavior:
 
 Google and Microsoft sign-in remain future work. OAuth-based verification bypass rules should not be expanded without a separate approved identity decision.
 
+### TIS Account Customer-Facing Wording And Branding
+
+The accepted Phase 2 customer-facing wording cleanup improves the public TIS Account and school workspace setup experience without renaming internal `/saas` routes, modules, models, or stored statuses.
+
+Customer-visible account/setup pages should use professional labels including:
+
+- TIS Account
+- Account Setup
+- Account Dashboard
+- School Workspace Setup
+- Organization Profile
+- Branch Setup
+- Academic Setup
+- Subscription Setup
+- Secure Payment
+- Workspace Activation
+
+Customer pages should not expose "SaaS" as product copy, raw database statuses, tenant/provisioning terminology, provider transaction/subscription identifiers, attempt UUIDs, checkout session internals, plan IDs, or school group IDs. Those internal concepts may remain in backend code, admin views, stored data, tests, and documentation where they describe architecture or platform-owner operations.
+
+The shared customer account shell includes the official full-color horizontal TIS logo on the light account background. Transactional TIS Account emails use an existing official dark-blue TIS wordmark URL. This Phase 2 cleanup did not change payment, billing, provisioning behavior, tenant activation behavior, database schema, migrations, operational modules, or the Next.js landing website. Google/Microsoft login remains future work.
+
 ## M1-M5 Completed Milestone Summary
 
 M1: Identity and SaaS foundation

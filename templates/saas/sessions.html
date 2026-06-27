@@ -3,7 +3,7 @@
 <header class="page-header">
     <span class="page-eyebrow">Account Setup</span>
     <h1>Sessions</h1>
-    <p class="page-subtitle">Manage active sessions connected to your account.</p>
+    <p class="page-subtitle">Manage active sign-ins connected to your TIS Account.</p>
 </header>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 <form method="post" action="/saas/account/sessions/revoke-others" style="margin-bottom:18px;">
@@ -13,7 +13,7 @@
 <table class="table">
     <thead>
         <tr>
-            <th>Session</th>
+            <th>Signed-in device</th>
             <th>Status</th>
             <th>Issued</th>
             <th>Last seen</th>
@@ -23,7 +23,7 @@
     <tbody>
         {% for session in sessions %}
         <tr>
-            <td>ID {{ session.id }}</td>
+            <td>{% if session.id == current_session_id %}This device{% else %}Signed-in device{% endif %}</td>
             <td>{% if session.revoked_at %}Revoked{% elif session.id == current_session_id %}Current{% else %}Active{% endif %}</td>
             <td>{{ session.issued_at }}</td>
             <td>{{ session.last_seen_at }}</td>

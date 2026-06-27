@@ -15,6 +15,74 @@ router = APIRouter(prefix="/saas", tags=["saas"])
 admin_router = APIRouter(prefix="/saas-admin", tags=["saas-admin"])
 
 
+CUSTOMER_STATUS_LABELS = {
+    "not_started": "Not started",
+    "pending_verification": "Email verification required",
+    "active": "Active",
+    "draft": "School Workspace Setup in progress",
+    "in_progress": "School Workspace Setup in progress",
+    "organization_in_progress": "School Workspace Setup in progress",
+    "ready_for_checkout": "Subscription Setup ready",
+    "under_review": "Setup under review",
+    "changes_requested": "Changes requested",
+    "rejected": "Setup not approved",
+    "plan_selected": "Subscription plan selected",
+    "checkout_ready": "Secure Payment ready",
+    "checkout_initiated": "Secure Payment started",
+    "checkout_started": "Secure Payment started",
+    "payment_processing": "Payment processing",
+    "payment_confirmed": "Payment confirmed",
+    "ready_for_provisioning": "Workspace Activation in progress",
+    "provisioning_started": "Workspace Activation in progress",
+    "provisioning_retrying": "Workspace Activation in progress",
+    "provisioning_completed": "Workspace active",
+    "provisioning_failed": "Workspace Activation needs attention",
+    "tenant_active": "Workspace active",
+    "payment_failed": "Payment needs attention",
+    "payment_cancelled": "Payment cancelled",
+    "payment_refunded": "Payment refunded",
+    "organization": "Organization Profile",
+    "branches": "Branch Setup",
+    "academic_setup": "Academic Setup",
+    "contacts": "Primary Contact",
+    "review": "Review",
+    "pending": "Pending",
+    "paid": "Paid",
+    "failed": "Needs attention",
+    "cancelled": "Cancelled",
+    "refunded": "Refunded",
+    "ready": "Ready",
+    "started": "Started",
+    "completed": "Complete",
+    "retrying": "In progress",
+}
+
+SIGN_IN_METHOD_LABELS = {
+    "password": "Email and password",
+    "google": "Google",
+    "microsoft": "Microsoft",
+}
+
+
+def _display_label(value: str | None, fallback: str = "Not available") -> str:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return fallback
+    mapped = CUSTOMER_STATUS_LABELS.get(cleaned.lower())
+    if mapped:
+        return mapped
+    return cleaned.replace("_", " ").strip().capitalize()
+
+
+def _sign_in_method_label(value: str | None) -> str:
+    cleaned = str(value or "").strip().lower()
+    return SIGN_IN_METHOD_LABELS.get(cleaned, _display_label(cleaned, "Sign-in method"))
+
+
+templates.env.globals["customer_status_label"] = _display_label
+templates.env.globals["sign_in_method_label"] = _sign_in_method_label
+
+
 def _safe_next(next_path: str | None) -> str:
     cleaned = str(next_path or "").strip()
     return cleaned if cleaned.startswith("/saas") else "/saas/account"
@@ -27,7 +95,7 @@ def _current_account(request: Request, db: Session):
 def _require_account(request: Request, db: Session):
     account = _current_account(request, db)
     if not account:
-        raise HTTPException(status_code=401, detail="SaaS authentication is required.")
+        raise HTTPException(status_code=401, detail="Please sign in to your TIS Account.")
     session_row = service.get_session_from_request(db, request)
     return account, session_row
 
@@ -694,7 +762,7 @@ def resume_onboarding(organization_uuid: str, request: Request, db: Session = De
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
-        return RedirectResponse("/saas/account?notice=No+pending+organization+draft+was+found.", status_code=302)
+        return RedirectResponse("/saas/account?notice=No+School+Workspace+Setup+draft+was+found.", status_code=302)
     db.commit()
     return RedirectResponse(service.organization_step_url(organization), status_code=302)
 
@@ -1057,7 +1125,7 @@ def submit_onboarding(
     except ValueError as exc:
         db.rollback()
         return _redirect_error(f"/saas/onboarding/{organization_uuid}/review", str(exc))
-    return RedirectResponse("/saas/account?notice=Organization+is+ready+for+checkout.", status_code=302)
+    return RedirectResponse("/saas/account?notice=Your+School+Workspace+Setup+is+ready+for+Subscription+Setup.", status_code=302)
 
 
 @router.get("/onboarding/{organization_uuid}/plan", response_class=HTMLResponse)
@@ -1113,7 +1181,7 @@ def select_plan_step(
         db.rollback()
         return _redirect_error(f"/saas/onboarding/{organization_uuid}/plan", str(exc))
     return RedirectResponse(
-        f"/saas/onboarding/{organization_uuid}/checkout?notice={quote_plus('Plan selected successfully.')}",
+        f"/saas/onboarding/{organization_uuid}/checkout?notice={quote_plus('Subscription plan saved.')}",
         status_code=302,
     )
 
@@ -1160,7 +1228,7 @@ def prepare_checkout_step(
         db.rollback()
         return _redirect_error(f"/saas/onboarding/{organization_uuid}/checkout", str(exc))
     return RedirectResponse(
-        f"/saas/onboarding/{organization_uuid}/checkout?notice={quote_plus('Checkout summary is ready.')}",
+        f"/saas/onboarding/{organization_uuid}/checkout?notice={quote_plus('Secure Payment summary is ready.')}",
         status_code=302,
     )
 
@@ -1189,7 +1257,7 @@ def launch_checkout_step(
     if not checkout_url:
         return _redirect_error(
             f"/saas/onboarding/{organization_uuid}/checkout",
-            "Paddle checkout URL was not returned.",
+            "Secure Payment could not be opened. Please try again.",
         )
     return RedirectResponse(checkout_url, status_code=302)
 
