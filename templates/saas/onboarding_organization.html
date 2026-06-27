@@ -1,5 +1,6 @@
 {% extends "saas/base.html" %}
 {% block content %}
+{% set fd = form_data or {} %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 <form id="organization-form" class="wizard-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/organization" enctype="multipart/form-data">
     <section class="wizard-section">
@@ -10,27 +11,27 @@
         <div class="wizard-grid">
             <div>
                 <label for="organization_name">Organization name</label>
-                <input id="organization_name" name="organization_name" value="{{ organization.organization_name or '' }}" required>
+                <input id="organization_name" name="organization_name" value="{{ fd.get('organization_name', organization.organization_name or '') }}" required>
             </div>
             <div>
                 <label for="legal_name">Legal name</label>
-                <input id="legal_name" name="legal_name" value="{{ organization.legal_name or '' }}">
+                <input id="legal_name" name="legal_name" value="{{ fd.get('legal_name', organization.legal_name or '') }}">
             </div>
             <div>
                 <label for="website">Website</label>
-                <input id="website" name="website" value="{{ organization.website or '' }}">
+                <input id="website" name="website" value="{{ fd.get('website', organization.website or '') }}">
             </div>
             <div>
                 <label for="primary_domain">Primary domain</label>
-                <input id="primary_domain" name="primary_domain" value="{{ organization.primary_domain or '' }}">
+                <input id="primary_domain" name="primary_domain" value="{{ fd.get('primary_domain', organization.primary_domain or '') }}">
             </div>
             <div>
                 <label for="phone">Phone</label>
-                <input id="phone" name="phone" value="{{ organization.phone or '' }}">
+                <input id="phone" name="phone" value="{{ fd.get('phone', organization.phone or '') }}">
             </div>
             <div>
                 <label for="school_type">School type</label>
-                <input id="school_type" name="school_type" value="{{ organization.school_type or '' }}">
+                <input id="school_type" name="school_type" value="{{ fd.get('school_type', organization.school_type or '') }}">
             </div>
         </div>
     </section>
@@ -61,22 +62,23 @@
                 <label for="educational_program">Educational program</label>
                 <select id="educational_program" name="educational_program">
                     <option value="">Select a program</option>
-                    <option value="NATIONAL" {% if organization.educational_program == "NATIONAL" %}selected{% endif %}>National</option>
-                    <option value="INTERNATIONAL" {% if organization.educational_program == "INTERNATIONAL" %}selected{% endif %}>International</option>
-                    <option value="BOTH" {% if organization.educational_program == "BOTH" %}selected{% endif %}>Both</option>
+                    {% set selected_program = fd.get('educational_program', organization.educational_program or '') %}
+                    <option value="NATIONAL" {% if selected_program == "NATIONAL" %}selected{% endif %}>National</option>
+                    <option value="INTERNATIONAL" {% if selected_program == "INTERNATIONAL" %}selected{% endif %}>International</option>
+                    <option value="BOTH" {% if selected_program == "BOTH" %}selected{% endif %}>Both</option>
                 </select>
             </div>
             <div>
                 <label for="timezone">Timezone</label>
-                <input id="timezone" name="timezone" value="{{ organization.timezone or '' }}" placeholder="Asia/Riyadh">
+                <input id="timezone" name="timezone" value="{{ fd.get('timezone', organization.timezone or '') }}" placeholder="Asia/Riyadh">
             </div>
         </div>
         <div class="location-fields"
              data-location-fields
              data-location-api-base="/saas/locations"
-             data-selected-country="{{ organization.country_code or '' }}"
-             data-selected-region="{{ organization.region_name or '' }}"
-             data-selected-city="{{ organization.city_name or '' }}"
+             data-selected-country="{{ fd.get('country_code', organization.country_code or '') }}"
+             data-selected-region="{{ fd.get('region_name', fd.get('region_manual', organization.region_name or '')) }}"
+             data-selected-city="{{ fd.get('city_name', fd.get('city_manual', organization.city_name or '')) }}"
              data-location-required="false">
             <div class="field">
                 <label for="organization_country">Country</label>
@@ -100,11 +102,11 @@
             </div>
             <div class="field">
                 <label for="district_name">District <span class="optional-label">Optional</span></label>
-                <input id="district_name" name="district_name" value="{{ organization.district_name or '' }}" maxlength="160" placeholder="District">
+                <input id="district_name" name="district_name" value="{{ fd.get('district_name', organization.district_name or '') }}" maxlength="160" placeholder="District">
             </div>
             <div class="field">
                 <label for="neighborhood_name">Neighborhood <span class="optional-label">Optional</span></label>
-                <input id="neighborhood_name" name="neighborhood_name" value="{{ organization.neighborhood_name or '' }}" maxlength="160" placeholder="Neighborhood">
+                <input id="neighborhood_name" name="neighborhood_name" value="{{ fd.get('neighborhood_name', organization.neighborhood_name or '') }}" maxlength="160" placeholder="Neighborhood">
             </div>
             <span class="location-status" data-location-status aria-live="polite"></span>
             <span class="location-guidance">Choose manual entry if your exact location is missing.</span>
@@ -119,19 +121,19 @@
         <div class="wizard-grid">
             <div>
                 <label for="expected_branch_count">Estimated branches</label>
-                <input id="expected_branch_count" name="expected_branch_count" value="{{ organization.expected_branch_count or '' }}">
+                <input id="expected_branch_count" name="expected_branch_count" value="{{ fd.get('expected_branch_count', organization.expected_branch_count or '') }}">
             </div>
             <div>
                 <label for="estimated_staff_users">Estimated staff users</label>
-                <input id="estimated_staff_users" name="estimated_staff_users" value="{{ organization.estimated_staff_users or '' }}">
+                <input id="estimated_staff_users" name="estimated_staff_users" value="{{ fd.get('estimated_staff_users', organization.estimated_staff_users or '') }}">
             </div>
             <div>
                 <label for="expected_teacher_count">Estimated teachers</label>
-                <input id="expected_teacher_count" name="expected_teacher_count" value="{{ organization.expected_teacher_count or '' }}">
+                <input id="expected_teacher_count" name="expected_teacher_count" value="{{ fd.get('expected_teacher_count', organization.expected_teacher_count or '') }}">
             </div>
             <div>
                 <label for="expected_student_count">Estimated students</label>
-                <input id="expected_student_count" name="expected_student_count" value="{{ organization.expected_student_count or '' }}">
+                <input id="expected_student_count" name="expected_student_count" value="{{ fd.get('expected_student_count', organization.expected_student_count or '') }}">
             </div>
         </div>
     </section>

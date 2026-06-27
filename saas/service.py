@@ -667,6 +667,50 @@ def recalculate_pending_progress(db: Session, organization):
     return progress
 
 
+def get_onboarding_missing_requirements(db: Session, organization) -> list[dict]:
+    missing = []
+    if not _clean_text(getattr(organization, "organization_name", ""), 160):
+        missing.append({"step": "Organization Profile", "field": "Organization name"})
+    if not _clean_text(getattr(organization, "educational_program", ""), 20):
+        missing.append({"step": "Organization Profile", "field": "Educational program"})
+    if not _clean_text(getattr(organization, "timezone", ""), 80):
+        missing.append({"step": "Organization Profile", "field": "Timezone"})
+
+    branches_count = db.query(models.PendingOrganizationBranch).filter(
+        models.PendingOrganizationBranch.pending_organization_id == organization.id
+    ).count()
+    if branches_count <= 0:
+        missing.append({"step": "Branch Setup", "field": "At least one branch"})
+
+    academic_setup = get_or_create_academic_setup(db, organization)
+    if not _clean_text(academic_setup.first_academic_year_name, 40):
+        missing.append({"step": "Academic Setup", "field": "First academic year"})
+
+    primary_contact = get_primary_contact(db, organization)
+    if not primary_contact:
+        missing.append({"step": "Primary Contact", "field": "Primary contact"})
+    else:
+        if not _clean_text(primary_contact.first_name, 120):
+            missing.append({"step": "Primary Contact", "field": "First name"})
+        if not _clean_text(primary_contact.last_name, 120):
+            missing.append({"step": "Primary Contact", "field": "Last name"})
+        if not auth.is_valid_email(primary_contact.email):
+            missing.append({"step": "Primary Contact", "field": "Valid email"})
+    return missing
+
+
+def format_onboarding_missing_requirements(missing: list[dict]) -> str:
+    if not missing:
+        return ""
+    grouped = {}
+    for item in missing:
+        step = str(item.get("step") or "Setup").strip()
+        field = str(item.get("field") or "Required information").strip()
+        grouped.setdefault(step, []).append(field)
+    details = "; ".join(f"{step}: {', '.join(fields)}" for step, fields in grouped.items())
+    return f"Complete these items before submitting: {details}."
+
+
 def update_pending_dashboard_status(account, organization, progress):
     if not organization:
         account.onboarding_status = "not_started"
@@ -854,8 +898,9 @@ def save_draft(db: Session, account, organization, *, current_step: str):
 
 def submit_pending_organization(db: Session, account, organization):
     progress = recalculate_pending_progress(db, organization)
-    if progress.completion_percent < 100:
-        raise ValueError("Complete all onboarding steps before submitting.")
+    missing = get_onboarding_missing_requirements(db, organization)
+    if missing:
+        raise ValueError(format_onboarding_missing_requirements(missing))
     progress.review_complete = True
     organization.status = READY_FOR_CHECKOUT_STATUS
     organization.onboarding_step = "review"

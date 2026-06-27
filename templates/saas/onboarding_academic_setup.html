@@ -1,5 +1,6 @@
 {% extends "saas/base.html" %}
 {% block content %}
+{% set fd = form_data or {} %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 <form id="academic-setup-form" class="wizard-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/academic_setup">
     <section class="wizard-section">
@@ -10,15 +11,15 @@
         <div class="wizard-grid">
             <div>
                 <label for="first_academic_year_name">First academic year</label>
-                <input id="first_academic_year_name" name="first_academic_year_name" value="{{ academic_setup.first_academic_year_name or '' }}" placeholder="2026-2027" required>
+                <input id="first_academic_year_name" name="first_academic_year_name" value="{{ fd.get('first_academic_year_name', academic_setup.first_academic_year_name or '') }}" placeholder="2026-2027" required>
             </div>
             <div>
                 <label for="notes">Notes</label>
-                <input id="notes" name="notes" value="{{ academic_setup.notes or '' }}">
+                <input id="notes" name="notes" value="{{ fd.get('notes', academic_setup.notes or '') }}">
             </div>
         </div>
         <label>
-            <input type="checkbox" name="create_default_branch" value="1" {% if academic_setup.create_default_branch %}checked{% endif %}>
+            <input type="checkbox" name="create_default_branch" value="1" {% if fd.get('create_default_branch', '1' if academic_setup.create_default_branch else '') %}checked{% endif %}>
             Use a single default branch if your School Workspace launches with one campus
         </label>
     </section>
