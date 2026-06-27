@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.0
-last_updated: 2026-06-26
+last_updated: 2026-06-27
 recommended_first_read: true
 ---
 
@@ -36,6 +36,7 @@ Key files and folders:
 - `auth.py`: authentication, roles, platform identity helpers, permissions, sessions.
 - `authorization.py`: protected route rules and access-denied handling.
 - `permission_registry.py`: permission keys, groups, defaults, and developer-assignable permissions.
+- `location_service.py`: global location picker lookup/validation. Must stay memory-conscious and scoped; do not restore full unbounded dataset parsing for normal picker requests.
 - `ui_shell.py`: shared app shell/navigation/page metadata.
 - `models.py`, `database.py`, `db_migrations.py`: data model, DB setup, local schema repair/migration logic.
 - `routers/`: modular operational routes.
@@ -123,6 +124,7 @@ Current priority is the TIS Knowledge Management System:
 - Do not change landing page implementation unless explicitly approved.
 - Do not add a KMS regenerate button until explicitly approved.
 - Do not push or commit unless explicitly requested.
+- Treat production memory as a hard budget. Do not add unbounded full-dataset caches, duplicate production template renders, startup-heavy work, or warning-level debug spam on normal requests.
 
 ## KMS Policy
 

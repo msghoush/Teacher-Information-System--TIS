@@ -1,7 +1,7 @@
 ---
 title: TIS Project State
 documentation_version: 3.0
-last_updated: 2026-06-26
+last_updated: 2026-06-27
 source_of_truth: true
 ---
 
@@ -9,7 +9,7 @@ source_of_truth: true
 
 ## Last Updated
 
-Last updated: 2026-06-26
+Last updated: 2026-06-27
 
 Update this file after every meaningful milestone, active development change, roadmap shift, known issue change, or documentation/KMS change.
 
@@ -156,6 +156,7 @@ Known issues and watch points:
 - The owner-only Knowledge Center is implemented as read-only; there is no regenerate button yet.
 - Public static storage is not sufficient access control for sensitive docs; Phase 2C should serve docs through protected owner-only routes.
 - Render deployment constraints should continue to guide dependency choices.
+- Production memory must be treated as a hard constraint. The 2026-06-27 Render restart/502 investigation found two avoidable memory risks: observation diagnostics doing extra production template renders and global location lookup parsing a 47 MB dataset into a complete in-memory index for simple picker requests. Local stabilization changes now gate observation diagnostics and use scoped location loading; future work must follow the Production Memory and Render Stability standards.
 - Broad filesystem scans may warn about `tis_scope_test_5i3yf0h5/` access denial.
 
 ## Next Planned Work
@@ -165,6 +166,7 @@ Next planned work after Phase 2C review:
 - Review final KMS v1.0 readiness, handbook completeness, AI readiness, PDF readability, and manifest inclusion.
 - Approve corrections if needed.
 - Later consider an explicit owner-only regenerate workflow.
+- Review, commit, and deploy the production memory stabilization changes when approved, then monitor Render memory, restart count, and route-level 502s after deployment.
 
 ## Landing Page Baseline Situation
 

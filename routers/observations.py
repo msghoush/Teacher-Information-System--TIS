@@ -30,6 +30,12 @@ logger = logging.getLogger("tis.observations")
 FORMAL_OBSERVATION_TARGET = 6
 RATING_VALUES = {"0", "1", "2", "3", "4", "5"}
 DEFAULT_DISPLAY_TIMEZONE = "Asia/Riyadh"
+OBSERVATION_DIAGNOSTICS_ENABLED = os.getenv("TIS_OBSERVATION_DIAGNOSTICS", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 OBSERVATION_CRITERIA = [{'domain_key': 'A',
   'domain_title': 'Planning and Preparation',
@@ -1176,8 +1182,10 @@ def _observation_error_html(route: str, stage: str, exc: Exception):
 
 
 def _log_observation_stage(stage: str, **details):
+    if not OBSERVATION_DIAGNOSTICS_ENABLED:
+        return
     detail_text = " ".join(f"{key}={value}" for key, value in details.items())
-    logger.warning("OBSERVATION DEBUG stage=%s %s", stage, detail_text)
+    logger.info("OBSERVATION DEBUG stage=%s %s", stage, detail_text)
 
 
 def _criteria_by_domain(criteria):
@@ -1895,7 +1903,11 @@ def _teacher_observation_access_filter(query, db, current_user, *, scope_already
 @router.get("/")
 def observations_page(request: Request, db: Session = Depends(get_db)):
     route = str(request.url.path)
-    debug_stage = str(request.query_params.get("debug_stage", "") or "").strip().lower()
+    debug_stage = (
+        str(request.query_params.get("debug_stage", "") or "").strip().lower()
+        if OBSERVATION_DIAGNOSTICS_ENABLED
+        else ""
+    )
     stage = "1_route_minimal"
     try:
         _log_observation_stage(stage, route=route)
@@ -1922,7 +1934,6 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
                 "completion_pct": 0,
             },
         }
-        templates.env.get_template("observations.html").render(template_context)
         _log_observation_stage(stage, template="observations.html", keys=_context_keys(template_context))
         if debug_stage in {"2", "template"}:
             return templates.TemplateResponse(request, "observations.html", template_context)
@@ -2140,7 +2151,6 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
             "evaluator_display_name": _user_display_name(current_user),
             **shell_context,
         }
-        templates.env.get_template("observations.html").render(context)
         _log_observation_stage(stage, template="observations.html", keys=_context_keys(context))
         return templates.TemplateResponse(request, "observations.html", context)
     except Exception as exc:

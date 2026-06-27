@@ -1,7 +1,7 @@
 ---
 title: TIS Development Standards
 documentation_version: 3.0
-last_updated: 2026-06-26
+last_updated: 2026-06-27
 source_of_truth: true
 ---
 
@@ -110,6 +110,29 @@ Do not modify landing page code during backend or operational app tasks unless e
 - Use owner-protected routes for PDF access.
 - Markdown source docs are reviewed development artifacts.
 - The app must not silently rewrite Markdown source docs.
+
+## Production Memory And Render Stability
+
+Render memory is a hard production budget. Treat a 512 MB service as constrained and design routes, services, and assets accordingly.
+
+Strict rules:
+
+- Do not load, parse, or cache complete large datasets at startup or on a normal first request when a scoped lookup, streaming parser, pagination, or bounded cache can be used.
+- Do not keep both raw and transformed copies of large JSON, CSV, Excel, PDF, image, or uploaded payloads in memory unless explicitly justified and validated.
+- Do not run duplicate template renders in production request paths. Diagnostic pre-renders must be removed or gated behind an explicit environment flag.
+- Do not emit stage-by-stage debug logs at warning level during normal traffic. Production diagnostics must be opt-in and should use appropriate log levels.
+- Filter by tenant, school group, branch, academic year, and permission scope before materializing query results.
+- Keep caches bounded by size or scope. Global caches for user-facing lookup data must be justified by measured memory impact.
+- Large exports should stream or build bounded artifacts; avoid repeatedly constructing large in-memory workbooks, PDFs, or payloads inside loops.
+- New static assets, videos, generated files, and location/reference datasets must be reviewed for repository size, runtime memory, and deployment impact.
+- Any feature that adds broad data aggregation, new startup work, large reference files, or route-level diagnostics must include a memory/performance smoke check before deployment.
+
+Minimum validation for memory-sensitive changes:
+
+- run targeted tests for the touched module,
+- run a compile/import check for changed Python modules,
+- measure peak memory locally when a route or service parses large data,
+- review production logs after deployment for restarts, OOM symptoms, and unexpected warning spam.
 
 ## Commit And Push Rule
 

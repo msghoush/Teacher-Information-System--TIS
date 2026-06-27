@@ -1,7 +1,7 @@
 ---
 title: TIS Change History
 documentation_version: 3.0
-last_updated: 2026-06-26
+last_updated: 2026-06-27
 source_of_truth: true
 ---
 
@@ -26,6 +26,44 @@ PDF regenerated:
 AI project context updated:
 Reviewer/approval notes:
 ```
+
+## 2026-06-27 - Added Production Memory Stability Guardrails
+
+Area/module:
+Operational app stability, observations, global location lookup, Render deployment constraints, and engineering standards
+
+Previous state:
+Production traffic could hit avoidable memory pressure. The observations page included diagnostic stage logging and extra template rendering in the normal request path, and the global location picker could parse a 47 MB reference dataset into a complete in-memory index for simple picker requests. KMS standards did not yet explicitly forbid unbounded caches, duplicate production template renders, or normal-request diagnostic warning spam.
+
+New state:
+The local stabilization patch gates observation diagnostics behind `TIS_OBSERVATION_DIAGNOSTICS`, removes duplicate observation template pre-renders, and changes location lookup behavior to use streaming/scoped country loading for normal country, region, city, and validation requests. KMS now documents strict production memory and Render stability rules.
+
+Reason:
+Render logs showed app restarts and user-facing 502s around normal app navigation after deployment. A 512 MB service can be enough for TIS only if the app avoids unnecessary full-dataset memory loads, duplicate rendering, and production debug noise.
+
+Files changed:
+- `location_service.py`
+- `routers/observations.py`
+- `docs/engineering/DEVELOPMENT_STANDARDS.md`
+- `docs/PROJECT_STATE.md`
+- `docs/AI_PROJECT_CONTEXT.md`
+- `docs/TIS_MASTER_CONTEXT.md`
+- `docs/CHANGE_HISTORY.md`
+- `docs/history/engineering-handbook/2026-06-27-production-memory-stability-guardrails.md`
+- `static/docs/TIS_Project_Reference_Booklet.pdf`
+- `static/docs/docs_manifest.json`
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+Local changes only. No commit, push, migration, database change, SaaS route change, billing change, tenant logic change, or deployment was performed.
 
 ## 2026-06-26 - Completed KMS v3.0 Phase 3D Lifecycle Foundation
 
