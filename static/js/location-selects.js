@@ -38,7 +38,15 @@
     const replaceOptions = (select, placeholder, items, valueKey, includeOther = false) => {
         select.replaceChildren();
         appendOption(select, "", placeholder);
-        items.forEach((item) => appendOption(select, item[valueKey], item.name));
+        items.forEach((item) => {
+            const option = appendOption(select, item[valueKey], item.name);
+            if (item.timezone) {
+                option.dataset.timezone = item.timezone;
+            }
+            if (item.timezones) {
+                option.dataset.timezones = JSON.stringify(item.timezones);
+            }
+        });
         if (includeOther) {
             appendOption(select, OTHER_VALUE, "Other / manual entry");
         }
@@ -73,6 +81,7 @@
         const citySelect = container.querySelector("[data-location-city]");
         const regionManual = container.querySelector("[data-location-region-manual]");
         const cityManual = container.querySelector("[data-location-city-manual]");
+        const timezoneSelect = container.querySelector("[data-location-timezone]");
         const status = container.querySelector("[data-location-status]");
         if (!countrySelect || !regionSelect || !citySelect || !regionManual || !cityManual) {
             return;
@@ -83,8 +92,46 @@
         const selectedCountry = container.dataset.selectedCountry || "";
         const selectedRegion = container.dataset.selectedRegion || "";
         const selectedCity = container.dataset.selectedCity || "";
+        const selectedTimezone = timezoneSelect ? timezoneSelect.dataset.selectedTimezone || "" : "";
         const apiBase = (container.dataset.locationApiBase || "/api/locations").replace(/\/$/, "");
         let requestVersion = 0;
+        let countryItems = [];
+        let currentRegionTimezone = "";
+        let currentCityTimezone = "";
+
+        const uniqueTimezones = (items) => {
+            const seen = new Set();
+            return items
+                .map((item) => String(item || "").trim())
+                .filter((item) => item && !seen.has(item) && seen.add(item));
+        };
+
+        const selectedCountryTimezones = () => {
+            const country = countryItems.find((item) => item.code === countrySelect.value);
+            return country && Array.isArray(country.timezones) ? country.timezones : [];
+        };
+
+        const setTimezoneOptions = (preferredTimezone = "") => {
+            if (!timezoneSelect) {
+                return;
+            }
+            const previousValue = timezoneSelect.value || selectedTimezone;
+            const candidateTimezones = uniqueTimezones([
+                currentCityTimezone,
+                currentRegionTimezone,
+                ...selectedCountryTimezones(),
+                previousValue,
+            ]);
+            timezoneSelect.replaceChildren();
+            appendOption(timezoneSelect, "", "Select a time zone");
+            candidateTimezones.forEach((timezone) => appendOption(timezoneSelect, timezone, timezone));
+            const preferred = String(preferredTimezone || previousValue || "").trim();
+            if (preferred && candidateTimezones.includes(preferred)) {
+                timezoneSelect.value = preferred;
+            } else if (candidateTimezones.length === 1) {
+                timezoneSelect.value = candidateTimezones[0];
+            }
+        };
 
         const setStatus = (message = "") => {
             if (status) {
@@ -124,10 +171,14 @@
                     citySelect.value = OTHER_VALUE;
                     setCityManualState(preferredCity);
                 }
+                currentCityTimezone = citySelect.selectedOptions[0]?.dataset.timezone || "";
+                setTimezoneOptions(currentCityTimezone || currentRegionTimezone);
                 citySelect.disabled = locked;
             } catch (error) {
                 replaceOptions(citySelect, "Unable to load cities", [], "id", true);
                 citySelect.disabled = locked;
+                currentCityTimezone = "";
+                setTimezoneOptions(currentRegionTimezone);
                 setStatus(error.message);
             }
         };
@@ -140,6 +191,9 @@
                 replaceOptions(citySelect, "Select region first", [], "id");
                 citySelect.disabled = true;
                 setManualInput(cityManual, false, "", locked);
+                currentRegionTimezone = "";
+                currentCityTimezone = "";
+                setTimezoneOptions();
                 return;
             }
             if (selectedRegionId === OTHER_VALUE) {
@@ -154,8 +208,14 @@
                 citySelect.value = preferredCity || locationRequired ? OTHER_VALUE : "";
                 citySelect.disabled = locked;
                 setCityManualState(preferredCity);
+                currentRegionTimezone = "";
+                currentCityTimezone = "";
+                setTimezoneOptions();
                 return;
             }
+            currentRegionTimezone = regionSelect.selectedOptions[0]?.dataset.timezone || "";
+            currentCityTimezone = "";
+            setTimezoneOptions(currentRegionTimezone);
             await loadCities(selectedRegionId, preferredCity);
         };
 
@@ -166,9 +226,12 @@
             citySelect.disabled = true;
             setManualInput(regionManual, false, "", locked);
             setManualInput(cityManual, false, "", locked);
+            currentRegionTimezone = "";
+            currentCityTimezone = "";
             if (!countryCode) {
                 replaceOptions(regionSelect, "Select country first", [], "id");
                 replaceOptions(citySelect, "Select region first", [], "id");
+                setTimezoneOptions();
                 return;
             }
 
@@ -194,11 +257,14 @@
                     regionSelect.value = OTHER_VALUE;
                     setManualInput(regionManual, true, preferredRegion, locked);
                 }
+                currentRegionTimezone = regionSelect.selectedOptions[0]?.dataset.timezone || "";
+                setTimezoneOptions(currentRegionTimezone);
                 regionSelect.disabled = locked;
                 await handleRegionChange(preferredCity);
             } catch (error) {
                 replaceOptions(regionSelect, "Unable to load regions", [], "id", true);
                 regionSelect.disabled = locked;
+                setTimezoneOptions();
                 setStatus(error.message);
             }
         };
@@ -206,6 +272,7 @@
         countrySelect.disabled = true;
         try {
             const countries = await getItems(`${apiBase}/countries`);
+            countryItems = countries;
             replaceOptions(
                 countrySelect,
                 locationRequired ? "Select country" : "Not set",
@@ -214,6 +281,7 @@
             );
             countrySelect.value = selectedCountry;
             countrySelect.disabled = locked;
+            setTimezoneOptions();
             await loadRegions(selectedRegion, selectedCity);
         } catch (error) {
             replaceOptions(countrySelect, "Unable to load countries", [], "code");
@@ -223,6 +291,9 @@
 
         countrySelect.addEventListener("change", () => {
             setStatus();
+            currentRegionTimezone = "";
+            currentCityTimezone = "";
+            setTimezoneOptions();
             loadRegions();
         });
         regionSelect.addEventListener("change", () => {
@@ -232,6 +303,8 @@
         citySelect.addEventListener("change", () => {
             setStatus();
             setCityManualState();
+            currentCityTimezone = citySelect.selectedOptions[0]?.dataset.timezone || "";
+            setTimezoneOptions(currentCityTimezone || currentRegionTimezone);
         });
         container.dataset.locationReady = "true";
         container.dispatchEvent(new CustomEvent("tis:location-ready", { bubbles: true }));

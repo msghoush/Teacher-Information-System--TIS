@@ -36,6 +36,7 @@ class LocationValidationError(ValueError):
 class Country:
     code: str
     name: str
+    timezones: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +44,7 @@ class Region:
     id: int
     country_code: str
     name: str
+    timezone: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +52,7 @@ class City:
     id: int
     region_id: int
     name: str
+    timezone: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,7 +145,12 @@ def _country_from_raw(raw_country: dict) -> Country | None:
     country_name = _clean_text(raw_country.get("name"))
     if len(country_code) != 2 or not country_name:
         return None
-    return Country(code=country_code, name=country_name)
+    timezones = tuple(
+        timezone
+        for raw_timezone in raw_country.get("timezones") or ()
+        if (timezone := _clean_text(raw_timezone.get("zoneName")).replace("\\/", "/"))
+    )
+    return Country(code=country_code, name=country_name, timezones=timezones)
 
 
 def _build_country_location(raw_country: dict) -> CountryLocation | None:
@@ -168,6 +176,7 @@ def _build_country_location(raw_country: dict) -> CountryLocation | None:
             id=region_id,
             country_code=country.code,
             name=region_name,
+            timezone=_clean_text(raw_region.get("timezone")).replace("\\/", "/"),
         )
         regions.append(region)
         regions_by_id[region_id] = region
@@ -184,7 +193,12 @@ def _build_country_location(raw_country: dict) -> CountryLocation | None:
             if not city_name or city_key in seen_city_names:
                 continue
             seen_city_names.add(city_key)
-            city = City(id=city_id, region_id=region_id, name=city_name)
+            city = City(
+                id=city_id,
+                region_id=region_id,
+                name=city_name,
+                timezone=_clean_text(raw_city.get("timezone")).replace("\\/", "/"),
+            )
             region_cities.append(city)
             cities_by_id[city_id] = city
 
@@ -257,7 +271,7 @@ def get_location_index() -> LocationIndex:
 
 def list_countries() -> list[dict[str, object]]:
     return [
-        {"code": country.code, "name": country.name}
+        {"code": country.code, "name": country.name, "timezones": list(country.timezones)}
         for country in _countries()
     ]
 
@@ -268,7 +282,7 @@ def list_regions(country_code: str) -> list[dict[str, object]]:
     if not country_location:
         raise LocationValidationError("Select a valid country.")
     return [
-        {"id": region.id, "name": region.name}
+        {"id": region.id, "name": region.name, "timezone": region.timezone}
         for region in country_location.regions
     ]
 
@@ -282,7 +296,7 @@ def list_cities(country_code: str, region_id: int) -> list[dict[str, object]]:
     if not region or region.country_code != normalized_code:
         raise LocationValidationError("Select a valid region for the selected country.")
     return [
-        {"id": city.id, "name": city.name}
+        {"id": city.id, "name": city.name, "timezone": city.timezone}
         for city in country_location.cities_by_region.get(region.id, ())
     ]
 

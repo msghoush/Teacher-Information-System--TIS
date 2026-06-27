@@ -5,6 +5,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import Request
 from sqlalchemy.orm import Session
@@ -603,6 +604,17 @@ def _clean_text(value, max_length: int = 180) -> str:
     return str(value or "").strip()[:max_length]
 
 
+def _clean_timezone(value: str) -> str:
+    cleaned = _clean_text(value, 80)
+    if not cleaned:
+        return ""
+    try:
+        ZoneInfo(cleaned)
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError("Select a valid time zone.") from exc
+    return cleaned
+
+
 def organization_step_url(organization) -> str:
     status = str(getattr(organization, "status", "") or "").strip().lower()
     billing_status = str(getattr(organization, "billing_status", "") or "").strip().lower()
@@ -791,7 +803,7 @@ def save_organization_profile(
     organization.expected_student_count = _safe_int(expected_student_count)
     organization.expected_teacher_count = _safe_int(expected_teacher_count)
     organization.estimated_staff_users = _safe_int(estimated_staff_users)
-    organization.timezone = _clean_text(timezone, 80)
+    organization.timezone = _clean_timezone(timezone)
     if logo_file is not None and str(getattr(logo_file, "filename", "") or "").strip():
         organization.organization_logo_path = save_pending_logo(logo_file)
     organization.onboarding_step = "branches"
