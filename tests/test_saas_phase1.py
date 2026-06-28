@@ -1007,6 +1007,26 @@ class SaaSPhase1Tests(unittest.TestCase):
         )
         self.assertEqual(invalid_timezone_response.status_code, 422)
         self.assertIn("Select a valid time zone.", invalid_timezone_response.text)
+        self.assertNotIn('value="Not/A_Timezone" selected', invalid_timezone_response.text)
+
+        continent_timezone_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/organization",
+            data={
+                "organization_name": "Preserve Academy",
+                "legal_name": "Preserve Academy LLC",
+                "educational_program": "BOTH",
+                "country_code": "US",
+                "country_name": "United States",
+                "region_name": "New York",
+                "city_name": "New York City",
+                "timezone": "Asia",
+                "save_action": "continue",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(continent_timezone_response.status_code, 422)
+        self.assertIn("Select a valid time zone.", continent_timezone_response.text)
+        self.assertNotIn('value="Asia" selected', continent_timezone_response.text)
 
         valid_organization_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/organization",
@@ -1136,11 +1156,19 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertEqual(countries["EG"]["timezones"], ["Africa/Cairo"])
         self.assertIn("Europe/London", countries["GB"]["timezones"])
         self.assertIn("America/New_York", countries["US"]["timezones"])
+        self.assertIn("America/Chicago", countries["US"]["timezones"])
+        self.assertIn("America/Denver", countries["US"]["timezones"])
+        self.assertIn("America/Phoenix", countries["US"]["timezones"])
+        self.assertIn("America/Los_Angeles", countries["US"]["timezones"])
+        self.assertIn("America/Anchorage", countries["US"]["timezones"])
+        self.assertIn("Pacific/Honolulu", countries["US"]["timezones"])
         self.assertGreater(len(countries["US"]["timezones"]), 1)
 
+        continent_labels = {"Asia", "Europe", "Africa", "America"}
         for country in countries.values():
             for timezone in country.get("timezones") or []:
                 self.assertIn(timezone, iana_timezones)
+                self.assertNotIn(timezone, continent_labels)
 
     def test_review_identifies_missing_requirements_and_complete_setup_submits(self):
         self._signup_and_verify("review-guidance@academy.edu")

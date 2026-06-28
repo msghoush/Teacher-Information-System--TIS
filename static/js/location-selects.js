@@ -2,6 +2,7 @@
     "use strict";
 
     const OTHER_VALUE = "__other__";
+    const CONTINENT_TIMEZONE_LABELS = new Set(["Africa", "America", "Antarctica", "Arctic", "Asia", "Atlantic", "Australia", "Europe", "Indian", "Pacific"]);
     const requestCache = new Map();
 
     const getItems = (url) => {
@@ -35,6 +36,24 @@
         return option;
     };
 
+    const isCountryTimezoneValue = (value) => {
+        const timezone = String(value || "").trim();
+        return timezone.includes("/") && !CONTINENT_TIMEZONE_LABELS.has(timezone);
+    };
+
+    const sanitizeCountryTimezones = (timezones) => {
+        const seen = new Set();
+        return (Array.isArray(timezones) ? timezones : [])
+            .map((timezone) => String(timezone || "").trim())
+            .filter((timezone) => {
+                if (!isCountryTimezoneValue(timezone) || seen.has(timezone)) {
+                    return false;
+                }
+                seen.add(timezone);
+                return true;
+            });
+    };
+
     const replaceOptions = (select, placeholder, items, valueKey, includeOther = false) => {
         select.replaceChildren();
         appendOption(select, "", placeholder);
@@ -44,7 +63,7 @@
                 option.dataset.timezone = item.timezone;
             }
             if (item.timezones) {
-                option.dataset.timezones = JSON.stringify(item.timezones);
+                option.dataset.timezones = JSON.stringify(sanitizeCountryTimezones(item.timezones));
             }
         });
         if (includeOther) {
@@ -101,7 +120,7 @@
 
         const selectedCountryTimezones = () => {
             const country = countryItems.find((item) => item.code === countrySelect.value);
-            return country && Array.isArray(country.timezones) ? country.timezones : [];
+            return country ? sanitizeCountryTimezones(country.timezones) : [];
         };
 
         const setTimezoneOptions = (preferredTimezone = "") => {
