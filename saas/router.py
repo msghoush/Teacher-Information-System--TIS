@@ -152,6 +152,7 @@ def _onboarding_context(db: Session, account, organization):
     academic_setup = service.get_or_create_academic_setup(db, organization)
     primary_contact = service.get_primary_contact(db, organization)
     branches = service.list_pending_branches(db, organization)
+    onboarding_step_access = service.build_onboarding_step_access(db, organization)
     return {
         "account": account,
         "organization": organization,
@@ -160,6 +161,7 @@ def _onboarding_context(db: Session, account, organization):
         "primary_contact": primary_contact,
         "branches": branches,
         "journey_card": summary,
+        "onboarding_step_access": onboarding_step_access,
     }
 
 
@@ -181,7 +183,7 @@ def _render_onboarding_step(
         "account": account,
         "error": error,
         "step_key": step_key,
-        "setup_console": _onboarding_setup_console(db, account, step_key),
+        "setup_console": _onboarding_setup_console(db, account, step_key, organization),
         "form_data": {},
         "form_branches": [],
         "missing_requirements": missing_requirements,
@@ -235,7 +237,7 @@ ONBOARDING_STEP_CONSOLE = {
 }
 
 
-def _onboarding_setup_console(db: Session, account, step_key: str) -> dict:
+def _onboarding_setup_console(db: Session, account, step_key: str, organization=None) -> dict:
     console = service.build_setup_console_context(db, account)
     config = ONBOARDING_STEP_CONSOLE.get(step_key, ONBOARDING_STEP_CONSOLE["organization"])
     console.update(
@@ -255,10 +257,24 @@ def _onboarding_setup_console(db: Session, account, step_key: str) -> dict:
             "help_text": config["help"],
         }
     )
+    if organization is not None:
+        console["onboarding_steps"] = service.build_onboarding_step_access(
+            db,
+            organization,
+            current_step=step_key,
+        )["steps"]
     for step in console.get("steps", []):
         if step.get("key") == console["current_step"] and step.get("state") != "complete":
             step["state"] = "current"
     return console
+
+
+def _locked_onboarding_step_redirect(db: Session, organization, requested_step: str):
+    access = service.build_onboarding_step_access(db, organization, current_step=requested_step)
+    step = access["steps_by_key"].get(requested_step)
+    if step and not step["allowed"]:
+        return RedirectResponse(access["resume_url"], status_code=302)
+    return None
 
 
 def _payment_setup_console(
@@ -989,13 +1005,17 @@ def organization_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    locked_redirect = _locked_onboarding_step_redirect(db, organization, "organization")
+    if locked_redirect:
+        db.commit()
+        return locked_redirect
     context = _onboarding_context(db, account, organization)
     db.commit()
     context.update({
         "account": account,
         "error": error,
         "step_key": "organization",
-        "setup_console": _onboarding_setup_console(db, account, "organization"),
+        "setup_console": _onboarding_setup_console(db, account, "organization", organization),
     })
     return _render(request, "saas/onboarding_organization.html", context)
 
@@ -1136,13 +1156,17 @@ def branches_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    locked_redirect = _locked_onboarding_step_redirect(db, organization, "branches")
+    if locked_redirect:
+        db.commit()
+        return locked_redirect
     context = _onboarding_context(db, account, organization)
     db.commit()
     context.update({
         "account": account,
         "error": error,
         "step_key": "branches",
-        "setup_console": _onboarding_setup_console(db, account, "branches"),
+        "setup_console": _onboarding_setup_console(db, account, "branches", organization),
     })
     return _render(request, "saas/onboarding_branches.html", context)
 
@@ -1169,6 +1193,10 @@ def save_branches_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    locked_redirect = _locked_onboarding_step_redirect(db, organization, "branches")
+    if locked_redirect:
+        db.commit()
+        return locked_redirect
     branch_rows = []
     max_rows = max(
         len(branch_name),
@@ -1234,13 +1262,17 @@ def academic_setup_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    locked_redirect = _locked_onboarding_step_redirect(db, organization, "academic_setup")
+    if locked_redirect:
+        db.commit()
+        return locked_redirect
     context = _onboarding_context(db, account, organization)
     db.commit()
     context.update({
         "account": account,
         "error": error,
         "step_key": "academic_setup",
-        "setup_console": _onboarding_setup_console(db, account, "academic_setup"),
+        "setup_console": _onboarding_setup_console(db, account, "academic_setup", organization),
     })
     return _render(request, "saas/onboarding_academic_setup.html", context)
 
@@ -1262,6 +1294,10 @@ def save_academic_setup_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    locked_redirect = _locked_onboarding_step_redirect(db, organization, "academic_setup")
+    if locked_redirect:
+        db.commit()
+        return locked_redirect
     try:
         service.save_academic_setup(
             db,
@@ -1314,13 +1350,17 @@ def contacts_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    locked_redirect = _locked_onboarding_step_redirect(db, organization, "contacts")
+    if locked_redirect:
+        db.commit()
+        return locked_redirect
     context = _onboarding_context(db, account, organization)
     db.commit()
     context.update({
         "account": account,
         "error": error,
         "step_key": "contacts",
-        "setup_console": _onboarding_setup_console(db, account, "contacts"),
+        "setup_console": _onboarding_setup_console(db, account, "contacts", organization),
     })
     return _render(request, "saas/onboarding_contacts.html", context)
 
@@ -1344,6 +1384,10 @@ def save_contacts_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    locked_redirect = _locked_onboarding_step_redirect(db, organization, "contacts")
+    if locked_redirect:
+        db.commit()
+        return locked_redirect
     try:
         service.save_primary_contact(
             db,
@@ -1400,13 +1444,17 @@ def review_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    locked_redirect = _locked_onboarding_step_redirect(db, organization, "review")
+    if locked_redirect:
+        db.commit()
+        return locked_redirect
     context = _onboarding_context(db, account, organization)
     db.commit()
     context.update({
         "account": account,
         "error": error,
         "step_key": "review",
-        "setup_console": _onboarding_setup_console(db, account, "review"),
+        "setup_console": _onboarding_setup_console(db, account, "review", organization),
         "missing_requirements": service.get_onboarding_missing_requirements(db, organization),
     })
     return _render(request, "saas/onboarding_review.html", context)
@@ -1444,6 +1492,10 @@ def submit_onboarding(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    locked_redirect = _locked_onboarding_step_redirect(db, organization, "review")
+    if locked_redirect:
+        db.commit()
+        return locked_redirect
     try:
         service.submit_pending_organization(db, account, organization)
         db.commit()

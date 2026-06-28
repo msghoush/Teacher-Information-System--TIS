@@ -26,6 +26,13 @@ SIGNUP_RATE_LIMIT_WINDOW_MINUTES = 60
 VERIFICATION_RATE_LIMIT_ATTEMPTS = 5
 VERIFICATION_RATE_LIMIT_WINDOW_MINUTES = 60
 ONBOARDING_STEPS = ("organization", "branches", "academic_setup", "contacts", "review")
+ONBOARDING_STEP_LABELS = {
+    "organization": "Organization Profile",
+    "branches": "Branch Setup",
+    "academic_setup": "Academic Setup",
+    "contacts": "Primary Contact",
+    "review": "Review School Workspace Setup",
+}
 PENDING_ORGANIZATION_ACTIVE_STATUSES = (
     "draft",
     "in_progress",
@@ -637,6 +644,61 @@ def organization_step_url(organization) -> str:
         return f"/saas/onboarding/{organization.organization_uuid}/plan"
     step = str(getattr(organization, "onboarding_step", "") or "organization").strip() or "organization"
     return f"/saas/onboarding/{organization.organization_uuid}/{step}"
+
+
+def build_onboarding_step_access(db: Session, organization, *, current_step: str = "") -> dict:
+    progress = recalculate_pending_progress(db, organization)
+    org_uuid = str(getattr(organization, "organization_uuid", "") or "")
+    saved_step = str(getattr(organization, "onboarding_step", "") or "organization").strip()
+    if saved_step not in ONBOARDING_STEPS:
+        saved_step = "organization"
+
+    reached_index = ONBOARDING_STEPS.index(saved_step)
+    if progress.organization_profile_complete:
+        reached_index = max(reached_index, ONBOARDING_STEPS.index("branches"))
+    if progress.branches_complete:
+        reached_index = max(reached_index, ONBOARDING_STEPS.index("academic_setup"))
+    if progress.academic_setup_complete:
+        reached_index = max(reached_index, ONBOARDING_STEPS.index("contacts"))
+    if progress.contacts_complete:
+        reached_index = max(reached_index, ONBOARDING_STEPS.index("review"))
+
+    status = str(getattr(organization, "status", "") or "").strip().lower()
+    if status in {READY_FOR_CHECKOUT_STATUS, "under_review", "changes_requested", "rejected", "activated"}:
+        reached_index = max(reached_index, ONBOARDING_STEPS.index("review"))
+
+    completed = {
+        "organization": bool(progress.organization_profile_complete),
+        "branches": bool(progress.branches_complete),
+        "academic_setup": bool(progress.academic_setup_complete),
+        "contacts": bool(progress.contacts_complete),
+        "review": bool(getattr(progress, "review_complete", False) or status == READY_FOR_CHECKOUT_STATUS),
+    }
+    requested_current = current_step if current_step in ONBOARDING_STEPS else saved_step
+    steps = []
+    for index, key in enumerate(ONBOARDING_STEPS):
+        allowed = index <= reached_index
+        state = "locked"
+        if allowed:
+            state = "complete" if completed.get(key) else "available"
+        if key == requested_current and allowed:
+            state = "current"
+        steps.append(
+            {
+                "key": key,
+                "label": ONBOARDING_STEP_LABELS[key],
+                "state": state,
+                "allowed": allowed,
+                "url": f"/saas/onboarding/{org_uuid}/{key}",
+            }
+        )
+
+    return {
+        "steps": steps,
+        "steps_by_key": {step["key"]: step for step in steps},
+        "reached_step": ONBOARDING_STEPS[reached_index],
+        "resume_url": organization_step_url(organization),
+    }
 
 
 def recalculate_pending_progress(db: Session, organization):

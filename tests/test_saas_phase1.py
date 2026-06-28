@@ -813,6 +813,134 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertEqual(dashboard_response.text.count('data-primary-cta="true"'), 1)
         self.assertNotIn("ready_for_checkout", dashboard_response.text)
 
+    def test_onboarding_step_access_allows_reached_steps_and_locks_future_steps(self):
+        self._signup_and_verify("wizard-access@academy.edu")
+        org_uuid = self._start_pending_organization()
+
+        locked_targets = ("branches", "academic_setup", "contacts", "review")
+        for target in locked_targets:
+            response = self.client.get(f"/saas/onboarding/{org_uuid}/{target}", follow_redirects=False)
+            self.assertEqual(response.status_code, 302)
+            self.assertTrue(response.headers["location"].endswith("/organization"))
+
+        locked_post = self.client.post(
+            f"/saas/onboarding/{org_uuid}/branches",
+            data={"branch_name": ["Premature Campus"], "save_action": "continue"},
+            follow_redirects=False,
+        )
+        self.assertEqual(locked_post.status_code, 302)
+        self.assertTrue(locked_post.headers["location"].endswith("/organization"))
+
+        organization_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/organization",
+            data={
+                "organization_name": "Wizard Access Academy",
+                "educational_program": "BOTH",
+                "country_code": "SA",
+                "country_name": "Saudi Arabia",
+                "region_name": "Makkah",
+                "city_name": "Jeddah",
+                "timezone": "",
+                "save_action": "continue",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(organization_response.status_code, 302)
+
+        branches_page = self.client.get(f"/saas/onboarding/{org_uuid}/branches")
+        self.assertEqual(branches_page.status_code, 200)
+        self.assertIn(f'href="/saas/onboarding/{org_uuid}/organization"', branches_page.text)
+        self.assertIn('data-onboarding-step="organization" data-onboarding-state="available"', branches_page.text)
+        self.assertIn('data-onboarding-step="branches" data-onboarding-state="current"', branches_page.text)
+        self.assertIn('data-onboarding-step="academic_setup" data-onboarding-state="locked"', branches_page.text)
+        self.assertNotIn(f'href="/saas/onboarding/{org_uuid}/academic_setup"', branches_page.text)
+
+        branches_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/branches",
+            data={
+                "branch_name": ["Main Campus"],
+                "location": ["Central"],
+                "country_code": ["SA"],
+                "country_name": ["Saudi Arabia"],
+                "region_name": ["Makkah"],
+                "city_name": ["Jeddah"],
+                "save_action": "continue",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(branches_response.status_code, 302)
+
+        academic_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/academic_setup",
+            data={
+                "first_academic_year_name": "2026-2027",
+                "create_default_branch": "1",
+                "notes": "Reached review with timezone still missing",
+                "save_action": "continue",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(academic_response.status_code, 302)
+
+        contacts_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/contacts",
+            data={
+                "first_name": "Amina",
+                "last_name": "Rahman",
+                "job_title": "Principal",
+                "email": "wizard-access@academy.edu",
+                "phone": "+9665111111",
+                "save_action": "continue",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(contacts_response.status_code, 302)
+        self.assertTrue(contacts_response.headers["location"].endswith("/review"))
+
+        review_page = self.client.get(f"/saas/onboarding/{org_uuid}/review")
+        self.assertEqual(review_page.status_code, 200)
+        self.assertIn("Missing: Time Zone", review_page.text)
+        self.assertIn("Go to Organization Profile", review_page.text)
+        self.assertIn(f'href="/saas/onboarding/{org_uuid}/organization"', review_page.text)
+        self.assertIn(f'href="/saas/onboarding/{org_uuid}/branches"', review_page.text)
+        self.assertIn(f'href="/saas/onboarding/{org_uuid}/academic_setup"', review_page.text)
+        self.assertIn(f'href="/saas/onboarding/{org_uuid}/contacts"', review_page.text)
+        self.assertIn('data-onboarding-step="review" data-onboarding-state="current"', review_page.text)
+
+        for target, title in (
+            ("organization", "Organization Profile"),
+            ("branches", "Branch Setup"),
+            ("academic_setup", "Academic Setup"),
+            ("contacts", "Primary Contact"),
+            ("review", "Review School Workspace Setup"),
+        ):
+            response = self.client.get(f"/saas/onboarding/{org_uuid}/{target}", follow_redirects=False)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(title, response.text)
+
+        fixed_organization_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/organization",
+            data={
+                "organization_name": "Wizard Access Academy",
+                "educational_program": "BOTH",
+                "country_code": "SA",
+                "country_name": "Saudi Arabia",
+                "region_name": "Makkah",
+                "city_name": "Jeddah",
+                "timezone": "Asia/Riyadh",
+                "save_action": "continue",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(fixed_organization_response.status_code, 302)
+
+        submit_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/submit",
+            follow_redirects=False,
+        )
+        self.assertEqual(submit_response.status_code, 302)
+        self.assertIn("/saas/account?notice=", submit_response.headers["location"])
+
     def test_onboarding_validation_errors_preserve_submitted_form_values(self):
         self._signup_and_verify("preserve@academy.edu")
         org_uuid = self._start_pending_organization()
