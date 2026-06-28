@@ -946,6 +946,11 @@ class SaaSPhase1Tests(unittest.TestCase):
         self._signup_and_verify("preserve@academy.edu")
         org_uuid = self._start_pending_organization()
 
+        organization_get = self.client.get(f"/saas/onboarding/{org_uuid}/organization")
+        self.assertEqual(organization_get.status_code, 200)
+        for timezone in ("Asia/Riyadh", "Asia/Beirut", "Europe/London", "America/New_York", "Africa/Cairo"):
+            self.assertIn(f'value="{timezone}"', organization_get.text)
+
         organization_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/organization",
             data={
@@ -981,7 +986,26 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn('data-selected-city="Riyadh"', organization_response.text)
         self.assertIn('value="Olaya"', organization_response.text)
         self.assertIn('value="900"', organization_response.text)
-        self.assertIn('value="Asia/Riyadh"', organization_response.text)
+        self.assertIn('value="Asia/Riyadh" selected', organization_response.text)
+        self.assertIn('value="Europe/London"', organization_response.text)
+
+        invalid_timezone_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/organization",
+            data={
+                "organization_name": "Preserve Academy",
+                "legal_name": "Preserve Academy LLC",
+                "educational_program": "BOTH",
+                "country_code": "SA",
+                "country_name": "Saudi Arabia",
+                "region_name": "Riyadh",
+                "city_name": "Riyadh",
+                "timezone": "Not/A_Timezone",
+                "save_action": "continue",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(invalid_timezone_response.status_code, 422)
+        self.assertIn("Select a valid time zone.", invalid_timezone_response.text)
 
         valid_organization_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/organization",
@@ -999,12 +1023,23 @@ class SaaSPhase1Tests(unittest.TestCase):
                 "expected_student_count": "900",
                 "expected_teacher_count": "70",
                 "estimated_staff_users": "25",
-                "timezone": "Asia/Riyadh",
+                "timezone": "Europe/London",
                 "save_action": "continue",
             },
             follow_redirects=False,
         )
         self.assertEqual(valid_organization_response.status_code, 302)
+
+        saved_organization_get = self.client.get(f"/saas/onboarding/{org_uuid}/organization")
+        self.assertEqual(saved_organization_get.status_code, 200)
+        self.assertIn('value="Europe/London" selected', saved_organization_get.text)
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            self.assertEqual(organization.timezone, "Europe/London")
+        finally:
+            db.close()
 
         branches_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/branches",

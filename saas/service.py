@@ -4,8 +4,9 @@ import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 from fastapi import Request
 from sqlalchemy.orm import Session
@@ -654,6 +655,11 @@ def organization_step_url(organization) -> str:
         return f"/saas/onboarding/{organization.organization_uuid}/plan"
     step = str(getattr(organization, "onboarding_step", "") or "organization").strip() or "organization"
     return f"/saas/onboarding/{organization.organization_uuid}/{step}"
+
+
+@lru_cache(maxsize=1)
+def list_iana_timezones() -> tuple[str, ...]:
+    return tuple(sorted(available_timezones()))
 
 
 def is_setup_editing_locked(organization) -> bool:

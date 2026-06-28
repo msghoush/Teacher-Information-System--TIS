@@ -99,37 +99,15 @@
         let currentRegionTimezone = "";
         let currentCityTimezone = "";
 
-        const uniqueTimezones = (items) => {
-            const seen = new Set();
-            return items
-                .map((item) => String(item || "").trim())
-                .filter((item) => item && !seen.has(item) && seen.add(item));
-        };
-
-        const selectedCountryTimezones = () => {
-            const country = countryItems.find((item) => item.code === countrySelect.value);
-            return country && Array.isArray(country.timezones) ? country.timezones : [];
-        };
-
         const setTimezoneOptions = (preferredTimezone = "") => {
             if (!timezoneSelect) {
                 return;
             }
             const previousValue = timezoneSelect.value || selectedTimezone;
-            const candidateTimezones = uniqueTimezones([
-                currentCityTimezone,
-                currentRegionTimezone,
-                ...selectedCountryTimezones(),
-                previousValue,
-            ]);
-            timezoneSelect.replaceChildren();
-            appendOption(timezoneSelect, "", "Select a time zone");
-            candidateTimezones.forEach((timezone) => appendOption(timezoneSelect, timezone, timezone));
             const preferred = String(preferredTimezone || previousValue || "").trim();
-            if (preferred && candidateTimezones.includes(preferred)) {
+            const hasPreferred = preferred && Array.from(timezoneSelect.options).some((option) => option.value === preferred);
+            if (hasPreferred) {
                 timezoneSelect.value = preferred;
-            } else if (candidateTimezones.length === 1) {
-                timezoneSelect.value = candidateTimezones[0];
             }
         };
 
