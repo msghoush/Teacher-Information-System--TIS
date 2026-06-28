@@ -99,15 +99,41 @@
         let currentRegionTimezone = "";
         let currentCityTimezone = "";
 
+        const selectedCountryTimezones = () => {
+            const country = countryItems.find((item) => item.code === countrySelect.value);
+            return country && Array.isArray(country.timezones) ? country.timezones : [];
+        };
+
         const setTimezoneOptions = (preferredTimezone = "") => {
             if (!timezoneSelect) {
                 return;
             }
             const previousValue = timezoneSelect.value || selectedTimezone;
+            const countryTimezones = selectedCountryTimezones();
             const preferred = String(preferredTimezone || previousValue || "").trim();
-            const hasPreferred = preferred && Array.from(timezoneSelect.options).some((option) => option.value === preferred);
-            if (hasPreferred) {
+
+            timezoneSelect.replaceChildren();
+            if (!countrySelect.value) {
+                appendOption(timezoneSelect, "", "Select country first");
+                timezoneSelect.disabled = true;
+                return;
+            }
+            if (!countryTimezones.length) {
+                appendOption(timezoneSelect, "", "No time zones available for selected country");
+                timezoneSelect.disabled = true;
+                return;
+            }
+
+            appendOption(timezoneSelect, "", countryTimezones.length === 1 ? "Time zone selected from country" : "Select a time zone");
+            countryTimezones.forEach((timezone) => appendOption(timezoneSelect, timezone, timezone));
+            timezoneSelect.disabled = locked;
+
+            if (preferred && countryTimezones.includes(preferred)) {
                 timezoneSelect.value = preferred;
+            } else if (countryTimezones.length === 1) {
+                timezoneSelect.value = countryTimezones[0];
+            } else {
+                timezoneSelect.value = "";
             }
         };
 

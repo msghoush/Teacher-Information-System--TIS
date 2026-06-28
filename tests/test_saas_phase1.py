@@ -22,6 +22,7 @@ from sqlalchemy.pool import StaticPool
 
 import db_migrations
 import auth
+import location_service
 import models
 import saas.models  # noqa: F401 - register metadata
 from dependencies import get_db
@@ -948,8 +949,8 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         organization_get = self.client.get(f"/saas/onboarding/{org_uuid}/organization")
         self.assertEqual(organization_get.status_code, 200)
-        for timezone in ("Asia/Riyadh", "Asia/Beirut", "Europe/London", "America/New_York", "Africa/Cairo"):
-            self.assertIn(f'value="{timezone}"', organization_get.text)
+        self.assertIn("Select country first", organization_get.text)
+        self.assertNotIn('value="Europe/London"', organization_get.text)
 
         organization_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/organization",
@@ -987,7 +988,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn('value="Olaya"', organization_response.text)
         self.assertIn('value="900"', organization_response.text)
         self.assertIn('value="Asia/Riyadh" selected', organization_response.text)
-        self.assertIn('value="Europe/London"', organization_response.text)
+        self.assertNotIn('value="Europe/London"', organization_response.text)
 
         invalid_timezone_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/organization",
@@ -1023,7 +1024,7 @@ class SaaSPhase1Tests(unittest.TestCase):
                 "expected_student_count": "900",
                 "expected_teacher_count": "70",
                 "estimated_staff_users": "25",
-                "timezone": "Europe/London",
+                "timezone": "Asia/Riyadh",
                 "save_action": "continue",
             },
             follow_redirects=False,
@@ -1032,12 +1033,12 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         saved_organization_get = self.client.get(f"/saas/onboarding/{org_uuid}/organization")
         self.assertEqual(saved_organization_get.status_code, 200)
-        self.assertIn('value="Europe/London" selected', saved_organization_get.text)
+        self.assertIn('value="Asia/Riyadh" selected', saved_organization_get.text)
 
         db = self._db()
         try:
             organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
-            self.assertEqual(organization.timezone, "Europe/London")
+            self.assertEqual(organization.timezone, "Asia/Riyadh")
         finally:
             db.close()
 
@@ -1125,6 +1126,21 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn('value="Director"', contacts_response.text)
         self.assertIn('value="not-an-email"', contacts_response.text)
         self.assertIn('value="+9665555555"', contacts_response.text)
+
+    def test_country_timezone_metadata_filters_to_valid_iana_timezones(self):
+        countries = {country["code"]: country for country in location_service.list_countries()}
+        iana_timezones = set(service.list_iana_timezones())
+
+        self.assertEqual(countries["SA"]["timezones"], ["Asia/Riyadh"])
+        self.assertEqual(countries["LB"]["timezones"], ["Asia/Beirut"])
+        self.assertEqual(countries["EG"]["timezones"], ["Africa/Cairo"])
+        self.assertIn("Europe/London", countries["GB"]["timezones"])
+        self.assertIn("America/New_York", countries["US"]["timezones"])
+        self.assertGreater(len(countries["US"]["timezones"]), 1)
+
+        for country in countries.values():
+            for timezone in country.get("timezones") or []:
+                self.assertIn(timezone, iana_timezones)
 
     def test_review_identifies_missing_requirements_and_complete_setup_submits(self):
         self._signup_and_verify("review-guidance@academy.edu")
