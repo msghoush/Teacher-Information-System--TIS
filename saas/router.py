@@ -162,6 +162,7 @@ def _onboarding_context(db: Session, account, organization):
         "branches": branches,
         "journey_card": summary,
         "onboarding_step_access": onboarding_step_access,
+        "timezone_options": service.list_iana_timezones(),
     }
 
 
