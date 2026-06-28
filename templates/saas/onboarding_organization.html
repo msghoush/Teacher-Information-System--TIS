@@ -68,16 +68,6 @@
                     <option value="BOTH" {% if selected_program == "BOTH" %}selected{% endif %}>Both</option>
                 </select>
             </div>
-            <div>
-                <label for="timezone">Timezone</label>
-                {% set selected_timezone = fd.get('timezone', organization.timezone or '') %}
-                <select id="timezone" name="timezone" data-location-timezone data-selected-timezone="{{ selected_timezone }}">
-                    <option value="">{% if fd.get('country_code', organization.country_code or '') %}Select a time zone{% else %}Select country first{% endif %}</option>
-                    {% if selected_timezone and selected_timezone in timezone_options %}
-                    <option value="{{ selected_timezone }}" selected>{{ selected_timezone }}</option>
-                    {% endif %}
-                </select>
-            </div>
         </div>
         <div class="location-fields"
              data-location-fields
@@ -105,6 +95,16 @@
                     <option value="">Select region first</option>
                 </select>
                 <input id="organization_city_manual" name="city_manual" data-location-city-manual placeholder="Enter city/locality" maxlength="160" hidden disabled>
+            </div>
+            <div class="field">
+                <label for="timezone">Timezone</label>
+                {% set selected_timezone = fd.get('timezone', organization.timezone or '') %}
+                <select id="timezone" name="timezone" data-location-timezone data-selected-timezone="{{ selected_timezone }}">
+                    <option value="">{% if fd.get('country_code', organization.country_code or '') %}Select a time zone{% else %}Select country first{% endif %}</option>
+                    {% if selected_timezone and selected_timezone in timezone_options %}
+                    <option value="{{ selected_timezone }}" selected>{{ selected_timezone }}</option>
+                    {% endif %}
+                </select>
             </div>
             <div class="field">
                 <label for="district_name">District <span class="optional-label">Optional</span></label>

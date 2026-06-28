@@ -950,8 +950,13 @@ class SaaSPhase1Tests(unittest.TestCase):
         organization_get = self.client.get(f"/saas/onboarding/{org_uuid}/organization")
         self.assertEqual(organization_get.status_code, 200)
         self.assertIn("Select country first", organization_get.text)
-        self.assertIn("/static/js/location-selects.js?v=timezone-country-map-v2", organization_get.text)
         self.assertNotIn('value="Europe/London"', organization_get.text)
+        location_fields = organization_get.text.split('data-location-fields', 1)[1].split("</section>", 1)[0]
+        self.assertIn("data-location-timezone", location_fields)
+        self.assertLess(organization_get.text.index('id="educational_program"'), organization_get.text.index('id="organization_country"'))
+        self.assertLess(organization_get.text.index('id="organization_country"'), organization_get.text.index('id="organization_region"'))
+        self.assertLess(organization_get.text.index('id="organization_region"'), organization_get.text.index('id="organization_city"'))
+        self.assertLess(organization_get.text.index('id="organization_city"'), organization_get.text.index('id="timezone"'))
 
         organization_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/organization",
@@ -1170,6 +1175,24 @@ class SaaSPhase1Tests(unittest.TestCase):
             for timezone in country.get("timezones") or []:
                 self.assertIn(timezone, iana_timezones)
                 self.assertNotIn(timezone, continent_labels)
+
+    def test_location_countries_api_returns_country_timezones(self):
+        self._signup_and_verify("location-api@academy.edu")
+
+        response = self.client.get("/saas/locations/countries", headers={"Accept": "application/json"})
+        self.assertEqual(response.status_code, 200)
+        countries = {country["code"]: country for country in response.json()["items"]}
+        united_states = countries["US"]
+
+        self.assertIn("timezones", united_states)
+        self.assertIn("America/New_York", united_states["timezones"])
+        self.assertIn("America/Chicago", united_states["timezones"])
+        self.assertIn("America/Denver", united_states["timezones"])
+        self.assertIn("America/Phoenix", united_states["timezones"])
+        self.assertIn("America/Los_Angeles", united_states["timezones"])
+        self.assertIn("America/Anchorage", united_states["timezones"])
+        self.assertIn("Pacific/Honolulu", united_states["timezones"])
+        self.assertNotIn("Asia", united_states["timezones"])
 
     def test_review_identifies_missing_requirements_and_complete_setup_submits(self):
         self._signup_and_verify("review-guidance@academy.edu")
