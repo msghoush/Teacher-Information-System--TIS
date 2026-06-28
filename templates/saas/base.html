@@ -323,7 +323,12 @@
             grid-template-columns: repeat(8, minmax(0, 1fr));
             gap: 8px;
         }
+        .setup-journey-track.is-onboarding {
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            margin-top: 12px;
+        }
         .setup-step {
+            display: block;
             min-width: 0;
             border: 1px solid var(--line);
             border-radius: 14px;
@@ -331,6 +336,11 @@
             color: var(--muted);
             padding: 10px 8px;
             text-align: center;
+            text-decoration: none;
+        }
+        a.setup-step:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 28px rgba(16, 35, 63, .08);
         }
         .setup-step-number {
             display: inline-flex;
@@ -646,6 +656,25 @@
                     </div>
                     {% endfor %}
                 </div>
+                {% if setup_console.onboarding_steps is defined and setup_console.onboarding_steps %}
+                <div class="setup-journey-track is-onboarding" aria-label="School Workspace Setup steps">
+                    {% for step in setup_console.onboarding_steps %}
+                    {% if step.allowed %}
+                    <a class="setup-step is-{{ step.state }}" href="{{ step.url }}" data-onboarding-step="{{ step.key }}" data-onboarding-state="{{ step.state }}">
+                        <span class="setup-step-number">{{ loop.index }}</span>
+                        <span class="setup-step-label">{{ step.label }}</span>
+                        <span class="setup-step-state">{{ step.state }}</span>
+                    </a>
+                    {% else %}
+                    <div class="setup-step is-{{ step.state }}" data-onboarding-step="{{ step.key }}" data-onboarding-state="{{ step.state }}">
+                        <span class="setup-step-number">{{ loop.index }}</span>
+                        <span class="setup-step-label">{{ step.label }}</span>
+                        <span class="setup-step-state">{{ step.state }}</span>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
             </section>
         </section>
         {% endif %}
