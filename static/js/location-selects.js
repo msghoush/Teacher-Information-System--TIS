@@ -2,12 +2,19 @@
     "use strict";
 
     const OTHER_VALUE = "__other__";
+    const LOCATION_DATA_VERSION = "timezone-country-map-v2";
     const CONTINENT_TIMEZONE_LABELS = new Set(["Africa", "America", "Antarctica", "Arctic", "Asia", "Atlantic", "Australia", "Europe", "Indian", "Pacific"]);
     const requestCache = new Map();
 
+    const withLocationDataVersion = (url) => {
+        const separator = String(url).includes("?") ? "&" : "?";
+        return `${url}${separator}v=${encodeURIComponent(LOCATION_DATA_VERSION)}`;
+    };
+
     const getItems = (url) => {
-        if (!requestCache.has(url)) {
-            const request = fetch(url, {
+        const requestUrl = withLocationDataVersion(url);
+        if (!requestCache.has(requestUrl)) {
+            const request = fetch(requestUrl, {
                 credentials: "same-origin",
                 headers: { Accept: "application/json" },
             })
@@ -19,12 +26,12 @@
                     return payload.items || [];
                 })
                 .catch((error) => {
-                    requestCache.delete(url);
+                    requestCache.delete(requestUrl);
                     throw error;
                 });
-            requestCache.set(url, request);
+            requestCache.set(requestUrl, request);
         }
-        return requestCache.get(url);
+        return requestCache.get(requestUrl);
     };
 
     const appendOption = (select, value, label, disabled = false) => {

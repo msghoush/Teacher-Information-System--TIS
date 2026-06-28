@@ -950,6 +950,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         organization_get = self.client.get(f"/saas/onboarding/{org_uuid}/organization")
         self.assertEqual(organization_get.status_code, 200)
         self.assertIn("Select country first", organization_get.text)
+        self.assertIn("/static/js/location-selects.js?v=timezone-country-map-v2", organization_get.text)
         self.assertNotIn('value="Europe/London"', organization_get.text)
 
         organization_response = self.client.post(
