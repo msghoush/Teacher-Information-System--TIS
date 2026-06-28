@@ -277,6 +277,15 @@ def _locked_onboarding_step_redirect(db: Session, organization, requested_step: 
     return None
 
 
+def _locked_pre_payment_edit_redirect(organization):
+    if service.is_setup_editing_locked(organization):
+        return RedirectResponse(
+            f"/saas/onboarding/{organization.organization_uuid}/billing-status",
+            status_code=302,
+        )
+    return None
+
+
 def _payment_setup_console(
     db: Session,
     account,
@@ -371,6 +380,18 @@ def _payment_setup_console(
             "help_text": config["help"],
         }
     )
+    if organization is not None:
+        current_adjustment_key = "subscription_selection" if page_key == "plan" else ""
+        console["onboarding_steps"] = service.build_onboarding_step_access(
+            db,
+            organization,
+            current_step="",
+        )["steps"]
+        console["adjustment_links"] = service.build_pre_payment_adjustment_links(
+            db,
+            organization,
+            current_key=current_adjustment_key,
+        )
     for step in console.get("steps", []):
         if step.get("key") == console["current_step"] and step.get("state") != "complete":
             step["state"] = "current"
@@ -1474,6 +1495,10 @@ def save_draft_exit(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    locked_redirect = _locked_pre_payment_edit_redirect(organization)
+    if locked_redirect:
+        db.commit()
+        return locked_redirect
     service.save_draft(db, account, organization, current_step=current_step)
     db.commit()
     return RedirectResponse("/saas/account?notice=Draft+saved.", status_code=302)
@@ -1531,6 +1556,10 @@ def plan_selection_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    locked_redirect = _locked_pre_payment_edit_redirect(organization)
+    if locked_redirect:
+        db.commit()
+        return locked_redirect
     try:
         billing_service.ensure_ready_for_checkout(organization)
     except ValueError as exc:
@@ -1567,6 +1596,10 @@ def select_plan_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    locked_redirect = _locked_pre_payment_edit_redirect(organization)
+    if locked_redirect:
+        db.commit()
+        return locked_redirect
     try:
         selection = billing_service.select_plan(
             db,
@@ -1600,7 +1633,16 @@ def checkout_summary_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    try:
+        billing_service.ensure_ready_for_checkout(organization)
+    except ValueError as exc:
+        db.rollback()
+        return RedirectResponse(f"/saas/account?notice={quote_plus(str(exc))}", status_code=302)
     context = _plan_context(db, account, organization)
+    checkout_summary = context.get("checkout_summary")
+    if not checkout_summary or not checkout_summary.get("selection") or not checkout_summary.get("plan"):
+        db.commit()
+        return RedirectResponse(f"/saas/onboarding/{organization_uuid}/plan", status_code=302)
     context.update({
         "error": error,
         "notice": notice,
