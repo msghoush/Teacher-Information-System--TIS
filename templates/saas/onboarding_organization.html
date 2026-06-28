@@ -73,7 +73,7 @@
                 {% set selected_timezone = fd.get('timezone', organization.timezone or '') %}
                 <select id="timezone" name="timezone" data-location-timezone data-selected-timezone="{{ selected_timezone }}">
                     <option value="">{% if fd.get('country_code', organization.country_code or '') %}Select a time zone{% else %}Select country first{% endif %}</option>
-                    {% if selected_timezone %}
+                    {% if selected_timezone and selected_timezone in timezone_options %}
                     <option value="{{ selected_timezone }}" selected>{{ selected_timezone }}</option>
                     {% endif %}
                 </select>
