@@ -719,35 +719,34 @@ def build_onboarding_step_access(db: Session, organization, *, current_step: str
     }
 
 
-def build_pre_payment_adjustment_links(db: Session, organization, *, current_key: str = "") -> list[dict]:
+def build_setup_edit_navigation_steps(db: Session, organization, *, current_key: str = "") -> list[dict]:
     access = build_onboarding_step_access(db, organization, current_step=current_key)
     if access["editing_locked"]:
         return []
     status = str(getattr(organization, "status", "") or "").strip().lower()
     billing_status = str(getattr(organization, "billing_status", "") or "").strip().lower()
-    links = []
+    steps = []
     for step in access["steps"]:
-        if step["allowed"]:
-            links.append(
-                {
-                    "key": step["key"],
-                    "label": step["label"],
-                    "url": step["url"],
-                    "state": "current" if step["key"] == current_key else step["state"],
-                    "clickable": True,
-                }
-            )
+        steps.append(
+            {
+                "key": step["key"],
+                "label": step["label"],
+                "url": step["url"],
+                "state": "current" if step["key"] == current_key and step["allowed"] else step["state"],
+                "allowed": step["allowed"],
+            }
+        )
     if status == READY_FOR_CHECKOUT_STATUS:
-        links.append(
+        steps.append(
             {
                 "key": "subscription_selection",
                 "label": "Subscription Selection",
                 "url": f"/saas/onboarding/{organization.organization_uuid}/plan",
                 "state": "current" if current_key == "subscription_selection" else ("complete" if billing_status in {"plan_selected", "checkout_ready", "checkout_initiated", "checkout_started", "payment_processing"} else "available"),
-                "clickable": True,
+                "allowed": True,
             }
         )
-    return links
+    return steps
 
 
 def recalculate_pending_progress(db: Session, organization):

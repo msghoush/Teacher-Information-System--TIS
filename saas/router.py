@@ -258,11 +258,11 @@ def _onboarding_setup_console(db: Session, account, step_key: str, organization=
         }
     )
     if organization is not None:
-        console["onboarding_steps"] = service.build_onboarding_step_access(
+        console["setup_edit_steps"] = service.build_setup_edit_navigation_steps(
             db,
             organization,
-            current_step=step_key,
-        )["steps"]
+            current_key=step_key,
+        )
     for step in console.get("steps", []):
         if step.get("key") == console["current_step"] and step.get("state") != "complete":
             step["state"] = "current"
@@ -382,12 +382,7 @@ def _payment_setup_console(
     )
     if organization is not None:
         current_adjustment_key = "subscription_selection" if page_key == "plan" else ""
-        console["onboarding_steps"] = service.build_onboarding_step_access(
-            db,
-            organization,
-            current_step="",
-        )["steps"]
-        console["adjustment_links"] = service.build_pre_payment_adjustment_links(
+        console["setup_edit_steps"] = service.build_setup_edit_navigation_steps(
             db,
             organization,
             current_key=current_adjustment_key,

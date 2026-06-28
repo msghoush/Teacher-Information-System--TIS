@@ -321,113 +321,129 @@
         .setup-journey-track {
             display: grid;
             grid-template-columns: repeat(8, minmax(0, 1fr));
-            gap: 8px;
+            gap: 0;
         }
-        .setup-journey-track.is-onboarding {
-            grid-template-columns: repeat(5, minmax(0, 1fr));
-            margin-top: 12px;
-        }
-        .setup-step {
-            display: block;
+        .setup-timeline-step {
+            position: relative;
             min-width: 0;
-            border: 1px solid var(--line);
-            border-radius: 14px;
-            background: #fff;
             color: var(--muted);
-            padding: 10px 8px;
+            padding: 2px 4px 0;
             text-align: center;
-            text-decoration: none;
         }
-        a.setup-step:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 12px 28px rgba(16, 35, 63, .08);
+        .setup-timeline-step::before {
+            content: "";
+            position: absolute;
+            top: 13px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--line);
         }
-        .setup-step-number {
+        .setup-timeline-step:first-child::before { left: 50%; }
+        .setup-timeline-step:last-child::before { right: 50%; }
+        .setup-timeline-step.is-complete::before {
+            background: rgba(22, 138, 136, .32);
+        }
+        .setup-timeline-step.is-current::before,
+        .setup-timeline-step.is-attention::before {
+            background: linear-gradient(90deg, rgba(22, 138, 136, .32), var(--line));
+        }
+        .setup-timeline-number {
+            position: relative;
+            z-index: 1;
             display: inline-flex;
-            width: 22px;
-            height: 22px;
+            width: 26px;
+            height: 26px;
             align-items: center;
             justify-content: center;
+            border: 2px solid var(--line);
             border-radius: 999px;
-            background: #eef4fb;
+            background: #fff;
             color: #486174;
             font-size: 11px;
             font-weight: 900;
             margin-bottom: 6px;
         }
-        .setup-step-label {
+        .setup-timeline-label {
             display: block;
-            font-size: 11px;
-            font-weight: 900;
-            line-height: 1.25;
-        }
-        .setup-step-state {
-            display: block;
-            margin-top: 4px;
             font-size: 10px;
+            font-weight: 900;
+            line-height: 1.2;
+        }
+        .setup-timeline-state {
+            display: block;
+            margin-top: 3px;
+            font-size: 9px;
             font-weight: 850;
             text-transform: capitalize;
         }
-        .setup-step.is-complete {
+        .setup-timeline-step.is-complete .setup-timeline-number {
+            border-color: var(--teal);
+            background: var(--teal);
+            color: #fff;
+        }
+        .setup-timeline-step.is-current .setup-timeline-number {
+            border-color: var(--brand);
+            background: var(--brand);
+            color: #fff;
+        }
+        .setup-timeline-step.is-attention .setup-timeline-number {
+            border-color: #f5d98a;
+            background: var(--warn-bg);
+            color: var(--warn);
+        }
+        .setup-edit-nav {
+            margin-top: 14px;
+            border-top: 1px solid var(--line);
+            padding-top: 12px;
+        }
+        .setup-edit-nav strong {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--ink);
+            font-size: 13px;
+        }
+        .setup-edit-track {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .setup-edit-step {
+            display: flex;
+            min-width: 0;
+            min-height: 42px;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #fff;
+            color: var(--brand);
+            padding: 8px 10px;
+            text-align: center;
+            text-decoration: none;
+            font-weight: 900;
+            font-size: 12px;
+            line-height: 1.25;
+        }
+        a.setup-edit-step:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 28px rgba(16, 35, 63, .08);
+        }
+        .setup-edit-step.is-complete {
             border-color: rgba(22, 138, 136, .28);
             background: #eafbf7;
             color: var(--teal);
         }
-        .setup-step.is-complete .setup-step-number {
-            background: var(--teal);
-            color: #fff;
-        }
-        .setup-step.is-current {
+        .setup-edit-step.is-current {
             border-color: rgba(10, 78, 163, .34);
             background: #edf6ff;
             color: var(--brand-dark);
             box-shadow: inset 0 0 0 1px rgba(10, 78, 163, .1);
         }
-        .setup-step.is-current .setup-step-number {
-            background: var(--brand);
-            color: #fff;
-        }
-        .setup-step.is-attention {
-            border-color: #f5d98a;
-            background: var(--warn-bg);
-            color: var(--warn);
-        }
-        .setup-step.is-locked,
-        .setup-step.is-pending {
+        .setup-edit-step.is-locked,
+        .setup-edit-step.is-pending {
             background: #f8fafc;
-        }
-        .setup-adjustments {
-            margin-top: 12px;
-            border-top: 1px solid var(--line);
-            padding-top: 12px;
-        }
-        .setup-adjustments strong {
-            display: block;
-            margin-bottom: 8px;
-            color: var(--ink);
-        }
-        .setup-adjustment-links {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        .setup-adjustment-link {
-            display: inline-flex;
-            align-items: center;
-            min-height: 36px;
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            background: #fff;
-            color: var(--brand);
-            font-size: 12px;
-            font-weight: 900;
-            padding: 8px 10px;
-            text-decoration: none;
-        }
-        .setup-adjustment-link.is-current {
-            background: #edf6ff;
-            border-color: rgba(10, 78, 163, .34);
-            color: var(--brand-dark);
+            color: var(--muted);
         }
         .setup-primary-panel {
             display: grid;
@@ -620,7 +636,8 @@
             .hero { align-items: stretch; flex-direction: column; }
             .hero .actions { width: 100%; }
             .hero .btn { flex: 1 1 auto; }
-            .grid.two, .location-fields, .step-track, .setup-console-head, .setup-journey-track, .form-grid, .form-grid.three, .summary-grid, .wizard-grid, .wizard-grid.three, .review-grid { grid-template-columns: 1fr; }
+            .grid.two, .location-fields, .step-track, .setup-console-head, .setup-journey-track, .setup-edit-track, .form-grid, .form-grid.three, .summary-grid, .wizard-grid, .wizard-grid.three, .review-grid { grid-template-columns: 1fr; }
+            .setup-timeline-step::before { display: none; }
             .card { border-radius: 22px; padding: 22px 16px; }
             .table { display: block; overflow-x: auto; }
         }
@@ -682,39 +699,24 @@
             <section class="setup-journey" aria-label="Setup progress">
                 <div class="setup-journey-track">
                     {% for step in setup_console.steps %}
-                    <div class="setup-step is-{{ step.state }}" data-setup-step="{{ step.key }}" data-setup-state="{{ step.state }}">
-                        <span class="setup-step-number">{{ loop.index }}</span>
-                        <span class="setup-step-label">{{ step.label }}</span>
-                        <span class="setup-step-state">{{ step.state }}</span>
+                    <div class="setup-timeline-step is-{{ step.state }}" data-setup-step="{{ step.key }}" data-setup-state="{{ step.state }}">
+                        <span class="setup-timeline-number">{{ loop.index }}</span>
+                        <span class="setup-timeline-label">{{ step.label }}</span>
+                        <span class="setup-timeline-state">{{ step.state }}</span>
                     </div>
                     {% endfor %}
                 </div>
-                {% if setup_console.onboarding_steps is defined and setup_console.onboarding_steps %}
-                <div class="setup-journey-track is-onboarding" aria-label="School Workspace Setup steps">
-                    {% for step in setup_console.onboarding_steps %}
+                {% if setup_console.setup_edit_steps is defined and setup_console.setup_edit_steps %}
+                <div class="setup-edit-nav" aria-label="School Workspace Setup">
+                    <strong>School Workspace Setup</strong>
+                    <div class="setup-edit-track">
+                    {% for step in setup_console.setup_edit_steps %}
                     {% if step.allowed %}
-                    <a class="setup-step is-{{ step.state }}" href="{{ step.url }}" data-onboarding-step="{{ step.key }}" data-onboarding-state="{{ step.state }}">
-                        <span class="setup-step-number">{{ loop.index }}</span>
-                        <span class="setup-step-label">{{ step.label }}</span>
-                        <span class="setup-step-state">{{ step.state }}</span>
-                    </a>
+                        <a class="setup-edit-step is-{{ step.state }}" href="{{ step.url }}" data-onboarding-step="{{ step.key }}" data-onboarding-state="{{ step.state }}">{{ step.label }}</a>
                     {% else %}
-                    <div class="setup-step is-{{ step.state }}" data-onboarding-step="{{ step.key }}" data-onboarding-state="{{ step.state }}">
-                        <span class="setup-step-number">{{ loop.index }}</span>
-                        <span class="setup-step-label">{{ step.label }}</span>
-                        <span class="setup-step-state">{{ step.state }}</span>
-                    </div>
+                        <div class="setup-edit-step is-{{ step.state }}" data-onboarding-step="{{ step.key }}" data-onboarding-state="{{ step.state }}">{{ step.label }}</div>
                     {% endif %}
                     {% endfor %}
-                </div>
-                {% endif %}
-                {% if setup_console.adjustment_links is defined and setup_console.adjustment_links %}
-                <div class="setup-adjustments" aria-label="Setup edit links">
-                    <strong>Need to adjust setup details?</strong>
-                    <div class="setup-adjustment-links">
-                        {% for link in setup_console.adjustment_links %}
-                        <a class="setup-adjustment-link {% if link.state == 'current' %}is-current{% endif %}" href="{{ link.url }}" data-adjustment-link="{{ link.key }}">{{ link.label }}</a>
-                        {% endfor %}
                     </div>
                 </div>
                 {% endif %}
