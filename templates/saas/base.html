@@ -396,6 +396,39 @@
         .setup-step.is-pending {
             background: #f8fafc;
         }
+        .setup-adjustments {
+            margin-top: 12px;
+            border-top: 1px solid var(--line);
+            padding-top: 12px;
+        }
+        .setup-adjustments strong {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--ink);
+        }
+        .setup-adjustment-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .setup-adjustment-link {
+            display: inline-flex;
+            align-items: center;
+            min-height: 36px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: #fff;
+            color: var(--brand);
+            font-size: 12px;
+            font-weight: 900;
+            padding: 8px 10px;
+            text-decoration: none;
+        }
+        .setup-adjustment-link.is-current {
+            background: #edf6ff;
+            border-color: rgba(10, 78, 163, .34);
+            color: var(--brand-dark);
+        }
         .setup-primary-panel {
             display: grid;
             gap: 12px;
@@ -673,6 +706,16 @@
                     </div>
                     {% endif %}
                     {% endfor %}
+                </div>
+                {% endif %}
+                {% if setup_console.adjustment_links is defined and setup_console.adjustment_links %}
+                <div class="setup-adjustments" aria-label="Setup edit links">
+                    <strong>Need to adjust setup details?</strong>
+                    <div class="setup-adjustment-links">
+                        {% for link in setup_console.adjustment_links %}
+                        <a class="setup-adjustment-link {% if link.state == 'current' %}is-current{% endif %}" href="{{ link.url }}" data-adjustment-link="{{ link.key }}">{{ link.label }}</a>
+                        {% endfor %}
+                    </div>
                 </div>
                 {% endif %}
             </section>

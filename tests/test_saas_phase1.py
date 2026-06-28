@@ -1253,8 +1253,28 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Secure Payment summary", checkout_page.text)
         self.assertIn('form="checkout-start-form"', checkout_page.text)
         self.assertEqual(checkout_page.text.count('data-primary-cta="true"'), 1)
+        self.assertIn("Need to adjust setup details?", checkout_page.text)
+        self.assertIn(f'href="/saas/onboarding/{org_uuid}/organization"', checkout_page.text)
+        self.assertIn(f'href="/saas/onboarding/{org_uuid}/branches"', checkout_page.text)
+        self.assertIn(f'href="/saas/onboarding/{org_uuid}/academic_setup"', checkout_page.text)
+        self.assertIn(f'href="/saas/onboarding/{org_uuid}/contacts"', checkout_page.text)
+        self.assertIn(f'href="/saas/onboarding/{org_uuid}/review"', checkout_page.text)
+        self.assertIn(f'href="/saas/onboarding/{org_uuid}/plan"', checkout_page.text)
+        self.assertIn('data-adjustment-link="subscription_selection"', checkout_page.text)
         self.assertNotIn("checkout_ready", checkout_page.text)
         self.assertNotIn("provider", checkout_page.text.lower())
+
+        for target, title in (
+            ("organization", "Organization Profile"),
+            ("branches", "Branch Setup"),
+            ("academic_setup", "Academic Setup"),
+            ("contacts", "Primary Contact"),
+            ("review", "Review School Workspace Setup"),
+            ("plan", "Subscription Selection"),
+        ):
+            response = self.client.get(f"/saas/onboarding/{org_uuid}/{target}", follow_redirects=False)
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(title, response.text)
 
         start_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/checkout/start",
@@ -1267,6 +1287,10 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn('form="checkout-launch-form"', ready_checkout_page.text)
         self.assertIn("Continue to Secure Payment", ready_checkout_page.text)
         self.assertEqual(ready_checkout_page.text.count('data-primary-cta="true"'), 1)
+        self.assertIn("Need to adjust setup details?", ready_checkout_page.text)
+        self.assertIn(f'href="/saas/onboarding/{org_uuid}/organization"', ready_checkout_page.text)
+        self.assertIn(f'href="/saas/onboarding/{org_uuid}/plan"', ready_checkout_page.text)
+        self.assertNotIn(f'href="/saas/onboarding/{org_uuid}/billing-status"', ready_checkout_page.text)
 
         billing_page = self.client.get("/saas/account/billing")
         self.assertEqual(billing_page.status_code, 200)
@@ -1281,6 +1305,20 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Subscription and Workspace Activation status", status_page.text)
         self.assertIn("Browser redirects do not activate the workspace by themselves.", status_page.text)
         self.assertEqual(status_page.text.count('data-primary-cta="true"'), 1)
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            organization.billing_status = "payment_confirmed"
+            organization.payment_status = "paid"
+            db.commit()
+        finally:
+            db.close()
+
+        for target in ("organization", "branches", "academic_setup", "contacts", "review", "plan"):
+            response = self.client.get(f"/saas/onboarding/{org_uuid}/{target}", follow_redirects=False)
+            self.assertEqual(response.status_code, 302)
+            self.assertTrue(response.headers["location"].endswith("/billing-status"))
 
     def test_phase4_launches_paddle_checkout_without_operational_side_effects(self):
         self._configure_paddle_prices()

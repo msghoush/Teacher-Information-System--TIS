@@ -49,6 +49,16 @@ BLOCKED_DELETE_BILLING_STATUSES = {
     "provisioning_failed",
     "tenant_active",
 }
+SETUP_EDIT_LOCKED_BILLING_STATUSES = {
+    "payment_confirmed",
+    "ready_for_provisioning",
+    "provisioning_started",
+    "provisioning_completed",
+    "provisioning_retrying",
+    "provisioning_failed",
+    "tenant_active",
+}
+SETUP_EDIT_LOCKED_PAYMENT_STATUSES = {"paid"}
 READY_FOR_CHECKOUT_STATUS = "ready_for_checkout"
 PERSONAL_EMAIL_WARNING = (
     "Personal email domains are not recommended for school onboarding. You can continue now, "
@@ -646,6 +656,12 @@ def organization_step_url(organization) -> str:
     return f"/saas/onboarding/{organization.organization_uuid}/{step}"
 
 
+def is_setup_editing_locked(organization) -> bool:
+    billing_status = str(getattr(organization, "billing_status", "") or "").strip().lower()
+    payment_status = str(getattr(organization, "payment_status", "") or "").strip().lower()
+    return billing_status in SETUP_EDIT_LOCKED_BILLING_STATUSES or payment_status in SETUP_EDIT_LOCKED_PAYMENT_STATUSES
+
+
 def build_onboarding_step_access(db: Session, organization, *, current_step: str = "") -> dict:
     progress = recalculate_pending_progress(db, organization)
     org_uuid = str(getattr(organization, "organization_uuid", "") or "")
@@ -674,10 +690,11 @@ def build_onboarding_step_access(db: Session, organization, *, current_step: str
         "contacts": bool(progress.contacts_complete),
         "review": bool(getattr(progress, "review_complete", False) or status == READY_FOR_CHECKOUT_STATUS),
     }
+    editing_locked = is_setup_editing_locked(organization)
     requested_current = current_step if current_step in ONBOARDING_STEPS else saved_step
     steps = []
     for index, key in enumerate(ONBOARDING_STEPS):
-        allowed = index <= reached_index
+        allowed = index <= reached_index and not editing_locked
         state = "locked"
         if allowed:
             state = "complete" if completed.get(key) else "available"
@@ -698,7 +715,39 @@ def build_onboarding_step_access(db: Session, organization, *, current_step: str
         "steps_by_key": {step["key"]: step for step in steps},
         "reached_step": ONBOARDING_STEPS[reached_index],
         "resume_url": organization_step_url(organization),
+        "editing_locked": editing_locked,
     }
+
+
+def build_pre_payment_adjustment_links(db: Session, organization, *, current_key: str = "") -> list[dict]:
+    access = build_onboarding_step_access(db, organization, current_step=current_key)
+    if access["editing_locked"]:
+        return []
+    status = str(getattr(organization, "status", "") or "").strip().lower()
+    billing_status = str(getattr(organization, "billing_status", "") or "").strip().lower()
+    links = []
+    for step in access["steps"]:
+        if step["allowed"]:
+            links.append(
+                {
+                    "key": step["key"],
+                    "label": step["label"],
+                    "url": step["url"],
+                    "state": "current" if step["key"] == current_key else step["state"],
+                    "clickable": True,
+                }
+            )
+    if status == READY_FOR_CHECKOUT_STATUS:
+        links.append(
+            {
+                "key": "subscription_selection",
+                "label": "Subscription Selection",
+                "url": f"/saas/onboarding/{organization.organization_uuid}/plan",
+                "state": "current" if current_key == "subscription_selection" else ("complete" if billing_status in {"plan_selected", "checkout_ready", "checkout_initiated", "checkout_started", "payment_processing"} else "available"),
+                "clickable": True,
+            }
+        )
+    return links
 
 
 def recalculate_pending_progress(db: Session, organization):
