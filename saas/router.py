@@ -1698,6 +1698,12 @@ def launch_checkout_step(
         launch = payment_service.launch_checkout(db, organization, account, request)
         service.update_pending_dashboard_status(account, organization, service.recalculate_pending_progress(db, organization))
         db.commit()
+    except payment_service.MissingPaddlePriceConfiguration:
+        db.rollback()
+        return _redirect_error(
+            f"/saas/onboarding/{organization_uuid}/checkout",
+            payment_service.CUSTOMER_SAFE_PAYMENT_CONFIG_MESSAGE,
+        )
     except (ValueError, paddle_client.PaddleAPIError) as exc:
         db.rollback()
         return _redirect_error(f"/saas/onboarding/{organization_uuid}/checkout", str(exc))

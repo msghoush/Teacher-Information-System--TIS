@@ -1,0 +1,19 @@
+{
+  "environment": "production",
+  "provider": "paddle",
+  "currency_code": "USD",
+  "prices": {
+    "starter": {
+      "monthly": "pri_live_starter_monthly",
+      "annual": "pri_live_starter_annual"
+    },
+    "professional": {
+      "monthly": "pri_live_professional_monthly",
+      "annual": "pri_live_professional_annual"
+    },
+    "enterprise_ai": {
+      "monthly": "pri_live_enterprise_ai_monthly",
+      "annual": "pri_live_enterprise_ai_annual"
+    }
+  }
+}

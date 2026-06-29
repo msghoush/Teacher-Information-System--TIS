@@ -1,7 +1,7 @@
 ---
 title: TIS Change History
 documentation_version: 3.0
-last_updated: 2026-06-27
+last_updated: 2026-06-30
 source_of_truth: true
 ---
 
@@ -26,6 +26,49 @@ PDF regenerated:
 AI project context updated:
 Reviewer/approval notes:
 ```
+
+## 2026-06-30 - Paddle Initial Checkout Price Mapping Configuration
+
+Area/module:
+SaaS subscriptions, Paddle initial checkout configuration, tests, and KMS documentation
+
+Previous state:
+The checkout launch flow safely blocked when the selected subscription plan price did not have `subscription_plan_prices.provider_price_id` configured, but there was no structured mapping sync process and the customer-facing error could expose provider configuration wording.
+
+New state:
+Added a script-based Paddle price ID sync process using structured sandbox/production mapping examples. The database remains the source of truth through `subscription_plan_prices.provider_price_id`, real mapping files are ignored, and missing provider price IDs now surface a customer-safe Secure Payment support message while internal diagnostics retain plan code, billing interval, and currency details.
+
+Reason:
+Initial subscription checkout needs environment-specific Paddle provider price IDs without hardcoding live IDs in source or changing payment state behavior.
+
+Files changed:
+- `.gitignore`
+- `scripts/sync_paddle_price_ids.py`
+- `config/paddle/paddle_prices.sandbox.example.json`
+- `config/paddle/paddle_prices.production.example.json`
+- `saas/payment_service.py`
+- `saas/router.py`
+- `tests/test_paddle_price_sync.py`
+- `tests/test_saas_phase1.py`
+- `docs/AI_PROJECT_CONTEXT.md`
+- `docs/TIS_MASTER_CONTEXT.md`
+- `docs/PROJECT_STATE.md`
+- `docs/CHANGE_HISTORY.md`
+- `docs/history/subscriptions/README.md`
+- `static/docs/TIS_Project_Reference_Booklet.pdf`
+- `static/docs/docs_manifest.json`
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+Initial checkout configuration only. No proration, upgrade, downgrade, cancellation, payment state transition, webhook, provisioning behavior, database schema, migration, operational module, landing website, OAuth, internal route rename, live Paddle ID hardcoding, commit, or push was performed.
 
 ## 2026-06-27 - Accepted Subscription And Workspace Activation Guided Journey Phase 3C
 

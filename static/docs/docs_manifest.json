@@ -1,10 +1,10 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-06-27T17:50:13.154382+03:00",
+  "generated_at": "2026-06-30T00:59:45.476693+03:00",
   "documentation_version": "3.0",
   "branch": "dev",
-  "commit_sha": "1dcbf02",
+  "commit_sha": "16ec42b",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
   "included_source_files": [
     {
@@ -15,9 +15,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-06-27T17:49:11.750634+03:00",
-      "size_bytes": 12656,
-      "sha256": "2a99eed940b3e23d7756c4bbee5a64d9e99c00aeb17077dd3d2afded0865538d"
+      "modified_at": "2026-06-30T00:58:50.010702+03:00",
+      "size_bytes": 13450,
+      "sha256": "482ad9be6b32e2e8828ba25d0cfac549e93e56c77d3993ea74c8957a14a72f5e"
     },
     {
       "path": "docs/DOCUMENTATION_UPDATE_POLICY.md",
@@ -27,21 +27,21 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-06-27T17:49:21.960774+03:00",
-      "size_bytes": 23857,
-      "sha256": "9f929edcc151d250fbbd4729b1c64fa2e015a8184b46e07fc939bbbfd4723c1a"
+      "modified_at": "2026-06-30T00:58:35.951550+03:00",
+      "size_bytes": 24437,
+      "sha256": "d53dc1c097dac9d1746a493f86ecf2edd9eaf1a1c19adf903fc5b299e224f24d"
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-06-27T17:49:31.354212+03:00",
-      "size_bytes": 12157,
-      "sha256": "a9bba193e5e5438b1844cc32d70b3862674a7bea6f98ef4f9fdc2cd8740a597f"
+      "modified_at": "2026-06-30T00:58:42.174811+03:00",
+      "size_bytes": 12442,
+      "sha256": "68009b8aae7bb4cfa223bc69da5ad8750bf7a4579fa2383e0898ea1575aec755"
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-06-27T17:49:52.610115+03:00",
-      "size_bytes": 24675,
-      "sha256": "863b2300d3ed8ed1ba84ba3f6e552e151c7c5c635028336c0a24c1c78e553757"
+      "modified_at": "2026-06-30T00:58:28.525056+03:00",
+      "size_bytes": 26659,
+      "sha256": "e276168f3db235bc7f4e86d5691e3df504688badc292ce4e96c423923ecc1413"
     },
     {
       "path": "docs/adr/README.md",
@@ -291,9 +291,9 @@
     },
     {
       "path": "docs/history/subscriptions/README.md",
-      "modified_at": "2026-06-26T12:01:39.586368+03:00",
-      "size_bytes": 414,
-      "sha256": "770daab283399dbce8f6d61f5545f3b59edd5ecb702f259201be943ac9050c67"
+      "modified_at": "2026-06-30T00:58:14.523190+03:00",
+      "size_bytes": 1519,
+      "sha256": "f450b916e9967c70ca03dbc160aca1abe23ffca455f0d47051db86b9cdeec6e0"
     },
     {
       "path": "docs/history/workforce-planning/README.md",
