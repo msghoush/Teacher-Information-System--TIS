@@ -275,6 +275,10 @@ Architecture rules:
 - Treat payment status, onboarding status, and provisioning status as related but separate concepts.
 - Use platform owner admin views for payment/provisioning oversight.
 - Avoid changing live SaaS payment flows unless the task explicitly requires it.
+- Keep Paddle credentials and endpoints in environment variables.
+- Keep Paddle price mappings environment-specific and store the runtime mapping in `subscription_plan_prices.provider_price_id`.
+- Use `scripts/sync_paddle_price_ids.py` with sandbox or production mapping JSON to configure initial checkout price IDs; never hardcode live Paddle IDs in migrations or source.
+- If an initial checkout price mapping is missing, fail closed before calling Paddle and show customers a support-oriented Secure Payment message while retaining internal plan/interval/currency diagnostics.
 
 ## Tenant Provisioning Summary
 

@@ -1,7 +1,7 @@
 ---
 title: TIS Project State
 documentation_version: 3.0
-last_updated: 2026-06-27
+last_updated: 2026-06-30
 source_of_truth: true
 ---
 
@@ -9,7 +9,7 @@ source_of_truth: true
 
 ## Last Updated
 
-Last updated: 2026-06-27
+Last updated: 2026-06-30
 
 Update this file after every meaningful milestone, active development change, roadmap shift, known issue change, or documentation/KMS change.
 
@@ -51,6 +51,8 @@ M3: Billing and plan foundation
 
 - Plan catalog, checkout, billing status, checkout return, and checkout cancel flows exist.
 - Payment and billing code is isolated under `saas/` service modules.
+- Initial Paddle checkout price IDs are configured through a script-based mapping sync into `subscription_plan_prices.provider_price_id`.
+- Sandbox and production Paddle price mappings must remain separate; real mapping files are ignored and credentials stay in environment variables.
 
 M4: Provisioning foundation
 

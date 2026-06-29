@@ -1,0 +1,19 @@
+{
+  "environment": "sandbox",
+  "provider": "paddle",
+  "currency_code": "USD",
+  "prices": {
+    "starter": {
+      "monthly": "pri_sandbox_starter_monthly",
+      "annual": "pri_sandbox_starter_annual"
+    },
+    "professional": {
+      "monthly": "pri_sandbox_professional_monthly",
+      "annual": "pri_sandbox_professional_annual"
+    },
+    "enterprise_ai": {
+      "monthly": "pri_sandbox_enterprise_ai_monthly",
+      "annual": "pri_sandbox_enterprise_ai_annual"
+    }
+  }
+}

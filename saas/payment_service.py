@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import logging
 import os
 import time
 import uuid
@@ -41,6 +42,24 @@ ATTEMPT_STATUS_PAYMENT_CONFIRMED = "payment_confirmed"
 ATTEMPT_STATUS_PAYMENT_FAILED = "payment_failed"
 ATTEMPT_STATUS_PAYMENT_CANCELLED = "payment_cancelled"
 ATTEMPT_STATUS_PAYMENT_REFUNDED = "payment_refunded"
+CUSTOMER_SAFE_PAYMENT_CONFIG_MESSAGE = (
+    "Secure payment is temporarily unavailable for this subscription option. Please contact TIS support."
+)
+
+logger = logging.getLogger(__name__)
+
+
+class MissingPaddlePriceConfiguration(ValueError):
+    def __init__(self, *, plan_code: str, billing_interval: str, currency_code: str = "USD"):
+        self.plan_code = plan_code
+        self.billing_interval = billing_interval
+        self.currency_code = currency_code
+        super().__init__(
+            "Missing Paddle provider_price_id "
+            f"for plan_code={plan_code or 'unknown'} "
+            f"billing_interval={billing_interval or 'unknown'} "
+            f"currency_code={currency_code or 'unknown'}."
+        )
 
 
 def _utcnow():
@@ -181,7 +200,21 @@ def build_checkout_launch_context(db: Session, organization):
     checkout_session = _ensure_checkout_launchable(db, organization)
     plan_price = _current_plan_price(db, organization)
     if not plan_price or not str(getattr(plan_price, "provider_price_id", "") or "").strip():
-        raise ValueError("Paddle price ID is not configured for the selected plan.")
+        plan = db.query(models.SubscriptionPlan).filter(
+            models.SubscriptionPlan.id == getattr(organization, "selected_plan_id", None)
+        ).first()
+        plan_code = str(getattr(plan, "plan_code", "") or "").strip()
+        billing_interval = str(getattr(organization, "selected_billing_interval", "") or "").strip()
+        logger.error(
+            "Missing Paddle provider_price_id for plan_code=%s billing_interval=%s currency_code=USD",
+            plan_code or "unknown",
+            billing_interval or "unknown",
+        )
+        raise MissingPaddlePriceConfiguration(
+            plan_code=plan_code,
+            billing_interval=billing_interval,
+            currency_code="USD",
+        )
     selection = db.query(models.PendingOrganizationPlanSelection).filter(
         models.PendingOrganizationPlanSelection.id == checkout_session.plan_selection_id
     ).first()

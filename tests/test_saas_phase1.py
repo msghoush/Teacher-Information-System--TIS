@@ -1434,6 +1434,53 @@ class SaaSPhase1Tests(unittest.TestCase):
             self.assertEqual(response.status_code, 302)
             self.assertTrue(response.headers["location"].endswith("/billing-status"))
 
+    def test_missing_paddle_price_id_blocks_launch_with_customer_safe_message(self):
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("missing-price@academy.edu")
+
+        db = self._db()
+        try:
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            professional_id = professional.id
+        finally:
+            db.close()
+
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "annual"},
+            follow_redirects=False,
+        )
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/checkout/start",
+            follow_redirects=False,
+        )
+
+        with (
+            patch("saas.paddle_client.create_customer") as create_customer,
+            patch("saas.paddle_client.create_transaction") as create_transaction,
+        ):
+            launch_response = self.client.post(
+                f"/saas/onboarding/{org_uuid}/checkout/launch",
+                follow_redirects=False,
+            )
+
+        self.assertEqual(launch_response.status_code, 302)
+        self.assertIn("/saas/onboarding/", launch_response.headers["location"])
+        self.assertIn("Secure+payment+is+temporarily+unavailable", launch_response.headers["location"])
+        create_customer.assert_not_called()
+        create_transaction.assert_not_called()
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            self.assertEqual(organization.billing_status, "checkout_ready")
+            self.assertIsNone(organization.last_payment_attempt_id)
+            self.assertEqual(
+                db.query(saas.models.PaymentAttempt).filter_by(pending_organization_id=organization.id).count(),
+                0,
+            )
+        finally:
+            db.close()
+
     def test_phase4_launches_paddle_checkout_without_operational_side_effects(self):
         self._configure_paddle_prices()
         org_uuid = self._complete_pending_organization_to_ready_for_checkout("payments@academy.edu")

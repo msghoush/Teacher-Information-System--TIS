@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.0
-last_updated: 2026-06-27
+last_updated: 2026-06-30
 recommended_first_read: true
 ---
 
@@ -41,6 +41,7 @@ Key files and folders:
 - `models.py`, `database.py`, `db_migrations.py`: data model, DB setup, local schema repair/migration logic.
 - `routers/`: modular operational routes.
 - `saas/`: SaaS account, onboarding, payment, billing, and provisioning services/routes.
+- `scripts/sync_paddle_price_ids.py`: environment-specific Paddle initial checkout price mapping sync into `subscription_plan_prices.provider_price_id`.
 - `templates/`: Jinja templates.
 - `static/`: static assets and generated documentation output.
 - `tests/`: pytest coverage.
@@ -78,6 +79,10 @@ For deeper onboarding, read:
 - `docs/engineering/AI_CODING_WORKFLOW.md`
 
 These files explain module ownership, repository boundaries, end-to-end flows, and what must not be changed casually.
+
+## Paddle Initial Checkout Configuration
+
+Initial subscription checkout uses Paddle price IDs stored in `subscription_plan_prices.provider_price_id`. Use `scripts/sync_paddle_price_ids.py` with a structured sandbox or production mapping JSON to configure these values. Paddle credentials and endpoints remain environment variables. Real mapping files are ignored by Git; keep sandbox and live provider price IDs separate. If a mapping is missing, checkout fails closed before Paddle is called and customers receive a support-oriented Secure Payment message while internal diagnostics keep plan code, billing interval, and currency context.
 
 ## Domains And Routing
 

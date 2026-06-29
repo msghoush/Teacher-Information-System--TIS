@@ -4,4 +4,7 @@ __pycache__/
 logs/
 static/uploads/profile_photos/
 static/branding/organizations/
+config/paddle/paddle_prices.local.json
+config/paddle/paddle_prices.sandbox.json
+config/paddle/paddle_prices.production.json
 
