@@ -20,12 +20,15 @@ SAAS_SESSION_COOKIE = "tis_saas_session"
 SAAS_CSRF_COOKIE = "tis_saas_csrf"
 SAAS_SESSION_MAX_AGE_SECONDS = 8 * 60 * 60
 SAAS_EMAIL_VERIFICATION_MAX_AGE_SECONDS = 60 * 60
+SAAS_PASSWORD_RESET_MAX_AGE_SECONDS = 60 * 60
 LOGIN_RATE_LIMIT_ATTEMPTS = 10
 LOGIN_RATE_LIMIT_WINDOW_MINUTES = 15
 SIGNUP_RATE_LIMIT_ATTEMPTS = 8
 SIGNUP_RATE_LIMIT_WINDOW_MINUTES = 60
 VERIFICATION_RATE_LIMIT_ATTEMPTS = 5
 VERIFICATION_RATE_LIMIT_WINDOW_MINUTES = 60
+PASSWORD_RESET_RATE_LIMIT_ATTEMPTS = 5
+PASSWORD_RESET_RATE_LIMIT_WINDOW_MINUTES = 60
 ONBOARDING_STEPS = ("organization", "branches", "academic_setup", "contacts", "review")
 ONBOARDING_STEP_LABELS = {
     "organization": "Organization Profile",
@@ -120,6 +123,13 @@ def _verification_max_age_seconds() -> int:
     return _get_positive_int_env(
         "TIS_SAAS_EMAIL_VERIFICATION_MAX_AGE_SECONDS",
         SAAS_EMAIL_VERIFICATION_MAX_AGE_SECONDS,
+    )
+
+
+def _password_reset_max_age_seconds() -> int:
+    return _get_positive_int_env(
+        "TIS_SAAS_PASSWORD_RESET_MAX_AGE_SECONDS",
+        SAAS_PASSWORD_RESET_MAX_AGE_SECONDS,
     )
 
 
@@ -334,6 +344,102 @@ def send_verification_email(db: Session, account, request: Request) -> None:
         account_id=account.id,
         request=request,
     )
+
+
+def create_password_reset_token(db: Session, account, request: Request | None = None) -> str:
+    token = secrets.token_urlsafe(32)
+    token_hash = _hash_value(token)
+    db.query(models.SaaSPasswordResetToken).filter(
+        models.SaaSPasswordResetToken.saas_account_id == account.id,
+        models.SaaSPasswordResetToken.consumed_at.is_(None),
+    ).update({models.SaaSPasswordResetToken.consumed_at: _utcnow()}, synchronize_session=False)
+    db.add(
+        models.SaaSPasswordResetToken(
+            saas_account_id=account.id,
+            token_hash=token_hash,
+            email_normalized=account.email_normalized,
+            expires_at=_utcnow() + timedelta(seconds=_password_reset_max_age_seconds()),
+            request_ip=str(getattr(getattr(request, "client", None), "host", "") or "")[:80],
+            user_agent=str(request.headers.get("user-agent", "") if request else "")[:255],
+        )
+    )
+    return token
+
+
+def build_password_reset_url(request: Request, token: str) -> str:
+    return f"{email_public_base_url(request)}/saas/auth/reset-password?token={token}"
+
+
+def send_password_reset_email(db: Session, account, request: Request) -> None:
+    token = create_password_reset_token(db, account, request=request)
+    reset_url = build_password_reset_url(request, token)
+    logo_url = (
+        f"{email_public_base_url(request)}"
+        "/static/branding/tis/logos/TIS%20Wordmark%20Only%20%E2%80%93%20Dark%20Blue.png"
+    )
+    email_content = email_templates.build_saas_password_reset_email(
+        reset_url=reset_url,
+        logo_url=logo_url,
+    )
+    email_service.send_email(
+        to=str(account.email or "").strip(),
+        subject=email_content.subject,
+        text=email_content.text,
+        html=email_content.html,
+    )
+    log_auth_event(
+        db,
+        event_type="password_reset_sent",
+        account_id=account.id,
+        request=request,
+    )
+
+
+def get_account_for_password_reset_token(db: Session, token: str):
+    token_hash = _hash_value(token)
+    row = db.query(models.SaaSPasswordResetToken).filter(
+        models.SaaSPasswordResetToken.token_hash == token_hash
+    ).first()
+    if not row:
+        return None, "This password reset link is invalid or expired."
+    if row.consumed_at is not None or row.expires_at < _utcnow():
+        return None, "This password reset link is invalid or expired."
+    account = db.query(models.SaaSAccount).filter(
+        models.SaaSAccount.id == row.saas_account_id
+    ).first()
+    if not account or account.email_normalized != row.email_normalized:
+        return None, "This password reset link no longer matches the account."
+    if not getattr(account, "password_hash", None):
+        return None, "Password reset is not available for this sign-in method."
+    if str(getattr(account, "status", "") or "").strip().lower() in {"locked", "disabled"}:
+        return None, "Password reset is not available for this account."
+    return account, ""
+
+
+def reset_password_with_token(db: Session, token: str, password: str):
+    if len(str(password or "")) < 12:
+        raise ValueError("Password must be at least 12 characters.")
+    account, error = get_account_for_password_reset_token(db, token)
+    if not account:
+        raise ValueError(error)
+    token_hash = _hash_value(token)
+    row = db.query(models.SaaSPasswordResetToken).filter(
+        models.SaaSPasswordResetToken.token_hash == token_hash
+    ).first()
+    row.consumed_at = _utcnow()
+    account.password_hash = auth.get_password_hash(password)
+    db.query(models.SaaSSession).filter(
+        models.SaaSSession.saas_account_id == account.id,
+        models.SaaSSession.revoked_at.is_(None),
+    ).update(
+        {
+            models.SaaSSession.revoked_at: _utcnow(),
+            models.SaaSSession.revoke_reason: "password_reset",
+        },
+        synchronize_session=False,
+    )
+    log_auth_event(db, event_type="password_reset_completed", account_id=account.id)
+    return account
 
 
 def verify_email_token(db: Session, token: str):

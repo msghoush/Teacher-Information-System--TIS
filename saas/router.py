@@ -519,6 +519,130 @@ def login_page(
     )
 
 
+@router.get("/auth/forgot-password", response_class=HTMLResponse)
+def forgot_password_page(
+    request: Request,
+    email: str = Query(""),
+    notice: str = Query(""),
+    error: str = Query(""),
+):
+    return _render(
+        request,
+        "saas/forgot_password.html",
+        {"email": email, "notice": notice, "error": error},
+    )
+
+
+@router.post("/auth/forgot-password")
+def request_password_reset(
+    request: Request,
+    email: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    neutral_notice = "If a TIS Account exists for this email, a password reset link has been sent."
+    if service.is_rate_limited(
+        db,
+        event_type="password_reset_sent",
+        request=request,
+        max_attempts=service.PASSWORD_RESET_RATE_LIMIT_ATTEMPTS,
+        window_minutes=service.PASSWORD_RESET_RATE_LIMIT_WINDOW_MINUTES,
+    ):
+        return RedirectResponse(
+            url="/saas/auth/forgot-password?notice=" + quote_plus(neutral_notice),
+            status_code=302,
+        )
+    account = service.get_account_by_email(db, email)
+    if account and getattr(account, "password_hash", None):
+        try:
+            service.send_password_reset_email(db, account, request)
+            db.commit()
+        except email_service.EmailDeliveryError:
+            db.rollback()
+            return RedirectResponse(
+                url="/saas/auth/forgot-password?error="
+                + quote_plus("Password reset email could not be sent. Please try again.")
+                + "&email="
+                + quote_plus(str(email or "")),
+                status_code=302,
+            )
+    else:
+        service.log_auth_event(
+            db,
+            event_type="password_reset_sent",
+            event_status="neutral",
+            request=request,
+            details={"email": auth.normalize_email(email)},
+        )
+        db.commit()
+    return RedirectResponse(
+        url="/saas/auth/forgot-password?notice=" + quote_plus(neutral_notice),
+        status_code=302,
+    )
+
+
+@router.get("/auth/reset-password", response_class=HTMLResponse)
+def reset_password_page(
+    request: Request,
+    token: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    account, error = service.get_account_for_password_reset_token(db, token)
+    db.rollback()
+    return _render(
+        request,
+        "saas/reset_password.html",
+        {
+            "token": token if account else "",
+            "error": error,
+            "notice": "",
+        },
+        status_code=200 if account else 400,
+    )
+
+
+@router.post("/auth/reset-password")
+def reset_password(
+    request: Request,
+    token: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    if str(password or "") != str(confirm_password or ""):
+        return _render(
+            request,
+            "saas/reset_password.html",
+            {
+                "token": token,
+                "error": "Password confirmation does not match.",
+                "notice": "",
+            },
+            status_code=400,
+        )
+    try:
+        account = service.reset_password_with_token(db, token, password)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return _render(
+            request,
+            "saas/reset_password.html",
+            {
+                "token": token,
+                "error": str(exc),
+                "notice": "",
+            },
+            status_code=400,
+        )
+    return RedirectResponse(
+        "/saas/login?notice="
+        + quote_plus("Your password has been updated. Please sign in to continue.")
+        + "&email="
+        + quote_plus(str(getattr(account, "email", "") or "")),
+        status_code=302,
+    )
+
+
 @router.get("/signup", response_class=HTMLResponse, name="saas_signup_page")
 def signup_page(
     request: Request,

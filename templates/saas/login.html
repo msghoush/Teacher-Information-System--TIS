@@ -12,6 +12,7 @@
     <input id="email" name="email" type="email" value="{{ email }}" autocomplete="email" required>
     <label for="password">Password</label>
     <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <p class="muted" style="margin-top:8px;"><a href="/saas/auth/forgot-password?email={{ email | urlencode }}">Forgot password?</a></p>
     <input type="hidden" name="next_path" value="/saas/account">
     <div class="actions">
         <button class="btn" type="submit">Sign In</button>

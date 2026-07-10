@@ -2480,6 +2480,55 @@ def _paddle_payment_collection(engine, connection):
     _create_index_if_missing(connection, connection, "payment_webhooks", "ix_payment_webhooks_received_at", "received_at")
 
 
+def _saas_password_reset_tokens(engine, connection):
+    datetime_type = _datetime_type(engine)
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_password_reset_tokens (
+            id INTEGER PRIMARY KEY,
+            saas_account_id INTEGER NOT NULL,
+            token_hash VARCHAR(128) NOT NULL,
+            email_normalized VARCHAR(180) NOT NULL,
+            expires_at {datetime_type} NOT NULL,
+            consumed_at {datetime_type},
+            request_ip VARCHAR(80),
+            user_agent VARCHAR(255),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (saas_account_id) REFERENCES saas_accounts (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "saas_password_reset_tokens",
+        "uq_saas_password_reset_tokens_hash",
+        "token_hash",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_password_reset_tokens",
+        "ix_saas_password_reset_tokens_account",
+        "saas_account_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_password_reset_tokens",
+        "ix_saas_password_reset_tokens_expires_at",
+        "expires_at",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_password_reset_tokens",
+        "ix_saas_password_reset_tokens_account_consumed",
+        "saas_account_id, consumed_at",
+    )
+
+
 def _phase5_provisioning_engine(engine, connection):
     datetime_type = _datetime_type(engine)
 
@@ -2744,6 +2793,11 @@ MIGRATIONS = (
         migration_id="20260623_004_paddle_payment_collection",
         description="Add Paddle customer, attempt, subscription, and webhook payment collection tables",
         apply=_paddle_payment_collection,
+    ),
+    Migration(
+        migration_id="20260710_001_saas_password_reset_tokens",
+        description="Add SaaS password reset tokens for TIS Account recovery",
+        apply=_saas_password_reset_tokens,
     ),
     Migration(
         migration_id="20260623_005_phase5_provisioning_engine",

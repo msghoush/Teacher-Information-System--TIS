@@ -108,6 +108,30 @@ class SaaSEmailVerificationToken(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class SaaSPasswordResetToken(Base):
+    __tablename__ = "saas_password_reset_tokens"
+    __table_args__ = (
+        Index("uq_saas_password_reset_tokens_hash", "token_hash", unique=True),
+        Index("ix_saas_password_reset_tokens_account", "saas_account_id"),
+        Index("ix_saas_password_reset_tokens_expires_at", "expires_at"),
+        Index(
+            "ix_saas_password_reset_tokens_account_consumed",
+            "saas_account_id",
+            "consumed_at",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    saas_account_id = Column(Integer, ForeignKey("saas_accounts.id"), nullable=False, index=True)
+    token_hash = Column(String(128), nullable=False)
+    email_normalized = Column(String(180), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    consumed_at = Column(DateTime)
+    request_ip = Column(String(80))
+    user_agent = Column(String(255))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class BlockedEmailDomain(Base):
     __tablename__ = "blocked_email_domains"
     __table_args__ = (

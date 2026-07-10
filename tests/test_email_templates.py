@@ -53,6 +53,21 @@ class TransactionalEmailTemplateTests(unittest.TestCase):
         self.assertIn("Open TIS Platform", email.html)
         self.assertIn("https://app.tisplatform.com/notifications", email.text)
 
+    def test_saas_password_reset_email_uses_secure_customer_language(self):
+        reset_url = "https://app.tisplatform.com/saas/auth/reset-password?token=reset123"
+        logo_url = "https://app.tisplatform.com/static/branding/tis/logos/TIS%20Wordmark.png"
+        email = email_templates.build_saas_password_reset_email(
+            reset_url=reset_url,
+            logo_url=logo_url,
+        )
+
+        self.assertEqual(email.subject, "Reset your TIS Account password | TIS Platform")
+        self.assertIn("Reset your TIS Account password", email.html)
+        self.assertIn(">Reset Password</a>", email.html)
+        self.assertIn(reset_url, email.text)
+        self.assertIn("expires in one hour", email.text)
+        self.assertIn("If you did not request a password reset", email.text)
+
     def test_activation_email_uses_customer_facing_workspace_language(self):
         email = email_templates.build_tenant_activation_email(
             organization_name="Andalus Academy",
