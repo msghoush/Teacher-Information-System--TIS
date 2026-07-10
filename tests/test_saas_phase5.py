@@ -220,6 +220,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             follow_redirects=False,
         )
         with (
+            patch("saas.paddle_client.list_customers_by_email", return_value=[]),
             patch(
                 "saas.paddle_client.create_customer",
                 return_value={

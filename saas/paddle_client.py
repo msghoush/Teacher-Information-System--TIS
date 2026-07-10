@@ -4,7 +4,13 @@ import httpx
 
 
 class PaddleAPIError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, status_code: int | None = None, body: dict | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.body = body or {}
+        error = self.body.get("error") if isinstance(self.body.get("error"), dict) else {}
+        self.error_code = str(error.get("code") or "").strip() or None
+        self.detail = str(error.get("detail") or message or "").strip()
 
 
 def _base_url() -> str:
@@ -18,7 +24,7 @@ def _api_key() -> str:
     return value
 
 
-def _request(method: str, path: str, payload: dict | None = None) -> dict:
+def _request_data(method: str, path: str, payload: dict | None = None, *, params: dict | None = None):
     response = httpx.request(
         method,
         f"{_base_url()}{path}",
@@ -27,6 +33,7 @@ def _request(method: str, path: str, payload: dict | None = None) -> dict:
             "Content-Type": "application/json",
             "Accept": "application/json",
         },
+        params=params or None,
         json=payload,
         timeout=20.0,
     )
@@ -35,9 +42,27 @@ def _request(method: str, path: str, payload: dict | None = None) -> dict:
     except ValueError:
         body = {}
     if response.status_code >= 400:
-        raise PaddleAPIError(str(body.get("error", {}).get("detail") or body or "Paddle request failed."))
+        raise PaddleAPIError(
+            str(body.get("error", {}).get("detail") or body or "Paddle request failed."),
+            status_code=response.status_code,
+            body=body,
+        )
     data = body.get("data")
+    if not isinstance(data, (dict, list)):
+        raise PaddleAPIError("Unexpected Paddle API response.")
+    return data
+
+
+def _request(method: str, path: str, payload: dict | None = None, *, params: dict | None = None) -> dict:
+    data = _request_data(method, path, payload, params=params)
     if not isinstance(data, dict):
+        raise PaddleAPIError("Unexpected Paddle API response.")
+    return data
+
+
+def _request_list(method: str, path: str, payload: dict | None = None, *, params: dict | None = None) -> list:
+    data = _request_data(method, path, payload, params=params)
+    if not isinstance(data, list):
         raise PaddleAPIError("Unexpected Paddle API response.")
     return data
 
@@ -49,6 +74,13 @@ def create_customer(*, email: str, name: str, custom_data: dict | None = None) -
         "custom_data": custom_data or {},
     }
     return _request("POST", "/customers", payload)
+
+
+def list_customers_by_email(email: str) -> list[dict]:
+    cleaned = str(email or "").strip()
+    if not cleaned:
+        return []
+    return _request_list("GET", "/customers", params={"email": cleaned})
 
 
 def create_transaction(

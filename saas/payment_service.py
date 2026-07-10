@@ -8,6 +8,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Request
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from saas import models, paddle_client, service
@@ -111,6 +112,103 @@ def get_payment_customer(db: Session, organization):
     ).order_by(models.PaymentCustomer.updated_at.desc(), models.PaymentCustomer.id.desc()).first()
 
 
+def _clean_text(value) -> str:
+    return str(value or "").strip()
+
+
+def _account_email(account) -> str:
+    return _clean_text(getattr(account, "email", "")).lower()
+
+
+def _remote_customer_context_matches(remote_customer: dict, organization, account) -> bool:
+    if not isinstance(remote_customer, dict):
+        return False
+    custom_data = remote_customer.get("custom_data")
+    if not isinstance(custom_data, dict):
+        return False
+    remote_account_uuid = _clean_text(custom_data.get("saas_account_uuid"))
+    remote_organization_uuid = _clean_text(custom_data.get("pending_organization_uuid"))
+    account_uuid = _clean_text(getattr(account, "account_uuid", ""))
+    organization_uuid = _clean_text(getattr(organization, "organization_uuid", ""))
+    return bool(
+        (remote_account_uuid and account_uuid and remote_account_uuid == account_uuid)
+        or (remote_organization_uuid and organization_uuid and remote_organization_uuid == organization_uuid)
+    )
+
+
+def _select_usable_remote_customer(remote_customers: list[dict], organization, account) -> dict | None:
+    matches = []
+    exact_email_candidates = []
+    email = _account_email(account)
+    for remote_customer in remote_customers or []:
+        if not isinstance(remote_customer, dict):
+            continue
+        if _clean_text(remote_customer.get("status")).lower() not in {"", "active"}:
+            continue
+        if _clean_text(remote_customer.get("email")).lower() != email:
+            continue
+        if not _clean_text(remote_customer.get("id")):
+            continue
+        exact_email_candidates.append(remote_customer)
+        if _remote_customer_context_matches(remote_customer, organization, account):
+            matches.append(remote_customer)
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1 or exact_email_candidates:
+        raise ValueError("Secure payment is temporarily unavailable for this account. Please contact TIS support.")
+    return None
+
+
+def _find_local_payment_customer_by_account(db: Session, account):
+    email = _account_email(account)
+    if not email:
+        return None
+    return db.query(models.PaymentCustomer).filter(
+        models.PaymentCustomer.saas_account_id == account.id,
+        models.PaymentCustomer.provider == PROVIDER,
+        func.lower(models.PaymentCustomer.email) == email,
+    ).order_by(models.PaymentCustomer.updated_at.desc(), models.PaymentCustomer.id.desc()).first()
+
+
+def _persist_payment_customer_link(db: Session, *, organization, account, remote_customer: dict):
+    existing = get_payment_customer(db, organization)
+    if existing:
+        return existing
+    row = models.PaymentCustomer(
+        pending_organization_id=organization.id,
+        saas_account_id=account.id,
+        provider=PROVIDER,
+        provider_customer_id=_clean_text(remote_customer.get("id")),
+        email=_clean_text(remote_customer.get("email") or getattr(account, "email", "")).lower() or None,
+        name=_clean_text(remote_customer.get("name") or "").strip() or None,
+        country_code=_clean_text(getattr(organization, "country_code", "")).upper() or None,
+        status=_clean_text(remote_customer.get("status") or "active") or "active",
+    )
+    db.add(row)
+    db.flush()
+    db.commit()
+    return row
+
+
+def _lookup_remote_payment_customer_by_email(organization, account):
+    remote_customers = paddle_client.list_customers_by_email(_account_email(account))
+    return _select_usable_remote_customer(remote_customers, organization, account)
+
+
+def _is_customer_email_conflict(exc: paddle_client.PaddleAPIError) -> bool:
+    detail = _clean_text(getattr(exc, "detail", "") or str(exc)).lower()
+    code = _clean_text(getattr(exc, "error_code", "")).lower()
+    return (
+        "email" in detail
+        and "conflict" in detail
+        and "customer" in detail
+    ) or (
+        "customer" in code
+        and "email" in code
+        and "conflict" in code
+    )
+
+
 def get_current_payment_attempt(db: Session, organization):
     return db.query(models.PaymentAttempt).filter(
         models.PaymentAttempt.pending_organization_id == organization.id,
@@ -170,30 +268,41 @@ def _find_or_create_payment_customer(db: Session, organization, account):
     existing = get_payment_customer(db, organization)
     if existing:
         return existing
+    existing_for_account = _find_local_payment_customer_by_account(db, account)
+    if existing_for_account:
+        return existing_for_account
+    remote_existing = _lookup_remote_payment_customer_by_email(organization, account)
+    if remote_existing:
+        return _persist_payment_customer_link(
+            db,
+            organization=organization,
+            account=account,
+            remote_customer=remote_existing,
+        )
     full_name = " ".join(
         part for part in [str(getattr(account, "first_name", "") or "").strip(), str(getattr(account, "last_name", "") or "").strip()] if part
     ).strip() or str(getattr(organization, "organization_name", "") or "").strip()
-    remote = paddle_client.create_customer(
-        email=str(getattr(account, "email", "") or "").strip(),
-        name=full_name,
-        custom_data={
-            "pending_organization_uuid": str(getattr(organization, "organization_uuid", "") or ""),
-            "saas_account_uuid": str(getattr(account, "account_uuid", "") or ""),
-        },
+    try:
+        remote = paddle_client.create_customer(
+            email=str(getattr(account, "email", "") or "").strip(),
+            name=full_name,
+            custom_data={
+                "pending_organization_uuid": str(getattr(organization, "organization_uuid", "") or ""),
+                "saas_account_uuid": str(getattr(account, "account_uuid", "") or ""),
+            },
+        )
+    except paddle_client.PaddleAPIError as exc:
+        if not _is_customer_email_conflict(exc):
+            raise
+        remote = _lookup_remote_payment_customer_by_email(organization, account)
+        if not remote:
+            raise ValueError("Secure payment is temporarily unavailable for this account. Please contact TIS support.") from exc
+    return _persist_payment_customer_link(
+        db,
+        organization=organization,
+        account=account,
+        remote_customer=remote,
     )
-    row = models.PaymentCustomer(
-        pending_organization_id=organization.id,
-        saas_account_id=account.id,
-        provider=PROVIDER,
-        provider_customer_id=str(remote.get("id") or "").strip(),
-        email=str(remote.get("email") or getattr(account, "email", "") or "").strip() or None,
-        name=str(remote.get("name") or full_name or "").strip() or None,
-        country_code=str(getattr(organization, "country_code", "") or "").strip().upper() or None,
-        status=str(remote.get("status") or "active").strip() or "active",
-    )
-    db.add(row)
-    db.flush()
-    return row
 
 
 def build_checkout_launch_context(db: Session, organization):
