@@ -146,6 +146,20 @@ def build_password_reset_request_email(
     )
 
 
+def build_saas_password_reset_email(*, reset_url: str, logo_url: str) -> TransactionalEmail:
+    return render_transactional_email(
+        subject="Reset your TIS Account password | TIS Platform",
+        title="Reset your TIS Account password",
+        message="Use this secure link to choose a new password for your TIS Account.",
+        logo_url=logo_url,
+        action_label="Reset Password",
+        action_url=reset_url,
+        fallback_label="If the button does not work, open this password reset link:",
+        expiry_note="This password reset link expires in one hour.",
+        security_note="If you did not request a password reset, you can safely ignore this email.",
+    )
+
+
 def build_tenant_activation_email(
     *,
     organization_name: str,

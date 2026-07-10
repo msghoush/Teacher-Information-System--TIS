@@ -403,6 +403,111 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Send a new verification link", response.text)
         self.assertIn("/saas/auth/resend-verification", response.text)
 
+    def test_password_reset_flow_updates_password_and_revokes_sessions(self):
+        self._signup_and_verify("reset@school.edu")
+        self.client.post("/saas/auth/logout", follow_redirects=False)
+
+        login_page = self.client.get("/saas/login?email=reset%40school.edu")
+        self.assertEqual(login_page.status_code, 200)
+        self.assertIn("Forgot password?", login_page.text)
+        self.assertIn("/saas/auth/forgot-password", login_page.text)
+
+        sent_messages = []
+
+        def fake_send_email(**kwargs):
+            sent_messages.append(kwargs)
+            return "reset_email_1"
+
+        with patch("email_service.send_email", side_effect=fake_send_email):
+            request_response = self.client.post(
+                "/saas/auth/forgot-password",
+                data={"email": "reset@school.edu"},
+                follow_redirects=False,
+            )
+
+        self.assertEqual(request_response.status_code, 302)
+        self.assertIn("/saas/auth/forgot-password?notice=", request_response.headers["location"])
+        self.assertEqual(len(sent_messages), 1)
+        self.assertIn("Reset your TIS Account password", sent_messages[0]["subject"])
+        token = re.search(r"token=([A-Za-z0-9._\-]+)", sent_messages[0]["text"]).group(1)
+
+        reset_page = self.client.get(f"/saas/auth/reset-password?token={token}")
+        self.assertEqual(reset_page.status_code, 200)
+        self.assertIn("Choose a new password", reset_page.text)
+        self.assertIn('name="token"', reset_page.text)
+
+        reset_response = self.client.post(
+            "/saas/auth/reset-password",
+            data={
+                "token": token,
+                "password": "new-strong-password-456",
+                "confirm_password": "new-strong-password-456",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(reset_response.status_code, 302)
+        self.assertIn("/saas/login?notice=", reset_response.headers["location"])
+
+        old_login = self.client.post(
+            "/saas/auth/login",
+            data={"email": "reset@school.edu", "password": "strong-password-123", "next_path": "/saas/account"},
+            follow_redirects=False,
+        )
+        self.assertIn("Invalid+email+or+password", old_login.headers["location"])
+
+        new_login = self.client.post(
+            "/saas/auth/login",
+            data={"email": "reset@school.edu", "password": "new-strong-password-456", "next_path": "/saas/account"},
+            follow_redirects=False,
+        )
+        self.assertEqual(new_login.status_code, 302)
+        self.assertEqual(new_login.headers["location"], "/saas/account")
+
+        reuse_response = self.client.get(f"/saas/auth/reset-password?token={token}")
+        self.assertEqual(reuse_response.status_code, 400)
+        self.assertIn("This password reset link is invalid or expired.", reuse_response.text)
+
+    def test_password_reset_request_is_neutral_for_unknown_email(self):
+        with patch("email_service.send_email") as fake_send_email:
+            response = self.client.post(
+                "/saas/auth/forgot-password",
+                data={"email": "unknown-reset@school.edu"},
+                follow_redirects=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("If a TIS Account exists for this email, a password reset link has been sent.", response.text)
+        fake_send_email.assert_not_called()
+
+    def test_expired_password_reset_token_shows_recovery_path(self):
+        self._signup_and_verify("expired-reset@school.edu")
+        sent_messages = []
+
+        def fake_send_email(**kwargs):
+            sent_messages.append(kwargs)
+            return "reset_email_expired"
+
+        with patch("email_service.send_email", side_effect=fake_send_email):
+            self.client.post(
+                "/saas/auth/forgot-password",
+                data={"email": "expired-reset@school.edu"},
+                follow_redirects=False,
+            )
+
+        token = re.search(r"token=([A-Za-z0-9._\-]+)", sent_messages[0]["text"]).group(1)
+        db = self._db()
+        try:
+            row = db.query(saas.models.SaaSPasswordResetToken).first()
+            row.expires_at = service._utcnow() - timedelta(minutes=1)  # noqa: SLF001 - test-only expiry
+            db.commit()
+        finally:
+            db.close()
+
+        response = self.client.get(f"/saas/auth/reset-password?token={token}")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("This password reset link is invalid or expired.", response.text)
+        self.assertIn("Request a new reset link", response.text)
+
     def test_resend_verification_issues_new_token_for_unverified_account(self):
         sent_messages = []
 
