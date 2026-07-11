@@ -337,6 +337,18 @@ def build_checkout_launch_context(db: Session, organization):
 
 def launch_checkout(db: Session, organization, account, request: Request):
     checkout_session, selection, contract, plan_price = build_checkout_launch_context(db, organization)
+    existing_checkout_url = _clean_text(getattr(checkout_session, "checkout_url", ""))
+    if _clean_text(getattr(checkout_session, "status", "")).lower() == CHECKOUT_SESSION_STARTED and existing_checkout_url:
+        existing_attempt = None
+        if getattr(checkout_session, "last_payment_attempt_id", None):
+            existing_attempt = db.query(models.PaymentAttempt).filter(
+                models.PaymentAttempt.id == checkout_session.last_payment_attempt_id
+            ).first()
+        return {
+            "attempt": existing_attempt,
+            "checkout_url": existing_checkout_url,
+            "transaction": {},
+        }
     payment_customer = _find_or_create_payment_customer(db, organization, account)
     attempt = models.PaymentAttempt(
         pending_organization_id=organization.id,

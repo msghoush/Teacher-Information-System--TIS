@@ -28,9 +28,7 @@
     </div>
 </section>
 <form id="checkout-start-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/start"></form>
-{% if checkout_summary.checkout_session and checkout_summary.checkout_session.status == "ready" %}
 <form id="checkout-launch-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/launch"></form>
-{% endif %}
 <div class="wizard-actions">
     <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/plan">Back to Subscription Selection</a>
     <a class="btn secondary" href="/saas/account/billing">View Subscription Status</a>
