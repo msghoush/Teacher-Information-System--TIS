@@ -279,6 +279,7 @@ Architecture rules:
 - Keep Paddle price mappings environment-specific and store the runtime mapping in `subscription_plan_prices.provider_price_id`.
 - Use `scripts/sync_paddle_price_ids.py` with sandbox or production mapping JSON to configure initial checkout price IDs; never hardcode live Paddle IDs in migrations or source.
 - If an initial checkout price mapping is missing, fail closed before calling Paddle and show customers a support-oriented Secure Payment message while retaining internal plan/interval/currency diagnostics.
+- Paddle transaction checkout uses the public `/saas/payment` launcher as the payment-link page. Set `PADDLE_CHECKOUT_BASE_URL` to `https://app.tisplatform.com/saas/payment`, configure `PADDLE_CLIENT_TOKEN` and `PADDLE_ENVIRONMENT` for Paddle.js, and never expose `PADDLE_API_KEY` to frontend code.
 
 ## Tenant Provisioning Summary
 

@@ -1659,6 +1659,97 @@ class SaaSPhase1Tests(unittest.TestCase):
         finally:
             db.close()
 
+    def test_public_paddle_payment_launcher_is_accessible_without_login(self):
+        with patch.dict(
+            os.environ,
+            {
+                "PADDLE_CLIENT_TOKEN": "test_publicpaymenttoken123456789",
+                "PADDLE_ENVIRONMENT": "sandbox",
+                "PADDLE_API_KEY": "pdl_secret_api_key_must_not_render",
+            },
+            clear=False,
+        ):
+            response = self.client.get("/saas/payment?_ptxn=txn_01kxpaymentlauncher", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.headers.get("location"))
+        self.assertIn("https://cdn.paddle.com/paddle/v2/paddle.js", response.text)
+        self.assertIn("test_publicpaymenttoken123456789", response.text)
+        self.assertNotIn("pdl_secret_api_key_must_not_render", response.text)
+        self.assertIn('window.Paddle.Environment.set("sandbox")', response.text)
+        self.assertIn('.get("_ptxn")', response.text)
+        self.assertIn("transactionId: transactionId", response.text)
+        self.assertNotIn("checkout_session_id", response.text)
+        self.assertNotIn("payment_attempt_uuid", response.text)
+
+    def test_public_paddle_payment_launcher_handles_missing_transaction_safely(self):
+        with patch.dict(
+            os.environ,
+            {
+                "PADDLE_CLIENT_TOKEN": "test_publicpaymenttoken123456789",
+                "PADDLE_ENVIRONMENT": "sandbox",
+            },
+            clear=False,
+        ):
+            response = self.client.get("/saas/payment", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Missing or invalid payment link", response.text)
+        self.assertNotIn("txn_01kxpaymentlauncher", response.text)
+
+    def test_public_paddle_payment_launcher_handles_missing_client_token_safely(self):
+        with patch.dict(os.environ, {"PADDLE_CLIENT_TOKEN": "", "PADDLE_ENVIRONMENT": "sandbox"}, clear=False):
+            response = self.client.get("/saas/payment?_ptxn=txn_01kxpaymentlauncher", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Unable to open secure payment", response.text)
+        self.assertIn('const paddleClientToken = "";', response.text)
+        self.assertNotIn("PADDLE_API_KEY", response.text)
+
+    def test_phase4_checkout_transaction_uses_configured_payment_launcher_url(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("payment-url@academy.edu")
+
+        db = self._db()
+        try:
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            professional_id = professional.id
+        finally:
+            db.close()
+
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "annual"},
+            follow_redirects=False,
+        )
+        self.client.post(f"/saas/onboarding/{org_uuid}/checkout/start", follow_redirects=False)
+
+        with (
+            patch.dict(
+                os.environ,
+                {"PADDLE_CHECKOUT_BASE_URL": "https://app.tisplatform.com/saas/payment"},
+                clear=False,
+            ),
+            patch("saas.paddle_client.list_customers_by_email", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer",
+                return_value={"id": "ctm_payment_url_123", "email": "payment-url@academy.edu", "name": "Payment URL", "status": "active"},
+            ),
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_payment_url_123",
+                    "currency_code": "USD",
+                    "checkout": {"id": "chk_payment_url_123", "url": "https://app.tisplatform.com/saas/payment?_ptxn=txn_payment_url_123"},
+                },
+            ) as create_transaction,
+        ):
+            response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["location"], "https://app.tisplatform.com/saas/payment?_ptxn=txn_payment_url_123")
+        self.assertEqual(create_transaction.call_args.kwargs["checkout_url"], "https://app.tisplatform.com/saas/payment")
+
     def test_phase4_reuses_existing_local_paddle_customer_mapping(self):
         self._configure_paddle_prices()
         org_uuid = self._complete_pending_organization_to_ready_for_checkout("reuse-local@academy.edu")

@@ -1,0 +1,105 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<section class="wizard-section payment-launcher" data-payment-launcher="true">
+    <div class="wizard-section-header">
+        <strong>Secure Payment</strong>
+        {% if paddle_client_token %}
+        <p id="paymentLauncherStatus">Loading secure payment.</p>
+        {% else %}
+        <p id="paymentLauncherStatus">Unable to open secure payment. Please return to your TIS Account and try again.</p>
+        {% endif %}
+    </div>
+    <div class="review-card" id="paymentLauncherSafeState" {% if paddle_client_token %}hidden{% endif %}>
+        <strong id="paymentLauncherSafeTitle">{% if paddle_client_token %}Payment link unavailable{% else %}Secure Payment unavailable{% endif %}</strong>
+        <p id="paymentLauncherSafeMessage">
+            {% if paddle_client_token %}
+            Missing or invalid payment link. Please return to your TIS Account and open Secure Payment again.
+            {% else %}
+            Unable to open secure payment. Please return to your TIS Account and try again.
+            {% endif %}
+        </p>
+        <div class="wizard-actions">
+            <a class="btn secondary" href="/saas/account">Back to TIS Account</a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+{% block page_scripts %}
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script>
+(() => {
+    const paddleClientToken = {{ paddle_client_token|tojson }};
+    const paddleEnvironment = {{ paddle_environment|tojson }};
+    const statusEl = document.getElementById("paymentLauncherStatus");
+    const safeStateEl = document.getElementById("paymentLauncherSafeState");
+    const safeTitleEl = document.getElementById("paymentLauncherSafeTitle");
+    const safeMessageEl = document.getElementById("paymentLauncherSafeMessage");
+
+    const showSafeState = (title, message) => {
+        if (statusEl) {
+            statusEl.textContent = message;
+        }
+        if (safeTitleEl) {
+            safeTitleEl.textContent = title;
+        }
+        if (safeMessageEl) {
+            safeMessageEl.textContent = message;
+        }
+        if (safeStateEl) {
+            safeStateEl.hidden = false;
+        }
+    };
+
+    const transactionId = new URLSearchParams(window.location.search).get("_ptxn") || "";
+    if (!transactionId || !transactionId.startsWith("txn_")) {
+        showSafeState(
+            "Payment link unavailable",
+            "Missing or invalid payment link. Please return to your TIS Account and open Secure Payment again."
+        );
+        return;
+    }
+
+    if (!paddleClientToken) {
+        showSafeState(
+            "Secure Payment unavailable",
+            "Unable to open secure payment. Please return to your TIS Account and try again."
+        );
+        return;
+    }
+
+    if (!window.Paddle || !window.Paddle.Checkout) {
+        showSafeState(
+            "Secure Payment unavailable",
+            "Unable to open secure payment. Please return to your TIS Account and try again."
+        );
+        return;
+    }
+
+    try {
+        if (paddleEnvironment === "sandbox" && window.Paddle.Environment) {
+            window.Paddle.Environment.set("sandbox");
+        }
+        window.Paddle.Initialize({
+            token: paddleClientToken,
+            eventCallback: (event) => {
+                const eventName = String(event && event.name ? event.name : "");
+                if (eventName === "checkout.completed") {
+                    window.location.href = "/saas/checkout/return";
+                }
+                if (eventName === "checkout.closed") {
+                    window.location.href = "/saas/checkout/cancel";
+                }
+            }
+        });
+        window.Paddle.Checkout.open({
+            transactionId: transactionId
+        });
+    } catch (_error) {
+        showSafeState(
+            "Secure Payment unavailable",
+            "Unable to open secure payment. Please return to your TIS Account and try again."
+        );
+    }
+})();
+</script>
+{% endblock %}

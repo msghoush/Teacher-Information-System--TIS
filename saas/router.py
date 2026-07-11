@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+import os
 from urllib.parse import quote_plus
 
 import auth
@@ -141,9 +142,27 @@ def _render(request: Request, template_name: str, context: dict, status_code: in
     return templates.TemplateResponse(request, template_name, merged, status_code=status_code)
 
 
+def _paddle_client_environment() -> str:
+    cleaned = str(os.environ.get("PADDLE_ENVIRONMENT") or "").strip().lower()
+    return cleaned if cleaned in {"sandbox", "production"} else "production"
+
+
 def _redirect_error(path: str, message: str):
     separator = "&" if "?" in path else "?"
     return RedirectResponse(f"{path}{separator}error={quote_plus(str(message or ''))}", status_code=302)
+
+
+@router.get("/payment", response_class=HTMLResponse)
+def paddle_payment_page(request: Request):
+    return _render(
+        request,
+        "saas/payment.html",
+        {
+            "title": "Secure Payment | TIS Platform",
+            "paddle_client_token": str(os.environ.get("PADDLE_CLIENT_TOKEN") or "").strip(),
+            "paddle_environment": _paddle_client_environment(),
+        },
+    )
 
 
 def _onboarding_context(db: Session, account, organization):

@@ -1,7 +1,7 @@
 ---
 title: Subscription History
 module: subscriptions
-last_updated: 2026-06-30
+last_updated: 2026-07-11
 ---
 
 # Subscription History
@@ -13,6 +13,12 @@ Related docs:
 - `docs/adr/0003-paddle-payment-architecture.md`
 - `docs/adr/0004-webhook-only-payment-confirmation.md`
 - `docs/TIS_MASTER_CONTEXT.md`
+
+## 2026-07-11 - Paddle Transaction Payment Launcher
+
+Paddle transaction checkout now uses a dedicated public SaaS payment launcher page at `/saas/payment` instead of the app root or operational login page. Server-side checkout still creates Paddle transactions through the existing payment service and still redirects to Paddle's returned `transaction.checkout.url`; `PADDLE_CHECKOUT_BASE_URL` should point to `https://app.tisplatform.com/saas/payment` so Paddle appends `_ptxn` to the launcher page.
+
+The launcher page loads Paddle.js from the official Paddle CDN, initializes Paddle with the public `PADDLE_CLIENT_TOKEN`, uses `PADDLE_ENVIRONMENT` for sandbox/live mode, reads `_ptxn`, and opens checkout for the transaction. It does not require SaaS or operational login, does not expose `PADDLE_API_KEY`, and does not change webhook-confirmed payment state, subscription activation, provisioning, pricing, or billing transitions.
 
 ## 2026-06-30 - Paddle Initial Checkout Price Mapping Configuration
 
