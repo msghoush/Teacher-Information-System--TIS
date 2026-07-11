@@ -1463,7 +1463,9 @@ class SaaSPhase1Tests(unittest.TestCase):
         checkout_page = self.client.get(f"/saas/onboarding/{org_uuid}/checkout")
         self.assertEqual(checkout_page.status_code, 200)
         self.assertIn("Secure Payment summary", checkout_page.text)
-        self.assertIn('form="checkout-start-form"', checkout_page.text)
+        self.assertIn('id="checkout-start-form"', checkout_page.text)
+        self.assertIn('form="checkout-launch-form"', checkout_page.text)
+        self.assertIn("Continue to Secure Payment", checkout_page.text)
         self.assertEqual(checkout_page.text.count('data-primary-cta="true"'), 1)
         self.assertIn("School Workspace Setup", checkout_page.text)
         self.assertNotIn("Need to adjust setup details?", checkout_page.text)
@@ -1658,6 +1660,219 @@ class SaaSPhase1Tests(unittest.TestCase):
             self.assertEqual(operational_counts_before, operational_counts_after)
         finally:
             db.close()
+
+    def test_phase4_continue_from_plan_selected_prepares_and_launches_checkout(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("one-click@academy.edu")
+
+        db = self._db()
+        try:
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            professional_id = professional.id
+        finally:
+            db.close()
+
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "annual"},
+            follow_redirects=False,
+        )
+
+        with (
+            patch("saas.paddle_client.list_customers_by_email", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer",
+                return_value={"id": "ctm_one_click_123", "email": "one-click@academy.edu", "name": "One Click", "status": "active"},
+            ),
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_one_click_123",
+                    "currency_code": "USD",
+                    "checkout": {"id": "chk_one_click_123", "url": "https://pay.paddle.test/one-click"},
+                },
+            ) as create_transaction,
+        ):
+            response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["location"], "https://pay.paddle.test/one-click")
+        create_transaction.assert_called_once()
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            self.assertEqual(organization.billing_status, "checkout_started")
+            self.assertEqual(
+                db.query(saas.models.CheckoutSession).filter_by(pending_organization_id=organization.id).count(),
+                1,
+            )
+            self.assertEqual(
+                db.query(saas.models.PaymentAttempt).filter_by(pending_organization_id=organization.id).count(),
+                1,
+            )
+        finally:
+            db.close()
+
+    def test_phase4_checkout_ready_launch_does_not_create_duplicate_session(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("ready-once@academy.edu")
+
+        db = self._db()
+        try:
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            professional_id = professional.id
+        finally:
+            db.close()
+
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "annual"},
+            follow_redirects=False,
+        )
+        self.client.post(f"/saas/onboarding/{org_uuid}/checkout/start", follow_redirects=False)
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            initial_session_count = db.query(saas.models.CheckoutSession).filter_by(
+                pending_organization_id=organization.id
+            ).count()
+            self.assertEqual(initial_session_count, 1)
+        finally:
+            db.close()
+
+        with (
+            patch("saas.paddle_client.list_customers_by_email", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer",
+                return_value={"id": "ctm_ready_once_123", "email": "ready-once@academy.edu", "name": "Ready Once", "status": "active"},
+            ),
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_ready_once_123",
+                    "currency_code": "USD",
+                    "checkout": {"id": "chk_ready_once_123", "url": "https://pay.paddle.test/ready-once"},
+                },
+            ),
+        ):
+            response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 302)
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            self.assertEqual(
+                db.query(saas.models.CheckoutSession).filter_by(pending_organization_id=organization.id).count(),
+                1,
+            )
+        finally:
+            db.close()
+
+    def test_phase4_repeated_checkout_launch_reuses_started_checkout_url(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("repeat-click@academy.edu")
+
+        db = self._db()
+        try:
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            professional_id = professional.id
+        finally:
+            db.close()
+
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "annual"},
+            follow_redirects=False,
+        )
+
+        with (
+            patch("saas.paddle_client.list_customers_by_email", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer",
+                return_value={"id": "ctm_repeat_click_123", "email": "repeat-click@academy.edu", "name": "Repeat Click", "status": "active"},
+            ) as create_customer,
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_repeat_click_123",
+                    "currency_code": "USD",
+                    "checkout": {"id": "chk_repeat_click_123", "url": "https://pay.paddle.test/repeat-click"},
+                },
+            ) as create_transaction,
+        ):
+            first_response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+            second_response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+
+        self.assertEqual(first_response.status_code, 302)
+        self.assertEqual(second_response.status_code, 302)
+        self.assertEqual(second_response.headers["location"], "https://pay.paddle.test/repeat-click")
+        create_customer.assert_called_once()
+        create_transaction.assert_called_once()
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            self.assertEqual(
+                db.query(saas.models.PaymentAttempt).filter_by(pending_organization_id=organization.id).count(),
+                1,
+            )
+        finally:
+            db.close()
+
+    def test_phase4_checkout_launch_without_plan_fails_safely(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("missing-plan@academy.edu")
+
+        with (
+            patch("saas.paddle_client.create_customer") as create_customer,
+            patch("saas.paddle_client.create_transaction") as create_transaction,
+        ):
+            response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("Select+a+subscription+plan+before+continuing+to+checkout", response.headers["location"])
+        create_customer.assert_not_called()
+        create_transaction.assert_not_called()
+
+    def test_phase4_payment_confirmed_cannot_restart_initial_checkout(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("paid-lock@academy.edu")
+
+        db = self._db()
+        try:
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            professional_id = professional.id
+        finally:
+            db.close()
+
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "annual"},
+            follow_redirects=False,
+        )
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            organization.billing_status = "payment_confirmed"
+            organization.payment_status = "paid"
+            db.commit()
+        finally:
+            db.close()
+
+        with (
+            patch("saas.paddle_client.create_customer") as create_customer,
+            patch("saas.paddle_client.create_transaction") as create_transaction,
+        ):
+            response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("Secure+Payment+cannot+be+opened", response.headers["location"])
+        create_customer.assert_not_called()
+        create_transaction.assert_not_called()
 
     def test_public_paddle_payment_launcher_is_accessible_without_login(self):
         with patch.dict(

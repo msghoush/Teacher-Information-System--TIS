@@ -147,6 +147,20 @@ def _paddle_client_environment() -> str:
     return cleaned if cleaned in {"sandbox", "production"} else "production"
 
 
+LAUNCHABLE_BILLING_STATUSES = {
+    payment_service.CHECKOUT_READY,
+    payment_service.CHECKOUT_STARTED,
+    payment_service.PAYMENT_PROCESSING,
+    payment_service.PAYMENT_FAILED,
+    payment_service.PAYMENT_CANCELLED,
+}
+PREPARE_BEFORE_LAUNCH_BILLING_STATUSES = {
+    billing_service.NOT_STARTED,
+    billing_service.PLAN_SELECTED,
+    billing_service.CHECKOUT_INITIATED,
+}
+
+
 def _redirect_error(path: str, message: str):
     separator = "&" if "?" in path else "?"
     return RedirectResponse(f"{path}{separator}error={quote_plus(str(message or ''))}", status_code=302)
@@ -380,12 +394,10 @@ def _payment_setup_console(
 
     if page_key == "checkout":
         has_selection = bool(checkout_summary and checkout_summary.get("selection") and checkout_summary.get("plan"))
-        checkout_session = checkout_summary.get("checkout_session") if checkout_summary else None
-        checkout_ready = str(getattr(checkout_session, "status", "") or "").strip().lower() == "ready"
         if not has_selection:
             config["status"] = "Select a subscription before continuing to Secure Payment."
             config["primary"] = action("Choose Subscription", f"/saas/onboarding/{org_uuid}/plan")
-        elif checkout_ready:
+        else:
             config["status"] = "Secure Payment is ready to open."
             config["primary"] = action("Continue to Secure Payment", "", "form", "checkout-launch-form")
 
@@ -1824,6 +1836,16 @@ def prepare_checkout_step(
     )
 
 
+def _prepare_checkout_for_launch_if_needed(db: Session, account, organization):
+    billing_status = str(getattr(organization, "billing_status", "") or "").strip().lower()
+    if billing_status in LAUNCHABLE_BILLING_STATUSES:
+        return
+    if billing_status not in PREPARE_BEFORE_LAUNCH_BILLING_STATUSES:
+        raise ValueError("Secure Payment cannot be opened for this subscription. Please view Subscription Status.")
+    billing_service.create_or_update_checkout_session(db, organization)
+    service.update_pending_dashboard_status(account, organization, service.recalculate_pending_progress(db, organization))
+
+
 @router.post("/onboarding/{organization_uuid}/checkout/launch")
 def launch_checkout_step(
     organization_uuid: str,
@@ -1838,6 +1860,7 @@ def launch_checkout_step(
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
     try:
+        _prepare_checkout_for_launch_if_needed(db, account, organization)
         launch = payment_service.launch_checkout(db, organization, account, request)
         service.update_pending_dashboard_status(account, organization, service.recalculate_pending_progress(db, organization))
         db.commit()
