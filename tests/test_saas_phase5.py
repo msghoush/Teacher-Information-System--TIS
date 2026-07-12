@@ -649,7 +649,8 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         self.assertIn("Analyze Test Workspace", response.text)
         self.assertNotIn("Update status", response.text)
         self.assertNotIn("Add internal note", response.text)
-        self.assertNotIn("Delete pending organization", response.text)
+        self.assertNotIn("Reset Test Workspace", response.text)
+        self.assertNotIn("Delete Pending Application", response.text)
 
     def test_customer_and_tenant_users_cannot_access_workspace_analysis(self):
         result = self._complete_paid_provisioning(
@@ -746,6 +747,8 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Analyze Test Workspace", response.text)
+        self.assertIn("Reset Test Workspace", response.text)
+        self.assertNotIn("Delete Pending Application", response.text)
         self.assertIn(f"/saas-admin/pending-organizations/{organization_uuid}/analyze-test-workspace", response.text)
 
     def test_pending_organizations_dashboard_keeps_owner_actions_reachable(self):
@@ -772,6 +775,11 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         self.assertIn("Analysis Table Academy", response.text)
         self.assertIn("View Details", response.text)
         self.assertIn("Analyze Workspace", response.text)
+        self.assertNotIn(
+            f'/saas-admin/pending-organizations/{organization_uuid}/delete"',
+            response.text,
+        )
+        self.assertNotIn(">Delete</button>", response.text)
         self.assertIn(f"/saas-admin/pending-organizations/{organization_uuid}", response.text)
         self.assertIn(
             f"/saas-admin/pending-organizations/{organization_uuid}/analyze-test-workspace",
@@ -801,9 +809,11 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         tenant_response = self._tenant_client(user_id="7100000011").get(path)
 
         self.assertEqual(owner_response.status_code, 200)
-        self.assertIn("Delete Test Workspace", owner_response.text)
+        self.assertIn("Reset Test Workspace", owner_response.text)
         self.assertIn("Delete Access Academy", owner_response.text)
-        self.assertIn("Irreversible test/development action", owner_response.text)
+        self.assertIn("Irreversible development/testing reset", owner_response.text)
+        self.assertIn("Remote Paddle records remain untouched", owner_response.text)
+        self.assertIn("cannot be undone", owner_response.text)
         self.assertNotIn(os.environ["PADDLE_API_KEY"], owner_response.text)
         self.assertEqual(developer_response.status_code, 403)
         self.assertEqual(tenant_response.status_code, 403)
@@ -865,9 +875,27 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         )
 
         self.assertIn("Manual review required", page.text)
-        self.assertNotIn("Permanently Delete Test Workspace</button>", page.text)
+        self.assertNotIn("Permanently Reset Test Workspace</button>", page.text)
         self.assertEqual(response.status_code, 302)
         self.assertIn("requires+manual+review", response.headers["location"])
+
+    def test_unprovisioned_eligible_detail_shows_only_pending_application_delete(self):
+        sent_messages = []
+        organization_uuid = self._complete_pending_org(
+            "pending-delete-ux@academy.edu",
+            sent_messages,
+            organization_name="Pending Delete UX Academy",
+        )
+
+        response = self._platform_client(user_id="9016").get(
+            f"/saas-admin/pending-organizations/{organization_uuid}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Delete unprovisioned pending application", response.text)
+        self.assertIn("Delete Pending Application", response.text)
+        self.assertNotIn("Reset Test Workspace", response.text)
+        self.assertIn("Analyze Test Workspace", response.text)
 
     def test_delete_test_workspace_removes_only_scoped_local_data_and_preserves_globals(self):
         result = self._complete_paid_provisioning(

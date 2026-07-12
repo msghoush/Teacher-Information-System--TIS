@@ -1,7 +1,7 @@
 {% extends "saas/base.html" %}
 {% block content %}
-<h1>Delete Test Workspace</h1>
-<div class="error"><strong>Irreversible test/development action.</strong> This permanently removes the local TIS workspace and onboarding records. Paddle records are not changed.</div>
+<h1>Reset Test Workspace</h1>
+<div class="error"><strong>Irreversible development/testing reset.</strong> This permanently deletes the local provisioned test workspace and its onboarding records. Remote Paddle records remain untouched. This action cannot be undone.</div>
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
 <div class="grid two">
@@ -48,7 +48,7 @@
     <label for="reason">Deletion reason</label>
     <textarea id="reason" name="reason" required rows="4" placeholder="Explain why this test workspace must be reset."></textarea>
     <div class="actions">
-        <button class="btn danger" type="submit">Permanently Delete Test Workspace</button>
+        <button class="btn danger" type="submit">Permanently Reset Test Workspace</button>
         <a class="btn secondary" href="/saas-admin/pending-organizations/{{ organization.organization_uuid }}">Cancel</a>
     </div>
 </form>

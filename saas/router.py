@@ -2040,6 +2040,13 @@ def pending_organization_detail(
     branches = service.list_pending_branches(db, organization)
     events = service.list_pending_events(db, organization)
     notes = service.list_pending_notes(db, organization)
+    can_delete_pending_organization = False
+    if auth.is_platform_owner(current_user):
+        try:
+            service.validate_pending_organization_can_be_deleted(db, organization)
+            can_delete_pending_organization = True
+        except ValueError:
+            pass
     db.commit()
     return _render(
         request,
@@ -2054,6 +2061,7 @@ def pending_organization_detail(
             "events": events,
             "notes": notes,
             "can_manage_pending_organization": auth.is_platform_owner(current_user),
+            "can_delete_pending_organization": can_delete_pending_organization,
             "notice": request.query_params.get("notice", ""),
             "error": request.query_params.get("error", ""),
         },
