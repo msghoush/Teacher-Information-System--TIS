@@ -112,6 +112,15 @@
             <a class="btn danger" href="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/delete-test-workspace">Reset Test Workspace</a>
         </div>
         {% endif %}
+        {% if can_delete_test_account %}
+        <div class="owner-control-row">
+            <div class="owner-control-copy">
+                <strong>Delete test account and workspace</strong>
+                <p class="muted">Permanently remove the test customer identity, provisioned workspace, and all safely attributable local TIS data so the same email can start a brand-new signup.</p>
+            </div>
+            <a class="btn danger" href="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/delete-test-account">Delete Test Account and Workspace</a>
+        </div>
+        {% endif %}
         {% if can_manage_pending_organization and can_delete_pending_organization %}
         <div class="owner-control-row">
             <div class="owner-control-copy">

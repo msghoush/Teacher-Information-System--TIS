@@ -907,6 +907,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         try:
             organization = db.query(saas.models.PendingOrganization).filter_by(id=result["organization_id"]).first()
             organization_uuid = organization.organization_uuid
+            preserved_account_id = organization.owner_saas_account_id
             unrelated_group = models.SchoolGroup(name="Preserved Unrelated Academy", status=True)
             db.add(unrelated_group)
             db.flush()
@@ -950,6 +951,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         try:
             self.assertIsNone(db.query(saas.models.PendingOrganization).filter_by(id=result["organization_id"]).first())
             self.assertIsNone(db.query(models.SchoolGroup).filter_by(id=result["school_group_id"]).first())
+            self.assertIsNotNone(db.query(saas.models.SaaSAccount).filter_by(id=preserved_account_id).first())
             self.assertEqual(db.query(models.Branch).filter_by(school_group_id=result["school_group_id"]).count(), 0)
             self.assertEqual(db.query(models.User).filter_by(school_group_id=result["school_group_id"]).count(), 0)
             self.assertIsNotNone(db.query(models.SchoolGroup).filter_by(id=unrelated_group_id).first())
@@ -1004,6 +1006,284 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
                 "pending": db.query(saas.models.PendingOrganization).count(),
                 "groups": db.query(models.SchoolGroup).count(),
                 "branches": db.query(models.Branch).count(),
+                "users": db.query(models.User).count(),
+            }
+        finally:
+            db.close()
+        self.assertEqual(before, after)
+
+    def test_delete_test_account_is_owner_only_and_environment_guarded(self):
+        result = self._complete_paid_provisioning(
+            email="full-reset-access@academy.edu",
+            organization_name="Full Reset Access Academy",
+        )
+        db = self._db()
+        try:
+            organization_uuid = db.query(saas.models.PendingOrganization).filter_by(
+                id=result["organization_id"]
+            ).first().organization_uuid
+        finally:
+            db.close()
+        path = f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-account"
+        owner_client = self._platform_client(user_id="9020")
+
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "production", "TIS_ENABLE_TEST_ACCOUNT_RESET": ""}):
+            unavailable = owner_client.get(path)
+            detail = owner_client.get(f"/saas-admin/pending-organizations/{organization_uuid}")
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "production", "TIS_ENABLE_TEST_ACCOUNT_RESET": "true"}):
+            feature_flag_available = owner_client.get(path)
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox", "TIS_ENABLE_TEST_ACCOUNT_RESET": ""}):
+            available = owner_client.get(path)
+            developer = self._platform_client(
+                user_id="9021", platform_role=auth.PLATFORM_ROLE_DEVELOPER
+            ).get(path)
+            tenant = self._tenant_client(user_id="7100000020").get(path)
+
+        self.assertEqual(unavailable.status_code, 404)
+        self.assertNotIn("Delete Test Account and Workspace", detail.text)
+        self.assertEqual(feature_flag_available.status_code, 200)
+        self.assertEqual(available.status_code, 200)
+        self.assertIn("Delete Test Account and Workspace", available.text)
+        self.assertIn("full-reset-access@academy.edu", available.text)
+        self.assertNotIn(os.environ["PADDLE_API_KEY"], available.text)
+        self.assertEqual(developer.status_code, 403)
+        self.assertEqual(tenant.status_code, 403)
+
+    def test_delete_test_account_confirmation_fields_and_reason_are_required(self):
+        result = self._complete_paid_provisioning(
+            email="full-reset-confirm@academy.edu",
+            organization_name="Full Reset Confirmation Academy",
+        )
+        owner_client = self._platform_client(user_id="9022")
+        db = self._db()
+        try:
+            organization_uuid = db.query(saas.models.PendingOrganization).filter_by(
+                id=result["organization_id"]
+            ).first().organization_uuid
+        finally:
+            db.close()
+        path = f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-account"
+
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            patch("saas.router.audit.write_audit_event") as write_audit,
+        ):
+            name_mismatch = owner_client.post(path, data={
+                "confirmation_name": "Wrong Name",
+                "confirmation_email": "full-reset-confirm@academy.edu",
+                "reason": "Retest",
+            }, follow_redirects=False)
+            email_mismatch = owner_client.post(path, data={
+                "confirmation_name": "Full Reset Confirmation Academy",
+                "confirmation_email": "FULL-RESET-CONFIRM@academy.edu",
+                "reason": "Retest",
+            }, follow_redirects=False)
+            missing_reason = owner_client.post(path, data={
+                "confirmation_name": "Full Reset Confirmation Academy",
+                "confirmation_email": "full-reset-confirm@academy.edu",
+                "reason": "",
+            }, follow_redirects=False)
+
+        self.assertIn("organization+name+does+not+match", name_mismatch.headers["location"])
+        self.assertIn("account+email+does+not+match", email_mismatch.headers["location"])
+        self.assertIn("deletion+reason+is+required", missing_reason.headers["location"])
+        self.assertEqual(write_audit.call_count, 3)
+        self.assertTrue(all(call.args[0]["result"] == "blocked" for call in write_audit.call_args_list))
+
+    def test_delete_test_account_blocks_shared_and_platform_identities(self):
+        shared = self._complete_paid_provisioning(
+            email="full-reset-shared@academy.edu",
+            organization_name="Shared Reset Academy",
+        )
+        db = self._db()
+        try:
+            shared_org = db.query(saas.models.PendingOrganization).filter_by(id=shared["organization_id"]).first()
+            shared_uuid = shared_org.organization_uuid
+            db.add(saas.models.PendingOrganization(
+                organization_uuid="00000000-0000-0000-0000-000000009999",
+                owner_saas_account_id=shared_org.owner_saas_account_id,
+                organization_name="Second Shared Organization",
+            ))
+            db.commit()
+        finally:
+            db.close()
+        owner_client = self._platform_client(user_id="9023")
+
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}):
+            shared_response = owner_client.post(
+                f"/saas-admin/pending-organizations/{shared_uuid}/delete-test-account",
+                data={
+                    "confirmation_name": "Shared Reset Academy",
+                    "confirmation_email": "full-reset-shared@academy.edu",
+                    "reason": "Retest",
+                },
+                follow_redirects=False,
+            )
+        self.assertIn("requires+manual+review", shared_response.headers["location"])
+
+        platform_overlap = self._complete_paid_provisioning(
+            email="full-reset-platform@academy.edu",
+            organization_name="Platform Overlap Academy",
+        )
+        db = self._db()
+        try:
+            platform_org = db.query(saas.models.PendingOrganization).filter_by(
+                id=platform_overlap["organization_id"]
+            ).first()
+            platform_uuid = platform_org.organization_uuid
+            tenant_owner = db.query(models.User).filter_by(
+                school_group_id=platform_overlap["school_group_id"]
+            ).first()
+            tenant_owner.user_type = auth.USER_TYPE_PLATFORM
+            tenant_owner.platform_role = auth.PLATFORM_ROLE_DEVELOPER
+            db.commit()
+        finally:
+            db.close()
+
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}):
+            platform_response = owner_client.post(
+                f"/saas-admin/pending-organizations/{platform_uuid}/delete-test-account",
+                data={
+                    "confirmation_name": "Platform Overlap Academy",
+                    "confirmation_email": "full-reset-platform@academy.edu",
+                    "reason": "Retest",
+                },
+                follow_redirects=False,
+            )
+        self.assertIn("requires+manual+review", platform_response.headers["location"])
+
+    def test_delete_test_account_removes_identity_and_allows_same_email_signup(self):
+        email = "full-reset-success@academy.edu"
+        original_password = "strong-password-123"
+        result = self._complete_paid_provisioning(
+            email=email,
+            organization_name="Full Reset Success Academy",
+        )
+        unrelated = self._complete_paid_provisioning(
+            email="full-reset-unrelated@academy.edu",
+            organization_name="Unrelated Full Reset Academy",
+        )
+        owner_client = self._platform_client(user_id="9024")
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(id=result["organization_id"]).first()
+            organization_uuid = organization.organization_uuid
+            account = db.query(saas.models.SaaSAccount).filter_by(email_normalized=email).first()
+            account_id = account.id
+            plan_count = db.query(saas.models.SubscriptionPlan).count()
+            price_count = db.query(saas.models.SubscriptionPlanPrice).count()
+        finally:
+            db.close()
+        path = f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-account"
+
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            patch("saas.router.audit.write_audit_event") as write_audit,
+            patch("saas.paddle_client.create_transaction") as create_transaction,
+            patch("saas.paddle_client.create_customer") as create_customer,
+            patch("saas.paddle_client.list_customers_by_email") as list_customers,
+        ):
+            response = owner_client.post(path, data={
+                "confirmation_name": "Full Reset Success Academy",
+                "confirmation_email": email,
+                "reason": "Repeat the complete Sandbox signup journey",
+            }, follow_redirects=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("email+can+be+registered+again", response.headers["location"])
+        self.assertEqual(write_audit.call_args.args[0]["result"], "success")
+        create_transaction.assert_not_called()
+        create_customer.assert_not_called()
+        list_customers.assert_not_called()
+        db = self._db()
+        try:
+            self.assertIsNone(db.query(saas.models.SaaSAccount).filter_by(id=account_id).first())
+            self.assertIsNone(db.query(saas.models.PendingOrganization).filter_by(id=result["organization_id"]).first())
+            self.assertIsNone(db.query(models.SchoolGroup).filter_by(id=result["school_group_id"]).first())
+            self.assertIsNotNone(db.query(saas.models.PendingOrganization).filter_by(id=unrelated["organization_id"]).first())
+            self.assertIsNotNone(db.query(models.SchoolGroup).filter_by(id=unrelated["school_group_id"]).first())
+            self.assertEqual(db.query(saas.models.SubscriptionPlan).count(), plan_count)
+            self.assertEqual(db.query(saas.models.SubscriptionPlanPrice).count(), price_count)
+            self.assertIsNone(saas_service.authenticate_account(db, email, original_password))
+        finally:
+            db.close()
+
+        deleted_login = self.client.post("/saas/auth/login", data={
+            "email": email,
+            "password": original_password,
+            "next_path": "/saas/account",
+        }, follow_redirects=False)
+        self.assertEqual(deleted_login.status_code, 302)
+        self.assertIn("/saas/login", deleted_login.headers["location"])
+
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            patch("saas.router.audit.write_audit_event") as repeated_audit,
+        ):
+            repeated = owner_client.post(path, data={
+                "confirmation_name": "Full Reset Success Academy",
+                "confirmation_email": email,
+                "reason": "Repeated request",
+            })
+        self.assertEqual(repeated.status_code, 404)
+        self.assertEqual(repeated_audit.call_args.args[0]["result"], "blocked_not_found")
+
+        sent_messages = []
+        with patch("email_service.send_email", side_effect=lambda **kwargs: sent_messages.append(kwargs) or "email_new"):
+            signup = self.client.post("/saas/auth/signup", data={
+                "first_name": "New",
+                "last_name": "Tester",
+                "email": email,
+                "password": "new-strong-password-123",
+                "confirm_password": "new-strong-password-123",
+            }, follow_redirects=False)
+        self.assertEqual(signup.status_code, 302)
+        self.assertTrue(sent_messages)
+
+    def test_delete_test_account_failure_rolls_back_identity_and_workspace(self):
+        email = "full-reset-rollback@academy.edu"
+        result = self._complete_paid_provisioning(
+            email=email,
+            organization_name="Full Reset Rollback Academy",
+        )
+        owner_client = self._platform_client(user_id="9025")
+        db = self._db()
+        try:
+            organization_uuid = db.query(saas.models.PendingOrganization).filter_by(
+                id=result["organization_id"]
+            ).first().organization_uuid
+            before = {
+                "accounts": db.query(saas.models.SaaSAccount).count(),
+                "pending": db.query(saas.models.PendingOrganization).count(),
+                "groups": db.query(models.SchoolGroup).count(),
+                "users": db.query(models.User).count(),
+            }
+        finally:
+            db.close()
+
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            patch("saas.test_account_deletion_service.Session.flush", side_effect=RuntimeError("simulated failure")),
+            patch("saas.router.audit.write_audit_event") as write_audit,
+        ):
+            response = owner_client.post(
+                f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-account",
+                data={
+                    "confirmation_name": "Full Reset Rollback Academy",
+                    "confirmation_email": email,
+                    "reason": "Rollback test",
+                },
+                follow_redirects=False,
+            )
+
+        self.assertIn("All+data+was+preserved", response.headers["location"])
+        self.assertEqual(write_audit.call_args.args[0]["result"], "failed_rolled_back")
+        db = self._db()
+        try:
+            after = {
+                "accounts": db.query(saas.models.SaaSAccount).count(),
+                "pending": db.query(saas.models.PendingOrganization).count(),
+                "groups": db.query(models.SchoolGroup).count(),
                 "users": db.query(models.User).count(),
             }
         finally:

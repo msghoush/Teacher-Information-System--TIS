@@ -1,0 +1,36 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Delete Test Account and Workspace</h1>
+<div class="error"><strong>Irreversible Sandbox/development action.</strong> This permanently deletes the local test customer identity, provisioned workspace, and onboarding data. Remote Paddle customers, transactions, and subscriptions remain untouched. This action cannot be undone.</div>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<div class="grid two">
+    <div class="stat-list">
+        <div class="stat"><strong>TIS Account</strong><p>Email: {{ analysis.account_email }}<br>Account UUID: {{ analysis.account_uuid }}<br>Account ID: {{ analysis.account_id }}</p></div>
+        <div class="stat"><strong>{{ analysis.organization_name }}</strong><p>Organization UUID: {{ analysis.organization_uuid }}<br>Operational Workspace: {{ analysis.workspace_name }}<br>SchoolGroup ID: {{ analysis.school_group_id }}</p></div>
+    </div>
+    <div class="stat-list">
+        <div class="stat"><strong>{% if analysis.safe_to_delete %}Safe to delete test account{% else %}Manual review required{% endif %}</strong><p>Total linked records counted: {{ analysis.total_records }}<br>The email will become available for a brand-new TIS Account registration.</p></div>
+        <div class="stat"><strong>Preserved records</strong><p>Remote Paddle records, payment webhooks, global plans and prices, reference data, platform accounts, unrelated accounts, and unrelated tenants remain untouched.</p></div>
+        {% if analysis.warnings %}<div class="stat"><strong>Warnings</strong><ul>{% for warning in analysis.warnings %}<li>{{ warning }}</li>{% endfor %}</ul></div>{% endif %}
+    </div>
+</div>
+
+{% if analysis.safe_to_delete %}
+<form method="post" action="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/delete-test-account" style="margin-top:24px; max-width:720px;">
+    <label for="confirmation_name">Type the organization name exactly</label>
+    <input id="confirmation_name" name="confirmation_name" required autocomplete="off" placeholder="{{ analysis.organization_name }}">
+    <label for="confirmation_email">Type the account email exactly</label>
+    <input id="confirmation_email" name="confirmation_email" required autocomplete="off" placeholder="{{ analysis.account_email }}">
+    <label for="reason">Deletion reason</label>
+    <textarea id="reason" name="reason" required rows="4" placeholder="Explain why this test account must be reset."></textarea>
+    <div class="actions">
+        <button class="btn danger" type="submit">Permanently Delete Test Account and Workspace</button>
+        <a class="btn secondary" href="/saas-admin/pending-organizations/{{ organization.organization_uuid }}">Cancel</a>
+    </div>
+</form>
+{% else %}
+<div class="notice" style="margin-top:24px;">Deletion is blocked until the ownership warnings above are manually reviewed and resolved.</div>
+<div class="actions"><a class="btn secondary" href="/saas-admin/pending-organizations/{{ organization.organization_uuid }}">Back to organization</a></div>
+{% endif %}
+{% endblock %}
