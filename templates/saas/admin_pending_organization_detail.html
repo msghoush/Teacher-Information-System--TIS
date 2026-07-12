@@ -1,76 +1,71 @@
 {% extends "saas/base.html" %}
 {% block content %}
+<style>
+    .owner-detail-section { margin-top: 24px; }
+    .owner-detail-section > h2 { margin: 0 0 12px; }
+    .owner-overview-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .owner-overview-grid .stat { min-height: 100%; }
+    .owner-admin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .owner-control-panel { border: 1px solid var(--line); border-left: 4px solid #b42318; padding: 18px; background: #fff; border-radius: 8px; }
+    .owner-control-row { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; padding: 16px 0; border-top: 1px solid var(--line); }
+    .owner-control-row:first-of-type { border-top: 0; padding-top: 0; }
+    .owner-control-row:last-child { padding-bottom: 0; }
+    .owner-control-copy { max-width: 760px; }
+    .owner-control-copy p { margin-bottom: 0; }
+    .owner-detail-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    @media (max-width: 980px) {
+        .owner-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+        .owner-overview-grid, .owner-admin-grid { grid-template-columns: 1fr; }
+        .owner-control-row { flex-direction: column; }
+    }
+</style>
+
 <h1>Pending Organization Detail</h1>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
-<div class="grid two">
-    <div class="stat-list">
+
+<section class="owner-detail-section" aria-labelledby="organization-overview-heading">
+    <h2 id="organization-overview-heading">Organization Overview</h2>
+    <div class="owner-overview-grid">
         <div class="stat">
             <strong>{{ organization.organization_name or "Untitled draft" }}</strong>
             <p>Status: {{ organization.status }}<br>Billing: {{ organization.billing_status }}<br>Payment: {{ organization.payment_status }}<br>Progress: {{ card.progress.completion_percent }}%<br>Educational Program: {{ organization.educational_program or "-" }}</p>
         </div>
         <div class="stat">
             <strong>Commercial selection</strong>
-            <p>
-                {% if card.current_plan_selection %}
-                Plan: {{ card.current_plan.plan_name if card.current_plan else card.current_plan_selection.plan_id }}<br>
-                Interval: {{ card.current_plan_selection.billing_interval }}<br>
-                Checkout: {{ card.current_checkout_session.status if card.current_checkout_session else "not_started" }}
-                {% else %}
-                No plan selected yet.
-                {% endif %}
-            </p>
+            <p>{% if card.current_plan_selection %}Plan: {{ card.current_plan.plan_name if card.current_plan else card.current_plan_selection.plan_id }}<br>Interval: {{ card.current_plan_selection.billing_interval }}<br>Checkout: {{ card.current_checkout_session.status if card.current_checkout_session else "not_started" }}{% else %}No plan selected yet.{% endif %}</p>
         </div>
         <div class="stat">
             <strong>Payment tracking</strong>
-            <p>
-                {% if card.current_payment_attempt %}
-                Attempt: {{ card.current_payment_attempt.status }}<br>
-                Transaction: {{ card.current_payment_attempt.provider_transaction_id or "-" }}<br>
-                {% if card.current_payment_subscription %}
-                Subscription: {{ card.current_payment_subscription.status }}<br>
-                Subscription ID: {{ card.current_payment_subscription.provider_subscription_id }}
-                {% endif %}
-                {% else %}
-                No payment attempt launched yet.
-                {% endif %}
-            </p>
+            <p>{% if card.current_payment_attempt %}Attempt: {{ card.current_payment_attempt.status }}<br>Transaction: {{ card.current_payment_attempt.provider_transaction_id or "-" }}{% if card.current_payment_subscription %}<br>Subscription: {{ card.current_payment_subscription.status }}<br>Subscription ID: {{ card.current_payment_subscription.provider_subscription_id }}{% endif %}{% else %}No payment attempt launched yet.{% endif %}</p>
         </div>
         <div class="stat">
-            <strong>Provisioning</strong>
-            <p>
-                {% if card.current_provisioning_job %}
-                Job: {{ card.current_provisioning_job.job_status }}<br>
-                Attempts: {{ card.current_provisioning_job.attempt_count }} / {{ card.current_provisioning_job.max_attempts }}
-                {% if card.current_tenant_link %}<br>School Group ID: {{ card.current_tenant_link.school_group_id }}{% endif %}
-                {% else %}
-                No provisioning job queued yet.
-                {% endif %}
-            </p>
-            <div class="actions">
-                <a class="btn secondary" href="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/analyze-test-workspace">Analyze Test Workspace</a>
-            </div>
+            <strong>Provisioning summary</strong>
+            <p>{% if card.current_provisioning_job %}Job: {{ card.current_provisioning_job.job_status }}<br>Attempts: {{ card.current_provisioning_job.attempt_count }} / {{ card.current_provisioning_job.max_attempts }}{% if card.current_tenant_link %}<br>School Group ID: {{ card.current_tenant_link.school_group_id }}{% endif %}{% else %}No provisioning job queued yet.{% endif %}</p>
         </div>
         <div class="stat">
             <strong>Primary contact</strong>
             <p>{% if primary_contact %}{{ primary_contact.first_name }} {{ primary_contact.last_name }}<br>{{ primary_contact.email }}{% else %}No contact saved{% endif %}</p>
         </div>
         <div class="stat">
-            <strong>Academic setup</strong>
-            <p>{{ academic_setup.first_academic_year_name or "-" }}</p>
+            <strong>Academic and branch setup</strong>
+            <p>Academic year: {{ academic_setup.first_academic_year_name or "-" }}<br>Branches: {{ card.branches_count }}</p>
         </div>
     </div>
-    <div class="stat-list">
-        {% if can_manage_pending_organization %}
-        <div class="stat">
-            <strong>Test/development workspace reset</strong>
-            <p class="muted">Permanently remove a provisioned test workspace after a conservative impact analysis and typed confirmation.</p>
-            <div class="actions">
-                <a class="btn danger" href="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/delete-test-workspace">Delete Test Workspace</a>
-            </div>
-        </div>
-        {% endif %}
-        {% if can_manage_pending_organization %}
+    <div class="owner-detail-table-wrap" style="margin-top:14px;">
+        <table class="table">
+            <thead><tr><th>Branch</th><th>City</th><th>Country</th></tr></thead>
+            <tbody>{% for branch in branches %}<tr><td>{{ branch.branch_name }}</td><td>{{ branch.city_name or branch.location or "-" }}</td><td>{{ branch.country_name or "-" }}</td></tr>{% else %}<tr><td colspan="3">No branches saved.</td></tr>{% endfor %}</tbody>
+        </table>
+    </div>
+</section>
+
+{% if can_manage_pending_organization %}
+<section class="owner-detail-section" aria-labelledby="administration-heading">
+    <h2 id="administration-heading">Administration</h2>
+    <div class="owner-admin-grid">
         <div class="stat">
             <strong>Update status</strong>
             <form method="post" action="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/status">
@@ -83,62 +78,62 @@
                 </select>
                 <label>Reason / note</label>
                 <input name="rejection_reason" value="{{ organization.rejection_reason or '' }}">
-                <div class="actions"><button class="btn" type="submit">Save status</button></div>
+                <div class="actions"><button class="btn" type="submit">Save Status</button></div>
             </form>
         </div>
-        {% endif %}
-        {% if can_manage_pending_organization %}
         <div class="stat">
             <strong>Add internal note</strong>
             <form method="post" action="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/notes">
+                <label>Internal note</label>
                 <input name="note" placeholder="Add an internal note">
-                <div class="actions"><button class="btn secondary" type="submit">Save note</button></div>
+                <div class="actions"><button class="btn secondary" type="submit">Save Note</button></div>
             </form>
         </div>
+    </div>
+</section>
+{% endif %}
+
+<section class="owner-detail-section" aria-labelledby="workspace-controls-heading">
+    <h2 id="workspace-controls-heading">Test Workspace Controls</h2>
+    <div class="owner-control-panel">
+        <div class="owner-control-row">
+            <div class="owner-control-copy">
+                <strong>Analyze Test Workspace</strong>
+                <p class="muted">Review linked onboarding, payment, provisioning, and operational records without changing data.</p>
+            </div>
+            <a class="btn secondary" href="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/analyze-test-workspace">Analyze Test Workspace</a>
+        </div>
+        {% if can_manage_pending_organization and card.current_tenant_link %}
+        <div class="owner-control-row">
+            <div class="owner-control-copy">
+                <strong>Reset provisioned test workspace</strong>
+                <p class="muted">Permanently remove this provisioned test workspace and its local TIS data so the complete SaaS onboarding flow can be tested again.</p>
+            </div>
+            <a class="btn danger" href="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/delete-test-workspace">Reset Test Workspace</a>
+        </div>
         {% endif %}
-        {% if can_manage_pending_organization %}
-        <div class="stat">
-            <strong>Delete pending organization</strong>
-            <p class="muted">Delete this pending organization? This action only removes the pending application and cannot be undone.</p>
-            <form method="post" action="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/delete" onsubmit="return confirm('Delete this pending organization? This action only removes the pending application and cannot be undone.');">
+        {% if can_manage_pending_organization and can_delete_pending_organization %}
+        <div class="owner-control-row">
+            <div class="owner-control-copy">
+                <strong>Delete unprovisioned pending application</strong>
+                <p class="muted">Remove only this unprovisioned application draft. This does not reset a provisioned operational workspace.</p>
+            </div>
+            <form method="post" action="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/delete" onsubmit="return confirm('Delete this unprovisioned pending application? This cannot be undone.');">
                 <input type="hidden" name="confirm_delete" value="1">
-                <div class="actions"><button class="btn danger" type="submit">Delete</button></div>
+                <button class="btn danger" type="submit">Delete Pending Application</button>
             </form>
         </div>
         {% endif %}
     </div>
-</div>
-<h2 style="margin-top:24px;">Branches</h2>
-<table class="table">
-    <thead><tr><th>Name</th><th>City</th><th>Country</th></tr></thead>
-    <tbody>
-        {% for branch in branches %}
-        <tr><td>{{ branch.branch_name }}</td><td>{{ branch.city_name or branch.location or "-" }}</td><td>{{ branch.country_name or "-" }}</td></tr>
-        {% else %}
-        <tr><td colspan="3">No branches saved.</td></tr>
-        {% endfor %}
-    </tbody>
-</table>
-<h2 style="margin-top:24px;">Timeline</h2>
-<table class="table">
-    <thead><tr><th>Event</th><th>Created</th></tr></thead>
-    <tbody>
-        {% for event in events %}
-        <tr><td>{{ event.event_type }}</td><td>{{ event.created_at }}</td></tr>
-        {% else %}
-        <tr><td colspan="2">No events recorded.</td></tr>
-        {% endfor %}
-    </tbody>
-</table>
-<h2 style="margin-top:24px;">Internal Notes</h2>
-<table class="table">
-    <thead><tr><th>Note</th><th>Created</th></tr></thead>
-    <tbody>
-        {% for note in notes %}
-        <tr><td>{{ note.note }}</td><td>{{ note.created_at }}</td></tr>
-        {% else %}
-        <tr><td colspan="2">No notes yet.</td></tr>
-        {% endfor %}
-    </tbody>
-</table>
+</section>
+
+<section class="owner-detail-section" aria-labelledby="timeline-heading">
+    <h2 id="timeline-heading">Timeline</h2>
+    <div class="owner-detail-table-wrap"><table class="table"><thead><tr><th>Event</th><th>Created</th></tr></thead><tbody>{% for event in events %}<tr><td>{{ event.event_type }}</td><td>{{ event.created_at }}</td></tr>{% else %}<tr><td colspan="2">No events recorded.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+
+<section class="owner-detail-section" aria-labelledby="notes-heading">
+    <h2 id="notes-heading">Internal Notes</h2>
+    <div class="owner-detail-table-wrap"><table class="table"><thead><tr><th>Note</th><th>Created</th></tr></thead><tbody>{% for note in notes %}<tr><td>{{ note.note }}</td><td>{{ note.created_at }}</td></tr>{% else %}<tr><td colspan="2">No notes yet.</td></tr>{% endfor %}</tbody></table></div>
+</section>
 {% endblock %}

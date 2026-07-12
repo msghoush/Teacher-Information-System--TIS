@@ -29,7 +29,7 @@
     .pending-org-table .actions-cell {
         position: sticky;
         right: 0;
-        min-width: 300px;
+        min-width: 250px;
         background: #fff;
         box-shadow: -12px 0 18px rgba(16, 35, 63, .08);
         z-index: 1;
@@ -52,7 +52,7 @@
     }
     @media (max-width: 760px) {
         .pending-org-table .actions-cell {
-            min-width: 260px;
+            min-width: 230px;
         }
     }
 </style>
@@ -116,10 +116,6 @@
                     <div class="actions pending-org-row-actions">
                         <a class="btn secondary" href="/saas-admin/pending-organizations/{{ card.organization.organization_uuid }}">View Details</a>
                         <a class="btn secondary" href="/saas-admin/pending-organizations/{{ card.organization.organization_uuid }}/analyze-test-workspace">Analyze Workspace</a>
-                        <form method="post" action="/saas-admin/pending-organizations/{{ card.organization.organization_uuid }}/delete" onsubmit="return confirm('Delete this pending organization? This action only removes the pending application and cannot be undone.');">
-                            <input type="hidden" name="confirm_delete" value="1">
-                            <button class="btn danger" type="submit">Delete</button>
-                        </form>
                     </div>
                 </td>
             </tr>
