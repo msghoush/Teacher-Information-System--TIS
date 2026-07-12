@@ -168,6 +168,13 @@ def analyze_test_workspace(db: Session, organization) -> dict:
         academic_year_ids = _ids(academic_year_query, operational_models.AcademicYear.id)
         user_pks = _ids(user_query, operational_models.User.id)
         user_ids = _string_ids(user_query, operational_models.User.user_id)
+        platform_user_count = _count(user_query.filter(
+            operational_models.User.user_type == "PLATFORM"
+        ))
+        if platform_user_count:
+            warnings.append(
+                "One or more Platform users are assigned to the operational workspace."
+            )
 
         teacher_query = db.query(operational_models.Teacher).filter(
             or_(
