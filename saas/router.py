@@ -9,7 +9,7 @@ import auth
 from dependencies import get_db
 import email_service
 import location_service
-from saas import billing_service, models, oauth, paddle_client, payment_service, pricing_service, provisioning_service, service
+from saas import billing_service, models, oauth, paddle_client, payment_service, pricing_service, provisioning_service, service, workspace_analysis_service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -134,6 +134,13 @@ def _require_platform_owner(request: Request, db: Session):
     current_user = auth.get_current_user(request, db)
     if not current_user or not auth.is_platform_owner(current_user):
         raise HTTPException(status_code=403, detail="Platform Owner access is required.")
+    return current_user
+
+
+def _require_workspace_analyzer(request: Request, db: Session):
+    current_user = auth.get_current_user(request, db)
+    if not current_user or not (auth.is_platform_owner(current_user) or auth.is_platform_developer(current_user)):
+        raise HTTPException(status_code=403, detail="Platform Owner or Developer access is required.")
     return current_user
 
 
@@ -2021,7 +2028,7 @@ def pending_organization_detail(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    current_user = _require_platform_owner(request, db)
+    current_user = _require_workspace_analyzer(request, db)
     organization = service.get_pending_organization_by_uuid(db, organization_uuid)
     if not organization:
         db.rollback()
@@ -2045,8 +2052,36 @@ def pending_organization_detail(
             "branches": branches,
             "events": events,
             "notes": notes,
+            "can_manage_pending_organization": auth.is_platform_owner(current_user),
             "notice": request.query_params.get("notice", ""),
             "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@admin_router.get("/pending-organizations/{organization_uuid}/analyze-test-workspace", response_class=HTMLResponse)
+def analyze_test_workspace(
+    organization_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = _require_workspace_analyzer(request, db)
+    organization = service.get_pending_organization_by_uuid(db, organization_uuid)
+    if not organization:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Pending organization not found.")
+    analysis = workspace_analysis_service.analyze_test_workspace(db, organization)
+    return _render(
+        request,
+        "saas/admin_workspace_analysis.html",
+        {
+            "current_user": current_user,
+            "organization": organization,
+            "analysis": analysis,
+            "counts_by_category": {
+                category: [row for row in analysis["counts"] if row.category == category]
+                for category in dict.fromkeys(row.category for row in analysis["counts"])
+            },
         },
     )
 

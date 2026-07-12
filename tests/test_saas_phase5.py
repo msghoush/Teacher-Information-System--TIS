@@ -26,7 +26,7 @@ import models
 import permission_registry
 import saas.models  # noqa: F401
 from dependencies import get_db
-from saas import provisioning_service
+from saas import provisioning_service, service as saas_service
 from saas.router import admin_router as saas_admin_router, router as saas_router
 
 
@@ -363,6 +363,65 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         finally:
             db.close()
 
+    def _platform_client(self, *, user_id: str = "9005", platform_role: str = auth.PLATFORM_ROLE_OWNER):
+        db = self._db()
+        try:
+            platform_user = models.User(
+                user_id=user_id,
+                username=f"platform.{user_id}",
+                email=f"platform.{user_id}@example.com",
+                email_normalized=auth.normalize_email(f"platform.{user_id}@example.com"),
+                first_name="Platform",
+                last_name="User",
+                password=auth.get_password_hash("PlatformPass123!"),
+                user_type=auth.USER_TYPE_PLATFORM,
+                platform_role=platform_role,
+                platform_owner_kind=auth.PLATFORM_OWNER_PRIMARY if platform_role == auth.PLATFORM_ROLE_OWNER else None,
+                access_scope=auth.ACCESS_SCOPE_GLOBAL,
+                is_active=True,
+            )
+            db.add(platform_user)
+            db.commit()
+            token = auth.create_session_token(platform_user)
+        finally:
+            db.close()
+        client = TestClient(self.app)
+        client.cookies.set(auth.SESSION_COOKIE_KEY, token)
+        return client
+
+    def _tenant_client(self, *, user_id: str = "7100000010"):
+        db = self._db()
+        try:
+            group = models.SchoolGroup(name=f"Tenant Guard {user_id}", status=True)
+            db.add(group)
+            db.flush()
+            branch = models.Branch(school_group_id=group.id, name="Tenant Branch", status=True)
+            db.add(branch)
+            db.flush()
+            tenant_user = models.User(
+                user_id=user_id,
+                username=user_id,
+                email=f"tenant.{user_id}@example.com",
+                email_normalized=auth.normalize_email(f"tenant.{user_id}@example.com"),
+                first_name="Tenant",
+                last_name="Admin",
+                password=auth.get_password_hash("TenantPass123!"),
+                user_type=auth.USER_TYPE_TENANT,
+                role=auth.ROLE_ADMINISTRATOR,
+                access_scope=auth.ACCESS_SCOPE_ORGANIZATION,
+                school_group_id=group.id,
+                branch_id=branch.id,
+                is_active=True,
+            )
+            db.add(tenant_user)
+            db.commit()
+            token = auth.create_session_token(tenant_user)
+        finally:
+            db.close()
+        client = TestClient(self.app)
+        client.cookies.set(auth.SESSION_COOKIE_KEY, token)
+        return client
+
     def test_successful_provisioning_creates_operational_tenant_and_activation_email(self):
         self._configure_paddle_prices()
         sent_messages = []
@@ -484,6 +543,210 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
 
         self.assertEqual(result["school_group_name"], "Approved Workspace Academy")
         self.assertNotEqual(result["school_group_name"], "Branch Name Should Not Win")
+
+    def test_platform_owner_can_analyze_provisioned_test_workspace_read_only(self):
+        result = self._complete_paid_provisioning(
+            email="analysis-owner@academy.edu",
+            organization_name="Analysis Academy",
+            legal_name="Analysis Legal Entity",
+        )
+        platform_client = self._platform_client()
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(id=result["organization_id"]).first()
+            organization_uuid = organization.organization_uuid
+            counts_before = {
+                "pending": db.query(saas.models.PendingOrganization).count(),
+                "school_groups": db.query(models.SchoolGroup).count(),
+                "branches": db.query(models.Branch).count(),
+                "users": db.query(models.User).count(),
+                "events": db.query(saas.models.PendingOrganizationEvent).count(),
+            }
+        finally:
+            db.close()
+
+        with (
+            patch("saas.paddle_client.create_transaction") as create_transaction,
+            patch("saas.paddle_client.create_customer") as create_customer,
+            patch("saas.paddle_client.list_customers_by_email") as list_customers,
+        ):
+            response = platform_client.get(
+                f"/saas-admin/pending-organizations/{organization_uuid}/analyze-test-workspace"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Analyze Test Workspace", response.text)
+        self.assertIn("Analysis Academy", response.text)
+        self.assertIn(str(result["school_group_id"]), response.text)
+        self.assertIn("Safe to prepare for deletion", response.text)
+        self.assertIn("No data was changed", response.text)
+        self.assertIn("<td>pending_organization_branches</td>", response.text)
+        self.assertIn("<td>payment_webhooks</td>", response.text)
+        self.assertIn("<td>branches</td>", response.text)
+        self.assertIn("<td>2</td>", response.text)
+        self.assertNotIn(os.environ["PADDLE_API_KEY"], response.text)
+        self.assertNotIn("PADDLE_API_KEY", response.text)
+        self.assertNotIn("DATABASE_URL", response.text)
+        self.assertNotIn("password_hash", response.text)
+        self.assertNotIn("payload_json", response.text)
+        create_transaction.assert_not_called()
+        create_customer.assert_not_called()
+        list_customers.assert_not_called()
+
+        db = self._db()
+        try:
+            counts_after = {
+                "pending": db.query(saas.models.PendingOrganization).count(),
+                "school_groups": db.query(models.SchoolGroup).count(),
+                "branches": db.query(models.Branch).count(),
+                "users": db.query(models.User).count(),
+                "events": db.query(saas.models.PendingOrganizationEvent).count(),
+            }
+        finally:
+            db.close()
+        self.assertEqual(counts_before, counts_after)
+
+    def test_platform_developer_can_access_workspace_analysis(self):
+        result = self._complete_paid_provisioning(
+            email="analysis-developer@academy.edu",
+            organization_name="Developer Analysis Academy",
+        )
+        db = self._db()
+        try:
+            organization_uuid = db.query(saas.models.PendingOrganization).filter_by(
+                id=result["organization_id"]
+            ).first().organization_uuid
+        finally:
+            db.close()
+
+        response = self._platform_client(
+            user_id="9006",
+            platform_role=auth.PLATFORM_ROLE_DEVELOPER,
+        ).get(f"/saas-admin/pending-organizations/{organization_uuid}/analyze-test-workspace")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Developer Analysis Academy", response.text)
+
+    def test_platform_developer_detail_page_shows_analysis_without_mutating_controls(self):
+        result = self._complete_paid_provisioning(
+            email="analysis-developer-detail@academy.edu",
+            organization_name="Developer Detail Analysis Academy",
+        )
+        db = self._db()
+        try:
+            organization_uuid = db.query(saas.models.PendingOrganization).filter_by(
+                id=result["organization_id"]
+            ).first().organization_uuid
+        finally:
+            db.close()
+
+        response = self._platform_client(
+            user_id="9007",
+            platform_role=auth.PLATFORM_ROLE_DEVELOPER,
+        ).get(f"/saas-admin/pending-organizations/{organization_uuid}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Analyze Test Workspace", response.text)
+        self.assertNotIn("Update status", response.text)
+        self.assertNotIn("Add internal note", response.text)
+        self.assertNotIn("Delete pending organization", response.text)
+
+    def test_customer_and_tenant_users_cannot_access_workspace_analysis(self):
+        result = self._complete_paid_provisioning(
+            email="analysis-deny@academy.edu",
+            organization_name="Denied Analysis Academy",
+        )
+        db = self._db()
+        try:
+            organization_uuid = db.query(saas.models.PendingOrganization).filter_by(
+                id=result["organization_id"]
+            ).first().organization_uuid
+            account = db.query(saas.models.SaaSAccount).filter_by(
+                email_normalized=auth.normalize_email("analysis-deny@academy.edu")
+            ).first()
+            session_token, _csrf_token, _session = saas_service.create_session(db, account)
+            db.commit()
+        finally:
+            db.close()
+
+        customer_client = TestClient(self.app)
+        customer_client.cookies.set(saas_service.SAAS_SESSION_COOKIE, session_token)
+        customer_response = customer_client.get(
+            f"/saas-admin/pending-organizations/{organization_uuid}/analyze-test-workspace"
+        )
+        tenant_response = self._tenant_client().get(
+            f"/saas-admin/pending-organizations/{organization_uuid}/analyze-test-workspace"
+        )
+
+        self.assertEqual(customer_response.status_code, 403)
+        self.assertEqual(tenant_response.status_code, 403)
+
+    def test_workspace_analysis_excludes_unrelated_tenant_records(self):
+        result = self._complete_paid_provisioning(
+            email="analysis-scope@academy.edu",
+            organization_name="Scoped Analysis Academy",
+        )
+        db = self._db()
+        try:
+            organization_uuid = db.query(saas.models.PendingOrganization).filter_by(
+                id=result["organization_id"]
+            ).first().organization_uuid
+            unrelated_group = models.SchoolGroup(name="Unrelated Workspace", status=True)
+            db.add(unrelated_group)
+            db.flush()
+            db.add(models.Branch(school_group_id=unrelated_group.id, name="Unrelated Branch", status=True))
+            db.add(models.AcademicYear(school_group_id=unrelated_group.id, year_name="2099-2100", is_active=True))
+            db.commit()
+        finally:
+            db.close()
+
+        response = self._platform_client().get(
+            f"/saas-admin/pending-organizations/{organization_uuid}/analyze-test-workspace"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Scoped Analysis Academy", response.text)
+        self.assertNotIn("Unrelated Workspace", response.text)
+        self.assertNotIn("Unrelated Branch", response.text)
+        self.assertIn("<td>branches</td>", response.text)
+        self.assertIn("<td>2</td>", response.text)
+
+    def test_workspace_analysis_handles_unprovisioned_pending_organization_conservatively(self):
+        sent_messages = []
+        org_uuid = self._complete_pending_org(
+            "analysis-unprovisioned@academy.edu",
+            sent_messages,
+            organization_name="Unprovisioned Analysis Academy",
+        )
+
+        response = self._platform_client().get(
+            f"/saas-admin/pending-organizations/{org_uuid}/analyze-test-workspace"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Unprovisioned Analysis Academy", response.text)
+        self.assertIn("Manual review required", response.text)
+        self.assertIn("No tenant provisioning link exists", response.text)
+        self.assertIn("Not linked", response.text)
+
+    def test_pending_organization_detail_exposes_read_only_analysis_action_to_owner(self):
+        result = self._complete_paid_provisioning(
+            email="analysis-link@academy.edu",
+            organization_name="Analysis Link Academy",
+        )
+        db = self._db()
+        try:
+            organization_uuid = db.query(saas.models.PendingOrganization).filter_by(
+                id=result["organization_id"]
+            ).first().organization_uuid
+        finally:
+            db.close()
+
+        response = self._platform_client().get(f"/saas-admin/pending-organizations/{organization_uuid}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Analyze Test Workspace", response.text)
+        self.assertIn(f"/saas-admin/pending-organizations/{organization_uuid}/analyze-test-workspace", response.text)
 
     def test_activation_email_uses_configured_production_public_urls(self):
         sent_messages = []
