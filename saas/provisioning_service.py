@@ -234,7 +234,7 @@ def _upsert_tenant_profile(db: Session, organization, school_group_id: int):
 def _create_school_group(db: Session, organization):
     group_name = _generate_unique_school_group_name(
         db,
-        getattr(organization, "legal_name", None) or getattr(organization, "organization_name", ""),
+        getattr(organization, "organization_name", ""),
     )
     school_group = operational_models.SchoolGroup(
         name=group_name,
