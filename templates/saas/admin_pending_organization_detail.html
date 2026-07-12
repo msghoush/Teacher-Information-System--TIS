@@ -47,6 +47,9 @@
                 No provisioning job queued yet.
                 {% endif %}
             </p>
+            <div class="actions">
+                <a class="btn secondary" href="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/analyze-test-workspace">Analyze Test Workspace</a>
+            </div>
         </div>
         <div class="stat">
             <strong>Primary contact</strong>
@@ -58,6 +61,7 @@
         </div>
     </div>
     <div class="stat-list">
+        {% if can_manage_pending_organization %}
         <div class="stat">
             <strong>Update status</strong>
             <form method="post" action="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/status">
@@ -73,6 +77,8 @@
                 <div class="actions"><button class="btn" type="submit">Save status</button></div>
             </form>
         </div>
+        {% endif %}
+        {% if can_manage_pending_organization %}
         <div class="stat">
             <strong>Add internal note</strong>
             <form method="post" action="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/notes">
@@ -80,6 +86,8 @@
                 <div class="actions"><button class="btn secondary" type="submit">Save note</button></div>
             </form>
         </div>
+        {% endif %}
+        {% if can_manage_pending_organization %}
         <div class="stat">
             <strong>Delete pending organization</strong>
             <p class="muted">Delete this pending organization? This action only removes the pending application and cannot be undone.</p>
@@ -88,6 +96,7 @@
                 <div class="actions"><button class="btn danger" type="submit">Delete</button></div>
             </form>
         </div>
+        {% endif %}
     </div>
 </div>
 <h2 style="margin-top:24px;">Branches</h2>

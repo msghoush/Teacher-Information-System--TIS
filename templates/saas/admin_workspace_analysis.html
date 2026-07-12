@@ -1,0 +1,76 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Analyze Test Workspace</h1>
+<div class="notice">Read-only analysis completed. No data was changed.</div>
+
+<div class="grid two">
+    <div class="stat-list">
+        <div class="stat">
+            <strong>{{ analysis.organization_name or "Untitled organization" }}</strong>
+            <p>
+                Organization UUID: {{ analysis.organization_uuid }}<br>
+                Operational Workspace: {{ analysis.workspace_name or "Not linked" }}<br>
+                SchoolGroup ID: {{ analysis.school_group_id or "Not linked" }}
+            </p>
+        </div>
+        <div class="stat">
+            <strong>{{ analysis.status_label }}</strong>
+            <p>
+                Provisioning: {{ analysis.provisioning_status }}<br>
+                Subscription: {{ analysis.subscription_status }}<br>
+                Billing: {{ analysis.billing_status }}<br>
+                Payment: {{ analysis.payment_status }}<br>
+                Linked records counted: {{ analysis.total_linked_records }}
+            </p>
+        </div>
+    </div>
+    <div class="stat-list">
+        <div class="stat">
+            <strong>Future reset classification</strong>
+            <p>
+                Tenant-owned records are expected to be in scope for a future test reset.
+                Payment-provider and audit records are identified separately and should remain preserved unless a later approved reset policy says otherwise.
+            </p>
+        </div>
+        <div class="stat">
+            <strong>Warnings</strong>
+            {% if analysis.warnings %}
+            <ul>
+                {% for warning in analysis.warnings %}
+                <li>{{ warning }}</li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p>No unresolved relationships were detected by this analyzer.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<h2 style="margin-top:24px;">Linked Record Counts</h2>
+{% for category, rows in counts_by_category.items() %}
+<h3 style="margin-top:18px;">{{ category }}</h3>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Table</th>
+            <th>Count</th>
+            <th>Classification</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td>{{ row.table }}</td>
+            <td>{{ row.count }}</td>
+            <td>{{ row.disposition }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endfor %}
+
+<div class="actions" style="margin-top:24px;">
+    <a class="btn secondary" href="/saas-admin/pending-organizations/{{ organization.organization_uuid }}">Back to organization</a>
+</div>
+{% endblock %}
