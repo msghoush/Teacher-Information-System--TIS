@@ -1,5 +1,61 @@
 {% extends "saas/base.html" %}
 {% block content %}
+<style>
+    .pending-org-table-wrap {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: #fff;
+    }
+    .pending-org-table-wrap .table {
+        min-width: 1180px;
+        border: 0;
+        border-radius: 0;
+    }
+    .pending-org-table th,
+    .pending-org-table td {
+        white-space: nowrap;
+    }
+    .pending-org-table .org-cell,
+    .pending-org-table .owner-cell,
+    .pending-org-table .billing-cell {
+        white-space: normal;
+        min-width: 210px;
+    }
+    .pending-org-table .actions-cell {
+        position: sticky;
+        right: 0;
+        min-width: 300px;
+        background: #fff;
+        box-shadow: -12px 0 18px rgba(16, 35, 63, .08);
+        z-index: 1;
+    }
+    .pending-org-table th.actions-cell {
+        background: #f2f7fd;
+        z-index: 2;
+    }
+    .pending-org-row-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: nowrap;
+        margin-top: 0;
+    }
+    .pending-org-row-actions .btn {
+        min-height: 38px;
+        padding: 8px 12px;
+        white-space: nowrap;
+    }
+    @media (max-width: 760px) {
+        .pending-org-table .actions-cell {
+            min-width: 260px;
+        }
+    }
+</style>
 <h1>Pending Organizations</h1>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
@@ -14,65 +70,68 @@
 <div class="notice">
     {{ cards|length }} organization record(s) shown{% if status_filter %} for status "{{ status_filter }}"{% endif %}.
 </div>
-<table class="table">
-    <thead>
-        <tr>
-            <th>Organization</th>
-            <th>Owner</th>
-            <th>Status</th>
-            <th>Step</th>
-            <th>Plan</th>
-            <th>Progress</th>
-            <th>Billing</th>
-            <th>Updated</th>
-            <th>Branches</th>
-            <th>Action</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for card in cards %}
-        <tr>
-            <td>
-                <strong>{{ card.organization.organization_name or "Untitled organization draft" }}</strong><br>
-                <span class="muted">{{ card.organization.organization_uuid }}</span>
-            </td>
-            <td>
-                {% if card.owner_account %}
-                {{ card.owner_account.email }}<br>
-                <span class="muted">{{ card.owner_account.first_name }} {{ card.owner_account.last_name }}</span>
-                {% else %}
-                <span class="muted">No owner account found</span>
-                {% endif %}
-            </td>
-            <td>{{ card.organization.status }}</td>
-            <td>{{ card.organization.onboarding_step }}</td>
-            <td>{% if card.current_plan %}{{ card.current_plan.plan_name }}{% else %}-{% endif %}</td>
-            <td>{{ card.progress.completion_percent }}%</td>
-            <td>
-                {{ card.organization.billing_status }}<br>
-                <span class="muted">Payment: {{ card.organization.payment_status }}</span>
-                {% if card.current_provisioning_job %}<br><span class="muted">Provisioning: {{ card.current_provisioning_job.job_status }}</span>{% elif card.current_tenant_link %}<br><span class="muted">Provisioning: tenant_active</span>{% endif %}
-            </td>
-            <td>{{ card.organization.updated_at }}</td>
-            <td>{{ card.branches_count }}</td>
-            <td>
-                <div class="actions">
-                    <a class="btn secondary" href="/saas-admin/pending-organizations/{{ card.organization.organization_uuid }}">Open</a>
-                    <form method="post" action="/saas-admin/pending-organizations/{{ card.organization.organization_uuid }}/delete" onsubmit="return confirm('Delete this pending organization? This action only removes the pending application and cannot be undone.');">
-                        <input type="hidden" name="confirm_delete" value="1">
-                        <button class="btn danger" type="submit">Delete</button>
-                    </form>
-                </div>
-            </td>
-        </tr>
-        {% else %}
-        <tr>
-            <td colspan="10">
-                <strong>No pending organizations found.</strong><br>
-                <span class="muted">Ask the tester to sign in to the account dashboard and click Set up your organization. A signup alone creates only an account record.</span>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<div class="pending-org-table-wrap" aria-label="Pending organizations table">
+    <table class="table pending-org-table">
+        <thead>
+            <tr>
+                <th>Organization</th>
+                <th>Owner</th>
+                <th>Status</th>
+                <th>Step</th>
+                <th>Plan</th>
+                <th>Progress</th>
+                <th>Billing</th>
+                <th>Updated</th>
+                <th>Branches</th>
+                <th class="actions-cell">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for card in cards %}
+            <tr>
+                <td class="org-cell">
+                    <strong>{{ card.organization.organization_name or "Untitled organization draft" }}</strong><br>
+                    <span class="muted">{{ card.organization.organization_uuid }}</span>
+                </td>
+                <td class="owner-cell">
+                    {% if card.owner_account %}
+                    {{ card.owner_account.email }}<br>
+                    <span class="muted">{{ card.owner_account.first_name }} {{ card.owner_account.last_name }}</span>
+                    {% else %}
+                    <span class="muted">No owner account found</span>
+                    {% endif %}
+                </td>
+                <td>{{ card.organization.status }}</td>
+                <td>{{ card.organization.onboarding_step }}</td>
+                <td>{% if card.current_plan %}{{ card.current_plan.plan_name }}{% else %}-{% endif %}</td>
+                <td>{{ card.progress.completion_percent }}%</td>
+                <td class="billing-cell">
+                    {{ card.organization.billing_status }}<br>
+                    <span class="muted">Payment: {{ card.organization.payment_status }}</span>
+                    {% if card.current_provisioning_job %}<br><span class="muted">Provisioning: {{ card.current_provisioning_job.job_status }}</span>{% elif card.current_tenant_link %}<br><span class="muted">Provisioning: tenant_active</span>{% endif %}
+                </td>
+                <td>{{ card.organization.updated_at }}</td>
+                <td>{{ card.branches_count }}</td>
+                <td class="actions-cell">
+                    <div class="actions pending-org-row-actions">
+                        <a class="btn secondary" href="/saas-admin/pending-organizations/{{ card.organization.organization_uuid }}">View Details</a>
+                        <a class="btn secondary" href="/saas-admin/pending-organizations/{{ card.organization.organization_uuid }}/analyze-test-workspace">Analyze Workspace</a>
+                        <form method="post" action="/saas-admin/pending-organizations/{{ card.organization.organization_uuid }}/delete" onsubmit="return confirm('Delete this pending organization? This action only removes the pending application and cannot be undone.');">
+                            <input type="hidden" name="confirm_delete" value="1">
+                            <button class="btn danger" type="submit">Delete</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="10">
+                    <strong>No pending organizations found.</strong><br>
+                    <span class="muted">Ask the tester to sign in to the account dashboard and click Set up your organization. A signup alone creates only an account record.</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% endblock %}

@@ -748,6 +748,38 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         self.assertIn("Analyze Test Workspace", response.text)
         self.assertIn(f"/saas-admin/pending-organizations/{organization_uuid}/analyze-test-workspace", response.text)
 
+    def test_pending_organizations_dashboard_keeps_owner_actions_reachable(self):
+        result = self._complete_paid_provisioning(
+            email="analysis-table@academy.edu",
+            organization_name="Analysis Table Academy",
+        )
+        db = self._db()
+        try:
+            organization_uuid = db.query(saas.models.PendingOrganization).filter_by(
+                id=result["organization_id"]
+            ).first().organization_uuid
+        finally:
+            db.close()
+
+        response = self._platform_client().get("/saas-admin/pending-organizations")
+        tenant_response = self._tenant_client().get("/saas-admin/pending-organizations")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("pending-org-table-wrap", response.text)
+        self.assertIn("overflow-x: auto", response.text)
+        self.assertIn("position: sticky", response.text)
+        self.assertIn("right: 0", response.text)
+        self.assertIn("Analysis Table Academy", response.text)
+        self.assertIn("View Details", response.text)
+        self.assertIn("Analyze Workspace", response.text)
+        self.assertIn(f"/saas-admin/pending-organizations/{organization_uuid}", response.text)
+        self.assertIn(
+            f"/saas-admin/pending-organizations/{organization_uuid}/analyze-test-workspace",
+            response.text,
+        )
+        self.assertEqual(tenant_response.status_code, 403)
+        self.assertNotIn("Analyze Workspace", tenant_response.text)
+
     def test_activation_email_uses_configured_production_public_urls(self):
         sent_messages = []
 
