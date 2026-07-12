@@ -117,8 +117,17 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         self.assertEqual(login_response.status_code, 302)
         self.assertEqual(login_response.headers["location"], "/saas/account")
 
-    def _complete_pending_org(self, email: str, sent_messages: list[dict]) -> str:
+    def _complete_pending_org(
+        self,
+        email: str,
+        sent_messages: list[dict],
+        *,
+        organization_name: str = "Andalus Academy",
+        legal_name: str = "Andalus Academy LLC",
+        branch_names: list[str] | None = None,
+    ) -> str:
         self._signup_verify_and_login(sent_messages, email)
+        branch_names = branch_names or ["Main Campus", "Girls Campus"]
 
         start_response = self.client.post("/saas/onboarding/start", follow_redirects=False)
         self.assertEqual(start_response.status_code, 302)
@@ -135,8 +144,8 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         self.client.post(
             f"/saas/onboarding/{org_uuid}/organization",
             data={
-                "organization_name": "Andalus Academy",
-                "legal_name": "Andalus Academy LLC",
+                "organization_name": organization_name,
+                "legal_name": legal_name,
                 "website": "https://andalus.example.com",
                 "primary_domain": "andalus.example.com",
                 "phone": "+9665000000",
@@ -160,14 +169,14 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         self.client.post(
             f"/saas/onboarding/{org_uuid}/branches",
             data={
-                "branch_name": ["Main Campus", "Girls Campus"],
-                "location": ["Central", "North"],
-                "country_code": ["SA", "SA"],
-                "country_name": ["Saudi Arabia", "Saudi Arabia"],
-                "region_name": ["Makkah", "Makkah"],
-                "city_name": ["Jeddah", "Jeddah"],
-                "district_name": ["Al Zahra", "Al Nahda"],
-                "neighborhood_name": ["North", "East"],
+                "branch_name": branch_names,
+                "location": ["Central" for _branch_name in branch_names],
+                "country_code": ["SA" for _branch_name in branch_names],
+                "country_name": ["Saudi Arabia" for _branch_name in branch_names],
+                "region_name": ["Makkah" for _branch_name in branch_names],
+                "city_name": ["Jeddah" for _branch_name in branch_names],
+                "district_name": ["Al Zahra" for _branch_name in branch_names],
+                "neighborhood_name": ["North" for _branch_name in branch_names],
                 "save_action": "continue",
             },
             follow_redirects=False,
@@ -202,6 +211,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         return org_uuid
 
     def _prepare_checkout(self, org_uuid: str):
+        paddle_suffix = re.sub(r"[^A-Za-z0-9]", "", org_uuid)[:20]
         db = self._db()
         try:
             professional = db.query(saas.models.SubscriptionPlan).filter_by(
@@ -224,7 +234,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             patch(
                 "saas.paddle_client.create_customer",
                 return_value={
-                    "id": "ctm_phase5_123",
+                    "id": f"ctm_phase5_{paddle_suffix}",
                     "email": "owner@academy.edu",
                     "name": "Owner User",
                     "status": "active",
@@ -233,12 +243,12 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             patch(
                 "saas.paddle_client.create_transaction",
                 return_value={
-                    "id": "txn_phase5_123",
+                    "id": f"txn_phase5_{paddle_suffix}",
                     "status": "ready",
                     "currency_code": "USD",
                     "checkout": {
-                        "id": "chk_phase5_123",
-                        "url": "https://pay.paddle.test/checkout/phase5",
+                        "id": f"chk_phase5_{paddle_suffix}",
+                        "url": f"https://pay.paddle.test/checkout/phase5/{paddle_suffix}",
                     },
                 },
             ),
@@ -265,13 +275,15 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             db.close()
 
     def _complete_payment(self, org_uuid: str, attempt_uuid: str, contract_id: int):
+        paddle_suffix = re.sub(r"[^A-Za-z0-9]", "", org_uuid)[:20]
+        event_suffix = re.sub(r"[^A-Za-z0-9]", "", attempt_uuid)[:20]
         paid_payload = {
-            "event_id": "evt_phase5_paid_12345678901234567890",
+            "event_id": f"evt_phase5_paid_{event_suffix}",
             "event_type": "transaction.paid",
             "data": {
-                "id": "txn_phase5_123",
+                "id": f"txn_phase5_{paddle_suffix}",
                 "status": "paid",
-                "customer_id": "ctm_phase5_123",
+                "customer_id": f"ctm_phase5_{paddle_suffix}",
                 "custom_data": {
                     "pending_organization_uuid": org_uuid,
                     "payment_attempt_uuid": attempt_uuid,
@@ -287,13 +299,13 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         )
 
         completed_payload = {
-            "event_id": "evt_phase5_completed_12345678901234567",
+            "event_id": f"evt_phase5_completed_{event_suffix}",
             "event_type": "transaction.completed",
             "data": {
-                "id": "txn_phase5_123",
+                "id": f"txn_phase5_{paddle_suffix}",
                 "status": "completed",
-                "customer_id": "ctm_phase5_123",
-                "subscription_id": "sub_phase5_123",
+                "customer_id": f"ctm_phase5_{paddle_suffix}",
+                "subscription_id": f"sub_phase5_{paddle_suffix}",
                 "custom_data": {
                     "pending_organization_uuid": org_uuid,
                     "payment_attempt_uuid": attempt_uuid,
@@ -307,6 +319,49 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             content=completed_body,
             headers={"Paddle-Signature": completed_signature, "Content-Type": "application/json"},
         )
+
+    def _complete_paid_provisioning(
+        self,
+        *,
+        email: str,
+        organization_name: str,
+        legal_name: str = "",
+        branch_names: list[str] | None = None,
+    ):
+        self._configure_paddle_prices()
+        sent_messages = []
+        org_uuid = self._complete_pending_org(
+            email,
+            sent_messages,
+            organization_name=organization_name,
+            legal_name=legal_name,
+            branch_names=branch_names,
+        )
+        organization_id, attempt_uuid, contract_id = self._prepare_checkout(org_uuid)
+        with patch(
+            "email_service.send_email",
+            side_effect=lambda **kwargs: sent_messages.append(kwargs) or f"email_{len(sent_messages)}",
+        ):
+            completed_response = self._complete_payment(org_uuid, attempt_uuid, contract_id)
+        self.assertEqual(completed_response.status_code, 200)
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(id=organization_id).first()
+            tenant_link = db.query(saas.models.TenantProvisioningLink).filter_by(
+                pending_organization_id=organization.id
+            ).first()
+            self.assertIsNotNone(tenant_link)
+            school_group = db.query(models.SchoolGroup).filter_by(id=tenant_link.school_group_id).first()
+            self.assertIsNotNone(school_group)
+            return {
+                "organization_id": organization_id,
+                "school_group_id": school_group.id,
+                "school_group_name": school_group.name,
+                "sent_messages": sent_messages,
+            }
+        finally:
+            db.close()
 
     def test_successful_provisioning_creates_operational_tenant_and_activation_email(self):
         self._configure_paddle_prices()
@@ -380,6 +435,55 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         self.assertNotIn("PADDLE_API_KEY", activation_email["html"])
         self.assertNotIn(os.environ["PADDLE_API_KEY"], activation_email["html"])
         self.assertNotIn("DATABASE_URL", activation_email["html"])
+
+    def test_provisioning_school_group_uses_organization_name_not_legal_name(self):
+        result = self._complete_paid_provisioning(
+            email="society-owner@academy.edu",
+            organization_name="Society for Social Support and Education",
+            legal_name="Testing 2",
+            branch_names=["Testing 2 Branch"],
+        )
+
+        self.assertEqual(result["school_group_name"], "Society for Social Support and Education")
+        self.assertNotEqual(result["school_group_name"], "Testing 2")
+        activation_email = result["sent_messages"][-1]
+        self.assertIn("Society for Social Support and Education", activation_email["text"])
+        self.assertNotIn("Testing 2", activation_email["text"])
+
+    def test_provisioning_school_group_uses_organization_name_when_legal_name_is_blank(self):
+        result = self._complete_paid_provisioning(
+            email="blank-legal@academy.edu",
+            organization_name="No Legal Name Academy",
+            legal_name="",
+        )
+
+        self.assertEqual(result["school_group_name"], "No Legal Name Academy")
+
+    def test_provisioning_duplicate_organization_names_keep_suffix_behavior(self):
+        first = self._complete_paid_provisioning(
+            email="duplicate-one@academy.edu",
+            organization_name="Duplicate Academy",
+            legal_name="First Legal Entity",
+        )
+        second = self._complete_paid_provisioning(
+            email="duplicate-two@academy.edu",
+            organization_name="Duplicate Academy",
+            legal_name="Second Legal Entity",
+        )
+
+        self.assertEqual(first["school_group_name"], "Duplicate Academy")
+        self.assertEqual(second["school_group_name"], "Duplicate Academy (2)")
+
+    def test_provisioning_branch_name_cannot_become_school_group_name(self):
+        result = self._complete_paid_provisioning(
+            email="branch-name@academy.edu",
+            organization_name="Approved Workspace Academy",
+            legal_name="Branch Legal Entity",
+            branch_names=["Branch Name Should Not Win"],
+        )
+
+        self.assertEqual(result["school_group_name"], "Approved Workspace Academy")
+        self.assertNotEqual(result["school_group_name"], "Branch Name Should Not Win")
 
     def test_activation_email_uses_configured_production_public_urls(self):
         sent_messages = []
