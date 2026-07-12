@@ -10,7 +10,7 @@ import audit
 from dependencies import get_db
 import email_service
 import location_service
-from saas import billing_service, models, oauth, paddle_client, payment_service, pricing_service, provisioning_service, service, workspace_analysis_service, workspace_deletion_service
+from saas import billing_service, models, oauth, paddle_client, payment_service, pricing_service, provisioning_service, service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -153,6 +153,11 @@ def _render(request: Request, template_name: str, context: dict, status_code: in
 def _paddle_client_environment() -> str:
     cleaned = str(os.environ.get("PADDLE_ENVIRONMENT") or "").strip().lower()
     return cleaned if cleaned in {"sandbox", "production"} else "production"
+
+
+def _test_account_reset_enabled() -> bool:
+    feature_flag = str(os.environ.get("TIS_ENABLE_TEST_ACCOUNT_RESET") or "").strip().lower()
+    return _paddle_client_environment() == "sandbox" or feature_flag in {"1", "true", "yes", "on"}
 
 
 LAUNCHABLE_BILLING_STATUSES = {
@@ -2062,6 +2067,11 @@ def pending_organization_detail(
             "notes": notes,
             "can_manage_pending_organization": auth.is_platform_owner(current_user),
             "can_delete_pending_organization": can_delete_pending_organization,
+            "can_delete_test_account": (
+                auth.is_platform_owner(current_user)
+                and _test_account_reset_enabled()
+                and bool(card.current_tenant_link)
+            ),
             "notice": request.query_params.get("notice", ""),
             "error": request.query_params.get("error", ""),
         },
@@ -2200,6 +2210,115 @@ def delete_test_workspace(
     return RedirectResponse(
         "/saas-admin/pending-organizations?notice="
         + quote_plus("Test workspace permanently deleted."),
+        status_code=302,
+    )
+
+
+@admin_router.get("/pending-organizations/{organization_uuid}/delete-test-account", response_class=HTMLResponse)
+def confirm_delete_test_account(
+    organization_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    if not _test_account_reset_enabled():
+        raise HTTPException(status_code=404, detail="Test account reset is not available.")
+    organization = service.get_pending_organization_by_uuid(db, organization_uuid)
+    if not organization:
+        raise HTTPException(status_code=404, detail="Pending organization not found.")
+    analysis = test_account_deletion_service.analyze_test_account(db, organization)
+    return _render(
+        request,
+        "saas/admin_delete_test_account.html",
+        {
+            "current_user": current_user,
+            "organization": organization,
+            "analysis": analysis,
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@admin_router.post("/pending-organizations/{organization_uuid}/delete-test-account")
+def delete_test_account(
+    organization_uuid: str,
+    request: Request,
+    confirmation_name: str = Form(""),
+    confirmation_email: str = Form(""),
+    reason: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    if not _test_account_reset_enabled():
+        raise HTTPException(status_code=404, detail="Test account reset is not available.")
+    organization = service.get_pending_organization_by_uuid(db, organization_uuid)
+    if not organization:
+        audit.write_audit_event({
+            "event_type": "test_account_workspace_deletion",
+            "result": "blocked_not_found",
+            "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+            "organization_uuid": str(organization_uuid or ""),
+            "reason": str(reason or "").strip()[:500],
+        })
+        raise HTTPException(status_code=404, detail="Pending organization not found.")
+
+    safe_context = {
+        "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+        "organization_uuid": str(organization.organization_uuid or ""),
+        "organization_name": str(organization.organization_name or ""),
+        "reason": str(reason or "").strip()[:500],
+    }
+    try:
+        analysis = test_account_deletion_service.analyze_test_account(db, organization)
+        safe_context.update({
+            "account_id": analysis.account_id,
+            "account_uuid": analysis.account_uuid,
+            "school_group_id": analysis.school_group_id,
+            "analysis_counts": {
+                row.table: int(row.count or 0)
+                for row in analysis.workspace_analysis["counts"]
+            },
+        })
+        result = test_account_deletion_service.delete_test_account_and_workspace(
+            db,
+            organization,
+            confirmation_name=confirmation_name,
+            confirmation_email=confirmation_email,
+            reason=reason,
+        )
+        db.commit()
+    except test_account_deletion_service.TestAccountDeletionBlocked as exc:
+        db.rollback()
+        audit.write_audit_event({"event_type": "test_account_workspace_deletion", "result": "blocked", **safe_context})
+        return RedirectResponse(
+            f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-account?error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    except Exception:
+        db.rollback()
+        audit.write_audit_event({"event_type": "test_account_workspace_deletion", "result": "failed_rolled_back", **safe_context})
+        return RedirectResponse(
+            f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-account?error="
+            + quote_plus("The test account could not be deleted. All data was preserved."),
+            status_code=302,
+        )
+
+    audit.write_audit_event({
+        "event_type": "test_account_workspace_deletion",
+        "result": "success",
+        "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+        "account_id": result.account_id,
+        "account_uuid": result.account_uuid,
+        "organization_uuid": result.organization_uuid,
+        "organization_name": result.organization_name,
+        "school_group_id": result.school_group_id,
+        "reason": str(reason or "").strip()[:500],
+        "analysis_counts": result.analysis_counts,
+        "deleted_records": result.deleted_records,
+    })
+    return RedirectResponse(
+        "/saas-admin/pending-organizations?notice="
+        + quote_plus("Test account and workspace permanently deleted. The email can be registered again."),
         status_code=302,
     )
 
