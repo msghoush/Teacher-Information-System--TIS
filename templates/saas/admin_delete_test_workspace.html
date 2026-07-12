@@ -1,0 +1,59 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Delete Test Workspace</h1>
+<div class="error"><strong>Irreversible test/development action.</strong> This permanently removes the local TIS workspace and onboarding records. Paddle records are not changed.</div>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<div class="grid two">
+    <div class="stat-list">
+        <div class="stat">
+            <strong>{{ analysis.organization_name }}</strong>
+            <p>
+                Organization UUID: {{ analysis.organization_uuid }}<br>
+                Operational Workspace: {{ analysis.workspace_name }}<br>
+                SchoolGroup ID: {{ analysis.school_group_id }}
+            </p>
+        </div>
+        <div class="stat">
+            <strong>Current state</strong>
+            <p>
+                Provisioning: {{ analysis.provisioning_status }}<br>
+                Subscription: {{ analysis.subscription_status }}<br>
+                Billing: {{ analysis.billing_status }}<br>
+                Payment: {{ analysis.payment_status }}
+            </p>
+        </div>
+    </div>
+    <div class="stat-list">
+        <div class="stat">
+            <strong>{{ analysis.status_label }}</strong>
+            <p>
+                Linked records counted: {{ analysis.total_linked_records }}<br>
+                Preserved: remote Paddle records, payment webhooks, global plans, prices, reference data, and platform accounts.
+            </p>
+        </div>
+        <div class="stat">
+            <strong>Warnings</strong>
+            {% if analysis.warnings %}
+            <ul>{% for warning in analysis.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+            {% else %}<p>No unresolved relationships were detected.</p>{% endif %}
+        </div>
+    </div>
+</div>
+
+{% if analysis.safe_for_future_reset %}
+<form method="post" action="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/delete-test-workspace" style="margin-top:24px; max-width:720px;">
+    <label for="confirmation_name">Type the organization name exactly to confirm</label>
+    <input id="confirmation_name" name="confirmation_name" required autocomplete="off" placeholder="{{ analysis.organization_name }}">
+    <label for="reason">Deletion reason</label>
+    <textarea id="reason" name="reason" required rows="4" placeholder="Explain why this test workspace must be reset."></textarea>
+    <div class="actions">
+        <button class="btn danger" type="submit">Permanently Delete Test Workspace</button>
+        <a class="btn secondary" href="/saas-admin/pending-organizations/{{ organization.organization_uuid }}">Cancel</a>
+    </div>
+</form>
+{% else %}
+<div class="notice" style="margin-top:24px;">Deletion is blocked until the warnings above are manually reviewed and resolved.</div>
+<div class="actions"><a class="btn secondary" href="/saas-admin/pending-organizations/{{ organization.organization_uuid }}">Back to organization</a></div>
+{% endif %}
+{% endblock %}

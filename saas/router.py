@@ -6,10 +6,11 @@ import os
 from urllib.parse import quote_plus
 
 import auth
+import audit
 from dependencies import get_db
 import email_service
 import location_service
-from saas import billing_service, models, oauth, paddle_client, payment_service, pricing_service, provisioning_service, service, workspace_analysis_service
+from saas import billing_service, models, oauth, paddle_client, payment_service, pricing_service, provisioning_service, service, workspace_analysis_service, workspace_deletion_service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -2083,6 +2084,115 @@ def analyze_test_workspace(
                 for category in dict.fromkeys(row.category for row in analysis["counts"])
             },
         },
+    )
+
+
+@admin_router.get("/pending-organizations/{organization_uuid}/delete-test-workspace", response_class=HTMLResponse)
+def confirm_delete_test_workspace(
+    organization_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    organization = service.get_pending_organization_by_uuid(db, organization_uuid)
+    if not organization:
+        raise HTTPException(status_code=404, detail="Pending organization not found.")
+    analysis = workspace_analysis_service.analyze_test_workspace(db, organization)
+    return _render(
+        request,
+        "saas/admin_delete_test_workspace.html",
+        {
+            "current_user": current_user,
+            "organization": organization,
+            "analysis": analysis,
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@admin_router.post("/pending-organizations/{organization_uuid}/delete-test-workspace")
+def delete_test_workspace(
+    organization_uuid: str,
+    request: Request,
+    confirmation_name: str = Form(""),
+    reason: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    organization = service.get_pending_organization_by_uuid(db, organization_uuid)
+    if not organization:
+        audit.write_audit_event({
+            "event_type": "test_workspace_deletion",
+            "result": "blocked_not_found",
+            "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+            "organization_uuid": str(organization_uuid or ""),
+            "reason": str(reason or "").strip()[:500],
+        })
+        raise HTTPException(status_code=404, detail="Pending organization not found.")
+
+    organization_name = str(organization.organization_name or "")
+    school_group_id = 0
+    analysis_counts = {}
+    try:
+        analysis = workspace_analysis_service.analyze_test_workspace(db, organization)
+        school_group_id = int(analysis["school_group_id"] or 0)
+        analysis_counts = {row.table: int(row.count or 0) for row in analysis["counts"]}
+        result = workspace_deletion_service.delete_test_workspace(
+            db,
+            organization,
+            confirmation_name=confirmation_name,
+            reason=reason,
+        )
+        db.commit()
+    except workspace_deletion_service.WorkspaceDeletionBlocked as exc:
+        db.rollback()
+        audit.write_audit_event({
+            "event_type": "test_workspace_deletion",
+            "result": "blocked",
+            "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+            "organization_uuid": str(organization_uuid or ""),
+            "organization_name": organization_name,
+            "school_group_id": school_group_id,
+            "reason": str(reason or "").strip()[:500],
+            "analysis_counts": analysis_counts,
+        })
+        return RedirectResponse(
+            f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-workspace?error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    except Exception:
+        db.rollback()
+        audit.write_audit_event({
+            "event_type": "test_workspace_deletion",
+            "result": "failed_rolled_back",
+            "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+            "organization_uuid": str(organization_uuid or ""),
+            "organization_name": organization_name,
+            "school_group_id": school_group_id,
+            "reason": str(reason or "").strip()[:500],
+            "analysis_counts": analysis_counts,
+        })
+        return RedirectResponse(
+            f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-workspace?error="
+            + quote_plus("The workspace could not be deleted. All data was preserved."),
+            status_code=302,
+        )
+
+    audit.write_audit_event({
+        "event_type": "test_workspace_deletion",
+        "result": "success",
+        "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+        "organization_uuid": result.organization_uuid,
+        "organization_name": result.organization_name,
+        "school_group_id": result.school_group_id,
+        "reason": str(reason or "").strip()[:500],
+        "analysis_counts": result.analysis_counts,
+        "deleted_records": result.deleted_records,
+    })
+    return RedirectResponse(
+        "/saas-admin/pending-organizations?notice="
+        + quote_plus("Test workspace permanently deleted."),
+        status_code=302,
     )
 
 

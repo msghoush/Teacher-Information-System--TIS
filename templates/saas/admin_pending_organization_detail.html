@@ -63,6 +63,15 @@
     <div class="stat-list">
         {% if can_manage_pending_organization %}
         <div class="stat">
+            <strong>Test/development workspace reset</strong>
+            <p class="muted">Permanently remove a provisioned test workspace after a conservative impact analysis and typed confirmation.</p>
+            <div class="actions">
+                <a class="btn danger" href="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/delete-test-workspace">Delete Test Workspace</a>
+            </div>
+        </div>
+        {% endif %}
+        {% if can_manage_pending_organization %}
+        <div class="stat">
             <strong>Update status</strong>
             <form method="post" action="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/status">
                 <label>Status</label>

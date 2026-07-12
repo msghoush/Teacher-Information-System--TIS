@@ -780,6 +780,208 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         self.assertEqual(tenant_response.status_code, 403)
         self.assertNotIn("Analyze Workspace", tenant_response.text)
 
+    def test_delete_test_workspace_confirmation_is_owner_only(self):
+        result = self._complete_paid_provisioning(
+            email="delete-access@academy.edu",
+            organization_name="Delete Access Academy",
+        )
+        db = self._db()
+        try:
+            organization_uuid = db.query(saas.models.PendingOrganization).filter_by(
+                id=result["organization_id"]
+            ).first().organization_uuid
+        finally:
+            db.close()
+        path = f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-workspace"
+
+        owner_response = self._platform_client(user_id="9010").get(path)
+        developer_response = self._platform_client(
+            user_id="9011", platform_role=auth.PLATFORM_ROLE_DEVELOPER
+        ).get(path)
+        tenant_response = self._tenant_client(user_id="7100000011").get(path)
+
+        self.assertEqual(owner_response.status_code, 200)
+        self.assertIn("Delete Test Workspace", owner_response.text)
+        self.assertIn("Delete Access Academy", owner_response.text)
+        self.assertIn("Irreversible test/development action", owner_response.text)
+        self.assertNotIn(os.environ["PADDLE_API_KEY"], owner_response.text)
+        self.assertEqual(developer_response.status_code, 403)
+        self.assertEqual(tenant_response.status_code, 403)
+
+    def test_delete_test_workspace_requires_exact_name_and_reason(self):
+        result = self._complete_paid_provisioning(
+            email="delete-confirm@academy.edu",
+            organization_name="Exact Confirmation Academy",
+        )
+        owner_client = self._platform_client(user_id="9012")
+        db = self._db()
+        try:
+            organization_uuid = db.query(saas.models.PendingOrganization).filter_by(
+                id=result["organization_id"]
+            ).first().organization_uuid
+        finally:
+            db.close()
+        path = f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-workspace"
+
+        with patch("saas.router.audit.write_audit_event") as write_audit:
+            mismatch = owner_client.post(
+                path,
+                data={"confirmation_name": "exact confirmation academy", "reason": "Reset test"},
+                follow_redirects=False,
+            )
+            missing_reason = owner_client.post(
+                path,
+                data={"confirmation_name": "Exact Confirmation Academy", "reason": ""},
+                follow_redirects=False,
+            )
+
+        self.assertEqual(mismatch.status_code, 302)
+        self.assertIn("typed+organization+name+does+not+match", mismatch.headers["location"])
+        self.assertIn("deletion+reason+is+required", missing_reason.headers["location"])
+        self.assertEqual(write_audit.call_count, 2)
+        self.assertTrue(all(call.args[0]["result"] == "blocked" for call in write_audit.call_args_list))
+        db = self._db()
+        try:
+            self.assertIsNotNone(db.query(saas.models.PendingOrganization).filter_by(id=result["organization_id"]).first())
+            self.assertIsNotNone(db.query(models.SchoolGroup).filter_by(id=result["school_group_id"]).first())
+        finally:
+            db.close()
+
+    def test_delete_test_workspace_blocks_manual_review(self):
+        sent_messages = []
+        organization_uuid = self._complete_pending_org(
+            "delete-unprovisioned@academy.edu",
+            sent_messages,
+            organization_name="Unprovisioned Delete Academy",
+        )
+        owner_client = self._platform_client(user_id="9013")
+        path = f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-workspace"
+
+        page = owner_client.get(path)
+        response = owner_client.post(
+            path,
+            data={"confirmation_name": "Unprovisioned Delete Academy", "reason": "Reset test"},
+            follow_redirects=False,
+        )
+
+        self.assertIn("Manual review required", page.text)
+        self.assertNotIn("Permanently Delete Test Workspace</button>", page.text)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("requires+manual+review", response.headers["location"])
+
+    def test_delete_test_workspace_removes_only_scoped_local_data_and_preserves_globals(self):
+        result = self._complete_paid_provisioning(
+            email="delete-success@academy.edu",
+            organization_name="Disposable Test Academy",
+        )
+        owner_client = self._platform_client(user_id="9014")
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(id=result["organization_id"]).first()
+            organization_uuid = organization.organization_uuid
+            unrelated_group = models.SchoolGroup(name="Preserved Unrelated Academy", status=True)
+            db.add(unrelated_group)
+            db.flush()
+            db.add(models.Branch(school_group_id=unrelated_group.id, name="Preserved Branch", status=True))
+            webhook = saas.models.PaymentWebhook(
+                provider="paddle",
+                provider_event_id="evt_preserved_delete_test",
+                event_type="transaction.completed",
+                signature_valid=True,
+                payload_json="{}",
+            )
+            db.add(webhook)
+            db.commit()
+            unrelated_group_id = unrelated_group.id
+            plan_count = db.query(saas.models.SubscriptionPlan).count()
+            price_count = db.query(saas.models.SubscriptionPlanPrice).count()
+        finally:
+            db.close()
+        path = f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-workspace"
+
+        with (
+            patch("saas.router.audit.write_audit_event") as write_audit,
+            patch("saas.paddle_client.create_transaction") as create_transaction,
+            patch("saas.paddle_client.create_customer") as create_customer,
+            patch("saas.paddle_client.list_customers_by_email") as list_customers,
+        ):
+            response = owner_client.post(
+                path,
+                data={"confirmation_name": "Disposable Test Academy", "reason": "Repeat full sandbox journey"},
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("Test+workspace+permanently+deleted", response.headers["location"])
+        create_transaction.assert_not_called()
+        create_customer.assert_not_called()
+        list_customers.assert_not_called()
+        self.assertEqual(write_audit.call_args.args[0]["result"], "success")
+        self.assertEqual(write_audit.call_args.args[0]["school_group_id"], result["school_group_id"])
+        db = self._db()
+        try:
+            self.assertIsNone(db.query(saas.models.PendingOrganization).filter_by(id=result["organization_id"]).first())
+            self.assertIsNone(db.query(models.SchoolGroup).filter_by(id=result["school_group_id"]).first())
+            self.assertEqual(db.query(models.Branch).filter_by(school_group_id=result["school_group_id"]).count(), 0)
+            self.assertEqual(db.query(models.User).filter_by(school_group_id=result["school_group_id"]).count(), 0)
+            self.assertIsNotNone(db.query(models.SchoolGroup).filter_by(id=unrelated_group_id).first())
+            self.assertEqual(db.query(saas.models.SubscriptionPlan).count(), plan_count)
+            self.assertEqual(db.query(saas.models.SubscriptionPlanPrice).count(), price_count)
+            self.assertIsNotNone(db.query(saas.models.PaymentWebhook).filter_by(provider_event_id="evt_preserved_delete_test").first())
+            self.assertIsNotNone(db.query(models.User).filter_by(user_id="9014").first())
+        finally:
+            db.close()
+
+        repeated = owner_client.post(
+            path,
+            data={"confirmation_name": "Disposable Test Academy", "reason": "Repeat"},
+        )
+        self.assertEqual(repeated.status_code, 404)
+
+    def test_delete_test_workspace_rolls_back_every_row_on_failure(self):
+        result = self._complete_paid_provisioning(
+            email="delete-rollback@academy.edu",
+            organization_name="Rollback Test Academy",
+        )
+        owner_client = self._platform_client(user_id="9015")
+        db = self._db()
+        try:
+            organization_uuid = db.query(saas.models.PendingOrganization).filter_by(id=result["organization_id"]).first().organization_uuid
+            before = {
+                "pending": db.query(saas.models.PendingOrganization).count(),
+                "groups": db.query(models.SchoolGroup).count(),
+                "branches": db.query(models.Branch).count(),
+                "users": db.query(models.User).count(),
+            }
+        finally:
+            db.close()
+        path = f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-workspace"
+
+        with (
+            patch("saas.workspace_deletion_service.Session.flush", side_effect=RuntimeError("simulated late failure")),
+            patch("saas.router.audit.write_audit_event") as write_audit,
+        ):
+            response = owner_client.post(
+                path,
+                data={"confirmation_name": "Rollback Test Academy", "reason": "Rollback test"},
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("All+data+was+preserved", response.headers["location"])
+        self.assertEqual(write_audit.call_args.args[0]["result"], "failed_rolled_back")
+        db = self._db()
+        try:
+            after = {
+                "pending": db.query(saas.models.PendingOrganization).count(),
+                "groups": db.query(models.SchoolGroup).count(),
+                "branches": db.query(models.Branch).count(),
+                "users": db.query(models.User).count(),
+            }
+        finally:
+            db.close()
+        self.assertEqual(before, after)
+
     def test_activation_email_uses_configured_production_public_urls(self):
         sent_messages = []
 
