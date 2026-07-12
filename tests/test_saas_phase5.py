@@ -376,6 +376,58 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         self.assertIn("TIS%20Wordmark%20Only%20%E2%80%93%20Dark%20Blue.png", activation_email["html"])
         self.assertNotIn("SaaS account", activation_email["text"])
         self.assertIn("http://testserver/login", activation_email["text"])
+        self.assertIn("http://testserver/static/branding/tis/logos/", activation_email["html"])
+        self.assertNotIn("PADDLE_API_KEY", activation_email["html"])
+        self.assertNotIn(os.environ["PADDLE_API_KEY"], activation_email["html"])
+        self.assertNotIn("DATABASE_URL", activation_email["html"])
+
+    def test_activation_email_uses_configured_production_public_urls(self):
+        sent_messages = []
+
+        class Account:
+            email = "owner@academy.edu"
+
+        class Organization:
+            organization_name = "Andalus Academy"
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "TIS_PUBLIC_BASE_URL": "https://app.tisplatform.com",
+                    "TIS_ENV": "production",
+                },
+                clear=False,
+            ),
+            patch("email_service.send_email", side_effect=lambda **kwargs: sent_messages.append(kwargs) or "email_activation_prod"),
+        ):
+            provisioning_service._send_activation_email(Account(), Organization())
+
+        self.assertEqual(len(sent_messages), 1)
+        activation_email = sent_messages[0]
+        self.assertIn("https://app.tisplatform.com/login", activation_email["text"])
+        self.assertIn('href="https://app.tisplatform.com/login"', activation_email["html"])
+        self.assertIn("https://app.tisplatform.com/static/branding/tis/logos/", activation_email["html"])
+        self.assertIn("TIS%20Wordmark%20Only%20%E2%80%93%20Dark%20Blue.png", activation_email["html"])
+        self.assertNotIn("http://localhost:8000", activation_email["html"])
+        self.assertNotIn("http://localhost:8000", activation_email["text"])
+        self.assertNotIn(os.environ["PADDLE_API_KEY"], activation_email["html"])
+        self.assertNotIn("DATABASE_URL", activation_email["html"])
+
+    def test_activation_email_local_fallback_remains_available_outside_production(self):
+        with patch.dict(os.environ, {"TIS_PUBLIC_BASE_URL": "", "TIS_ENV": "local"}, clear=False):
+            self.assertEqual(provisioning_service.operational_login_url(), "http://localhost:8000/login")
+            self.assertIn(
+                "http://localhost:8000/static/branding/tis/logos/",
+                provisioning_service._email_logo_url(),
+            )
+
+    def test_production_missing_public_base_url_does_not_emit_localhost(self):
+        with patch.dict(os.environ, {"TIS_PUBLIC_BASE_URL": "", "TIS_ENV": "production"}, clear=False):
+            with self.assertRaisesRegex(RuntimeError, "TIS_PUBLIC_BASE_URL"):
+                provisioning_service.operational_login_url()
+            with self.assertRaisesRegex(RuntimeError, "TIS_PUBLIC_BASE_URL"):
+                provisioning_service._email_logo_url()
 
     def test_provisioning_retry_logic_recovers_after_transient_failure(self):
         self._configure_paddle_prices()

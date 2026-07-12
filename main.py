@@ -41,6 +41,7 @@ import email_templates
 import location_service
 import knowledge_service
 import permission_registry
+import public_url
 import role_permission_service
 import saas.models  # Register SaaS metadata before create_all.
 from visual_design import (
@@ -9764,15 +9765,11 @@ def _build_platform_owner_verification_url(user, request: Request) -> str:
 
 
 def _email_public_base_url(request: Request) -> str:
-    configured_url = str(os.getenv("TIS_PUBLIC_BASE_URL") or "").strip()
-    return (configured_url or str(request.base_url)).rstrip("/")
+    return public_url.public_base_url(request)
 
 
 def _email_public_asset_url(request: Request, static_path: str) -> str:
-    configured_url = str(os.getenv("TIS_PUBLIC_BASE_URL") or "").strip()
-    if configured_url:
-        return f"{configured_url.rstrip('/')}/static/{quote(static_path, safe='/')}"
-    return str(request.url_for("static", path=static_path))
+    return public_url.public_static_asset_url(static_path, request)
 
 
 def _email_tis_logo_url(request: Request) -> str:

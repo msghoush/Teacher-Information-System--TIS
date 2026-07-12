@@ -12,8 +12,10 @@ from fastapi import Request
 from sqlalchemy.orm import Session
 
 import auth
+import branding_storage
 import email_service
 import email_templates
+import public_url
 from saas import models
 
 SAAS_SESSION_COOKIE = "tis_saas_session"
@@ -313,8 +315,7 @@ def create_email_verification_token(db: Session, account, request: Request | Non
 
 
 def email_public_base_url(request: Request) -> str:
-    configured_url = str(os.environ.get("TIS_PUBLIC_BASE_URL") or "").strip()
-    return (configured_url or str(request.base_url)).rstrip("/")
+    return public_url.public_base_url(request)
 
 
 def build_verification_url(request: Request, token: str) -> str:
@@ -324,9 +325,9 @@ def build_verification_url(request: Request, token: str) -> str:
 def send_verification_email(db: Session, account, request: Request) -> None:
     token = create_email_verification_token(db, account, request=request)
     verification_url = build_verification_url(request, token)
-    logo_url = (
-        f"{email_public_base_url(request)}"
-        "/static/branding/tis/logos/TIS%20Wordmark%20Only%20%E2%80%93%20Dark%20Blue.png"
+    logo_url = public_url.public_static_asset_url(
+        branding_storage.tis_logo_relative_path(theme="light", compact=True),
+        request,
     )
     email_content = email_templates.build_email_verification_email(
         verification_url=verification_url,
@@ -373,9 +374,9 @@ def build_password_reset_url(request: Request, token: str) -> str:
 def send_password_reset_email(db: Session, account, request: Request) -> None:
     token = create_password_reset_token(db, account, request=request)
     reset_url = build_password_reset_url(request, token)
-    logo_url = (
-        f"{email_public_base_url(request)}"
-        "/static/branding/tis/logos/TIS%20Wordmark%20Only%20%E2%80%93%20Dark%20Blue.png"
+    logo_url = public_url.public_static_asset_url(
+        branding_storage.tis_logo_relative_path(theme="light", compact=True),
+        request,
     )
     email_content = email_templates.build_saas_password_reset_email(
         reset_url=reset_url,

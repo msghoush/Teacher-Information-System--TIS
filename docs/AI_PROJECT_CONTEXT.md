@@ -17,6 +17,7 @@ Public URLs:
 
 - Public website: `https://tisplatform.com`
 - Application portal: `https://app.tisplatform.com`
+- Render must set `TIS_PUBLIC_BASE_URL=https://app.tisplatform.com` so transactional emails and background Workspace Activation emails generate production login and static asset URLs instead of local-development fallbacks.
 
 Important routes:
 
