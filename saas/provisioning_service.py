@@ -15,6 +15,7 @@ import email_service
 import email_templates
 import models as operational_models
 import permission_registry
+import public_url
 import role_permission_service
 from saas import models, service
 
@@ -44,10 +45,7 @@ def _json(value: dict | None = None) -> str | None:
 
 
 def _public_base_url() -> str:
-    configured = str(os.environ.get("TIS_PUBLIC_BASE_URL") or "").strip().rstrip("/")
-    if configured:
-        return configured
-    return "http://localhost:8000"
+    return public_url.public_base_url()
 
 
 def operational_login_url() -> str:
@@ -55,9 +53,8 @@ def operational_login_url() -> str:
 
 
 def _email_logo_url() -> str:
-    return (
-        f"{_public_base_url()}"
-        "/static/branding/tis/logos/TIS%20Wordmark%20Only%20%E2%80%93%20Dark%20Blue.png"
+    return public_url.public_static_asset_url(
+        branding_storage.tis_logo_relative_path(theme="light", compact=True)
     )
 
 
