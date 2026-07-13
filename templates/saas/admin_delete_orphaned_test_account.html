@@ -1,0 +1,32 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Delete Orphaned Test Account</h1>
+<div class="error"><strong>Irreversible Sandbox/development action.</strong> This permanently deletes the local test identity. Remote Paddle customers, transactions, and subscriptions remain untouched. This action cannot be undone.</div>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<div class="grid two">
+    <div class="stat-list">
+        <div class="stat"><strong>{{ account.email }}</strong><p>Account ID: {{ account.id }}<br>Account UUID: {{ account.account_uuid }}<br>Status: {{ account.status }}<br>Onboarding: {{ account.onboarding_status }}</p></div>
+        <div class="stat"><strong>{{ analysis.status_label }}</strong><p>Pending organizations: {{ analysis.counts.pending_organizations }}<br>Tenant provisioning links: {{ analysis.counts.tenant_provisioning_links }}<br>Account-user links: {{ analysis.counts.saas_account_user_links }}<br>Operational tenant users: {{ analysis.counts.operational_users }}</p></div>
+    </div>
+    <div class="stat-list">
+        <div class="stat"><strong>Linked local records</strong><p>Total records counted: {{ analysis.total_records }}<br>Sessions: {{ analysis.counts.saas_sessions }}<br>External identities: {{ analysis.counts.external_auth_identities }}<br>Authentication events: {{ analysis.counts.saas_auth_events }}<br>Payment-customer mappings: {{ analysis.counts.payment_customers }}</p></div>
+        <div class="stat"><strong>Preserved data</strong><p>Remote Paddle records, payment webhooks, global plans and prices, reference data, platform identities, unrelated accounts, and unrelated tenants remain untouched.</p></div>
+        {% if analysis.warnings %}<div class="stat"><strong>Warnings</strong><ul>{% for warning in analysis.warnings %}<li>{{ warning }}</li>{% endfor %}</ul></div>{% endif %}
+    </div>
+</div>
+
+{% if analysis.safe_to_delete %}
+<div class="notice" style="margin-top:20px;">No pending organization or operational tenant relationship was found. After deletion, this email becomes available for a new TIS Account registration.</div>
+<form method="post" action="/saas-admin/accounts/{{ account.account_uuid }}/delete-orphaned-test-account" style="margin-top:20px; max-width:720px;">
+    <label for="confirmation_email">Type the account email exactly</label>
+    <input id="confirmation_email" name="confirmation_email" required autocomplete="off" placeholder="{{ account.email }}">
+    <label for="reason">Deletion reason</label>
+    <textarea id="reason" name="reason" required rows="4" placeholder="Explain why this orphaned test identity must be removed."></textarea>
+    <div class="actions"><button class="btn danger" type="submit">Permanently Delete Orphaned Test Account</button><a class="btn secondary" href="/saas-admin/accounts">Cancel</a></div>
+</form>
+{% else %}
+<div class="notice" style="margin-top:20px;">Deletion is blocked because this account is not safely orphaned. Manual review is required.</div>
+<div class="actions"><a class="btn secondary" href="/saas-admin/accounts">Back to accounts</a></div>
+{% endif %}
+{% endblock %}

@@ -10,7 +10,7 @@ import audit
 from dependencies import get_db
 import email_service
 import location_service
-from saas import billing_service, models, oauth, paddle_client, payment_service, pricing_service, provisioning_service, service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import billing_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -2319,6 +2319,130 @@ def delete_test_account(
     return RedirectResponse(
         "/saas-admin/pending-organizations?notice="
         + quote_plus("Test account and workspace permanently deleted. The email can be registered again."),
+        status_code=302,
+    )
+
+
+@admin_router.get("/accounts", response_class=HTMLResponse)
+def saas_account_management(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    analyses = orphaned_test_account_service.list_account_analyses(db)
+    return _render(
+        request,
+        "saas/admin_accounts.html",
+        {
+            "current_user": current_user,
+            "analyses": analyses,
+            "test_account_reset_enabled": _test_account_reset_enabled(),
+            "notice": request.query_params.get("notice", ""),
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@admin_router.get("/accounts/{account_uuid}/delete-orphaned-test-account", response_class=HTMLResponse)
+def confirm_delete_orphaned_test_account(
+    account_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    if not _test_account_reset_enabled():
+        raise HTTPException(status_code=404, detail="Orphaned test account deletion is not available.")
+    account = db.query(models.SaaSAccount).filter(models.SaaSAccount.account_uuid == account_uuid).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="TIS Account not found.")
+    analysis = orphaned_test_account_service.analyze_orphaned_account(db, account)
+    return _render(
+        request,
+        "saas/admin_delete_orphaned_test_account.html",
+        {
+            "current_user": current_user,
+            "account": account,
+            "analysis": analysis,
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@admin_router.post("/accounts/{account_uuid}/delete-orphaned-test-account")
+def delete_orphaned_test_account(
+    account_uuid: str,
+    request: Request,
+    confirmation_email: str = Form(""),
+    reason: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    if not _test_account_reset_enabled():
+        raise HTTPException(status_code=404, detail="Orphaned test account deletion is not available.")
+    account = db.query(models.SaaSAccount).filter(models.SaaSAccount.account_uuid == account_uuid).first()
+    if not account:
+        audit.write_audit_event({
+            "event_type": "orphaned_test_account_deletion",
+            "result": "blocked_not_found",
+            "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+            "account_uuid": str(account_uuid or ""),
+            "reason": str(reason or "").strip()[:500],
+        })
+        raise HTTPException(status_code=404, detail="TIS Account not found.")
+
+    safe_context = {
+        "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+        "account_id": int(account.id),
+        "account_uuid": str(account.account_uuid or ""),
+        "reason": str(reason or "").strip()[:500],
+    }
+    try:
+        analysis = orphaned_test_account_service.analyze_orphaned_account(db, account)
+        safe_context["analysis_counts"] = dict(analysis.counts)
+        result = orphaned_test_account_service.delete_orphaned_test_account(
+            db,
+            account,
+            confirmation_email=confirmation_email,
+            reason=reason,
+        )
+        db.commit()
+    except orphaned_test_account_service.OrphanedTestAccountDeletionBlocked as exc:
+        db.rollback()
+        audit.write_audit_event({
+            "event_type": "orphaned_test_account_deletion",
+            "result": "blocked",
+            **safe_context,
+        })
+        return RedirectResponse(
+            f"/saas-admin/accounts/{account_uuid}/delete-orphaned-test-account?error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    except Exception:
+        db.rollback()
+        audit.write_audit_event({
+            "event_type": "orphaned_test_account_deletion",
+            "result": "failed_rolled_back",
+            **safe_context,
+        })
+        return RedirectResponse(
+            f"/saas-admin/accounts/{account_uuid}/delete-orphaned-test-account?error="
+            + quote_plus("The orphaned test account could not be deleted. All data was preserved."),
+            status_code=302,
+        )
+
+    audit.write_audit_event({
+        "event_type": "orphaned_test_account_deletion",
+        "result": "success",
+        "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+        "account_id": result.account_id,
+        "account_uuid": result.account_uuid,
+        "reason": str(reason or "").strip()[:500],
+        "analysis_counts": result.analysis_counts,
+        "deleted_records": result.deleted_records,
+    })
+    return RedirectResponse(
+        "/saas-admin/accounts?notice="
+        + quote_plus("Orphaned test account permanently deleted. The email can be registered again."),
         status_code=302,
     )
 

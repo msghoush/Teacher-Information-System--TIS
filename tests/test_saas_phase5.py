@@ -26,7 +26,7 @@ import models
 import permission_registry
 import saas.models  # noqa: F401
 from dependencies import get_db
-from saas import provisioning_service, service as saas_service
+from saas import provisioning_service, service as saas_service, workspace_deletion_service
 from saas.router import admin_router as saas_admin_router, router as saas_router
 
 
@@ -388,6 +388,34 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         client = TestClient(self.app)
         client.cookies.set(auth.SESSION_COOKIE_KEY, token)
         return client
+
+    def _create_orphaned_test_account(self, *, email: str, organization_name: str):
+        result = self._complete_paid_provisioning(
+            email=email,
+            organization_name=organization_name,
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                id=result["organization_id"]
+            ).first()
+            account_id = organization.owner_saas_account_id
+            account = db.query(saas.models.SaaSAccount).filter_by(id=account_id).first()
+            workspace_deletion_service.delete_test_workspace(
+                db,
+                organization,
+                confirmation_name=organization_name,
+                reason="Create orphaned account test fixture",
+            )
+            db.commit()
+            return {
+                **result,
+                "account_id": account_id,
+                "account_uuid": account.account_uuid,
+                "email": account.email,
+            }
+        finally:
+            db.close()
 
     def _tenant_client(self, *, user_id: str = "7100000010"):
         db = self._db()
@@ -1285,6 +1313,314 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
                 "pending": db.query(saas.models.PendingOrganization).count(),
                 "groups": db.query(models.SchoolGroup).count(),
                 "users": db.query(models.User).count(),
+            }
+        finally:
+            db.close()
+        self.assertEqual(before, after)
+
+    def test_orphaned_account_management_owner_access_classification_and_environment_gate(self):
+        orphan = self._create_orphaned_test_account(
+            email="orphan-list@academy.edu",
+            organization_name="Orphan List Academy",
+        )
+        self._complete_pending_org(
+            "draft-account-list@academy.edu",
+            [],
+            organization_name="Draft Account List Academy",
+        )
+        owner_client = self._platform_client(user_id="9030")
+
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "production", "TIS_ENABLE_TEST_ACCOUNT_RESET": ""}):
+            production_list = owner_client.get("/saas-admin/accounts")
+            unavailable = owner_client.get(
+                f"/saas-admin/accounts/{orphan['account_uuid']}/delete-orphaned-test-account"
+            )
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox", "TIS_ENABLE_TEST_ACCOUNT_RESET": ""}):
+            sandbox_list = owner_client.get("/saas-admin/accounts")
+            confirmation = owner_client.get(
+                f"/saas-admin/accounts/{orphan['account_uuid']}/delete-orphaned-test-account"
+            )
+            developer = self._platform_client(
+                user_id="9031", platform_role=auth.PLATFORM_ROLE_DEVELOPER
+            ).get("/saas-admin/accounts")
+            tenant = self._tenant_client(user_id="7100000030").get("/saas-admin/accounts")
+
+        self.assertEqual(production_list.status_code, 200)
+        self.assertIn("Orphaned after test reset", production_list.text)
+        self.assertIn("Draft/onboarding", production_list.text)
+        self.assertNotIn(
+            f"/saas-admin/accounts/{orphan['account_uuid']}/delete-orphaned-test-account",
+            production_list.text,
+        )
+        self.assertEqual(unavailable.status_code, 404)
+        self.assertIn("Delete Orphaned Test Account", sandbox_list.text)
+        self.assertEqual(confirmation.status_code, 200)
+        self.assertIn(orphan["email"], confirmation.text)
+        self.assertIn("Pending organizations: 0", confirmation.text)
+        self.assertIn("Tenant provisioning links: 0", confirmation.text)
+        self.assertEqual(developer.status_code, 403)
+        self.assertEqual(tenant.status_code, 403)
+
+    def test_orphaned_account_management_customer_denied_and_feature_flag_enabled(self):
+        orphan = self._create_orphaned_test_account(
+            email="orphan-customer-deny@academy.edu",
+            organization_name="Orphan Customer Deny Academy",
+        )
+        db = self._db()
+        try:
+            account = db.query(saas.models.SaaSAccount).filter_by(id=orphan["account_id"]).first()
+            session_token, _csrf, _row = saas_service.create_session(db, account)
+            db.commit()
+        finally:
+            db.close()
+        customer_client = TestClient(self.app)
+        customer_client.cookies.set(saas_service.SAAS_SESSION_COOKIE, session_token)
+
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "production", "TIS_ENABLE_TEST_ACCOUNT_RESET": "true"}):
+            owner_response = self._platform_client(user_id="9032").get(
+                f"/saas-admin/accounts/{orphan['account_uuid']}/delete-orphaned-test-account"
+            )
+            customer_response = customer_client.get("/saas-admin/accounts")
+
+        self.assertEqual(owner_response.status_code, 200)
+        self.assertEqual(customer_response.status_code, 403)
+
+    def test_orphaned_account_deletion_blocks_non_orphan_and_unsafe_relationships(self):
+        active = self._complete_paid_provisioning(
+            email="orphan-active@academy.edu",
+            organization_name="Active Account Academy",
+        )
+        db = self._db()
+        try:
+            active_org = db.query(saas.models.PendingOrganization).filter_by(id=active["organization_id"]).first()
+            active_account = db.query(saas.models.SaaSAccount).filter_by(id=active_org.owner_saas_account_id).first()
+            active_uuid = active_account.account_uuid
+        finally:
+            db.close()
+        owner_client = self._platform_client(user_id="9033")
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            patch("saas.router.audit.write_audit_event") as blocked_audit,
+        ):
+            active_response = owner_client.post(
+                f"/saas-admin/accounts/{active_uuid}/delete-orphaned-test-account",
+                data={"confirmation_email": "orphan-active@academy.edu", "reason": "Retest"},
+                follow_redirects=False,
+            )
+            account_list = owner_client.get("/saas-admin/accounts")
+        self.assertIn("not+a+safely+orphaned", active_response.headers["location"])
+        self.assertEqual(blocked_audit.call_args.args[0]["result"], "blocked")
+        self.assertIn("Active with organization", account_list.text)
+
+        linked = self._create_orphaned_test_account(
+            email="orphan-linked@academy.edu",
+            organization_name="Orphan Linked Academy",
+        )
+        db = self._db()
+        try:
+            group = models.SchoolGroup(name="Unsafe Residual Tenant", status=True)
+            db.add(group)
+            db.flush()
+            branch = models.Branch(school_group_id=group.id, name="Unsafe Branch", status=True)
+            db.add(branch)
+            db.flush()
+            user = models.User(
+                user_id="7100000031", username="7100000031",
+                email=linked["email"], email_normalized=linked["email"],
+                password=auth.get_password_hash("TenantPass123!"),
+                user_type=auth.USER_TYPE_TENANT, role=auth.ROLE_ADMINISTRATOR,
+                school_group_id=group.id, branch_id=branch.id, is_active=True,
+            )
+            db.add(user)
+            db.flush()
+            db.add(saas.models.SaaSAccountUserLink(
+                saas_account_id=linked["account_id"], operational_user_id=user.id,
+                pending_organization_id=None, school_group_id=group.id,
+            ))
+            db.commit()
+        finally:
+            db.close()
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}):
+            linked_response = owner_client.post(
+                f"/saas-admin/accounts/{linked['account_uuid']}/delete-orphaned-test-account",
+                data={"confirmation_email": linked["email"], "reason": "Retest"},
+                follow_redirects=False,
+            )
+        self.assertIn("Manual+review+is+required", linked_response.headers["location"])
+
+    def test_orphaned_account_deletion_blocks_platform_identity_and_bound_payment_mapping(self):
+        protected = self._create_orphaned_test_account(
+            email="orphan-platform@academy.edu",
+            organization_name="Orphan Platform Academy",
+        )
+        db = self._db()
+        try:
+            db.add(models.User(
+                user_id="9034", username="platform.orphan.9034",
+                email=protected["email"], email_normalized=protected["email"],
+                password=auth.get_password_hash("PlatformPass123!"),
+                user_type=auth.USER_TYPE_PLATFORM, platform_role=auth.PLATFORM_ROLE_DEVELOPER,
+                access_scope=auth.ACCESS_SCOPE_GLOBAL, is_active=True,
+            ))
+            db.commit()
+        finally:
+            db.close()
+        owner_client = self._platform_client(user_id="9035")
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}):
+            protected_response = owner_client.get(
+                f"/saas-admin/accounts/{protected['account_uuid']}/delete-orphaned-test-account"
+            )
+        self.assertIn("Protected/platform identity", protected_response.text)
+        self.assertNotIn("Permanently Delete Orphaned Test Account</button>", protected_response.text)
+
+        payment = self._create_orphaned_test_account(
+            email="orphan-payment@academy.edu",
+            organization_name="Orphan Payment Academy",
+        )
+        sent_messages = []
+        other_uuid = self._complete_pending_org(
+            "other-payment-owner@academy.edu", sent_messages,
+            organization_name="Other Payment Organization",
+        )
+        db = self._db()
+        try:
+            other_org = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=other_uuid).first()
+            db.add(saas.models.PaymentCustomer(
+                pending_organization_id=other_org.id,
+                saas_account_id=payment["account_id"],
+                provider="paddle", provider_customer_id="ctm_orphan_shared_payment",
+                email=payment["email"], status="active",
+            ))
+            db.commit()
+        finally:
+            db.close()
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}):
+            payment_response = owner_client.get(
+                f"/saas-admin/accounts/{payment['account_uuid']}/delete-orphaned-test-account"
+            )
+        self.assertIn("Manual review required", payment_response.text)
+        self.assertIn("payment-customer mapping is associated", payment_response.text)
+
+    def test_orphaned_account_confirmation_and_reason_are_required(self):
+        orphan = self._create_orphaned_test_account(
+            email="orphan-confirm@academy.edu",
+            organization_name="Orphan Confirm Academy",
+        )
+        owner_client = self._platform_client(user_id="9036")
+        path = f"/saas-admin/accounts/{orphan['account_uuid']}/delete-orphaned-test-account"
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            patch("saas.router.audit.write_audit_event") as write_audit,
+        ):
+            mismatch = owner_client.post(path, data={
+                "confirmation_email": "ORPHAN-CONFIRM@academy.edu", "reason": "Retest",
+            }, follow_redirects=False)
+            missing_reason = owner_client.post(path, data={
+                "confirmation_email": orphan["email"], "reason": "",
+            }, follow_redirects=False)
+        self.assertIn("account+email+does+not+match", mismatch.headers["location"])
+        self.assertIn("deletion+reason+is+required", missing_reason.headers["location"])
+        self.assertEqual(write_audit.call_count, 2)
+
+    def test_orphaned_account_deletion_succeeds_and_allows_email_reuse(self):
+        email = "orphan-success@academy.edu"
+        orphan = self._create_orphaned_test_account(
+            email=email,
+            organization_name="Orphan Success Academy",
+        )
+        unrelated = self._create_orphaned_test_account(
+            email="orphan-unrelated@academy.edu",
+            organization_name="Orphan Unrelated Academy",
+        )
+        owner_client = self._platform_client(user_id="9037")
+        db = self._db()
+        try:
+            plan_count = db.query(saas.models.SubscriptionPlan).count()
+            price_count = db.query(saas.models.SubscriptionPlanPrice).count()
+        finally:
+            db.close()
+        path = f"/saas-admin/accounts/{orphan['account_uuid']}/delete-orphaned-test-account"
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            patch("saas.router.audit.write_audit_event") as write_audit,
+            patch("saas.paddle_client.create_transaction") as create_transaction,
+            patch("saas.paddle_client.create_customer") as create_customer,
+            patch("saas.paddle_client.list_customers_by_email") as list_customers,
+        ):
+            response = owner_client.post(path, data={
+                "confirmation_email": email,
+                "reason": "Repeat orphaned Sandbox account journey",
+            }, follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("email+can+be+registered+again", response.headers["location"])
+        self.assertEqual(write_audit.call_args.args[0]["result"], "success")
+        create_transaction.assert_not_called()
+        create_customer.assert_not_called()
+        list_customers.assert_not_called()
+        db = self._db()
+        try:
+            self.assertIsNone(db.query(saas.models.SaaSAccount).filter_by(id=orphan["account_id"]).first())
+            self.assertIsNotNone(db.query(saas.models.SaaSAccount).filter_by(id=unrelated["account_id"]).first())
+            self.assertEqual(db.query(saas.models.SubscriptionPlan).count(), plan_count)
+            self.assertEqual(db.query(saas.models.SubscriptionPlanPrice).count(), price_count)
+            self.assertIsNone(saas_service.authenticate_account(db, email, "strong-password-123"))
+        finally:
+            db.close()
+        deleted_login = self.client.post("/saas/auth/login", data={
+            "email": email, "password": "strong-password-123", "next_path": "/saas/account",
+        }, follow_redirects=False)
+        self.assertIn("/saas/login", deleted_login.headers["location"])
+        sent_messages = []
+        with patch("email_service.send_email", side_effect=lambda **kwargs: sent_messages.append(kwargs) or "email_reuse"):
+            signup = self.client.post("/saas/auth/signup", data={
+                "first_name": "New", "last_name": "Tester", "email": email,
+                "password": "new-strong-password-123", "confirm_password": "new-strong-password-123",
+            }, follow_redirects=False)
+        self.assertEqual(signup.status_code, 302)
+        self.assertTrue(sent_messages)
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            patch("saas.router.audit.write_audit_event") as repeated_audit,
+        ):
+            repeated = owner_client.post(path, data={"confirmation_email": email, "reason": "Repeat"})
+        self.assertEqual(repeated.status_code, 404)
+        self.assertEqual(repeated_audit.call_args.args[0]["result"], "blocked_not_found")
+
+    def test_orphaned_account_deletion_rolls_back_all_identity_rows(self):
+        orphan = self._create_orphaned_test_account(
+            email="orphan-rollback@academy.edu",
+            organization_name="Orphan Rollback Academy",
+        )
+        owner_client = self._platform_client(user_id="9038")
+        db = self._db()
+        try:
+            before = {
+                "accounts": db.query(saas.models.SaaSAccount).count(),
+                "sessions": db.query(saas.models.SaaSSession).count(),
+                "identities": db.query(saas.models.SaaSAuthIdentity).count(),
+                "events": db.query(saas.models.SaaSAuthEvent).count(),
+            }
+        finally:
+            db.close()
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            patch("saas.orphaned_test_account_service.Session.flush", side_effect=RuntimeError("simulated failure")),
+            patch("saas.router.audit.write_audit_event") as write_audit,
+        ):
+            response = owner_client.post(
+                f"/saas-admin/accounts/{orphan['account_uuid']}/delete-orphaned-test-account",
+                data={"confirmation_email": orphan["email"], "reason": "Rollback test"},
+                follow_redirects=False,
+            )
+        self.assertIn("All+data+was+preserved", response.headers["location"])
+        self.assertEqual(write_audit.call_args.args[0]["result"], "failed_rolled_back")
+        db = self._db()
+        try:
+            after = {
+                "accounts": db.query(saas.models.SaaSAccount).count(),
+                "sessions": db.query(saas.models.SaaSSession).count(),
+                "identities": db.query(saas.models.SaaSAuthIdentity).count(),
+                "events": db.query(saas.models.SaaSAuthEvent).count(),
             }
         finally:
             db.close()

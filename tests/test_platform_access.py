@@ -794,6 +794,8 @@ class PlatformAccessTests(unittest.TestCase):
         self.assertIn("Unverified", body)
         self.assertIn("Request Verification", body)
         self.assertIn('action="/platform/account/request-email-verification"', body)
+        self.assertIn('href="/saas-admin/accounts"', body)
+        self.assertIn("Manage SaaS Accounts", body)
         self.assertNotIn('action="/forgot-password"', body)
         verification_button = re.search(
             r'<button[^>]*>Request Verification</button>',
