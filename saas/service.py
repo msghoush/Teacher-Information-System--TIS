@@ -17,6 +17,7 @@ import email_service
 import email_templates
 import public_url
 from saas import models
+from saas.branch_pricing_quote_service import normalize_branch_name
 
 SAAS_SESSION_COOKIE = "tis_saas_session"
 SAAS_CSRF_COOKIE = "tis_saas_csrf"
@@ -869,9 +870,7 @@ def recalculate_pending_progress(db: Session, organization):
         and _clean_text(getattr(organization, "educational_program", ""), 20)
         and _clean_text(getattr(organization, "timezone", ""), 80)
     )
-    branches_count = db.query(models.PendingOrganizationBranch).filter(
-        models.PendingOrganizationBranch.pending_organization_id == organization.id
-    ).count()
+    branches_count = count_billable_pending_branches(db, organization)
     progress.branches_complete = branches_count > 0
     academic_setup = get_or_create_academic_setup(db, organization)
     progress.academic_setup_complete = bool(_clean_text(academic_setup.first_academic_year_name, 40))
@@ -911,9 +910,7 @@ def get_onboarding_missing_requirements(db: Session, organization) -> list[dict]
     if not _clean_text(getattr(organization, "timezone", ""), 80):
         missing.append({"step": "Organization Profile", "field": "Time Zone"})
 
-    branches_count = db.query(models.PendingOrganizationBranch).filter(
-        models.PendingOrganizationBranch.pending_organization_id == organization.id
-    ).count()
+    branches_count = count_billable_pending_branches(db, organization)
     if branches_count <= 0:
         missing.append({"step": "Branch Setup", "field": "At least one branch"})
 
@@ -1035,33 +1032,84 @@ def save_organization_profile(
 
 
 def replace_branches(db: Session, organization, branch_rows: list[dict]):
-    db.query(models.PendingOrganizationBranch).filter(
+    existing_rows = db.query(models.PendingOrganizationBranch).filter(
         models.PendingOrganizationBranch.pending_organization_id == organization.id
-    ).delete(synchronize_session=False)
-    cleaned_rows = []
+    ).order_by(
+        models.PendingOrganizationBranch.sort_order.asc(),
+        models.PendingOrganizationBranch.id.asc(),
+    ).all()
+    existing_by_uuid = {
+        str(row.branch_uuid or "").strip(): row
+        for row in existing_rows
+        if str(row.branch_uuid or "").strip()
+    }
+    cleaned_rows: list[tuple[int, dict, str]] = []
     for index, row in enumerate(branch_rows):
         branch_name = _clean_text(row.get("branch_name"), 160)
         if not branch_name:
             continue
-        cleaned_rows.append(
-            models.PendingOrganizationBranch(
-                pending_organization_id=organization.id,
-                branch_name=branch_name,
-                location=_clean_text(row.get("location"), 180),
-                country_code=_clean_text(row.get("country_code"), 2).upper(),
-                country_name=_clean_text(row.get("country_name"), 120),
-                region_name=_clean_text(row.get("region_name"), 160),
-                city_name=_clean_text(row.get("city_name"), 160),
-                district_name=_clean_text(row.get("district_name"), 160),
-                neighborhood_name=_clean_text(row.get("neighborhood_name"), 160),
-                sort_order=index,
-                status=True,
-            )
-        )
+        cleaned_rows.append((index, row, branch_name))
     if not cleaned_rows:
         raise ValueError("Add at least one branch.")
-    for row in cleaned_rows:
-        db.add(row)
+
+    normalized_names = [normalize_branch_name(branch_name) for _index, _row, branch_name in cleaned_rows]
+    if len(normalized_names) != len(set(normalized_names)):
+        raise ValueError("Active branch names must be unique within the organization.")
+
+    claimed_ids: set[int] = set()
+    changed = False
+    active_by_order = {int(row.sort_order or 0): row for row in existing_rows if bool(row.status)}
+    editable_fields = (
+        ("branch_name", 160), ("location", 180), ("country_name", 120),
+        ("region_name", 160), ("city_name", 160), ("district_name", 160),
+        ("neighborhood_name", 160),
+    )
+    for index, submitted, branch_name in cleaned_rows:
+        submitted_uuid = _clean_text(submitted.get("branch_uuid"), 36)
+        target = existing_by_uuid.get(submitted_uuid) if submitted_uuid else None
+        if submitted_uuid and target is None:
+            raise ValueError("Branch identity could not be validated. Refresh Branch Setup and try again.")
+        if target is None:
+            fallback = active_by_order.get(index)
+            if fallback is not None and int(fallback.id) not in claimed_ids:
+                target = fallback
+        if target is None:
+            target = models.PendingOrganizationBranch(
+                branch_uuid=str(uuid.uuid4()),
+                pending_organization_id=organization.id,
+            )
+            db.add(target)
+            changed = True
+        elif int(target.id) in claimed_ids:
+            raise ValueError("A branch identity cannot be submitted more than once.")
+
+        values = {field: _clean_text(submitted.get(field), max_length) for field, max_length in editable_fields}
+        values["branch_name"] = branch_name
+        values["country_code"] = _clean_text(submitted.get("country_code"), 2).upper()
+        values["sort_order"] = index
+        values["status"] = True
+        for field, value in values.items():
+            if getattr(target, field, None) != value:
+                setattr(target, field, value)
+                changed = True
+        db.flush()
+        claimed_ids.add(int(target.id))
+
+    for existing in existing_rows:
+        if int(existing.id) not in claimed_ids and bool(existing.status):
+            existing.status = False
+            changed = True
+
+    if changed:
+        now = _utcnow()
+        for checkout_session in db.query(models.CheckoutSession).filter(
+            models.CheckoutSession.pending_organization_id == organization.id,
+            models.CheckoutSession.status.in_(("ready", "started")),
+        ).all():
+            checkout_session.status = "stale"
+            checkout_session.abandoned_at = now
+        if getattr(organization, "selected_plan_id", None) and str(getattr(organization, "payment_status", "") or "").lower() != "paid":
+            organization.billing_status = "plan_selected"
     organization.onboarding_step = "academic_setup"
     organization.status = "in_progress"
     organization.draft_saved_at = _utcnow()
@@ -1152,10 +1200,27 @@ def submit_pending_organization(db: Session, account, organization):
     return progress
 
 
-def list_pending_branches(db: Session, organization):
-    return db.query(models.PendingOrganizationBranch).filter(
+def list_pending_branches(db: Session, organization, *, include_inactive: bool = False):
+    query = db.query(models.PendingOrganizationBranch).filter(
         models.PendingOrganizationBranch.pending_organization_id == organization.id
-    ).order_by(models.PendingOrganizationBranch.sort_order.asc(), models.PendingOrganizationBranch.id.asc()).all()
+    )
+    if not include_inactive:
+        query = query.filter(models.PendingOrganizationBranch.status == True)
+    return query.order_by(
+        models.PendingOrganizationBranch.sort_order.asc(),
+        models.PendingOrganizationBranch.id.asc(),
+    ).all()
+
+
+def list_billable_pending_branches(db: Session, organization):
+    return [
+        branch for branch in list_pending_branches(db, organization)
+        if _clean_text(getattr(branch, "branch_name", ""), 160)
+    ]
+
+
+def count_billable_pending_branches(db: Session, organization) -> int:
+    return len(list_billable_pending_branches(db, organization))
 
 
 def list_pending_events(db: Session, organization):
@@ -1173,9 +1238,7 @@ def build_pending_card(db: Session, organization):
         models.SaaSAccount.id == organization.owner_saas_account_id
     ).first()
     progress = recalculate_pending_progress(db, organization)
-    branches_count = db.query(models.PendingOrganizationBranch).filter(
-        models.PendingOrganizationBranch.pending_organization_id == organization.id
-    ).count()
+    branches_count = count_billable_pending_branches(db, organization)
     selection = billing_service.get_current_plan_selection(db, organization)
     checkout_session = billing_service.get_current_checkout_session(db, organization)
     contract = billing_service.get_current_subscription_contract(db, organization)
@@ -1216,9 +1279,7 @@ def build_pending_dashboard_summary(db: Session, account):
 
     progress = recalculate_pending_progress(db, organization)
     update_pending_dashboard_status(account, organization, progress)
-    branches_count = db.query(models.PendingOrganizationBranch).filter(
-        models.PendingOrganizationBranch.pending_organization_id == organization.id
-    ).count()
+    branches_count = count_billable_pending_branches(db, organization)
     selection = billing_service.get_current_plan_selection(db, organization)
     checkout_session = billing_service.get_current_checkout_session(db, organization)
     contract = billing_service.get_current_subscription_contract(db, organization)

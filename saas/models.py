@@ -1,4 +1,5 @@
 from datetime import datetime
+import uuid
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, text
 
@@ -222,11 +223,13 @@ class PendingOrganization(Base):
 class PendingOrganizationBranch(Base):
     __tablename__ = "pending_organization_branches"
     __table_args__ = (
+        Index("uq_pending_organization_branches_uuid", "branch_uuid", unique=True),
         Index("ix_pending_organization_branches_org", "pending_organization_id"),
         Index("ix_pending_organization_branches_order", "pending_organization_id", "sort_order"),
     )
 
     id = Column(Integer, primary_key=True)
+    branch_uuid = Column(String(36), nullable=False, default=lambda: str(uuid.uuid4()))
     pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
     branch_name = Column(String(160), nullable=False)
     location = Column(String(180))
@@ -447,6 +450,10 @@ class PendingOrganizationPlanSelection(Base):
     plan_version = Column(Integer, nullable=False, default=1)
     is_founding_offer = Column(Boolean, nullable=False, default=False)
     selection_status = Column(String(20), nullable=False, default="selected")
+    billable_branch_count = Column(Integer, nullable=False, default=0)
+    quoted_base_amount_minor = Column(Integer)
+    quoted_display_amount_minor = Column(Integer)
+    quote_fingerprint = Column(String(64), index=True)
     selected_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -470,6 +477,10 @@ class CheckoutSession(Base):
     currency_code = Column(String(3), nullable=False, default="USD")
     amount_minor = Column(Integer, nullable=False)
     billing_interval = Column(String(20), nullable=False)
+    billable_branch_count = Column(Integer, nullable=False, default=0)
+    quoted_base_amount_minor = Column(Integer)
+    quoted_display_amount_minor = Column(Integer)
+    quote_fingerprint = Column(String(64), index=True)
     last_payment_attempt_id = Column(Integer, ForeignKey("payment_attempts.id"), index=True)
     started_at = Column(DateTime)
     expires_at = Column(DateTime)
@@ -495,6 +506,10 @@ class SubscriptionContract(Base):
     base_amount_minor = Column(Integer, nullable=False)
     display_currency_code = Column(String(3), nullable=False, default="USD")
     display_amount_minor = Column(Integer, nullable=False)
+    billable_branch_count = Column(Integer, nullable=False, default=0)
+    quoted_base_amount_minor = Column(Integer)
+    quoted_display_amount_minor = Column(Integer)
+    quote_fingerprint = Column(String(64), index=True)
     selected_checkout_session_id = Column(Integer, ForeignKey("checkout_sessions.id"), index=True)
     contract_type = Column(String(30), nullable=False, default="self_serve")
     plan_version = Column(Integer, nullable=False, default=1)
@@ -549,9 +564,13 @@ class PaymentAttempt(Base):
     provider_transaction_id = Column(String(120))
     provider_subscription_id = Column(String(120))
     status = Column(String(30), nullable=False, default="checkout_started")
+    provider_price_id = Column(String(120))
     currency_code = Column(String(3))
+    quantity = Column(Integer, nullable=False, default=0)
+    unit_amount_minor = Column(Integer)
     amount_minor = Column(Integer)
     billing_interval = Column(String(20), nullable=False)
+    quote_fingerprint = Column(String(64), index=True)
     started_at = Column(DateTime)
     expires_at = Column(DateTime)
     completed_at = Column(DateTime)
@@ -580,6 +599,11 @@ class PaymentSubscription(Base):
     provider_price_id = Column(String(120))
     plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False, index=True)
     billing_interval = Column(String(20), nullable=False)
+    currency_code = Column(String(3))
+    quantity = Column(Integer, nullable=False, default=0)
+    unit_amount_minor = Column(Integer)
+    amount_minor = Column(Integer)
+    quote_fingerprint = Column(String(64), index=True)
     status = Column(String(30), nullable=False, default="pending")
     current_period_start = Column(DateTime)
     current_period_end = Column(DateTime)

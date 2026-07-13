@@ -16,7 +16,7 @@ os.environ["PADDLE_WEBHOOK_TOLERANCE_SECONDS"] = "30"
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -26,7 +26,7 @@ import location_service
 import models
 import saas.models  # noqa: F401 - register metadata
 from dependencies import get_db
-from saas import oauth, paddle_client, service
+from saas import billing_service, branch_pricing_quote_service, oauth, paddle_client, service
 from saas.router import admin_router as saas_admin_router, router as saas_router
 
 
@@ -1424,6 +1424,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("/saas/account?notice=", plan_response.headers["location"])
 
     def test_phase3_plan_selection_and_checkout_foundation_preserves_operational_isolation(self):
+        self._configure_paddle_prices()
         org_uuid = self._complete_pending_organization_to_ready_for_checkout("billing@academy.edu")
 
         db = self._db()
@@ -1580,7 +1581,11 @@ class SaaSPhase1Tests(unittest.TestCase):
         db = self._db()
         try:
             organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
-            self.assertEqual(organization.billing_status, "checkout_ready")
+            self.assertEqual(organization.billing_status, "plan_selected")
+            self.assertEqual(
+                db.query(saas.models.CheckoutSession).filter_by(pending_organization_id=organization.id).count(),
+                0,
+            )
             self.assertIsNone(organization.last_payment_attempt_id)
             self.assertEqual(
                 db.query(saas.models.PaymentAttempt).filter_by(pending_organization_id=organization.id).count(),
@@ -2366,7 +2371,12 @@ class SaaSPhase1Tests(unittest.TestCase):
                 "next_billed_at": "2027-06-22T12:00:00Z",
                 "items": [
                     {
-                        "price": {"id": "pri_test_2_annual"},
+                        "quantity": 2,
+                        "price": {
+                            "id": "pri_test_2_annual",
+                            "unit_price": {"amount": "79000", "currency_code": "USD"},
+                            "billing_cycle": {"interval": "year", "frequency": 1},
+                        },
                     }
                 ],
             },
@@ -2391,6 +2401,26 @@ class SaaSPhase1Tests(unittest.TestCase):
                     "pending_organization_uuid": org_uuid,
                     "payment_attempt_uuid": attempt_uuid,
                     "subscription_contract_id": contract_id,
+                },
+                "items": [
+                    {
+                        "quantity": 2,
+                        "price": {
+                            "id": "pri_test_2_annual",
+                            "unit_price": {"amount": "79000", "currency_code": "USD"},
+                            "billing_cycle": {"interval": "year", "frequency": 1},
+                        },
+                    }
+                ],
+                "details": {
+                    "totals": {"subtotal": "158000", "currency_code": "USD"},
+                    "line_items": [
+                        {
+                            "price_id": "pri_test_2_annual",
+                            "quantity": 2,
+                            "totals": {"subtotal": "158000"},
+                        }
+                    ],
                 },
             },
         }
@@ -2430,6 +2460,12 @@ class SaaSPhase1Tests(unittest.TestCase):
             self.assertIsNotNone(payment_subscription)
             self.assertEqual(payment_subscription.provider_subscription_id, "sub_webhook_123")
             self.assertEqual(payment_subscription.status, "active")
+            self.assertEqual(payment_subscription.provider_price_id, "pri_test_2_annual")
+            self.assertEqual(payment_subscription.quantity, 2)
+            self.assertEqual(payment_subscription.unit_amount_minor, 79000)
+            self.assertEqual(payment_subscription.amount_minor, 158000)
+            self.assertEqual(payment_subscription.currency_code, "USD")
+            self.assertEqual(payment_subscription.billing_interval, "annual")
             self.assertIsNotNone(tenant_link)
             self.assertEqual(
                 db.query(saas.models.PaymentWebhook).filter_by(provider_event_id="evt_completed_123456789012345678901").count(),
@@ -2500,6 +2536,7 @@ class SaaSPhase1Tests(unittest.TestCase):
             db.close()
 
     def test_platform_owner_pending_dashboard_shows_phase3_billing_visibility(self):
+        self._configure_paddle_prices()
         org_uuid = self._complete_pending_organization_to_ready_for_checkout("owner-ops@academy.edu")
 
         db = self._db()
@@ -2604,6 +2641,485 @@ class SaaSPhase1Tests(unittest.TestCase):
             )
         finally:
             db.close()
+
+    def test_branch_identity_edit_add_remove_and_duplicate_validation(self):
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("stable-branches@academy.edu")
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            original = service.list_billable_pending_branches(db, organization)
+            original_by_name = {row.branch_name: row.branch_uuid for row in original}
+        finally:
+            db.close()
+
+        response = self.client.post(f"/saas/onboarding/{org_uuid}/branches", data={
+            "branch_uuid": [original_by_name["Girls Campus"], original_by_name["Main Campus"], ""],
+            "branch_name": ["Girls Campus Renamed", "Main Campus", "New West Campus"],
+            "location": ["North", "Central", "West"],
+        }, follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            rows = service.list_billable_pending_branches(db, organization)
+            by_name = {row.branch_name: row for row in rows}
+            self.assertEqual(by_name["Girls Campus Renamed"].branch_uuid, original_by_name["Girls Campus"])
+            self.assertEqual(by_name["Main Campus"].branch_uuid, original_by_name["Main Campus"])
+            new_uuid = by_name["New West Campus"].branch_uuid
+            self.assertNotIn(new_uuid, set(original_by_name.values()))
+        finally:
+            db.close()
+
+        remove_response = self.client.post(f"/saas/onboarding/{org_uuid}/branches", data={
+            "branch_uuid": [original_by_name["Main Campus"], new_uuid],
+            "branch_name": ["Main Campus", "New West Campus"],
+            "location": ["Central", "West"],
+        }, follow_redirects=False)
+        self.assertEqual(remove_response.status_code, 302)
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            removed = db.query(saas.models.PendingOrganizationBranch).filter_by(
+                branch_uuid=original_by_name["Girls Campus"]
+            ).first()
+            self.assertFalse(removed.status)
+            self.assertEqual(service.count_billable_pending_branches(db, organization), 2)
+        finally:
+            db.close()
+
+        duplicate = self.client.post(f"/saas/onboarding/{org_uuid}/branches", data={
+            "branch_uuid": [original_by_name["Main Campus"], new_uuid],
+            "branch_name": ["Main Campus", "  MAIN   CAMPUS  "],
+        }, follow_redirects=False)
+        self.assertEqual(duplicate.status_code, 422)
+        self.assertIn("Active branch names must be unique", duplicate.text)
+
+    def test_zero_billable_branches_blocks_quote(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("zero-branches@academy.edu")
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            starter = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="starter").first()
+            for branch in service.list_pending_branches(db, organization):
+                branch.status = False
+            organization.selected_plan_id = starter.id
+            organization.selected_billing_interval = "monthly"
+            quote = branch_pricing_quote_service.build_quote(db, organization)
+            self.assertFalse(quote.is_ready)
+            self.assertEqual(quote.quantity, 0)
+            self.assertIn("Add at least one active branch", quote.errors[0])
+        finally:
+            db.close()
+
+    def test_branch_quote_exact_starter_and_enterprise_totals(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("quote-totals@academy.edu")
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            branches = service.list_billable_pending_branches(db, organization)
+            branches[1].status = False
+            starter = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="starter").first()
+            organization.selected_plan_id = starter.id
+            organization.selected_billing_interval = "monthly"
+            one_branch = branch_pricing_quote_service.build_quote(db, organization)
+            self.assertEqual((one_branch.unit_amount_minor, one_branch.quantity, one_branch.total_amount_minor), (2900, 1, 2900))
+            self.assertEqual(one_branch.formatted_total, "USD 29.00")
+
+            branches[1].status = True
+            db.add(saas.models.PendingOrganizationBranch(
+                branch_uuid="00000000-0000-0000-0000-000000000303",
+                pending_organization_id=organization.id,
+                branch_name="West Campus",
+                status=True,
+                sort_order=2,
+            ))
+            enterprise = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="enterprise_ai").first()
+            organization.selected_plan_id = enterprise.id
+            organization.selected_billing_interval = "monthly"
+            monthly = branch_pricing_quote_service.build_quote(db, organization)
+            self.assertEqual((monthly.quantity, monthly.total_amount_minor, monthly.formatted_total), (3, 44700, "USD 447.00"))
+            organization.selected_billing_interval = "annual"
+            annual = branch_pricing_quote_service.build_quote(db, organization)
+            self.assertEqual((annual.quantity, annual.total_amount_minor, annual.formatted_total), (3, 447000, "USD 4,470.00"))
+        finally:
+            db.close()
+
+    def test_quote_fingerprint_tracks_plan_interval_price_provider_and_branches(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("quote-fingerprint@academy.edu")
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            starter = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="starter").first()
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            organization.selected_plan_id = starter.id
+            organization.selected_billing_interval = "monthly"
+            initial = branch_pricing_quote_service.build_quote(db, organization)
+            self.assertEqual(initial.fingerprint, branch_pricing_quote_service.build_quote(db, organization).fingerprint)
+            organization.selected_plan_id = professional.id
+            plan_changed = branch_pricing_quote_service.build_quote(db, organization)
+            self.assertNotEqual(initial.fingerprint, plan_changed.fingerprint)
+            organization.selected_billing_interval = "annual"
+            interval_changed = branch_pricing_quote_service.build_quote(db, organization)
+            self.assertNotEqual(plan_changed.fingerprint, interval_changed.fingerprint)
+            price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+                plan_id=professional.id, billing_interval="annual", is_active=True
+            ).order_by(saas.models.SubscriptionPlanPrice.plan_version.desc()).first()
+            price.provider_price_id = "pri_fingerprint_provider_changed"
+            provider_changed = branch_pricing_quote_service.build_quote(db, organization)
+            self.assertNotEqual(interval_changed.fingerprint, provider_changed.fingerprint)
+            price.amount_minor += 100
+            amount_changed = branch_pricing_quote_service.build_quote(db, organization)
+            self.assertNotEqual(provider_changed.fingerprint, amount_changed.fingerprint)
+            db.add(saas.models.SubscriptionPlanPrice(
+                plan_id=professional.id, billing_interval="annual", currency_code="USD",
+                amount_minor=price.amount_minor, provider_price_id="pri_new_price_version",
+                plan_version=int(price.plan_version or 1) + 1, is_active=True,
+            ))
+            db.flush()
+            version_changed = branch_pricing_quote_service.build_quote(db, organization)
+            self.assertNotEqual(amount_changed.fingerprint, version_changed.fingerprint)
+            added = saas.models.PendingOrganizationBranch(
+                branch_uuid="00000000-0000-0000-0000-000000000304",
+                pending_organization_id=organization.id, branch_name="Fingerprint Campus", status=True, sort_order=3,
+            )
+            db.add(added)
+            db.flush()
+            branch_added = branch_pricing_quote_service.build_quote(db, organization)
+            self.assertNotEqual(version_changed.fingerprint, branch_added.fingerprint)
+            added.status = False
+            branch_removed = branch_pricing_quote_service.build_quote(db, organization)
+            self.assertNotEqual(branch_added.fingerprint, branch_removed.fingerprint)
+        finally:
+            db.close()
+
+    def test_branch_change_stales_checkout_and_quote_snapshots_are_persisted(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("stale-quote@academy.edu")
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            selection = billing_service.select_plan(db, organization, plan_id=professional.id, billing_interval="monthly")
+            original = billing_service.create_or_update_checkout_session(db, organization)
+            contract = billing_service.get_current_subscription_contract(db, organization)
+            self.assertEqual(selection.quote_fingerprint, contract.quote_fingerprint)
+            self.assertEqual(selection.quote_fingerprint, original.quote_fingerprint)
+            original.status = "started"
+            original.checkout_url = "https://checkout.example.test/stale"
+            original_id = original.id
+            original_fingerprint = original.quote_fingerprint
+            branches = service.list_billable_pending_branches(db, organization)
+            service.replace_branches(db, organization, [
+                {"branch_uuid": row.branch_uuid, "branch_name": row.branch_name, "location": row.location}
+                for row in branches
+            ] + [{"branch_name": "New Quote Campus", "location": "West"}])
+            self.assertEqual(original.status, "stale")
+            organization.status = service.READY_FOR_CHECKOUT_STATUS
+            fresh = billing_service.create_or_update_checkout_session(db, organization)
+            self.assertNotEqual(original_id, fresh.id)
+            self.assertNotEqual(original_fingerprint, fresh.quote_fingerprint)
+            self.assertIsNone(fresh.checkout_url)
+        finally:
+            db.close()
+
+    def test_branch_removal_invalidates_started_checkout(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("remove-stale@academy.edu")
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            starter = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="starter").first()
+            billing_service.select_plan(db, organization, plan_id=starter.id, billing_interval="monthly")
+            checkout = billing_service.create_or_update_checkout_session(db, organization)
+            checkout.status = "started"
+            checkout.checkout_url = "https://checkout.example.test/remove-stale"
+            branches = service.list_billable_pending_branches(db, organization)
+            service.replace_branches(db, organization, [{
+                "branch_uuid": branches[0].branch_uuid,
+                "branch_name": branches[0].branch_name,
+                "location": branches[0].location,
+            }])
+            db.flush()
+            self.assertEqual(checkout.status, "stale")
+            self.assertIsNotNone(checkout.abandoned_at)
+            self.assertEqual(service.count_billable_pending_branches(db, organization), 1)
+        finally:
+            db.close()
+
+    def test_subscription_and_checkout_pages_show_branch_quote_without_fingerprint(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("quote-ui@academy.edu")
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            enterprise = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="enterprise_ai").first()
+            billing_service.select_plan(db, organization, plan_id=enterprise.id, billing_interval="monthly")
+            db.commit()
+        finally:
+            db.close()
+        plan_page = self.client.get(f"/saas/onboarding/{org_uuid}/plan")
+        checkout_page = self.client.get(f"/saas/onboarding/{org_uuid}/checkout")
+        self.assertIn("Prices are per branch.", plan_page.text)
+        self.assertIn("USD 149.00 per branch x 2 branches", plan_page.text)
+        self.assertIn("Total: USD 298.00 per month", plan_page.text)
+        self.assertIn("Price per branch", checkout_page.text)
+        self.assertIn("Billable branches", checkout_page.text)
+        self.assertIn("USD 298.00 per month", checkout_page.text)
+        self.assertNotIn("quote_fingerprint", checkout_page.text)
+
+    def test_paddle_launch_uses_authoritative_quantity_and_aggregate_total(self):
+        self._configure_paddle_prices()
+        scenarios = (
+            ("starter", "monthly", 1, 2900),
+            ("starter", "monthly", 3, 8700),
+            ("enterprise_ai", "monthly", 3, 44700),
+            ("enterprise_ai", "annual", 3, 447000),
+        )
+        for index, (plan_code, interval, quantity, expected_total) in enumerate(scenarios, start=1):
+            with self.subTest(plan_code=plan_code, interval=interval, quantity=quantity):
+                email = f"quantity-{index}@academy.edu"
+                org_uuid = self._complete_pending_organization_to_ready_for_checkout(email)
+                db = self._db()
+                try:
+                    organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+                    branches = service.list_billable_pending_branches(db, organization)
+                    if quantity == 1:
+                        branches[1].status = False
+                    elif quantity == 3:
+                        db.add(saas.models.PendingOrganizationBranch(
+                            branch_uuid=f"00000000-0000-0000-0000-{index:012d}",
+                            pending_organization_id=organization.id,
+                            branch_name=f"Quantity Campus {index}",
+                            status=True,
+                            sort_order=2,
+                        ))
+                    plan = db.query(saas.models.SubscriptionPlan).filter_by(plan_code=plan_code).first()
+                    billing_service.select_plan(db, organization, plan_id=plan.id, billing_interval=interval)
+                    db.commit()
+                finally:
+                    db.close()
+
+                with (
+                    patch("saas.paddle_client.list_customers_by_email", return_value=[]),
+                    patch(
+                        "saas.paddle_client.create_customer",
+                        return_value={"id": f"ctm_quantity_{index}", "email": email, "status": "active"},
+                    ),
+                    patch(
+                        "saas.paddle_client.create_transaction",
+                        return_value={
+                            "id": f"txn_quantity_{index}",
+                            "currency_code": "USD",
+                            "checkout": {"url": f"https://pay.paddle.test/quantity/{index}"},
+                        },
+                    ) as create_transaction,
+                ):
+                    response = self.client.post(
+                        f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False
+                    )
+
+                self.assertEqual(response.status_code, 302)
+                call = create_transaction.call_args.kwargs
+                self.assertEqual(call["quantity"], quantity)
+                db = self._db()
+                try:
+                    organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+                    selection = billing_service.get_current_plan_selection(db, organization)
+                    checkout = billing_service.get_current_checkout_session(db, organization)
+                    contract = billing_service.get_current_subscription_contract(db, organization)
+                    attempt = db.query(saas.models.PaymentAttempt).filter_by(pending_organization_id=organization.id).first()
+                    for snapshot in (selection, checkout, contract):
+                        self.assertEqual(snapshot.billable_branch_count, quantity)
+                        self.assertEqual(snapshot.quoted_base_amount_minor, expected_total)
+                    self.assertEqual(checkout.amount_minor, checkout.quoted_display_amount_minor)
+                    self.assertEqual(attempt.quantity, quantity)
+                    self.assertEqual(attempt.unit_amount_minor * attempt.quantity, expected_total)
+                    self.assertEqual(attempt.amount_minor, expected_total)
+                    self.assertEqual(attempt.quote_fingerprint, checkout.quote_fingerprint)
+                finally:
+                    db.close()
+
+    def test_paddle_transaction_quantity_has_no_silent_default(self):
+        with self.assertRaises(TypeError):
+            paddle_client.create_transaction(customer_id="ctm_test", price_id="pri_test")
+        with self.assertRaisesRegex(ValueError, "positive integer"):
+            paddle_client.create_transaction(customer_id="ctm_test", price_id="pri_test", quantity=0)
+        with patch("saas.paddle_client._request", return_value={"id": "txn_test"}) as request_call:
+            paddle_client.create_transaction(customer_id="ctm_test", price_id="pri_test", quantity=3)
+        self.assertEqual(request_call.call_args.args[2]["items"], [{"price_id": "pri_test", "quantity": 3}])
+
+    def test_webhook_mismatch_blocks_activation_and_preserves_payment_evidence(self):
+        self._configure_paddle_prices()
+        for index, mismatch in enumerate(("quantity", "price", "stale_quote"), start=1):
+            with self.subTest(mismatch=mismatch):
+                email = f"reconcile-{index}@academy.edu"
+                org_uuid = self._complete_pending_organization_to_ready_for_checkout(email)
+                db = self._db()
+                try:
+                    organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+                    starter = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="starter").first()
+                    billing_service.select_plan(db, organization, plan_id=starter.id, billing_interval="monthly")
+                    db.commit()
+                finally:
+                    db.close()
+                with (
+                    patch("saas.paddle_client.list_customers_by_email", return_value=[]),
+                    patch(
+                        "saas.paddle_client.create_customer",
+                        return_value={"id": f"ctm_reconcile_{index}", "email": email, "status": "active"},
+                    ),
+                    patch(
+                        "saas.paddle_client.create_transaction",
+                        return_value={
+                            "id": f"txn_reconcile_{index}",
+                            "currency_code": "USD",
+                            "checkout": {"url": f"https://pay.paddle.test/reconcile/{index}"},
+                        },
+                    ),
+                ):
+                    self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+
+                db = self._db()
+                try:
+                    organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+                    attempt = db.query(saas.models.PaymentAttempt).filter_by(pending_organization_id=organization.id).first()
+                    contract = billing_service.get_current_subscription_contract(db, organization)
+                    if mismatch == "stale_quote":
+                        rows = service.list_billable_pending_branches(db, organization)
+                        service.replace_branches(db, organization, [
+                            {"branch_uuid": row.branch_uuid, "branch_name": row.branch_name, "location": row.location}
+                            for row in rows
+                        ] + [{"branch_name": "Paid Stale Campus", "location": "West"}])
+                        organization.status = service.READY_FOR_CHECKOUT_STATUS
+                        db.commit()
+                    attempt_uuid = attempt.attempt_uuid
+                    contract_id = contract.id
+                    expected_price = attempt.provider_price_id
+                    expected_quantity = attempt.quantity
+                finally:
+                    db.close()
+
+                actual_price = "pri_unexpected_price" if mismatch == "price" else expected_price
+                actual_quantity = expected_quantity + 1 if mismatch == "quantity" else expected_quantity
+                subtotal = 2900 * actual_quantity
+                payload = {
+                    "event_id": f"evt_reconcile_{index:02d}_123456789012345678901",
+                    "event_type": "transaction.completed",
+                    "data": {
+                        "id": f"txn_reconcile_{index}",
+                        "status": "completed",
+                        "subscription_id": f"sub_reconcile_{index}",
+                        "custom_data": {
+                            "pending_organization_uuid": org_uuid,
+                            "payment_attempt_uuid": attempt_uuid,
+                            "subscription_contract_id": contract_id,
+                        },
+                        "items": [{
+                            "quantity": actual_quantity,
+                            "price": {
+                                "id": actual_price,
+                                "unit_price": {"amount": "2900", "currency_code": "USD"},
+                                "billing_cycle": {"interval": "month", "frequency": 1},
+                            },
+                        }],
+                        "details": {
+                            "totals": {"subtotal": str(subtotal), "currency_code": "USD"},
+                            "line_items": [{
+                                "price_id": actual_price,
+                                "quantity": actual_quantity,
+                                "totals": {"subtotal": str(subtotal)},
+                            }],
+                        },
+                    },
+                }
+                signature, body = self._sign_paddle_payload(payload)
+                response = self.client.post(
+                    "/saas/webhooks/paddle",
+                    content=body,
+                    headers={"Paddle-Signature": signature, "Content-Type": "application/json"},
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.text, "manual_review")
+                db = self._db()
+                try:
+                    organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+                    attempt = db.query(saas.models.PaymentAttempt).filter_by(pending_organization_id=organization.id).first()
+                    webhook = db.query(saas.models.PaymentWebhook).filter_by(provider_event_id=payload["event_id"]).first()
+                    self.assertEqual(organization.billing_status, "payment_reconciliation_required")
+                    self.assertNotEqual(organization.payment_status, "paid")
+                    self.assertEqual(attempt.status, "manual_reconciliation")
+                    self.assertIsNotNone(attempt.provider_transaction_id)
+                    self.assertEqual(webhook.processing_status, "manual_review")
+                    self.assertEqual(
+                        db.query(saas.models.TenantProvisioningLink).filter_by(pending_organization_id=organization.id).count(), 0
+                    )
+                    self.assertEqual(
+                        db.query(saas.models.ProvisioningJob).filter_by(pending_organization_id=organization.id).count(), 0
+                    )
+                finally:
+                    db.close()
+
+    def test_branch_quote_migration_backfills_legacy_branch_identity(self):
+        legacy_engine = create_engine("sqlite:///:memory:")
+        try:
+            with legacy_engine.begin() as connection:
+                connection.execute(text(
+                    "CREATE TABLE pending_organization_branches ("
+                    "id INTEGER PRIMARY KEY, pending_organization_id INTEGER NOT NULL, "
+                    "branch_name VARCHAR(160) NOT NULL, status BOOLEAN NOT NULL DEFAULT TRUE)"
+                ))
+                connection.execute(text(
+                    "INSERT INTO pending_organization_branches "
+                    "(id, pending_organization_id, branch_name, status) VALUES "
+                    "(1, 10, 'Legacy Main', TRUE), (2, 10, 'Legacy West', TRUE)"
+                ))
+                for table_name in (
+                    "pending_organization_plan_selections", "checkout_sessions", "subscription_contracts"
+                ):
+                    connection.execute(text(f"CREATE TABLE {table_name} (id INTEGER PRIMARY KEY)"))
+                db_migrations._branch_billing_quote_foundation(legacy_engine, connection)
+
+            inspector = inspect(legacy_engine)
+            branch_columns = {column["name"] for column in inspector.get_columns("pending_organization_branches")}
+            self.assertIn("branch_uuid", branch_columns)
+            with legacy_engine.connect() as connection:
+                branch_uuids = [row[0] for row in connection.execute(text(
+                    "SELECT branch_uuid FROM pending_organization_branches ORDER BY id"
+                )).all()]
+            self.assertEqual(len(branch_uuids), 2)
+            self.assertTrue(all(len(value) == 36 for value in branch_uuids))
+            self.assertEqual(len(set(branch_uuids)), 2)
+            for table_name in (
+                "pending_organization_plan_selections", "checkout_sessions", "subscription_contracts"
+            ):
+                columns = {column["name"] for column in inspector.get_columns(table_name)}
+                self.assertTrue({
+                    "billable_branch_count", "quoted_base_amount_minor",
+                    "quoted_display_amount_minor", "quote_fingerprint",
+                }.issubset(columns))
+        finally:
+            legacy_engine.dispose()
+
+    def test_paddle_quantity_migration_adds_only_reconciliation_snapshots(self):
+        legacy_engine = create_engine("sqlite:///:memory:")
+        try:
+            with legacy_engine.begin() as connection:
+                connection.execute(text("CREATE TABLE payment_attempts (id INTEGER PRIMARY KEY)"))
+                connection.execute(text("CREATE TABLE payment_subscriptions (id INTEGER PRIMARY KEY)"))
+                db_migrations._paddle_branch_quantity_reconciliation(legacy_engine, connection)
+            inspector = inspect(legacy_engine)
+            expected = {
+                "provider_price_id", "quantity", "unit_amount_minor", "amount_minor",
+                "currency_code", "quote_fingerprint",
+            }
+            for table_name in ("payment_attempts", "payment_subscriptions"):
+                columns = {column["name"] for column in inspector.get_columns(table_name)}
+                self.assertTrue(expected.issubset(columns))
+        finally:
+            legacy_engine.dispose()
 
 
 if __name__ == "__main__":

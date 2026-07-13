@@ -11,7 +11,7 @@ from fastapi import Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from saas import models, paddle_client, service
+from saas import branch_pricing_quote_service, models, paddle_client, service
 
 PROVIDER = "paddle"
 CHECKOUT_READY = "checkout_ready"
@@ -43,6 +43,7 @@ ATTEMPT_STATUS_PAYMENT_CONFIRMED = "payment_confirmed"
 ATTEMPT_STATUS_PAYMENT_FAILED = "payment_failed"
 ATTEMPT_STATUS_PAYMENT_CANCELLED = "payment_cancelled"
 ATTEMPT_STATUS_PAYMENT_REFUNDED = "payment_refunded"
+ATTEMPT_STATUS_MANUAL_RECONCILIATION = "manual_reconciliation"
 CUSTOMER_SAFE_PAYMENT_CONFIG_MESSAGE = (
     "Secure payment is temporarily unavailable for this subscription option. Please contact TIS support."
 )
@@ -307,6 +308,13 @@ def _find_or_create_payment_customer(db: Session, organization, account):
 
 def build_checkout_launch_context(db: Session, organization):
     checkout_session = _ensure_checkout_launchable(db, organization)
+    quote = branch_pricing_quote_service.require_ready_quote(
+        branch_pricing_quote_service.build_quote(db, organization)
+    )
+    if str(getattr(checkout_session, "quote_fingerprint", "") or "") != quote.fingerprint:
+        checkout_session.status = "stale"
+        checkout_session.abandoned_at = _utcnow()
+        raise ValueError("Subscription details changed. Please continue again to refresh Secure Payment.")
     plan_price = _current_plan_price(db, organization)
     if not plan_price or not str(getattr(plan_price, "provider_price_id", "") or "").strip():
         plan = db.query(models.SubscriptionPlan).filter(
@@ -332,11 +340,42 @@ def build_checkout_launch_context(db: Session, organization):
     ).order_by(models.SubscriptionContract.updated_at.desc(), models.SubscriptionContract.id.desc()).first()
     if not selection or not contract:
         raise ValueError("Selected plan contract could not be prepared.")
-    return checkout_session, selection, contract, plan_price
+    expected_quantity = int(quote.quantity or 0)
+    expected_total = int(quote.total_amount_minor or 0)
+    expected_provider_price_id = _clean_text(quote.provider_price_id)
+    snapshots_match = (
+        expected_quantity >= 1
+        and expected_total == int(quote.unit_amount_minor or 0) * expected_quantity
+        and int(getattr(organization, "selected_plan_id", 0) or 0) == int(quote.plan_id or 0)
+        and _clean_text(getattr(organization, "selected_billing_interval", "")).lower() == quote.billing_interval
+        and int(getattr(plan_price, "id", 0) or 0) == int(quote.plan_price_id or 0)
+        and _clean_text(getattr(plan_price, "provider_price_id", "")) == expected_provider_price_id
+        and int(getattr(plan_price, "amount_minor", 0) or 0) == int(quote.unit_amount_minor or 0)
+        and int(getattr(selection, "plan_id", 0) or 0) == int(quote.plan_id or 0)
+        and _clean_text(getattr(selection, "billing_interval", "")).lower() == quote.billing_interval
+        and int(getattr(selection, "billable_branch_count", 0) or 0) == expected_quantity
+        and int(getattr(selection, "quoted_base_amount_minor", 0) or 0) == expected_total
+        and _clean_text(getattr(selection, "quote_fingerprint", "")) == quote.fingerprint
+        and int(getattr(contract, "plan_id", 0) or 0) == int(quote.plan_id or 0)
+        and _clean_text(getattr(contract, "billing_interval", "")).lower() == quote.billing_interval
+        and int(getattr(contract, "billable_branch_count", 0) or 0) == expected_quantity
+        and int(getattr(contract, "quoted_base_amount_minor", 0) or 0) == expected_total
+        and _clean_text(getattr(contract, "quote_fingerprint", "")) == quote.fingerprint
+        and int(getattr(checkout_session, "plan_selection_id", 0) or 0) == int(selection.id)
+        and _clean_text(getattr(checkout_session, "provider_price_id", "")) == expected_provider_price_id
+        and _clean_text(getattr(checkout_session, "billing_interval", "")).lower() == quote.billing_interval
+        and int(getattr(checkout_session, "billable_branch_count", 0) or 0) == expected_quantity
+        and int(getattr(checkout_session, "quoted_base_amount_minor", 0) or 0) == expected_total
+    )
+    if not snapshots_match:
+        checkout_session.status = "stale"
+        checkout_session.abandoned_at = _utcnow()
+        raise ValueError("Subscription details changed. Please continue again to refresh Secure Payment.")
+    return checkout_session, selection, contract, plan_price, quote
 
 
 def launch_checkout(db: Session, organization, account, request: Request):
-    checkout_session, selection, contract, plan_price = build_checkout_launch_context(db, organization)
+    checkout_session, selection, contract, plan_price, quote = build_checkout_launch_context(db, organization)
     existing_checkout_url = _clean_text(getattr(checkout_session, "checkout_url", ""))
     if _clean_text(getattr(checkout_session, "status", "")).lower() == CHECKOUT_SESSION_STARTED and existing_checkout_url:
         existing_attempt = None
@@ -344,6 +383,18 @@ def launch_checkout(db: Session, organization, account, request: Request):
             existing_attempt = db.query(models.PaymentAttempt).filter(
                 models.PaymentAttempt.id == checkout_session.last_payment_attempt_id
             ).first()
+        if not existing_attempt or not (
+            _clean_text(getattr(existing_attempt, "provider_price_id", "")) == quote.provider_price_id
+            and int(getattr(existing_attempt, "quantity", 0) or 0) == quote.quantity
+            and int(getattr(existing_attempt, "unit_amount_minor", 0) or 0) == quote.unit_amount_minor
+            and int(getattr(existing_attempt, "amount_minor", 0) or 0) == quote.total_amount_minor
+            and _clean_text(getattr(existing_attempt, "billing_interval", "")).lower() == quote.billing_interval
+            and _clean_text(getattr(existing_attempt, "currency_code", "")).upper() == quote.currency_code
+            and _clean_text(getattr(existing_attempt, "quote_fingerprint", "")) == quote.fingerprint
+        ):
+            checkout_session.status = "stale"
+            checkout_session.abandoned_at = _utcnow()
+            raise ValueError("Subscription details changed. Please continue again to refresh Secure Payment.")
         return {
             "attempt": existing_attempt,
             "checkout_url": existing_checkout_url,
@@ -358,9 +409,13 @@ def launch_checkout(db: Session, organization, account, request: Request):
         provider=PROVIDER,
         attempt_uuid=str(uuid.uuid4()),
         status=ATTEMPT_STATUS_CHECKOUT_STARTED,
-        currency_code="USD",
-        amount_minor=int(getattr(plan_price, "amount_minor", 0) or 0),
-        billing_interval=str(selection.billing_interval or "").strip(),
+        provider_price_id=quote.provider_price_id,
+        currency_code=quote.currency_code,
+        quantity=quote.quantity,
+        unit_amount_minor=quote.unit_amount_minor,
+        amount_minor=quote.total_amount_minor,
+        billing_interval=quote.billing_interval,
+        quote_fingerprint=quote.fingerprint,
         started_at=_utcnow(),
         expires_at=_utcnow() + timedelta(hours=2),
     )
@@ -369,13 +424,14 @@ def launch_checkout(db: Session, organization, account, request: Request):
 
     transaction = paddle_client.create_transaction(
         customer_id=payment_customer.provider_customer_id,
-        price_id=str(plan_price.provider_price_id or "").strip(),
-        quantity=1,
+        price_id=quote.provider_price_id,
+        quantity=quote.quantity,
         custom_data={
             "pending_organization_uuid": organization.organization_uuid,
             "payment_attempt_uuid": attempt.attempt_uuid,
             "checkout_session_id": checkout_session.id,
             "subscription_contract_id": contract.id,
+            "quote_fingerprint": quote.fingerprint,
         },
         checkout_url=_payment_link_base_url(request),
     )
@@ -519,7 +575,131 @@ def _find_attempt_by_payload(db: Session, payload: dict):
     return None
 
 
-def _upsert_subscription_from_payload(db: Session, organization, contract, payment_customer, payload: dict, attempt=None):
+def _positive_integer(value) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 1 else None
+
+
+def _minor_amount(value) -> int | None:
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
+def _normalized_paddle_interval(value) -> str:
+    cleaned = _clean_text(value).lower()
+    return {"month": "monthly", "year": "annual"}.get(cleaned, cleaned)
+
+
+def _paddle_item_summary(data: dict, *, require_reported_total: bool) -> dict:
+    items = data.get("items") if isinstance(data.get("items"), list) else []
+    if len(items) != 1 or not isinstance(items[0], dict):
+        raise ValueError("Payment details require manual reconciliation.")
+    item = items[0]
+    price = item.get("price") if isinstance(item.get("price"), dict) else {}
+    unit_price = price.get("unit_price") if isinstance(price.get("unit_price"), dict) else {}
+    billing_cycle = price.get("billing_cycle") if isinstance(price.get("billing_cycle"), dict) else {}
+    quantity = _positive_integer(item.get("quantity"))
+    unit_amount_minor = _minor_amount(unit_price.get("amount"))
+    provider_price_id = _clean_text(price.get("id"))
+    currency_code = _clean_text(unit_price.get("currency_code")).upper()
+    billing_interval = _normalized_paddle_interval(billing_cycle.get("interval"))
+    if not all((provider_price_id, quantity, unit_amount_minor is not None, currency_code, billing_interval)):
+        raise ValueError("Payment details require manual reconciliation.")
+
+    calculated_amount_minor = int(unit_amount_minor) * int(quantity)
+    reported_amount_minor = None
+    details = data.get("details") if isinstance(data.get("details"), dict) else {}
+    line_items = details.get("line_items") if isinstance(details.get("line_items"), list) else []
+    if line_items:
+        matching = [
+            line for line in line_items
+            if isinstance(line, dict) and _clean_text(line.get("price_id")) == provider_price_id
+        ]
+        if len(matching) != 1:
+            raise ValueError("Payment details require manual reconciliation.")
+        line = matching[0]
+        totals = line.get("totals") if isinstance(line.get("totals"), dict) else {}
+        reported_amount_minor = _minor_amount(totals.get("subtotal"))
+        line_quantity = _positive_integer(line.get("quantity"))
+        if line_quantity != quantity:
+            raise ValueError("Payment details require manual reconciliation.")
+    if require_reported_total and reported_amount_minor is None:
+        raise ValueError("Payment details require manual reconciliation.")
+    if reported_amount_minor is not None and reported_amount_minor != calculated_amount_minor:
+        raise ValueError("Payment details require manual reconciliation.")
+    totals = details.get("totals") if isinstance(details.get("totals"), dict) else {}
+    totals_currency = _clean_text(totals.get("currency_code")).upper()
+    if totals_currency and totals_currency != currency_code:
+        raise ValueError("Payment details require manual reconciliation.")
+    return {
+        "provider_price_id": provider_price_id,
+        "quantity": quantity,
+        "unit_amount_minor": unit_amount_minor,
+        "amount_minor": reported_amount_minor if reported_amount_minor is not None else calculated_amount_minor,
+        "currency_code": currency_code,
+        "billing_interval": billing_interval,
+    }
+
+
+def _validate_paid_snapshot(db: Session, organization, contract, attempt, summary: dict) -> str:
+    try:
+        quote = branch_pricing_quote_service.require_ready_quote(
+            branch_pricing_quote_service.build_quote(db, organization)
+        )
+    except ValueError:
+        return "The current subscription quote is not valid."
+    expected = {
+        "provider_price_id": _clean_text(getattr(attempt, "provider_price_id", "")),
+        "quantity": int(getattr(attempt, "quantity", 0) or 0),
+        "unit_amount_minor": int(getattr(attempt, "unit_amount_minor", 0) or 0),
+        "amount_minor": int(getattr(attempt, "amount_minor", 0) or 0),
+        "currency_code": _clean_text(getattr(attempt, "currency_code", "")).upper(),
+        "billing_interval": _clean_text(getattr(attempt, "billing_interval", "")).lower(),
+    }
+    if any(summary.get(key) != value for key, value in expected.items()):
+        return "Paddle payment details do not match the checkout attempt."
+    if not contract or not (
+        int(getattr(contract, "plan_id", 0) or 0) == int(quote.plan_id or 0)
+        and _clean_text(getattr(contract, "billing_interval", "")).lower() == quote.billing_interval
+        and int(getattr(contract, "billable_branch_count", 0) or 0) == quote.quantity
+        and int(getattr(contract, "quoted_base_amount_minor", 0) or 0) == quote.total_amount_minor
+        and _clean_text(getattr(contract, "quote_fingerprint", "")) == quote.fingerprint
+        and _clean_text(getattr(attempt, "quote_fingerprint", "")) == quote.fingerprint
+    ):
+        return "The paid checkout does not match the current subscription quote."
+    return ""
+
+
+def _mark_manual_reconciliation(db: Session, webhook_row, organization, contract, attempt, *, reason: str):
+    safe_reason = "Payment details require manual reconciliation."
+    webhook_row.processing_status = "manual_review"
+    webhook_row.processing_error = safe_reason
+    webhook_row.processed_at = _utcnow()
+    attempt.status = ATTEMPT_STATUS_MANUAL_RECONCILIATION
+    attempt.failure_reason = safe_reason
+    organization.payment_status = "manual_reconciliation"
+    organization.billing_status = "payment_reconciliation_required"
+    if contract:
+        contract.payment_status = "manual_reconciliation"
+    logger.error("Paddle payment reconciliation blocked activation: %s", reason)
+    service.log_pending_event(
+        db,
+        organization=organization,
+        event_type="payment_reconciliation_required",
+        details={"reason": safe_reason},
+    )
+    return {"status": "manual_review", "event_type": _clean_text(webhook_row.event_type).lower()}
+
+
+def _upsert_subscription_from_payload(
+    db: Session, organization, contract, payment_customer, payload: dict, attempt=None, item_summary: dict | None = None
+):
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
     provider_subscription_id = str(data.get("id") or "").strip()
     if not provider_subscription_id:
@@ -537,6 +717,11 @@ def _upsert_subscription_from_payload(db: Session, organization, contract, payme
             provider_price_id=None,
             plan_id=contract.plan_id,
             billing_interval=contract.billing_interval,
+            currency_code=getattr(attempt, "currency_code", None),
+            quantity=int(getattr(attempt, "quantity", 0) or 0),
+            unit_amount_minor=getattr(attempt, "unit_amount_minor", None),
+            amount_minor=getattr(attempt, "amount_minor", None),
+            quote_fingerprint=getattr(attempt, "quote_fingerprint", None),
             status="pending",
         )
         db.add(row)
@@ -545,10 +730,14 @@ def _upsert_subscription_from_payload(db: Session, organization, contract, payme
     row.plan_id = contract.plan_id
     row.billing_interval = contract.billing_interval
     row.status = str(data.get("status") or row.status or "pending").strip() or "pending"
-    items = data.get("items") if isinstance(data.get("items"), list) else []
-    if items and isinstance(items[0], dict):
-        price = items[0].get("price") if isinstance(items[0].get("price"), dict) else {}
-        row.provider_price_id = str(price.get("id") or row.provider_price_id or "").strip() or row.provider_price_id
+    if item_summary:
+        row.provider_price_id = item_summary["provider_price_id"]
+        row.quantity = item_summary["quantity"]
+        row.unit_amount_minor = item_summary["unit_amount_minor"]
+        row.amount_minor = item_summary["amount_minor"]
+        row.currency_code = item_summary["currency_code"]
+        row.billing_interval = item_summary["billing_interval"]
+        row.quote_fingerprint = _clean_text(getattr(attempt, "quote_fingerprint", "")) or row.quote_fingerprint
     period = data.get("current_billing_period") if isinstance(data.get("current_billing_period"), dict) else {}
     row.current_period_start = _parse_datetime(period.get("starts_at")) or row.current_period_start
     row.current_period_end = _parse_datetime(period.get("ends_at")) or row.current_period_end
@@ -651,6 +840,17 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
             contract.payment_provider = PROVIDER
         service.log_pending_event(db, organization=organization, event_type="payment_processing", details={"provider_transaction_id": str(data.get("id") or "")})
     elif event_type == "transaction.completed":
+        try:
+            item_summary = _paddle_item_summary(data, require_reported_total=True)
+        except ValueError as exc:
+            return _mark_manual_reconciliation(
+                db, webhook_row, organization, contract, attempt, reason=str(exc)
+            )
+        reconciliation_error = _validate_paid_snapshot(db, organization, contract, attempt, item_summary)
+        if reconciliation_error:
+            return _mark_manual_reconciliation(
+                db, webhook_row, organization, contract, attempt, reason=reconciliation_error
+            )
         _apply_attempt_state(db, attempt, status=ATTEMPT_STATUS_PAYMENT_CONFIRMED, provider_subscription_id=provider_subscription_id)
         organization.payment_status = PAYMENT_PAID
         organization.billing_status = READY_FOR_PROVISIONING
@@ -664,6 +864,23 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
             contract.payment_provider = PROVIDER
             contract.paid_at = contract.paid_at or _utcnow()
             contract.contract_status = "paid_pending_provisioning"
+            if provider_subscription_id:
+                subscription_payload = {
+                    "data": {
+                        **data,
+                        "id": provider_subscription_id,
+                        "status": "active",
+                    }
+                }
+                _upsert_subscription_from_payload(
+                    db,
+                    organization,
+                    contract,
+                    payment_customer,
+                    subscription_payload,
+                    attempt=attempt,
+                    item_summary=item_summary,
+                )
             from saas import provisioning_service
 
             provisioning_service.enqueue_ready_for_provisioning(
@@ -699,6 +916,17 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
         service.log_pending_event(db, organization=organization, event_type="payment_cancelled", details={"provider_transaction_id": str(data.get("id") or "")})
     elif event_type.startswith("subscription."):
         if contract:
+            try:
+                item_summary = _paddle_item_summary(data, require_reported_total=False)
+            except ValueError as exc:
+                return _mark_manual_reconciliation(
+                    db, webhook_row, organization, contract, attempt, reason=str(exc)
+                )
+            reconciliation_error = _validate_paid_snapshot(db, organization, contract, attempt, item_summary)
+            if reconciliation_error:
+                return _mark_manual_reconciliation(
+                    db, webhook_row, organization, contract, attempt, reason=reconciliation_error
+                )
             _upsert_subscription_from_payload(
                 db,
                 organization,
@@ -706,6 +934,7 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
                 payment_customer,
                 payload,
                 attempt=attempt,
+                item_summary=item_summary,
             )
         service.log_pending_event(db, organization=organization, event_type="subscription_sync", details={"event_type": event_type, "provider_subscription_id": provider_subscription_id})
     else:

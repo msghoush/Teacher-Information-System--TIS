@@ -277,6 +277,17 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
     def _complete_payment(self, org_uuid: str, attempt_uuid: str, contract_id: int):
         paddle_suffix = re.sub(r"[^A-Za-z0-9]", "", org_uuid)[:20]
         event_suffix = re.sub(r"[^A-Za-z0-9]", "", attempt_uuid)[:20]
+        db = self._db()
+        try:
+            attempt = db.query(saas.models.PaymentAttempt).filter_by(attempt_uuid=attempt_uuid).first()
+            provider_price_id = attempt.provider_price_id
+            quantity = attempt.quantity
+            unit_amount_minor = attempt.unit_amount_minor
+            amount_minor = attempt.amount_minor
+            paddle_interval = "year" if attempt.billing_interval == "annual" else "month"
+            currency_code = attempt.currency_code
+        finally:
+            db.close()
         paid_payload = {
             "event_id": f"evt_phase5_paid_{event_suffix}",
             "event_type": "transaction.paid",
@@ -288,6 +299,22 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
                     "pending_organization_uuid": org_uuid,
                     "payment_attempt_uuid": attempt_uuid,
                     "subscription_contract_id": contract_id,
+                },
+                "items": [{
+                    "quantity": quantity,
+                    "price": {
+                        "id": provider_price_id,
+                        "unit_price": {"amount": str(unit_amount_minor), "currency_code": currency_code},
+                        "billing_cycle": {"interval": paddle_interval, "frequency": 1},
+                    },
+                }],
+                "details": {
+                    "totals": {"subtotal": str(amount_minor), "currency_code": currency_code},
+                    "line_items": [{
+                        "price_id": provider_price_id,
+                        "quantity": quantity,
+                        "totals": {"subtotal": str(amount_minor)},
+                    }],
                 },
             },
         }
@@ -310,6 +337,22 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
                     "pending_organization_uuid": org_uuid,
                     "payment_attempt_uuid": attempt_uuid,
                     "subscription_contract_id": contract_id,
+                },
+                "items": [{
+                    "quantity": quantity,
+                    "price": {
+                        "id": provider_price_id,
+                        "unit_price": {"amount": str(unit_amount_minor), "currency_code": currency_code},
+                        "billing_cycle": {"interval": paddle_interval, "frequency": 1},
+                    },
+                }],
+                "details": {
+                    "totals": {"subtotal": str(amount_minor), "currency_code": currency_code},
+                    "line_items": [{
+                        "price_id": provider_price_id,
+                        "quantity": quantity,
+                        "totals": {"subtotal": str(amount_minor)},
+                    }],
                 },
             },
         }

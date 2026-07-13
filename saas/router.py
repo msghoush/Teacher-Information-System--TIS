@@ -407,9 +407,13 @@ def _payment_setup_console(
 
     if page_key == "checkout":
         has_selection = bool(checkout_summary and checkout_summary.get("selection") and checkout_summary.get("plan"))
+        quote = checkout_summary.get("quote") if checkout_summary else None
         if not has_selection:
             config["status"] = "Select a subscription before continuing to Secure Payment."
             config["primary"] = action("Choose Subscription", f"/saas/onboarding/{org_uuid}/plan")
+        elif not quote or not quote.is_ready:
+            config["status"] = "Complete the subscription requirements before continuing to Secure Payment."
+            config["primary"] = action("Review Subscription", f"/saas/onboarding/{org_uuid}/plan")
         else:
             config["status"] = "Secure Payment is ready to open."
             config["primary"] = action("Continue to Secure Payment", "", "form", "checkout-launch-form")
@@ -452,6 +456,7 @@ def _plan_context(db: Session, account, organization):
             db,
             country_code=str(getattr(organization, "country_code", "") or ""),
         ),
+        "billable_branch_count": service.count_billable_pending_branches(db, organization),
         "current_plan_selection": checkout_summary["selection"] if checkout_summary else None,
         "checkout_summary": checkout_summary,
         "current_payment_attempt": payment_attempt,
@@ -1360,6 +1365,7 @@ def branches_step(
 def save_branches_step(
     organization_uuid: str,
     request: Request,
+    branch_uuid: list[str] = Form([]),
     branch_name: list[str] = Form([]),
     location: list[str] = Form([]),
     country_code: list[str] = Form([]),
@@ -1384,6 +1390,7 @@ def save_branches_step(
         return locked_redirect
     branch_rows = []
     max_rows = max(
+        len(branch_uuid),
         len(branch_name),
         len(location),
         len(country_code),
@@ -1397,6 +1404,7 @@ def save_branches_step(
     for index in range(max_rows):
         branch_rows.append(
             {
+                "branch_uuid": branch_uuid[index] if index < len(branch_uuid) else "",
                 "branch_name": branch_name[index] if index < len(branch_name) else "",
                 "location": location[index] if index < len(location) else "",
                 "country_code": country_code[index] if index < len(country_code) else "",
@@ -1852,6 +1860,12 @@ def prepare_checkout_step(
 def _prepare_checkout_for_launch_if_needed(db: Session, account, organization):
     billing_status = str(getattr(organization, "billing_status", "") or "").strip().lower()
     if billing_status in LAUNCHABLE_BILLING_STATUSES:
+        if billing_service.checkout_quote_is_fresh(db, organization):
+            return
+        if billing_status == payment_service.PAYMENT_PROCESSING:
+            raise ValueError("Secure Payment is already processing. Please view Subscription Status.")
+        billing_service.create_or_update_checkout_session(db, organization)
+        service.update_pending_dashboard_status(account, organization, service.recalculate_pending_progress(db, organization))
         return
     if billing_status not in PREPARE_BEFORE_LAUNCH_BILLING_STATUSES:
         raise ValueError("Secure Payment cannot be opened for this subscription. Please view Subscription Status.")
