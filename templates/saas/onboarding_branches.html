@@ -1,62 +1,176 @@
 {% extends "saas/base.html" %}
 {% block content %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% set placeholders = initial_branch_rows if initial_branch_rows is defined else range(1) %}
+{% set rows = form_branches if form_branches else branches if branches else placeholders %}
 <form id="branches-form" class="wizard-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/branches">
     <section class="wizard-section">
-        <div class="wizard-section-header">
-            <strong>Branches and campuses</strong>
-            <p>Add each branch that should exist in the initial School Workspace. You can leave unused rows blank.</p>
+        <div class="wizard-section-header branch-setup-heading">
+            <div>
+                <strong>Branches and campuses</strong>
+                <p>Add the active branches that should exist in the initial School Workspace.</p>
+            </div>
+            <div class="branch-count-summary" aria-live="polite">
+                <strong id="active-branch-count">{{ rows|length }}</strong>
+                <span>active branches</span>
+            </div>
         </div>
-        <div class="branch-list">
-            {% set rows = form_branches if form_branches else branches if branches else [None, None, None] %}
+        <div class="branch-guidance">
+            <span>At least one branch is required.</span>
+            <span>Subscription quantity updates automatically based on active branches.</span>
+        </div>
+        <div id="branch-list" class="branch-list">
             {% for branch in rows %}
-            <div class="branch-panel">
-                <input type="hidden" name="branch_uuid" value="{{ branch.branch_uuid if branch else '' }}">
+            <div class="branch-panel" data-branch-panel>
+                <input type="hidden" name="branch_uuid" value="{{ branch.branch_uuid if branch and branch.branch_uuid is defined else '' }}">
                 <div class="branch-panel-header">
-                    <strong>Branch {{ loop.index }}</strong>
-                    <span class="muted">{% if loop.first %}At least one branch is required{% else %}Optional{% endif %}</span>
+                    <div class="branch-title-group">
+                        <strong data-branch-title>Branch {{ loop.index }}</strong>
+                        <label class="primary-branch-choice">
+                            <input type="radio" name="primary_branch_index" value="{{ loop.index0 }}"{% if loop.first %} checked{% endif %}>
+                            Primary branch
+                        </label>
+                    </div>
+                    <div class="branch-row-actions">
+                        <button class="btn secondary branch-move" type="button" data-move-up aria-label="Move branch up">Move up</button>
+                        <button class="btn secondary branch-move" type="button" data-move-down aria-label="Move branch down">Move down</button>
+                        <button class="btn danger branch-remove" type="button" data-remove-branch{% if rows|length == 1 %} disabled{% endif %}>Remove Branch</button>
+                    </div>
                 </div>
                 <div class="wizard-grid">
                     <div>
                         <label>Branch name</label>
-                        <input name="branch_name" value="{{ branch.branch_name if branch else '' }}">
+                        <input name="branch_name" value="{{ branch.branch_name if branch and branch.branch_name is defined else '' }}" required>
                     </div>
                     <div>
                         <label>Location summary</label>
-                        <input name="location" value="{{ branch.location if branch else '' }}">
+                        <input name="location" value="{{ branch.location if branch and branch.location is defined else '' }}">
                     </div>
                     <div>
                         <label>Country code</label>
-                        <input name="country_code" value="{{ branch.country_code if branch else organization.country_code or '' }}">
+                        <input name="country_code" value="{{ branch.country_code if branch and branch.country_code is defined else organization.country_code or '' }}">
                     </div>
                     <div>
                         <label>Country name</label>
-                        <input name="country_name" value="{{ branch.country_name if branch else organization.country_name or '' }}">
+                        <input name="country_name" value="{{ branch.country_name if branch and branch.country_name is defined else organization.country_name or '' }}">
                     </div>
                     <div>
                         <label>Region</label>
-                        <input name="region_name" value="{{ branch.region_name if branch else organization.region_name or '' }}">
+                        <input name="region_name" value="{{ branch.region_name if branch and branch.region_name is defined else organization.region_name or '' }}">
                     </div>
                     <div>
                         <label>City</label>
-                        <input name="city_name" value="{{ branch.city_name if branch else organization.city_name or '' }}">
+                        <input name="city_name" value="{{ branch.city_name if branch and branch.city_name is defined else organization.city_name or '' }}">
                     </div>
                     <div>
                         <label>District</label>
-                        <input name="district_name" value="{{ branch.district_name if branch else organization.district_name or '' }}">
+                        <input name="district_name" value="{{ branch.district_name if branch and branch.district_name is defined else organization.district_name or '' }}">
                     </div>
                     <div>
                         <label>Neighborhood</label>
-                        <input name="neighborhood_name" value="{{ branch.neighborhood_name if branch else organization.neighborhood_name or '' }}">
+                        <input name="neighborhood_name" value="{{ branch.neighborhood_name if branch and branch.neighborhood_name is defined else organization.neighborhood_name or '' }}">
                     </div>
                 </div>
             </div>
             {% endfor %}
         </div>
+        <button id="add-branch" class="btn secondary add-branch-button" type="button">Add Branch</button>
     </section>
     <div class="wizard-actions">
         <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/organization">Back</a>
         <button class="btn secondary" type="submit" name="save_action" value="save_exit">Save draft</button>
     </div>
 </form>
+
+<template id="branch-row-template">
+    <div class="branch-panel" data-branch-panel>
+        <input type="hidden" name="branch_uuid" value="">
+        <div class="branch-panel-header">
+            <div class="branch-title-group">
+                <strong data-branch-title>Branch</strong>
+                <label class="primary-branch-choice">
+                    <input type="radio" name="primary_branch_index" value="0">
+                    Primary branch
+                </label>
+            </div>
+            <div class="branch-row-actions">
+                <button class="btn secondary branch-move" type="button" data-move-up aria-label="Move branch up">Move up</button>
+                <button class="btn secondary branch-move" type="button" data-move-down aria-label="Move branch down">Move down</button>
+                <button class="btn danger branch-remove" type="button" data-remove-branch>Remove Branch</button>
+            </div>
+        </div>
+        <div class="wizard-grid">
+            <div><label>Branch name</label><input name="branch_name" required></div>
+            <div><label>Location summary</label><input name="location"></div>
+            <div><label>Country code</label><input name="country_code" value="{{ organization.country_code or '' }}"></div>
+            <div><label>Country name</label><input name="country_name" value="{{ organization.country_name or '' }}"></div>
+            <div><label>Region</label><input name="region_name" value="{{ organization.region_name or '' }}"></div>
+            <div><label>City</label><input name="city_name" value="{{ organization.city_name or '' }}"></div>
+            <div><label>District</label><input name="district_name" value="{{ organization.district_name or '' }}"></div>
+            <div><label>Neighborhood</label><input name="neighborhood_name" value="{{ organization.neighborhood_name or '' }}"></div>
+        </div>
+    </div>
+</template>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(() => {
+    const form = document.getElementById("branches-form");
+    const list = document.getElementById("branch-list");
+    const template = document.getElementById("branch-row-template");
+    const count = document.getElementById("active-branch-count");
+    const panels = () => Array.from(list.querySelectorAll("[data-branch-panel]"));
+
+    function synchronizeRows() {
+        const rows = panels();
+        rows.forEach((panel, index) => {
+            panel.querySelector("[data-branch-title]").textContent = `Branch ${index + 1}`;
+            panel.querySelector('input[name="primary_branch_index"]').value = String(index);
+            panel.querySelector("[data-move-up]").disabled = index === 0;
+            panel.querySelector("[data-move-down]").disabled = index === rows.length - 1;
+            panel.querySelector("[data-remove-branch]").disabled = rows.length === 1;
+        });
+        if (!rows.some((panel) => panel.querySelector('input[name="primary_branch_index"]').checked)) {
+            rows[0]?.querySelector('input[name="primary_branch_index"]').click();
+        }
+        count.textContent = String(rows.length);
+    }
+
+    list.addEventListener("click", (event) => {
+        const panel = event.target.closest("[data-branch-panel]");
+        if (!panel) return;
+        if (event.target.closest("[data-remove-branch]")) {
+            if (panels().length <= 1) return;
+            const name = panel.querySelector('input[name="branch_name"]').value.trim() || "this branch";
+            if (!window.confirm(`Remove "${name}" from Branch Setup?`)) return;
+            const wasPrimary = panel.querySelector('input[name="primary_branch_index"]').checked;
+            panel.remove();
+            if (wasPrimary) panels()[0]?.querySelector('input[name="primary_branch_index"]').click();
+            synchronizeRows();
+            return;
+        }
+        if (event.target.closest("[data-move-up]") && panel.previousElementSibling) {
+            list.insertBefore(panel, panel.previousElementSibling);
+            synchronizeRows();
+        }
+        if (event.target.closest("[data-move-down]") && panel.nextElementSibling) {
+            list.insertBefore(panel.nextElementSibling, panel);
+            synchronizeRows();
+        }
+    });
+
+    document.getElementById("add-branch").addEventListener("click", () => {
+        const row = template.content.firstElementChild.cloneNode(true);
+        list.appendChild(row);
+        synchronizeRows();
+        row.querySelector('input[name="branch_name"]').focus();
+    });
+
+    form.addEventListener("submit", (event) => {
+        if (panels().length < 1) event.preventDefault();
+    });
+    synchronizeRows();
+})();
+</script>
 {% endblock %}

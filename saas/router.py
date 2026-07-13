@@ -1351,6 +1351,9 @@ def branches_step(
         db.commit()
         return locked_redirect
     context = _onboarding_context(db, account, organization)
+    if not context.get("branches"):
+        initial_count = max(1, int(getattr(organization, "expected_branch_count", 0) or 1))
+        context["initial_branch_rows"] = range(initial_count)
     db.commit()
     context.update({
         "account": account,
@@ -1374,6 +1377,7 @@ def save_branches_step(
     city_name: list[str] = Form([]),
     district_name: list[str] = Form([]),
     neighborhood_name: list[str] = Form([]),
+    primary_branch_index: str = Form("0"),
     save_action: str = Form("continue"),
     db: Session = Depends(get_db),
 ):
@@ -1416,6 +1420,13 @@ def save_branches_step(
             }
         )
     try:
+        selected_primary_index = int(str(primary_branch_index or "0").strip())
+    except ValueError:
+        selected_primary_index = 0
+    if branch_rows and 0 <= selected_primary_index < len(branch_rows):
+        primary_row = branch_rows.pop(selected_primary_index)
+        branch_rows.insert(0, primary_row)
+    try:
         service.replace_branches(db, organization, branch_rows)
         progress = service.save_draft(db, account, organization, current_step="academic_setup")
         service.log_pending_event(db, organization=organization, account=account, event_type="branches_saved", details={"completion_percent": progress.completion_percent})
@@ -1434,7 +1445,7 @@ def save_branches_step(
             "branches",
             error=str(exc),
             status_code=422,
-            extra_context={"form_branches": branch_rows},
+            extra_context={"form_branches": branch_rows, "selected_primary_index": 0},
         )
     if str(save_action or "").strip().lower() == "save_exit":
         return RedirectResponse("/saas/account?notice=Draft+saved.", status_code=302)

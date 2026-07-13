@@ -1019,7 +1019,13 @@ def save_organization_profile(
     organization.district_name = _clean_text(district_name, 160)
     organization.neighborhood_name = _clean_text(neighborhood_name, 160)
     organization.school_type = _clean_text(school_type, 120)
-    organization.expected_branch_count = _safe_int(expected_branch_count)
+    existing_branch_rows = db.query(models.PendingOrganizationBranch).filter(
+        models.PendingOrganizationBranch.pending_organization_id == organization.id
+    ).all()
+    if existing_branch_rows:
+        organization.expected_branch_count = sum(1 for row in existing_branch_rows if bool(row.status))
+    else:
+        organization.expected_branch_count = _safe_int(expected_branch_count)
     organization.expected_student_count = _safe_int(expected_student_count)
     organization.expected_teacher_count = _safe_int(expected_teacher_count)
     organization.estimated_staff_users = _safe_int(estimated_staff_users)
@@ -1032,6 +1038,12 @@ def save_organization_profile(
 
 
 def replace_branches(db: Session, organization, branch_rows: list[dict]):
+    if str(getattr(organization, "payment_status", "") or "").strip().lower() == "paid":
+        raise ValueError("Branches cannot be changed after payment is confirmed.")
+    if db.query(models.TenantProvisioningLink).filter(
+        models.TenantProvisioningLink.pending_organization_id == organization.id
+    ).first():
+        raise ValueError("Provisioned branches cannot be changed from onboarding.")
     existing_rows = db.query(models.PendingOrganizationBranch).filter(
         models.PendingOrganizationBranch.pending_organization_id == organization.id
     ).order_by(
@@ -1043,10 +1055,15 @@ def replace_branches(db: Session, organization, branch_rows: list[dict]):
         for row in existing_rows
         if str(row.branch_uuid or "").strip()
     }
+    has_submitted_branch_identity = any(
+        _clean_text(row.get("branch_uuid"), 36) for row in branch_rows
+    )
     cleaned_rows: list[tuple[int, dict, str]] = []
     for index, row in enumerate(branch_rows):
         branch_name = _clean_text(row.get("branch_name"), 160)
         if not branch_name:
+            if any(_clean_text(value) for value in row.values()):
+                raise ValueError("Every active branch must have a branch name.")
             continue
         cleaned_rows.append((index, row, branch_name))
     if not cleaned_rows:
@@ -1069,7 +1086,9 @@ def replace_branches(db: Session, organization, branch_rows: list[dict]):
         target = existing_by_uuid.get(submitted_uuid) if submitted_uuid else None
         if submitted_uuid and target is None:
             raise ValueError("Branch identity could not be validated. Refresh Branch Setup and try again.")
-        if target is None:
+        if target is not None and not bool(target.status):
+            raise ValueError("A removed branch cannot be restored. Add it as a new branch instead.")
+        if target is None and not has_submitted_branch_identity:
             fallback = active_by_order.get(index)
             if fallback is not None and int(fallback.id) not in claimed_ids:
                 target = fallback
@@ -1099,6 +1118,8 @@ def replace_branches(db: Session, organization, branch_rows: list[dict]):
         if int(existing.id) not in claimed_ids and bool(existing.status):
             existing.status = False
             changed = True
+
+    organization.expected_branch_count = len(cleaned_rows)
 
     if changed:
         now = _utcnow()
