@@ -1,0 +1,38 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .account-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+    .account-table-wrap .table { min-width: 980px; border: 0; border-radius: 0; }
+    .account-actions { white-space: nowrap; text-align: right; }
+</style>
+<h1>SaaS Account Management</h1>
+<p class="muted">Review local SaaS customer identities and identify accounts orphaned by a completed test-workspace reset.</p>
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% if not test_account_reset_enabled %}<div class="notice">Destructive test-account actions are unavailable outside Sandbox unless the protected reset feature flag is enabled.</div>{% endif %}
+
+<div class="account-table-wrap">
+    <table class="table">
+        <thead><tr><th>Account</th><th>Status</th><th>Onboarding</th><th>Classification</th><th>Organizations</th><th>Tenant Links</th><th>Local Records</th><th class="account-actions">Action</th></tr></thead>
+        <tbody>
+            {% for analysis in analyses %}
+            <tr>
+                <td><strong>{{ analysis.account.email }}</strong><br><span class="muted">ID {{ analysis.account.id }} | {{ analysis.account.account_uuid }}</span></td>
+                <td>{{ analysis.account.status }}</td>
+                <td>{{ analysis.account.onboarding_status }}</td>
+                <td><strong>{{ analysis.status_label }}</strong>{% if analysis.warnings %}<br><span class="muted">{{ analysis.warnings|length }} warning(s)</span>{% endif %}</td>
+                <td>{{ analysis.counts.pending_organizations }}</td>
+                <td>{{ analysis.counts.saas_account_user_links }}</td>
+                <td>{{ analysis.total_records }}</td>
+                <td class="account-actions">
+                    {% if test_account_reset_enabled and analysis.safe_to_delete %}
+                    <a class="btn danger" href="/saas-admin/accounts/{{ analysis.account.account_uuid }}/delete-orphaned-test-account">Delete Orphaned Test Account</a>
+                    {% else %}<span class="muted">No destructive action</span>{% endif %}
+                </td>
+            </tr>
+            {% else %}<tr><td colspan="8">No SaaS accounts found.</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="actions" style="margin-top:20px;"><a class="btn secondary" href="/platform">Back to Platform Console</a></div>
+{% endblock %}
