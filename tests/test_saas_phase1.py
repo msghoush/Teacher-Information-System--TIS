@@ -26,7 +26,7 @@ import location_service
 import models
 import saas.models  # noqa: F401 - register metadata
 from dependencies import get_db
-from saas import billing_service, branch_pricing_quote_service, oauth, paddle_client, service
+from saas import billing_service, branch_pricing_quote_service, oauth, paddle_client, payment_service, service
 from saas.router import admin_router as saas_admin_router, router as saas_router
 
 
@@ -2239,6 +2239,318 @@ class SaaSPhase1Tests(unittest.TestCase):
         create_customer.assert_not_called()
         create_transaction.assert_not_called()
 
+    def test_phase4_sandbox_relinks_unique_customer_from_deleted_test_context(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("sandbox-relink@academy.edu")
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            account = db.query(saas.models.SaaSAccount).filter_by(id=organization.owner_saas_account_id).first()
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            professional_id = professional.id
+            account_uuid = account.account_uuid
+        finally:
+            db.close()
+
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "annual"},
+            follow_redirects=False,
+        )
+        self.client.post(f"/saas/onboarding/{org_uuid}/checkout/start", follow_redirects=False)
+
+        remote_customer = {
+            "id": "ctm_sandbox_relink_123",
+            "email": "sandbox-relink@academy.edu",
+            "name": "Sandbox Relink",
+            "status": "active",
+            "custom_data": {
+                "saas_account_uuid": "deleted-account-uuid",
+                "pending_organization_uuid": "deleted-organization-uuid",
+                "preserved_reference": "keep-me",
+            },
+        }
+        updated_customer = {
+            **remote_customer,
+            "custom_data": {
+                "saas_account_uuid": account_uuid,
+                "pending_organization_uuid": org_uuid,
+                "preserved_reference": "keep-me",
+            },
+        }
+        with (
+            patch.dict(
+                os.environ,
+                {"PADDLE_ENVIRONMENT": "sandbox", "PADDLE_API_BASE_URL": ""},
+                clear=False,
+            ),
+            patch("saas.paddle_client.list_customers_by_email", return_value=[remote_customer]),
+            patch("saas.paddle_client.update_customer", return_value=updated_customer) as update_customer,
+            patch("saas.paddle_client.create_customer") as create_customer,
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_sandbox_relink_123",
+                    "currency_code": "USD",
+                    "checkout": {"id": "chk_sandbox_relink_123", "url": "https://pay.paddle.test/sandbox-relink"},
+                },
+            ) as create_transaction,
+        ):
+            response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["location"], "https://pay.paddle.test/sandbox-relink")
+        update_customer.assert_called_once_with(
+            customer_id="ctm_sandbox_relink_123",
+            custom_data={
+                "saas_account_uuid": account_uuid,
+                "pending_organization_uuid": org_uuid,
+                "preserved_reference": "keep-me",
+            },
+        )
+        create_customer.assert_not_called()
+        self.assertEqual(create_transaction.call_args.kwargs["customer_id"], "ctm_sandbox_relink_123")
+        self.assertEqual(create_transaction.call_args.kwargs["quantity"], 2)
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            payment_customer = db.query(saas.models.PaymentCustomer).filter_by(
+                pending_organization_id=organization.id
+            ).one()
+            self.assertEqual(payment_customer.provider_customer_id, "ctm_sandbox_relink_123")
+            event = db.query(saas.models.PendingOrganizationEvent).filter_by(
+                pending_organization_id=organization.id,
+                event_type="paddle_customer_relinked",
+            ).one()
+            details = json.loads(event.details_json)
+            self.assertEqual(details["reason_code"], "sandbox_customer_relinked")
+            self.assertEqual(details["result"], "success")
+            self.assertEqual(details["previous_context"]["saas_account_uuid"], "deleted-account-uuid")
+            self.assertEqual(details["new_context"]["saas_account_uuid"], account_uuid)
+            attempt = db.query(saas.models.PaymentAttempt).filter_by(
+                pending_organization_id=organization.id
+            ).one()
+            self.assertEqual(attempt.quantity, 2)
+            self.assertEqual(attempt.amount_minor, attempt.unit_amount_minor * 2)
+        finally:
+            db.close()
+
+    def test_phase4_production_never_relinks_customer_by_email_only(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("production-mismatch@academy.edu")
+
+        db = self._db()
+        try:
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            professional_id = professional.id
+        finally:
+            db.close()
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "annual"},
+            follow_redirects=False,
+        )
+        self.client.post(f"/saas/onboarding/{org_uuid}/checkout/start", follow_redirects=False)
+
+        remote_customer = {
+            "id": "ctm_production_mismatch_123",
+            "email": "production-mismatch@academy.edu",
+            "status": "active",
+            "custom_data": {
+                "saas_account_uuid": "old-account",
+                "pending_organization_uuid": "old-organization",
+            },
+        }
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PADDLE_ENVIRONMENT": "production",
+                    "PADDLE_API_BASE_URL": "https://api.paddle.com",
+                    "TIS_ENABLE_PADDLE_TEST_CUSTOMER_RECOVERY": "true",
+                    "TIS_ENV": "production",
+                },
+                clear=False,
+            ),
+            patch("saas.paddle_client.list_customers_by_email", return_value=[remote_customer]),
+            patch("saas.paddle_client.update_customer") as update_customer,
+            patch("saas.paddle_client.create_customer") as create_customer,
+            patch("saas.paddle_client.create_transaction") as create_transaction,
+        ):
+            response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("Secure+payment+is+temporarily+unavailable+for+this+account", response.headers["location"])
+        self.assertNotIn("Diagnostic", response.headers["location"])
+        update_customer.assert_not_called()
+        create_customer.assert_not_called()
+        create_transaction.assert_not_called()
+
+    def test_phase4_sandbox_blocks_ambiguous_exact_email_customers(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("ambiguous-paddle@academy.edu")
+
+        db = self._db()
+        try:
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            professional_id = professional.id
+        finally:
+            db.close()
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "monthly"},
+            follow_redirects=False,
+        )
+        self.client.post(f"/saas/onboarding/{org_uuid}/checkout/start", follow_redirects=False)
+
+        remote_customers = [
+            {
+                "id": f"ctm_ambiguous_{index}",
+                "email": "ambiguous-paddle@academy.edu",
+                "status": "active",
+                "custom_data": {
+                    "saas_account_uuid": f"old-account-{index}",
+                    "pending_organization_uuid": f"old-org-{index}",
+                },
+            }
+            for index in (1, 2)
+        ]
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox", "PADDLE_API_BASE_URL": ""}, clear=False),
+            patch("saas.paddle_client.list_customers_by_email", return_value=remote_customers),
+            patch("saas.paddle_client.update_customer") as update_customer,
+            patch("saas.paddle_client.create_customer") as create_customer,
+            patch("saas.paddle_client.create_transaction") as create_transaction,
+        ):
+            response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("ambiguous_exact_email_matches", response.headers["location"])
+        update_customer.assert_not_called()
+        create_customer.assert_not_called()
+        create_transaction.assert_not_called()
+
+    def test_phase4_sandbox_never_relinks_customer_whose_old_context_still_exists(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("owned-elsewhere@academy.edu")
+
+        db = self._db()
+        try:
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            professional_id = professional.id
+            db.add(
+                saas.models.SaaSAccount(
+                    account_uuid="still-existing-old-account",
+                    email="different-owner@academy.edu",
+                    email_normalized="different-owner@academy.edu",
+                    status="active",
+                    onboarding_status="not_started",
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "annual"},
+            follow_redirects=False,
+        )
+        self.client.post(f"/saas/onboarding/{org_uuid}/checkout/start", follow_redirects=False)
+
+        remote_customer = {
+            "id": "ctm_owned_elsewhere_123",
+            "email": "owned-elsewhere@academy.edu",
+            "status": "active",
+            "custom_data": {
+                "saas_account_uuid": "still-existing-old-account",
+                "pending_organization_uuid": "deleted-old-organization",
+            },
+        }
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox", "PADDLE_API_BASE_URL": ""}, clear=False),
+            patch("saas.paddle_client.list_customers_by_email", return_value=[remote_customer]),
+            patch("saas.paddle_client.update_customer") as update_customer,
+            patch("saas.paddle_client.create_customer") as create_customer,
+            patch("saas.paddle_client.create_transaction") as create_transaction,
+        ):
+            response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("remote_customer_account_context_still_exists", response.headers["location"])
+        update_customer.assert_not_called()
+        create_customer.assert_not_called()
+        create_transaction.assert_not_called()
+
+    def test_phase4_sandbox_email_conflict_relookup_can_relink_deleted_test_context(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("conflict-relink@academy.edu")
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            account = db.query(saas.models.SaaSAccount).filter_by(id=organization.owner_saas_account_id).first()
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            professional_id = professional.id
+            account_uuid = account.account_uuid
+        finally:
+            db.close()
+        self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "monthly"},
+            follow_redirects=False,
+        )
+        self.client.post(f"/saas/onboarding/{org_uuid}/checkout/start", follow_redirects=False)
+
+        old_customer = {
+            "id": "ctm_conflict_relink_123",
+            "email": "conflict-relink@academy.edu",
+            "status": "active",
+            "custom_data": {
+                "saas_account_uuid": "deleted-conflict-account",
+                "pending_organization_uuid": "deleted-conflict-organization",
+            },
+        }
+        updated_customer = {
+            **old_customer,
+            "custom_data": {
+                "saas_account_uuid": account_uuid,
+                "pending_organization_uuid": org_uuid,
+            },
+        }
+        conflict = paddle_client.PaddleAPIError(
+            "customer email conflicts with customer of id ctm_conflict_relink_123",
+            status_code=409,
+            body={
+                "error": {
+                    "code": "customer_email_conflict",
+                    "detail": "customer email conflicts with customer of id ctm_conflict_relink_123",
+                }
+            },
+        )
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox", "PADDLE_API_BASE_URL": ""}, clear=False),
+            patch("saas.paddle_client.list_customers_by_email", side_effect=[[], [old_customer]]) as lookup,
+            patch("saas.paddle_client.create_customer", side_effect=conflict) as create_customer,
+            patch("saas.paddle_client.update_customer", return_value=updated_customer) as update_customer,
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_conflict_relink_123",
+                    "currency_code": "USD",
+                    "checkout": {"url": "https://pay.paddle.test/conflict-relink"},
+                },
+            ) as create_transaction,
+        ):
+            response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(lookup.call_count, 2)
+        create_customer.assert_called_once()
+        update_customer.assert_called_once()
+        self.assertEqual(create_transaction.call_args.kwargs["customer_id"], "ctm_conflict_relink_123")
+
     def test_phase4_browser_return_does_not_confirm_payment(self):
         self._configure_paddle_prices()
         org_uuid = self._complete_pending_organization_to_ready_for_checkout("return@academy.edu")
@@ -3143,6 +3455,59 @@ class SaaSPhase1Tests(unittest.TestCase):
         with patch("saas.paddle_client._request", return_value={"id": "txn_test"}) as request_call:
             paddle_client.create_transaction(customer_id="ctm_test", price_id="pri_test", quantity=3)
         self.assertEqual(request_call.call_args.args[2]["items"], [{"price_id": "pri_test", "quantity": 3}])
+
+    def test_paddle_customer_update_uses_documented_patch_endpoint(self):
+        custom_data = {
+            "saas_account_uuid": "new-account",
+            "pending_organization_uuid": "new-organization",
+        }
+        with patch(
+            "saas.paddle_client._request",
+            return_value={"id": "ctm_update_123", "custom_data": custom_data},
+        ) as request_call:
+            result = paddle_client.update_customer(
+                customer_id="ctm_update_123",
+                custom_data=custom_data,
+            )
+
+        self.assertEqual(result["id"], "ctm_update_123")
+        request_call.assert_called_once_with(
+            "PATCH",
+            "/customers/ctm_update_123",
+            {"custom_data": custom_data},
+        )
+
+    def test_paddle_test_customer_recovery_gate_never_allows_live_api(self):
+        with patch.dict(
+            os.environ,
+            {
+                "PADDLE_ENVIRONMENT": "",
+                "PADDLE_API_BASE_URL": "",
+                "TIS_ENABLE_PADDLE_TEST_CUSTOMER_RECOVERY": "true",
+            },
+            clear=False,
+        ):
+            self.assertTrue(payment_service._sandbox_customer_recovery_enabled())
+        with patch.dict(
+            os.environ,
+            {
+                "PADDLE_ENVIRONMENT": "sandbox",
+                "PADDLE_API_BASE_URL": "https://api.paddle.com",
+                "TIS_ENABLE_PADDLE_TEST_CUSTOMER_RECOVERY": "true",
+            },
+            clear=False,
+        ):
+            self.assertFalse(payment_service._sandbox_customer_recovery_enabled())
+        with patch.dict(
+            os.environ,
+            {
+                "PADDLE_ENVIRONMENT": "production",
+                "PADDLE_API_BASE_URL": "https://api.paddle.com",
+                "TIS_ENABLE_PADDLE_TEST_CUSTOMER_RECOVERY": "true",
+            },
+            clear=False,
+        ):
+            self.assertFalse(payment_service._sandbox_customer_recovery_enabled())
 
     def test_webhook_mismatch_blocks_activation_and_preserves_payment_evidence(self):
         self._configure_paddle_prices()

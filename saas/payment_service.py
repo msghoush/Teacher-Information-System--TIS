@@ -7,8 +7,11 @@ import time
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import auth
+import audit
+import models as operational_models
 from fastapi import Request
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from saas import branch_pricing_quote_service, models, paddle_client, service
@@ -47,6 +50,9 @@ ATTEMPT_STATUS_MANUAL_RECONCILIATION = "manual_reconciliation"
 CUSTOMER_SAFE_PAYMENT_CONFIG_MESSAGE = (
     "Secure payment is temporarily unavailable for this subscription option. Please contact TIS support."
 )
+CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE = (
+    "Secure payment is temporarily unavailable for this account. Please contact TIS support."
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +68,22 @@ class MissingPaddlePriceConfiguration(ValueError):
             f"billing_interval={billing_interval or 'unknown'} "
             f"currency_code={currency_code or 'unknown'}."
         )
+
+
+class PaymentCustomerResolutionError(ValueError):
+    def __init__(self, reason_code: str, *, exact_match_count: int = 0, context_match_count: int = 0):
+        self.reason_code = _clean_text(reason_code) or "customer_resolution_failed"
+        self.exact_match_count = int(exact_match_count or 0)
+        self.context_match_count = int(context_match_count or 0)
+        if _detailed_customer_resolution_errors_enabled():
+            message = (
+                f"{CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE} "
+                f"Diagnostic: {self.reason_code} "
+                f"(exact matches: {self.exact_match_count}, context matches: {self.context_match_count})."
+            )
+        else:
+            message = CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE
+        super().__init__(message)
 
 
 def _utcnow():
@@ -118,7 +140,57 @@ def _clean_text(value) -> str:
 
 
 def _account_email(account) -> str:
-    return _clean_text(getattr(account, "email", "")).lower()
+    return auth.normalize_email(_clean_text(getattr(account, "email_normalized", "") or getattr(account, "email", "")))
+
+
+def _truthy_environment_value(name: str) -> bool:
+    return _clean_text(os.environ.get(name)).lower() in {"1", "true", "yes", "on"}
+
+
+def _paddle_environment() -> str:
+    return _clean_text(os.environ.get("PADDLE_ENVIRONMENT")).lower()
+
+
+def _paddle_api_is_live() -> bool:
+    configured = _clean_text(os.environ.get("PADDLE_API_BASE_URL")).lower().rstrip("/")
+    return configured == "https://api.paddle.com" or _paddle_environment() in {"production", "live"}
+
+
+def _sandbox_customer_recovery_enabled() -> bool:
+    enabled = _paddle_environment() == "sandbox" or _truthy_environment_value(
+        "TIS_ENABLE_PADDLE_TEST_CUSTOMER_RECOVERY"
+    )
+    return enabled and not _paddle_api_is_live()
+
+
+def _detailed_customer_resolution_errors_enabled() -> bool:
+    tis_environment = _clean_text(os.environ.get("TIS_ENV")).lower()
+    return _paddle_environment() == "sandbox" or tis_environment in {
+        "development", "dev", "local", "test", "testing",
+    }
+
+
+def _raise_customer_resolution_error(
+    reason_code: str,
+    *,
+    organization,
+    account,
+    exact_match_count: int = 0,
+    context_match_count: int = 0,
+):
+    diagnostic = {
+        "reason_code": reason_code,
+        "exact_match_count": int(exact_match_count or 0),
+        "context_match_count": int(context_match_count or 0),
+        "saas_account_uuid": _clean_text(getattr(account, "account_uuid", "")),
+        "pending_organization_uuid": _clean_text(getattr(organization, "organization_uuid", "")),
+    }
+    logger.warning("paddle_customer_resolution %s", _json(diagnostic))
+    raise PaymentCustomerResolutionError(
+        reason_code,
+        exact_match_count=exact_match_count,
+        context_match_count=context_match_count,
+    )
 
 
 def _remote_customer_context_matches(remote_customer: dict, organization, account) -> bool:
@@ -153,10 +225,24 @@ def _select_usable_remote_customer(remote_customers: list[dict], organization, a
         exact_email_candidates.append(remote_customer)
         if _remote_customer_context_matches(remote_customer, organization, account):
             matches.append(remote_customer)
+    if len(exact_email_candidates) > 1:
+        _raise_customer_resolution_error(
+            "ambiguous_exact_email_matches",
+            organization=organization,
+            account=account,
+            exact_match_count=len(exact_email_candidates),
+            context_match_count=len(matches),
+        )
     if len(matches) == 1:
         return matches[0]
-    if len(matches) > 1 or exact_email_candidates:
-        raise ValueError("Secure payment is temporarily unavailable for this account. Please contact TIS support.")
+    if exact_email_candidates:
+        _raise_customer_resolution_error(
+            "exact_email_context_mismatch",
+            organization=organization,
+            account=account,
+            exact_match_count=len(exact_email_candidates),
+            context_match_count=len(matches),
+        )
     return None
 
 
@@ -191,9 +277,224 @@ def _persist_payment_customer_link(db: Session, *, organization, account, remote
     return row
 
 
-def _lookup_remote_payment_customer_by_email(organization, account):
+def _sandbox_recovery_block_reason(db: Session, *, organization, account, remote_customer: dict) -> str | None:
+    if not _sandbox_customer_recovery_enabled():
+        return "sandbox_customer_recovery_disabled"
+    if _clean_text(getattr(account, "status", "")).lower() != "active" or not getattr(account, "email_verified_at", None):
+        return "invalid_saas_customer_account"
+    if int(getattr(organization, "owner_saas_account_id", 0) or 0) != int(getattr(account, "id", 0) or 0):
+        return "pending_organization_ownership_mismatch"
+
+    owned_organizations = db.query(models.PendingOrganization.id).filter(
+        models.PendingOrganization.owner_saas_account_id == account.id
+    ).all()
+    if [int(row_id) for (row_id,) in owned_organizations] != [int(organization.id)]:
+        return "pending_organization_ownership_ambiguous"
+
+    normalized_email = _account_email(account)
+    other_accounts = db.query(models.SaaSAccount.id).filter(
+        models.SaaSAccount.id != account.id,
+        func.lower(models.SaaSAccount.email_normalized) == normalized_email,
+    ).count()
+    if other_accounts:
+        return "account_email_ownership_ambiguous"
+
+    platform_identity = db.query(operational_models.User.id).filter(
+        or_(
+            func.lower(operational_models.User.email_normalized) == normalized_email,
+            func.lower(operational_models.User.email) == normalized_email,
+        ),
+        operational_models.User.user_type == auth.USER_TYPE_PLATFORM,
+    ).first()
+    if platform_identity:
+        return "protected_platform_identity"
+
+    active_tenant_identity = db.query(operational_models.User.id).filter(
+        or_(
+            func.lower(operational_models.User.email_normalized) == normalized_email,
+            func.lower(operational_models.User.email) == normalized_email,
+        ),
+        operational_models.User.school_group_id.is_not(None),
+        operational_models.User.is_active.is_(True),
+    ).first()
+    if active_tenant_identity:
+        return "active_tenant_identity_exists"
+
+    provider_customer_id = _clean_text(remote_customer.get("id"))
+    if db.query(models.PaymentCustomer.id).filter(
+        models.PaymentCustomer.provider == PROVIDER,
+        models.PaymentCustomer.provider_customer_id == provider_customer_id,
+    ).first():
+        return "paddle_customer_has_local_mapping"
+
+    custom_data = remote_customer.get("custom_data")
+    if not isinstance(custom_data, dict):
+        return "remote_customer_context_missing"
+    previous_account_uuid = _clean_text(custom_data.get("saas_account_uuid"))
+    previous_organization_uuid = _clean_text(custom_data.get("pending_organization_uuid"))
+    if not previous_account_uuid or not previous_organization_uuid:
+        return "remote_customer_context_missing"
+    if db.query(models.SaaSAccount.id).filter(
+        models.SaaSAccount.account_uuid == previous_account_uuid
+    ).first():
+        return "remote_customer_account_context_still_exists"
+    if db.query(models.PendingOrganization.id).filter(
+        models.PendingOrganization.organization_uuid == previous_organization_uuid
+    ).first():
+        return "remote_customer_organization_context_still_exists"
+    return None
+
+
+def _write_sandbox_customer_recovery_audit(
+    *,
+    organization,
+    account,
+    remote_customer: dict,
+    result: str,
+    reason_code: str,
+):
+    previous_custom_data = remote_customer.get("custom_data")
+    if not isinstance(previous_custom_data, dict):
+        previous_custom_data = {}
+    event = {
+        "event_type": "paddle_sandbox_customer_recovery",
+        "actor": "system",
+        "action": "sandbox_customer_relink",
+        "result": _clean_text(result),
+        "reason_code": _clean_text(reason_code),
+        "saas_account_uuid": _clean_text(getattr(account, "account_uuid", "")),
+        "pending_organization_uuid": _clean_text(getattr(organization, "organization_uuid", "")),
+        "provider_customer_id": _clean_text(remote_customer.get("id")),
+        "normalized_email": _account_email(account),
+        "previous_context": {
+            "saas_account_uuid": _clean_text(previous_custom_data.get("saas_account_uuid")),
+            "pending_organization_uuid": _clean_text(previous_custom_data.get("pending_organization_uuid")),
+        },
+        "new_context": {
+            "saas_account_uuid": _clean_text(getattr(account, "account_uuid", "")),
+            "pending_organization_uuid": _clean_text(getattr(organization, "organization_uuid", "")),
+        },
+    }
+    try:
+        audit.write_audit_event(event)
+    except Exception:
+        logger.exception("Unable to write Paddle Sandbox customer recovery audit event.")
+    return event
+
+
+def _recover_sandbox_payment_customer(db: Session, *, organization, account, remote_customer: dict) -> dict:
+    block_reason = _sandbox_recovery_block_reason(
+        db,
+        organization=organization,
+        account=account,
+        remote_customer=remote_customer,
+    )
+    if block_reason:
+        _write_sandbox_customer_recovery_audit(
+            organization=organization,
+            account=account,
+            remote_customer=remote_customer,
+            result="blocked",
+            reason_code=block_reason,
+        )
+        _raise_customer_resolution_error(
+            block_reason,
+            organization=organization,
+            account=account,
+            exact_match_count=1,
+        )
+
+    previous_custom_data = dict(remote_customer.get("custom_data") or {})
+    new_custom_data = dict(previous_custom_data)
+    new_custom_data.update({
+        "saas_account_uuid": _clean_text(getattr(account, "account_uuid", "")),
+        "pending_organization_uuid": _clean_text(getattr(organization, "organization_uuid", "")),
+    })
+    try:
+        updated_customer = paddle_client.update_customer(
+            customer_id=_clean_text(remote_customer.get("id")),
+            custom_data=new_custom_data,
+        )
+    except paddle_client.PaddleAPIError as exc:
+        _write_sandbox_customer_recovery_audit(
+            organization=organization,
+            account=account,
+            remote_customer=remote_customer,
+            result="failed",
+            reason_code="sandbox_customer_relink_update_failed",
+        )
+        try:
+            _raise_customer_resolution_error(
+                "sandbox_customer_relink_update_failed",
+                organization=organization,
+                account=account,
+                exact_match_count=1,
+            )
+        except PaymentCustomerResolutionError as resolution_exc:
+            raise resolution_exc from exc
+    if (
+        _clean_text(updated_customer.get("id")) != _clean_text(remote_customer.get("id"))
+        or _clean_text(updated_customer.get("email")).lower() != _account_email(account)
+        or _clean_text(updated_customer.get("status")).lower() not in {"", "active"}
+        or not _remote_customer_context_matches(updated_customer, organization, account)
+    ):
+        _write_sandbox_customer_recovery_audit(
+            organization=organization,
+            account=account,
+            remote_customer=remote_customer,
+            result="failed",
+            reason_code="sandbox_customer_relink_validation_failed",
+        )
+        _raise_customer_resolution_error(
+            "sandbox_customer_relink_validation_failed",
+            organization=organization,
+            account=account,
+            exact_match_count=1,
+        )
+
+    audit_details = _write_sandbox_customer_recovery_audit(
+        organization=organization,
+        account=account,
+        remote_customer=remote_customer,
+        result="success",
+        reason_code="sandbox_customer_relinked",
+    )
+    audit_details.update({
+        "reason_code": "sandbox_customer_relinked",
+        "result": "success",
+    })
+    logger.info("paddle_customer_resolution %s", _json(audit_details))
+    service.log_pending_event(
+        db,
+        organization=organization,
+        account=account,
+        event_type="paddle_customer_relinked",
+        details=audit_details,
+    )
+    return updated_customer
+
+
+def _lookup_remote_payment_customer_by_email(db: Session, organization, account):
     remote_customers = paddle_client.list_customers_by_email(_account_email(account))
-    return _select_usable_remote_customer(remote_customers, organization, account)
+    try:
+        return _select_usable_remote_customer(remote_customers, organization, account)
+    except PaymentCustomerResolutionError as exc:
+        exact_active_candidates = [
+            customer
+            for customer in remote_customers or []
+            if isinstance(customer, dict)
+            and _clean_text(customer.get("status")).lower() in {"", "active"}
+            and _clean_text(customer.get("email")).lower() == _account_email(account)
+            and _clean_text(customer.get("id"))
+        ]
+        if exc.reason_code != "exact_email_context_mismatch" or len(exact_active_candidates) != 1:
+            raise
+        return _recover_sandbox_payment_customer(
+            db,
+            organization=organization,
+            account=account,
+            remote_customer=exact_active_candidates[0],
+        )
 
 
 def _is_customer_email_conflict(exc: paddle_client.PaddleAPIError) -> bool:
@@ -272,7 +573,7 @@ def _find_or_create_payment_customer(db: Session, organization, account):
     existing_for_account = _find_local_payment_customer_by_account(db, account)
     if existing_for_account:
         return existing_for_account
-    remote_existing = _lookup_remote_payment_customer_by_email(organization, account)
+    remote_existing = _lookup_remote_payment_customer_by_email(db, organization, account)
     if remote_existing:
         return _persist_payment_customer_link(
             db,
@@ -295,9 +596,16 @@ def _find_or_create_payment_customer(db: Session, organization, account):
     except paddle_client.PaddleAPIError as exc:
         if not _is_customer_email_conflict(exc):
             raise
-        remote = _lookup_remote_payment_customer_by_email(organization, account)
+        try:
+            remote = _lookup_remote_payment_customer_by_email(db, organization, account)
+        except PaymentCustomerResolutionError:
+            raise
         if not remote:
-            raise ValueError("Secure payment is temporarily unavailable for this account. Please contact TIS support.") from exc
+            _raise_customer_resolution_error(
+                "customer_conflict_relookup_empty",
+                organization=organization,
+                account=account,
+            )
     return _persist_payment_customer_link(
         db,
         organization=organization,
