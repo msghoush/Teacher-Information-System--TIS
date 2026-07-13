@@ -417,6 +417,54 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         finally:
             db.close()
 
+    def _create_standalone_platform_email_account(
+        self,
+        *,
+        user_id: str,
+        platform_role: str,
+    ):
+        email = f"standalone.platform.{user_id}@example.com"
+        platform_password = "PlatformStandalone123!"
+        db = self._db()
+        try:
+            platform_user = models.User(
+                user_id=user_id,
+                username=f"standalone.platform.{user_id}",
+                email=email,
+                email_normalized=auth.normalize_email(email),
+                first_name="Standalone",
+                last_name="Platform",
+                password=auth.get_password_hash(platform_password),
+                user_type=auth.USER_TYPE_PLATFORM,
+                platform_role=platform_role,
+                platform_owner_kind=(
+                    auth.PLATFORM_OWNER_CO_OWNER
+                    if platform_role == auth.PLATFORM_ROLE_OWNER else None
+                ),
+                access_scope=auth.ACCESS_SCOPE_GLOBAL,
+                is_active=True,
+            )
+            db.add(platform_user)
+            db.flush()
+            account, _policy = saas_service.create_account(
+                db,
+                email=email,
+                password="SaaSStandalone123!",
+                first_name="Standalone",
+                last_name="Customer",
+            )
+            db.commit()
+            return {
+                "account_id": account.id,
+                "account_uuid": account.account_uuid,
+                "email": email,
+                "platform_user_id": platform_user.id,
+                "platform_password": platform_password,
+                "saas_password": "SaaSStandalone123!",
+            }
+        finally:
+            db.close()
+
     def _tenant_client(self, *, user_id: str = "7100000010"):
         db = self._db()
         try:
@@ -1470,7 +1518,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             protected_response = owner_client.get(
                 f"/saas-admin/accounts/{protected['account_uuid']}/delete-orphaned-test-account"
             )
-        self.assertIn("Protected/platform identity", protected_response.text)
+        self.assertIn("Standalone SaaS account - protected email match", protected_response.text)
         self.assertNotIn("Permanently Delete Orphaned Test Account</button>", protected_response.text)
 
         payment = self._create_orphaned_test_account(
@@ -1621,6 +1669,349 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
                 "sessions": db.query(saas.models.SaaSSession).count(),
                 "identities": db.query(saas.models.SaaSAuthIdentity).count(),
                 "events": db.query(saas.models.SaaSAuthEvent).count(),
+            }
+        finally:
+            db.close()
+        self.assertEqual(before, after)
+
+    def test_standalone_platform_email_match_is_classified_and_owner_only(self):
+        owner_match = self._create_standalone_platform_email_account(
+            user_id="9040", platform_role=auth.PLATFORM_ROLE_OWNER,
+        )
+        developer_match = self._create_standalone_platform_email_account(
+            user_id="9041", platform_role=auth.PLATFORM_ROLE_DEVELOPER,
+        )
+        owner_client = self._platform_client(user_id="9042")
+        owner_path = f"/saas-admin/accounts/{owner_match['account_uuid']}/delete-standalone-saas-account"
+
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "production", "TIS_ENABLE_TEST_ACCOUNT_RESET": ""}):
+            production_list = owner_client.get("/saas-admin/accounts")
+            unavailable = owner_client.get(owner_path)
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox", "TIS_ENABLE_TEST_ACCOUNT_RESET": ""}):
+            sandbox_list = owner_client.get("/saas-admin/accounts")
+            owner_page = owner_client.get(owner_path)
+            developer_page = owner_client.get(
+                f"/saas-admin/accounts/{developer_match['account_uuid']}/delete-standalone-saas-account"
+            )
+            denied_developer = self._platform_client(
+                user_id="9043", platform_role=auth.PLATFORM_ROLE_DEVELOPER
+            ).get(owner_path)
+            denied_tenant = self._tenant_client(user_id="7100000040").get(owner_path)
+
+        self.assertIn("Standalone SaaS account - protected email match", production_list.text)
+        self.assertNotIn("Delete SaaS Account Only", production_list.text)
+        self.assertEqual(unavailable.status_code, 404)
+        self.assertIn("Delete SaaS Account Only", sandbox_list.text)
+        self.assertIn("Platform identity preserved", sandbox_list.text)
+        self.assertIn("Permanently Delete SaaS Account Only", owner_page.text)
+        self.assertIn("Permanently Delete SaaS Account Only", developer_page.text)
+        self.assertEqual(denied_developer.status_code, 403)
+        self.assertEqual(denied_tenant.status_code, 403)
+
+    def test_standalone_saas_account_customer_denied_and_feature_flag_enabled(self):
+        standalone = self._create_standalone_platform_email_account(
+            user_id="9044", platform_role=auth.PLATFORM_ROLE_OWNER,
+        )
+        db = self._db()
+        try:
+            account = db.query(saas.models.SaaSAccount).filter_by(id=standalone["account_id"]).first()
+            session_token, _csrf, _row = saas_service.create_session(db, account)
+            db.commit()
+        finally:
+            db.close()
+        customer_client = TestClient(self.app)
+        customer_client.cookies.set(saas_service.SAAS_SESSION_COOKIE, session_token)
+        path = f"/saas-admin/accounts/{standalone['account_uuid']}/delete-standalone-saas-account"
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "production", "TIS_ENABLE_TEST_ACCOUNT_RESET": "true"}):
+            owner_response = self._platform_client(user_id="9045").get(path)
+            customer_response = customer_client.get(path)
+        self.assertEqual(owner_response.status_code, 200)
+        self.assertEqual(customer_response.status_code, 403)
+
+    def test_standalone_saas_account_strict_relationship_and_state_gates(self):
+        active = self._create_standalone_platform_email_account(
+            user_id="9046", platform_role=auth.PLATFORM_ROLE_OWNER,
+        )
+        pending = self._create_standalone_platform_email_account(
+            user_id="9047", platform_role=auth.PLATFORM_ROLE_DEVELOPER,
+        )
+        linked = self._create_standalone_platform_email_account(
+            user_id="9048", platform_role=auth.PLATFORM_ROLE_OWNER,
+        )
+        db = self._db()
+        try:
+            active_account = db.query(saas.models.SaaSAccount).filter_by(id=active["account_id"]).first()
+            active_account.status = "active"
+            pending_account = db.query(saas.models.SaaSAccount).filter_by(id=pending["account_id"]).first()
+            pending_org = saas.models.PendingOrganization(
+                organization_uuid="00000000-0000-0000-0000-000000009947",
+                owner_saas_account_id=pending_account.id,
+                organization_name="Standalone Blocked Organization",
+            )
+            db.add(pending_org)
+            linked_account = db.query(saas.models.SaaSAccount).filter_by(id=linked["account_id"]).first()
+            group = models.SchoolGroup(name="Standalone Unsafe Tenant", status=True)
+            db.add(group)
+            db.flush()
+            branch = models.Branch(school_group_id=group.id, name="Standalone Unsafe Branch", status=True)
+            db.add(branch)
+            db.flush()
+            tenant_user = models.User(
+                user_id="7100000041", username="7100000041",
+                email="standalone-linked-tenant@example.com",
+                email_normalized="standalone-linked-tenant@example.com",
+                password=auth.get_password_hash("TenantPass123!"),
+                user_type=auth.USER_TYPE_TENANT, role=auth.ROLE_ADMINISTRATOR,
+                school_group_id=group.id, branch_id=branch.id, is_active=True,
+            )
+            db.add(tenant_user)
+            db.flush()
+            db.add(saas.models.SaaSAccountUserLink(
+                saas_account_id=linked_account.id,
+                operational_user_id=tenant_user.id,
+                pending_organization_id=None,
+                school_group_id=group.id,
+            ))
+            db.commit()
+        finally:
+            db.close()
+        owner_client = self._platform_client(user_id="9049")
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}):
+            for fixture in (active, pending, linked):
+                response = owner_client.post(
+                    f"/saas-admin/accounts/{fixture['account_uuid']}/delete-standalone-saas-account",
+                    data={"confirmation_email": fixture["email"], "reason": "Retest"},
+                    follow_redirects=False,
+                )
+                self.assertIn("not+a+safely+standalone", response.headers["location"])
+
+    def test_standalone_saas_account_payment_and_provisioning_records_block(self):
+        standalone = self._create_standalone_platform_email_account(
+            user_id="9050", platform_role=auth.PLATFORM_ROLE_OWNER,
+        )
+        db = self._db()
+        try:
+            account = db.query(saas.models.SaaSAccount).filter_by(id=standalone["account_id"]).first()
+            plan = db.query(saas.models.SubscriptionPlan).first()
+            organization = saas.models.PendingOrganization(
+                organization_uuid="00000000-0000-0000-0000-000000009950",
+                owner_saas_account_id=account.id,
+                organization_name="Standalone Payment Block",
+            )
+            db.add(organization)
+            db.flush()
+            selection = saas.models.PendingOrganizationPlanSelection(
+                pending_organization_id=organization.id, plan_id=plan.id,
+                billing_interval="monthly", base_amount_minor=2900,
+                display_amount_minor=2900,
+            )
+            db.add(selection)
+            db.flush()
+            checkout = saas.models.CheckoutSession(
+                pending_organization_id=organization.id,
+                plan_selection_id=selection.id,
+                amount_minor=2900, billing_interval="monthly",
+            )
+            db.add(checkout)
+            db.flush()
+            payment_customer = saas.models.PaymentCustomer(
+                pending_organization_id=organization.id,
+                saas_account_id=account.id,
+                provider="paddle", provider_customer_id="ctm_standalone_block",
+                email=account.email, status="active",
+            )
+            db.add(payment_customer)
+            db.flush()
+            db.add(saas.models.PaymentAttempt(
+                pending_organization_id=organization.id,
+                checkout_session_id=checkout.id,
+                plan_selection_id=selection.id,
+                payment_customer_id=payment_customer.id,
+                attempt_uuid="00000000-0000-0000-0000-000000009950",
+                billing_interval="monthly", amount_minor=2900,
+            ))
+            contract = saas.models.SubscriptionContract(
+                pending_organization_id=organization.id,
+                plan_id=plan.id, billing_interval="monthly",
+                base_amount_minor=2900, display_amount_minor=2900,
+                selected_checkout_session_id=checkout.id,
+            )
+            db.add(contract)
+            db.flush()
+            job = saas.models.ProvisioningJob(
+                pending_organization_id=organization.id,
+                subscription_contract_id=contract.id,
+                job_uuid="00000000-0000-0000-0000-000000009951",
+                idempotency_key="standalone-provisioning-block-9951",
+            )
+            db.add(job)
+            db.flush()
+            db.add(saas.models.ProvisioningJobEvent(
+                provisioning_job_id=job.id,
+                event_type="queued",
+            ))
+            db.commit()
+        finally:
+            db.close()
+        owner_client = self._platform_client(user_id="9051")
+        with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}):
+            page = owner_client.get(
+                f"/saas-admin/accounts/{standalone['account_uuid']}/delete-standalone-saas-account"
+            )
+        self.assertIn("does not meet every standalone-account safety requirement", page.text)
+        self.assertNotIn("Permanently Delete SaaS Account Only</button>", page.text)
+        self.assertIn("Checkout sessions: 1", page.text)
+        self.assertIn("Payment attempts: 1", page.text)
+        self.assertIn("Provisioning jobs: 1", page.text)
+
+    def test_standalone_saas_account_confirmation_and_reason_are_required(self):
+        standalone = self._create_standalone_platform_email_account(
+            user_id="9052", platform_role=auth.PLATFORM_ROLE_DEVELOPER,
+        )
+        owner_client = self._platform_client(user_id="9053")
+        path = f"/saas-admin/accounts/{standalone['account_uuid']}/delete-standalone-saas-account"
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            patch("saas.router.audit.write_audit_event") as write_audit,
+        ):
+            mismatch = owner_client.post(path, data={
+                "confirmation_email": standalone["email"].upper(), "reason": "Retest",
+            }, follow_redirects=False)
+            missing_reason = owner_client.post(path, data={
+                "confirmation_email": standalone["email"], "reason": "",
+            }, follow_redirects=False)
+        self.assertIn("account+email+does+not+match", mismatch.headers["location"])
+        self.assertIn("deletion+reason+is+required", missing_reason.headers["location"])
+        self.assertEqual(write_audit.call_count, 2)
+
+    def test_standalone_saas_account_deletion_preserves_platform_identity_and_allows_reuse(self):
+        standalone = self._create_standalone_platform_email_account(
+            user_id="9054", platform_role=auth.PLATFORM_ROLE_OWNER,
+        )
+        unrelated = self._create_orphaned_test_account(
+            email="standalone-unrelated@academy.edu",
+            organization_name="Standalone Unrelated Academy",
+        )
+        owner_client = self._platform_client(user_id="9055")
+        db = self._db()
+        try:
+            platform_user = db.query(models.User).filter_by(id=standalone["platform_user_id"]).first()
+            db.add(models.PlatformUserPermission(
+                platform_user_id=platform_user.id,
+                permission_key="users.view",
+                is_allowed=True,
+            ))
+            db.commit()
+            platform_snapshot = {
+                "id": platform_user.id,
+                "user_id": platform_user.user_id,
+                "email": platform_user.email,
+                "password": platform_user.password,
+                "platform_role": platform_user.platform_role,
+                "is_active": platform_user.is_active,
+            }
+            plan_count = db.query(saas.models.SubscriptionPlan).count()
+            permission_count = db.query(models.PlatformUserPermission).filter_by(
+                platform_user_id=platform_user.id
+            ).count()
+        finally:
+            db.close()
+        path = f"/saas-admin/accounts/{standalone['account_uuid']}/delete-standalone-saas-account"
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            patch("saas.router.audit.write_audit_event") as write_audit,
+            patch("saas.paddle_client.create_transaction") as create_transaction,
+            patch("saas.paddle_client.create_customer") as create_customer,
+            patch("saas.paddle_client.list_customers_by_email") as list_customers,
+        ):
+            response = owner_client.post(path, data={
+                "confirmation_email": standalone["email"],
+                "reason": "Remove unused standalone SaaS identity",
+            }, follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("Platform+identity+remains+unchanged", response.headers["location"])
+        self.assertTrue(write_audit.call_args.args[0]["platform_identity_preserved"])
+        create_transaction.assert_not_called()
+        create_customer.assert_not_called()
+        list_customers.assert_not_called()
+        db = self._db()
+        try:
+            self.assertIsNone(db.query(saas.models.SaaSAccount).filter_by(id=standalone["account_id"]).first())
+            preserved_user = db.query(models.User).filter_by(id=standalone["platform_user_id"]).first()
+            self.assertEqual({
+                "id": preserved_user.id,
+                "user_id": preserved_user.user_id,
+                "email": preserved_user.email,
+                "password": preserved_user.password,
+                "platform_role": preserved_user.platform_role,
+                "is_active": preserved_user.is_active,
+            }, platform_snapshot)
+            self.assertIsNotNone(auth.authenticate_user(db, standalone["email"], standalone["platform_password"]))
+            self.assertEqual(
+                db.query(models.PlatformUserPermission).filter_by(
+                    platform_user_id=standalone["platform_user_id"]
+                ).count(),
+                permission_count,
+            )
+            self.assertIsNone(saas_service.authenticate_account(db, standalone["email"], standalone["saas_password"]))
+            self.assertIsNotNone(db.query(saas.models.SaaSAccount).filter_by(id=unrelated["account_id"]).first())
+            self.assertEqual(db.query(saas.models.SubscriptionPlan).count(), plan_count)
+        finally:
+            db.close()
+        sent_messages = []
+        with patch("email_service.send_email", side_effect=lambda **kwargs: sent_messages.append(kwargs) or "standalone_reuse"):
+            signup = self.client.post("/saas/auth/signup", data={
+                "first_name": "New", "last_name": "SaaS", "email": standalone["email"],
+                "password": "new-standalone-password-123", "confirm_password": "new-standalone-password-123",
+            }, follow_redirects=False)
+        self.assertEqual(signup.status_code, 302)
+        self.assertTrue(sent_messages)
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            patch("saas.router.audit.write_audit_event") as repeated_audit,
+        ):
+            repeated = owner_client.post(path, data={
+                "confirmation_email": standalone["email"], "reason": "Repeat",
+            })
+        self.assertEqual(repeated.status_code, 404)
+        self.assertEqual(repeated_audit.call_args.args[0]["result"], "blocked_not_found")
+
+    def test_standalone_saas_account_deletion_rolls_back_all_saas_rows(self):
+        standalone = self._create_standalone_platform_email_account(
+            user_id="9056", platform_role=auth.PLATFORM_ROLE_DEVELOPER,
+        )
+        owner_client = self._platform_client(user_id="9057")
+        db = self._db()
+        try:
+            before = {
+                "accounts": db.query(saas.models.SaaSAccount).count(),
+                "sessions": db.query(saas.models.SaaSSession).count(),
+                "identities": db.query(saas.models.SaaSAuthIdentity).count(),
+                "events": db.query(saas.models.SaaSAuthEvent).count(),
+                "platform_users": db.query(models.User).filter(models.User.user_type == auth.USER_TYPE_PLATFORM).count(),
+            }
+        finally:
+            db.close()
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            patch("saas.orphaned_test_account_service.Session.flush", side_effect=RuntimeError("simulated failure")),
+            patch("saas.router.audit.write_audit_event") as write_audit,
+        ):
+            response = owner_client.post(
+                f"/saas-admin/accounts/{standalone['account_uuid']}/delete-standalone-saas-account",
+                data={"confirmation_email": standalone["email"], "reason": "Rollback test"},
+                follow_redirects=False,
+            )
+        self.assertIn("All+data+was+preserved", response.headers["location"])
+        self.assertEqual(write_audit.call_args.args[0]["result"], "failed_rolled_back")
+        db = self._db()
+        try:
+            after = {
+                "accounts": db.query(saas.models.SaaSAccount).count(),
+                "sessions": db.query(saas.models.SaaSSession).count(),
+                "identities": db.query(saas.models.SaaSAuthIdentity).count(),
+                "events": db.query(saas.models.SaaSAuthEvent).count(),
+                "platform_users": db.query(models.User).filter(models.User.user_type == auth.USER_TYPE_PLATFORM).count(),
             }
         finally:
             db.close()
