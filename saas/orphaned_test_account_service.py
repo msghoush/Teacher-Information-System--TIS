@@ -14,6 +14,13 @@ class OrphanedTestAccountDeletionBlocked(ValueError):
     pass
 
 
+class StandaloneSaaSAccountDeletionBlocked(ValueError):
+    pass
+
+
+PLATFORM_EMAIL_WARNING = "The account email belongs to a protected Platform Owner or Developer identity."
+
+
 @dataclass(frozen=True)
 class OrphanedAccountAnalysis:
     account: object
@@ -29,6 +36,23 @@ class OrphanedAccountAnalysis:
     @property
     def total_records(self) -> int:
         return sum(self.counts.values())
+
+    @property
+    def safe_standalone_platform_match(self) -> bool:
+        relationship_keys = (
+            "pending_organizations", "tenant_provisioning_links", "saas_account_user_links",
+            "operational_users", "organization_bound_payment_customers",
+            "pending_organization_actor_events", "checkout_sessions", "payment_attempts",
+            "payment_subscriptions", "subscription_contracts", "provisioning_jobs",
+            "provisioning_job_events",
+        )
+        return (
+            self.classification == "standalone_saas_protected_email_match"
+            and str(getattr(self.account, "status", "") or "").strip().lower() == "pending_verification"
+            and str(getattr(self.account, "onboarding_status", "") or "").strip().lower() == "not_started"
+            and all(int(self.counts.get(key, 0) or 0) == 0 for key in relationship_keys)
+            and self.warnings == (PLATFORM_EMAIL_WARNING,)
+        )
 
 
 @dataclass(frozen=True)
@@ -66,7 +90,8 @@ def analyze_orphaned_account(db: Session, account) -> OrphanedAccountAnalysis:
     platform_users = [user for user in matching_users if auth.is_platform_user(user)]
     tenant_users = [
         user for user in matching_users
-        if int(getattr(user, "school_group_id", 0) or 0) > 0
+        if not auth.is_platform_user(user)
+        and int(getattr(user, "school_group_id", 0) or 0) > 0
     ]
     tenant_user_ids = [int(user.id) for user in tenant_users]
     provisioning_links = []
@@ -75,6 +100,12 @@ def analyze_orphaned_account(db: Session, account) -> OrphanedAccountAnalysis:
             models.TenantProvisioningLink.owner_operational_user_id.in_(tenant_user_ids)
         ).all()
 
+    pending_ids = [int(row.id) for row in pending_rows]
+    provisioning_job_ids = [
+        int(row_id) for (row_id,) in db.query(models.ProvisioningJob.id).filter(
+            models.ProvisioningJob.pending_organization_id.in_(pending_ids)
+        ).all()
+    ] if pending_ids else []
     counts = {
         "saas_account": 1,
         "pending_organizations": len(pending_rows),
@@ -82,7 +113,16 @@ def analyze_orphaned_account(db: Session, account) -> OrphanedAccountAnalysis:
         "saas_account_user_links": len(account_links),
         "operational_users": len(tenant_users),
         "payment_customers": len(payment_customers),
+        "organization_bound_payment_customers": sum(
+            1 for row in payment_customers if getattr(row, "pending_organization_id", None) is not None
+        ),
         "pending_organization_actor_events": len(actor_events),
+        "checkout_sessions": db.query(models.CheckoutSession).filter(models.CheckoutSession.pending_organization_id.in_(pending_ids)).count() if pending_ids else 0,
+        "payment_attempts": db.query(models.PaymentAttempt).filter(models.PaymentAttempt.pending_organization_id.in_(pending_ids)).count() if pending_ids else 0,
+        "payment_subscriptions": db.query(models.PaymentSubscription).filter(models.PaymentSubscription.pending_organization_id.in_(pending_ids)).count() if pending_ids else 0,
+        "subscription_contracts": db.query(models.SubscriptionContract).filter(models.SubscriptionContract.pending_organization_id.in_(pending_ids)).count() if pending_ids else 0,
+        "provisioning_jobs": len(provisioning_job_ids),
+        "provisioning_job_events": db.query(models.ProvisioningJobEvent).filter(models.ProvisioningJobEvent.provisioning_job_id.in_(provisioning_job_ids)).count() if provisioning_job_ids else 0,
         "saas_sessions": db.query(models.SaaSSession).filter(models.SaaSSession.saas_account_id == account_id).count(),
         "email_verification_tokens": db.query(models.SaaSEmailVerificationToken).filter(models.SaaSEmailVerificationToken.saas_account_id == account_id).count(),
         "password_reset_tokens": db.query(models.SaaSPasswordResetToken).filter(models.SaaSPasswordResetToken.saas_account_id == account_id).count(),
@@ -91,9 +131,9 @@ def analyze_orphaned_account(db: Session, account) -> OrphanedAccountAnalysis:
     }
     warnings: list[str] = []
     if platform_users:
-        warnings.append("The account email belongs to a protected Platform Owner or Developer identity.")
-        classification = "protected_platform_identity"
-        status_label = "Protected/platform identity"
+        warnings.append(PLATFORM_EMAIL_WARNING)
+        classification = "standalone_saas_protected_email_match"
+        status_label = "Standalone SaaS account - protected email match"
     elif pending_rows:
         has_provisioned_organization = any(
             db.query(models.TenantProvisioningLink).filter(
@@ -178,6 +218,54 @@ def delete_orphaned_test_account(
     )
     deleted = 0
     deleted += _delete(db.query(models.SaaSAccountUserLink).filter(models.SaaSAccountUserLink.saas_account_id == account_id))
+    deleted += _delete(db.query(models.PaymentCustomer).filter(
+        models.PaymentCustomer.saas_account_id == account_id,
+        models.PaymentCustomer.pending_organization_id.is_(None),
+    ))
+    deleted += _delete(db.query(models.SaaSSession).filter(models.SaaSSession.saas_account_id == account_id))
+    deleted += _delete(db.query(models.SaaSEmailVerificationToken).filter(models.SaaSEmailVerificationToken.saas_account_id == account_id))
+    deleted += _delete(db.query(models.SaaSPasswordResetToken).filter(models.SaaSPasswordResetToken.saas_account_id == account_id))
+    deleted += _delete(db.query(models.SaaSAuthIdentity).filter(models.SaaSAuthIdentity.saas_account_id == account_id))
+    deleted += _delete(db.query(models.SaaSAuthEvent).filter(models.SaaSAuthEvent.saas_account_id == account_id))
+    deleted += _delete(db.query(models.SaaSAccount).filter(models.SaaSAccount.id == account_id))
+    db.flush()
+    return OrphanedAccountDeletionResult(
+        account_id=result.account_id,
+        account_uuid=result.account_uuid,
+        account_email=result.account_email,
+        analysis_counts=result.analysis_counts,
+        deleted_records=deleted,
+    )
+
+
+def delete_standalone_saas_account(
+    db: Session,
+    account,
+    *,
+    confirmation_email: str,
+    reason: str,
+) -> OrphanedAccountDeletionResult:
+    analysis = analyze_orphaned_account(db, account)
+    if not analysis.safe_standalone_platform_match:
+        raise StandaloneSaaSAccountDeletionBlocked(
+            "This SaaS account is not a safely standalone protected-email account. Manual review is required."
+        )
+    if confirmation_email != str(account.email or ""):
+        raise StandaloneSaaSAccountDeletionBlocked(
+            "The typed account email does not match. No data was changed."
+        )
+    if not str(reason or "").strip():
+        raise StandaloneSaaSAccountDeletionBlocked("A deletion reason is required. No data was changed.")
+
+    account_id = int(account.id)
+    result = OrphanedAccountDeletionResult(
+        account_id=account_id,
+        account_uuid=str(account.account_uuid or ""),
+        account_email=str(account.email or ""),
+        analysis_counts=dict(analysis.counts),
+        deleted_records=0,
+    )
+    deleted = 0
     deleted += _delete(db.query(models.PaymentCustomer).filter(
         models.PaymentCustomer.saas_account_id == account_id,
         models.PaymentCustomer.pending_organization_id.is_(None),

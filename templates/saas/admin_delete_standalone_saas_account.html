@@ -1,0 +1,33 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<h1>Delete Standalone SaaS Account</h1>
+<div class="error"><strong>Irreversible Sandbox/development action.</strong> This deletes only the separate SaaS customer account. The matching Platform Owner or Developer identity remains unchanged.</div>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<div class="grid two">
+    <div class="stat-list">
+        <div class="stat"><strong>{{ account.email }}</strong><p>SaaS Account ID: {{ account.id }}<br>Account UUID: {{ account.account_uuid }}<br>Status: {{ account.status }}<br>Onboarding: {{ account.onboarding_status }}</p></div>
+        <div class="stat"><strong>{{ analysis.status_label }}</strong><p>Pending organizations: {{ analysis.counts.pending_organizations }}<br>Tenant links: {{ analysis.counts.saas_account_user_links }}<br>Checkout sessions: {{ analysis.counts.checkout_sessions }}<br>Payment attempts: {{ analysis.counts.payment_attempts }}<br>Provisioning jobs: {{ analysis.counts.provisioning_jobs }}</p></div>
+    </div>
+    <div class="stat-list">
+        <div class="stat"><strong>Platform identity guarantee</strong><p>The operational <code>users</code> record, platform role, permissions, login credentials, sessions, and audit history are not modified. Platform login remains available.</p></div>
+        <div class="stat"><strong>SaaS identity records</strong><p>SaaS sessions: {{ analysis.counts.saas_sessions }}<br>Verification tokens: {{ analysis.counts.email_verification_tokens }}<br>Password-reset tokens: {{ analysis.counts.password_reset_tokens }}<br>External identities: {{ analysis.counts.external_auth_identities }}<br>SaaS authentication events: {{ analysis.counts.saas_auth_events }}</p></div>
+        <div class="stat"><strong>Preserved data</strong><p>Remote Paddle records, payment webhooks, platform identities, unrelated SaaS accounts, tenants, plans, prices, and reference data remain untouched.</p></div>
+        {% if analysis.warnings %}<div class="stat"><strong>Identity notice</strong><ul>{% for warning in analysis.warnings %}<li>{{ warning }}</li>{% endfor %}</ul></div>{% endif %}
+    </div>
+</div>
+
+{% if analysis.safe_standalone_platform_match %}
+<div class="notice" style="margin-top:20px;">Only the separate unused SaaS customer account will be deleted. The email may then be used again for SaaS registration. No operational user or platform permission is affected.</div>
+<form method="post" action="/saas-admin/accounts/{{ account.account_uuid }}/delete-standalone-saas-account" style="margin-top:20px; max-width:720px;">
+    <label for="confirmation_email">Type the SaaS account email exactly</label>
+    <input id="confirmation_email" name="confirmation_email" required autocomplete="off" placeholder="{{ account.email }}">
+    <label for="reason">Deletion reason</label>
+    <textarea id="reason" name="reason" required rows="4" placeholder="Explain why this standalone SaaS test account must be removed."></textarea>
+    <div class="actions"><button class="btn danger" type="submit">Permanently Delete SaaS Account Only</button><a class="btn secondary" href="/saas-admin/accounts">Cancel</a></div>
+</form>
+{% else %}
+<div class="notice" style="margin-top:20px;">Deletion is blocked because this SaaS account does not meet every standalone-account safety requirement.</div>
+<div class="actions"><a class="btn secondary" href="/saas-admin/accounts">Back to accounts</a></div>
+{% endif %}
+{% endblock %}

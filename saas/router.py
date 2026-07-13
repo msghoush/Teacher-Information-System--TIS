@@ -2447,6 +2447,111 @@ def delete_orphaned_test_account(
     )
 
 
+@admin_router.get("/accounts/{account_uuid}/delete-standalone-saas-account", response_class=HTMLResponse)
+def confirm_delete_standalone_saas_account(
+    account_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    if not _test_account_reset_enabled():
+        raise HTTPException(status_code=404, detail="Standalone SaaS account deletion is not available.")
+    account = db.query(models.SaaSAccount).filter(models.SaaSAccount.account_uuid == account_uuid).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="TIS Account not found.")
+    analysis = orphaned_test_account_service.analyze_orphaned_account(db, account)
+    return _render(
+        request,
+        "saas/admin_delete_standalone_saas_account.html",
+        {
+            "current_user": current_user,
+            "account": account,
+            "analysis": analysis,
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@admin_router.post("/accounts/{account_uuid}/delete-standalone-saas-account")
+def delete_standalone_saas_account(
+    account_uuid: str,
+    request: Request,
+    confirmation_email: str = Form(""),
+    reason: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    if not _test_account_reset_enabled():
+        raise HTTPException(status_code=404, detail="Standalone SaaS account deletion is not available.")
+    account = db.query(models.SaaSAccount).filter(models.SaaSAccount.account_uuid == account_uuid).first()
+    if not account:
+        audit.write_audit_event({
+            "event_type": "standalone_saas_account_deletion",
+            "result": "blocked_not_found",
+            "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+            "account_uuid": str(account_uuid or ""),
+            "reason": str(reason or "").strip()[:500],
+        })
+        raise HTTPException(status_code=404, detail="TIS Account not found.")
+
+    safe_context = {
+        "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+        "account_id": int(account.id),
+        "account_uuid": str(account.account_uuid or ""),
+        "reason": str(reason or "").strip()[:500],
+    }
+    try:
+        analysis = orphaned_test_account_service.analyze_orphaned_account(db, account)
+        safe_context["analysis_counts"] = dict(analysis.counts)
+        result = orphaned_test_account_service.delete_standalone_saas_account(
+            db,
+            account,
+            confirmation_email=confirmation_email,
+            reason=reason,
+        )
+        db.commit()
+    except orphaned_test_account_service.StandaloneSaaSAccountDeletionBlocked as exc:
+        db.rollback()
+        audit.write_audit_event({
+            "event_type": "standalone_saas_account_deletion",
+            "result": "blocked",
+            **safe_context,
+        })
+        return RedirectResponse(
+            f"/saas-admin/accounts/{account_uuid}/delete-standalone-saas-account?error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    except Exception:
+        db.rollback()
+        audit.write_audit_event({
+            "event_type": "standalone_saas_account_deletion",
+            "result": "failed_rolled_back",
+            **safe_context,
+        })
+        return RedirectResponse(
+            f"/saas-admin/accounts/{account_uuid}/delete-standalone-saas-account?error="
+            + quote_plus("The standalone SaaS account could not be deleted. All data was preserved."),
+            status_code=302,
+        )
+
+    audit.write_audit_event({
+        "event_type": "standalone_saas_account_deletion",
+        "result": "success",
+        "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+        "account_id": result.account_id,
+        "account_uuid": result.account_uuid,
+        "reason": str(reason or "").strip()[:500],
+        "analysis_counts": result.analysis_counts,
+        "deleted_records": result.deleted_records,
+        "platform_identity_preserved": True,
+    })
+    return RedirectResponse(
+        "/saas-admin/accounts?notice="
+        + quote_plus("Standalone SaaS account deleted. The Platform identity remains unchanged."),
+        status_code=302,
+    )
+
+
 @admin_router.get("/payments", response_class=HTMLResponse)
 def payment_dashboard(
     request: Request,

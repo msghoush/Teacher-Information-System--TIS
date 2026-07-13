@@ -27,6 +27,9 @@
                 <td class="account-actions">
                     {% if test_account_reset_enabled and analysis.safe_to_delete %}
                     <a class="btn danger" href="/saas-admin/accounts/{{ analysis.account.account_uuid }}/delete-orphaned-test-account">Delete Orphaned Test Account</a>
+                    {% elif test_account_reset_enabled and analysis.safe_standalone_platform_match %}
+                    <a class="btn danger" href="/saas-admin/accounts/{{ analysis.account.account_uuid }}/delete-standalone-saas-account">Delete SaaS Account Only</a><br>
+                    <span class="muted">Platform identity preserved</span>
                     {% else %}<span class="muted">No destructive action</span>{% endif %}
                 </td>
             </tr>
