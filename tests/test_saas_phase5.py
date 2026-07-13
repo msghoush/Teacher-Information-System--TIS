@@ -614,6 +614,64 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         self.assertNotIn(os.environ["PADDLE_API_KEY"], activation_email["html"])
         self.assertNotIn("DATABASE_URL", activation_email["html"])
 
+    def test_provisioning_creates_only_active_onboarding_branches(self):
+        self._configure_paddle_prices()
+        sent_messages = []
+        org_uuid = self._complete_pending_org(
+            "active-branches-only@academy.edu",
+            sent_messages,
+            organization_name="Active Branch Academy",
+            branch_names=["Primary Campus", "North Campus", "Removed Campus"],
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            rows = saas_service.list_billable_pending_branches(db, organization)
+            retained = [
+                {"branch_uuid": row.branch_uuid, "branch_name": row.branch_name, "location": row.location or ""}
+                for row in rows[:2]
+            ]
+            removed_uuid = rows[2].branch_uuid
+        finally:
+            db.close()
+
+        branch_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/branches",
+            data={
+                "branch_uuid": [row["branch_uuid"] for row in retained],
+                "branch_name": [row["branch_name"] for row in retained],
+                "location": [row["location"] for row in retained],
+                "primary_branch_index": "0",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(branch_response.status_code, 302)
+        self.client.post(f"/saas/onboarding/{org_uuid}/submit", follow_redirects=False)
+        organization_id, attempt_uuid, contract_id = self._prepare_checkout(org_uuid)
+        with patch(
+            "email_service.send_email",
+            side_effect=lambda **kwargs: sent_messages.append(kwargs) or f"email_{len(sent_messages)}",
+        ):
+            completed = self._complete_payment(org_uuid, attempt_uuid, contract_id)
+        self.assertEqual(completed.status_code, 200)
+
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(id=organization_id).first()
+            removed = db.query(saas.models.PendingOrganizationBranch).filter_by(branch_uuid=removed_uuid).first()
+            tenant_link = db.query(saas.models.TenantProvisioningLink).filter_by(
+                pending_organization_id=organization.id
+            ).first()
+            operational_names = {
+                row.name for row in db.query(models.Branch).filter_by(school_group_id=tenant_link.school_group_id).all()
+            }
+            self.assertFalse(removed.status)
+            self.assertEqual(organization.expected_branch_count, 2)
+            self.assertEqual(operational_names, {"Primary Campus", "North Campus"})
+            self.assertNotIn("Removed Campus", operational_names)
+        finally:
+            db.close()
+
     def test_provisioning_school_group_uses_organization_name_not_legal_name(self):
         result = self._complete_paid_provisioning(
             email="society-owner@academy.edu",

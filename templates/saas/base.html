@@ -541,6 +541,61 @@
         .branch-panel-header strong {
             color: var(--ink);
         }
+        .branch-setup-heading,
+        .branch-title-group,
+        .branch-row-actions,
+        .branch-guidance {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .branch-setup-heading {
+            justify-content: space-between;
+        }
+        .branch-count-summary {
+            min-width: 112px;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            text-align: center;
+        }
+        .branch-count-summary strong,
+        .branch-count-summary span {
+            display: block;
+        }
+        .branch-guidance {
+            justify-content: space-between;
+            flex-wrap: wrap;
+            color: var(--muted);
+            font-size: 14px;
+            margin-bottom: 14px;
+        }
+        .branch-title-group,
+        .branch-row-actions {
+            flex-wrap: wrap;
+        }
+        .primary-branch-choice {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin: 0;
+            font-weight: 600;
+        }
+        .primary-branch-choice input {
+            width: auto;
+            margin: 0;
+        }
+        .branch-row-actions {
+            justify-content: flex-end;
+        }
+        .branch-move,
+        .branch-remove {
+            min-height: 36px;
+            padding: 8px 10px;
+        }
+        .add-branch-button {
+            margin-top: 14px;
+        }
         .review-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));

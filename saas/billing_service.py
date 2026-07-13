@@ -191,6 +191,10 @@ def create_or_update_checkout_session(db: Session, organization):
     plan_price = db.query(models.SubscriptionPlanPrice).filter(
         models.SubscriptionPlanPrice.id == quote.plan_price_id
     ).first()
+    selection.billable_branch_count = quote.billable_branch_count
+    selection.quoted_base_amount_minor = quote.total_amount_minor
+    selection.quoted_display_amount_minor = quote.display_total_amount_minor
+    selection.quote_fingerprint = quote.fingerprint
 
     checkout_session = get_current_checkout_session(db, organization)
     if (

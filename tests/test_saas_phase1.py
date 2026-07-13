@@ -813,6 +813,9 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Branches and campuses", branches_get.text)
         self.assertEqual(branches_get.text.count('data-primary-cta="true"'), 1)
         self.assertIn('form="branches-form"', branches_get.text)
+        rendered_branch_list = branches_get.text.split('<div id="branch-list"', 1)[1].split("</div>\n        <button id=\"add-branch\"", 1)[0]
+        self.assertEqual(rendered_branch_list.count("data-branch-panel"), 2)
+        self.assertIn('<strong id="active-branch-count">2</strong>', branches_get.text)
 
         branches_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/branches",
@@ -1189,7 +1192,7 @@ class SaaSPhase1Tests(unittest.TestCase):
             follow_redirects=False,
         )
         self.assertEqual(branches_response.status_code, 422)
-        self.assertIn("Add at least one branch.", branches_response.text)
+        self.assertIn("Every active branch must have a branch name.", branches_response.text)
         self.assertIn('value="Temporary North Campus"', branches_response.text)
         self.assertIn('value="Temporary South Campus"', branches_response.text)
         self.assertIn('value="Malaz"', branches_response.text)
@@ -2693,6 +2696,196 @@ class SaaSPhase1Tests(unittest.TestCase):
         }, follow_redirects=False)
         self.assertEqual(duplicate.status_code, 422)
         self.assertIn("Active branch names must be unique", duplicate.text)
+
+    def test_branch_setup_is_authoritative_for_reductions_and_expansion(self):
+        self._configure_paddle_prices()
+        scenarios = ((3, 2), (15, 10), (12, 20))
+        for index, (initial_count, final_count) in enumerate(scenarios, start=1):
+            with self.subTest(initial_count=initial_count, final_count=final_count):
+                org_uuid = self._complete_pending_organization_to_ready_for_checkout(
+                    f"branch-count-{index}@academy.edu"
+                )
+                db = self._db()
+                try:
+                    organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+                    existing = service.list_billable_pending_branches(db, organization)
+                    initial_rows = [
+                        {
+                            "branch_uuid": row.branch_uuid,
+                            "branch_name": f"Campus {position + 1}",
+                            "location": row.location,
+                        }
+                        for position, row in enumerate(existing)
+                    ]
+                    initial_rows.extend(
+                        {"branch_name": f"Campus {position + 1}", "location": f"Location {position + 1}"}
+                        for position in range(len(initial_rows), initial_count)
+                    )
+                    service.replace_branches(db, organization, initial_rows)
+                    db.flush()
+                    initial_active = service.list_billable_pending_branches(db, organization)
+                    initial_uuids = {row.branch_uuid for row in initial_active}
+                    initial_fingerprint = None
+                    starter = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="starter").first()
+                    organization.selected_plan_id = starter.id
+                    organization.selected_billing_interval = "monthly"
+                    initial_fingerprint = branch_pricing_quote_service.build_quote(db, organization).fingerprint
+
+                    final_rows = [
+                        {
+                            "branch_uuid": row.branch_uuid,
+                            "branch_name": row.branch_name,
+                            "location": row.location,
+                        }
+                        for row in initial_active[:min(initial_count, final_count)]
+                    ]
+                    final_rows.extend(
+                        {"branch_name": f"Expanded Campus {position + 1}", "location": "Expansion"}
+                        for position in range(len(final_rows), final_count)
+                    )
+                    service.replace_branches(db, organization, final_rows)
+                    db.flush()
+                    active = service.list_billable_pending_branches(db, organization)
+                    quote = branch_pricing_quote_service.build_quote(db, organization)
+                    self.assertEqual(len(active), final_count)
+                    self.assertEqual(organization.expected_branch_count, final_count)
+                    self.assertEqual(quote.quantity, final_count)
+                    self.assertNotEqual(initial_fingerprint, quote.fingerprint)
+                    if final_count < initial_count:
+                        inactive = [
+                            row for row in service.list_pending_branches(db, organization, include_inactive=True)
+                            if not row.status
+                        ]
+                        self.assertEqual(len(inactive), initial_count - final_count)
+                    if final_count > initial_count:
+                        added_uuids = {row.branch_uuid for row in active} - initial_uuids
+                        self.assertEqual(len(added_uuids), final_count - initial_count)
+                        self.assertTrue(added_uuids.isdisjoint(initial_uuids))
+                finally:
+                    db.close()
+
+    def test_branch_profile_does_not_recreate_removed_rows_and_primary_is_ordered_first(self):
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("branch-authority@academy.edu")
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            rows = service.list_billable_pending_branches(db, organization)
+            first_uuid, second_uuid = rows[0].branch_uuid, rows[1].branch_uuid
+        finally:
+            db.close()
+
+        reorder = self.client.post(f"/saas/onboarding/{org_uuid}/branches", data={
+            "branch_uuid": [first_uuid, second_uuid],
+            "branch_name": ["Main Campus", "Girls Campus"],
+            "primary_branch_index": "1",
+        }, follow_redirects=False)
+        self.assertEqual(reorder.status_code, 302)
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            ordered = service.list_billable_pending_branches(db, organization)
+            self.assertEqual(ordered[0].branch_uuid, second_uuid)
+        finally:
+            db.close()
+
+        remove = self.client.post(f"/saas/onboarding/{org_uuid}/branches", data={
+            "branch_uuid": [second_uuid],
+            "branch_name": ["Girls Campus"],
+            "primary_branch_index": "0",
+        }, follow_redirects=False)
+        self.assertEqual(remove.status_code, 302)
+        profile = self.client.post(f"/saas/onboarding/{org_uuid}/organization", data={
+            "organization_name": "Example Academy",
+            "educational_program": "BOTH",
+            "country_code": "SA",
+            "country_name": "Saudi Arabia",
+            "region_name": "Riyadh",
+            "city_name": "Riyadh",
+            "expected_branch_count": "99",
+            "timezone": "Asia/Riyadh",
+            "save_action": "continue",
+        }, follow_redirects=False)
+        self.assertEqual(profile.status_code, 302)
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            self.assertEqual(organization.expected_branch_count, 1)
+            self.assertEqual(service.count_billable_pending_branches(db, organization), 1)
+            removed = db.query(saas.models.PendingOrganizationBranch).filter_by(branch_uuid=first_uuid).first()
+            self.assertFalse(removed.status)
+            with self.assertRaisesRegex(ValueError, "Add at least one branch"):
+                service.replace_branches(db, organization, [])
+        finally:
+            db.close()
+        branch_page = self.client.get(f"/saas/onboarding/{org_uuid}/branches")
+        self.assertIn("At least one branch is required.", branch_page.text)
+        self.assertIn("Subscription quantity updates automatically", branch_page.text)
+        self.assertIn("data-remove-branch disabled", branch_page.text)
+        self.assertIn("Add Branch", branch_page.text)
+        self.assertIn('window.confirm(`Remove "${name}" from Branch Setup?`)', branch_page.text)
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            organization.payment_status = "paid"
+            with self.assertRaisesRegex(ValueError, "cannot be changed after payment"):
+                service.replace_branches(db, organization, [{
+                    "branch_uuid": second_uuid, "branch_name": "Girls Campus",
+                }])
+        finally:
+            db.close()
+
+    def test_removed_branch_uuid_is_not_reused_and_next_checkout_uses_new_quantity(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout("branch-paddle-refresh@academy.edu")
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            starter = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="starter").first()
+            billing_service.select_plan(db, organization, plan_id=starter.id, billing_interval="monthly")
+            old_checkout = billing_service.create_or_update_checkout_session(db, organization)
+            old_checkout.status = "started"
+            old_checkout.checkout_url = "https://pay.paddle.test/old-two-branches"
+            old_checkout_id = old_checkout.id
+            rows = service.list_billable_pending_branches(db, organization)
+            kept_uuid, removed_uuid = rows[0].branch_uuid, rows[1].branch_uuid
+            service.replace_branches(db, organization, [{
+                "branch_uuid": kept_uuid, "branch_name": rows[0].branch_name, "location": rows[0].location,
+            }])
+            db.flush()
+            self.assertEqual(old_checkout.status, "stale")
+            organization.status = service.READY_FOR_CHECKOUT_STATUS
+            db.commit()
+        finally:
+            db.close()
+
+        with (
+            patch("saas.paddle_client.list_customers_by_email", return_value=[]),
+            patch("saas.paddle_client.create_customer", return_value={
+                "id": "ctm_branch_refresh", "email": "branch-paddle-refresh@academy.edu", "status": "active",
+            }),
+            patch("saas.paddle_client.create_transaction", return_value={
+                "id": "txn_branch_refresh", "currency_code": "USD",
+                "checkout": {"url": "https://pay.paddle.test/refreshed-one-branch"},
+            }) as create_transaction,
+        ):
+            response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(create_transaction.call_args.kwargs["quantity"], 1)
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            fresh_checkout = billing_service.get_current_checkout_session(db, organization)
+            self.assertNotEqual(fresh_checkout.id, old_checkout_id)
+            self.assertEqual(fresh_checkout.billable_branch_count, 1)
+            service.replace_branches(db, organization, [
+                {"branch_uuid": kept_uuid, "branch_name": "Main Campus"},
+                {"branch_name": "Replacement Campus"},
+            ])
+            db.flush()
+            replacement = service.list_billable_pending_branches(db, organization)[1]
+            self.assertNotEqual(replacement.branch_uuid, removed_uuid)
+        finally:
+            db.close()
 
     def test_zero_billable_branches_blocks_quote(self):
         self._configure_paddle_prices()
