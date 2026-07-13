@@ -87,13 +87,19 @@ def create_transaction(
     *,
     customer_id: str,
     price_id: str,
-    quantity: int = 1,
+    quantity: int,
     custom_data: dict | None = None,
     checkout_url: str | None = None,
 ) -> dict:
+    try:
+        validated_quantity = int(quantity)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Paddle transaction quantity must be a positive integer.") from exc
+    if validated_quantity < 1:
+        raise ValueError("Paddle transaction quantity must be a positive integer.")
     payload = {
         "customer_id": customer_id,
-        "items": [{"price_id": price_id, "quantity": int(quantity or 1)}],
+        "items": [{"price_id": price_id, "quantity": validated_quantity}],
         "collection_mode": "automatic",
         "custom_data": custom_data or {},
         "checkout": {"url": checkout_url or None},

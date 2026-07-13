@@ -3,6 +3,7 @@
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 {% if checkout_summary and checkout_summary.selection and checkout_summary.plan %}
+{% set quote = checkout_summary.quote %}
 <section class="wizard-section">
     <div class="wizard-section-header">
         <strong>Secure Payment summary</strong>
@@ -18,14 +19,24 @@
             <p>{{ checkout_summary.plan.plan_name }}<br>{{ checkout_summary.selection.billing_interval }}</p>
         </div>
         <div class="review-card">
-            <strong>Payment amount</strong>
-            <p>{{ checkout_summary.selection.display_currency_code }} {{ "%.2f"|format((checkout_summary.selection.display_amount_minor or 0) / 100) }}</p>
+            <strong>Price per branch</strong>
+            <p>{% if quote %}{{ quote.formatted_unit_amount }} per {% if quote.billing_interval == 'annual' %}year{% else %}month{% endif %}{% else %}-{% endif %}</p>
+        </div>
+        <div class="review-card">
+            <strong>Billable branches</strong>
+            <p>{% if quote %}{{ quote.quantity }}{% else %}0{% endif %}</p>
+        </div>
+        <div class="review-card">
+            <strong>Calculated total</strong>
+            <p>{% if quote %}{{ quote.formatted_total }} per {% if quote.billing_interval == 'annual' %}year{% else %}month{% endif %}{% else %}-{% endif %}</p>
         </div>
         <div class="review-card">
             <strong>Secure Payment</strong>
             <p>{{ customer_status_label(checkout_summary.checkout_session.status if checkout_summary.checkout_session else organization.billing_status) }}</p>
         </div>
     </div>
+    <p class="muted">Prices are per branch.</p>
+    {% if quote and quote.errors %}<div class="error">{{ quote.errors[0] }}</div>{% endif %}
 </section>
 <form id="checkout-start-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/start"></form>
 <form id="checkout-launch-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/launch"></form>

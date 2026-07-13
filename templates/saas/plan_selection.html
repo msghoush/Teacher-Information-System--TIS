@@ -5,7 +5,7 @@
     <section class="wizard-section">
         <div class="wizard-section-header">
             <strong>Subscription Selection</strong>
-            <p>Choose the plan and billing interval that fit your School Workspace.</p>
+            <p>Prices are per branch. Choose one plan and billing interval for all {{ billable_branch_count }} active billable branch{% if billable_branch_count != 1 %}es{% endif %}.</p>
         </div>
         <div class="wizard-grid">
             <div>
@@ -39,7 +39,7 @@
             <div class="review-card">
                 <strong>{{ plan_view.plan.plan_name }}</strong>
                 {% if plan_view.plan.badge_text %}<p>{{ plan_view.plan.badge_text }}</p>{% endif %}
-                <p>{{ plan_view.monthly.display_formatted }}/month<br>{{ plan_view.annual.display_formatted }}/year</p>
+                <p>USD {{ "%.2f"|format(plan_view.monthly.base_amount_minor / 100) }} per branch / month<br>USD {{ "%.2f"|format(plan_view.annual.base_amount_minor / 100) }} per branch / year</p>
                 {% if plan_view.annual.annual_savings_percent %}
                 <p>Save {{ plan_view.annual.annual_savings_percent }}% annually</p>
                 {% endif %}
@@ -48,6 +48,20 @@
             {% endfor %}
         </div>
     </section>
+
+    {% if checkout_summary and checkout_summary.quote %}
+    {% set quote = checkout_summary.quote %}
+    <section class="wizard-section">
+        <div class="wizard-section-header">
+            <strong>Current branch-based total</strong>
+            {% if quote.is_ready %}
+            <p>{{ checkout_summary.plan.plan_name }}: {{ quote.formatted_unit_amount }} per branch x {{ quote.quantity }} branch{% if quote.quantity != 1 %}es{% endif %}. Total: {{ quote.formatted_total }} per {% if quote.billing_interval == 'annual' %}year{% else %}month{% endif %}.</p>
+            {% else %}
+            <p>Complete the subscription requirements before Secure Payment can be prepared.</p>
+            {% endif %}
+        </div>
+    </section>
+    {% endif %}
 
     <div class="wizard-actions">
         <a class="btn secondary" href="/saas/account">Back to Account Setup</a>

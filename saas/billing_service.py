@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
-from saas import models, pricing_service, service
+from saas import branch_pricing_quote_service, models, pricing_service, service
 
 NOT_STARTED = "not_started"
 PLAN_SELECTED = "plan_selected"
@@ -60,6 +60,12 @@ def select_plan(
     if not plan_view:
         raise ValueError("Selected subscription plan is not available.")
     interval_view = plan_view.monthly if cleaned_interval == "monthly" else plan_view.annual
+    quote = branch_pricing_quote_service.build_quote(
+        db,
+        organization,
+        plan_id=plan_view.plan.id,
+        billing_interval=cleaned_interval,
+    )
 
     db.query(models.PendingOrganizationPlanSelection).filter(
         models.PendingOrganizationPlanSelection.pending_organization_id == organization.id,
@@ -83,6 +89,10 @@ def select_plan(
         plan_version=interval_view.plan_version,
         is_founding_offer=interval_view.is_founding_offer,
         selection_status="selected",
+        billable_branch_count=quote.billable_branch_count,
+        quoted_base_amount_minor=quote.total_amount_minor,
+        quoted_display_amount_minor=quote.display_total_amount_minor,
+        quote_fingerprint=quote.fingerprint or None,
         selected_at=_utcnow(),
     )
     db.add(selection)
@@ -106,6 +116,10 @@ def select_plan(
             contract_type="self_serve",
             plan_version=interval_view.plan_version,
             is_founding_offer=interval_view.is_founding_offer,
+            billable_branch_count=quote.billable_branch_count,
+            quoted_base_amount_minor=quote.total_amount_minor,
+            quoted_display_amount_minor=quote.display_total_amount_minor,
+            quote_fingerprint=quote.fingerprint or None,
         )
         db.add(contract)
     else:
@@ -118,6 +132,14 @@ def select_plan(
         contract.display_amount_minor = interval_view.display_amount_minor
         contract.plan_version = interval_view.plan_version
         contract.is_founding_offer = interval_view.is_founding_offer
+        contract.billable_branch_count = quote.billable_branch_count
+        contract.quoted_base_amount_minor = quote.total_amount_minor
+        contract.quoted_display_amount_minor = quote.display_total_amount_minor
+        contract.quote_fingerprint = quote.fingerprint or None
+    checkout_session = get_current_checkout_session(db, organization)
+    if checkout_session and str(getattr(checkout_session, "quote_fingerprint", "") or "") != quote.fingerprint:
+        checkout_session.status = "stale"
+        checkout_session.abandoned_at = _utcnow()
     service.log_pending_event(
         db,
         organization=organization,
@@ -140,12 +162,22 @@ def build_checkout_summary(db: Session, organization):
     ).first()
     checkout_session = get_current_checkout_session(db, organization)
     contract = get_current_subscription_contract(db, organization)
+    quote = branch_pricing_quote_service.build_quote(db, organization)
     return {
         "selection": selection,
         "plan": plan,
         "checkout_session": checkout_session,
         "contract": contract,
+        "quote": quote,
     }
+
+
+def checkout_quote_is_fresh(db: Session, organization) -> bool:
+    checkout_session = get_current_checkout_session(db, organization)
+    if not checkout_session or checkout_session.status == "stale":
+        return False
+    quote = branch_pricing_quote_service.build_quote(db, organization)
+    return quote.is_ready and str(checkout_session.quote_fingerprint or "") == quote.fingerprint
 
 
 def create_or_update_checkout_session(db: Session, organization):
@@ -153,27 +185,39 @@ def create_or_update_checkout_session(db: Session, organization):
     selection = get_current_plan_selection(db, organization)
     if not selection:
         raise ValueError("Select a subscription plan before continuing to checkout.")
+    quote = branch_pricing_quote_service.require_ready_quote(
+        branch_pricing_quote_service.build_quote(db, organization)
+    )
     plan_price = db.query(models.SubscriptionPlanPrice).filter(
-        models.SubscriptionPlanPrice.plan_id == selection.plan_id,
-        models.SubscriptionPlanPrice.billing_interval == selection.billing_interval,
-        models.SubscriptionPlanPrice.currency_code == "USD",
-        models.SubscriptionPlanPrice.is_active == True,
-    ).order_by(
-        models.SubscriptionPlanPrice.plan_version.desc(),
-        models.SubscriptionPlanPrice.id.desc(),
+        models.SubscriptionPlanPrice.id == quote.plan_price_id
     ).first()
 
     checkout_session = get_current_checkout_session(db, organization)
-    if not checkout_session:
+    if (
+        checkout_session
+        and checkout_session.status == "started"
+        and str(checkout_session.checkout_url or "").strip()
+        and str(checkout_session.quote_fingerprint or "") == quote.fingerprint
+    ):
+        return checkout_session
+    if checkout_session and str(checkout_session.quote_fingerprint or "") != quote.fingerprint:
+        checkout_session.status = "stale"
+        checkout_session.abandoned_at = _utcnow()
+        checkout_session = None
+    if not checkout_session or checkout_session.status == "stale":
         checkout_session = models.CheckoutSession(
             pending_organization_id=organization.id,
             plan_selection_id=selection.id,
             status="ready",
             provider="paddle",
             currency_code=selection.display_currency_code,
-            amount_minor=selection.display_amount_minor,
+            amount_minor=quote.display_total_amount_minor,
             billing_interval=selection.billing_interval,
             provider_price_id=str(getattr(plan_price, "provider_price_id", "") or "").strip() or None,
+            billable_branch_count=quote.billable_branch_count,
+            quoted_base_amount_minor=quote.total_amount_minor,
+            quoted_display_amount_minor=quote.display_total_amount_minor,
+            quote_fingerprint=quote.fingerprint,
             started_at=_utcnow(),
         )
         db.add(checkout_session)
@@ -183,9 +227,13 @@ def create_or_update_checkout_session(db: Session, organization):
         checkout_session.status = "ready"
         checkout_session.provider = "paddle"
         checkout_session.currency_code = selection.display_currency_code
-        checkout_session.amount_minor = selection.display_amount_minor
+        checkout_session.amount_minor = quote.display_total_amount_minor
         checkout_session.billing_interval = selection.billing_interval
         checkout_session.provider_price_id = str(getattr(plan_price, "provider_price_id", "") or "").strip() or None
+        checkout_session.billable_branch_count = quote.billable_branch_count
+        checkout_session.quoted_base_amount_minor = quote.total_amount_minor
+        checkout_session.quoted_display_amount_minor = quote.display_total_amount_minor
+        checkout_session.quote_fingerprint = quote.fingerprint
         checkout_session.started_at = checkout_session.started_at or _utcnow()
 
     contract = get_current_subscription_contract(db, organization)
@@ -193,6 +241,10 @@ def create_or_update_checkout_session(db: Session, organization):
         raise ValueError("Subscription contract could not be prepared.")
     contract.selected_checkout_session_id = checkout_session.id
     contract.contract_status = "checkout_pending"
+    contract.billable_branch_count = quote.billable_branch_count
+    contract.quoted_base_amount_minor = quote.total_amount_minor
+    contract.quoted_display_amount_minor = quote.display_total_amount_minor
+    contract.quote_fingerprint = quote.fingerprint
 
     organization.billing_status = CHECKOUT_READY
     organization.checkout_ready_at = _utcnow()

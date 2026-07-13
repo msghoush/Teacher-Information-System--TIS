@@ -1,5 +1,6 @@
 import logging
 import unicodedata
+import uuid
 from dataclasses import dataclass
 from typing import Callable
 
@@ -2703,6 +2704,82 @@ def _phase5_provisioning_engine(engine, connection):
     _create_index_if_missing(connection, connection, "provisioning_job_events", "ix_provisioning_job_events_created_at", "created_at")
 
 
+def _branch_billing_quote_foundation(engine, connection):
+    _add_column_if_missing(
+        connection, connection, "pending_organization_branches", "branch_uuid", "branch_uuid VARCHAR(36)"
+    )
+    if _table_exists(connection, "pending_organization_branches"):
+        rows = connection.execute(text(
+            "SELECT id FROM pending_organization_branches WHERE branch_uuid IS NULL OR TRIM(branch_uuid) = ''"
+        )).all()
+        for row in rows:
+            connection.execute(
+                text("UPDATE pending_organization_branches SET branch_uuid = :branch_uuid WHERE id = :row_id"),
+                {"branch_uuid": str(uuid.uuid4()), "row_id": int(row[0])},
+            )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "pending_organization_branches",
+        "uq_pending_organization_branches_uuid",
+        "branch_uuid",
+    )
+
+    for table_name in (
+        "pending_organization_plan_selections",
+        "checkout_sessions",
+        "subscription_contracts",
+    ):
+        _add_column_if_missing(
+            connection, connection, table_name, "billable_branch_count", "billable_branch_count INTEGER NOT NULL DEFAULT 0"
+        )
+        _add_column_if_missing(
+            connection, connection, table_name, "quoted_base_amount_minor", "quoted_base_amount_minor INTEGER"
+        )
+        _add_column_if_missing(
+            connection, connection, table_name, "quoted_display_amount_minor", "quoted_display_amount_minor INTEGER"
+        )
+        _add_column_if_missing(
+            connection, connection, table_name, "quote_fingerprint", "quote_fingerprint VARCHAR(64)"
+        )
+        _create_index_if_missing(
+            connection,
+            connection,
+            table_name,
+            f"ix_{table_name}_quote_fingerprint",
+            "quote_fingerprint",
+        )
+
+
+def _paddle_branch_quantity_reconciliation(engine, connection):
+    for table_name in ("payment_attempts", "payment_subscriptions"):
+        _add_column_if_missing(
+            connection, connection, table_name, "provider_price_id", "provider_price_id VARCHAR(120)"
+        )
+        _add_column_if_missing(
+            connection, connection, table_name, "quantity", "quantity INTEGER NOT NULL DEFAULT 0"
+        )
+        _add_column_if_missing(
+            connection, connection, table_name, "unit_amount_minor", "unit_amount_minor INTEGER"
+        )
+        _add_column_if_missing(
+            connection, connection, table_name, "amount_minor", "amount_minor INTEGER"
+        )
+        _add_column_if_missing(
+            connection, connection, table_name, "currency_code", "currency_code VARCHAR(3)"
+        )
+        _add_column_if_missing(
+            connection, connection, table_name, "quote_fingerprint", "quote_fingerprint VARCHAR(64)"
+        )
+        _create_index_if_missing(
+            connection,
+            connection,
+            table_name,
+            f"ix_{table_name}_quote_fingerprint",
+            "quote_fingerprint",
+        )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -2803,6 +2880,16 @@ MIGRATIONS = (
         migration_id="20260623_005_phase5_provisioning_engine",
         description="Add provisioning jobs, links, and tenant profile storage for tenant activation",
         apply=_phase5_provisioning_engine,
+    ),
+    Migration(
+        migration_id="20260713_001_branch_billing_quote_foundation",
+        description="Stabilize pending branch identity and persist branch-based quote snapshots",
+        apply=_branch_billing_quote_foundation,
+    ),
+    Migration(
+        migration_id="20260713_002_paddle_branch_quantity_reconciliation",
+        description="Persist Paddle branch quantity and aggregate payment reconciliation snapshots",
+        apply=_paddle_branch_quantity_reconciliation,
     ),
 )
 

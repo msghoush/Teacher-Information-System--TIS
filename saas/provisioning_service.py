@@ -112,12 +112,7 @@ def log_job_event(
 
 
 def _organization_branches(db: Session, organization):
-    return db.query(models.PendingOrganizationBranch).filter(
-        models.PendingOrganizationBranch.pending_organization_id == organization.id
-    ).order_by(
-        models.PendingOrganizationBranch.sort_order.asc(),
-        models.PendingOrganizationBranch.id.asc(),
-    ).all()
+    return service.list_billable_pending_branches(db, organization)
 
 
 def _organization_academic_setup(db: Session, organization):

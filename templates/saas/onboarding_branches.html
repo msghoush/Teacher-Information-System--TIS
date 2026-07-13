@@ -11,6 +11,7 @@
             {% set rows = form_branches if form_branches else branches if branches else [None, None, None] %}
             {% for branch in rows %}
             <div class="branch-panel">
+                <input type="hidden" name="branch_uuid" value="{{ branch.branch_uuid if branch else '' }}">
                 <div class="branch-panel-header">
                     <strong>Branch {{ loop.index }}</strong>
                     <span class="muted">{% if loop.first %}At least one branch is required{% else %}Optional{% endif %}</span>
