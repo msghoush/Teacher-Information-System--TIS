@@ -83,6 +83,17 @@ def list_customers_by_email(email: str) -> list[dict]:
     return _request_list("GET", "/customers", params={"email": cleaned})
 
 
+def update_customer(*, customer_id: str, custom_data: dict) -> dict:
+    cleaned_customer_id = str(customer_id or "").strip()
+    if not cleaned_customer_id:
+        raise ValueError("Paddle customer ID is required.")
+    return _request(
+        "PATCH",
+        f"/customers/{cleaned_customer_id}",
+        {"custom_data": custom_data},
+    )
+
+
 def create_transaction(
     *,
     customer_id: str,
