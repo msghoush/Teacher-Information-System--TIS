@@ -26,7 +26,7 @@ import location_service
 import models
 import saas.models  # noqa: F401 - register metadata
 from dependencies import get_db
-from saas import billing_service, branch_pricing_quote_service, oauth, paddle_client, payment_service, service
+from saas import billing_service, branch_pricing_quote_service, draft_lifecycle_service, oauth, paddle_client, payment_service, service
 from saas.router import admin_router as saas_admin_router, router as saas_router
 
 
@@ -2647,6 +2647,7 @@ class SaaSPhase1Tests(unittest.TestCase):
             contract = db.query(saas.models.SubscriptionContract).filter_by(pending_organization_id=organization.id).first()
             attempt_uuid = attempt.attempt_uuid
             contract_id = contract.id
+            meaningful_activity_before_webhooks = organization.last_meaningful_activity_at
         finally:
             db.close()
 
@@ -2768,6 +2769,10 @@ class SaaSPhase1Tests(unittest.TestCase):
             webhooks = db.query(saas.models.PaymentWebhook).all()
             self.assertEqual(organization.billing_status, "tenant_active")
             self.assertEqual(organization.payment_status, "paid")
+            self.assertEqual(
+                organization.last_meaningful_activity_at,
+                meaningful_activity_before_webhooks,
+            )
             self.assertEqual(attempt.status, "payment_confirmed")
             self.assertEqual(attempt.provider_subscription_id, "sub_webhook_123")
             self.assertEqual(contract.contract_status, "tenant_active")
@@ -2888,6 +2893,14 @@ class SaaSPhase1Tests(unittest.TestCase):
             follow_redirects=False,
         )
 
+        db = self._db()
+        try:
+            owner_activity_before = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one().last_meaningful_activity_at
+        finally:
+            db.close()
+
         admin_client = TestClient(self.app)
         admin_client.cookies.set(auth.SESSION_COOKIE_KEY, platform_login_cookie)
 
@@ -2900,6 +2913,16 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertEqual(detail_response.status_code, 200)
         self.assertIn("Professional", detail_response.text)
         self.assertIn("Checkout: ready", detail_response.text)
+        db = self._db()
+        try:
+            self.assertEqual(
+                db.query(saas.models.PendingOrganization).filter_by(
+                    organization_uuid=org_uuid
+                ).one().last_meaningful_activity_at,
+                owner_activity_before,
+            )
+        finally:
+            db.close()
 
         save_draft_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/organization",
@@ -3678,6 +3701,91 @@ class SaaSPhase1Tests(unittest.TestCase):
                 self.assertTrue(expected.issubset(columns))
         finally:
             legacy_engine.dispose()
+
+    def test_customer_journey_records_only_explicit_meaningful_activity_triggers(self):
+        recorded_sources = []
+        real_record = draft_lifecycle_service.record_meaningful_activity
+
+        def capture_record(*args, **kwargs):
+            recorded_sources.append(kwargs.get("source"))
+            return real_record(*args, **kwargs)
+
+        with patch(
+            "saas.draft_lifecycle_service.record_meaningful_activity",
+            side_effect=capture_record,
+        ):
+            organization_uuid = self._complete_pending_organization_to_ready_for_checkout(
+                "lifecycle.routes@example.com"
+            )
+            self._configure_paddle_prices()
+            db = self._db()
+            try:
+                plan = db.query(saas.models.SubscriptionPlan).filter_by(
+                    plan_code="starter"
+                ).first()
+                self.assertIsNotNone(plan)
+                plan_id = plan.id
+            finally:
+                db.close()
+
+            plan_response = self.client.post(
+                f"/saas/onboarding/{organization_uuid}/plan",
+                data={"plan_id": str(plan_id), "billing_interval": "monthly"},
+                follow_redirects=False,
+            )
+            self.assertEqual(plan_response.status_code, 302)
+            summary_response = self.client.get(
+                f"/saas/onboarding/{organization_uuid}/checkout",
+                follow_redirects=False,
+            )
+            self.assertEqual(summary_response.status_code, 200)
+            start_response = self.client.post(
+                f"/saas/onboarding/{organization_uuid}/checkout/start",
+                follow_redirects=False,
+            )
+            self.assertEqual(start_response.status_code, 302)
+            with patch(
+                "saas.payment_service.launch_checkout",
+                return_value={"checkout_url": "https://sandbox-checkout.example/launch"},
+            ):
+                launch_response = self.client.post(
+                    f"/saas/onboarding/{organization_uuid}/checkout/launch",
+                    follow_redirects=False,
+                )
+            self.assertEqual(launch_response.status_code, 302)
+            self.assertEqual(
+                launch_response.headers["location"],
+                "https://sandbox-checkout.example/launch",
+            )
+
+        self.assertTrue({
+            "account_created",
+            "successful_login",
+            "onboarding_started",
+            "organization_profile_saved",
+            "branch_setup_saved",
+            "academic_setup_saved",
+            "contacts_saved",
+            "review_submitted",
+            "plan_selected",
+            "checkout_summary_opened",
+            "checkout_started",
+            "checkout_launched",
+        }.issubset(set(recorded_sources)), recorded_sources)
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=organization_uuid
+            ).one()
+            account = db.query(saas.models.SaaSAccount).filter_by(
+                id=organization.owner_saas_account_id
+            ).one()
+            self.assertEqual(
+                account.last_meaningful_activity_at,
+                organization.last_meaningful_activity_at,
+            )
+        finally:
+            db.close()
 
 
 if __name__ == "__main__":

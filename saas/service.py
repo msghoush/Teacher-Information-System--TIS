@@ -16,7 +16,7 @@ import branding_storage
 import email_service
 import email_templates
 import public_url
-from saas import models
+from saas import draft_lifecycle_service, models
 from saas.branch_pricing_quote_service import normalize_branch_name
 
 SAAS_SESSION_COOKIE = "tis_saas_session"
@@ -276,6 +276,9 @@ def create_account(
     )
     db.add(account)
     db.flush()
+    draft_lifecycle_service.record_meaningful_activity(
+        db, account, source="account_created"
+    )
     db.add(
         models.SaaSAuthIdentity(
             saas_account_id=account.id,
@@ -702,6 +705,9 @@ def create_pending_organization(db: Session, account, request: Request | None = 
         details={"status": "draft"},
     )
     account.onboarding_status = "organization_in_progress"
+    draft_lifecycle_service.record_meaningful_activity(
+        db, account, organization=organization, source="onboarding_started"
+    )
     return organization
 
 

@@ -10,7 +10,7 @@ import audit
 from dependencies import get_db
 import email_service
 import location_service
-from saas import billing_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import billing_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -830,6 +830,9 @@ def login(
         )
     session_token, csrf_token, _session_row = service.create_session(db, account, request=request)
     service.log_auth_event(db, event_type="login", account_id=account.id, request=request)
+    draft_lifecycle_service.record_meaningful_activity(
+        db, account, source="successful_login"
+    )
     db.commit()
     response = RedirectResponse(url=_safe_next(next_path), status_code=302)
     return service.set_session_cookies(
@@ -1285,6 +1288,9 @@ async def save_organization_step(
         )
         progress = service.save_draft(db, account, organization, current_step="branches")
         service.log_pending_event(db, organization=organization, account=account, event_type="organization_saved", details={"completion_percent": progress.completion_percent})
+        draft_lifecycle_service.record_meaningful_activity(
+            db, account, organization=organization, source="organization_profile_saved"
+        )
         db.commit()
     except ValueError as exc:
         db.rollback()
@@ -1430,6 +1436,9 @@ def save_branches_step(
         service.replace_branches(db, organization, branch_rows)
         progress = service.save_draft(db, account, organization, current_step="academic_setup")
         service.log_pending_event(db, organization=organization, account=account, event_type="branches_saved", details={"completion_percent": progress.completion_percent})
+        draft_lifecycle_service.record_meaningful_activity(
+            db, account, organization=organization, source="branch_setup_saved"
+        )
         db.commit()
     except ValueError as exc:
         db.rollback()
@@ -1512,6 +1521,9 @@ def save_academic_setup_step(
         )
         progress = service.save_draft(db, account, organization, current_step="contacts")
         service.log_pending_event(db, organization=organization, account=account, event_type="academic_setup_saved", details={"completion_percent": progress.completion_percent})
+        draft_lifecycle_service.record_meaningful_activity(
+            db, account, organization=organization, source="academic_setup_saved"
+        )
         db.commit()
     except ValueError as exc:
         db.rollback()
@@ -1604,6 +1616,9 @@ def save_contacts_step(
         )
         progress = service.save_draft(db, account, organization, current_step="review")
         service.log_pending_event(db, organization=organization, account=account, event_type="contacts_saved", details={"completion_percent": progress.completion_percent})
+        draft_lifecycle_service.record_meaningful_activity(
+            db, account, organization=organization, source="contacts_saved"
+        )
         db.commit()
     except ValueError as exc:
         db.rollback()
@@ -1706,6 +1721,9 @@ def submit_onboarding(
         return locked_redirect
     try:
         service.submit_pending_organization(db, account, organization)
+        draft_lifecycle_service.record_meaningful_activity(
+            db, account, organization=organization, source="review_submitted"
+        )
         db.commit()
     except ValueError as exc:
         db.rollback()
@@ -1791,6 +1809,9 @@ def select_plan_step(
             billing_interval=billing_interval,
         )
         service.update_pending_dashboard_status(account, organization, service.recalculate_pending_progress(db, organization))
+        draft_lifecycle_service.record_meaningful_activity(
+            db, account, organization=organization, source="plan_selected"
+        )
         db.commit()
     except (ValueError, TypeError) as exc:
         db.rollback()
@@ -1826,6 +1847,9 @@ def checkout_summary_step(
     if not checkout_summary or not checkout_summary.get("selection") or not checkout_summary.get("plan"):
         db.commit()
         return RedirectResponse(f"/saas/onboarding/{organization_uuid}/plan", status_code=302)
+    draft_lifecycle_service.record_meaningful_activity(
+        db, account, organization=organization, source="checkout_summary_opened"
+    )
     context.update({
         "error": error,
         "notice": notice,
@@ -1858,6 +1882,9 @@ def prepare_checkout_step(
     try:
         billing_service.create_or_update_checkout_session(db, organization)
         service.update_pending_dashboard_status(account, organization, service.recalculate_pending_progress(db, organization))
+        draft_lifecycle_service.record_meaningful_activity(
+            db, account, organization=organization, source="checkout_started"
+        )
         db.commit()
     except ValueError as exc:
         db.rollback()
@@ -1901,6 +1928,9 @@ def launch_checkout_step(
         _prepare_checkout_for_launch_if_needed(db, account, organization)
         launch = payment_service.launch_checkout(db, organization, account, request)
         service.update_pending_dashboard_status(account, organization, service.recalculate_pending_progress(db, organization))
+        draft_lifecycle_service.record_meaningful_activity(
+            db, account, organization=organization, source="checkout_launched"
+        )
         db.commit()
     except payment_service.MissingPaddlePriceConfiguration:
         db.rollback()
@@ -2846,6 +2876,9 @@ def oauth_callback(
             request=request,
         )
         session_token, csrf_token, _session_row = service.create_session(db, account, request=request)
+        draft_lifecycle_service.record_meaningful_activity(
+            db, account, source="successful_social_login"
+        )
         db.commit()
     except ValueError as exc:
         db.rollback()

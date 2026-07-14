@@ -18,6 +18,7 @@ class SaaSAccount(Base):
         ),
         Index("ix_saas_accounts_status", "status"),
         Index("ix_saas_accounts_onboarding_status", "onboarding_status"),
+        Index("ix_saas_accounts_last_meaningful_activity", "last_meaningful_activity_at"),
     )
 
     id = Column(Integer, primary_key=True)
@@ -31,6 +32,12 @@ class SaaSAccount(Base):
     onboarding_status = Column(String(30), nullable=False, default="not_started")
     email_verified_at = Column(DateTime)
     last_login_at = Column(DateTime)
+    last_meaningful_activity_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    first_reminder_sent_at = Column(DateTime)
+    second_reminder_sent_at = Column(DateTime)
+    final_reminder_sent_at = Column(DateTime)
+    recovered_after_reminder_at = Column(DateTime)
+    reminder_cycle = Column(Integer, nullable=False, default=1)
     locked_at = Column(DateTime)
     locked_reason = Column(String(120))
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -177,6 +184,7 @@ class PendingOrganization(Base):
         Index("ix_pending_organizations_status", "status"),
         Index("ix_pending_organizations_step", "onboarding_step"),
         Index("ix_pending_organizations_name", "organization_name"),
+        Index("ix_pending_organizations_last_meaningful_activity", "last_meaningful_activity_at"),
     )
 
     id = Column(Integer, primary_key=True)
@@ -216,6 +224,7 @@ class PendingOrganization(Base):
     payment_confirmed_at = Column(DateTime)
     payment_failed_at = Column(DateTime)
     last_payment_attempt_id = Column(Integer, ForeignKey("payment_attempts.id"), index=True)
+    last_meaningful_activity_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -485,6 +494,18 @@ class CheckoutSession(Base):
     started_at = Column(DateTime)
     expires_at = Column(DateTime)
     abandoned_at = Column(DateTime)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SaaSDraftLifecycleSetting(Base):
+    __tablename__ = "saas_draft_lifecycle_settings"
+
+    id = Column(Integer, primary_key=True)
+    first_reminder_hours = Column(Integer, nullable=False, default=24)
+    second_reminder_days = Column(Integer, nullable=False, default=7)
+    final_reminder_days = Column(Integer, nullable=False, default=25)
+    deletion_days = Column(Integer, nullable=False, default=30)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
