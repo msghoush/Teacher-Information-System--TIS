@@ -8,6 +8,24 @@ last_updated: 2026-07-14
 
 This folder tracks meaningful changes to signup, login, account, organization onboarding, contacts, branches, academic setup, review, and account self-service.
 
+## 2026-07-14 - M6 Phase 3 Abandoned Draft Cleanup
+
+Automatic cleanup applies only to unpaid, unprovisioned SaaS drafts. A draft becomes eligible after the globally configured inactivity period (30 days by default) and only after its final reminder was sent successfully for the current activity cycle. Any later meaningful activity restarts the lifecycle and prevents deletion.
+
+Before deleting, the processor locks and rechecks each account and pending organization in its own transaction. Payment success or processing, subscription evidence, provisioning or tenant links, operational identities, protected accounts, shared ownership, and unresolved provider relationships block cleanup. Ambiguous records are retained for manual review. Successful payment evidence, Paddle webhooks and remote Paddle records, global plans/prices, reference data, and unrelated accounts or tenants are always preserved.
+
+Run the bounded processor from the repository root:
+
+```bash
+PYTHONPATH=. python scripts/process_abandoned_draft_cleanup.py --dry-run --batch-size 100
+PYTHONPATH=. python scripts/process_abandoned_draft_cleanup.py --batch-size 100
+PYTHONPATH=. python scripts/process_abandoned_draft_cleanup.py --dry-run --account-email draft@example.com
+```
+
+`--max-inactivity-days` is available only for local testing and is rejected in production-like environments. For Render, configure a daily Cron Job using the deployed service environment and `DATABASE_URL`; dry-run should be used before enabling the live command. Each account commits independently, failures roll back completely, concurrent workers skip locked rows, and durable external audit events record deleted, skipped, manual-review, recovery, and rolled-back outcomes.
+
+Platform Owner lifecycle analytics remain future M6 scope.
+
 ## 2026-07-14 - M6 Phase 2 Draft Onboarding Reminder Engine
 
 Draft retention remains inactivity-based. The reminder engine sends at most one first, second, and final reminder per activity cycle using the globally configured lifecycle thresholds (defaults: 24 hours, 7 days, and 25 days). The final reminder shows the deletion-eligibility date derived from the configured retention period (default: 30 days). Meaningful customer activity continues to flow through `draft_lifecycle_service.record_meaningful_activity(...)`, which starts a new reminder cycle.

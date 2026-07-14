@@ -2,6 +2,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 import auth
@@ -27,6 +28,15 @@ READY_FOR_CHECKOUT_STATES = {"ready_for_checkout", "plan_selected", "checkout_re
 CONFIRMED_ATTEMPT_STATES = {"payment_confirmed", "completed", "paid", "succeeded"}
 PENDING_PROVISIONING_STATES = {"queued", "processing", "retrying", "pending"}
 ACTIVE_SUBSCRIPTION_STATES = {"active", "trialing", "past_due", "paused"}
+PROCESSING_PAYMENT_STATES = {"pending", "processing", "payment_processing", "payment_pending"}
+CONTRACT_PROCESSING_STATES = {"processing", "payment_processing", "payment_pending"}
+SUCCESSFUL_WEBHOOK_EVENTS = {
+    "transaction.paid",
+    "transaction.completed",
+    "subscription.created",
+    "subscription.activated",
+    "subscription.resumed",
+}
 
 
 @dataclass(frozen=True)
@@ -198,6 +208,7 @@ def resolve_draft_lifecycle(
     *,
     organization=None,
     now: datetime | None = None,
+    deletion_after_override: timedelta | None = None,
 ) -> DraftLifecycleResult:
     now = now or _utcnow()
     settings = get_retention_settings(db)
@@ -238,8 +249,30 @@ def resolve_draft_lifecycle(
     attempts = db.query(models.PaymentAttempt).filter(
         models.PaymentAttempt.pending_organization_id.in_(organization_ids)
     ).all() if organization_ids else []
+    payment_customer_filters = [models.PaymentCustomer.saas_account_id == account.id]
+    if organization_ids:
+        payment_customer_filters.append(
+            models.PaymentCustomer.pending_organization_id.in_(organization_ids)
+        )
     payment_customers = db.query(models.PaymentCustomer).filter(
-        models.PaymentCustomer.saas_account_id == account.id
+        or_(*payment_customer_filters)
+    ).all()
+    provider_customer_keys = {
+        (str(getattr(row, "provider", "") or ""), str(getattr(row, "provider_customer_id", "") or ""))
+        for row in payment_customers
+        if getattr(row, "provider_customer_id", None)
+    }
+    shared_payment_customer = False
+    for provider, provider_customer_id in provider_customer_keys:
+        if db.query(models.PaymentCustomer.id).filter(
+            models.PaymentCustomer.provider == provider,
+            models.PaymentCustomer.provider_customer_id == provider_customer_id,
+            models.PaymentCustomer.id.notin_([row.id for row in payment_customers]),
+        ).first() is not None:
+            shared_payment_customer = True
+            break
+    actor_events = db.query(models.PendingOrganizationEvent).filter(
+        models.PendingOrganizationEvent.actor_saas_account_id == account.id
     ).all()
 
     if len(organizations) > 1:
@@ -251,10 +284,19 @@ def resolve_draft_lifecycle(
     ):
         blockers.append("manual_account_protection")
     platform_identity = db.query(operational_models.User).filter(
-        operational_models.User.email_normalized == getattr(account, "email_normalized", None)
+        or_(
+            operational_models.User.email_normalized == getattr(account, "email_normalized", None),
+            func.lower(operational_models.User.email) == getattr(account, "email_normalized", None),
+        )
     ).all()
     if any(auth.is_platform_user(row) for row in platform_identity):
         blockers.append("platform_identity_protected")
+    if any(
+        not auth.is_platform_user(row)
+        and int(getattr(row, "school_group_id", 0) or 0) > 0
+        for row in platform_identity
+    ):
+        blockers.append("operational_identity_relationship")
     if tenant_links:
         blockers.append("tenant_provisioning_link")
     if account_user_links:
@@ -263,7 +305,15 @@ def resolve_draft_lifecycle(
         blockers.append("operational_school_group")
     if any(str(getattr(row, "job_status", "") or "").lower() in PENDING_PROVISIONING_STATES for row in jobs):
         blockers.append("active_or_pending_provisioning")
-    if jobs and not any(str(getattr(row, "job_status", "") or "").lower() in PENDING_PROVISIONING_STATES for row in jobs):
+    if any(
+        str(getattr(row, "job_status", "") or "").lower() != "failed"
+        and str(getattr(row, "job_status", "") or "").lower() not in PENDING_PROVISIONING_STATES
+        for row in jobs
+    ) or any(
+        getattr(row, "target_school_group_id", None)
+        or getattr(row, "tenant_provisioning_link_id", None)
+        for row in jobs
+    ):
         warnings.append("Provisioning history requires manual review.")
         blockers.append("provisioning_history")
     if any(str(getattr(row, "status", "") or "").lower() in ACTIVE_SUBSCRIPTION_STATES for row in subscriptions):
@@ -279,21 +329,85 @@ def resolve_draft_lifecycle(
     if any(str(getattr(row, "status", "") or "").lower() in CONFIRMED_ATTEMPT_STATES for row in attempts):
         blockers.append("confirmed_payment_attempt")
     if any(
+        str(getattr(row, "status", "") or "").lower() in PROCESSING_PAYMENT_STATES
+        for row in attempts
+    ):
+        blockers.append("payment_attempt_processing")
+    if any(
         getattr(row, "provider_transaction_id", None)
         and str(getattr(row, "status", "") or "").lower() not in {"failed", "cancelled", "expired"}
         for row in attempts
     ):
         warnings.append("An unresolved provider transaction requires manual review.")
         blockers.append("unresolved_payment_attempt")
-    if payment_customers and not organization_ids:
+    if any(
+        getattr(row, "pending_organization_id", None) is not None
+        and int(row.pending_organization_id) not in organization_ids
+        for row in payment_customers
+    ) or any(
+        int(getattr(row, "saas_account_id", 0) or 0) != int(account.id)
+        for row in payment_customers
+    ) or shared_payment_customer:
         warnings.append("An account-level payment customer mapping requires manual review.")
         blockers.append("unresolved_payment_customer")
+    if any(
+        int(getattr(row, "pending_organization_id", 0) or 0) not in organization_ids
+        for row in actor_events
+    ):
+        warnings.append("An account audit event belongs to another pending organization.")
+        blockers.append("unresolved_identity_relationship")
     if any(
         str(getattr(row, "payment_status", "") or "").lower() == "paid"
         or getattr(row, "payment_confirmed_at", None)
         for row in organizations
     ):
         blockers.append("successful_payment")
+
+    attempt_uuids = {str(getattr(row, "attempt_uuid", "") or "") for row in attempts}
+    provider_transaction_ids = {
+        str(getattr(row, "provider_transaction_id", "") or "") for row in attempts
+        if getattr(row, "provider_transaction_id", None)
+    }
+    provider_subscription_ids = {
+        str(getattr(row, "provider_subscription_id", "") or "") for row in attempts
+        if getattr(row, "provider_subscription_id", None)
+    }
+    provider_subscription_ids.update(
+        str(getattr(row, "provider_subscription_id", "") or "") for row in subscriptions
+        if getattr(row, "provider_subscription_id", None)
+    )
+    organization_uuids = {
+        str(getattr(row, "organization_uuid", "") or "") for row in organizations
+    }
+    successful_webhook = False
+    for webhook in db.query(models.PaymentWebhook).filter(
+        models.PaymentWebhook.provider == "paddle",
+        models.PaymentWebhook.event_type.in_(SUCCESSFUL_WEBHOOK_EVENTS),
+    ).all():
+        try:
+            payload = json.loads(str(getattr(webhook, "payload_json", "") or "{}"))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        data = payload.get("data") if isinstance(payload, dict) else {}
+        data = data if isinstance(data, dict) else {}
+        custom_data = data.get("custom_data")
+        custom_data = custom_data if isinstance(custom_data, dict) else {}
+        if (
+            str(custom_data.get("pending_organization_uuid") or "") in organization_uuids
+            or str(custom_data.get("payment_attempt_uuid") or "") in attempt_uuids
+            or str(data.get("id") or "") in provider_transaction_ids
+            or str(data.get("subscription_id") or data.get("id") or "") in provider_subscription_ids
+        ):
+            successful_webhook = True
+            break
+    if successful_webhook:
+        blockers.append("successful_webhook_evidence")
+
+    if any(
+        str(getattr(row, "payment_status", "") or "").lower() in CONTRACT_PROCESSING_STATES
+        for row in contracts
+    ):
+        blockers.append("contract_payment_processing")
 
     has_tenant_link = bool(tenant_links or account_user_links)
     has_active_job = any(
@@ -303,7 +417,10 @@ def resolve_draft_lifecycle(
     base_state = _base_state(account, organization, has_tenant_link=has_tenant_link, has_active_job=has_active_job)
     activity_at, activity_warnings = resolve_activity_timestamp(db, account, organization)
     warnings.extend(activity_warnings)
-    deletion_at = activity_at + settings.deletion_after
+    deletion_after = deletion_after_override or settings.deletion_after
+    if deletion_after <= timedelta(0):
+        raise ValueError("Deletion inactivity threshold must be positive.")
+    deletion_at = activity_at + deletion_after
     due = now >= deletion_at
     blockers = list(dict.fromkeys(blockers))
     warnings = list(dict.fromkeys(warnings))
