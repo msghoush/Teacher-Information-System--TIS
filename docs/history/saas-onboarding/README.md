@@ -1,12 +1,28 @@
 ---
 title: SaaS Onboarding History
 module: saas-onboarding
-last_updated: 2026-06-27
+last_updated: 2026-07-14
 ---
 
 # SaaS Onboarding History
 
 This folder tracks meaningful changes to signup, login, account, organization onboarding, contacts, branches, academic setup, review, and account self-service.
+
+## 2026-07-14 - M6 Phase 2 Draft Onboarding Reminder Engine
+
+Draft retention remains inactivity-based. The reminder engine sends at most one first, second, and final reminder per activity cycle using the globally configured lifecycle thresholds (defaults: 24 hours, 7 days, and 25 days). The final reminder shows the deletion-eligibility date derived from the configured retention period (default: 30 days). Meaningful customer activity continues to flow through `draft_lifecycle_service.record_meaningful_activity(...)`, which starts a new reminder cycle.
+
+Run the bounded processor from the repository root:
+
+```bash
+PYTHONPATH=. python scripts/process_draft_reminders.py --batch-size 100
+PYTHONPATH=. python scripts/process_draft_reminders.py --dry-run
+PYTHONPATH=. python scripts/process_draft_reminders.py --stage final
+```
+
+For Render, use a Cron Job with the service's `DATABASE_URL`, `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO`, and `TIS_PUBLIC_BASE_URL`. `TIS_SUPPORT_EMAIL` is optional and falls back to `EMAIL_REPLY_TO` in reminder content. An hourly schedule is recommended. PostgreSQL row locking prevents overlapping workers from sending the same reminder stage.
+
+Automatic draft deletion and Platform Owner lifecycle analytics are not enabled in Phase 2.
 
 ## 2026-06-27 - Subscription And Workspace Activation Guided Journey Phase 3C
 
