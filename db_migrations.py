@@ -2780,6 +2780,92 @@ def _paddle_branch_quantity_reconciliation(engine, connection):
         )
 
 
+def _draft_account_lifecycle_foundation(engine, connection):
+    datetime_type = _datetime_type(engine)
+    account_columns = (
+        ("last_meaningful_activity_at", f"last_meaningful_activity_at {datetime_type}"),
+        ("first_reminder_sent_at", f"first_reminder_sent_at {datetime_type}"),
+        ("second_reminder_sent_at", f"second_reminder_sent_at {datetime_type}"),
+        ("final_reminder_sent_at", f"final_reminder_sent_at {datetime_type}"),
+        ("recovered_after_reminder_at", f"recovered_after_reminder_at {datetime_type}"),
+        ("reminder_cycle", "reminder_cycle INTEGER NOT NULL DEFAULT 1"),
+    )
+    for column_name, column_sql in account_columns:
+        _add_column_if_missing(
+            connection, connection, "saas_accounts", column_name, column_sql
+        )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "last_meaningful_activity_at",
+        f"last_meaningful_activity_at {datetime_type}",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_accounts",
+        "ix_saas_accounts_last_meaningful_activity",
+        "last_meaningful_activity_at",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "ix_pending_organizations_last_meaningful_activity",
+        "last_meaningful_activity_at",
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_draft_lifecycle_settings (
+            id INTEGER PRIMARY KEY,
+            first_reminder_hours INTEGER NOT NULL DEFAULT 24,
+            second_reminder_days INTEGER NOT NULL DEFAULT 7,
+            final_reminder_days INTEGER NOT NULL DEFAULT 25,
+            deletion_days INTEGER NOT NULL DEFAULT 30,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+    existing_setting = connection.execute(text(
+        "SELECT id FROM saas_draft_lifecycle_settings WHERE id = 1"
+    )).first()
+    if not existing_setting:
+        _execute(
+            connection,
+            """
+            INSERT INTO saas_draft_lifecycle_settings (
+                id, first_reminder_hours, second_reminder_days,
+                final_reminder_days, deletion_days, created_at, updated_at
+            ) VALUES (1, 24, 7, 25, 30, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+        )
+
+    # Historical activity cannot be reconstructed reliably. Migration time grants
+    # every legacy draft a complete retention grace period before future cleanup.
+    if _table_exists(connection, "saas_accounts"):
+        _execute(
+            connection,
+            """
+            UPDATE saas_accounts
+            SET last_meaningful_activity_at = CURRENT_TIMESTAMP
+            WHERE last_meaningful_activity_at IS NULL
+            """,
+        )
+    if _table_exists(connection, "pending_organizations"):
+        _execute(
+            connection,
+            """
+            UPDATE pending_organizations
+            SET last_meaningful_activity_at = CURRENT_TIMESTAMP
+            WHERE last_meaningful_activity_at IS NULL
+            """,
+        )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -2890,6 +2976,11 @@ MIGRATIONS = (
         migration_id="20260713_002_paddle_branch_quantity_reconciliation",
         description="Persist Paddle branch quantity and aggregate payment reconciliation snapshots",
         apply=_paddle_branch_quantity_reconciliation,
+    ),
+    Migration(
+        migration_id="20260714_001_draft_account_lifecycle_foundation",
+        description="Add draft inactivity tracking, reminder cycles, and retention settings",
+        apply=_draft_account_lifecycle_foundation,
     ),
 )
 
