@@ -181,3 +181,141 @@ def build_tenant_activation_email(
             "Next steps: sign in, review your branches and academic year, then begin operational setup inside TIS.",
         ),
     )
+
+
+def _draft_reminder_details(
+    *,
+    organization_name: str,
+    progress_text: str,
+    completion_percent: int,
+    next_step: str,
+    support_contact: str,
+) -> tuple[str, ...]:
+    details = []
+    if str(organization_name or "").strip():
+        details.append(f"Organization: {organization_name}")
+    details.extend((
+        f"Progress: {progress_text} ({int(completion_percent)}%)",
+        f"Next step: {next_step}",
+    ))
+    if str(support_contact or "").strip():
+        details.append(f"Support: {support_contact}")
+    return tuple(details)
+
+
+def build_first_draft_reminder_email(
+    *,
+    recipient_name: str,
+    organization_name: str,
+    progress_text: str,
+    completion_percent: int,
+    next_step: str,
+    continue_url: str,
+    logo_url: str,
+    support_contact: str,
+) -> TransactionalEmail:
+    greeting = f"Hello {recipient_name}. " if str(recipient_name or "").strip() else ""
+    return render_transactional_email(
+        subject="Your TIS workspace is waiting for you",
+        title="Your setup is safely saved",
+        message=(
+            f"{greeting}Everything you entered is safely saved. "
+            "Continue your TIS School Workspace setup whenever you are ready."
+        ),
+        logo_url=logo_url,
+        action_label="Continue Setup",
+        action_url=continue_url,
+        fallback_label="If the button does not work, sign in to your TIS Account here:",
+        details=_draft_reminder_details(
+            organization_name=organization_name,
+            progress_text=progress_text,
+            completion_percent=completion_percent,
+            next_step=next_step,
+            support_contact=support_contact,
+        ),
+    )
+
+
+def build_second_draft_reminder_email(
+    *,
+    recipient_name: str,
+    organization_name: str,
+    progress_text: str,
+    completion_percent: int,
+    next_step: str,
+    continue_url: str,
+    logo_url: str,
+    support_contact: str,
+    include_ai: bool,
+) -> TransactionalEmail:
+    greeting = f"Hello {recipient_name}. " if str(recipient_name or "").strip() else ""
+    benefits = [
+        "teacher workforce planning",
+        "academic operations",
+        "branch management",
+        "dashboards and reporting",
+    ]
+    if include_ai:
+        benefits.append("AI-enabled capabilities included with your selected plan")
+    details = list(_draft_reminder_details(
+        organization_name=organization_name,
+        progress_text=progress_text,
+        completion_percent=completion_percent,
+        next_step=next_step,
+        support_contact=support_contact,
+    ))
+    details.append("TIS supports " + ", ".join(benefits) + ".")
+    return render_transactional_email(
+        subject="Your organization is one step closer to going live with TIS",
+        title="Continue building your TIS workspace",
+        message=(
+            f"{greeting}Your saved setup brings your organization closer to a connected "
+            "workspace for academic planning and day-to-day operations."
+        ),
+        logo_url=logo_url,
+        action_label="Continue Setup",
+        action_url=continue_url,
+        fallback_label="If the button does not work, sign in to your TIS Account here:",
+        details=tuple(details),
+    )
+
+
+def build_final_draft_reminder_email(
+    *,
+    recipient_name: str,
+    organization_name: str,
+    progress_text: str,
+    completion_percent: int,
+    next_step: str,
+    continue_url: str,
+    logo_url: str,
+    support_contact: str,
+    deletion_date: str,
+    days_remaining: int,
+    retention_days: int,
+) -> TransactionalEmail:
+    greeting = f"Hello {recipient_name}. " if str(recipient_name or "").strip() else ""
+    day_label = "day" if int(days_remaining) == 1 else "days"
+    details = list(_draft_reminder_details(
+        organization_name=organization_name,
+        progress_text=progress_text,
+        completion_percent=completion_percent,
+        next_step=next_step,
+        support_contact=support_contact,
+    ))
+    details.append(f"Scheduled deletion date: {deletion_date}")
+    return render_transactional_email(
+        subject=f"Your TIS draft workspace will expire in {int(days_remaining)} {day_label}",
+        title="Your draft workspace is nearing expiration",
+        message=(
+            f"{greeting}This unpaid draft has been inactive. It is scheduled for permanent deletion "
+            f"after {int(retention_days)} days of inactivity. Sign in and continue setup to reset the inactivity period. "
+            "If no activity occurs, the unpaid onboarding data will be removed."
+        ),
+        logo_url=logo_url,
+        action_label="Continue Setup",
+        action_url=continue_url,
+        fallback_label="If the button does not work, sign in to your TIS Account here:",
+        expiry_note=f"The current draft deletion date is {deletion_date}.",
+        details=tuple(details),
+    )

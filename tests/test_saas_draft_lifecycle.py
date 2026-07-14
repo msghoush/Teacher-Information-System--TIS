@@ -1,3 +1,4 @@
+import ast
 import unittest
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -77,17 +78,37 @@ class SaaSDraftLifecycleTests(unittest.TestCase):
 
     def test_production_activity_writes_are_centralized_in_lifecycle_service(self):
         project_root = Path(__file__).resolve().parent.parent
-        allowed_files = {
-            project_root / "saas" / "draft_lifecycle_service.py",
-            project_root / "saas" / "models.py",
-        }
-        unexpected_references = []
+        lifecycle_service = project_root / "saas" / "draft_lifecycle_service.py"
+        unexpected_writes = []
+
+        def assigned_attributes(target):
+            if isinstance(target, ast.Attribute):
+                yield target.attr
+            elif isinstance(target, (ast.Tuple, ast.List)):
+                for item in target.elts:
+                    yield from assigned_attributes(item)
+
         for path in (project_root / "saas").glob("*.py"):
-            if path in allowed_files:
+            if path == lifecycle_service:
                 continue
-            if "last_meaningful_activity_at" in path.read_text(encoding="utf-8"):
-                unexpected_references.append(path.name)
-        self.assertEqual(unexpected_references, [])
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                targets = []
+                if isinstance(node, ast.Assign):
+                    targets = node.targets
+                elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+                    targets = [node.target]
+                if any(
+                    attribute == "last_meaningful_activity_at"
+                    for target in targets
+                    for attribute in assigned_attributes(target)
+                ):
+                    unexpected_writes.append(f"{path.name}:{node.lineno}")
+                if isinstance(node, ast.Call) and any(
+                    keyword.arg == "last_meaningful_activity_at" for keyword in node.keywords
+                ):
+                    unexpected_writes.append(f"{path.name}:{node.lineno}")
+        self.assertEqual(unexpected_writes, [])
 
     def test_day_29_activity_restarts_retention_and_resets_reminder_cycle(self):
         db = self.Session()
