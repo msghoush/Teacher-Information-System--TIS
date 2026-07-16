@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -51,6 +52,7 @@ class EntitlementResolution:
     subscription_id: int | None = None
     subscription_status: str = ""
     billing_interval: str = ""
+    next_billed_at: datetime | None = None
     paid_branch_quantity: int | None = None
     active_branch_count: int = 0
     remaining_paid_capacity: int | None = None
@@ -61,6 +63,23 @@ class EntitlementResolution:
     @property
     def resolved(self) -> bool:
         return self.resolution_status == RESOLVED
+
+
+@dataclass(frozen=True)
+class EntitlementCatalogItem:
+    key: str
+    display_name: str
+    category: str
+    value_type: str
+    description: str
+
+
+@dataclass(frozen=True)
+class PlanEntitlementProfile:
+    plan_id: int
+    plan_code: str
+    plan_name: str
+    entitlements: dict[str, EntitlementValue]
 
 
 class EntitlementRequiredError(PermissionError):
@@ -74,17 +93,12 @@ def _clean(value) -> str:
     return str(value or "").strip()
 
 
-def _manual_review(
-    school_group_id: int | None,
-    reason_code: str,
-    *,
-    active_branch_count: int = 0,
-) -> EntitlementResolution:
+def _manual_review(school_group_id: int | None, reason_code: str, **details) -> EntitlementResolution:
     return EntitlementResolution(
         resolution_status=MANUAL_REVIEW,
         reason_code=reason_code,
         school_group_id=school_group_id,
-        active_branch_count=active_branch_count,
+        **details,
     )
 
 
@@ -162,10 +176,18 @@ def resolve_entitlements(
         row for row in subscriptions
         if _clean(row.status).lower() in ENTITLED_SUBSCRIPTION_STATUSES
     ]
-    if len(active_subscriptions) != 1:
-        reason = "missing_confirmed_subscription" if not active_subscriptions else "ambiguous_confirmed_subscription"
-        return _manual_review(group_id, reason, active_branch_count=active_branch_count)
-    subscription = active_subscriptions[0]
+    if len(active_subscriptions) > 1:
+        return _manual_review(group_id, "ambiguous_confirmed_subscription", active_branch_count=active_branch_count)
+    inactive_subscription = False
+    if len(active_subscriptions) == 1:
+        subscription = active_subscriptions[0]
+    elif len(subscriptions) == 1:
+        subscription = subscriptions[0]
+        inactive_subscription = True
+    elif not subscriptions:
+        return _manual_review(group_id, "missing_confirmed_subscription", active_branch_count=active_branch_count)
+    else:
+        return _manual_review(group_id, "ambiguous_confirmed_subscription", active_branch_count=active_branch_count)
     if not _clean(subscription.provider_subscription_id):
         return _manual_review(group_id, "missing_provider_subscription", active_branch_count=active_branch_count)
     if int(subscription.plan_id) != int(contract.plan_id):
@@ -185,6 +207,25 @@ def resolve_entitlements(
     ).first()
     if plan is None:
         return _manual_review(group_id, "missing_subscription_plan", active_branch_count=active_branch_count)
+
+    remaining = max(paid_quantity - active_branch_count, 0)
+    if inactive_subscription:
+        return _manual_review(
+            group_id,
+            "subscription_not_entitled",
+            plan_id=plan.id,
+            plan_code=_clean(plan.plan_code),
+            plan_name=_clean(plan.plan_name),
+            subscription_id=subscription.id,
+            subscription_status=_clean(subscription.status).lower(),
+            billing_interval=billing_interval,
+            next_billed_at=subscription.next_billed_at,
+            paid_branch_quantity=paid_quantity,
+            active_branch_count=active_branch_count,
+            remaining_paid_capacity=remaining,
+            is_at_capacity=active_branch_count == paid_quantity,
+            is_over_capacity=active_branch_count > paid_quantity,
+        )
 
     rows = db.query(models.PlanEntitlement, models.EntitlementDefinition).join(
         models.EntitlementDefinition,
@@ -219,7 +260,6 @@ def resolve_entitlements(
     except (TypeError, ValueError):
         return _manual_review(group_id, "invalid_plan_entitlement_value", active_branch_count=active_branch_count)
 
-    remaining = max(paid_quantity - active_branch_count, 0)
     return EntitlementResolution(
         resolution_status=RESOLVED,
         reason_code="resolved",
@@ -230,6 +270,7 @@ def resolve_entitlements(
         subscription_id=subscription.id,
         subscription_status=_clean(subscription.status).lower(),
         billing_interval=billing_interval,
+        next_billed_at=subscription.next_billed_at,
         paid_branch_quantity=paid_quantity,
         active_branch_count=active_branch_count,
         remaining_paid_capacity=remaining,
@@ -237,6 +278,107 @@ def resolve_entitlements(
         is_over_capacity=active_branch_count > paid_quantity,
         entitlements=entitlements,
     )
+
+
+def resolve_customer_entitlements(db: Session, account) -> EntitlementResolution:
+    account_id = getattr(account, "id", None)
+    if not account_id:
+        return _manual_review(None, "missing_customer_account")
+    group_ids = {
+        int(row[0])
+        for row in db.query(models.SaaSAccountUserLink.school_group_id).filter(
+            models.SaaSAccountUserLink.saas_account_id == account_id,
+            models.SaaSAccountUserLink.school_group_id.isnot(None),
+        ).all()
+        if row[0]
+    }
+    owned_organization_ids = [
+        int(row[0])
+        for row in db.query(models.PendingOrganization.id).filter(
+            models.PendingOrganization.owner_saas_account_id == account_id
+        ).all()
+    ]
+    if owned_organization_ids:
+        group_ids.update(
+            int(row[0])
+            for row in db.query(models.TenantProvisioningLink.school_group_id).filter(
+                models.TenantProvisioningLink.pending_organization_id.in_(owned_organization_ids)
+            ).all()
+            if row[0]
+        )
+    if not group_ids:
+        return _manual_review(None, "missing_customer_subscription")
+    if len(group_ids) != 1:
+        return _manual_review(None, "ambiguous_customer_tenant")
+    return resolve_entitlements(db, next(iter(group_ids)))
+
+
+def list_entitlement_catalog(db: Session) -> tuple[EntitlementCatalogItem, ...]:
+    rows = db.query(models.EntitlementDefinition).filter(
+        models.EntitlementDefinition.active == True
+    ).order_by(
+        models.EntitlementDefinition.category.asc(),
+        models.EntitlementDefinition.display_name.asc(),
+    ).all()
+    return tuple(
+        EntitlementCatalogItem(
+            key=_clean(row.key),
+            display_name=_clean(row.display_name),
+            category=_clean(row.category),
+            value_type=_clean(row.value_type).lower(),
+            description=_clean(row.description),
+        )
+        for row in rows
+    )
+
+
+def list_plan_entitlement_profiles(db: Session) -> tuple[PlanEntitlementProfile, ...]:
+    plans = db.query(models.SubscriptionPlan).filter(
+        models.SubscriptionPlan.is_active == True,
+        models.SubscriptionPlan.is_public == True,
+    ).order_by(models.SubscriptionPlan.sort_order.asc(), models.SubscriptionPlan.id.asc()).all()
+    catalog = list_entitlement_catalog(db)
+    definitions = db.query(models.EntitlementDefinition).filter(
+        models.EntitlementDefinition.active == True
+    ).all()
+    definitions_by_key = {_clean(row.key): row for row in definitions}
+    plan_ids = [int(plan.id) for plan in plans]
+    entitlement_rows = db.query(models.PlanEntitlement).filter(
+        models.PlanEntitlement.subscription_plan_id.in_(plan_ids)
+    ).all() if plan_ids else []
+    rows_by_plan = {}
+    for row in entitlement_rows:
+        rows_by_plan.setdefault(int(row.subscription_plan_id), {})[int(row.entitlement_definition_id)] = row
+    profiles = []
+    for plan in plans:
+        rows_by_definition_id = rows_by_plan.get(int(plan.id), {})
+        values = {}
+        for item in catalog:
+            definition = definitions_by_key[item.key]
+            plan_row = rows_by_definition_id.get(int(definition.id))
+            status = _clean(getattr(plan_row, "status", OWNER_APPROVAL_REQUIRED)).lower()
+            value = None
+            if plan_row is not None and status == ACTIVE_ENTITLEMENT_STATUS:
+                try:
+                    value = _typed_value(plan_row.value, item.value_type)
+                except (TypeError, ValueError):
+                    status = OWNER_APPROVAL_REQUIRED
+            values[item.key] = EntitlementValue(
+                key=item.key,
+                display_name=item.display_name,
+                category=item.category,
+                scope=_clean(definition.scope),
+                value_type=item.value_type,
+                value=value,
+                status=status,
+            )
+        profiles.append(PlanEntitlementProfile(
+            plan_id=int(plan.id),
+            plan_code=_clean(plan.plan_code),
+            plan_name=_clean(plan.plan_name),
+            entitlements=values,
+        ))
+    return tuple(profiles)
 
 
 def has_entitlement(

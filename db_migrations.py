@@ -2929,17 +2929,17 @@ def _subscription_entitlement_foundation(engine, connection):
     )
 
     definitions = (
-        ("module.teacher_management", "Teacher Management", "module", "boolean", "Access to teacher-management capabilities."),
-        ("module.branch_management", "Branch Management", "module", "boolean", "Access to branch-management capabilities."),
-        ("module.observation", "Observation", "module", "boolean", "Access to teacher observation capabilities."),
-        ("module.hiring", "Hiring", "module", "boolean", "Access to hiring-plan capabilities."),
-        ("module.reporting", "Reporting", "module", "boolean", "Access to core reporting capabilities."),
-        ("module.ai", "AI", "module", "boolean", "Access to commercial AI capabilities."),
-        ("feature.advanced_reporting", "Advanced Reporting", "feature", "boolean", "Access to advanced reporting and allocation-plan exports."),
-        ("feature.export", "Export", "feature", "boolean", "Access to general data exports."),
-        ("feature.audit_log", "Audit Log", "feature", "boolean", "Access to commercial audit-log capabilities."),
-        ("feature.cross_branch_reporting", "Cross-Branch Reporting", "feature", "boolean", "Access to consolidated cross-branch reporting."),
-        ("quota.active_branches", "Paid Active Branches", "quota", "integer", "Active branch capacity derived from the confirmed paid subscription quantity."),
+        ("module.teacher_management", "Teacher Management", "administration", "boolean", "Access to teacher-management capabilities."),
+        ("module.branch_management", "Branch Management", "administration", "boolean", "Access to branch-management capabilities."),
+        ("module.observation", "Observation", "analytics", "boolean", "Access to teacher observation capabilities."),
+        ("module.hiring", "Hiring", "planning", "boolean", "Access to hiring-plan capabilities."),
+        ("module.reporting", "Reporting", "reporting", "boolean", "Access to core reporting capabilities."),
+        ("module.ai", "AI", "ai", "boolean", "Access to commercial AI capabilities."),
+        ("feature.advanced_reporting", "Advanced Reporting", "reporting", "boolean", "Access to advanced reporting and allocation-plan exports."),
+        ("feature.export", "Export", "reporting", "boolean", "Access to general data exports."),
+        ("feature.audit_log", "Audit Log", "administration", "boolean", "Access to commercial audit-log capabilities."),
+        ("feature.cross_branch_reporting", "Cross-Branch Reporting", "analytics", "boolean", "Access to consolidated cross-branch reporting."),
+        ("quota.active_branches", "Paid Active Branches", "administration", "integer", "Active branch capacity derived from the confirmed paid subscription quantity."),
     )
     for key, display_name, category, value_type, description in definitions:
         definition_id = connection.execute(

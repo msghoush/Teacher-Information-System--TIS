@@ -10,7 +10,7 @@ import audit
 from dependencies import get_db
 import email_service
 import location_service
-from saas import billing_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import billing_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -1083,6 +1083,27 @@ def account_billing(request: Request, db: Session = Depends(get_db)):
             "setup_console": setup_console,
             "notice": request.query_params.get("notice", ""),
             "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@router.get("/subscription", response_class=HTMLResponse)
+def subscription_portal(request: Request, db: Session = Depends(get_db)):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    portal = subscription_portal_service.build_subscription_portal(db, account)
+    return _render(
+        request,
+        "saas/subscription.html",
+        {
+            "account": account,
+            "subscription_portal": portal,
+            "support_email": str(
+                os.environ.get("TIS_SUPPORT_EMAIL")
+                or os.environ.get("EMAIL_REPLY_TO")
+                or "info@tisplatform.com"
+            ).strip(),
         },
     )
 
