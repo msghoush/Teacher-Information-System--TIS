@@ -1,0 +1,107 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .subscription-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; margin-bottom:22px; }
+    .subscription-heading h1 { margin:4px 0 7px; font-size:34px; letter-spacing:0; color:var(--brand-dark); }
+    .subscription-heading p { margin:0; max-width:680px; color:var(--muted); line-height:1.55; }
+    .health-badge { display:inline-flex; align-items:center; gap:8px; min-height:36px; padding:7px 11px; border:1px solid var(--line); border-radius:999px; background:#fff; font-size:13px; font-weight:850; white-space:nowrap; }
+    .health-badge::before { content:""; width:9px; height:9px; border-radius:50%; background:#64748b; }
+    .health-badge.is-healthy::before { background:#168a88; }
+    .health-badge.is-info::before { background:#0a4ea3; }
+    .health-badge.is-attention::before { background:#b7791f; }
+    .subscription-summary { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; margin-bottom:24px; }
+    .summary-tile { min-width:0; border:1px solid var(--line); border-radius:8px; background:#fff; padding:16px; }
+    .summary-tile span { display:block; color:var(--muted); font-size:12px; font-weight:800; margin-bottom:7px; }
+    .summary-tile strong { display:block; color:var(--brand-dark); font-size:20px; overflow-wrap:anywhere; }
+    .summary-tile small { display:block; color:var(--muted); margin-top:5px; line-height:1.4; }
+    .portal-section { border-top:1px solid var(--line); padding:24px 0; }
+    .portal-section-head { display:flex; align-items:end; justify-content:space-between; gap:16px; margin-bottom:15px; }
+    .portal-section h2 { margin:0; color:var(--brand-dark); font-size:21px; letter-spacing:0; }
+    .portal-section-head p { margin:5px 0 0; color:var(--muted); }
+    .feature-groups { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; }
+    .feature-group { border:1px solid var(--line); border-radius:8px; background:#fff; overflow:hidden; }
+    .feature-group h3 { margin:0; padding:13px 15px; background:#f7fafc; color:var(--brand-dark); font-size:15px; letter-spacing:0; }
+    .feature-row { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; padding:12px 15px; border-top:1px solid var(--line); }
+    .feature-row strong { display:block; font-size:14px; color:#172033; }
+    .feature-row p { margin:3px 0 0; color:var(--muted); font-size:12px; line-height:1.4; }
+    .feature-state { flex:0 0 auto; font-size:12px; font-weight:900; color:#64748b; white-space:nowrap; }
+    .feature-state.is-included { color:#137c78; }
+    .future-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; }
+    .future-card { border:1px solid var(--line); border-radius:8px; background:#f8fafc; padding:15px; color:#64748b; }
+    .future-card strong { display:block; color:#475569; margin-bottom:5px; }
+    .future-card span { font-size:12px; font-weight:850; text-transform:uppercase; }
+    .comparison-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; }
+    .plan-panel { position:relative; border:1px solid var(--line); border-radius:8px; background:#fff; padding:17px; }
+    .plan-panel.is-current { border-color:#0a4ea3; box-shadow:inset 0 3px 0 #0a4ea3; }
+    .plan-panel h3 { margin:0 0 10px; color:var(--brand-dark); font-size:18px; }
+    .current-label { display:inline-block; margin-bottom:9px; color:#0a4ea3; font-size:11px; font-weight:900; text-transform:uppercase; }
+    .plan-panel ul { margin:0 0 14px; padding-left:18px; color:var(--muted); font-size:13px; line-height:1.55; }
+    .plan-panel button { width:100%; min-height:38px; border:1px solid var(--line); border-radius:6px; background:#eef2f6; color:#64748b; font-weight:850; cursor:not-allowed; }
+    .support-band { display:flex; align-items:center; justify-content:space-between; gap:18px; border:1px solid #bad7f4; border-radius:8px; background:#eef7ff; padding:18px; }
+    .support-band h2 { margin-bottom:6px; }
+    .support-band p { margin:0; color:#40556f; }
+    @media (max-width:900px) { .subscription-summary, .future-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } .comparison-grid { grid-template-columns:1fr; } }
+    @media (max-width:640px) { .subscription-heading, .portal-section-head, .support-band { align-items:flex-start; flex-direction:column; } .subscription-heading h1 { font-size:28px; } .subscription-summary, .feature-groups, .future-grid { grid-template-columns:1fr; } .health-badge { white-space:normal; } }
+</style>
+
+<section class="subscription-heading">
+    <div>
+        <span class="page-eyebrow">Subscription Management</span>
+        <h1>Your TIS subscription</h1>
+        <p>Review your current plan, included capabilities, billing schedule, and paid branch capacity.</p>
+    </div>
+    <div class="health-badge is-{{ subscription_portal.health_tone }}">{{ subscription_portal.health_label }}</div>
+</section>
+
+<section class="subscription-summary" aria-label="Subscription summary">
+    <div class="summary-tile"><span>Current Plan</span><strong>{{ subscription_portal.plan_name }}</strong><small>{{ subscription_portal.status_label }}</small></div>
+    <div class="summary-tile"><span>Billing Interval</span><strong>{{ subscription_portal.billing_interval_label }}</strong><small>Next Billing Date: {{ subscription_portal.next_billing_date_label }}</small></div>
+    <div class="summary-tile"><span>Paid Branches</span><strong>{{ subscription_portal.paid_branch_quantity if subscription_portal.paid_branch_quantity is not none else "Not Available" }}</strong><small>Currently Active: {{ subscription_portal.active_branch_count }}</small></div>
+    <div class="summary-tile"><span>Available Branch Capacity</span><strong>{{ subscription_portal.remaining_paid_capacity if subscription_portal.remaining_paid_capacity is not none else "Not Available" }}</strong><small>{% if subscription_portal.is_over_capacity %}Capacity requires review{% elif subscription_portal.is_at_capacity %}All paid capacity is in use{% else %}Available for active branches{% endif %}</small></div>
+</section>
+
+<section class="portal-section">
+    <div class="portal-section-head"><div><h2>Features included</h2><p>Capabilities available through your confirmed subscription.</p></div></div>
+    <div class="feature-groups">
+        {% for group in subscription_portal.feature_groups %}
+        <section class="feature-group">
+            <h3>{{ group.label }}</h3>
+            {% for feature in group.features %}
+            <div class="feature-row">
+                <div><strong>{{ feature.name }}</strong><p>{{ feature.description }}</p></div>
+                <span class="feature-state{% if feature.included %} is-included{% endif %}">{{ "Included" if feature.included else "Not Included" }}</span>
+            </div>
+            {% endfor %}
+        </section>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="portal-section">
+    <div class="portal-section-head"><div><h2>Subscription tools</h2><p>Additional subscription controls are being prepared.</p></div></div>
+    <div class="future-grid">
+        {% for label in ["Upgrade Plan", "Add Branches", "Billing History", "Invoices", "Pending Changes", "Manage Subscription"] %}
+        <div class="future-card"><strong>{{ label }}</strong><span>Coming Soon</span></div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="portal-section">
+    <div class="portal-section-head"><div><h2>Plan comparison</h2><p>Your current plan is highlighted. Plan changes are not available yet.</p></div></div>
+    <div class="comparison-grid">
+        {% for plan in subscription_portal.plan_comparison %}
+        <section class="plan-panel{% if plan.is_current %} is-current{% endif %}">
+            {% if plan.is_current %}<span class="current-label">Current Plan</span>{% endif %}
+            <h3>{{ plan.plan_name }}</h3>
+            {% if plan.included_features %}<ul>{% for feature in plan.included_features %}<li>{{ feature }}</li>{% endfor %}</ul>{% else %}<p class="page-subtitle">Commercial feature details are being finalized.</p>{% endif %}
+            <button type="button" disabled>Coming Soon</button>
+        </section>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="support-band">
+    <div><h2>Need more branches or features?</h2><p>Need Enterprise AI? Contact TIS Support to discuss your requirements.</p></div>
+    <a class="btn secondary" href="mailto:{{ support_email }}">Contact TIS Support</a>
+</section>
+{% endblock %}

@@ -1,12 +1,18 @@
 ---
 title: SaaS Onboarding History
 module: saas-onboarding
-last_updated: 2026-07-14
+last_updated: 2026-07-16
 ---
 
 # SaaS Onboarding History
 
 This folder tracks meaningful changes to signup, login, account, organization onboarding, contacts, branches, academic setup, review, and account self-service.
+
+## 2026-07-16 - M7 Phase 2 Read-Only Subscription Management Portal
+
+Verified SaaS customers now have a read-only Subscription Management page at `/saas/subscription`. The page presents the confirmed plan, safe subscription health, billing interval, next billing date, paid and active branch quantities, remaining capacity, grouped feature entitlements, and a compact plan comparison. All commercial data is supplied by `saas.entitlement_service`; the portal does not query Paddle or independently calculate subscription state or branch capacity.
+
+Upgrade, branch-addition, billing-history, invoice, pending-change, and subscription-management controls are visible only as disabled Coming Soon options. This phase adds no subscription mutations, Paddle calls, proration, refunds, cancellation, or plan and quantity editing.
 
 ## 2026-07-16 - M7 Phase 1 Subscription Entitlement Foundation
 
