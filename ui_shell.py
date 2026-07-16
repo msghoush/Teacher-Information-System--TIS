@@ -534,6 +534,17 @@ def build_shell_context(
     def can_any(*permission_options: str) -> bool:
         return any(can(permission_key) for permission_key in permission_options)
 
+    def can_use_feature(entitlement_key: str, permission_key: str) -> bool:
+        from saas import entitlement_service
+
+        return entitlement_service.can_use_feature(
+            db,
+            current_user,
+            entitlement_key,
+            permission_key,
+            school_group_id=scoped_school_group_id,
+        )
+
     can_manage_system_settings = auth.can_manage_system_settings(current_user)
     can_manage_users = auth.can_manage_users(current_user)
     can_manage_school_branding = can_any(
@@ -683,4 +694,5 @@ def build_shell_context(
         "permission_keys": sorted(permission_keys),
         "can": can,
         "can_any": can_any,
+        "can_use_feature": can_use_feature,
     }

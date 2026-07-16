@@ -370,6 +370,48 @@ class SubscriptionPlan(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class EntitlementDefinition(Base):
+    __tablename__ = "entitlement_definitions"
+    __table_args__ = (
+        Index("uq_entitlement_definitions_key", "key", unique=True),
+        Index("ix_entitlement_definitions_active", "active"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    key = Column(String(120), nullable=False, unique=True, index=True)
+    display_name = Column(String(160), nullable=False)
+    category = Column(String(60), nullable=False)
+    scope = Column(String(40), nullable=False, default="organization")
+    value_type = Column(String(20), nullable=False, default="boolean")
+    description = Column(Text)
+    active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PlanEntitlement(Base):
+    __tablename__ = "plan_entitlements"
+    __table_args__ = (
+        Index(
+            "uq_plan_entitlements_plan_definition",
+            "subscription_plan_id",
+            "entitlement_definition_id",
+            unique=True,
+        ),
+        Index("ix_plan_entitlements_plan", "subscription_plan_id"),
+        Index("ix_plan_entitlements_definition", "entitlement_definition_id"),
+        Index("ix_plan_entitlements_status", "status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    subscription_plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False, index=True)
+    entitlement_definition_id = Column(Integer, ForeignKey("entitlement_definitions.id"), nullable=False, index=True)
+    value = Column(Text)
+    status = Column(String(40), nullable=False, default="owner_approval_required")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class SubscriptionPlanPrice(Base):
     __tablename__ = "subscription_plan_prices"
     __table_args__ = (

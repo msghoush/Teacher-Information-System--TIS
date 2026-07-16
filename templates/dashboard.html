@@ -4642,7 +4642,7 @@
 {% endblock %}
 
 {% block page_header_actions %}
-{% if can("reports.export") %}
+{% if can_use_feature("feature.advanced_reporting", "reports.export") %}
 <details class="export-menu" data-design-component="dashboard.export_button" data-design-type="button">
     <summary class="shell-action is-primary">{{ icon("download", "shell-icon") }} Export Report</summary>
     <div class="export-menu-panel">
@@ -5440,7 +5440,7 @@
                     </div>
                     <div class="panel-head-actions">
                         <a class="open-link" href="/planning">{{ icon("planning", "icon") }} Open Planning</a>
-                        {% if can("reports.export") %}
+                        {% if can_use_feature("feature.advanced_reporting", "reports.export") %}
                         <details class="export-menu">
                             <summary class="open-link">{{ icon("download", "icon") }} Export Report</summary>
                             <div class="export-menu-panel">

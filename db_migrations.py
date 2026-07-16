@@ -2866,6 +2866,190 @@ def _draft_account_lifecycle_foundation(engine, connection):
         )
 
 
+def _subscription_entitlement_foundation(engine, connection):
+    datetime_type = _datetime_type(engine)
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS entitlement_definitions (
+            id {id_sql},
+            key VARCHAR(120) NOT NULL,
+            display_name VARCHAR(160) NOT NULL,
+            category VARCHAR(60) NOT NULL,
+            scope VARCHAR(40) NOT NULL DEFAULT 'organization',
+            value_type VARCHAR(20) NOT NULL DEFAULT 'boolean',
+            description TEXT,
+            active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection, connection, "entitlement_definitions",
+        "uq_entitlement_definitions_key", "key",
+    )
+    _create_index_if_missing(
+        connection, connection, "entitlement_definitions",
+        "ix_entitlement_definitions_active", "active",
+    )
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS plan_entitlements (
+            id {id_sql},
+            subscription_plan_id INTEGER NOT NULL,
+            entitlement_definition_id INTEGER NOT NULL,
+            value TEXT,
+            status VARCHAR(40) NOT NULL DEFAULT 'owner_approval_required',
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (subscription_plan_id) REFERENCES subscription_plans (id),
+            FOREIGN KEY (entitlement_definition_id) REFERENCES entitlement_definitions (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection, connection, "plan_entitlements",
+        "uq_plan_entitlements_plan_definition",
+        "subscription_plan_id, entitlement_definition_id",
+    )
+    _create_index_if_missing(
+        connection, connection, "plan_entitlements",
+        "ix_plan_entitlements_plan", "subscription_plan_id",
+    )
+    _create_index_if_missing(
+        connection, connection, "plan_entitlements",
+        "ix_plan_entitlements_definition", "entitlement_definition_id",
+    )
+    _create_index_if_missing(
+        connection, connection, "plan_entitlements",
+        "ix_plan_entitlements_status", "status",
+    )
+
+    definitions = (
+        ("module.teacher_management", "Teacher Management", "module", "boolean", "Access to teacher-management capabilities."),
+        ("module.branch_management", "Branch Management", "module", "boolean", "Access to branch-management capabilities."),
+        ("module.observation", "Observation", "module", "boolean", "Access to teacher observation capabilities."),
+        ("module.hiring", "Hiring", "module", "boolean", "Access to hiring-plan capabilities."),
+        ("module.reporting", "Reporting", "module", "boolean", "Access to core reporting capabilities."),
+        ("module.ai", "AI", "module", "boolean", "Access to commercial AI capabilities."),
+        ("feature.advanced_reporting", "Advanced Reporting", "feature", "boolean", "Access to advanced reporting and allocation-plan exports."),
+        ("feature.export", "Export", "feature", "boolean", "Access to general data exports."),
+        ("feature.audit_log", "Audit Log", "feature", "boolean", "Access to commercial audit-log capabilities."),
+        ("feature.cross_branch_reporting", "Cross-Branch Reporting", "feature", "boolean", "Access to consolidated cross-branch reporting."),
+        ("quota.active_branches", "Paid Active Branches", "quota", "integer", "Active branch capacity derived from the confirmed paid subscription quantity."),
+    )
+    for key, display_name, category, value_type, description in definitions:
+        definition_id = connection.execute(
+            text("SELECT id FROM entitlement_definitions WHERE key = :key LIMIT 1"),
+            {"key": key},
+        ).scalar()
+        params = {
+            "key": key,
+            "display_name": display_name,
+            "category": category,
+            "scope": "organization",
+            "value_type": value_type,
+            "description": description,
+            "active": True,
+        }
+        if definition_id:
+            _execute(
+                connection,
+                """
+                UPDATE entitlement_definitions
+                SET display_name = :display_name, category = :category,
+                    scope = :scope, value_type = :value_type,
+                    description = :description, active = :active,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :row_id
+                """,
+                {**params, "row_id": definition_id},
+            )
+        else:
+            _execute(
+                connection,
+                """
+                INSERT INTO entitlement_definitions (
+                    key, display_name, category, scope, value_type,
+                    description, active, created_at, updated_at
+                ) VALUES (
+                    :key, :display_name, :category, :scope, :value_type,
+                    :description, :active, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                """,
+                params,
+            )
+
+    plan_rows = connection.execute(text(
+        """
+        SELECT id, ai_enabled, advanced_reporting_enabled
+        FROM subscription_plans
+        WHERE plan_code IN ('starter', 'professional', 'enterprise_ai')
+        """
+    )).all()
+    definition_rows = {
+        row[1]: row[0]
+        for row in connection.execute(text("SELECT id, key FROM entitlement_definitions")).all()
+    }
+    for plan_id, ai_enabled, advanced_reporting_enabled in plan_rows:
+        for key, definition_id in definition_rows.items():
+            status = "owner_approval_required"
+            value = None
+            if key == "module.ai":
+                status = "active"
+                value = "true" if ai_enabled else "false"
+            elif key == "feature.advanced_reporting":
+                status = "active"
+                value = "true" if advanced_reporting_enabled else "false"
+            elif key == "quota.active_branches":
+                status = "derived"
+            existing_id = connection.execute(
+                text(
+                    """
+                    SELECT id FROM plan_entitlements
+                    WHERE subscription_plan_id = :plan_id
+                      AND entitlement_definition_id = :definition_id
+                    LIMIT 1
+                    """
+                ),
+                {"plan_id": plan_id, "definition_id": definition_id},
+            ).scalar()
+            params = {
+                "plan_id": plan_id,
+                "definition_id": definition_id,
+                "value": value,
+                "status": status,
+            }
+            if existing_id:
+                _execute(
+                    connection,
+                    """
+                    UPDATE plan_entitlements
+                    SET value = :value, status = :status,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = :row_id
+                    """,
+                    {**params, "row_id": existing_id},
+                )
+            else:
+                _execute(
+                    connection,
+                    """
+                    INSERT INTO plan_entitlements (
+                        subscription_plan_id, entitlement_definition_id,
+                        value, status, created_at, updated_at
+                    ) VALUES (
+                        :plan_id, :definition_id, :value, :status,
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    )
+                    """,
+                    params,
+                )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -2981,6 +3165,11 @@ MIGRATIONS = (
         migration_id="20260714_001_draft_account_lifecycle_foundation",
         description="Add draft inactivity tracking, reminder cycles, and retention settings",
         apply=_draft_account_lifecycle_foundation,
+    ),
+    Migration(
+        migration_id="20260716_001_subscription_entitlement_foundation",
+        description="Add normalized commercial subscription entitlement definitions and plan values",
+        apply=_subscription_entitlement_foundation,
     ),
 )
 
