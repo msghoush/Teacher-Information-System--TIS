@@ -345,12 +345,6 @@ def preview_quantity_change(db: Session, account, requested_quantity: int):
         raise
     except (paddle_client.PaddleAPIError, httpx.HTTPError, ValueError) as exc:
         raise _safe_provider_failure(exc) from exc
-    if _clean(preview.get("id")) != context.subscription.provider_subscription_id:
-        raise _preview_diagnostic(
-            "preview_subscription_mismatch",
-            missing_fields=[] if preview.get("id") else ["id"],
-            sections=_available_sections(preview),
-        )
     if _clean(preview.get("status")).lower() != "active":
         raise _preview_diagnostic(
             "preview_subscription_status_mismatch",

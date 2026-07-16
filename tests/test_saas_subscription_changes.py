@@ -208,6 +208,60 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         finally:
             db.close()
 
+    def test_documented_preview_without_top_level_subscription_id_succeeds(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        response = self._preview_payload(fixture, 4)
+        response.pop("id")
+        db = self.Session()
+        try:
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=self._provider_subscription(fixture, 3)),
+                patch.object(paddle_client, "preview_subscription_update", return_value=response),
+                patch("saas.subscription_change_service.audit.write_audit_event"),
+            ):
+                row = subscription_change_service.preview_quantity_change(db, self._account(db, fixture), 4)
+                db.commit()
+            self.assertEqual(row.requested_quantity, 4)
+            self.assertEqual(row.previewed_net_minor, 800)
+        finally:
+            db.close()
+
+    def test_get_subscription_identity_is_still_required(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        provider = self._provider_subscription(fixture, 3)
+        provider["id"] = "sub_01wrongsubscriptionidentity"
+        db = self.Session()
+        try:
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=provider),
+                patch.object(paddle_client, "preview_subscription_update") as preview,
+                self.assertRaises(subscription_change_service.SubscriptionChangeError) as caught,
+            ):
+                subscription_change_service.preview_quantity_change(db, self._account(db, fixture), 4)
+            self.assertEqual(caught.exception.code, "provider_subscription_unavailable")
+            preview.assert_not_called()
+        finally:
+            db.close()
+
+    def test_malformed_preview_without_items_still_fails_closed(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        response = self._preview_payload(fixture, 4)
+        response.pop("id")
+        response.pop("items")
+        db = self.Session()
+        try:
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=self._provider_subscription(fixture, 3)),
+                patch.object(paddle_client, "preview_subscription_update", return_value=response),
+                patch("saas.subscription_change_service.logger.warning"),
+                self.assertRaises(subscription_change_service.SubscriptionChangeError) as caught,
+            ):
+                subscription_change_service.preview_quantity_change(db, self._account(db, fixture), 4)
+            self.assertEqual(caught.exception.code, "preview_provider_price_mismatch")
+            self.assertEqual(caught.exception.status_code, 502)
+        finally:
+            db.close()
+
     def test_unchanged_quantity_stops_before_any_paddle_call(self):
         fixture = self._fixture(quantity=3, active_branches=3)
         db = self.Session()
