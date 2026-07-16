@@ -1347,6 +1347,109 @@ def _setup_step(key: str, label: str, state: str, *, url: str = "", summary: str
     }
 
 
+@dataclass(frozen=True)
+class ConfirmedSetupState:
+    payment_confirmed: bool = False
+    provisioning_started: bool = False
+    tenant_provisioned: bool = False
+    active_tenant: bool = False
+    school_group_id: int | None = None
+    workspace_name: str = ""
+    subscription_id: int | None = None
+
+
+def resolve_confirmed_setup_state(db: Session, account, summary: dict | None = None) -> ConfirmedSetupState:
+    import models as operational_models
+
+    summary = summary if summary is not None else build_pending_dashboard_summary(db, account)
+    organization = summary.get("organization") if summary else None
+    if not organization or int(getattr(organization, "owner_saas_account_id", 0) or 0) != int(getattr(account, "id", 0) or 0):
+        return ConfirmedSetupState()
+
+    active_subscriptions = db.query(models.PaymentSubscription).filter(
+        models.PaymentSubscription.pending_organization_id == organization.id,
+        models.PaymentSubscription.status == "active",
+    ).all()
+    subscription = active_subscriptions[0] if len(active_subscriptions) == 1 else None
+    contract = None
+    if subscription:
+        contract = db.query(models.SubscriptionContract).filter(
+            models.SubscriptionContract.id == subscription.subscription_contract_id,
+            models.SubscriptionContract.pending_organization_id == organization.id,
+        ).one_or_none()
+
+    confirmed_attempt = None
+    if subscription:
+        confirmed_attempt = db.query(models.PaymentAttempt).filter(
+            models.PaymentAttempt.pending_organization_id == organization.id,
+            models.PaymentAttempt.provider_subscription_id == subscription.provider_subscription_id,
+            models.PaymentAttempt.status == "payment_confirmed",
+        ).first()
+    payment_confirmed = bool(
+        subscription
+        and contract
+        and str(getattr(subscription, "provider_subscription_id", "") or "").strip()
+        and int(getattr(subscription, "quantity", 0) or 0) > 0
+        and (
+            str(getattr(contract, "payment_status", "") or "").strip().lower() == "paid"
+            or str(getattr(organization, "payment_status", "") or "").strip().lower() == "paid"
+            or confirmed_attempt is not None
+        )
+    )
+
+    tenant_links = db.query(models.TenantProvisioningLink).filter(
+        models.TenantProvisioningLink.pending_organization_id == organization.id
+    ).all()
+    tenant_link = tenant_links[0] if len(tenant_links) == 1 else None
+    school_group = None
+    if tenant_link:
+        school_group = db.query(operational_models.SchoolGroup).filter(
+            operational_models.SchoolGroup.id == tenant_link.school_group_id,
+            operational_models.SchoolGroup.status == True,
+        ).one_or_none()
+    tenant_provisioned = bool(
+        tenant_link
+        and school_group
+        and str(getattr(tenant_link, "tenant_status", "") or "").strip().lower() == "tenant_active"
+        and contract
+        and int(tenant_link.subscription_contract_id) == int(contract.id)
+        and int(tenant_link.school_group_id) == int(getattr(contract, "school_group_id", 0) or 0)
+    )
+    job = summary.get("current_provisioning_job") if summary else None
+    provisioning_started = bool(
+        tenant_provisioned
+        or payment_confirmed
+        and str(getattr(job, "job_status", "") or "").strip().lower()
+        in {"queued", "running", "retrying", "completed", "failed"}
+    )
+    return ConfirmedSetupState(
+        payment_confirmed=payment_confirmed,
+        provisioning_started=provisioning_started,
+        tenant_provisioned=tenant_provisioned,
+        active_tenant=bool(payment_confirmed and tenant_provisioned),
+        school_group_id=int(school_group.id) if school_group else None,
+        workspace_name=str(getattr(school_group, "name", "") or "").strip() if school_group else "",
+        subscription_id=int(subscription.id) if subscription else None,
+    )
+
+
+def initial_checkout_is_closed(db: Session, organization) -> bool:
+    has_active_subscription = db.query(models.PaymentSubscription.id).filter(
+        models.PaymentSubscription.pending_organization_id == organization.id,
+        models.PaymentSubscription.status == "active",
+    ).first() is not None
+    has_active_tenant = db.query(models.TenantProvisioningLink.id).filter(
+        models.TenantProvisioningLink.pending_organization_id == organization.id,
+        models.TenantProvisioningLink.tenant_status == "tenant_active",
+    ).first() is not None
+    return bool(has_active_subscription or has_active_tenant)
+
+
+def ensure_initial_checkout_available(db: Session, organization) -> None:
+    if initial_checkout_is_closed(db, organization):
+        raise ValueError("Initial checkout is complete. Manage future subscription changes from Subscription Management.")
+
+
 def build_setup_console_context(db: Session, account) -> dict:
     summary = build_pending_dashboard_summary(db, account)
     organization = summary["organization"] if summary else None
@@ -1355,9 +1458,10 @@ def build_setup_console_context(db: Session, account) -> dict:
     billing_status = str(getattr(organization, "billing_status", "") or "").strip().lower()
     payment_status = str(getattr(organization, "payment_status", "") or "").strip().lower()
     progress_percent = int(getattr(progress, "completion_percent", 0) or 0)
-    has_plan = bool(summary and summary.get("current_plan_selection"))
+    confirmed_state = resolve_confirmed_setup_state(db, account, summary)
+    has_plan = bool(summary and summary.get("current_plan_selection")) or confirmed_state.payment_confirmed
     has_tenant_link = bool(summary and summary.get("current_tenant_link"))
-    workspace_name = str(getattr(organization, "organization_name", "") or "").strip() or "School Workspace"
+    workspace_name = confirmed_state.workspace_name or str(getattr(organization, "organization_name", "") or "").strip() or "School Workspace"
     account_verified = bool(getattr(account, "email_verified_at", None))
 
     payment_attention = billing_status in {"payment_failed", "payment_cancelled", "payment_refunded"} or payment_status in {
@@ -1365,7 +1469,7 @@ def build_setup_console_context(db: Session, account) -> dict:
         "cancelled",
         "refunded",
     }
-    payment_complete = billing_status in {
+    payment_complete = confirmed_state.payment_confirmed or billing_status in {
         "payment_confirmed",
         "ready_for_provisioning",
         "provisioning_started",
@@ -1375,7 +1479,7 @@ def build_setup_console_context(db: Session, account) -> dict:
         "tenant_active",
     }
     payment_started = billing_status in {"checkout_ready", "checkout_initiated", "checkout_started", "payment_processing"}
-    activation_started = billing_status in {
+    activation_started = confirmed_state.provisioning_started or billing_status in {
         "ready_for_provisioning",
         "provisioning_started",
         "provisioning_retrying",
@@ -1383,12 +1487,24 @@ def build_setup_console_context(db: Session, account) -> dict:
         "provisioning_completed",
         "tenant_active",
     }
-    activation_complete = billing_status in {"provisioning_completed", "tenant_active"} or has_tenant_link
+    activation_complete = confirmed_state.tenant_provisioned or billing_status in {"provisioning_completed", "tenant_active"} or has_tenant_link
 
-    school_setup_complete = progress_percent >= 100
-    review_complete = organization_status == READY_FOR_CHECKOUT_STATUS or has_plan or payment_started or payment_complete or activation_started
+    school_setup_complete = progress_percent >= 100 or confirmed_state.active_tenant
+    review_complete = confirmed_state.active_tenant or organization_status == READY_FOR_CHECKOUT_STATUS or has_plan or payment_started or payment_complete or activation_started
 
-    if not organization:
+    if confirmed_state.active_tenant:
+        account.onboarding_status = "tenant_active"
+        current_key = "enter_tis_platform"
+        title = "Your workspace is active"
+        subtitle = f"{workspace_name} is ready."
+        status_banner = "Workspace Activation is complete."
+        primary_action = {
+            "label": "Enter TIS Platform",
+            "url": "/login",
+            "method": "get",
+        }
+        help_text = "Your active subscription and workspace are ready for TIS Platform access."
+    elif not organization:
         current_key = "school_workspace_setup"
         title = "Start your School Workspace Setup"
         subtitle = "Your TIS Account is ready. Set up your school workspace to continue."

@@ -333,6 +333,16 @@ def _locked_pre_payment_edit_redirect(organization):
     return None
 
 
+def _closed_initial_checkout_redirect(db: Session, organization):
+    if not service.initial_checkout_is_closed(db, organization):
+        return None
+    return RedirectResponse(
+        "/saas/subscription?notice="
+        + quote_plus("Initial checkout is complete. Manage future subscription changes here."),
+        status_code=302,
+    )
+
+
 def _payment_setup_console(
     db: Session,
     account,
@@ -1919,6 +1929,10 @@ def plan_selection_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    closed_redirect = _closed_initial_checkout_redirect(db, organization)
+    if closed_redirect:
+        db.commit()
+        return closed_redirect
     locked_redirect = _locked_pre_payment_edit_redirect(organization)
     if locked_redirect:
         db.commit()
@@ -1959,6 +1973,10 @@ def select_plan_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    closed_redirect = _closed_initial_checkout_redirect(db, organization)
+    if closed_redirect:
+        db.commit()
+        return closed_redirect
     locked_redirect = _locked_pre_payment_edit_redirect(organization)
     if locked_redirect:
         db.commit()
@@ -1999,6 +2017,10 @@ def checkout_summary_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    closed_redirect = _closed_initial_checkout_redirect(db, organization)
+    if closed_redirect:
+        db.commit()
+        return closed_redirect
     try:
         billing_service.ensure_ready_for_checkout(organization)
     except ValueError as exc:
@@ -2041,6 +2063,10 @@ def prepare_checkout_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    closed_redirect = _closed_initial_checkout_redirect(db, organization)
+    if closed_redirect:
+        db.commit()
+        return closed_redirect
     try:
         billing_service.create_or_update_checkout_session(db, organization)
         service.update_pending_dashboard_status(account, organization, service.recalculate_pending_progress(db, organization))
@@ -2086,6 +2112,10 @@ def launch_checkout_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    closed_redirect = _closed_initial_checkout_redirect(db, organization)
+    if closed_redirect:
+        db.commit()
+        return closed_redirect
     try:
         _prepare_checkout_for_launch_if_needed(db, account, organization)
         launch = payment_service.launch_checkout(db, organization, account, request)
