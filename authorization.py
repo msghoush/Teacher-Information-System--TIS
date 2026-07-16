@@ -30,6 +30,20 @@ class PermissionRule:
         return re.fullmatch(self.pattern, path) is not None
 
 
+@dataclass(frozen=True)
+class EntitlementRule:
+    pattern: str
+    methods: tuple[str, ...]
+    entitlement_key: str
+    permission_key: str
+
+    def matches(self, path: str, method: str) -> bool:
+        normalized_method = str(method or "").upper()
+        if self.methods and normalized_method not in self.methods:
+            return False
+        return re.fullmatch(self.pattern, path) is not None
+
+
 PUBLIC_PATH_PATTERNS = (
     r"/",
     r"/login",
@@ -195,6 +209,22 @@ PROTECTED_ROUTE_RULES = (
     PermissionRule(r"/system-configuration/calendar/event-types", ("POST",), ("calendar.manage_event_types",), "system-configuration"),
     PermissionRule(r"/system-configuration/calendar/event-types/\d+", ("POST",), ("calendar.manage_event_types",), "system-configuration"),
     PermissionRule(r"/system-configuration/calendar/event-types/\d+/delete", ("POST",), ("calendar.manage_event_types",), "system-configuration"),
+)
+
+
+ENTITLEMENT_ROUTE_RULES = (
+    EntitlementRule(
+        r"/reports/allocation-plan\.pdf",
+        ("GET",),
+        "feature.advanced_reporting",
+        "reports.export",
+    ),
+    EntitlementRule(
+        r"/reports/allocation-plan\.xlsx",
+        ("GET",),
+        "feature.advanced_reporting",
+        "reports.export",
+    ),
 )
 
 
@@ -366,13 +396,40 @@ def enforce_route_permission(
             auth.has_permission(db, resolved_user, permission_key)
             for permission_key in rule.permission_keys
         )
-    if allowed:
+    if not allowed:
+        return build_access_denied_response(
+            request,
+            db,
+            current_user=resolved_user,
+            permission_keys=rule.permission_keys,
+            page_key=rule.page_key,
+        )
+
+    entitlement_rule = next(
+        (
+            candidate
+            for candidate in ENTITLEMENT_ROUTE_RULES
+            if candidate.matches(path, request.method)
+        ),
+        None,
+    )
+    if entitlement_rule is None:
         return None
 
+    from saas import entitlement_service
+
+    if entitlement_service.can_use_feature(
+        db,
+        resolved_user,
+        entitlement_rule.entitlement_key,
+        entitlement_rule.permission_key,
+    ):
+        return None
     return build_access_denied_response(
         request,
         db,
         current_user=resolved_user,
-        permission_keys=rule.permission_keys,
+        permission_keys=(entitlement_rule.permission_key,),
         page_key=rule.page_key,
+        message="This capability is not available for the active organization subscription.",
     )

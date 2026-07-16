@@ -1,6 +1,8 @@
 import io
 import json
 import sys
+import uuid
+from datetime import datetime
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -12,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import auth
 import main
 import models
+import saas.models as saas_models
 from teacher_qualifications import ensure_qualification_options_seeded
 from database import SessionLocal, engine
 
@@ -130,6 +133,69 @@ def _seed(db):
         is_active=True,
     )
     db.add_all([dev_a, admin_a, teacher_user_a, admin_b, teacher_user_b])
+    db.flush()
+
+    professional_plan = db.query(saas_models.SubscriptionPlan).filter_by(
+        plan_code="professional"
+    ).one()
+    for school, branch, year, owner, label in (
+        (school_a, branch_a, year_a, admin_a, "school-a"),
+        (school_b, branch_b, year_b, admin_b, "school-b"),
+    ):
+        account = saas_models.SaaSAccount(
+            account_uuid=str(uuid.uuid4()),
+            email=f"{label}@tenant-e2e.test",
+            email_normalized=f"{label}@tenant-e2e.test",
+            status="active",
+            onboarding_status="tenant_active",
+        )
+        db.add(account)
+        db.flush()
+        organization = saas_models.PendingOrganization(
+            organization_uuid=str(uuid.uuid4()),
+            owner_saas_account_id=account.id,
+            organization_name=school.name,
+            status="tenant_active",
+            onboarding_step="completed",
+            billing_status="tenant_active",
+            payment_status="paid",
+            payment_confirmed_at=datetime(2026, 7, 1),
+        )
+        db.add(organization)
+        db.flush()
+        contract = saas_models.SubscriptionContract(
+            pending_organization_id=organization.id,
+            school_group_id=school.id,
+            plan_id=professional_plan.id,
+            billing_interval="monthly",
+            contract_status="tenant_active",
+            payment_status="paid",
+            paid_at=datetime(2026, 7, 1),
+            base_amount_minor=7900,
+            display_amount_minor=7900,
+        )
+        db.add(contract)
+        db.flush()
+        db.add(saas_models.PaymentSubscription(
+            pending_organization_id=organization.id,
+            subscription_contract_id=contract.id,
+            provider="paddle",
+            provider_subscription_id=f"sub_{uuid.uuid4().hex}",
+            plan_id=professional_plan.id,
+            billing_interval="monthly",
+            quantity=1,
+            status="active",
+        ))
+        db.add(saas_models.TenantProvisioningLink(
+            pending_organization_id=organization.id,
+            subscription_contract_id=contract.id,
+            school_group_id=school.id,
+            owner_operational_user_id=owner.id,
+            primary_branch_id=branch.id,
+            primary_academic_year_id=year.id,
+            tenant_status="tenant_active",
+            activated_at=datetime(2026, 7, 1),
+        ))
     db.flush()
 
     subject_a = models.Subject(

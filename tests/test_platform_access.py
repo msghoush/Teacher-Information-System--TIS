@@ -640,14 +640,13 @@ class PlatformAccessTests(unittest.TestCase):
         export_response = subjects.export_subjects_excel(request=request, db=self.db)
         self.assertEqual(export_response.status_code, 200)
 
-    def test_platform_owner_is_admitted_to_every_protected_module(self):
+    def test_platform_owner_permissions_do_not_bypass_subscription_entitlements(self):
         protected_paths = (
             "/dashboard",
             "/teachers/",
             "/subjects/",
             "/users",
             "/observations/",
-            "/reports/allocation-plan.xlsx",
             "/system-configuration",
             "/system-configuration/logos",
             "/demo-requests",
@@ -664,6 +663,16 @@ class PlatformAccessTests(unittest.TestCase):
                 authorization.enforce_route_permission(request, self.db),
                 path,
             )
+
+        subscription_gated_request = self._request(
+            "/reports/allocation-plan.xlsx",
+            self.platform_owner,
+            self.branch_b1,
+            self.year_b,
+        )
+        self.assertIsNotNone(
+            authorization.enforce_route_permission(subscription_gated_request, self.db)
+        )
 
         design_user, design_denied = main._get_design_control_access(
             self._request(
