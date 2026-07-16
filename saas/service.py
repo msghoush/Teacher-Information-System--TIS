@@ -1356,6 +1356,7 @@ class ConfirmedSetupState:
     school_group_id: int | None = None
     workspace_name: str = ""
     subscription_id: int | None = None
+    subscription_manual_review: bool = False
 
 
 def resolve_confirmed_setup_state(db: Session, account, summary: dict | None = None) -> ConfirmedSetupState:
@@ -1378,22 +1379,24 @@ def resolve_confirmed_setup_state(db: Session, account, summary: dict | None = N
             models.SubscriptionContract.pending_organization_id == organization.id,
         ).one_or_none()
 
-    confirmed_attempt = None
-    if subscription:
-        confirmed_attempt = db.query(models.PaymentAttempt).filter(
-            models.PaymentAttempt.pending_organization_id == organization.id,
-            models.PaymentAttempt.provider_subscription_id == subscription.provider_subscription_id,
-            models.PaymentAttempt.status == "payment_confirmed",
-        ).first()
+    confirmed_attempt = db.query(models.PaymentAttempt).filter(
+        models.PaymentAttempt.pending_organization_id == organization.id,
+        models.PaymentAttempt.status == "payment_confirmed",
+    ).first()
     payment_confirmed = bool(
-        subscription
-        and contract
-        and str(getattr(subscription, "provider_subscription_id", "") or "").strip()
-        and int(getattr(subscription, "quantity", 0) or 0) > 0
-        and (
-            str(getattr(contract, "payment_status", "") or "").strip().lower() == "paid"
-            or str(getattr(organization, "payment_status", "") or "").strip().lower() == "paid"
-            or confirmed_attempt is not None
+        str(getattr(organization, "payment_status", "") or "").strip().lower() == "paid"
+        or getattr(organization, "payment_confirmed_at", None) is not None
+        or confirmed_attempt is not None
+        or (
+            subscription
+            and str(getattr(subscription, "provider_subscription_id", "") or "").strip()
+            and int(getattr(subscription, "quantity", 0) or 0) > 0
+            and str(getattr(subscription, "status", "") or "").strip().lower() in {"active", "trialing"}
+        )
+        or (
+            contract
+            and str(getattr(contract, "payment_status", "") or "").strip().lower() == "paid"
+            and getattr(contract, "paid_at", None) is not None
         )
     )
 
@@ -1411,7 +1414,11 @@ def resolve_confirmed_setup_state(db: Session, account, summary: dict | None = N
         tenant_link
         and school_group
         and str(getattr(tenant_link, "tenant_status", "") or "").strip().lower() == "tenant_active"
+    )
+    commercial_link_resolved = bool(
+        subscription
         and contract
+        and tenant_link
         and int(tenant_link.subscription_contract_id) == int(contract.id)
         and int(tenant_link.school_group_id) == int(getattr(contract, "school_group_id", 0) or 0)
     )
@@ -1430,6 +1437,7 @@ def resolve_confirmed_setup_state(db: Session, account, summary: dict | None = N
         school_group_id=int(school_group.id) if school_group else None,
         workspace_name=str(getattr(school_group, "name", "") or "").strip() if school_group else "",
         subscription_id=int(subscription.id) if subscription else None,
+        subscription_manual_review=bool(tenant_provisioned and payment_confirmed and not commercial_link_resolved),
     )
 
 
@@ -1503,7 +1511,11 @@ def build_setup_console_context(db: Session, account) -> dict:
             "url": "/login",
             "method": "get",
         }
-        help_text = "Your active subscription and workspace are ready for TIS Platform access."
+        help_text = (
+            "Your subscription details are being reviewed. Your active workspace remains available."
+            if confirmed_state.subscription_manual_review
+            else "Your active subscription and workspace are ready for TIS Platform access."
+        )
     elif not organization:
         current_key = "school_workspace_setup"
         title = "Start your School Workspace Setup"

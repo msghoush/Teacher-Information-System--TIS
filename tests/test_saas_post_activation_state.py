@@ -15,7 +15,7 @@ import db_migrations
 import models
 import saas.models
 from dependencies import get_db
-from saas import service
+from saas import entitlement_service, service, subscription_diagnostic_service
 from saas.router import router as saas_router
 
 
@@ -117,6 +117,23 @@ class SaaSPostActivationStateTests(unittest.TestCase):
                     status="active", next_billed_at=datetime(2026, 8, 1),
                 )
                 db.add(subscription); db.flush()
+                db.add(saas.models.PaymentAttempt(
+                    pending_organization_id=organization.id,
+                    checkout_session_id=checkout.id,
+                    plan_selection_id=selection.id,
+                    provider="paddle",
+                    attempt_uuid=str(uuid.uuid4()),
+                    provider_transaction_id=f"txn_{uuid.uuid4().hex}",
+                    provider_subscription_id=subscription.provider_subscription_id,
+                    status="payment_confirmed",
+                    provider_price_id=price.provider_price_id,
+                    currency_code="USD",
+                    quantity=3,
+                    unit_amount_minor=price.amount_minor,
+                    amount_minor=price.amount_minor * 3,
+                    billing_interval="monthly",
+                    completed_at=datetime(2026, 7, 1),
+                ))
             group = None
             if provisioned:
                 group = models.SchoolGroup(name=f"Confirmed Active Academy {unique}", status=True)
@@ -154,6 +171,7 @@ class SaaSPostActivationStateTests(unittest.TestCase):
             return {
                 "account_id": account.id, "organization_id": organization.id,
                 "organization_uuid": organization.organization_uuid,
+                "contract_id": contract.id, "school_group_id": group.id if group else None,
                 "subscription_id": subscription.id if subscription else None,
                 "session_token": session_token, "csrf_token": csrf_token,
             }
@@ -239,6 +257,92 @@ class SaaSPostActivationStateTests(unittest.TestCase):
         self.assertIn("Payment is confirmed", response.text)
         self.assertNotIn("Continue to Secure Payment", response.text)
         self.assertIn('data-setup-step="workspace_activation" data-setup-state="current"', response.text)
+
+    def test_active_workspace_remains_available_when_subscription_link_needs_review(self):
+        fixture = self._fixture(paid=True, provisioned=True)
+        db = self.Session()
+        try:
+            contract = db.query(saas.models.SubscriptionContract).filter_by(id=fixture["contract_id"]).one()
+            contract.school_group_id = None
+            db.commit()
+            resolution = entitlement_service.resolve_entitlements(db, fixture["school_group_id"])
+            self.assertEqual(resolution.resolution_status, "manual_review")
+            self.assertEqual(resolution.reason_code, "missing_confirmed_contract")
+        finally:
+            db.close()
+
+        self._authenticate(fixture)
+        response = self.client.get("/saas/account")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Enter TIS Platform", response.text)
+        self.assertIn("Workspace Activation is complete", response.text)
+        self.assertIn("subscription details are being reviewed", response.text)
+        self.assertNotIn("Continue to Secure Payment", response.text)
+        self.assertIn('data-setup-step="secure_payment" data-setup-state="complete"', response.text)
+
+        portal = self.client.get("/saas/subscription")
+        self.assertEqual(portal.status_code, 200)
+        self.assertIn("Manual Review", portal.text)
+        self.assertIn("Not Available", portal.text)
+        self.assertNotIn("Continue to Secure Payment", portal.text)
+
+    def test_safe_diagnostic_and_unambiguous_contract_workspace_backfill(self):
+        fixture = self._fixture(paid=True, provisioned=True)
+        db = self.Session()
+        try:
+            contract = db.query(saas.models.SubscriptionContract).filter_by(id=fixture["contract_id"]).one()
+            contract.school_group_id = None
+            db.commit()
+            with patch("saas.paddle_client.get_subscription") as get_subscription:
+                before = subscription_diagnostic_service.diagnose_subscription_relationships(
+                    db, organization_uuid=fixture["organization_uuid"]
+                )
+                get_subscription.assert_not_called()
+            self.assertEqual(before["entitlement_reason_code"], "missing_confirmed_contract")
+            self.assertIn("contract_school_group_missing", before["warnings"])
+            self.assertIsNone(contract.school_group_id)
+
+            with patch("saas.paddle_client.get_subscription") as get_subscription:
+                after = subscription_diagnostic_service.repair_contract_school_group_link(
+                    db, organization_uuid=fixture["organization_uuid"]
+                )
+                get_subscription.assert_not_called()
+            db.commit()
+            self.assertEqual(after["entitlement_resolution_status"], "resolved")
+            self.assertEqual(contract.school_group_id, fixture["school_group_id"])
+            self.assertNotIn("contract_school_group_missing", after["warnings"])
+        finally:
+            db.close()
+
+    def test_ambiguous_subscription_blocks_legacy_backfill(self):
+        fixture = self._fixture(paid=True, provisioned=True)
+        db = self.Session()
+        try:
+            contract = db.query(saas.models.SubscriptionContract).filter_by(id=fixture["contract_id"]).one()
+            original = db.query(saas.models.PaymentSubscription).filter_by(id=fixture["subscription_id"]).one()
+            contract.school_group_id = None
+            db.add(saas.models.PaymentSubscription(
+                pending_organization_id=fixture["organization_id"],
+                subscription_contract_id=fixture["contract_id"],
+                provider="paddle",
+                provider_subscription_id=f"sub_{uuid.uuid4().hex}",
+                provider_price_id=original.provider_price_id,
+                plan_id=original.plan_id,
+                billing_interval=original.billing_interval,
+                currency_code=original.currency_code,
+                quantity=original.quantity,
+                status="active",
+            ))
+            db.commit()
+            with self.assertRaises(subscription_diagnostic_service.SubscriptionDiagnosticError) as caught:
+                subscription_diagnostic_service.repair_contract_school_group_link(
+                    db, organization_uuid=fixture["organization_uuid"]
+                )
+            self.assertEqual(caught.exception.code, "ambiguous_active_subscription")
+            self.assertIsNone(contract.school_group_id)
+        finally:
+            db.rollback()
+            db.close()
 
 
 if __name__ == "__main__":
