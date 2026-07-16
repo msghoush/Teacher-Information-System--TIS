@@ -30,7 +30,7 @@
     <form class="quantity-form" method="post" action="/saas/subscription/branches/preview">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label for="requested_quantity">New total paid branches</label>
-        <input id="requested_quantity" name="requested_quantity" type="number" min="1" step="1" value="{{ subscription_portal.paid_branch_quantity or 1 }}" required>
+        <input id="requested_quantity" name="requested_quantity" type="number" min="1" step="1" value="{{ requested_quantity }}" required>
         <p class="quantity-note">Increases are prorated and charged immediately by Paddle. Reductions take effect at the next renewal and cannot be lower than your active branch count. No automatic partial refund is issued.</p>
         <div class="actions"><button class="btn primary" type="submit">Preview Change</button><a class="btn secondary" href="/saas/subscription">Back to Subscription</a></div>
     </form>
