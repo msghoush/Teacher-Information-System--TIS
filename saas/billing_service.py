@@ -48,6 +48,7 @@ def select_plan(
     plan_id: int,
     billing_interval: str,
 ) -> models.PendingOrganizationPlanSelection:
+    service.ensure_initial_checkout_available(db, organization)
     ensure_ready_for_checkout(organization)
     cleaned_interval = str(billing_interval or "").strip().lower()
     if cleaned_interval not in {"monthly", "annual"}:
@@ -181,6 +182,7 @@ def checkout_quote_is_fresh(db: Session, organization) -> bool:
 
 
 def create_or_update_checkout_session(db: Session, organization):
+    service.ensure_initial_checkout_available(db, organization)
     ensure_ready_for_checkout(organization)
     selection = get_current_plan_selection(db, organization)
     if not selection:

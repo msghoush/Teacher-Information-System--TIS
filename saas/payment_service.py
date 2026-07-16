@@ -546,6 +546,7 @@ def _current_plan_price(db: Session, organization):
 
 
 def _ensure_checkout_launchable(db: Session, organization):
+    service.ensure_initial_checkout_available(db, organization)
     if str(getattr(organization, "status", "") or "").strip().lower() != service.READY_FOR_CHECKOUT_STATUS:
         raise ValueError("Organization setup must reach ready_for_checkout before payment can begin.")
     if str(getattr(organization, "billing_status", "") or "").strip().lower() not in {
