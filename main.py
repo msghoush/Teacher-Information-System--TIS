@@ -44,6 +44,7 @@ import permission_registry
 import public_url
 import role_permission_service
 import saas.models  # Register SaaS metadata before create_all.
+from saas import entitlement_service
 from visual_design import (
     VISUAL_COMPONENT_MAP,
     build_visual_design_config,
@@ -13476,16 +13477,35 @@ def create_branch(
         )
 
     school_group = None
-    if school_group_id:
+    if auth.is_platform_user(current_user) and school_group_id:
         school_group = db.query(models.SchoolGroup).filter(
             models.SchoolGroup.id == school_group_id
         ).first()
+    if not auth.is_platform_user(current_user):
+        current_group_id = auth.get_user_school_group_id(db, current_user)
+        if current_group_id:
+            school_group = db.query(models.SchoolGroup).filter(
+                models.SchoolGroup.id == current_group_id
+            ).first()
+        if not school_group:
+            return authorization.build_access_denied_response(
+                request,
+                db,
+                current_user=current_user,
+                permission_keys=("branches.create",),
+                page_key="system-configuration",
+            )
     if not school_group:
         school_group = db.query(models.SchoolGroup).filter(
             models.SchoolGroup.name == DEFAULT_SCHOOL_GROUP_NAME
         ).first()
     if not school_group:
         school_group = _ensure_default_school_group(db)
+
+    try:
+        entitlement_service.require_active_branch_capacity(db, school_group.id)
+    except entitlement_service.BranchCapacityError as exc:
+        return _redirect_with_error(safe_return_to, str(exc))
 
     db.add(
         models.Branch(
@@ -13821,6 +13841,29 @@ def bulk_update_branches(
                                 message="At least one active branch must remain in the organization.",
                             )
                         )
+            desired_active_count = sum(
+                1 for branch_id in group_branch_ids if final_statuses.get(branch_id, False)
+            )
+            current_active_count = db.query(models.Branch).filter(
+                models.Branch.school_group_id == group_id,
+                models.Branch.status == True,
+            ).count()
+            if desired_active_count > current_active_count:
+                try:
+                    entitlement_service.require_active_branch_capacity(
+                        db,
+                        group_id,
+                        desired_active_count=desired_active_count,
+                    )
+                except entitlement_service.BranchCapacityError as exc:
+                    errors.append(
+                        _bulk_item_error(
+                            item_id=None,
+                            label="Branches",
+                            field="status",
+                            message=str(exc),
+                        )
+                    )
 
     if errors:
         return _bulk_json_error(errors)
@@ -13907,6 +13950,14 @@ def update_branch(
             safe_return_to,
             "Branch record not found.",
         )
+    if not _branch_record_is_in_user_scope(db, current_user, branch_row):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("branches.edit", "branches.activate_deactivate"),
+            page_key="system-configuration",
+        )
 
     safe_return_to, _, _ = _safe_redirect_path(return_to).partition("#")
 
@@ -13960,6 +14011,20 @@ def update_branch(
             safe_return_to,
             "At least one active branch must remain available.",
         )
+
+    if not branch_row.status and next_status:
+        desired_active_count = db.query(models.Branch).filter(
+            models.Branch.school_group_id == branch_row.school_group_id,
+            models.Branch.status == True,
+        ).count() + 1
+        try:
+            entitlement_service.require_active_branch_capacity(
+                db,
+                branch_row.school_group_id,
+                desired_active_count=desired_active_count,
+            )
+        except entitlement_service.BranchCapacityError as exc:
+            return _redirect_with_error(safe_return_to, str(exc))
 
     branch_row.name = cleaned_name
     if resolved_location:

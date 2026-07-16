@@ -188,6 +188,7 @@ PERMISSION_GROUPS = (
         "label": "System Configuration",
         "permissions": (
             ("configuration.view", "View configuration"),
+            ("subscriptions.manage_billing", "Manage subscription billing"),
             ("configuration.manage_permissions", "Manage role permissions"),
             ("configuration.manage_degrees", "Manage degree options"),
             ("configuration.manage_specializations", "Manage specialization options"),

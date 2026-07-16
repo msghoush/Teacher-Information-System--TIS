@@ -677,6 +677,63 @@ class PaymentSubscription(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class SubscriptionChangeRequest(Base):
+    __tablename__ = "subscription_change_requests"
+    __table_args__ = (
+        Index("uq_subscription_change_requests_uuid", "request_uuid", unique=True),
+        Index("uq_subscription_change_requests_idempotency", "idempotency_key", unique=True),
+        Index("ix_subscription_change_requests_group", "school_group_id"),
+        Index("ix_subscription_change_requests_subscription", "payment_subscription_id"),
+        Index("ix_subscription_change_requests_status", "status"),
+        Index(
+            "uq_subscription_change_requests_unresolved",
+            "payment_subscription_id",
+            unique=True,
+            sqlite_where=text("status IN ('draft','previewed','awaiting_confirmation','submitted','payment_pending','scheduled','manual_review')"),
+            postgresql_where=text("status IN ('draft','previewed','awaiting_confirmation','submitted','payment_pending','scheduled','manual_review')"),
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    request_uuid = Column(String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4()))
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    subscription_contract_id = Column(Integer, ForeignKey("subscription_contracts.id"), nullable=False, index=True)
+    payment_subscription_id = Column(Integer, ForeignKey("payment_subscriptions.id"), nullable=False, index=True)
+    provider_subscription_id = Column(String(120), nullable=False, index=True)
+    requested_by_user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    requested_by_saas_account_id = Column(Integer, ForeignKey("saas_accounts.id"), nullable=False, index=True)
+    change_type = Column(String(50), nullable=False)
+    current_quantity = Column(Integer, nullable=False)
+    requested_quantity = Column(Integer, nullable=False)
+    quantity_delta = Column(Integer, nullable=False)
+    current_plan_price_id = Column(Integer, ForeignKey("subscription_plan_prices.id"), nullable=False, index=True)
+    provider_price_id = Column(String(120), nullable=False)
+    billing_interval = Column(String(20), nullable=False)
+    currency_code = Column(String(3), nullable=False)
+    effective_mode = Column(String(30), nullable=False)
+    status = Column(String(30), nullable=False, default="draft")
+    previewed_charge_minor = Column(Integer)
+    previewed_credit_minor = Column(Integer)
+    previewed_net_minor = Column(Integer)
+    current_renewal_total_minor = Column(Integer)
+    next_renewal_total_minor = Column(Integer)
+    provider_preview_reference = Column(String(120))
+    retained_items_json = Column(Text)
+    idempotency_key = Column(String(64), nullable=False, unique=True)
+    provider_observed_quantity = Column(Integer)
+    requested_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    previewed_at = Column(DateTime)
+    submitted_at = Column(DateTime)
+    provider_payment_confirmed_at = Column(DateTime)
+    confirmed_at = Column(DateTime)
+    effective_at = Column(DateTime)
+    canceled_at = Column(DateTime)
+    failure_code = Column(String(80))
+    failure_message = Column(String(255))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class PaymentWebhook(Base):
     __tablename__ = "payment_webhooks"
     __table_args__ = (

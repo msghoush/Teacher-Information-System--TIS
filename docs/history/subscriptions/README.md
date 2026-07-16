@@ -6,6 +6,14 @@ last_updated: 2026-07-11
 
 # Subscription History
 
+## 2026-07-16 - M7 Phase 3 Active Branch Quantity Management
+
+Authorized organization billing administrators can now preview and submit paid branch-quantity changes from `/saas/subscription`. Paddle remains the sole source of financial calculations: TIS sends the complete retained subscription item list to Paddle's subscription-update preview endpoint and stores only customer-safe charge, credit, net, recurring-total, and effective-date summaries.
+
+Increases use `prorated_immediately` with `on_payment_failure=prevent_change`. Local paid capacity does not increase until verified `subscription.updated` and successful `transaction.completed` evidence confirms the requested quantity and subscription-update payment. Reductions use `prorated_next_billing_period`, issue no immediate refund, and remain locally scheduled until a renewal-boundary subscription webhook confirms the reduced quantity. Reductions below active operational branch usage are rejected, and scheduled reductions can be restored before their effective date.
+
+`PaymentSubscription.quantity` remains the only entitlement-capacity authority. Branch creation and individual or bulk reactivation now fail closed for provisioned SaaS tenants when confirmed paid capacity is exhausted. Provider mismatches, unsupported state, stale previews, or ambiguous ownership enter a customer-safe blocked/manual-review path without exposing provider diagnostics.
+
 This folder tracks meaningful changes to TIS subscription plans, pricing, billing status, payment behavior, checkout assumptions, and provider boundaries.
 
 Related docs:

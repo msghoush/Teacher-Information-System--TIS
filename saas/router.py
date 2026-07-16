@@ -10,7 +10,7 @@ import audit
 from dependencies import get_db
 import email_service
 import location_service
-from saas import billing_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import billing_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -1099,6 +1099,9 @@ def subscription_portal(request: Request, db: Session = Depends(get_db)):
         {
             "account": account,
             "subscription_portal": portal,
+            "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
+            "notice": request.query_params.get("notice", ""),
+            "error": request.query_params.get("error", ""),
             "support_email": str(
                 os.environ.get("TIS_SUPPORT_EMAIL")
                 or os.environ.get("EMAIL_REPLY_TO")
@@ -1106,6 +1109,128 @@ def subscription_portal(request: Request, db: Session = Depends(get_db)):
             ).strip(),
         },
     )
+
+
+def _require_saas_csrf(session_row, csrf_token: str):
+    if service.hash_value(csrf_token) != str(session_row.csrf_token_hash or ""):
+        raise HTTPException(status_code=403, detail="Invalid CSRF token.")
+
+
+def _subscription_change_error(exc: subscription_change_service.SubscriptionChangeError, path: str):
+    if exc.status_code == 403:
+        raise HTTPException(status_code=403, detail=str(exc))
+    return _redirect_error(path, str(exc))
+
+
+@router.get("/subscription/branches", response_class=HTMLResponse)
+def subscription_branch_management(request: Request, db: Session = Depends(get_db)):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    portal = subscription_portal_service.build_subscription_portal(db, account)
+    try:
+        subscription_change_service.resolve_change_context(db, account)
+        can_manage = portal.pending_change is None
+        access_error = ""
+    except subscription_change_service.SubscriptionChangeError as exc:
+        if exc.status_code == 403:
+            raise HTTPException(status_code=403, detail=str(exc))
+        can_manage = False
+        access_error = str(exc)
+    return _render(request, "saas/subscription_branches.html", {
+        "account": account,
+        "subscription_portal": portal,
+        "can_manage": can_manage,
+        "access_error": access_error,
+        "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
+        "notice": request.query_params.get("notice", ""),
+        "error": request.query_params.get("error", ""),
+    })
+
+
+@router.post("/subscription/branches/preview")
+def preview_subscription_branch_change(
+    request: Request,
+    requested_quantity: int = Form(...),
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    try:
+        row = subscription_change_service.preview_quantity_change(db, account, requested_quantity)
+        db.commit()
+    except subscription_change_service.SubscriptionChangeError as exc:
+        db.commit()
+        return _subscription_change_error(exc, "/saas/subscription/branches")
+    return RedirectResponse(f"/saas/subscription/branches/{row.request_uuid}/confirm", status_code=302)
+
+
+@router.get("/subscription/branches/{request_uuid}/confirm", response_class=HTMLResponse)
+def confirm_subscription_branch_change_page(request_uuid: str, request: Request, db: Session = Depends(get_db)):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    try:
+        context = subscription_change_service.resolve_change_context(db, account)
+    except subscription_change_service.SubscriptionChangeError as exc:
+        return _subscription_change_error(exc, "/saas/subscription/branches")
+    row = db.query(models.SubscriptionChangeRequest).filter(
+        models.SubscriptionChangeRequest.request_uuid == request_uuid,
+        models.SubscriptionChangeRequest.payment_subscription_id == context.subscription.id,
+        models.SubscriptionChangeRequest.requested_by_saas_account_id == account.id,
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Branch-capacity request not found.")
+    return _render(request, "saas/subscription_branch_confirm.html", {
+        "account": account,
+        "change": subscription_change_service.customer_summary(row),
+        "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
+        "error": request.query_params.get("error", ""),
+    })
+
+
+@router.post("/subscription/branches/{request_uuid}/confirm")
+def confirm_subscription_branch_change(
+    request_uuid: str,
+    request: Request,
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    try:
+        row = subscription_change_service.submit_quantity_change(db, account, request_uuid)
+        db.commit()
+    except subscription_change_service.SubscriptionChangeError as exc:
+        db.commit()
+        return _subscription_change_error(exc, f"/saas/subscription/branches/{request_uuid}/confirm")
+    notice = "Branch capacity payment is being confirmed." if row.change_type == subscription_change_service.INCREASE else "Branch capacity reduction scheduled for the next renewal."
+    return RedirectResponse("/saas/subscription?notice=" + quote_plus(notice), status_code=302)
+
+
+@router.post("/subscription/branches/{request_uuid}/cancel")
+def cancel_subscription_branch_reduction(
+    request_uuid: str,
+    request: Request,
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    try:
+        subscription_change_service.cancel_scheduled_reduction(db, account, request_uuid)
+        db.commit()
+    except subscription_change_service.SubscriptionChangeError as exc:
+        db.commit()
+        return _subscription_change_error(exc, "/saas/subscription")
+    return RedirectResponse("/saas/subscription?notice=" + quote_plus("Scheduled branch reduction canceled."), status_code=302)
 
 
 @router.get("/account/sessions", response_class=HTMLResponse)

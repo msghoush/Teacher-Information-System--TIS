@@ -1,0 +1,39 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .quantity-shell { max-width:820px; margin:0 auto; }
+    .quantity-header h1 { margin:5px 0 8px; color:var(--brand-dark); font-size:32px; letter-spacing:0; }
+    .quantity-header p { color:var(--muted); line-height:1.55; }
+    .quantity-summary { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin:20px 0; }
+    .quantity-stat { border:1px solid var(--line); border-radius:8px; background:#fff; padding:15px; }
+    .quantity-stat span { display:block; color:var(--muted); font-size:12px; font-weight:800; margin-bottom:6px; }
+    .quantity-stat strong { color:var(--brand-dark); font-size:21px; }
+    .quantity-form { border-top:1px solid var(--line); padding-top:22px; }
+    .quantity-form label { display:block; font-weight:850; color:var(--brand-dark); margin-bottom:7px; }
+    .quantity-form input[type=number] { width:100%; max-width:260px; }
+    .quantity-note { margin:15px 0; color:var(--muted); line-height:1.5; }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; }
+    @media (max-width:640px) { .quantity-header h1 { font-size:27px; } .quantity-summary { grid-template-columns:1fr; } }
+</style>
+<div class="quantity-shell">
+    <header class="quantity-header"><span class="page-eyebrow">Subscription Management</span><h1>Manage branch capacity</h1><p>Preview changes to the paid branches covered by your current subscription.</p></header>
+    {% if notice %}<div class="alert success">{{ notice }}</div>{% endif %}
+    {% if error or access_error %}<div class="alert error">{{ error or access_error }}</div>{% endif %}
+    <section class="quantity-summary">
+        <div class="quantity-stat"><span>Paid Branches</span><strong>{{ subscription_portal.paid_branch_quantity if subscription_portal.paid_branch_quantity is not none else "Not Available" }}</strong></div>
+        <div class="quantity-stat"><span>Currently Active</span><strong>{{ subscription_portal.active_branch_count }}</strong></div>
+        <div class="quantity-stat"><span>Available Capacity</span><strong>{{ subscription_portal.remaining_paid_capacity if subscription_portal.remaining_paid_capacity is not none else "Not Available" }}</strong></div>
+    </section>
+    {% if subscription_portal.pending_change %}
+    <div class="alert info">A branch-capacity change is already in progress. Complete or cancel it before starting another.</div>
+    {% elif can_manage %}
+    <form class="quantity-form" method="post" action="/saas/subscription/branches/preview">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label for="requested_quantity">New total paid branches</label>
+        <input id="requested_quantity" name="requested_quantity" type="number" min="1" step="1" value="{{ subscription_portal.paid_branch_quantity or 1 }}" required>
+        <p class="quantity-note">Increases are prorated and charged immediately by Paddle. Reductions take effect at the next renewal and cannot be lower than your active branch count. No automatic partial refund is issued.</p>
+        <div class="actions"><button class="btn primary" type="submit">Preview Change</button><a class="btn secondary" href="/saas/subscription">Back to Subscription</a></div>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

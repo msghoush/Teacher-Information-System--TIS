@@ -3050,6 +3050,82 @@ def _subscription_entitlement_foundation(engine, connection):
                 )
 
 
+def _subscription_branch_quantity_changes(engine, connection):
+    datetime_type = _datetime_type(engine)
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS subscription_change_requests (
+            id {id_sql},
+            request_uuid VARCHAR(36) NOT NULL,
+            school_group_id INTEGER NOT NULL,
+            subscription_contract_id INTEGER NOT NULL,
+            payment_subscription_id INTEGER NOT NULL,
+            provider_subscription_id VARCHAR(120) NOT NULL,
+            requested_by_user_id INTEGER,
+            requested_by_saas_account_id INTEGER NOT NULL,
+            change_type VARCHAR(50) NOT NULL,
+            current_quantity INTEGER NOT NULL,
+            requested_quantity INTEGER NOT NULL,
+            quantity_delta INTEGER NOT NULL,
+            current_plan_price_id INTEGER NOT NULL,
+            provider_price_id VARCHAR(120) NOT NULL,
+            billing_interval VARCHAR(20) NOT NULL,
+            currency_code VARCHAR(3) NOT NULL,
+            effective_mode VARCHAR(30) NOT NULL,
+            status VARCHAR(30) NOT NULL DEFAULT 'draft',
+            previewed_charge_minor INTEGER,
+            previewed_credit_minor INTEGER,
+            previewed_net_minor INTEGER,
+            current_renewal_total_minor INTEGER,
+            next_renewal_total_minor INTEGER,
+            provider_preview_reference VARCHAR(120),
+            retained_items_json TEXT,
+            idempotency_key VARCHAR(64) NOT NULL,
+            provider_observed_quantity INTEGER,
+            requested_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            previewed_at {datetime_type},
+            submitted_at {datetime_type},
+            provider_payment_confirmed_at {datetime_type},
+            confirmed_at {datetime_type},
+            effective_at {datetime_type},
+            canceled_at {datetime_type},
+            failure_code VARCHAR(80),
+            failure_message VARCHAR(255),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (school_group_id) REFERENCES school_groups (id),
+            FOREIGN KEY (subscription_contract_id) REFERENCES subscription_contracts (id),
+            FOREIGN KEY (payment_subscription_id) REFERENCES payment_subscriptions (id),
+            FOREIGN KEY (requested_by_user_id) REFERENCES users (id),
+            FOREIGN KEY (requested_by_saas_account_id) REFERENCES saas_accounts (id),
+            FOREIGN KEY (current_plan_price_id) REFERENCES subscription_plan_prices (id)
+        )
+        """,
+    )
+    for index_name, columns in (
+        ("uq_subscription_change_requests_uuid", "request_uuid"),
+        ("uq_subscription_change_requests_idempotency", "idempotency_key"),
+    ):
+        _create_unique_index_if_missing(connection, connection, "subscription_change_requests", index_name, columns)
+    for index_name, columns in (
+        ("ix_subscription_change_requests_group", "school_group_id"),
+        ("ix_subscription_change_requests_subscription", "payment_subscription_id"),
+        ("ix_subscription_change_requests_status", "status"),
+        ("ix_subscription_change_requests_provider_subscription", "provider_subscription_id"),
+    ):
+        _create_index_if_missing(connection, connection, "subscription_change_requests", index_name, columns)
+    _execute(
+        connection,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_subscription_change_requests_unresolved
+        ON subscription_change_requests (payment_subscription_id)
+        WHERE status IN ('draft','previewed','awaiting_confirmation','submitted','payment_pending','scheduled','manual_review')
+        """,
+    )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -3170,6 +3246,11 @@ MIGRATIONS = (
         migration_id="20260716_001_subscription_entitlement_foundation",
         description="Add normalized commercial subscription entitlement definitions and plan values",
         apply=_subscription_entitlement_foundation,
+    ),
+    Migration(
+        migration_id="20260716_002_subscription_branch_quantity_changes",
+        description="Add durable branch quantity change requests for active subscriptions",
+        apply=_subscription_branch_quantity_changes,
     ),
 )
 

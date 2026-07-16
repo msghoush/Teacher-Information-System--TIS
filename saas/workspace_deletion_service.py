@@ -172,6 +172,9 @@ def delete_test_workspace(
     db.query(models.PendingOrganization).filter_by(id=pending_id).update({models.PendingOrganization.last_payment_attempt_id: None}, synchronize_session=False)
     db.query(models.CheckoutSession).filter_by(pending_organization_id=pending_id).update({models.CheckoutSession.last_payment_attempt_id: None}, synchronize_session=False)
     db.query(models.SubscriptionContract).filter_by(pending_organization_id=pending_id).update({models.SubscriptionContract.selected_checkout_session_id: None}, synchronize_session=False)
+    payment_subscription_ids = [row[0] for row in db.query(models.PaymentSubscription.id).filter_by(pending_organization_id=pending_id).all()]
+    if payment_subscription_ids:
+        deleted += _delete(db.query(models.SubscriptionChangeRequest).filter(models.SubscriptionChangeRequest.payment_subscription_id.in_(payment_subscription_ids)))
     deleted += _delete(db.query(models.PaymentSubscription).filter_by(pending_organization_id=pending_id))
     deleted += _delete(db.query(models.PaymentAttempt).filter_by(pending_organization_id=pending_id))
     deleted += _delete(db.query(models.CheckoutSession).filter_by(pending_organization_id=pending_id))
