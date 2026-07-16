@@ -88,6 +88,13 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
             unique = uuid.uuid4().hex[:10]
             account = db.query(saas.models.SaaSAccount).filter_by(id=account_data["account_id"]).one()
             plan = db.query(saas.models.SubscriptionPlan).filter_by(plan_code=plan_code).one()
+            price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+                plan_id=plan.id,
+                billing_interval="annual",
+                currency_code="USD",
+                is_active=True,
+            ).one()
+            price.provider_price_id = price.provider_price_id or f"pri_01portal{unique}annualprice"
             group = models.SchoolGroup(name=f"Portal School {unique}")
             db.add(group)
             db.flush()
@@ -145,9 +152,13 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
                 subscription_contract_id=contract.id,
                 provider="paddle",
                 provider_subscription_id=f"sub_{uuid.uuid4().hex}",
+                provider_price_id=price.provider_price_id,
                 plan_id=plan.id,
                 billing_interval="annual",
+                currency_code="USD",
                 quantity=quantity,
+                unit_amount_minor=price.amount_minor,
+                amount_minor=price.amount_minor * quantity,
                 status=status,
                 next_billed_at=next_billed_at,
             )
@@ -325,10 +336,11 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.assertIn('href="/saas/subscription"', response.text)
         for label in (
             "Upgrade Plan",
-            "Add Branches",
+            "Add Branch Capacity",
+            "Reduce Branch Capacity",
             "Billing History",
             "Invoices",
-            "Pending Changes",
+            "Pending Plan Changes",
             "Manage Subscription",
         ):
             self.assertIn(label, response.text)
@@ -358,13 +370,15 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.assertEqual(denied.status_code, 302)
         self.assertTrue(denied.headers["location"].startswith("/saas/login"))
 
-    def test_portal_template_has_responsive_layout_and_no_mutation_controls(self):
+    def test_portal_template_has_responsive_layout_and_only_approved_mutation_control(self):
         template = Path("templates/saas/subscription.html").read_text(encoding="utf-8")
         self.assertIn("@media (max-width:900px)", template)
         self.assertIn("@media (max-width:640px)", template)
         self.assertIn("grid-template-columns:1fr", template)
-        self.assertNotIn("<form", template.lower())
-        self.assertNotIn("Paddle", template)
+        self.assertEqual(template.lower().count("<form"), 1)
+        self.assertIn("cancel scheduled reduction", template.lower())
+        self.assertNotIn("/upgrade", template.lower())
+        self.assertNotIn("PADDLE_API_KEY", template)
         self.assertNotIn("provider_", template)
 
 

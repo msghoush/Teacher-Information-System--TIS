@@ -3,7 +3,7 @@ from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
-from saas import entitlement_service
+from saas import entitlement_service, subscription_change_service
 
 
 CATEGORY_LABELS = {
@@ -30,6 +30,9 @@ class SubscriptionPortalView:
     is_at_capacity: bool
     is_over_capacity: bool
     next_billing_date_label: str
+    current_recurring_total_label: str
+    pending_change: dict | None
+    can_manage_branch_capacity: bool
     feature_groups: tuple[dict, ...]
     plan_comparison: tuple[dict, ...]
 
@@ -38,6 +41,14 @@ def _date_label(value) -> str:
     if not isinstance(value, (date, datetime)):
         return "Not Available"
     return value.strftime("%B %d, %Y")
+
+
+def _money_label(amount_minor, currency_code: str) -> str:
+    if amount_minor is None:
+        return "Not Available"
+    currency = str(currency_code or "USD").upper()
+    symbols = {"USD": "$", "EUR": "EUR ", "GBP": "GBP "}
+    return f"{symbols.get(currency, currency + ' ')}{int(amount_minor) / 100:,.2f}"
 
 
 def _status_display(resolution) -> tuple[str, str, str]:
@@ -106,6 +117,30 @@ def build_subscription_portal(db: Session, account) -> SubscriptionPortalView:
     status_label, health_label, health_tone = _status_display(resolution)
     interval = str(resolution.billing_interval or "").strip().lower()
     interval_label = {"monthly": "Monthly", "annual": "Annual"}.get(interval, "Not Available")
+    pending = None
+    if resolution.subscription_id:
+        row = subscription_change_service.get_pending_change(db, resolution.subscription_id)
+        if row:
+            pending = {
+                "request_uuid": row.request_uuid,
+                "change_type": row.change_type,
+                "status": row.status,
+                "status_label": {
+                    "previewed": "Awaiting confirmation",
+                    "payment_pending": "Payment confirmation pending",
+                    "scheduled": "Reduction scheduled",
+                    "manual_review": "Manual review required",
+                }.get(row.status, "Change in progress"),
+                "requested_quantity": row.requested_quantity,
+                "effective_date_label": _date_label(row.effective_at),
+                "expected_total_label": _money_label(row.next_renewal_total_minor, row.currency_code),
+                "can_cancel": row.change_type == subscription_change_service.REDUCTION and row.status == "scheduled",
+            }
+    try:
+        subscription_change_service.resolve_change_context(db, account)
+        can_manage_branch_capacity = True
+    except subscription_change_service.SubscriptionChangeError:
+        can_manage_branch_capacity = False
     return SubscriptionPortalView(
         resolution_status=resolution.resolution_status,
         status_label=status_label,
@@ -120,6 +155,9 @@ def build_subscription_portal(db: Session, account) -> SubscriptionPortalView:
         is_at_capacity=resolution.is_at_capacity,
         is_over_capacity=resolution.is_over_capacity,
         next_billing_date_label=_date_label(resolution.next_billed_at),
+        current_recurring_total_label=_money_label(resolution.recurring_amount_minor, resolution.currency_code),
+        pending_change=pending,
+        can_manage_branch_capacity=can_manage_branch_capacity,
         feature_groups=_feature_groups(db, resolution),
         plan_comparison=_plan_comparison(db, resolution.plan_code),
     )

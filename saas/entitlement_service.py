@@ -53,6 +53,8 @@ class EntitlementResolution:
     subscription_status: str = ""
     billing_interval: str = ""
     next_billed_at: datetime | None = None
+    currency_code: str = ""
+    recurring_amount_minor: int | None = None
     paid_branch_quantity: int | None = None
     active_branch_count: int = 0
     remaining_paid_capacity: int | None = None
@@ -87,6 +89,10 @@ class EntitlementRequiredError(PermissionError):
         super().__init__("The active subscription does not include this capability.")
         self.entitlement_key = entitlement_key
         self.resolution = resolution
+
+
+class BranchCapacityError(PermissionError):
+    pass
 
 
 def _clean(value) -> str:
@@ -220,6 +226,8 @@ def resolve_entitlements(
             subscription_status=_clean(subscription.status).lower(),
             billing_interval=billing_interval,
             next_billed_at=subscription.next_billed_at,
+            currency_code=_clean(subscription.currency_code).upper(),
+            recurring_amount_minor=subscription.amount_minor,
             paid_branch_quantity=paid_quantity,
             active_branch_count=active_branch_count,
             remaining_paid_capacity=remaining,
@@ -271,6 +279,8 @@ def resolve_entitlements(
         subscription_status=_clean(subscription.status).lower(),
         billing_interval=billing_interval,
         next_billed_at=subscription.next_billed_at,
+        currency_code=_clean(subscription.currency_code).upper(),
+        recurring_amount_minor=subscription.amount_minor,
         paid_branch_quantity=paid_quantity,
         active_branch_count=active_branch_count,
         remaining_paid_capacity=remaining,
@@ -311,6 +321,26 @@ def resolve_customer_entitlements(db: Session, account) -> EntitlementResolution
     if len(group_ids) != 1:
         return _manual_review(None, "ambiguous_customer_tenant")
     return resolve_entitlements(db, next(iter(group_ids)))
+
+
+def require_active_branch_capacity(
+    db: Session,
+    school_group_id: int,
+    *,
+    desired_active_count: int | None = None,
+) -> EntitlementResolution | None:
+    links = db.query(models.TenantProvisioningLink.id).filter(
+        models.TenantProvisioningLink.school_group_id == school_group_id
+    ).all()
+    if not links:
+        return None
+    resolution = resolve_entitlements(db, school_group_id)
+    if not resolution.resolved or resolution.paid_branch_quantity is None:
+        raise BranchCapacityError("Paid branch capacity is unavailable. Contact TIS support.")
+    desired = int(desired_active_count) if desired_active_count is not None else resolution.active_branch_count + 1
+    if desired > resolution.paid_branch_quantity:
+        raise BranchCapacityError("No paid branch capacity is available. Add branch capacity before activating another branch.")
+    return resolution
 
 
 def list_entitlement_catalog(db: Session) -> tuple[EntitlementCatalogItem, ...]:

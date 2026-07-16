@@ -30,6 +30,13 @@
     .future-card { border:1px solid var(--line); border-radius:8px; background:#f8fafc; padding:15px; color:#64748b; }
     .future-card strong { display:block; color:#475569; margin-bottom:5px; }
     .future-card span { font-size:12px; font-weight:850; text-transform:uppercase; }
+    .capacity-actions { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; margin-bottom:12px; }
+    .capacity-action { border:1px solid var(--line); border-radius:8px; background:#fff; padding:16px; }
+    .capacity-action strong { display:block; color:var(--brand-dark); margin-bottom:5px; }
+    .capacity-action p { color:var(--muted); font-size:13px; line-height:1.45; margin:0 0 13px; }
+    .pending-change { border:1px solid #f0c36a; border-radius:8px; background:#fff8e8; padding:16px; margin-bottom:18px; }
+    .pending-change h2 { font-size:17px; margin:0 0 6px; }
+    .pending-change p { margin:4px 0; color:#5f4a20; }
     .comparison-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; }
     .plan-panel { position:relative; border:1px solid var(--line); border-radius:8px; background:#fff; padding:17px; }
     .plan-panel.is-current { border-color:#0a4ea3; box-shadow:inset 0 3px 0 #0a4ea3; }
@@ -41,8 +48,11 @@
     .support-band h2 { margin-bottom:6px; }
     .support-band p { margin:0; color:#40556f; }
     @media (max-width:900px) { .subscription-summary, .future-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); } .comparison-grid { grid-template-columns:1fr; } }
-    @media (max-width:640px) { .subscription-heading, .portal-section-head, .support-band { align-items:flex-start; flex-direction:column; } .subscription-heading h1 { font-size:28px; } .subscription-summary, .feature-groups, .future-grid { grid-template-columns:1fr; } .health-badge { white-space:normal; } }
+    @media (max-width:640px) { .subscription-heading, .portal-section-head, .support-band { align-items:flex-start; flex-direction:column; } .subscription-heading h1 { font-size:28px; } .subscription-summary, .feature-groups, .future-grid, .capacity-actions { grid-template-columns:1fr; } .health-badge { white-space:normal; } }
 </style>
+
+{% if notice %}<div class="alert success">{{ notice }}</div>{% endif %}
+{% if error %}<div class="alert error">{{ error }}</div>{% endif %}
 
 <section class="subscription-heading">
     <div>
@@ -53,9 +63,24 @@
     <div class="health-badge is-{{ subscription_portal.health_tone }}">{{ subscription_portal.health_label }}</div>
 </section>
 
+{% if subscription_portal.pending_change %}
+<section class="pending-change">
+    <h2>Pending branch-capacity change</h2>
+    <p><strong>{{ subscription_portal.pending_change.status_label }}</strong></p>
+    <p>Requested paid branches: {{ subscription_portal.pending_change.requested_quantity }}. Expected recurring total: {{ subscription_portal.pending_change.expected_total_label }}.</p>
+    {% if subscription_portal.pending_change.effective_date_label != "Not Available" %}<p>Effective date: {{ subscription_portal.pending_change.effective_date_label }}.</p>{% endif %}
+    {% if subscription_portal.pending_change.can_cancel %}
+    <form method="post" action="/saas/subscription/branches/{{ subscription_portal.pending_change.request_uuid }}/cancel">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn secondary" type="submit">Cancel Scheduled Reduction</button>
+    </form>
+    {% endif %}
+</section>
+{% endif %}
+
 <section class="subscription-summary" aria-label="Subscription summary">
     <div class="summary-tile"><span>Current Plan</span><strong>{{ subscription_portal.plan_name }}</strong><small>{{ subscription_portal.status_label }}</small></div>
-    <div class="summary-tile"><span>Billing Interval</span><strong>{{ subscription_portal.billing_interval_label }}</strong><small>Next Billing Date: {{ subscription_portal.next_billing_date_label }}</small></div>
+    <div class="summary-tile"><span>Billing Interval</span><strong>{{ subscription_portal.billing_interval_label }}</strong><small>Recurring Total: {{ subscription_portal.current_recurring_total_label }}<br>Next Billing Date: {{ subscription_portal.next_billing_date_label }}</small></div>
     <div class="summary-tile"><span>Paid Branches</span><strong>{{ subscription_portal.paid_branch_quantity if subscription_portal.paid_branch_quantity is not none else "Not Available" }}</strong><small>Currently Active: {{ subscription_portal.active_branch_count }}</small></div>
     <div class="summary-tile"><span>Available Branch Capacity</span><strong>{{ subscription_portal.remaining_paid_capacity if subscription_portal.remaining_paid_capacity is not none else "Not Available" }}</strong><small>{% if subscription_portal.is_over_capacity %}Capacity requires review{% elif subscription_portal.is_at_capacity %}All paid capacity is in use{% else %}Available for active branches{% endif %}</small></div>
 </section>
@@ -78,9 +103,14 @@
 </section>
 
 <section class="portal-section">
+    <div class="portal-section-head"><div><h2>Branch capacity</h2><p>Adjust the number of branches covered by your current plan.</p></div></div>
+    {% if subscription_portal.can_manage_branch_capacity %}<div class="capacity-actions">
+        <div class="capacity-action"><strong>Add Branch Capacity</strong><p>Preview Paddle's prorated charge before adding paid branch capacity.</p><a class="btn primary" href="/saas/subscription/branches">Add Branch Capacity</a></div>
+        <div class="capacity-action"><strong>Reduce Branch Capacity</strong><p>Schedule a reduction for your next renewal after deactivating unused branches.</p><a class="btn secondary" href="/saas/subscription/branches">Reduce Branch Capacity</a></div>
+    </div>{% endif %}
     <div class="portal-section-head"><div><h2>Subscription tools</h2><p>Additional subscription controls are being prepared.</p></div></div>
     <div class="future-grid">
-        {% for label in ["Upgrade Plan", "Add Branches", "Billing History", "Invoices", "Pending Changes", "Manage Subscription"] %}
+        {% for label in ["Upgrade Plan", "Billing History", "Invoices", "Pending Plan Changes", "Manage Subscription"] %}
         <div class="future-card"><strong>{{ label }}</strong><span>Coming Soon</span></div>
         {% endfor %}
     </div>

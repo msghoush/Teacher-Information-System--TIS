@@ -136,6 +136,7 @@ def analyze_test_workspace(db: Session, organization) -> dict:
     _add_count(counts, category="SaaS / onboarding", table="payment_attempts", count=len(attempts), disposition="preserve audit/payment-provider")
     _add_count(counts, category="SaaS / onboarding", table="payment_customers", count=_count(db.query(models.PaymentCustomer).filter(models.PaymentCustomer.pending_organization_id == pending_organization_id)), disposition="preserve audit/payment-provider")
     _add_count(counts, category="SaaS / onboarding", table="payment_subscriptions", count=len(subscriptions), disposition="preserve audit/payment-provider")
+    _add_count(counts, category="SaaS / onboarding", table="subscription_change_requests", count=_count(db.query(models.SubscriptionChangeRequest).filter(models.SubscriptionChangeRequest.payment_subscription_id.in_([row.id for row in subscriptions]))) if subscriptions else 0, disposition="preserve audit/payment-provider")
     _add_count(counts, category="SaaS / onboarding", table="subscription_contracts", count=len(contracts), disposition="preserve audit/payment-provider")
     _add_count(counts, category="SaaS / onboarding", table="payment_webhooks", count=_payment_webhook_count(db, organization, attempts, subscriptions), disposition="preserve audit/payment-provider")
     _add_count(counts, category="SaaS / onboarding", table="provisioning_jobs", count=len(provisioning_job_ids), disposition="tenant-owned")

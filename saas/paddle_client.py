@@ -116,3 +116,85 @@ def create_transaction(
         "checkout": {"url": checkout_url or None},
     }
     return _request("POST", "/transactions", payload)
+
+
+def _subscription_items(items: list[dict]) -> list[dict]:
+    if not isinstance(items, list) or not items:
+        raise ValueError("At least one retained Paddle subscription item is required.")
+    normalized = []
+    for item in items:
+        price_id = str((item or {}).get("price_id") or "").strip()
+        try:
+            quantity = int((item or {}).get("quantity"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Each retained Paddle subscription item requires a positive quantity.") from exc
+        if not price_id.startswith("pri_") or quantity < 1:
+            raise ValueError("Each retained Paddle subscription item requires a price and positive quantity.")
+        normalized.append({"price_id": price_id, "quantity": quantity})
+    return normalized
+
+
+def get_subscription(*, subscription_id: str, include: str | None = None) -> dict:
+    cleaned = str(subscription_id or "").strip()
+    if not cleaned.startswith("sub_"):
+        raise ValueError("Paddle subscription ID is required.")
+    params = {"include": include} if include else None
+    return _request("GET", f"/subscriptions/{cleaned}", params=params)
+
+
+def preview_subscription_update(
+    *,
+    subscription_id: str,
+    items: list[dict],
+    proration_billing_mode: str,
+) -> dict:
+    cleaned = str(subscription_id or "").strip()
+    if not cleaned.startswith("sub_"):
+        raise ValueError("Paddle subscription ID is required.")
+    mode = str(proration_billing_mode or "").strip()
+    if mode not in {
+        "prorated_immediately",
+        "prorated_next_billing_period",
+        "full_immediately",
+        "full_next_billing_period",
+        "do_not_bill",
+    }:
+        raise ValueError("A supported Paddle proration billing mode is required.")
+    return _request(
+        "PATCH",
+        f"/subscriptions/{cleaned}/preview",
+        {"items": _subscription_items(items), "proration_billing_mode": mode},
+    )
+
+
+def update_subscription(
+    *,
+    subscription_id: str,
+    items: list[dict],
+    proration_billing_mode: str,
+    on_payment_failure: str = "prevent_change",
+) -> dict:
+    cleaned = str(subscription_id or "").strip()
+    if not cleaned.startswith("sub_"):
+        raise ValueError("Paddle subscription ID is required.")
+    mode = str(proration_billing_mode or "").strip()
+    if mode not in {
+        "prorated_immediately",
+        "prorated_next_billing_period",
+        "full_immediately",
+        "full_next_billing_period",
+        "do_not_bill",
+    }:
+        raise ValueError("A supported Paddle proration billing mode is required.")
+    payment_failure = str(on_payment_failure or "").strip()
+    if payment_failure not in {"prevent_change", "apply_change"}:
+        raise ValueError("A supported Paddle payment-failure mode is required.")
+    return _request(
+        "PATCH",
+        f"/subscriptions/{cleaned}",
+        {
+            "items": _subscription_items(items),
+            "proration_billing_mode": mode,
+            "on_payment_failure": payment_failure,
+        },
+    )

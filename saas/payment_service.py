@@ -1110,6 +1110,18 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
     )
 
     event_type = str(payload.get("event_type") or "").strip().lower()
+    from saas import subscription_change_service
+
+    change_result = subscription_change_service.reconcile_quantity_change_webhook(
+        db,
+        payload,
+        event_type,
+    )
+    if change_result is not None:
+        webhook_row.processing_status = change_result.get("status", "processed")
+        webhook_row.processed_at = _utcnow()
+        return change_result
+
     attempt = _find_attempt_by_payload(db, payload)
     if not attempt:
         webhook_row.processing_status = "ignored"
