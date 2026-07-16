@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
+import logging
 import uuid
 
 import httpx
@@ -22,13 +23,15 @@ UNRESOLVED_STATUSES = {
     "draft", "previewed", "awaiting_confirmation", "submitted",
     "payment_pending", "scheduled", "manual_review",
 }
+logger = logging.getLogger(__name__)
 
 
 class SubscriptionChangeError(ValueError):
-    def __init__(self, message: str, *, code: str = "change_unavailable", status_code: int = 400):
+    def __init__(self, message: str, *, code: str = "change_unavailable", status_code: int = 400, diagnostics: dict | None = None):
         super().__init__(message)
         self.code = code
         self.status_code = status_code
+        self.diagnostics = diagnostics or {}
 
 
 @dataclass(frozen=True)
@@ -157,23 +160,79 @@ def customer_summary(row) -> dict:
     }
 
 
-def _positive_amount(value, *, required: bool = False) -> int | None:
+def _minor_amount(value, *, required: bool = False, allow_negative: bool = False) -> int | None:
     try:
         parsed = int(str(value).strip())
     except (TypeError, ValueError):
         if required:
-            raise SubscriptionChangeError("Paddle did not return a complete billing preview.", code="incomplete_provider_preview", status_code=502)
+            raise ValueError("missing monetary value")
         return None
-    if parsed < 0:
-        raise SubscriptionChangeError("Paddle returned an invalid billing preview.", code="invalid_provider_preview", status_code=502)
+    if parsed < 0 and not allow_negative:
+        raise ValueError("negative monetary value")
     return parsed
 
 
-def _transaction_total(transaction: dict | None, *, required: bool = False) -> int | None:
-    details = transaction.get("details") if isinstance(transaction, dict) and isinstance(transaction.get("details"), dict) else {}
-    totals = details.get("totals") if isinstance(details.get("totals"), dict) else {}
-    value = totals.get("balance", totals.get("grand_total"))
-    return _positive_amount(value, required=required)
+def _preview_diagnostic(code: str, *, missing_fields: list[str], sections: list[str]) -> SubscriptionChangeError:
+    diagnostics = {
+        "reason_code": code,
+        "missing_fields": sorted(set(missing_fields)),
+        "response_sections": sorted(set(sections)),
+    }
+    logger.warning("paddle_subscription_preview_validation %s", json.dumps(diagnostics, separators=(",", ":"), sort_keys=True))
+    return SubscriptionChangeError(
+        "Secure subscription preview is temporarily unavailable. Please try again later.",
+        code=code,
+        status_code=502,
+        diagnostics=diagnostics,
+    )
+
+
+def _available_sections(payload: dict) -> list[str]:
+    return sorted(key for key, value in payload.items() if isinstance(value, (dict, list)) or value is not None)
+
+
+def _transaction_total(transaction: dict | None, section_name: str, currency_code: str) -> int:
+    sections = _available_sections(transaction) if isinstance(transaction, dict) else []
+    if not isinstance(transaction, dict):
+        raise _preview_diagnostic(
+            "preview_financial_data_incomplete",
+            missing_fields=[section_name],
+            sections=sections,
+        )
+    details = transaction.get("details") if isinstance(transaction.get("details"), dict) else {}
+    if isinstance(details.get("totals"), dict):
+        totals = details["totals"]
+        totals_path = f"{section_name}.details.totals"
+    elif isinstance(transaction.get("totals"), dict):
+        totals = transaction["totals"]
+        totals_path = f"{section_name}.totals"
+    else:
+        raise _preview_diagnostic(
+            "preview_financial_data_incomplete",
+            missing_fields=[f"{section_name}.totals"],
+            sections=sections,
+        )
+    provider_currency = _clean(totals.get("currency_code")).upper()
+    if provider_currency != _clean(currency_code).upper():
+        raise _preview_diagnostic(
+            "preview_currency_mismatch",
+            missing_fields=[] if provider_currency else [f"{totals_path}.currency_code"],
+            sections=[*sections, totals_path],
+        )
+    value = totals.get("balance")
+    value_field = "balance"
+    if value is None:
+        value = totals.get("grand_total")
+        value_field = "grand_total"
+    try:
+        parsed = _minor_amount(value, required=True)
+    except ValueError:
+        raise _preview_diagnostic(
+            "preview_financial_data_incomplete",
+            missing_fields=[f"{totals_path}.{value_field}"],
+            sections=[*sections, totals_path],
+        ) from None
+    return int(parsed)
 
 
 def _retained_items(provider_subscription: dict, expected_price_id: str, expected_quantity: int):
@@ -256,7 +315,8 @@ def preview_quantity_change(db: Session, account, requested_quantity: int):
         raise SubscriptionChangeError("Enter a valid paid branch quantity.", code="invalid_requested_quantity") from exc
     current = int(context.subscription.quantity or 0)
     if requested < 1 or requested == current:
-        raise SubscriptionChangeError("Choose a branch quantity different from the current paid quantity.", code="unchanged_quantity")
+        message = "Choose a different branch quantity to preview a change." if requested == current else "Enter a valid paid branch quantity."
+        raise SubscriptionChangeError(message, code="unchanged_quantity" if requested == current else "invalid_requested_quantity")
     existing = get_pending_change(db, context.subscription.id)
     if existing:
         if existing.current_quantity == current and existing.requested_quantity == requested and existing.status in {"previewed", "awaiting_confirmation"}:
@@ -285,15 +345,85 @@ def preview_quantity_change(db: Session, account, requested_quantity: int):
         raise
     except (paddle_client.PaddleAPIError, httpx.HTTPError, ValueError) as exc:
         raise _safe_provider_failure(exc) from exc
+    if _clean(preview.get("id")) != context.subscription.provider_subscription_id:
+        raise _preview_diagnostic(
+            "preview_subscription_mismatch",
+            missing_fields=[] if preview.get("id") else ["id"],
+            sections=_available_sections(preview),
+        )
+    if _clean(preview.get("status")).lower() != "active":
+        raise _preview_diagnostic(
+            "preview_subscription_status_mismatch",
+            missing_fields=[] if preview.get("status") else ["status"],
+            sections=_available_sections(preview),
+        )
+    try:
+        preview_items = _retained_items(preview, context.subscription.provider_price_id, requested)
+        _validate_provider_terms(preview, context.subscription.provider_price_id, context.subscription.billing_interval, context.subscription.currency_code)
+    except SubscriptionChangeError as exc:
+        raise _preview_diagnostic(
+            f"preview_{exc.code}",
+            missing_fields=[],
+            sections=_available_sections(preview),
+        ) from exc
+    if _items_signature(preview_items) != _items_signature(changed_items):
+        raise _preview_diagnostic(
+            "preview_items_mismatch",
+            missing_fields=[],
+            sections=_available_sections(preview),
+        )
+    preview_currency = _clean(preview.get("currency_code")).upper()
+    if preview_currency != _clean(context.subscription.currency_code).upper():
+        raise _preview_diagnostic(
+            "preview_currency_mismatch",
+            missing_fields=[] if preview_currency else ["currency_code"],
+            sections=_available_sections(preview),
+        )
     summary = preview.get("update_summary") if isinstance(preview.get("update_summary"), dict) else {}
     credit = summary.get("credit") if isinstance(summary.get("credit"), dict) else {}
     charge = summary.get("charge") if isinstance(summary.get("charge"), dict) else {}
-    currency = _clean(charge.get("currency_code") or credit.get("currency_code") or context.subscription.currency_code).upper()
-    if currency != _clean(context.subscription.currency_code).upper():
-        raise SubscriptionChangeError("Paddle returned a different billing currency.", code="provider_currency_mismatch", status_code=409)
+    result = summary.get("result") if isinstance(summary.get("result"), dict) else {}
+    summary_currencies = {
+        _clean(section.get("currency_code")).upper()
+        for section in (credit, charge, result)
+        if section
+    }
+    currency = _clean(context.subscription.currency_code).upper()
+    if not summary or not credit or not charge or not result:
+        missing = []
+        if not summary:
+            missing.append("update_summary")
+        if not credit:
+            missing.append("update_summary.credit")
+        if not charge:
+            missing.append("update_summary.charge")
+        if not result:
+            missing.append("update_summary.result")
+        raise _preview_diagnostic("preview_financial_data_incomplete", missing_fields=missing, sections=_available_sections(preview))
+    if summary_currencies != {currency}:
+        raise _preview_diagnostic(
+            "preview_currency_mismatch",
+            missing_fields=["update_summary.currency_code"] if "" in summary_currencies else [],
+            sections=_available_sections(summary),
+        )
     immediate = preview.get("immediate_transaction") if isinstance(preview.get("immediate_transaction"), dict) else None
     recurring = preview.get("recurring_transaction_details") if isinstance(preview.get("recurring_transaction_details"), dict) else None
     current_recurring = provider.get("recurring_transaction_details") if isinstance(provider.get("recurring_transaction_details"), dict) else None
+    try:
+        charge_minor = _minor_amount(charge.get("amount"), required=True)
+        credit_minor = abs(int(_minor_amount(credit.get("amount", 0), required=True, allow_negative=True)))
+        _minor_amount(result.get("amount"), required=True)
+        if _clean(result.get("action")).lower() not in {"charge", "credit"}:
+            raise ValueError("invalid result action")
+    except ValueError:
+        raise _preview_diagnostic(
+            "preview_financial_data_incomplete",
+            missing_fields=["update_summary.amount"],
+            sections=_available_sections(summary),
+        ) from None
+    immediate_total = _transaction_total(immediate, "immediate_transaction", currency) if change_type == INCREASE else 0
+    current_total = _transaction_total(current_recurring, "current_subscription.recurring_transaction_details", currency)
+    next_total = _transaction_total(recurring, "recurring_transaction_details", currency)
     from saas.payment_service import _parse_datetime
     provider_next_billed_at = _parse_datetime(provider.get("next_billed_at"))
     effective_at = provider_next_billed_at or context.subscription.next_billed_at
@@ -321,11 +451,11 @@ def preview_quantity_change(db: Session, account, requested_quantity: int):
         currency_code=currency,
         effective_mode=IMMEDIATE if change_type == INCREASE else NEXT_PERIOD,
         status="previewed",
-        previewed_charge_minor=_positive_amount(charge.get("amount")) or 0,
-        previewed_credit_minor=_positive_amount(credit.get("amount")) or 0,
-        previewed_net_minor=_transaction_total(immediate, required=change_type == INCREASE) if change_type == INCREASE else 0,
-        current_renewal_total_minor=_transaction_total(current_recurring, required=True),
-        next_renewal_total_minor=_transaction_total(recurring, required=True),
+        previewed_charge_minor=charge_minor,
+        previewed_credit_minor=credit_minor,
+        previewed_net_minor=immediate_total,
+        current_renewal_total_minor=current_total,
+        next_renewal_total_minor=next_total,
         retained_items_json=json.dumps(changed_items, separators=(",", ":"), sort_keys=True),
         idempotency_key=_idempotency_key(db, context, requested),
         requested_at=_utcnow(),

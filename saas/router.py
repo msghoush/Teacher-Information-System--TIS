@@ -1116,10 +1116,18 @@ def _require_saas_csrf(session_row, csrf_token: str):
         raise HTTPException(status_code=403, detail="Invalid CSRF token.")
 
 
-def _subscription_change_error(exc: subscription_change_service.SubscriptionChangeError, path: str):
+def _subscription_change_error(exc: subscription_change_service.SubscriptionChangeError, path: str, *, requested_quantity: int | None = None):
     if exc.status_code == 403:
         raise HTTPException(status_code=403, detail=str(exc))
-    return _redirect_error(path, str(exc))
+    message = str(exc)
+    if exc.diagnostics and _paddle_client_environment() == "sandbox":
+        missing = ", ".join(exc.diagnostics.get("missing_fields") or ()) or "none"
+        sections = ", ".join(exc.diagnostics.get("response_sections") or ()) or "none"
+        message = f"Preview diagnostic {exc.code}: missing fields [{missing}]; response sections [{sections}]."
+    if requested_quantity is not None:
+        separator = "&" if "?" in path else "?"
+        path = f"{path}{separator}requested_quantity={int(requested_quantity)}"
+    return _redirect_error(path, message)
 
 
 @router.get("/subscription/branches", response_class=HTMLResponse)
@@ -1137,10 +1145,18 @@ def subscription_branch_management(request: Request, db: Session = Depends(get_d
             raise HTTPException(status_code=403, detail=str(exc))
         can_manage = False
         access_error = str(exc)
+    submitted_quantity = request.query_params.get("requested_quantity", "")
+    try:
+        requested_quantity = int(submitted_quantity)
+    except (TypeError, ValueError):
+        requested_quantity = portal.paid_branch_quantity or 1
+    if requested_quantity < 1:
+        requested_quantity = portal.paid_branch_quantity or 1
     return _render(request, "saas/subscription_branches.html", {
         "account": account,
         "subscription_portal": portal,
         "can_manage": can_manage,
+        "requested_quantity": requested_quantity,
         "access_error": access_error,
         "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
         "notice": request.query_params.get("notice", ""),
@@ -1164,7 +1180,7 @@ def preview_subscription_branch_change(
         db.commit()
     except subscription_change_service.SubscriptionChangeError as exc:
         db.commit()
-        return _subscription_change_error(exc, "/saas/subscription/branches")
+        return _subscription_change_error(exc, "/saas/subscription/branches", requested_quantity=requested_quantity)
     return RedirectResponse(f"/saas/subscription/branches/{row.request_uuid}/confirm", status_code=302)
 
 

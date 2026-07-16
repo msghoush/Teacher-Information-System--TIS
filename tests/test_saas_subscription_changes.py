@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import json
+import os
 import unittest
 import uuid
 from unittest.mock import patch
@@ -130,25 +131,41 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
     def _provider_subscription(self, fixture, quantity, *, period_start="2026-07-01T00:00:00Z"):
         return {
             "id": fixture["provider_subscription_id"], "status": "active",
+            "currency_code": "USD",
             "items": [
                 {"quantity": quantity, "price": {"id": fixture["provider_price_id"], "billing_cycle": {"interval": "month"}, "unit_price": {"currency_code": "USD"}}},
                 {"quantity": 1, "price": {"id": "pri_01retainedaddon00000000000000", "billing_cycle": {"interval": "month"}, "unit_price": {"currency_code": "USD"}}},
             ],
             "current_billing_period": {"starts_at": period_start, "ends_at": "2026-08-01T00:00:00Z"},
             "next_billed_at": "2026-08-01T00:00:00Z",
-            "recurring_transaction_details": {"details": {"totals": {"balance": str(fixture["unit_amount"] * quantity)}}},
+            "recurring_transaction_details": {"totals": {"balance": str(fixture["unit_amount"] * quantity), "grand_total": str(fixture["unit_amount"] * quantity), "currency_code": "USD"}},
         }
 
-    def _preview(self, fixture, requested, *, current=3, next_total=None):
+    def _preview_payload(self, fixture, requested, *, current=3, next_total=None, alternate_nesting=False):
         next_total = next_total if next_total is not None else fixture["unit_amount"] * requested
-        response = {
+        recurring_totals = {"balance": str(next_total), "grand_total": str(next_total), "currency_code": "USD"}
+        return {
+            "id": fixture["provider_subscription_id"],
+            "status": "active",
+            "currency_code": "USD",
+            "items": self._provider_subscription(fixture, requested)["items"],
             "update_summary": {
-                "credit": {"amount": "100", "currency_code": "USD"},
+                "credit": {"amount": "-100", "currency_code": "USD"},
                 "charge": {"amount": "900", "currency_code": "USD"},
+                "result": {"action": "charge", "amount": "800", "currency_code": "USD"},
             },
-            "immediate_transaction": {"details": {"totals": {"balance": "800"}}} if requested > current else None,
-            "recurring_transaction_details": {"details": {"totals": {"balance": str(next_total)}}},
+            "immediate_transaction": {"details": {"totals": {"balance": "800", "grand_total": "800", "currency_code": "USD"}}} if requested > current else None,
+            "recurring_transaction_details": {"details": {"totals": recurring_totals}} if alternate_nesting else {"totals": recurring_totals},
         }
+
+    def _preview(self, fixture, requested, *, current=3, next_total=None, alternate_nesting=False):
+        response = self._preview_payload(
+            fixture,
+            requested,
+            current=current,
+            next_total=next_total,
+            alternate_nesting=alternate_nesting,
+        )
         db = self.Session()
         try:
             with (
@@ -178,6 +195,81 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
             self.assertEqual(row.next_renewal_total_minor, fixture["unit_amount"] * 5)
         finally:
             db.close()
+
+    def test_documented_and_alternate_recurring_total_nesting_are_supported(self):
+        documented = self._fixture(quantity=3, active_branches=3)
+        documented_id, _ = self._preview(documented, 4)
+        alternate = self._fixture(quantity=3, active_branches=3)
+        alternate_id, _ = self._preview(alternate, 4, alternate_nesting=True)
+        db = self.Session()
+        try:
+            self.assertEqual(db.query(saas.models.SubscriptionChangeRequest).filter_by(id=documented_id).one().requested_quantity, 4)
+            self.assertEqual(db.query(saas.models.SubscriptionChangeRequest).filter_by(id=alternate_id).one().requested_quantity, 4)
+        finally:
+            db.close()
+
+    def test_unchanged_quantity_stops_before_any_paddle_call(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        db = self.Session()
+        try:
+            with (
+                patch.object(paddle_client, "get_subscription") as get_subscription,
+                patch.object(paddle_client, "preview_subscription_update") as preview,
+                self.assertRaises(subscription_change_service.SubscriptionChangeError) as caught,
+            ):
+                subscription_change_service.preview_quantity_change(db, self._account(db, fixture), 3)
+            self.assertEqual(caught.exception.code, "unchanged_quantity")
+            self.assertEqual(str(caught.exception), "Choose a different branch quantity to preview a change.")
+            get_subscription.assert_not_called()
+            preview.assert_not_called()
+        finally:
+            db.close()
+
+    def test_preview_failure_preserves_quantity_and_sandbox_shows_safe_diagnostics(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        incomplete = self._preview_payload(fixture, 4)
+        incomplete.pop("recurring_transaction_details")
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+        self.client.cookies.set(service.SAAS_CSRF_COOKIE, fixture["csrf_token"])
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            patch.object(paddle_client, "get_subscription", return_value=self._provider_subscription(fixture, 3)),
+            patch.object(paddle_client, "preview_subscription_update", return_value=incomplete),
+            patch("saas.subscription_change_service.logger.warning") as diagnostic_log,
+        ):
+            response = self.client.post(
+                "/saas/subscription/branches/preview",
+                data={"requested_quantity": "4", "csrf_token": fixture["csrf_token"]},
+                follow_redirects=True,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('value="4"', response.text)
+        self.assertIn("preview_financial_data_incomplete", response.text)
+        self.assertIn("recurring_transaction_details", response.text)
+        self.assertNotIn(fixture["provider_subscription_id"], response.text)
+        diagnostic_log.assert_called_once()
+
+    def test_missing_financial_data_is_generic_in_production(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        incomplete = self._preview_payload(fixture, 4)
+        incomplete["immediate_transaction"] = None
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+        self.client.cookies.set(service.SAAS_CSRF_COOKIE, fixture["csrf_token"])
+        with (
+            patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "production"}),
+            patch.object(paddle_client, "get_subscription", return_value=self._provider_subscription(fixture, 3)),
+            patch.object(paddle_client, "preview_subscription_update", return_value=incomplete),
+            patch("saas.subscription_change_service.logger.warning"),
+        ):
+            response = self.client.post(
+                "/saas/subscription/branches/preview",
+                data={"requested_quantity": "4", "csrf_token": fixture["csrf_token"]},
+                follow_redirects=True,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('value="4"', response.text)
+        self.assertIn("Secure subscription preview is temporarily unavailable", response.text)
+        self.assertNotIn("preview_financial_data_incomplete", response.text)
 
     def test_increase_submission_is_immediate_idempotent_and_does_not_unlock_capacity(self):
         fixture = self._fixture(quantity=3, active_branches=3)
