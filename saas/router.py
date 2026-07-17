@@ -1200,16 +1200,11 @@ def confirm_subscription_branch_change_page(request_uuid: str, request: Request,
     if redirect:
         return redirect
     try:
-        context = subscription_change_service.resolve_change_context(db, account)
+        row = subscription_change_service.get_confirmation_preview(db, account, request_uuid)
+        db.commit()
     except subscription_change_service.SubscriptionChangeError as exc:
+        db.commit()
         return _subscription_change_error(exc, "/saas/subscription/branches")
-    row = db.query(models.SubscriptionChangeRequest).filter(
-        models.SubscriptionChangeRequest.request_uuid == request_uuid,
-        models.SubscriptionChangeRequest.payment_subscription_id == context.subscription.id,
-        models.SubscriptionChangeRequest.requested_by_saas_account_id == account.id,
-    ).first()
-    if row is None:
-        raise HTTPException(status_code=404, detail="Branch-capacity request not found.")
     return _render(request, "saas/subscription_branch_confirm.html", {
         "account": account,
         "change": subscription_change_service.customer_summary(row),

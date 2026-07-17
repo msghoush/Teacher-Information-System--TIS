@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import logging
@@ -19,10 +19,14 @@ INCREASE = "branch_quantity_increase"
 REDUCTION = "branch_quantity_reduction"
 IMMEDIATE = "immediate_prorated"
 NEXT_PERIOD = "next_billing_period"
+PREVIEW_ONLY_STATUSES = {"draft", "previewed", "awaiting_confirmation"}
+PROVIDER_SUBMITTED_STATUSES = {"submitted", "payment_pending", "scheduled"}
 UNRESOLVED_STATUSES = {
     "draft", "previewed", "awaiting_confirmation", "submitted",
     "payment_pending", "scheduled", "manual_review",
 }
+TERMINAL_STATUSES = {"completed", "confirmed", "canceled", "expired", "failed", "superseded"}
+PREVIEW_FRESHNESS = timedelta(minutes=30)
 logger = logging.getLogger(__name__)
 
 
@@ -125,10 +129,100 @@ def resolve_change_context(db: Session, account, *, lock: bool = False) -> Chang
 
 
 def get_pending_change(db: Session, payment_subscription_id: int):
+    """Return only a change whose provider update is unresolved."""
     return db.query(models.SubscriptionChangeRequest).filter(
         models.SubscriptionChangeRequest.payment_subscription_id == payment_subscription_id,
-        models.SubscriptionChangeRequest.status.in_(UNRESOLVED_STATUSES),
+        (
+            models.SubscriptionChangeRequest.status.in_(PROVIDER_SUBMITTED_STATUSES)
+            | (
+                (models.SubscriptionChangeRequest.status == "manual_review")
+                & models.SubscriptionChangeRequest.submitted_at.isnot(None)
+            )
+        ),
     ).order_by(models.SubscriptionChangeRequest.created_at.desc()).first()
+
+
+def _preview_is_fresh(row, *, now: datetime | None = None) -> bool:
+    observed_at = row.previewed_at
+    if row.status not in PREVIEW_ONLY_STATUSES or not isinstance(observed_at, datetime):
+        return False
+    return observed_at + PREVIEW_FRESHNESS > (now or _utcnow())
+
+
+def _expire_stale_previews(db: Session, context: ChangeContext, *, now: datetime | None = None):
+    now = now or _utcnow()
+    rows = db.query(models.SubscriptionChangeRequest).filter(
+        models.SubscriptionChangeRequest.payment_subscription_id == context.subscription.id,
+        (
+            models.SubscriptionChangeRequest.status.in_(PREVIEW_ONLY_STATUSES)
+            | (
+                (models.SubscriptionChangeRequest.status == "manual_review")
+                & models.SubscriptionChangeRequest.submitted_at.is_(None)
+            )
+        ),
+    ).with_for_update().all()
+    for row in rows:
+        if row.status == "manual_review" and row.submitted_at is None:
+            row.status = "failed"
+            row.failure_code = "pre_submission_uncertainty"
+            row.failure_message = "The preview failed before a provider update was submitted."
+            _audit("branch_quantity_preview_failed", context, row, failure_code=row.failure_code)
+        elif not _preview_is_fresh(row, now=now):
+            row.status = "expired"
+            row.failure_code = "preview_expired"
+            row.failure_message = "The billing preview expired before confirmation."
+            _audit("branch_quantity_preview_expired", context, row)
+    return [row for row in rows if row.status in PREVIEW_ONLY_STATUSES]
+
+
+def _validate_preview_context(context: ChangeContext, row) -> None:
+    expected_current = int(context.subscription.quantity or 0)
+    valid = (
+        row.school_group_id == context.resolution.school_group_id
+        and row.subscription_contract_id == context.contract.id
+        and row.payment_subscription_id == context.subscription.id
+        and row.provider_subscription_id == context.subscription.provider_subscription_id
+        and row.current_plan_price_id == context.plan_price.id
+        and row.provider_price_id == context.subscription.provider_price_id
+        and row.billing_interval == context.subscription.billing_interval
+        and _clean(row.currency_code).upper() == _clean(context.subscription.currency_code).upper()
+        and row.current_quantity == expected_current
+        and row.requested_quantity >= 1
+        and row.requested_quantity != row.current_quantity
+        and row.quantity_delta == row.requested_quantity - row.current_quantity
+        and row.change_type == (INCREASE if row.requested_quantity > row.current_quantity else REDUCTION)
+    )
+    if not valid:
+        raise SubscriptionChangeError(
+            "The billing preview is no longer valid. Generate a new preview to continue.",
+            code="stale_preview",
+            status_code=409,
+        )
+
+
+def get_confirmation_preview(db: Session, account, request_uuid: str):
+    context = resolve_change_context(db, account, lock=True)
+    row = db.query(models.SubscriptionChangeRequest).filter(
+        models.SubscriptionChangeRequest.request_uuid == _clean(request_uuid),
+        models.SubscriptionChangeRequest.payment_subscription_id == context.subscription.id,
+        models.SubscriptionChangeRequest.requested_by_saas_account_id == account.id,
+    ).with_for_update().one_or_none()
+    if row is None:
+        raise SubscriptionChangeError("Branch-capacity request not found.", code="change_not_found", status_code=404)
+    if row.status != "previewed" or not _preview_is_fresh(row):
+        if row.status in PREVIEW_ONLY_STATUSES:
+            row.status = "expired"
+            row.failure_code = "preview_expired"
+            row.failure_message = "The billing preview expired before confirmation."
+            _audit("branch_quantity_preview_expired", context, row)
+        raise SubscriptionChangeError(
+            "The billing preview is no longer valid. Generate a new preview to continue.",
+            code="stale_preview",
+            status_code=409,
+        )
+    _validate_preview_context(context, row)
+    _stored_items(row)
+    return row
 
 
 def customer_summary(row) -> dict:
@@ -319,9 +413,17 @@ def preview_quantity_change(db: Session, account, requested_quantity: int):
         raise SubscriptionChangeError(message, code="unchanged_quantity" if requested == current else "invalid_requested_quantity")
     existing = get_pending_change(db, context.subscription.id)
     if existing:
-        if existing.current_quantity == current and existing.requested_quantity == requested and existing.status in {"previewed", "awaiting_confirmation"}:
-            return existing
         raise SubscriptionChangeError("Another branch-capacity change is already in progress.", code="change_already_pending", status_code=409)
+    preview_rows = _expire_stale_previews(db, context)
+    fresh_previews = [row for row in preview_rows if _preview_is_fresh(row)]
+    reusable = next((
+        row for row in fresh_previews
+        if row.status == "previewed"
+        and row.current_quantity == current
+        and row.requested_quantity == requested
+    ), None)
+    if reusable:
+        return reusable
     change_type = INCREASE if requested > current else REDUCTION
     if change_type == REDUCTION and requested < context.resolution.active_branch_count:
         raise SubscriptionChangeError("Deactivate branches before reducing paid capacity below current usage.", code="below_active_branch_count", status_code=409)
@@ -456,6 +558,11 @@ def preview_quantity_change(db: Session, account, requested_quantity: int):
         previewed_at=_utcnow(),
         effective_at=effective_at if change_type == REDUCTION else None,
     )
+    for previous in fresh_previews:
+        previous.status = "superseded"
+        previous.failure_code = "preview_superseded"
+        previous.failure_message = "A newer billing preview replaced this preview."
+        _audit("branch_quantity_preview_superseded", context, previous, replacement_request_uuid=row.request_uuid)
     db.add(row)
     try:
         db.flush()
@@ -487,17 +594,32 @@ def submit_quantity_change(db: Session, account, request_uuid: str):
         raise SubscriptionChangeError("Branch-capacity request not found.", code="change_not_found", status_code=404)
     if row.status in {"submitted", "payment_pending", "scheduled", "confirmed"}:
         return row
-    if row.status != "previewed" or int(context.subscription.quantity or 0) != row.current_quantity:
-        raise SubscriptionChangeError("The billing preview is no longer valid.", code="stale_preview", status_code=409)
+    if row.status != "previewed" or not _preview_is_fresh(row):
+        if row.status in PREVIEW_ONLY_STATUSES:
+            row.status = "expired"
+            row.failure_code = "preview_expired"
+            row.failure_message = "The billing preview expired before confirmation."
+            _audit("branch_quantity_preview_expired", context, row)
+        raise SubscriptionChangeError(
+            "The billing preview is no longer valid. Generate a new preview to continue.",
+            code="stale_preview",
+            status_code=409,
+        )
+    _validate_preview_context(context, row)
     items = _stored_items(row)
     mode = "prorated_immediately" if row.change_type == INCREASE else "prorated_next_billing_period"
+    update_attempted = False
     update_completed = False
     try:
         provider = paddle_client.get_subscription(subscription_id=row.provider_subscription_id)
+        if _clean(provider.get("id")) != row.provider_subscription_id or _clean(provider.get("status")).lower() != "active":
+            raise SubscriptionChangeError("The Paddle subscription changed after this preview.", code="stale_provider_subscription", status_code=409)
         current_items = _retained_items(provider, row.provider_price_id, row.current_quantity)
         _validate_provider_terms(provider, row.provider_price_id, row.billing_interval, row.currency_code)
         if not _retained_items_match(current_items, items, row.provider_price_id):
             raise SubscriptionChangeError("The Paddle subscription changed after this preview.", code="stale_provider_items", status_code=409)
+        row.submitted_at = row.submitted_at or _utcnow()
+        update_attempted = True
         response = paddle_client.update_subscription(
             subscription_id=row.provider_subscription_id,
             items=items,
@@ -505,6 +627,8 @@ def submit_quantity_change(db: Session, account, request_uuid: str):
             on_payment_failure="prevent_change",
         )
         update_completed = True
+        if _clean(response.get("id")) != row.provider_subscription_id or _clean(response.get("status")).lower() != "active":
+            raise SubscriptionChangeError("Paddle returned an unexpected subscription response.", code="provider_subscription_mismatch", status_code=409)
         observed = _retained_items(response, row.provider_price_id, row.requested_quantity)
         _validate_provider_terms(response, row.provider_price_id, row.billing_interval, row.currency_code)
         if _items_signature(observed) != _items_signature(items):
@@ -515,15 +639,23 @@ def submit_quantity_change(db: Session, account, request_uuid: str):
             row.failure_code = "provider_update_response_mismatch"
             row.failure_message = "The subscription change requires manual review. No local branch capacity was changed."
             _audit("branch_quantity_change_manual_review", context, row, failure_code=row.failure_code)
+        elif not update_attempted:
+            row.status = "expired"
+            row.failure_code = "preview_revalidation_failed"
+            row.failure_message = "The billing preview could not be revalidated before submission."
+            _audit("branch_quantity_preview_expired", context, row, failure_code=row.failure_code)
         raise
     except (paddle_client.PaddleAPIError, httpx.HTTPError, ValueError) as exc:
-        outcome_unknown = isinstance(exc, httpx.HTTPError)
+        provider_status = getattr(exc, "status_code", None)
+        outcome_unknown = update_attempted and (
+            isinstance(exc, httpx.HTTPError)
+            or (isinstance(provider_status, int) and provider_status >= 500)
+        )
         row.status = "manual_review" if outcome_unknown else "failed"
         row.failure_code = _clean(getattr(exc, "error_code", "")) or ("provider_outcome_unknown" if outcome_unknown else "provider_update_failed")
         row.failure_message = "The subscription change requires review. No local branch capacity was changed." if outcome_unknown else "The subscription change could not be completed. No branch capacity was changed."
         _audit("branch_quantity_change_manual_review" if outcome_unknown else ("branch_quantity_increase_failed" if row.change_type == INCREASE else "branch_quantity_change_manual_review"), context, row, failure_code=row.failure_code)
         raise _safe_provider_failure(exc) from exc
-    row.submitted_at = row.submitted_at or _utcnow()
     row.provider_observed_quantity = row.requested_quantity
     if row.change_type == INCREASE:
         row.status = "payment_pending"
