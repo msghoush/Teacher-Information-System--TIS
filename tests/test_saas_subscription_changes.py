@@ -5,6 +5,7 @@ import unittest
 import uuid
 from unittest.mock import patch
 
+import httpx
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
@@ -209,7 +210,7 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
                 row = subscription_change_service.preview_quantity_change(db, self._account(db, fixture), requested)
                 db.commit()
                 row_id = row.id
-                preview_kwargs = preview_call.call_args.kwargs
+                preview_kwargs = preview_call.call_args.kwargs if preview_call.call_args else None
             return row_id, preview_kwargs
         finally:
             db.close()
@@ -456,6 +457,226 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         self.assertIn('value="4"', response.text)
         self.assertIn("Secure subscription preview is temporarily unavailable", response.text)
         self.assertNotIn("preview_financial_data_incomplete", response.text)
+
+    def test_abandoned_preview_is_not_a_portal_pending_change_or_banner(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        self._preview(fixture, 4)
+        db = self.Session()
+        try:
+            account = self._account(db, fixture)
+            self.assertIsNone(subscription_change_service.get_pending_change(db, fixture["subscription_id"]))
+            portal = subscription_portal_service.build_subscription_portal(db, account)
+            self.assertIsNone(portal.pending_change)
+        finally:
+            db.close()
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+        response = self.client.get("/saas/subscription")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("Pending branch-capacity change", response.text)
+        self.assertNotIn("Awaiting confirmation", response.text)
+
+    def test_replacement_preview_supersedes_abandoned_preview(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        first_id, _ = self._preview(fixture, 4)
+        second_id, _ = self._preview(fixture, 5)
+        db = self.Session()
+        try:
+            first = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=first_id).one()
+            second = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=second_id).one()
+            self.assertEqual(first.status, "superseded")
+            self.assertEqual(first.failure_code, "preview_superseded")
+            self.assertEqual(second.status, "previewed")
+            self.assertEqual(second.requested_quantity, 5)
+        finally:
+            db.close()
+
+    def test_same_fresh_preview_is_idempotently_reused(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        first_id, _ = self._preview(fixture, 4)
+        second_id, _ = self._preview(fixture, 4)
+        self.assertEqual(first_id, second_id)
+        db = self.Session()
+        try:
+            self.assertEqual(
+                db.query(saas.models.SubscriptionChangeRequest).filter_by(
+                    payment_subscription_id=fixture["subscription_id"]
+                ).count(),
+                1,
+            )
+        finally:
+            db.close()
+
+    def test_expired_preview_cannot_be_confirmed_and_new_preview_replaces_it(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        expired_id, _ = self._preview(fixture, 4)
+        db = self.Session()
+        try:
+            expired = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=expired_id).one()
+            expired.previewed_at = datetime.utcnow() - subscription_change_service.PREVIEW_FRESHNESS - timedelta(minutes=1)
+            request_uuid = expired.request_uuid
+            db.commit()
+            with (
+                patch.object(paddle_client, "get_subscription") as get_subscription,
+                patch.object(paddle_client, "update_subscription") as update_subscription,
+                patch("saas.subscription_change_service.audit.write_audit_event"),
+            ):
+                with self.assertRaises(subscription_change_service.SubscriptionChangeError) as caught:
+                    subscription_change_service.submit_quantity_change(db, self._account(db, fixture), request_uuid)
+                db.commit()
+            self.assertEqual(caught.exception.code, "stale_preview")
+            self.assertEqual(expired.status, "expired")
+            get_subscription.assert_not_called()
+            update_subscription.assert_not_called()
+        finally:
+            db.close()
+        replacement_id, _ = self._preview(fixture, 5)
+        self.assertNotEqual(expired_id, replacement_id)
+
+    def test_confirmation_page_accepts_only_a_fresh_active_preview(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        row_id, _ = self._preview(fixture, 4)
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=row_id).one()
+            request_uuid = row.request_uuid
+        finally:
+            db.close()
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+        fresh = self.client.get(f"/saas/subscription/branches/{request_uuid}/confirm", follow_redirects=False)
+        self.assertEqual(fresh.status_code, 200)
+        self.assertIn("Confirm Branch Capacity Change", fresh.text)
+
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=row_id).one()
+            row.previewed_at = datetime.utcnow() - subscription_change_service.PREVIEW_FRESHNESS - timedelta(minutes=1)
+            db.commit()
+        finally:
+            db.close()
+        stale = self.client.get(f"/saas/subscription/branches/{request_uuid}/confirm", follow_redirects=False)
+        self.assertEqual(stale.status_code, 302)
+        self.assertIn("/saas/subscription/branches?error=", stale.headers["location"])
+        self.assertIn("Generate+a+new+preview", stale.headers["location"])
+
+    def test_confirmation_revalidates_local_and_provider_quantity(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        local_id, _ = self._preview(fixture, 4)
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=local_id).one()
+            subscription = db.query(saas.models.PaymentSubscription).filter_by(id=fixture["subscription_id"]).one()
+            subscription.quantity = 5
+            db.commit()
+            with patch.object(paddle_client, "update_subscription") as update:
+                with self.assertRaises(subscription_change_service.SubscriptionChangeError) as caught:
+                    subscription_change_service.submit_quantity_change(db, self._account(db, fixture), row.request_uuid)
+            self.assertEqual(caught.exception.code, "stale_preview")
+            update.assert_not_called()
+        finally:
+            db.close()
+
+        provider_fixture = self._fixture(quantity=3, active_branches=3)
+        provider_id, _ = self._preview(provider_fixture, 4)
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=provider_id).one()
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=self._provider_subscription(provider_fixture, 5)),
+                patch.object(paddle_client, "update_subscription") as update,
+                patch("saas.subscription_change_service.audit.write_audit_event"),
+            ):
+                with self.assertRaises(subscription_change_service.SubscriptionChangeError) as caught:
+                    subscription_change_service.submit_quantity_change(db, self._account(db, provider_fixture), row.request_uuid)
+                db.commit()
+            self.assertEqual(caught.exception.code, "provider_quantity_mismatch")
+            self.assertEqual(row.status, "expired")
+            update.assert_not_called()
+        finally:
+            db.close()
+
+    def test_only_provider_submitted_manual_review_is_visible_and_blocking(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        submitted_id, _ = self._preview(fixture, 4)
+        db = self.Session()
+        try:
+            submitted = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=submitted_id).one()
+            submitted.status = "manual_review"
+            submitted.submitted_at = datetime.utcnow()
+            db.commit()
+            portal = subscription_portal_service.build_subscription_portal(db, self._account(db, fixture))
+            self.assertEqual(portal.pending_change["status"], "manual_review")
+            with (
+                patch.object(paddle_client, "get_subscription") as get_subscription,
+                self.assertRaises(subscription_change_service.SubscriptionChangeError) as caught,
+            ):
+                subscription_change_service.preview_quantity_change(db, self._account(db, fixture), 5)
+            self.assertEqual(caught.exception.code, "change_already_pending")
+            get_subscription.assert_not_called()
+        finally:
+            db.close()
+
+    def test_pre_submission_manual_review_is_cleaned_up_and_does_not_block(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        old_id, _ = self._preview(fixture, 4)
+        db = self.Session()
+        try:
+            old = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=old_id).one()
+            old.status = "manual_review"
+            old.submitted_at = None
+            db.commit()
+            self.assertIsNone(subscription_change_service.get_pending_change(db, fixture["subscription_id"]))
+        finally:
+            db.close()
+        replacement_id, _ = self._preview(fixture, 5)
+        db = self.Session()
+        try:
+            old = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=old_id).one()
+            replacement = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=replacement_id).one()
+            self.assertEqual((old.status, old.failure_code), ("failed", "pre_submission_uncertainty"))
+            self.assertEqual(replacement.status, "previewed")
+        finally:
+            db.close()
+
+    def test_provider_outcome_uncertainty_is_pending_only_after_update_submission(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        submitted_id, _ = self._preview(fixture, 4)
+        db = self.Session()
+        try:
+            submitted = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=submitted_id).one()
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=self._provider_subscription(fixture, 3)),
+                patch.object(paddle_client, "update_subscription", side_effect=httpx.ReadTimeout("provider timeout")),
+                patch("saas.subscription_change_service.audit.write_audit_event"),
+            ):
+                with self.assertRaises(subscription_change_service.SubscriptionChangeError):
+                    subscription_change_service.submit_quantity_change(db, self._account(db, fixture), submitted.request_uuid)
+                db.commit()
+            self.assertEqual(submitted.status, "manual_review")
+            self.assertIsNotNone(submitted.submitted_at)
+            portal = subscription_portal_service.build_subscription_portal(db, self._account(db, fixture))
+            self.assertEqual(portal.pending_change["status"], "manual_review")
+        finally:
+            db.close()
+
+        pre_submit_fixture = self._fixture(quantity=3, active_branches=3)
+        pre_submit_id, _ = self._preview(pre_submit_fixture, 4)
+        db = self.Session()
+        try:
+            pre_submit = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=pre_submit_id).one()
+            with (
+                patch.object(paddle_client, "get_subscription", side_effect=httpx.ReadTimeout("provider timeout")),
+                patch.object(paddle_client, "update_subscription") as update,
+                patch("saas.subscription_change_service.audit.write_audit_event"),
+            ):
+                with self.assertRaises(subscription_change_service.SubscriptionChangeError):
+                    subscription_change_service.submit_quantity_change(db, self._account(db, pre_submit_fixture), pre_submit.request_uuid)
+                db.commit()
+            self.assertEqual(pre_submit.status, "failed")
+            self.assertIsNone(pre_submit.submitted_at)
+            self.assertIsNone(subscription_portal_service.build_subscription_portal(db, self._account(db, pre_submit_fixture)).pending_change)
+            update.assert_not_called()
+        finally:
+            db.close()
 
     def test_increase_submission_is_immediate_idempotent_and_does_not_unlock_capacity(self):
         fixture = self._fixture(quantity=3, active_branches=3)
