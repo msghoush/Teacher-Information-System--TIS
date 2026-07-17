@@ -240,6 +240,19 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         finally:
             db.close()
 
+    def _scheduled_plan_change(self, fixture, target_code):
+        row_id, target_plan_id, target_price_id, target_provider_price, _ = self._plan_preview(fixture, target_code)
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=row_id).one()
+            row.status = "scheduled"
+            row.submitted_at = datetime.utcnow()
+            row.provider_scheduled_at = datetime.utcnow()
+            db.commit()
+            return row.request_uuid, target_plan_id, target_price_id, target_provider_price
+        finally:
+            db.close()
+
     def test_increase_preview_uses_complete_retained_items_and_provider_totals(self):
         fixture = self._fixture(quantity=3, active_branches=3)
         row_id, kwargs = self._preview(fixture, 5)
@@ -1084,6 +1097,108 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
             self.assertEqual(row.status, "manual_review")
             self.assertIsNotNone(row.submitted_at)
             self.assertEqual(subscription_change_service.get_pending_change(db, fixture["subscription_id"]).id, row.id)
+        finally:
+            db.close()
+
+    def test_scheduled_plan_change_can_be_canceled_without_changing_tenant_or_entitlements(self):
+        fixture = self._fixture(quantity=4, active_branches=2, plan_code="enterprise_ai")
+        request_uuid, _target, _price, scheduled_provider_price = self._scheduled_plan_change(fixture, "starter")
+        scheduled_fixture = dict(fixture, provider_price_id=scheduled_provider_price)
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+        portal_response = self.client.get("/saas/subscription")
+        self.assertIn("Current Plan", portal_response.text)
+        self.assertIn("Target plan: Starter", portal_response.text)
+        self.assertIn("Replace Scheduled Change", portal_response.text)
+        self.assertIn("Cancel Scheduled Change", portal_response.text)
+        self.assertIn(f"/saas/subscription/plans/{request_uuid}/replace", portal_response.text)
+        db = self.Session()
+        try:
+            account = self._account(db, fixture)
+            before_links = db.query(saas.models.TenantProvisioningLink).count()
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=self._provider_subscription(scheduled_fixture, 4)),
+                patch.object(paddle_client, "preview_subscription_update", return_value={}),
+                patch.object(paddle_client, "update_subscription", return_value=self._provider_subscription(fixture, 4)) as update,
+                patch("saas.subscription_change_service.audit.write_audit_event"),
+            ):
+                row = subscription_plan_change_service.cancel_scheduled_plan_change(db, account, request_uuid)
+                db.commit()
+            self.assertEqual(row.status, "canceled")
+            self.assertEqual(next(item for item in update.call_args.kwargs["items"] if item["price_id"] == fixture["provider_price_id"])["quantity"], 4)
+            subscription = db.query(saas.models.PaymentSubscription).filter_by(id=fixture["subscription_id"]).one()
+            self.assertEqual((subscription.plan_id, subscription.quantity), (fixture["plan_id"], 4))
+            self.assertEqual(db.query(saas.models.TenantProvisioningLink).count(), before_links)
+            self.assertTrue(entitlement_service.resolve_entitlements(db, fixture["group_id"]).entitlements["module.ai"].granted)
+        finally:
+            db.close()
+
+    def test_scheduled_downgrade_replacement_preserves_history_quantity_and_is_idempotent(self):
+        for current_code, scheduled_code, replacement_code in (
+            ("professional", "starter", "enterprise_ai"),
+            ("enterprise_ai", "starter", "professional"),
+        ):
+            with self.subTest(replacement=replacement_code):
+                fixture = self._fixture(quantity=5, active_branches=2, plan_code=current_code)
+                old_uuid, _old_target, _old_price, old_provider_price = self._scheduled_plan_change(fixture, scheduled_code)
+                db = self.Session()
+                try:
+                    new_plan = db.query(saas.models.SubscriptionPlan).filter_by(plan_code=replacement_code).one()
+                    new_price = db.query(saas.models.SubscriptionPlanPrice).filter_by(plan_id=new_plan.id, billing_interval="monthly", currency_code="USD", is_active=True).one()
+                    new_price.provider_price_id = f"pri_01replacement{replacement_code.replace('_', '')}000"
+                    db.commit()
+                    old_fixture = dict(fixture, provider_price_id=old_provider_price)
+                    new_fixture = dict(fixture, provider_price_id=new_price.provider_price_id, unit_amount=new_price.amount_minor)
+                    new_preview = self._preview_payload(new_fixture, 5, current=0)
+                    new_preview["items"] = self._provider_subscription(new_fixture, 5)["items"]
+                    with (
+                        patch.object(paddle_client, "get_subscription", side_effect=[self._provider_subscription(old_fixture, 5), self._provider_subscription(fixture, 5)]),
+                        patch.object(paddle_client, "preview_subscription_update", side_effect=[{}, new_preview]),
+                        patch.object(paddle_client, "update_subscription", return_value=self._provider_subscription(fixture, 5)),
+                        patch("saas.subscription_change_service.audit.write_audit_event"),
+                    ):
+                        replacement = subscription_plan_change_service.replace_scheduled_plan_change(db, self._account(db, fixture), old_uuid, replacement_code)
+                        db.commit()
+                    old = db.query(saas.models.SubscriptionChangeRequest).filter_by(request_uuid=old_uuid).one()
+                    self.assertEqual(old.status, "superseded")
+                    self.assertEqual((replacement.status, replacement.current_quantity, replacement.requested_quantity), ("previewed", 5, 5))
+                    self.assertNotEqual(old.id, replacement.id)
+                    subscription = db.query(saas.models.PaymentSubscription).filter_by(id=fixture["subscription_id"]).one()
+                    self.assertEqual((subscription.plan_id, subscription.quantity), (fixture["plan_id"], 5))
+                    with patch.object(paddle_client, "update_subscription") as repeated:
+                        same = subscription_plan_change_service.replace_scheduled_plan_change(db, self._account(db, fixture), old_uuid, replacement_code)
+                    self.assertEqual(same.id, replacement.id)
+                    repeated.assert_not_called()
+                finally:
+                    db.close()
+
+    def test_scheduled_replacement_failure_and_nonreplaceable_states_fail_closed(self):
+        fixture = self._fixture(quantity=3, active_branches=2, plan_code="professional")
+        request_uuid, _target, _price, scheduled_provider_price = self._scheduled_plan_change(fixture, "starter")
+        db = self.Session()
+        try:
+            enterprise = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="enterprise_ai").one()
+            enterprise_price = db.query(saas.models.SubscriptionPlanPrice).filter_by(plan_id=enterprise.id, billing_interval="monthly", currency_code="USD", is_active=True).one()
+            enterprise_price.provider_price_id = "pri_01replacemententerprise00000"
+            db.commit()
+            scheduled_fixture = dict(fixture, provider_price_id=scheduled_provider_price)
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=self._provider_subscription(scheduled_fixture, 3)),
+                patch.object(paddle_client, "preview_subscription_update", return_value={}),
+                patch.object(paddle_client, "update_subscription", side_effect=paddle_client.PaddleAPIError("rejected", status_code=400)),
+            ):
+                with self.assertRaises(subscription_change_service.SubscriptionChangeError):
+                    subscription_plan_change_service.replace_scheduled_plan_change(db, self._account(db, fixture), request_uuid, "enterprise_ai")
+            row = db.query(saas.models.SubscriptionChangeRequest).filter_by(request_uuid=request_uuid).one()
+            self.assertEqual(row.status, "scheduled")
+            self.assertEqual(db.query(saas.models.SubscriptionChangeRequest).count(), 1)
+            for status in ("payment_pending", "manual_review", "failed", "confirmed"):
+                row.status = status
+                row.submitted_at = datetime.utcnow()
+                db.flush()
+                with patch.object(paddle_client, "update_subscription") as update:
+                    with self.assertRaises(subscription_change_service.SubscriptionChangeError):
+                        subscription_plan_change_service.replace_scheduled_plan_change(db, self._account(db, fixture), request_uuid, "enterprise_ai")
+                update.assert_not_called()
         finally:
             db.close()
 

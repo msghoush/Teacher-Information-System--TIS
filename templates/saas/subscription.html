@@ -76,6 +76,12 @@
         <button class="btn secondary" type="submit">Cancel Scheduled Reduction</button>
     </form>
     {% endif %}
+    {% if subscription_portal.pending_change.can_manage_schedule %}
+    <div class="actions">
+        <a class="btn secondary" href="#plan-comparison">Replace Scheduled Change</a>
+        <form method="post" action="/saas/subscription/plans/{{ subscription_portal.pending_change.request_uuid }}/cancel"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn secondary" type="submit">Cancel Scheduled Change</button></form>
+    </div>
+    {% endif %}
 </section>
 {% endif %}
 
@@ -117,7 +123,7 @@
     </div>
 </section>
 
-<section class="portal-section">
+<section class="portal-section" id="plan-comparison">
     <div class="portal-section-head"><div><h2>Plan comparison</h2><p>Your current confirmed plan is highlighted. Paddle provides the billing preview before any change is submitted.</p></div></div>
     <div class="comparison-grid">
         {% for plan in subscription_portal.plan_comparison %}
@@ -127,6 +133,7 @@
             {% if plan.included_features %}<ul>{% for feature in plan.included_features %}<li>{{ feature }}</li>{% endfor %}</ul>{% else %}<p class="page-subtitle">Commercial feature details are being finalized.</p>{% endif %}
             {% if plan.is_current %}<button type="button" disabled>Current Plan</button>
             {% elif subscription_portal.can_manage_plan %}<form method="post" action="/saas/subscription/plans/preview"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_plan_code" value="{{ plan.plan_code }}"><button class="btn {% if plan.direction == 'upgrade' %}primary{% else %}secondary{% endif %}" type="submit">Preview {{ plan.direction|title }}</button></form>
+            {% elif subscription_portal.pending_change and subscription_portal.pending_change.can_manage_schedule and plan.plan_code != subscription_portal.pending_change.target_plan_code %}<a class="btn secondary" href="/saas/subscription/plans/{{ subscription_portal.pending_change.request_uuid }}/replace?target_plan_code={{ plan.plan_code }}">Replace With {{ plan.plan_name }}</a>
             {% else %}<button type="button" disabled>Change Unavailable</button>{% endif %}
         </section>
         {% endfor %}

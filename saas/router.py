@@ -1178,6 +1178,57 @@ def confirm_subscription_plan_change(request_uuid: str, request: Request, csrf_t
     return RedirectResponse("/saas/subscription?notice=" + quote_plus(notice), status_code=302)
 
 
+@router.get("/subscription/plans/{request_uuid}/replace", response_class=HTMLResponse)
+def replace_subscription_plan_change_page(request_uuid: str, target_plan_code: str, request: Request, db: Session = Depends(get_db)):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    try:
+        row, target_plan, _direction = subscription_plan_change_service.get_replacement_confirmation(db, account, request_uuid, target_plan_code)
+        existing_plan_name = db.query(models.SubscriptionPlan.plan_name).filter(models.SubscriptionPlan.id == row.target_plan_id).scalar() or "Scheduled plan"
+        db.commit()
+    except subscription_change_service.SubscriptionChangeError as exc:
+        db.commit()
+        return _subscription_change_error(exc, "/saas/subscription")
+    return _render(request, "saas/subscription_plan_replace.html", {
+        "account": account, "request_uuid": row.request_uuid,
+        "existing_plan_name": existing_plan_name, "target_plan_name": target_plan.plan_name,
+        "target_plan_code": target_plan.plan_code, "branch_quantity": row.current_quantity,
+        "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
+        "error": request.query_params.get("error", ""),
+    })
+
+
+@router.post("/subscription/plans/{request_uuid}/replace")
+def replace_subscription_plan_change(request_uuid: str, request: Request, target_plan_code: str = Form(...), csrf_token: str = Form(""), db: Session = Depends(get_db)):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    try:
+        replacement = subscription_plan_change_service.replace_scheduled_plan_change(db, account, request_uuid, target_plan_code)
+        db.commit()
+    except subscription_change_service.SubscriptionChangeError as exc:
+        db.commit()
+        return _subscription_change_error(exc, f"/saas/subscription/plans/{request_uuid}/replace?target_plan_code={quote_plus(target_plan_code)}")
+    return RedirectResponse(f"/saas/subscription/plans/{replacement.request_uuid}/confirm", status_code=302)
+
+
+@router.post("/subscription/plans/{request_uuid}/cancel")
+def cancel_subscription_plan_change(request_uuid: str, request: Request, csrf_token: str = Form(""), db: Session = Depends(get_db)):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    try:
+        subscription_plan_change_service.cancel_scheduled_plan_change(db, account, request_uuid)
+        db.commit()
+    except subscription_change_service.SubscriptionChangeError as exc:
+        db.commit()
+        return _subscription_change_error(exc, "/saas/subscription")
+    return RedirectResponse("/saas/subscription?notice=" + quote_plus("Scheduled plan change canceled."), status_code=302)
+
+
 def _require_saas_csrf(session_row, csrf_token: str):
     if service.hash_value(csrf_token) != str(session_row.csrf_token_hash or ""):
         raise HTTPException(status_code=403, detail="Invalid CSRF token.")
