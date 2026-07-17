@@ -25,7 +25,7 @@
         <div class="quantity-stat"><span>Available Capacity</span><strong>{{ subscription_portal.remaining_paid_capacity if subscription_portal.remaining_paid_capacity is not none else "Not Available" }}</strong></div>
     </section>
     {% if subscription_portal.pending_change %}
-    <div class="alert info">A branch-capacity change is already in progress. Complete or cancel it before starting another.</div>
+    <div class="alert info">A subscription change is already in progress. Complete or cancel it before starting another.</div>
     {% elif can_manage %}
     <form class="quantity-form" method="post" action="/saas/subscription/branches/preview">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

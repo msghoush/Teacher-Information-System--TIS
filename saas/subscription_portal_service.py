@@ -3,7 +3,7 @@ from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
-from saas import entitlement_service, subscription_change_service
+from saas import entitlement_service, subscription_change_service, subscription_plan_change_service
 
 
 CATEGORY_LABELS = {
@@ -33,6 +33,7 @@ class SubscriptionPortalView:
     current_recurring_total_label: str
     pending_change: dict | None
     can_manage_branch_capacity: bool
+    can_manage_plan: bool
     feature_groups: tuple[dict, ...]
     plan_comparison: tuple[dict, ...]
 
@@ -102,6 +103,10 @@ def _plan_comparison(db: Session, current_plan_code: str) -> tuple[dict, ...]:
             "plan_code": profile.plan_code,
             "plan_name": profile.plan_name,
             "is_current": profile.plan_code == current_plan_code,
+            "direction": (
+                "upgrade" if subscription_plan_change_service.PLAN_ORDER.get(profile.plan_code, 0) > subscription_plan_change_service.PLAN_ORDER.get(current_plan_code, 0)
+                else "downgrade"
+            ),
             "included_features": tuple(
                 value.display_name
                 for value in profile.entitlements.values()
@@ -121,16 +126,24 @@ def build_subscription_portal(db: Session, account) -> SubscriptionPortalView:
     if resolution.subscription_id:
         row = subscription_change_service.get_pending_change(db, resolution.subscription_id)
         if row:
+            is_plan_change = row.change_type in subscription_plan_change_service.PLAN_CHANGE_TYPES
             pending = {
                 "request_uuid": row.request_uuid,
                 "change_type": row.change_type,
                 "status": row.status,
                 "status_label": {
                     "previewed": "Awaiting confirmation",
-                    "payment_pending": "Payment confirmation pending",
-                    "scheduled": "Reduction scheduled",
+                    "payment_pending": "Upgrade payment confirmation pending" if is_plan_change else "Payment confirmation pending",
+                    "scheduled": "Plan downgrade scheduled" if is_plan_change else "Reduction scheduled",
                     "manual_review": "Manual review required",
                 }.get(row.status, "Change in progress"),
+                "is_plan_change": is_plan_change,
+                "target_plan_name": (
+                    db.query(subscription_plan_change_service.models.SubscriptionPlan.plan_name)
+                    .filter(subscription_plan_change_service.models.SubscriptionPlan.id == row.target_plan_id)
+                    .scalar()
+                    if is_plan_change else ""
+                ),
                 "requested_quantity": row.requested_quantity,
                 "effective_date_label": _date_label(row.effective_at),
                 "expected_total_label": _money_label(row.next_renewal_total_minor, row.currency_code),
@@ -141,6 +154,8 @@ def build_subscription_portal(db: Session, account) -> SubscriptionPortalView:
         can_manage_branch_capacity = True
     except subscription_change_service.SubscriptionChangeError:
         can_manage_branch_capacity = False
+    can_manage_branch_capacity = can_manage_branch_capacity and pending is None
+    can_manage_plan = can_manage_branch_capacity and pending is None
     return SubscriptionPortalView(
         resolution_status=resolution.resolution_status,
         status_label=status_label,
@@ -158,6 +173,7 @@ def build_subscription_portal(db: Session, account) -> SubscriptionPortalView:
         current_recurring_total_label=_money_label(resolution.recurring_amount_minor, resolution.currency_code),
         pending_change=pending,
         can_manage_branch_capacity=can_manage_branch_capacity,
+        can_manage_plan=can_manage_plan,
         feature_groups=_feature_groups(db, resolution),
         plan_comparison=_plan_comparison(db, resolution.plan_code),
     )

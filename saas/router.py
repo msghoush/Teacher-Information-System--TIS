@@ -10,7 +10,7 @@ import audit
 from dependencies import get_db
 import email_service
 import location_service
-from saas import billing_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import billing_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -1119,6 +1119,63 @@ def subscription_portal(request: Request, db: Session = Depends(get_db)):
             ).strip(),
         },
     )
+
+
+@router.post("/subscription/plans/preview")
+def preview_subscription_plan_change(
+    request: Request,
+    target_plan_code: str = Form(...),
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    try:
+        row = subscription_plan_change_service.preview_plan_change(db, account, target_plan_code)
+        db.commit()
+    except subscription_change_service.SubscriptionChangeError as exc:
+        db.commit()
+        return _subscription_change_error(exc, "/saas/subscription")
+    return RedirectResponse(f"/saas/subscription/plans/{row.request_uuid}/confirm", status_code=302)
+
+
+@router.get("/subscription/plans/{request_uuid}/confirm", response_class=HTMLResponse)
+def confirm_subscription_plan_change_page(request_uuid: str, request: Request, db: Session = Depends(get_db)):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    try:
+        row, plan, impact = subscription_plan_change_service.get_confirmation_preview(db, account, request_uuid)
+        current_name = subscription_portal_service.build_subscription_portal(db, account).plan_name
+        summary = subscription_plan_change_service.customer_summary(row, plan, impact, current_name)
+        db.commit()
+    except subscription_change_service.SubscriptionChangeError as exc:
+        db.commit()
+        return _subscription_change_error(exc, "/saas/subscription")
+    return _render(request, "saas/subscription_plan_confirm.html", {
+        "account": account,
+        "change": summary,
+        "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
+        "error": request.query_params.get("error", ""),
+    })
+
+
+@router.post("/subscription/plans/{request_uuid}/confirm")
+def confirm_subscription_plan_change(request_uuid: str, request: Request, csrf_token: str = Form(""), db: Session = Depends(get_db)):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    try:
+        row = subscription_plan_change_service.submit_plan_change(db, account, request_uuid)
+        db.commit()
+    except subscription_change_service.SubscriptionChangeError as exc:
+        db.commit()
+        return _subscription_change_error(exc, f"/saas/subscription/plans/{request_uuid}/confirm")
+    notice = "Plan upgrade is awaiting Paddle confirmation." if row.change_type == subscription_plan_change_service.UPGRADE else "Plan downgrade is scheduled for the next billing period."
+    return RedirectResponse("/saas/subscription?notice=" + quote_plus(notice), status_code=302)
 
 
 def _require_saas_csrf(session_row, csrf_token: str):

@@ -3126,6 +3126,25 @@ def _subscription_branch_quantity_changes(engine, connection):
     )
 
 
+def _subscription_plan_changes(engine, connection):
+    datetime_type = _datetime_type(engine)
+    for column_name, column_sql in (
+        ("target_plan_id", "target_plan_id INTEGER"),
+        ("target_plan_price_id", "target_plan_price_id INTEGER"),
+        ("target_provider_price_id", "target_provider_price_id VARCHAR(120)"),
+        ("provider_observed_price_id", "provider_observed_price_id VARCHAR(120)"),
+        ("entitlement_impact_json", "entitlement_impact_json TEXT"),
+        ("provider_scheduled_at", f"provider_scheduled_at {datetime_type}"),
+    ):
+        _add_column_if_missing(connection, connection, "subscription_change_requests", column_name, column_sql)
+    for index_name, columns in (
+        ("ix_subscription_change_requests_target_plan", "target_plan_id"),
+        ("ix_subscription_change_requests_target_price", "target_plan_price_id"),
+        ("ix_subscription_change_requests_target_provider_price", "target_provider_price_id"),
+    ):
+        _create_index_if_missing(connection, connection, "subscription_change_requests", index_name, columns)
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -3251,6 +3270,11 @@ MIGRATIONS = (
         migration_id="20260716_002_subscription_branch_quantity_changes",
         description="Add durable branch quantity change requests for active subscriptions",
         apply=_subscription_branch_quantity_changes,
+    ),
+    Migration(
+        migration_id="20260717_001_subscription_plan_changes",
+        description="Extend active subscription changes with provider-confirmed plan transitions",
+        apply=_subscription_plan_changes,
     ),
 )
 

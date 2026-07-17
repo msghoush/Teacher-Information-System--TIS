@@ -1,0 +1,38 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .plan-confirm { max-width:860px; margin:0 auto; }
+    .plan-confirm h1 { margin:5px 0 8px; color:var(--brand-dark); font-size:32px; letter-spacing:0; }
+    .plan-confirm > p { color:var(--muted); line-height:1.55; }
+    .plan-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:20px 0; }
+    .plan-stat,.impact { border:1px solid var(--line); border-radius:8px; background:#fff; padding:16px; }
+    .plan-stat span { display:block; color:var(--muted); font-size:12px; font-weight:800; margin-bottom:6px; }
+    .plan-stat strong { color:var(--brand-dark); font-size:19px; }
+    .impact { margin:14px 0; }
+    .impact h2 { margin:0 0 8px; font-size:18px; color:var(--brand-dark); }
+    .impact ul { margin:8px 0; padding-left:20px; color:var(--muted); }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+    @media(max-width:640px){.plan-summary{grid-template-columns:1fr}.plan-confirm h1{font-size:27px}}
+</style>
+<div class="plan-confirm">
+    <span class="page-eyebrow">Subscription Management</span>
+    <h1>Confirm plan {{ "upgrade" if change.is_upgrade else "downgrade" }}</h1>
+    <p>Review Paddle's billing preview and the entitlement impact before submitting this change.</p>
+    {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+    <section class="plan-summary">
+        <div class="plan-stat"><span>Current Plan</span><strong>{{ change.current_plan_name }}</strong></div>
+        <div class="plan-stat"><span>Target Plan</span><strong>{{ change.target_plan_name }}</strong></div>
+        <div class="plan-stat"><span>Paid Branches Preserved</span><strong>{{ change.current_quantity }}</strong></div>
+        <div class="plan-stat"><span>Billing Interval</span><strong>{{ change.billing_interval }}</strong></div>
+        <div class="plan-stat"><span>{{ "Prorated Amount" if change.is_upgrade else "Immediate Amount" }}</span><strong>{{ change.net_label }}</strong></div>
+        <div class="plan-stat"><span>Next Recurring Total</span><strong>{{ change.next_total_label }}</strong></div>
+    </section>
+    {% if change.feature_losses %}<section class="impact"><h2>Features that will no longer be available</h2><ul>{% for item in change.feature_losses %}<li>{{ item.name }}</li>{% endfor %}</ul><p>Historical customer data remains stored. Access changes only after Paddle confirms the effective downgrade.</p></section>{% endif %}
+    {% if change.blocking_conflicts %}<section class="impact"><h2>Action required before downgrade</h2><ul>{% for item in change.blocking_conflicts %}<li>{{ item.name }}: current usage {{ item.usage }}, target allowance {{ item.limit }}</li>{% endfor %}</ul></section>{% endif %}
+    {% if not change.is_upgrade and change.effective_date_label != "Not Available" %}<div class="alert info">Scheduled effective date: {{ change.effective_date_label }}. Current entitlements remain active until provider confirmation.</div>{% endif %}
+    <form method="post" action="/saas/subscription/plans/{{ change.request_uuid }}/confirm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="actions"><button class="btn primary" type="submit"{% if change.blocking_conflicts %} disabled{% endif %}>Confirm Plan Change</button><a class="btn secondary" href="/saas/subscription">Back</a></div>
+    </form>
+</div>
+{% endblock %}
