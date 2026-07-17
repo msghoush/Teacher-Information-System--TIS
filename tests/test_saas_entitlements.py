@@ -304,6 +304,64 @@ class SaaSEntitlementTests(unittest.TestCase):
         finally:
             db.close()
 
+    def test_active_provider_subscription_outweighs_stale_pending_contract_payment_status(self):
+        fixture = self._create_subscription(plan_code="professional", quantity=4, active_branches=3)
+        db = self.Session()
+        try:
+            contract = db.query(saas.models.SubscriptionContract).filter_by(id=fixture["contract_id"]).one()
+            contract.payment_status = "pending"
+            db.commit()
+
+            result = entitlement_service.resolve_entitlements(db, fixture["group_id"])
+
+            self.assertTrue(result.resolved)
+            self.assertEqual(result.reason_code, "resolved")
+            self.assertEqual(result.paid_branch_quantity, 4)
+            self.assertEqual(result.active_branch_count, 3)
+            self.assertEqual(db.query(saas.models.PaymentAttempt).count(), 0)
+            self.assertEqual(contract.payment_status, "pending")
+        finally:
+            db.close()
+
+    def test_stale_pending_contract_still_requires_paid_timestamp_and_active_subscription(self):
+        missing_paid_at = self._create_subscription(plan_code="professional", quantity=2)
+        inactive_subscription = self._create_subscription(plan_code="professional", quantity=2)
+        failed_contract = self._create_subscription(plan_code="professional", quantity=2)
+        db = self.Session()
+        try:
+            missing_contract = db.query(saas.models.SubscriptionContract).filter_by(
+                id=missing_paid_at["contract_id"]
+            ).one()
+            missing_contract.payment_status = "pending"
+            missing_contract.paid_at = None
+
+            inactive_contract = db.query(saas.models.SubscriptionContract).filter_by(
+                id=inactive_subscription["contract_id"]
+            ).one()
+            inactive_contract.payment_status = "pending"
+            db.query(saas.models.PaymentSubscription).filter_by(
+                id=inactive_subscription["subscription_id"]
+            ).one().status = "paused"
+
+            failed = db.query(saas.models.SubscriptionContract).filter_by(
+                id=failed_contract["contract_id"]
+            ).one()
+            failed.payment_status = "failed"
+            db.commit()
+
+            missing_result = entitlement_service.resolve_entitlements(db, missing_paid_at["group_id"])
+            inactive_result = entitlement_service.resolve_entitlements(db, inactive_subscription["group_id"])
+            failed_result = entitlement_service.resolve_entitlements(db, failed_contract["group_id"])
+
+            self.assertEqual(missing_result.reason_code, "contract_not_confirmed_paid")
+            self.assertEqual(inactive_result.reason_code, "subscription_not_entitled")
+            self.assertEqual(failed_result.reason_code, "contract_not_confirmed_paid")
+            self.assertFalse(missing_result.resolved)
+            self.assertFalse(inactive_result.resolved)
+            self.assertFalse(failed_result.resolved)
+        finally:
+            db.close()
+
     def test_permission_and_entitlement_must_both_succeed(self):
         starter = self._create_subscription(plan_code="starter", quantity=1)
         professional = self._create_subscription(plan_code="professional", quantity=1)

@@ -167,10 +167,11 @@ def resolve_entitlements(
     ).first()
     if contract is None:
         return _manual_review(group_id, "missing_confirmed_contract", active_branch_count=active_branch_count)
+    contract_payment_status = _clean(contract.payment_status).lower()
     if (
         _clean(contract.contract_status).lower() not in CONFIRMED_CONTRACT_STATUSES
-        or _clean(contract.payment_status).lower() != "paid"
         or contract.paid_at is None
+        or contract_payment_status in {"failed", "cancelled", "canceled", "refunded", "manual_reconciliation"}
     ):
         return _manual_review(group_id, "contract_not_confirmed_paid", active_branch_count=active_branch_count)
 
@@ -196,6 +197,8 @@ def resolve_entitlements(
         return _manual_review(group_id, "ambiguous_confirmed_subscription", active_branch_count=active_branch_count)
     if not _clean(subscription.provider_subscription_id):
         return _manual_review(group_id, "missing_provider_subscription", active_branch_count=active_branch_count)
+    if not inactive_subscription and contract_payment_status not in {"paid", "pending"}:
+        return _manual_review(group_id, "contract_payment_state_mismatch", active_branch_count=active_branch_count)
     if int(subscription.plan_id) != int(contract.plan_id):
         return _manual_review(group_id, "subscription_plan_mismatch", active_branch_count=active_branch_count)
     billing_interval = _clean(subscription.billing_interval).lower()
