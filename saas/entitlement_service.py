@@ -66,6 +66,15 @@ class EntitlementResolution:
     def resolved(self) -> bool:
         return self.resolution_status == RESOLVED
 
+    @property
+    def can_add_active_branch(self) -> bool:
+        return bool(
+            self.resolved
+            and self.remaining_paid_capacity is not None
+            and self.remaining_paid_capacity > 0
+            and not self.is_over_capacity
+        )
+
 
 @dataclass(frozen=True)
 class EntitlementCatalogItem:
@@ -326,18 +335,27 @@ def resolve_customer_entitlements(db: Session, account) -> EntitlementResolution
     return resolve_entitlements(db, next(iter(group_ids)))
 
 
-def require_active_branch_capacity(
+def resolve_branch_capacity(
     db: Session,
     school_group_id: int,
-    *,
-    desired_active_count: int | None = None,
 ) -> EntitlementResolution | None:
     links = db.query(models.TenantProvisioningLink.id).filter(
         models.TenantProvisioningLink.school_group_id == school_group_id
     ).all()
     if not links:
         return None
-    resolution = resolve_entitlements(db, school_group_id)
+    return resolve_entitlements(db, school_group_id)
+
+
+def require_active_branch_capacity(
+    db: Session,
+    school_group_id: int,
+    *,
+    desired_active_count: int | None = None,
+) -> EntitlementResolution | None:
+    resolution = resolve_branch_capacity(db, school_group_id)
+    if resolution is None:
+        return None
     if not resolution.resolved or resolution.paid_branch_quantity is None:
         raise BranchCapacityError("Paid branch capacity is unavailable. Contact TIS support.")
     desired = int(desired_active_count) if desired_active_count is not None else resolution.active_branch_count + 1

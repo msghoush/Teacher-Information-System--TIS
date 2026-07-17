@@ -12091,6 +12091,16 @@ def _build_school_management_context(request: Request, db: Session, current_user
     school_group_id = getattr(selected_school_group, "id", None)
     school_academic_year_rows = []
     school_branch_rows = []
+    branch_capacity = {
+        "subscription_managed": False,
+        "entitlement_resolution_status": "not_applicable",
+        "paid_branch_quantity": None,
+        "active_branch_count": 0,
+        "remaining_paid_capacity": None,
+        "is_at_capacity": False,
+        "is_over_capacity": False,
+        "can_add_active_branch": True,
+    }
     if school_group_id:
         school_academic_year_rows = _build_academic_year_configuration_rows(
             db,
@@ -12101,10 +12111,26 @@ def _build_school_management_context(request: Request, db: Session, current_user
             for row in _build_branch_configuration_rows(db)
             if row.get("school_group_id") == school_group_id
         ]
+        capacity_resolution = entitlement_service.resolve_branch_capacity(
+            db,
+            school_group_id,
+        )
+        if capacity_resolution is not None:
+            branch_capacity = {
+                "subscription_managed": True,
+                "entitlement_resolution_status": capacity_resolution.resolution_status,
+                "paid_branch_quantity": capacity_resolution.paid_branch_quantity,
+                "active_branch_count": capacity_resolution.active_branch_count,
+                "remaining_paid_capacity": capacity_resolution.remaining_paid_capacity,
+                "is_at_capacity": capacity_resolution.is_at_capacity,
+                "is_over_capacity": capacity_resolution.is_over_capacity,
+                "can_add_active_branch": capacity_resolution.can_add_active_branch,
+            }
     return {
         **context,
         "school_academic_year_rows": school_academic_year_rows,
         "school_branch_rows": school_branch_rows,
+        "branch_capacity": branch_capacity,
         "school_branch_region_options": sorted(
             {str(row.get("region") or "").strip() for row in school_branch_rows}
             - {""},
