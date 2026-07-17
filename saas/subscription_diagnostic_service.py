@@ -163,6 +163,14 @@ def diagnose_subscription_relationships(
         warnings.append("provider_price_relationship_invalid")
     if subscription and int(subscription.quantity or 0) <= 0:
         warnings.append("subscription_quantity_invalid")
+    if (
+        contract
+        and subscription
+        and _clean(contract.payment_status).lower() == "pending"
+        and contract.paid_at is not None
+        and _clean(subscription.status).lower() in entitlement_service.ENTITLED_SUBSCRIPTION_STATUSES
+    ):
+        warnings.append("contract_payment_status_stale_pending")
 
     return {
         "account_uuid": account.account_uuid,
