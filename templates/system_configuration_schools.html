@@ -122,6 +122,12 @@
 .danger-zone { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px solid #efc5bf; border-radius: 12px; background: #fffafa; }
 .danger-zone strong { display: block; color: #9f2d1f; }
 .danger-zone span { color: #64748b; font-size: 12px; font-weight: 800; }
+.capacity-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px solid #c6d4e8; border-radius: 8px; background: #f8fbff; }
+.capacity-notice.is-warning { border-color: #f1c27d; background: #fff8ed; }
+.capacity-notice.is-unavailable { border-color: #efc5bf; background: #fff5f3; }
+.capacity-notice-copy { display: grid; gap: 3px; }
+.capacity-notice strong { color: #17365d; }
+.capacity-notice p { margin: 0; }
 .logo-strip { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px dashed #b8c9df; border-radius: 12px; background: #f8fbff; }
 .logo-strip img { display: block; width: auto; height: auto; max-height: var(--header-brand-logo-height); max-width: var(--header-brand-secondary-logo-max-width); object-fit: contain; object-position: center; image-rendering: auto; background: #fff; border-radius: 8px; padding: 4px; }
 .logo-strip img[data-logo-slot="accreditation"] { max-height: var(--header-brand-accreditation-logo-height); max-width: var(--header-brand-accreditation-logo-max-width); }
@@ -241,11 +247,53 @@
                     </div>
                     <div class="collapsible-summary-actions">
                         <span class="status-pill">{{ school_branch_rows|length }} branch{{ "" if school_branch_rows|length == 1 else "es" }}</span>
+                        {% if branch_capacity.subscription_managed and branch_capacity.entitlement_resolution_status == "resolved" %}
+                        <span class="status-pill {% if branch_capacity.is_over_capacity %}is-warning{% elif branch_capacity.is_at_capacity %}is-muted{% else %}is-success{% endif %}">
+                            {{ branch_capacity.active_branch_count }}/{{ branch_capacity.paid_branch_quantity }} active
+                        </span>
+                        {% endif %}
                         <span class="action-btn action-btn-secondary" data-branch-collapse-label>Expand</span>
                     </div>
                 </summary>
                 <div class="collapsible-body">
-                {% if can("branches.create") %}
+                {% if branch_capacity.subscription_managed %}
+                    {% if branch_capacity.entitlement_resolution_status != "resolved" %}
+                    <div class="capacity-notice is-unavailable" data-branch-capacity-state="unavailable">
+                        <div class="capacity-notice-copy">
+                            <strong>Branch capacity unavailable</strong>
+                            <p>Branch capacity information is currently unavailable. Please contact TIS Support.</p>
+                        </div>
+                    </div>
+                    {% elif branch_capacity.is_over_capacity %}
+                    <div class="capacity-notice is-warning" data-branch-capacity-state="over">
+                        <div class="capacity-notice-copy">
+                            <strong>Confirmed branch capacity exceeded</strong>
+                            <p>Your organization has {{ branch_capacity.active_branch_count }} active branches and confirmed paid capacity for {{ branch_capacity.paid_branch_quantity }}. Existing branches remain unchanged.</p>
+                        </div>
+                        {% if can_any("branches.create", "branches.activate_deactivate") %}
+                        <a class="action-btn action-btn-primary" href="/saas/subscription">Increase Branch Capacity</a>
+                        {% endif %}
+                    </div>
+                    {% elif branch_capacity.is_at_capacity %}
+                    <div class="capacity-notice" data-branch-capacity-state="at-capacity">
+                        <div class="capacity-notice-copy">
+                            <strong>All paid branch capacity is in use</strong>
+                            <p>Your subscription currently covers {{ branch_capacity.paid_branch_quantity }} active branches. Increase branch capacity from Subscription Management to add another branch.</p>
+                        </div>
+                        {% if can_any("branches.create", "branches.activate_deactivate") %}
+                        <a class="action-btn action-btn-primary" href="/saas/subscription">Increase Branch Capacity</a>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <div class="capacity-notice" data-branch-capacity-state="available">
+                        <div class="capacity-notice-copy">
+                            <strong>{{ branch_capacity.remaining_paid_capacity }} branch seat{% if branch_capacity.remaining_paid_capacity != 1 %}s{% endif %} available</strong>
+                            <p>Your confirmed subscription capacity is ready for another active branch.</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                {% endif %}
+                {% if can("branches.create") and branch_capacity.can_add_active_branch %}
                 <form class="form-grid" method="post" action="/system-configuration/branches">
                     <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
                     <input type="hidden" name="school_group_id" value="{{ selected_school_group.id }}">
@@ -334,7 +382,7 @@
                                     <div class="table-field">
                                         <label for="branch_status_{{ branch_row.id }}">Status</label>
                                         <select id="branch_status_{{ branch_row.id }}" name="status" form="branch_edit_{{ branch_row.id }}" {% if not can("branches.activate_deactivate") %}disabled{% endif %}>
-                                            <option value="active" {% if branch_row.status %}selected{% endif %}>Active</option>
+                                            <option value="active" {% if branch_row.status %}selected{% endif %}{% if not branch_row.status and not branch_capacity.can_add_active_branch %} disabled{% endif %}>Active</option>
                                             <option value="inactive" {% if not branch_row.status %}selected{% endif %}>Inactive</option>
                                         </select>
                                     </div>

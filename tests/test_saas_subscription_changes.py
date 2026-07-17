@@ -11,9 +11,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+from starlette.requests import Request
 
 import auth
 import db_migrations
+import main
 import models
 import saas.models
 from dependencies import get_db
@@ -128,6 +130,37 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
     def _account(self, db, fixture):
         return db.query(saas.models.SaaSAccount).filter_by(id=fixture["account_id"]).one()
 
+    @staticmethod
+    def _operational_request(path: str, *, method: str = "GET") -> Request:
+        return Request({
+            "type": "http",
+            "http_version": "1.1",
+            "method": method,
+            "path": path,
+            "raw_path": path.encode("ascii"),
+            "query_string": b"",
+            "headers": [],
+            "scheme": "http",
+            "server": ("testserver", 80),
+            "client": ("testclient", 50000),
+            "root_path": "",
+            "app": main.app,
+        })
+
+    def _school_management_body(self, fixture) -> str:
+        db = self.Session()
+        try:
+            user = db.query(models.User).filter_by(id=fixture["user_id"]).one()
+            with patch("auth.get_current_user", return_value=user):
+                response = main.system_configuration_schools(
+                    request=self._operational_request("/system-configuration/schools"),
+                    db=db,
+                )
+            self.assertEqual(response.status_code, 200)
+            return bytes(response.body).decode("utf-8")
+        finally:
+            db.close()
+
     def _provider_subscription(self, fixture, quantity, *, period_start="2026-07-01T00:00:00Z"):
         return {
             "id": fixture["provider_subscription_id"], "status": "active",
@@ -195,6 +228,105 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
             self.assertEqual(row.next_renewal_total_minor, fixture["unit_amount"] * 5)
         finally:
             db.close()
+
+    def test_branch_management_enables_creation_when_paid_capacity_remains(self):
+        fixture = self._fixture(quantity=4, active_branches=3)
+        body = self._school_management_body(fixture)
+
+        self.assertIn('data-branch-capacity-state="available"', body)
+        self.assertIn("1 branch seat available", body)
+        self.assertIn('action="/system-configuration/branches"', body)
+        self.assertIn("Add Branch", body)
+
+    def test_at_capacity_hides_creation_and_disables_reactivation(self):
+        fixture = self._fixture(quantity=4, active_branches=4)
+        db = self.Session()
+        try:
+            db.add(models.Branch(
+                school_group_id=fixture["group_id"],
+                name="Inactive Capacity Test",
+                status=False,
+            ))
+            db.commit()
+        finally:
+            db.close()
+
+        body = self._school_management_body(fixture)
+
+        self.assertIn('data-branch-capacity-state="at-capacity"', body)
+        self.assertIn("currently covers 4 active branches", body)
+        self.assertIn('href="/saas/subscription"', body)
+        self.assertIn("Increase Branch Capacity", body)
+        self.assertNotIn('action="/system-configuration/branches"', body)
+        self.assertRegex(body, r'<option value="active"[^>]*disabled[^>]*>Active</option>')
+
+    def test_over_capacity_warns_and_direct_creation_remains_blocked(self):
+        fixture = self._fixture(quantity=4, active_branches=5)
+        body = self._school_management_body(fixture)
+        self.assertIn('data-branch-capacity-state="over"', body)
+        self.assertIn("5 active branches and confirmed paid capacity for 4", body)
+        self.assertNotIn('action="/system-configuration/branches"', body)
+
+        db = self.Session()
+        try:
+            user = db.query(models.User).filter_by(id=fixture["user_id"]).one()
+            before = db.query(models.Branch).filter_by(school_group_id=fixture["group_id"]).count()
+            with patch("auth.get_current_user", return_value=user):
+                response = main.create_branch(
+                    request=self._operational_request("/system-configuration/branches", method="POST"),
+                    name="Blocked Fifth Campus",
+                    region="Riyadh",
+                    country_code="",
+                    region_id="",
+                    region_manual="",
+                    city_id="",
+                    city_manual="",
+                    district_name="",
+                    neighborhood_name="",
+                    school_group_id=fixture["group_id"],
+                    return_to="/system-configuration/schools",
+                    db=db,
+                )
+            self.assertEqual(response.status_code, 302)
+            self.assertIn("No+paid+branch+capacity", response.headers["location"])
+            self.assertEqual(
+                db.query(models.Branch).filter_by(school_group_id=fixture["group_id"]).count(),
+                before,
+            )
+        finally:
+            db.close()
+
+    def test_manual_review_and_missing_permission_hide_branch_creation(self):
+        manual_review = self._fixture(quantity=4, active_branches=3)
+        db = self.Session()
+        try:
+            contract = db.query(saas.models.SubscriptionContract).filter_by(
+                id=manual_review["contract_id"]
+            ).one()
+            contract.school_group_id = None
+            db.commit()
+        finally:
+            db.close()
+        manual_body = self._school_management_body(manual_review)
+        self.assertIn('data-branch-capacity-state="unavailable"', manual_body)
+        self.assertIn("Branch capacity information is currently unavailable", manual_body)
+        self.assertNotIn('action="/system-configuration/branches"', manual_body)
+
+        no_permission = self._fixture(quantity=4, active_branches=3)
+        db = self.Session()
+        try:
+            db.add(models.RolePermission(
+                school_group_id=no_permission["group_id"],
+                role=auth.ROLE_ADMINISTRATOR,
+                permission_key="branches.create",
+                is_allowed=False,
+            ))
+            db.commit()
+        finally:
+            db.close()
+        permission_body = self._school_management_body(no_permission)
+        self.assertIn('data-branch-capacity-state="available"', permission_body)
+        self.assertNotIn('action="/system-configuration/branches"', permission_body)
 
     def test_documented_and_alternate_recurring_total_nesting_are_supported(self):
         documented = self._fixture(quantity=3, active_branches=3)
