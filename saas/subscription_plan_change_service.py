@@ -297,6 +297,118 @@ def submit_plan_change(db, account, request_uuid):
     return row
 
 
+def _scheduled_row(db, context, account, request_uuid):
+    return db.query(models.SubscriptionChangeRequest).filter(
+        models.SubscriptionChangeRequest.request_uuid == _clean(request_uuid),
+        models.SubscriptionChangeRequest.payment_subscription_id == context.subscription.id,
+        models.SubscriptionChangeRequest.requested_by_saas_account_id == account.id,
+        models.SubscriptionChangeRequest.change_type == DOWNGRADE,
+    ).with_for_update().one_or_none()
+
+
+def _cancel_provider_schedule(context, row):
+    attempted = False
+    accepted = False
+    try:
+        provider = paddle_client.get_subscription(subscription_id=row.provider_subscription_id)
+        scheduled_items = _items(provider, row.target_provider_price_id, row.current_quantity)
+        changes._validate_provider_terms(provider, row.target_provider_price_id, row.billing_interval, row.currency_code)
+        restored = _replace_price(scheduled_items, row.target_provider_price_id, row.provider_price_id, row.current_quantity)
+        paddle_client.preview_subscription_update(
+            subscription_id=row.provider_subscription_id,
+            items=restored,
+            proration_billing_mode="prorated_next_billing_period",
+        )
+        attempted = True
+        response = paddle_client.update_subscription(
+            subscription_id=row.provider_subscription_id,
+            items=restored,
+            proration_billing_mode="prorated_next_billing_period",
+            on_payment_failure="prevent_change",
+        )
+        accepted = True
+        observed = _items(response, row.provider_price_id, row.current_quantity)
+        changes._validate_provider_terms(response, row.provider_price_id, row.billing_interval, row.currency_code)
+        if _clean(response.get("id")) != row.provider_subscription_id or changes._items_signature(observed) != changes._items_signature(restored):
+            raise changes.SubscriptionChangeError("Paddle returned an unexpected cancellation response.", code="provider_cancellation_mismatch", status_code=409)
+        return restored
+    except changes.SubscriptionChangeError:
+        if accepted:
+            row.status = "manual_review"
+            row.failure_code = "provider_cancellation_response_mismatch"
+        raise
+    except (paddle_client.PaddleAPIError, httpx.HTTPError, ValueError) as exc:
+        status = getattr(exc, "status_code", None)
+        unknown = attempted and (isinstance(exc, httpx.HTTPError) or (isinstance(status, int) and status >= 500))
+        if unknown:
+            row.status = "manual_review"
+            row.failure_code = "provider_cancellation_outcome_unknown"
+        raise changes._safe_provider_failure(exc) from exc
+
+
+def cancel_scheduled_plan_change(db: Session, account, request_uuid: str):
+    context = changes.resolve_change_context(db, account, lock=True)
+    row = _scheduled_row(db, context, account, request_uuid)
+    if row is None:
+        raise changes.SubscriptionChangeError("Scheduled plan change not found.", code="change_not_found", status_code=404)
+    if row.status == "canceled":
+        return row
+    if row.status != "scheduled":
+        raise changes.SubscriptionChangeError("This plan change cannot be canceled.", code="change_not_cancelable", status_code=409)
+    if row.effective_at and row.effective_at <= changes._utcnow():
+        raise changes.SubscriptionChangeError("This scheduled plan change has reached its effective date.", code="change_already_effective", status_code=409)
+    _cancel_provider_schedule(context, row)
+    row.status = "canceled"
+    row.canceled_at = changes._utcnow()
+    changes._audit("subscription_plan_change_canceled", context, row, target_plan_id=row.target_plan_id)
+    return row
+
+
+def get_replacement_confirmation(db: Session, account, request_uuid: str, target_plan_code: str):
+    context = changes.resolve_change_context(db, account, lock=True)
+    row = _scheduled_row(db, context, account, request_uuid)
+    if row is None or row.status != "scheduled":
+        raise changes.SubscriptionChangeError("Scheduled plan change not found.", code="change_not_replaceable", status_code=409)
+    plan, _price, direction = _target(db, context, target_plan_code)
+    if plan.id == row.target_plan_id:
+        raise changes.SubscriptionChangeError("That plan is already scheduled.", code="same_scheduled_plan", status_code=409)
+    return row, plan, direction
+
+
+def replace_scheduled_plan_change(db: Session, account, request_uuid: str, target_plan_code: str):
+    context = changes.resolve_change_context(db, account, lock=True)
+    row = _scheduled_row(db, context, account, request_uuid)
+    plan, _price, _direction = _target(db, context, target_plan_code)
+    if row is None:
+        raise changes.SubscriptionChangeError("Scheduled plan change not found.", code="change_not_found", status_code=404)
+    if row.status == "superseded":
+        replacement = db.query(models.SubscriptionChangeRequest).filter(
+            models.SubscriptionChangeRequest.payment_subscription_id == context.subscription.id,
+            models.SubscriptionChangeRequest.requested_by_saas_account_id == account.id,
+            models.SubscriptionChangeRequest.target_plan_id == plan.id,
+            models.SubscriptionChangeRequest.status.in_(changes.PREVIEW_ONLY_STATUSES),
+        ).order_by(models.SubscriptionChangeRequest.created_at.desc()).first()
+        if replacement and changes._preview_is_fresh(replacement):
+            return replacement
+    if row.status != "scheduled":
+        raise changes.SubscriptionChangeError("This plan change cannot be replaced.", code="change_not_replaceable", status_code=409)
+    if plan.id == row.target_plan_id:
+        raise changes.SubscriptionChangeError("That plan is already scheduled.", code="same_scheduled_plan", status_code=409)
+    if row.effective_at and row.effective_at <= changes._utcnow():
+        raise changes.SubscriptionChangeError("This scheduled plan change has reached its effective date.", code="change_already_effective", status_code=409)
+    _cancel_provider_schedule(context, row)
+    row.status = "superseded"
+    row.canceled_at = changes._utcnow()
+    changes._audit("subscription_plan_change_superseded", context, row, replacement_plan_id=plan.id)
+    db.flush()
+    try:
+        return preview_plan_change(db, account, plan.plan_code)
+    except Exception:
+        row.status = "canceled"
+        row.failure_code = "replacement_preview_failed"
+        raise
+
+
 def customer_summary(row, plan, impact, current_plan_name):
     summary = changes.customer_summary(row)
     summary.update({"current_plan_name": current_plan_name, "target_plan_name": plan.plan_name, "is_upgrade": row.change_type == UPGRADE, "feature_losses": impact["feature_losses"], "blocking_conflicts": impact["blocking_conflicts"]})

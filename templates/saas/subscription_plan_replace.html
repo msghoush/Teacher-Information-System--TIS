@@ -1,0 +1,14 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .replace-shell{max-width:760px;margin:0 auto}.replace-shell h1{margin:5px 0 8px;color:var(--brand-dark);font-size:32px;letter-spacing:0}.replace-flow{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:center;margin:22px 0}.replace-card{border:1px solid var(--line);border-radius:8px;background:#fff;padding:18px}.replace-card span{display:block;color:var(--muted);font-size:12px;font-weight:800;margin-bottom:6px}.replace-card strong{font-size:19px;color:var(--brand-dark)}.replace-note{border:1px solid #f0c36a;border-radius:8px;background:#fff8e8;padding:16px;line-height:1.55}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}@media(max-width:640px){.replace-flow{grid-template-columns:1fr}.replace-arrow{display:none}.replace-shell h1{font-size:27px}}
+</style>
+<div class="replace-shell">
+    <span class="page-eyebrow">Subscription Management</span><h1>Replace scheduled plan change</h1>
+    <p class="page-subtitle">Review the replacement before TIS asks Paddle to cancel the existing schedule.</p>
+    {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+    <div class="replace-flow"><div class="replace-card"><span>Existing Scheduled Plan</span><strong>{{ existing_plan_name }}</strong></div><strong class="replace-arrow">→</strong><div class="replace-card"><span>New Requested Plan</span><strong>{{ target_plan_name }}</strong></div></div>
+    <div class="replace-note">The existing scheduled change will be cancelled through Paddle first. Your confirmed branch quantity remains {{ branch_quantity }}, tenant identity and historical data remain unchanged, and the new request will continue through the normal provider-confirmed workflow.</div>
+    <form method="post" action="/saas/subscription/plans/{{ request_uuid }}/replace"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_plan_code" value="{{ target_plan_code }}"><div class="actions"><button class="btn primary" type="submit">Replace Scheduled Change</button><a class="btn secondary" href="/saas/subscription">Keep Existing Schedule</a></div></form>
+</div>
+{% endblock %}

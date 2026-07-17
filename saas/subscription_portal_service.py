@@ -144,6 +144,13 @@ def build_subscription_portal(db: Session, account) -> SubscriptionPortalView:
                     .scalar()
                     if is_plan_change else ""
                 ),
+                "target_plan_code": (
+                    db.query(subscription_plan_change_service.models.SubscriptionPlan.plan_code)
+                    .filter(subscription_plan_change_service.models.SubscriptionPlan.id == row.target_plan_id)
+                    .scalar()
+                    if is_plan_change else ""
+                ),
+                "can_manage_schedule": bool(is_plan_change and row.status == "scheduled"),
                 "requested_quantity": row.requested_quantity,
                 "effective_date_label": _date_label(row.effective_at),
                 "expected_total_label": _money_label(row.next_renewal_total_minor, row.currency_code),
