@@ -1118,6 +1118,13 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
         payload,
         event_type,
     )
+    if change_result is None:
+        from saas import subscription_plan_change_service
+        change_result = subscription_plan_change_service.reconcile_plan_change_webhook(
+            db,
+            payload,
+            event_type,
+        )
     if change_result is not None:
         webhook_row.processing_status = change_result.get("status", "processed")
         webhook_row.processed_at = _utcnow()

@@ -20,7 +20,7 @@ import main
 import models
 import saas.models
 from dependencies import get_db
-from saas import entitlement_service, paddle_client, service, subscription_change_service, subscription_portal_service
+from saas import entitlement_service, paddle_client, service, subscription_change_service, subscription_plan_change_service, subscription_portal_service
 from saas.router import router as saas_router
 
 
@@ -48,7 +48,7 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         self.client.close()
         self.engine.dispose()
 
-    def _fixture(self, *, quantity=3, active_branches=3, role=auth.ROLE_ADMINISTRATOR, email=None):
+    def _fixture(self, *, quantity=3, active_branches=3, role=auth.ROLE_ADMINISTRATOR, email=None, plan_code="professional"):
         db = self.Session()
         unique = uuid.uuid4().hex[:10]
         try:
@@ -61,11 +61,11 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
             )
             db.add(account); db.flush()
             session_token, csrf_token, _ = service.create_session(db, account)
-            plan = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").one()
+            plan = db.query(saas.models.SubscriptionPlan).filter_by(plan_code=plan_code).one()
             price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
                 plan_id=plan.id, billing_interval="monthly", currency_code="USD", is_active=True
             ).one()
-            price.provider_price_id = price.provider_price_id or "pri_01testprofessionalmonthly000"
+            price.provider_price_id = price.provider_price_id or f"pri_01test{plan_code.replace('_', '')}monthly000"
             group = models.SchoolGroup(name=f"Billing School {unique}")
             db.add(group); db.flush()
             branches = []
@@ -123,6 +123,8 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
                 "provider_subscription_id": subscription.provider_subscription_id,
                 "provider_price_id": subscription.provider_price_id,
                 "unit_amount": price.amount_minor, "price_id": price.id,
+                "plan_id": plan.id, "plan_code": plan_code,
+                "quantity": quantity,
                 "session_token": session_token, "csrf_token": csrf_token,
             }
         finally:
@@ -212,6 +214,29 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
                 row_id = row.id
                 preview_kwargs = preview_call.call_args.kwargs if preview_call.call_args else None
             return row_id, preview_kwargs
+        finally:
+            db.close()
+
+    def _plan_preview(self, fixture, target_code):
+        db = self.Session()
+        try:
+            target_plan = db.query(saas.models.SubscriptionPlan).filter_by(plan_code=target_code).one()
+            target_price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+                plan_id=target_plan.id, billing_interval="monthly", currency_code="USD", is_active=True
+            ).one()
+            target_price.provider_price_id = f"pri_01target{target_code.replace('_', '')}000000"
+            db.commit()
+            target_fixture = dict(fixture, provider_price_id=target_price.provider_price_id, unit_amount=target_price.amount_minor)
+            preview = self._preview_payload(target_fixture, fixture.get("quantity", 3), current=0)
+            preview["items"] = self._provider_subscription(target_fixture, fixture.get("quantity", 3))["items"]
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=self._provider_subscription(fixture, fixture.get("quantity", 3))),
+                patch.object(paddle_client, "preview_subscription_update", return_value=preview) as provider_preview,
+                patch("saas.subscription_change_service.audit.write_audit_event"),
+            ):
+                row = subscription_plan_change_service.preview_plan_change(db, self._account(db, fixture), target_code)
+                db.commit()
+                return row.id, target_plan.id, target_price.id, target_price.provider_price_id, provider_preview.call_args.kwargs
         finally:
             db.close()
 
@@ -890,6 +915,215 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         self.client.cookies.set(service.SAAS_CSRF_COOKIE, limited["csrf_token"])
         denied = self.client.get("/saas/subscription/branches", follow_redirects=False)
         self.assertEqual(denied.status_code, 403)
+
+    def test_all_approved_plan_transition_directions_preserve_quantity_and_use_provider_preview(self):
+        cases = (
+            ("starter", "professional", subscription_plan_change_service.UPGRADE),
+            ("professional", "enterprise_ai", subscription_plan_change_service.UPGRADE),
+            ("starter", "enterprise_ai", subscription_plan_change_service.UPGRADE),
+            ("enterprise_ai", "professional", subscription_plan_change_service.DOWNGRADE),
+            ("professional", "starter", subscription_plan_change_service.DOWNGRADE),
+            ("enterprise_ai", "starter", subscription_plan_change_service.DOWNGRADE),
+        )
+        for current_code, target_code, direction in cases:
+            with self.subTest(current=current_code, target=target_code):
+                fixture = self._fixture(quantity=4, active_branches=2, plan_code=current_code)
+                row_id, target_plan_id, _target_price_id, target_provider_price, kwargs = self._plan_preview(fixture, target_code)
+                db = self.Session()
+                try:
+                    row = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=row_id).one()
+                    subscription = db.query(saas.models.PaymentSubscription).filter_by(id=fixture["subscription_id"]).one()
+                    contract = db.query(saas.models.SubscriptionContract).filter_by(id=fixture["contract_id"]).one()
+                    self.assertEqual(row.change_type, direction)
+                    self.assertEqual((row.current_quantity, row.requested_quantity, row.quantity_delta), (4, 4, 0))
+                    self.assertEqual(subscription.plan_id, fixture["plan_id"])
+                    self.assertEqual(contract.plan_id, fixture["plan_id"])
+                    self.assertEqual(kwargs["proration_billing_mode"], "prorated_immediately" if direction == subscription_plan_change_service.UPGRADE else "prorated_next_billing_period")
+                    self.assertEqual(next(item for item in kwargs["items"] if item["price_id"] == target_provider_price)["quantity"], 4)
+                    self.assertEqual(len(kwargs["items"]), 2)
+                    self.assertNotEqual(target_plan_id, fixture["plan_id"])
+                finally:
+                    db.close()
+
+    def test_plan_upgrade_waits_for_both_webhook_evidence_and_refreshes_entitlements(self):
+        fixture = self._fixture(quantity=4, active_branches=2, plan_code="starter")
+        row_id, target_plan_id, _price_id, target_provider_price, _ = self._plan_preview(fixture, "enterprise_ai")
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=row_id).one()
+            target_price = db.query(saas.models.SubscriptionPlanPrice).filter_by(provider_price_id=target_provider_price).one()
+            target_fixture = dict(fixture, provider_price_id=target_provider_price, unit_amount=target_price.amount_minor)
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=self._provider_subscription(fixture, 4)),
+                patch.object(paddle_client, "update_subscription", return_value=self._provider_subscription(target_fixture, 4)),
+                patch("saas.subscription_change_service.audit.write_audit_event"),
+            ):
+                subscription_plan_change_service.submit_plan_change(db, self._account(db, fixture), row.request_uuid)
+                db.commit()
+            self.assertEqual(row.status, "payment_pending")
+            self.assertEqual(db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"]).plan_id, fixture["plan_id"])
+            subscription_event = {"data": self._provider_subscription(target_fixture, 4)}
+            transaction_event = {"data": {"subscription_id": fixture["provider_subscription_id"], "origin": "subscription_update", "status": "completed", "currency_code": "USD", "items": [{"price": {"id": target_provider_price}}]}}
+            subscription_plan_change_service.reconcile_plan_change_webhook(db, subscription_event, "subscription.updated")
+            self.assertEqual(row.status, "payment_pending")
+            self.assertEqual(db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"]).plan_id, fixture["plan_id"])
+            subscription_plan_change_service.reconcile_plan_change_webhook(db, transaction_event, "transaction.completed")
+            subscription_plan_change_service.reconcile_plan_change_webhook(db, transaction_event, "transaction.completed")
+            db.commit()
+            subscription = db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"])
+            contract = db.query(saas.models.SubscriptionContract).get(fixture["contract_id"])
+            self.assertEqual((subscription.plan_id, contract.plan_id, subscription.quantity), (target_plan_id, target_plan_id, 4))
+            self.assertEqual(row.status, "confirmed")
+            self.assertTrue(entitlement_service.resolve_entitlements(db, fixture["group_id"]).entitlements["module.ai"].granted)
+        finally:
+            db.close()
+
+    def test_transaction_first_upgrade_and_scheduled_downgrade_are_reconciled_safely(self):
+        upgrade = self._fixture(quantity=3, active_branches=2, plan_code="starter")
+        upgrade_id, upgrade_target, _p, upgrade_provider_price, _ = self._plan_preview(upgrade, "professional")
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).get(upgrade_id)
+            price = db.query(saas.models.SubscriptionPlanPrice).filter_by(provider_price_id=upgrade_provider_price).one()
+            target_fixture = dict(upgrade, provider_price_id=upgrade_provider_price, unit_amount=price.amount_minor)
+            row.status = "payment_pending"; row.submitted_at = datetime.utcnow(); db.commit()
+            transaction = {"data": {"subscription_id": upgrade["provider_subscription_id"], "origin": "subscription_update", "status": "completed", "currency_code": "USD", "items": [{"price": {"id": upgrade_provider_price}}]}}
+            subscription_plan_change_service.reconcile_plan_change_webhook(db, transaction, "transaction.completed")
+            self.assertEqual(db.query(saas.models.PaymentSubscription).get(upgrade["subscription_id"]).plan_id, upgrade["plan_id"])
+            subscription_plan_change_service.reconcile_plan_change_webhook(db, {"data": self._provider_subscription(target_fixture, 3)}, "subscription.updated")
+            db.commit()
+            self.assertEqual(db.query(saas.models.PaymentSubscription).get(upgrade["subscription_id"]).plan_id, upgrade_target)
+        finally:
+            db.close()
+
+        downgrade = self._fixture(quantity=4, active_branches=2, plan_code="enterprise_ai")
+        downgrade_id, downgrade_target, _p, downgrade_provider_price, _ = self._plan_preview(downgrade, "starter")
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).get(downgrade_id)
+            price = db.query(saas.models.SubscriptionPlanPrice).filter_by(provider_price_id=downgrade_provider_price).one()
+            target_fixture = dict(downgrade, provider_price_id=downgrade_provider_price, unit_amount=price.amount_minor)
+            row.status = "scheduled"; row.submitted_at = datetime.utcnow(); db.commit()
+            early = self._provider_subscription(target_fixture, 4, period_start="2026-07-01T00:00:00Z")
+            subscription_plan_change_service.reconcile_plan_change_webhook(db, {"data": early}, "subscription.updated")
+            self.assertEqual(db.query(saas.models.PaymentSubscription).get(downgrade["subscription_id"]).plan_id, downgrade["plan_id"])
+            self.assertTrue(entitlement_service.resolve_entitlements(db, downgrade["group_id"]).entitlements["module.ai"].granted)
+            effective = self._provider_subscription(target_fixture, 4, period_start="2026-08-01T00:00:00Z")
+            subscription_plan_change_service.reconcile_plan_change_webhook(db, {"data": effective}, "subscription.updated")
+            db.commit()
+            self.assertEqual(db.query(saas.models.PaymentSubscription).get(downgrade["subscription_id"]).plan_id, downgrade_target)
+            self.assertFalse(entitlement_service.resolve_entitlements(db, downgrade["group_id"]).entitlements["module.ai"].granted)
+        finally:
+            db.close()
+
+    def test_plan_validation_feature_loss_and_hard_conflict_fail_safely(self):
+        fixture = self._fixture(quantity=3, active_branches=2, plan_code="enterprise_ai")
+        db = self.Session()
+        try:
+            with self.assertRaises(subscription_change_service.SubscriptionChangeError) as same:
+                subscription_plan_change_service.preview_plan_change(db, self._account(db, fixture), "enterprise_ai")
+            self.assertEqual(same.exception.code, "same_plan")
+            self.assertEqual(db.query(saas.models.SubscriptionChangeRequest).count(), 0)
+        finally:
+            db.close()
+        row_id, _target, _price, _provider, _ = self._plan_preview(fixture, "starter")
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).get(row_id)
+            impact = json.loads(row.entitlement_impact_json)
+            names = {item["name"] for item in impact["feature_losses"]}
+            self.assertIn("AI", names)
+            self.assertIn("Advanced Reporting", names)
+            with patch.object(subscription_plan_change_service, "_impact", return_value={"feature_losses": [], "blocking_conflicts": [{"key": "quota.test", "name": "Test quota", "usage": 5, "limit": 2}], "historical_data_preserved": True}):
+                with self.assertRaises(subscription_change_service.SubscriptionChangeError) as conflict:
+                    subscription_plan_change_service.submit_plan_change(db, self._account(db, fixture), row.request_uuid)
+            self.assertEqual(conflict.exception.code, "downgrade_conflict")
+            self.assertEqual(row.status, "previewed")
+        finally:
+            db.close()
+
+    def test_plan_price_validation_preview_freshness_and_unified_change_gate(self):
+        missing = self._fixture(quantity=3, active_branches=2, plan_code="starter")
+        db = self.Session()
+        try:
+            target = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").one()
+            price = db.query(saas.models.SubscriptionPlanPrice).filter_by(plan_id=target.id, billing_interval="monthly", currency_code="USD").one()
+            price.provider_price_id = ""; db.commit()
+            with self.assertRaises(subscription_change_service.SubscriptionChangeError) as unavailable:
+                subscription_plan_change_service.preview_plan_change(db, self._account(db, missing), "professional")
+            self.assertEqual(unavailable.exception.code, "ambiguous_target_price")
+            self.assertEqual(db.query(saas.models.SubscriptionChangeRequest).count(), 0)
+        finally:
+            db.close()
+
+    def test_plan_change_permissions_csrf_tenant_isolation_and_ambiguous_outcome(self):
+        limited = self._fixture(quantity=3, active_branches=2, plan_code="starter", role=auth.ROLE_LIMITED)
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, limited["session_token"])
+        self.client.cookies.set(service.SAAS_CSRF_COOKIE, limited["csrf_token"])
+        portal = self.client.get("/saas/subscription")
+        self.assertNotIn('/saas/subscription/plans/preview', portal.text)
+        denied = self.client.post("/saas/subscription/plans/preview", data={"target_plan_code": "professional", "csrf_token": limited["csrf_token"]}, follow_redirects=False)
+        self.assertEqual(denied.status_code, 403)
+
+        fixture = self._fixture(quantity=3, active_branches=2, plan_code="starter")
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+        invalid_csrf = self.client.post("/saas/subscription/plans/preview", data={"target_plan_code": "professional", "csrf_token": "wrong"}, follow_redirects=False)
+        self.assertEqual(invalid_csrf.status_code, 403)
+        row_id, _target, _price, _provider, _ = self._plan_preview(fixture, "professional")
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=row_id).one()
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=self._provider_subscription(fixture, 3)),
+                patch.object(paddle_client, "update_subscription", side_effect=httpx.ReadTimeout("provider timeout")),
+                patch("saas.subscription_change_service.audit.write_audit_event"),
+            ):
+                with self.assertRaises(subscription_change_service.SubscriptionChangeError):
+                    subscription_plan_change_service.submit_plan_change(db, self._account(db, fixture), row.request_uuid)
+                db.commit()
+            self.assertEqual(row.status, "manual_review")
+            self.assertIsNotNone(row.submitted_at)
+            self.assertEqual(subscription_change_service.get_pending_change(db, fixture["subscription_id"]).id, row.id)
+        finally:
+            db.close()
+
+        other = self._fixture(quantity=3, active_branches=2, plan_code="starter")
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, other["session_token"])
+        isolated = self.client.get(f"/saas/subscription/plans/{row.request_uuid}/confirm", follow_redirects=False)
+        self.assertEqual(isolated.status_code, 302)
+        self.assertIn("/saas/subscription?error=", isolated.headers["location"])
+
+        fixture = self._fixture(quantity=3, active_branches=2, plan_code="starter")
+        row_id, _target, _price, _provider, _ = self._plan_preview(fixture, "professional")
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=row_id).one()
+            self.assertIsNone(subscription_change_service.get_pending_change(db, fixture["subscription_id"]))
+            self.assertIsNone(subscription_portal_service.build_subscription_portal(db, self._account(db, fixture)).pending_change)
+            row.previewed_at = datetime.utcnow() - subscription_change_service.PREVIEW_FRESHNESS - timedelta(minutes=1)
+            db.commit()
+            with patch.object(paddle_client, "update_subscription") as update:
+                with self.assertRaises(subscription_change_service.SubscriptionChangeError) as stale:
+                    subscription_plan_change_service.submit_plan_change(db, self._account(db, fixture), row.request_uuid)
+            self.assertEqual(stale.exception.code, "stale_preview")
+            update.assert_not_called()
+            self.assertEqual(row.status, "expired")
+        finally:
+            db.close()
+
+        blocking = self._fixture(quantity=3, active_branches=2, plan_code="starter")
+        blocking_id, _target, _price, _provider, _ = self._plan_preview(blocking, "professional")
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=blocking_id).one()
+            row.status = "payment_pending"; row.submitted_at = datetime.utcnow(); db.commit()
+            with patch.object(paddle_client, "get_subscription") as provider:
+                with self.assertRaises(subscription_change_service.SubscriptionChangeError) as blocked:
+                    subscription_change_service.preview_quantity_change(db, self._account(db, blocking), 4)
+            self.assertEqual(blocked.exception.code, "change_already_pending")
+            provider.assert_not_called()
+        finally:
+            db.close()
 
     def test_paddle_client_methods_send_supported_payloads(self):
         items = [{"price_id": "pri_01abcdefghijklmnopqrstuvwx", "quantity": 5}]

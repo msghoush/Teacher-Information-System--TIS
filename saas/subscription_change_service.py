@@ -718,6 +718,7 @@ def reconcile_quantity_change_webhook(db: Session, payload: dict, event_type: st
         return None
     row = db.query(models.SubscriptionChangeRequest).filter(
         models.SubscriptionChangeRequest.provider_subscription_id == provider_subscription_id,
+        models.SubscriptionChangeRequest.change_type.in_((INCREASE, REDUCTION)),
         models.SubscriptionChangeRequest.status.in_((*UNRESOLVED_STATUSES, "confirmed")),
     ).order_by(models.SubscriptionChangeRequest.created_at.desc()).with_for_update().first()
     if row is None:

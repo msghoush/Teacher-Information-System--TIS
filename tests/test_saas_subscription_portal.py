@@ -335,16 +335,16 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         response = self._open(fixture)
         self.assertIn('href="/saas/subscription"', response.text)
         for label in (
-            "Upgrade Plan",
+            "Preview Upgrade",
+            "Preview Downgrade",
             "Add Branch Capacity",
             "Reduce Branch Capacity",
             "Billing History",
             "Invoices",
-            "Pending Plan Changes",
             "Manage Subscription",
         ):
             self.assertIn(label, response.text)
-        self.assertGreaterEqual(response.text.count("disabled"), 3)
+        self.assertGreaterEqual(response.text.count("disabled"), 1)
         self.client.cookies.clear()
         db = self.Session()
         try:
@@ -375,7 +375,8 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.assertIn("@media (max-width:900px)", template)
         self.assertIn("@media (max-width:640px)", template)
         self.assertIn("grid-template-columns:1fr", template)
-        self.assertEqual(template.lower().count("<form"), 1)
+        self.assertGreaterEqual(template.lower().count("<form"), 2)
+        self.assertIn('/saas/subscription/plans/preview', template)
         self.assertIn("cancel scheduled reduction", template.lower())
         self.assertNotIn("/upgrade", template.lower())
         self.assertNotIn("PADDLE_API_KEY", template)
