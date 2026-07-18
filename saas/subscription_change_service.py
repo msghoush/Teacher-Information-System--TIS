@@ -750,6 +750,8 @@ def reconcile_quantity_change_webhook(db: Session, payload: dict, event_type: st
             row.failure_code = "provider_price_mismatch"
             row.failure_message = "Subscription payment requires manual review."
             return {"status": "manual_review", "event_type": event_type}
+    if event_type == "transaction.paid":
+        return {"status": "processed", "event_type": event_type}
     if event_type in {"transaction.payment_failed", "transaction.past_due"} and row.change_type == INCREASE:
         row.status = "failed"
         row.failure_code = "provider_payment_failed"
