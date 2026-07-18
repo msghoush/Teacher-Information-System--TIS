@@ -453,6 +453,8 @@ def reconcile_plan_change_webhook(db: Session, payload: dict, event_type: str):
         if _clean(data.get("currency_code")).upper() != row.currency_code or row.target_provider_price_id not in price_ids:
             row.status = "manual_review"; row.failure_code = "provider_transaction_mismatch"
             return {"status": "manual_review", "event_type": event_type}
+        if event_type == "transaction.paid":
+            return {"status": "processed", "event_type": event_type}
         if event_type in {"transaction.payment_failed", "transaction.past_due"} and row.change_type == UPGRADE:
             row.status = "failed"; row.failure_code = "provider_payment_failed"
             return {"status": "processed", "event_type": event_type}

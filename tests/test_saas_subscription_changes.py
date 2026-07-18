@@ -20,7 +20,7 @@ import main
 import models
 import saas.models
 from dependencies import get_db
-from saas import entitlement_service, paddle_client, service, subscription_change_service, subscription_plan_change_service, subscription_portal_service
+from saas import entitlement_service, paddle_client, payment_lifecycle_reconciliation_service, payment_service, service, subscription_change_service, subscription_plan_change_service, subscription_portal_service
 from saas.router import router as saas_router
 
 
@@ -132,6 +132,104 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
 
     def _account(self, db, fixture):
         return db.query(saas.models.SaaSAccount).filter_by(id=fixture["account_id"]).one()
+
+    def _add_finalized_initial_payment(self, fixture):
+        db = self.Session()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                owner_saas_account_id=fixture["account_id"]
+            ).one()
+            contract = db.query(saas.models.SubscriptionContract).filter_by(
+                id=fixture["contract_id"]
+            ).one()
+            selection = saas.models.PendingOrganizationPlanSelection(
+                pending_organization_id=organization.id,
+                plan_id=fixture["plan_id"],
+                billing_interval="monthly",
+                base_currency_code="USD",
+                base_amount_minor=fixture["unit_amount"],
+                display_currency_code="USD",
+                display_amount_minor=fixture["unit_amount"],
+                billable_branch_count=fixture["quantity"],
+                selection_status="selected",
+            )
+            db.add(selection)
+            db.flush()
+            checkout = saas.models.CheckoutSession(
+                pending_organization_id=organization.id,
+                plan_selection_id=selection.id,
+                status="completed",
+                provider="paddle",
+                provider_checkout_id=f"txn_initial_{fixture['provider_subscription_id']}",
+                provider_price_id=fixture["provider_price_id"],
+                currency_code="USD",
+                amount_minor=fixture["unit_amount"] * fixture["quantity"],
+                billing_interval="monthly",
+                billable_branch_count=fixture["quantity"],
+                started_at=datetime(2026, 7, 1),
+            )
+            db.add(checkout)
+            db.flush()
+            attempt = saas.models.PaymentAttempt(
+                pending_organization_id=organization.id,
+                checkout_session_id=checkout.id,
+                plan_selection_id=selection.id,
+                provider="paddle",
+                attempt_uuid=str(uuid.uuid4()),
+                provider_checkout_id=checkout.provider_checkout_id,
+                provider_transaction_id=checkout.provider_checkout_id,
+                provider_subscription_id=fixture["provider_subscription_id"],
+                status="payment_confirmed",
+                provider_price_id=fixture["provider_price_id"],
+                currency_code="USD",
+                quantity=fixture["quantity"],
+                unit_amount_minor=fixture["unit_amount"],
+                amount_minor=fixture["unit_amount"] * fixture["quantity"],
+                billing_interval="monthly",
+                started_at=datetime(2026, 7, 1),
+                completed_at=datetime(2026, 7, 1),
+            )
+            db.add(attempt)
+            db.flush()
+            checkout.last_payment_attempt_id = attempt.id
+            organization.last_payment_attempt_id = attempt.id
+            contract.selected_checkout_session_id = checkout.id
+            db.commit()
+            return {
+                "organization_id": organization.id,
+                "checkout_id": checkout.id,
+                "attempt_id": attempt.id,
+            }
+        finally:
+            db.close()
+
+    def _process_change_webhook(self, payload):
+        db = self.Session()
+        try:
+            with patch("saas.payment_service.verify_webhook_signature"):
+                result = payment_service.process_webhook(
+                    db,
+                    raw_body=json.dumps(payload).encode("utf-8"),
+                    headers={"Paddle-Signature": "test-signature"},
+                )
+                db.commit()
+            return result
+        finally:
+            db.close()
+
+    def _assert_finalized_initial_lifecycle(self, fixture, initial):
+        db = self.Session()
+        try:
+            organization = db.query(saas.models.PendingOrganization).get(initial["organization_id"])
+            checkout = db.query(saas.models.CheckoutSession).get(initial["checkout_id"])
+            attempt = db.query(saas.models.PaymentAttempt).get(initial["attempt_id"])
+            contract = db.query(saas.models.SubscriptionContract).get(fixture["contract_id"])
+            self.assertEqual((organization.billing_status, organization.payment_status), ("tenant_active", "paid"))
+            self.assertEqual(checkout.status, "completed")
+            self.assertEqual(attempt.status, "payment_confirmed")
+            self.assertEqual((contract.contract_status, contract.payment_status), ("tenant_active", "paid"))
+        finally:
+            db.close()
 
     @staticmethod
     def _operational_request(path: str, *, method: str = "GET") -> Request:
@@ -794,6 +892,238 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
             self.assertEqual(confirmed.status, "confirmed")
             self.assertIsNotNone(confirmed.provider_payment_confirmed_at)
             entitlement_service.require_active_branch_capacity(db, fixture["group_id"])
+        finally:
+            db.close()
+
+    def test_branch_change_paid_and_completed_webhooks_do_not_regress_initial_lifecycle(self):
+        fixture = self._fixture(quantity=3, active_branches=3)
+        initial = self._add_finalized_initial_payment(fixture)
+        row_id, _ = self._preview(fixture, 4)
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).get(row_id)
+            row.status = "payment_pending"
+            row.submitted_at = datetime.utcnow()
+            db.commit()
+        finally:
+            db.close()
+
+        subscription_event = {
+            "event_id": f"evt_subscription_updated_{uuid.uuid4().hex}",
+            "event_type": "subscription.updated",
+            "data": self._provider_subscription(fixture, 4),
+        }
+        paid_event = {
+            "event_id": f"evt_quantity_paid_{uuid.uuid4().hex}",
+            "event_type": "transaction.paid",
+            "data": {
+                "id": f"txn_quantity_{uuid.uuid4().hex}",
+                "subscription_id": fixture["provider_subscription_id"],
+                "origin": "subscription_update",
+                "status": "paid",
+                "currency_code": "USD",
+                "items": [{"price": {"id": fixture["provider_price_id"]}}],
+            },
+        }
+        completed_event = {
+            **paid_event,
+            "event_id": f"evt_quantity_completed_{uuid.uuid4().hex}",
+            "event_type": "transaction.completed",
+            "data": {**paid_event["data"], "status": "completed"},
+        }
+
+        self.assertEqual(self._process_change_webhook(subscription_event)["status"], "processed")
+        self.assertEqual(self._process_change_webhook(paid_event)["status"], "processed")
+        self._assert_finalized_initial_lifecycle(fixture, initial)
+        db = self.Session()
+        try:
+            self.assertEqual(
+                db.query(saas.models.SubscriptionChangeRequest).get(row_id).status,
+                "payment_pending",
+            )
+        finally:
+            db.close()
+
+        self.assertEqual(self._process_change_webhook(paid_event)["status"], "duplicate")
+        self.assertEqual(self._process_change_webhook(completed_event)["status"], "processed")
+        self.assertEqual(self._process_change_webhook(completed_event)["status"], "duplicate")
+        self._assert_finalized_initial_lifecycle(fixture, initial)
+        db = self.Session()
+        try:
+            change = db.query(saas.models.SubscriptionChangeRequest).get(row_id)
+            subscription = db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"])
+            self.assertEqual(change.status, "confirmed")
+            self.assertEqual(subscription.quantity, 4)
+        finally:
+            db.close()
+
+    def test_unattributed_post_activation_transaction_cannot_mutate_initial_lifecycle(self):
+        fixture = self._fixture(quantity=3, active_branches=2)
+        initial = self._add_finalized_initial_payment(fixture)
+        event = {
+            "event_id": f"evt_recurring_paid_{uuid.uuid4().hex}",
+            "event_type": "transaction.paid",
+            "data": {
+                "id": f"txn_recurring_{uuid.uuid4().hex}",
+                "subscription_id": fixture["provider_subscription_id"],
+                "origin": "subscription_recurring",
+                "status": "paid",
+                "currency_code": "USD",
+                "items": [{"price": {"id": fixture["provider_price_id"]}}],
+            },
+        }
+
+        self.assertEqual(self._process_change_webhook(event)["status"], "ignored")
+        self._assert_finalized_initial_lifecycle(fixture, initial)
+
+    def test_plan_upgrade_paid_and_completed_webhooks_do_not_regress_initial_lifecycle(self):
+        fixture = self._fixture(quantity=4, active_branches=2, plan_code="professional")
+        initial = self._add_finalized_initial_payment(fixture)
+        row_id, target_plan_id, _target_price_id, target_provider_price, _ = self._plan_preview(
+            fixture, "enterprise_ai"
+        )
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).get(row_id)
+            target_price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+                provider_price_id=target_provider_price
+            ).one()
+            row.status = "payment_pending"
+            row.submitted_at = datetime.utcnow()
+            db.commit()
+            target_fixture = dict(
+                fixture,
+                provider_price_id=target_provider_price,
+                unit_amount=target_price.amount_minor,
+            )
+        finally:
+            db.close()
+
+        subscription_event = {
+            "event_id": f"evt_plan_subscription_{uuid.uuid4().hex}",
+            "event_type": "subscription.updated",
+            "data": self._provider_subscription(target_fixture, 4),
+        }
+        paid_event = {
+            "event_id": f"evt_plan_paid_{uuid.uuid4().hex}",
+            "event_type": "transaction.paid",
+            "data": {
+                "id": f"txn_plan_{uuid.uuid4().hex}",
+                "subscription_id": fixture["provider_subscription_id"],
+                "origin": "subscription_update",
+                "status": "paid",
+                "currency_code": "USD",
+                "items": [{"price": {"id": target_provider_price}}],
+            },
+        }
+        completed_event = {
+            **paid_event,
+            "event_id": f"evt_plan_completed_{uuid.uuid4().hex}",
+            "event_type": "transaction.completed",
+            "data": {**paid_event["data"], "status": "completed"},
+        }
+
+        self.assertEqual(self._process_change_webhook(subscription_event)["status"], "processed")
+        self.assertEqual(self._process_change_webhook(paid_event)["status"], "processed")
+        self._assert_finalized_initial_lifecycle(fixture, initial)
+        self.assertEqual(self._process_change_webhook(completed_event)["status"], "processed")
+        self.assertEqual(self._process_change_webhook(paid_event)["status"], "duplicate")
+        self.assertEqual(self._process_change_webhook(completed_event)["status"], "duplicate")
+        self._assert_finalized_initial_lifecycle(fixture, initial)
+        db = self.Session()
+        try:
+            change = db.query(saas.models.SubscriptionChangeRequest).get(row_id)
+            subscription = db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"])
+            contract = db.query(saas.models.SubscriptionContract).get(fixture["contract_id"])
+            self.assertEqual(change.status, "confirmed")
+            self.assertEqual((subscription.plan_id, contract.plan_id), (target_plan_id, target_plan_id))
+            self.assertEqual(subscription.quantity, 4)
+        finally:
+            db.close()
+
+    def test_finalized_lifecycle_reconciliation_is_dry_run_first_and_strictly_scoped(self):
+        fixture = self._fixture(quantity=3, active_branches=2)
+        initial = self._add_finalized_initial_payment(fixture)
+        row_id, _ = self._preview(fixture, 4)
+        now = datetime.utcnow()
+        transaction_id = f"txn_reconcile_{uuid.uuid4().hex}"
+        db = self.Session()
+        try:
+            organization = db.query(saas.models.PendingOrganization).get(initial["organization_id"])
+            checkout = db.query(saas.models.CheckoutSession).get(initial["checkout_id"])
+            attempt = db.query(saas.models.PaymentAttempt).get(initial["attempt_id"])
+            contract = db.query(saas.models.SubscriptionContract).get(fixture["contract_id"])
+            change = db.query(saas.models.SubscriptionChangeRequest).get(row_id)
+            change.status = "confirmed"
+            change.submitted_at = now - timedelta(minutes=1)
+            change.provider_payment_confirmed_at = now
+            change.confirmed_at = now
+            organization.billing_status = "payment_processing"
+            organization.payment_status = "processing"
+            checkout.status = "processing"
+            attempt.status = "payment_processing"
+            contract.payment_status = "processing"
+            db.add(saas.models.ProvisioningJob(
+                pending_organization_id=organization.id,
+                subscription_contract_id=contract.id,
+                job_uuid=str(uuid.uuid4()),
+                idempotency_key=f"test-reconcile-{uuid.uuid4()}",
+                job_status="completed",
+                completed_at=now,
+            ))
+            db.add(saas.models.PaymentWebhook(
+                provider="paddle",
+                provider_event_id=f"evt_reconcile_{uuid.uuid4().hex}",
+                event_type="transaction.completed",
+                signature_valid=True,
+                payload_json=json.dumps({
+                    "event_type": "transaction.completed",
+                    "data": {
+                        "id": transaction_id,
+                        "subscription_id": fixture["provider_subscription_id"],
+                        "origin": "subscription_update",
+                        "status": "completed",
+                        "currency_code": "USD",
+                        "items": [{"price": {"id": fixture["provider_price_id"]}}],
+                    },
+                }),
+                received_at=now,
+                processed_at=now,
+                processing_status="processed",
+            ))
+            db.commit()
+
+            provider_transaction = {
+                "id": transaction_id,
+                "subscription_id": fixture["provider_subscription_id"],
+                "origin": "subscription_update",
+                "status": "completed",
+            }
+            provider_subscription = {
+                "id": fixture["provider_subscription_id"],
+                "status": "active",
+            }
+            with (
+                patch.object(paddle_client, "_request", return_value=provider_transaction),
+                patch.object(paddle_client, "get_subscription", return_value=provider_subscription),
+                patch("saas.payment_lifecycle_reconciliation_service.audit.write_audit_event") as audit_event,
+            ):
+                dry_run = payment_lifecycle_reconciliation_service.reconcile_finalized_lifecycle(
+                    db, email=db.query(saas.models.SaaSAccount).get(fixture["account_id"]).email, apply=False
+                )
+                self.assertEqual(dry_run["status"], "dry_run")
+                self.assertEqual(len(dry_run["changed_fields"]), 5)
+                self.assertEqual(organization.billing_status, "payment_processing")
+                audit_event.assert_not_called()
+
+                applied = payment_lifecycle_reconciliation_service.reconcile_finalized_lifecycle(
+                    db, email=db.query(saas.models.SaaSAccount).get(fixture["account_id"]).email, apply=True
+                )
+                db.commit()
+                self.assertEqual(applied["status"], "reconciled")
+                self.assertEqual(set(applied["changed_fields"]), set(payment_lifecycle_reconciliation_service.FINALIZED_FIELDS))
+                audit_event.assert_called_once()
+            self._assert_finalized_initial_lifecycle(fixture, initial)
         finally:
             db.close()
 

@@ -1140,6 +1140,14 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
         webhook_row.processed_at = _utcnow()
         return {"status": "ignored", "event_type": event_type}
 
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    if event_type.startswith("transaction.") and _clean_text(data.get("id")) != _clean_text(
+        attempt.provider_transaction_id
+    ):
+        webhook_row.processing_status = "ignored"
+        webhook_row.processed_at = _utcnow()
+        return {"status": "ignored", "event_type": event_type}
+
     organization = db.query(models.PendingOrganization).filter(
         models.PendingOrganization.id == attempt.pending_organization_id
     ).first()
@@ -1151,7 +1159,6 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
         payment_customer = db.query(models.PaymentCustomer).filter(
             models.PaymentCustomer.id == attempt.payment_customer_id
         ).first()
-    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
     provider_subscription_id = str(data.get("subscription_id") or "").strip()
     if event_type.startswith("subscription."):
         provider_subscription_id = str(data.get("id") or "").strip() or provider_subscription_id
