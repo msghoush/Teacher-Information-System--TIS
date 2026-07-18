@@ -1,7 +1,12 @@
 import json
+from pathlib import Path
+import subprocess
 import sys
 
 from scripts import reconcile_finalized_payment_lifecycle
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class _CommitFailureSession:
@@ -53,3 +58,31 @@ def test_apply_logs_original_commit_exception_before_rollback(monkeypatch, capsy
     assert "RuntimeError: test commit failure" in captured.err
     assert session.rollback_called is True
     assert session.close_called is True
+
+
+def test_standalone_script_registers_operational_and_saas_metadata():
+    code = """
+import scripts.reconcile_finalized_payment_lifecycle
+from database import Base
+required = {
+    'school_groups',
+    'subscription_contracts',
+    'tenant_provisioning_links',
+    'pending_organizations',
+}
+missing = required.difference(Base.metadata.tables)
+assert not missing, sorted(missing)
+contract = Base.metadata.tables['subscription_contracts']
+foreign_keys = {foreign_key.target_fullname for foreign_key in contract.c.school_group_id.foreign_keys}
+assert foreign_keys == {'school_groups.id'}, foreign_keys
+Base.metadata.sorted_tables
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr

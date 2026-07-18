@@ -1123,6 +1123,12 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
                 self.assertEqual(applied["status"], "reconciled")
                 self.assertEqual(set(applied["changed_fields"]), set(payment_lifecycle_reconciliation_service.FINALIZED_FIELDS))
                 audit_event.assert_called_once()
+                subsequent_dry_run = payment_lifecycle_reconciliation_service.reconcile_finalized_lifecycle(
+                    db, email=db.query(saas.models.SaaSAccount).get(fixture["account_id"]).email, apply=False
+                )
+                self.assertEqual(subsequent_dry_run["status"], "dry_run")
+                self.assertEqual(subsequent_dry_run["changed_fields"], [])
+                self.assertFalse(subsequent_dry_run["database_write_performed"])
             self._assert_finalized_initial_lifecycle(fixture, initial)
         finally:
             db.close()
