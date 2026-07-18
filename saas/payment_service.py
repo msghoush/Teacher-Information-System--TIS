@@ -905,6 +905,10 @@ def _normalized_paddle_interval(value) -> str:
     return {"month": "monthly", "year": "annual"}.get(cleaned, cleaned)
 
 
+def _normalized_paddle_subscription_status(value, *, fallback="pending") -> str:
+    return str(value or fallback or "pending").strip() or "pending"
+
+
 def _paddle_item_summary(data: dict, *, require_reported_total: bool) -> dict:
     items = data.get("items") if isinstance(data.get("items"), list) else []
     if len(items) != 1 or not isinstance(items[0], dict):
@@ -1038,7 +1042,7 @@ def _upsert_subscription_from_payload(
     row.payment_customer_id = getattr(payment_customer, "id", None)
     row.plan_id = contract.plan_id
     row.billing_interval = contract.billing_interval
-    row.status = str(data.get("status") or row.status or "pending").strip() or "pending"
+    row.status = _normalized_paddle_subscription_status(data.get("status"), fallback=row.status)
     if item_summary:
         row.provider_price_id = item_summary["provider_price_id"]
         row.quantity = item_summary["quantity"]
