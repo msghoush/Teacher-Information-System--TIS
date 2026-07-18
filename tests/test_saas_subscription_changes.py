@@ -750,20 +750,82 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         db = self.Session()
         try:
             row = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=row_id).one()
+            subscription = db.query(saas.models.PaymentSubscription).filter_by(id=fixture["subscription_id"]).one()
+            subscription.status = "pending"
             row.status = "payment_pending"; row.submitted_at = datetime.utcnow(); db.commit()
-            subscription_payload = {"data": self._provider_subscription(fixture, 5)}
+            subscription_payload = {"data": self._provider_subscription(fixture, 5, period_start="2026-07-02T00:00:00Z")}
             with patch("saas.subscription_change_service.audit.write_audit_event"):
                 subscription_change_service.reconcile_quantity_change_webhook(db, subscription_payload, "subscription.updated")
-                self.assertEqual(db.query(saas.models.PaymentSubscription).filter_by(id=fixture["subscription_id"]).one().quantity, 3)
+                subscription = db.query(saas.models.PaymentSubscription).filter_by(id=fixture["subscription_id"]).one()
+                self.assertEqual(subscription.status, "active")
+                self.assertEqual(subscription.quantity, 3)
+                self.assertEqual(subscription.current_period_start, datetime(2026, 7, 2))
+                self.assertEqual(row.status, "payment_pending")
+                self.assertIsNone(row.provider_payment_confirmed_at)
+
+                portal = subscription_portal_service.build_subscription_portal(db, self._account(db, fixture))
+                self.assertEqual(portal.resolution_status, entitlement_service.RESOLVED)
+                self.assertEqual(portal.plan_name, "Professional")
+                self.assertEqual(portal.billing_interval_label, "Monthly")
+                self.assertEqual(portal.paid_branch_quantity, 3)
+                self.assertTrue(any(
+                    feature["key"] == "feature.advanced_reporting" and feature["included"]
+                    for group in portal.feature_groups
+                    for feature in group["features"]
+                ))
+                self.assertEqual(portal.pending_change["status"], "payment_pending")
+                self.assertFalse(portal.can_manage_branch_capacity)
+                self.assertFalse(portal.can_manage_plan)
+
+                db.commit()
+                self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+                response = self.client.get("/saas/subscription")
+                self.assertEqual(response.status_code, 200)
+                self.assertNotIn("Subscription information is being reviewed", response.text)
+                self.assertIn("Pending branch-capacity change", response.text)
+                self.assertIn("Requested paid branches: 5", response.text)
+                self.assertIn("Advanced Reporting", response.text)
                 transaction_payload = {"data": {"subscription_id": fixture["provider_subscription_id"], "status": "completed", "origin": "subscription_update", "currency_code": "USD", "items": [{"price": {"id": fixture["provider_price_id"]}}]}}
                 subscription_change_service.reconcile_quantity_change_webhook(db, transaction_payload, "transaction.completed")
                 subscription_change_service.reconcile_quantity_change_webhook(db, transaction_payload, "transaction.completed")
                 db.commit()
             self.assertEqual(db.query(saas.models.PaymentSubscription).filter_by(id=fixture["subscription_id"]).one().quantity, 5)
-            self.assertEqual(db.query(saas.models.SubscriptionChangeRequest).filter_by(id=row_id).one().status, "confirmed")
+            confirmed = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=row_id).one()
+            self.assertEqual(confirmed.status, "confirmed")
+            self.assertIsNotNone(confirmed.provider_payment_confirmed_at)
             entitlement_service.require_active_branch_capacity(db, fixture["group_id"])
         finally:
             db.close()
+
+    def test_non_entitled_provider_statuses_remain_fail_closed_during_quantity_change(self):
+        for provider_status in ("paused", "canceled"):
+            with self.subTest(provider_status=provider_status):
+                fixture = self._fixture(quantity=3, active_branches=2)
+                row_id, _ = self._preview(fixture, 5)
+                db = self.Session()
+                try:
+                    row = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=row_id).one()
+                    row.status = "payment_pending"
+                    row.submitted_at = datetime.utcnow()
+                    payload = self._provider_subscription(fixture, 5)
+                    payload["status"] = provider_status
+
+                    subscription_change_service.reconcile_quantity_change_webhook(
+                        db,
+                        {"data": payload},
+                        "subscription.updated",
+                    )
+                    db.commit()
+
+                    subscription = db.query(saas.models.PaymentSubscription).filter_by(id=fixture["subscription_id"]).one()
+                    self.assertEqual(subscription.status, provider_status)
+                    self.assertEqual(subscription.quantity, 3)
+                    self.assertEqual(row.status, "payment_pending")
+                    resolution = entitlement_service.resolve_entitlements(db, fixture["group_id"])
+                    self.assertEqual(resolution.resolution_status, entitlement_service.MANUAL_REVIEW)
+                    self.assertEqual(resolution.reason_code, "subscription_not_entitled")
+                finally:
+                    db.close()
 
     def test_failed_payment_and_mismatched_quantity_do_not_change_capacity(self):
         fixture = self._fixture(quantity=3, active_branches=3)
