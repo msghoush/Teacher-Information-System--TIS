@@ -12,8 +12,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import saas.models  # noqa: F401
 from database import SessionLocal
+import models  # noqa: F401 - register operational metadata before SaaS metadata
+import saas.models  # noqa: F401 - register SaaS metadata
 from saas import paddle_client, payment_lifecycle_reconciliation_service
 
 
