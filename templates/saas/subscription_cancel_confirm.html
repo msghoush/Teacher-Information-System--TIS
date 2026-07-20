@@ -1,0 +1,31 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .cancel-confirm { max-width:760px; margin:0 auto; }
+    .cancel-confirm h1 { margin:5px 0 8px; color:var(--brand-dark); font-size:30px; letter-spacing:0; }
+    .cancel-confirm > p { color:var(--muted); line-height:1.55; }
+    .cancel-summary { border-top:1px solid var(--line); margin:22px 0; }
+    .cancel-row { display:flex; justify-content:space-between; gap:18px; padding:13px 0; border-bottom:1px solid var(--line); }
+    .cancel-row span { color:var(--muted); font-size:13px; font-weight:800; }
+    .cancel-row strong { color:var(--brand-dark); text-align:right; }
+    .cancel-warning { border:1px solid #f0c36a; border-radius:8px; background:#fff8e8; padding:15px; color:#5f4a20; line-height:1.5; }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+    @media(max-width:640px){.cancel-confirm h1{font-size:26px}.cancel-row{align-items:flex-start;flex-direction:column;gap:5px}.cancel-row strong{text-align:left}}
+</style>
+<div class="cancel-confirm">
+    <span class="page-eyebrow">Subscription Management</span>
+    <h1>Cancel subscription at period end</h1>
+    <p>Review when cancellation will take effect before submitting the request to Paddle.</p>
+    {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+    <section class="cancel-summary">
+        <div class="cancel-row"><span>Current Plan</span><strong>{{ lifecycle.current_plan }}</strong></div>
+        <div class="cancel-row"><span>Paid Branches</span><strong>{{ lifecycle.current_quantity }}</strong></div>
+        <div class="cancel-row"><span>Paid Period Ends</span><strong>{{ subscription_portal.current_period_end_label }}</strong></div>
+    </section>
+    <div class="cancel-warning">Your subscription remains active through the current paid period. Access and entitlements continue until Paddle confirms the cancellation effective date. The subscription will not renew after that date.</div>
+    <form method="post" action="/saas/subscription/cancel">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="actions"><button class="btn primary" type="submit">Cancel at Period End</button><a class="btn secondary" href="/saas/subscription">Keep Subscription</a></div>
+    </form>
+</div>
+{% endblock %}

@@ -198,3 +198,25 @@ def update_subscription(
             "on_payment_failure": payment_failure,
         },
     )
+
+
+def cancel_subscription_at_period_end(*, subscription_id: str) -> dict:
+    cleaned = str(subscription_id or "").strip()
+    if not cleaned.startswith("sub_"):
+        raise ValueError("Paddle subscription ID is required.")
+    return _request(
+        "POST",
+        f"/subscriptions/{cleaned}/cancel",
+        {"effective_from": "next_billing_period"},
+    )
+
+
+def remove_subscription_scheduled_change(*, subscription_id: str) -> dict:
+    cleaned = str(subscription_id or "").strip()
+    if not cleaned.startswith("sub_"):
+        raise ValueError("Paddle subscription ID is required.")
+    return _request(
+        "PATCH",
+        f"/subscriptions/{cleaned}",
+        {"scheduled_change": None},
+    )

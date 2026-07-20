@@ -16,7 +16,14 @@ import db_migrations
 import models
 import saas.models
 from dependencies import get_db
-from saas import entitlement_service, paddle_client, service, subscription_portal_service
+from saas import (
+    entitlement_service,
+    paddle_client,
+    service,
+    subscription_change_service,
+    subscription_plan_change_service,
+    subscription_portal_service,
+)
 from saas.router import router as saas_router
 
 
@@ -68,7 +75,12 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
             db.flush()
             session_token, _csrf_token, _session = service.create_session(db, account)
             db.commit()
-            return {"account_id": account.id, "session_token": session_token, "email": email}
+            return {
+                "account_id": account.id,
+                "session_token": session_token,
+                "csrf_token": _csrf_token,
+                "email": email,
+            }
         finally:
             db.close()
 
@@ -194,6 +206,84 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
         return self.client.get("/saas/subscription", follow_redirects=False)
 
+    def _add_change(
+        self,
+        fixture,
+        *,
+        change_type,
+        status,
+        requested_quantity=None,
+        target_plan_code=None,
+        effective_at=None,
+    ):
+        db = self.Session()
+        try:
+            subscription = db.query(saas.models.PaymentSubscription).filter_by(
+                id=fixture["subscription_id"]
+            ).one()
+            contract = db.query(saas.models.SubscriptionContract).filter_by(
+                id=subscription.subscription_contract_id
+            ).one()
+            account = db.query(saas.models.SaaSAccount).filter_by(
+                id=fixture["account_id"]
+            ).one()
+            current_price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+                plan_id=subscription.plan_id,
+                billing_interval=subscription.billing_interval,
+                currency_code=subscription.currency_code,
+                provider_price_id=subscription.provider_price_id,
+                is_active=True,
+            ).one()
+            target_plan = None
+            target_price = None
+            if target_plan_code:
+                target_plan = db.query(saas.models.SubscriptionPlan).filter_by(
+                    plan_code=target_plan_code
+                ).one()
+                target_price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+                    plan_id=target_plan.id,
+                    billing_interval=subscription.billing_interval,
+                    currency_code=subscription.currency_code,
+                    is_active=True,
+                ).one()
+                target_price.provider_price_id = (
+                    target_price.provider_price_id
+                    or f"pri_01portal{uuid.uuid4().hex[:12]}target"
+                )
+            requested_quantity = requested_quantity or subscription.quantity
+            row = saas.models.SubscriptionChangeRequest(
+                school_group_id=contract.school_group_id,
+                subscription_contract_id=contract.id,
+                payment_subscription_id=subscription.id,
+                provider_subscription_id=subscription.provider_subscription_id,
+                requested_by_saas_account_id=account.id,
+                change_type=change_type,
+                current_quantity=subscription.quantity,
+                requested_quantity=requested_quantity,
+                quantity_delta=requested_quantity - subscription.quantity,
+                current_plan_price_id=current_price.id,
+                provider_price_id=subscription.provider_price_id,
+                target_plan_id=getattr(target_plan, "id", None),
+                target_plan_price_id=getattr(target_price, "id", None),
+                target_provider_price_id=getattr(target_price, "provider_price_id", None),
+                billing_interval=subscription.billing_interval,
+                currency_code=subscription.currency_code,
+                effective_mode="next_billing_period",
+                status=status,
+                next_renewal_total_minor=(
+                    target_price.amount_minor * requested_quantity
+                    if target_price else subscription.unit_amount_minor * requested_quantity
+                ),
+                idempotency_key=f"portal-change-{uuid.uuid4().hex}",
+                submitted_at=datetime(2027, 7, 18),
+                effective_at=effective_at,
+            )
+            db.add(row)
+            db.commit()
+            return row.request_uuid
+        finally:
+            db.close()
+
     def test_starter_professional_and_enterprise_pages_render(self):
         cases = (
             ("starter", "Starter", "Not Included"),
@@ -231,12 +321,85 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
             self.assertEqual(view.active_branch_count, 16)
             self.assertEqual(view.remaining_paid_capacity, 4)
             self.assertEqual(view.next_billing_date_label, "January 15, 2027")
+            self.assertEqual(view.overview_date_label, "Next Renewal")
+            self.assertEqual(view.overview_date_value, "January 15, 2027")
+            self.assertEqual(view.billing_cadence_label, "year")
+            self.assertTrue(view.can_increase_quantity)
+            self.assertTrue(view.can_decrease_quantity)
             self.assertIn("Reporting", {group["label"] for group in view.feature_groups})
             reporting = next(group for group in view.feature_groups if group["label"] == "Reporting")
             advanced = next(feature for feature in reporting["features"] if feature["key"] == "feature.advanced_reporting")
             self.assertTrue(advanced["included"])
         finally:
             db.close()
+
+    def test_active_overview_is_dominant_and_has_no_pending_card(self):
+        fixture = self._create_subscription(
+            plan_code="starter",
+            quantity=2,
+            active_branches=1,
+            next_billed_at=datetime(2027, 8, 18),
+        )
+        response = self._open(fixture)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('aria-label="Subscription overview"', response.text)
+        self.assertIn('class="plan-overview"', response.text)
+        self.assertIn("Current Plan", response.text)
+        self.assertIn("Starter", response.text)
+        self.assertIn("Active", response.text)
+        self.assertIn("per year", response.text)
+        self.assertIn("August 18, 2027", response.text)
+        self.assertIn("2 paid / 1 active", response.text)
+        self.assertNotIn('<section class="pending-change"', response.text)
+        self.assertIn("Features Included", response.text)
+        self.assertIn("<details", response.text)
+
+    def test_pending_change_card_renders_scheduled_and_processing_states(self):
+        cases = (
+            {
+                "change_type": subscription_plan_change_service.DOWNGRADE,
+                "status": "scheduled",
+                "target_plan_code": "starter",
+                "effective_at": datetime(2027, 8, 18),
+                "expected": ("Scheduled Plan Change", "Starter", "August 18, 2027", "Cancel Scheduled Change"),
+            },
+            {
+                "change_type": subscription_change_service.REDUCTION,
+                "status": "scheduled",
+                "requested_quantity": 3,
+                "effective_at": datetime(2027, 8, 18),
+                "expected": ("Pending branch-capacity change", "Target Paid Branches", "3", "Cancel Scheduled Reduction"),
+            },
+            {
+                "change_type": subscription_change_service.INCREASE,
+                "status": "payment_pending",
+                "requested_quantity": 5,
+                "expected": ("Pending branch-capacity change", "Payment confirmation pending", "5", "Processing"),
+            },
+        )
+        for case in cases:
+            with self.subTest(change_type=case["change_type"], status=case["status"]):
+                fixture = self._create_subscription(
+                    plan_code="professional",
+                    quantity=4,
+                    active_branches=2,
+                    next_billed_at=datetime(2027, 9, 1),
+                )
+                self._add_change(
+                    fixture,
+                    change_type=case["change_type"],
+                    status=case["status"],
+                    requested_quantity=case.get("requested_quantity"),
+                    target_plan_code=case.get("target_plan_code"),
+                    effective_at=case.get("effective_at"),
+                )
+                response = self._open(fixture)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn('<section class="pending-change"', response.text)
+                for expected in case["expected"]:
+                    self.assertIn(expected, response.text)
+                self.assertNotIn("Subscription Actions", response.text)
+                self.assertNotIn('href="/saas/subscription/cancel"', response.text)
 
     def test_missing_subscription_and_manual_review_are_customer_safe(self):
         missing = self._create_account(email="missing-portal@example.com")
@@ -263,15 +426,19 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
             db.close()
         manual_response = self._open(manual)
         self.assertEqual(manual_response.status_code, 200)
-        self.assertIn("Manual Review", manual_response.text)
+        self.assertIn("Status Unavailable", manual_response.text)
         self.assertNotIn("provider_subscription_id", manual_response.text)
+        self.assertNotIn("manual_review", manual_response.text)
+        self.assertNotIn("Subscription Actions", manual_response.text)
+        self.assertNotIn('href="/saas/subscription/branches"', manual_response.text)
 
     def test_subscription_statuses_are_customer_safe(self):
         for status, expected in (
             ("trialing", "Trial"),
-            ("past_due", "Past Due"),
+            ("past_due", "Payment Issue"),
             ("paused", "Paused"),
             ("canceled", "Canceled"),
+            ("expired", "Expired"),
         ):
             with self.subTest(status=status):
                 fixture = self._create_subscription(
@@ -283,8 +450,9 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
                 response = self._open(fixture)
                 self.assertEqual(response.status_code, 200)
                 self.assertIn(expected, response.text)
-                if status != "trialing":
-                    self.assertIn("Not Included", response.text)
+                self.assertNotIn("Subscription Actions", response.text)
+                self.assertNotIn('href="/saas/subscription/cancel"', response.text)
+                self.assertNotIn('href="/saas/subscription/branches"', response.text)
 
     def test_customer_tenant_isolation_and_read_only_behavior(self):
         first = self._create_subscription(
@@ -339,12 +507,14 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
             "Preview Downgrade",
             "Add Branch Capacity",
             "Reduce Branch Capacity",
-            "Billing History",
-            "Invoices",
-            "Manage Subscription",
+            "Cancel Subscription",
         ):
             self.assertIn(label, response.text)
-        self.assertGreaterEqual(response.text.count("disabled"), 1)
+        self.assertNotIn("Billing History", response.text)
+        self.assertNotIn("Invoices", response.text)
+        self.assertNotIn("Coming Soon", response.text)
+        self.assertIn("Subscription Actions", response.text)
+        self.assertIn("features-disclosure", response.text)
         self.client.cookies.clear()
         db = self.Session()
         try:
@@ -375,12 +545,130 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.assertIn("@media (max-width:900px)", template)
         self.assertIn("@media (max-width:640px)", template)
         self.assertIn("grid-template-columns:1fr", template)
+        self.assertIn("overview-grid", template)
+        self.assertIn("plan-overview", template)
+        self.assertIn("features-disclosure", template)
         self.assertGreaterEqual(template.lower().count("<form"), 2)
         self.assertIn('/saas/subscription/plans/preview', template)
         self.assertIn("cancel scheduled reduction", template.lower())
         self.assertNotIn("/upgrade", template.lower())
         self.assertNotIn("PADDLE_API_KEY", template)
         self.assertNotIn("provider_", template)
+        self.assertNotIn("Coming Soon", template)
+        self.assertNotIn("Billing History", template)
+        self.assertNotIn("Invoices", template)
+
+    def test_individual_action_visibility_uses_lifecycle_allowed_actions(self):
+        fixture = self._create_subscription(
+            plan_code="starter",
+            quantity=1,
+            active_branches=1,
+            next_billed_at=datetime(2027, 8, 18),
+        )
+        response = self._open(fixture)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Add Branch Capacity", response.text)
+        self.assertNotIn("Reduce Branch Capacity", response.text)
+        self.assertIn("Upgrade Plan", response.text)
+        self.assertNotIn("Downgrade Plan", response.text)
+        self.assertIn('action="/saas/subscription/plans/preview"', response.text)
+        self.assertIn('href="/saas/subscription/branches"', response.text)
+
+    def test_cancellation_actions_follow_central_lifecycle_policy(self):
+        fixture = self._create_subscription(
+            plan_code="professional",
+            quantity=4,
+            active_branches=2,
+            next_billed_at=datetime(2027, 8, 18),
+        )
+        active = self._open(fixture)
+        self.assertEqual(active.status_code, 200)
+        self.assertIn("Cancel Subscription", active.text)
+        self.assertIn("Your subscription renews on", active.text)
+        self.assertNotIn("tenant_active", active.text)
+        self.assertNotIn("payment_processing", active.text)
+
+        confirmation = self.client.get("/saas/subscription/cancel", follow_redirects=False)
+        self.assertEqual(confirmation.status_code, 200)
+        self.assertIn("Cancel subscription at period end", confirmation.text)
+        self.assertIn("August 18, 2027", confirmation.text)
+        self.assertIn("remains active through the current paid period", confirmation.text)
+
+        db = self.Session()
+        try:
+            subscription = db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"])
+            contract = db.query(saas.models.SubscriptionContract).get(subscription.subscription_contract_id)
+            account = db.query(saas.models.SaaSAccount).get(fixture["account_id"])
+            plan_price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+                plan_id=subscription.plan_id,
+                billing_interval=subscription.billing_interval,
+                currency_code=subscription.currency_code,
+                provider_price_id=subscription.provider_price_id,
+                is_active=True,
+            ).one()
+            request_row = saas.models.SubscriptionChangeRequest(
+                school_group_id=contract.school_group_id,
+                subscription_contract_id=contract.id,
+                payment_subscription_id=subscription.id,
+                provider_subscription_id=subscription.provider_subscription_id,
+                requested_by_saas_account_id=account.id,
+                change_type="subscription_cancellation",
+                current_quantity=subscription.quantity,
+                requested_quantity=subscription.quantity,
+                quantity_delta=0,
+                current_plan_price_id=plan_price.id,
+                provider_price_id=subscription.provider_price_id,
+                billing_interval=subscription.billing_interval,
+                currency_code=subscription.currency_code,
+                effective_mode="next_billing_period",
+                status="scheduled",
+                idempotency_key=f"portal-cancel-{uuid.uuid4().hex}",
+                submitted_at=datetime(2027, 7, 18),
+                provider_scheduled_at=datetime(2027, 7, 18),
+                effective_at=datetime(2027, 8, 18),
+            )
+            db.add(request_row)
+            subscription.cancel_at_period_end = True
+            db.commit()
+        finally:
+            db.close()
+
+        scheduled = self._open(fixture)
+        self.assertIn("Scheduled Cancellation", scheduled.text)
+        self.assertIn("Cancellation scheduled", scheduled.text)
+        self.assertNotIn("Reduction scheduled", scheduled.text)
+        self.assertIn("August 18, 2027", scheduled.text)
+        self.assertIn("Keep Subscription", scheduled.text)
+        self.assertNotIn("Subscription Actions", scheduled.text)
+        self.assertNotIn('href="/saas/subscription/cancel"', scheduled.text)
+        self.assertNotIn('action="/saas/subscription/plans/preview"', scheduled.text)
+        self.assertNotIn('href="/saas/subscription/branches"', scheduled.text)
+
+    def test_unauthorized_customer_never_sees_cancellation_action(self):
+        fixture = self._create_subscription(
+            plan_code="professional",
+            quantity=3,
+            active_branches=1,
+        )
+        db = self.Session()
+        try:
+            link = db.query(saas.models.SaaSAccountUserLink).filter_by(
+                saas_account_id=fixture["account_id"]
+            ).one()
+            user = db.query(models.User).get(link.operational_user_id)
+            user.role = auth.ROLE_LIMITED
+            db.commit()
+        finally:
+            db.close()
+
+        response = self._open(fixture)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("Cancel Subscription", response.text)
+        self.assertNotIn("Subscription Actions", response.text)
+        self.assertNotIn('href="/saas/subscription/branches"', response.text)
+        self.assertNotIn('action="/saas/subscription/plans/preview"', response.text)
+        denied = self.client.get("/saas/subscription/cancel", follow_redirects=False)
+        self.assertEqual(denied.status_code, 302)
 
 
 if __name__ == "__main__":
