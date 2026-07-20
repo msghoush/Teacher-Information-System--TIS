@@ -1,10 +1,16 @@
 ---
 title: Subscription History
 module: subscriptions
-last_updated: 2026-07-11
+last_updated: 2026-07-20
 ---
 
 # Subscription History
+
+## 2026-07-20 - M7 Phase 6 Billing History and Invoice Management
+
+The customer Subscription Management page now retrieves billing history directly from Paddle's paginated `GET /transactions` API, scoped to the customer's confirmed provider subscription. TIS displays provider transaction totals, statuses, origins, invoice numbers, and returned credit/refund adjustments without creating local financial records or calculating replacement amounts.
+
+Eligible invoice downloads use Paddle's `GET /transactions/{transaction_id}/invoice` API. TIS reauthorizes the current billing user, resolves the invoice against the confirmed customer subscription, and requests a fresh expiring provider URL at download time. The provider URL is not stored locally. No billing-history cache, schema change, migration, or webhook behavior is introduced; temporary provider failures render customer-safe retry states.
 
 ## 2026-07-16 - M7 Phase 3 Active Branch Quantity Management
 

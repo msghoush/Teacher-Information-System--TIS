@@ -1,4 +1,5 @@
 import os
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 
@@ -24,7 +25,7 @@ def _api_key() -> str:
     return value
 
 
-def _request_data(method: str, path: str, payload: dict | None = None, *, params: dict | None = None):
+def _request_body(method: str, path: str, payload: dict | None = None, *, params: dict | None = None) -> dict:
     response = httpx.request(
         method,
         f"{_base_url()}{path}",
@@ -50,7 +51,11 @@ def _request_data(method: str, path: str, payload: dict | None = None, *, params
     data = body.get("data")
     if not isinstance(data, (dict, list)):
         raise PaddleAPIError("Unexpected Paddle API response.")
-    return data
+    return body
+
+
+def _request_data(method: str, path: str, payload: dict | None = None, *, params: dict | None = None):
+    return _request_body(method, path, payload, params=params)["data"]
 
 
 def _request(method: str, path: str, payload: dict | None = None, *, params: dict | None = None) -> dict:
@@ -116,6 +121,53 @@ def create_transaction(
         "checkout": {"url": checkout_url or None},
     }
     return _request("POST", "/transactions", payload)
+
+
+def list_transactions(*, subscription_id: str) -> list[dict]:
+    cleaned = str(subscription_id or "").strip()
+    if not cleaned.startswith("sub_"):
+        raise ValueError("Paddle subscription ID is required.")
+    params = {
+        "subscription_id": cleaned,
+        "include": "adjustments,adjustments_totals",
+        "order_by": "billed_at[DESC]",
+        "per_page": 30,
+    }
+    transactions: list[dict] = []
+    seen_pages: set[str] = set()
+    while True:
+        body = _request_body("GET", "/transactions", params=params)
+        data = body.get("data")
+        if not isinstance(data, list):
+            raise PaddleAPIError("Unexpected Paddle API response.")
+        transactions.extend(row for row in data if isinstance(row, dict))
+        pagination = ((body.get("meta") or {}).get("pagination") or {})
+        if not pagination.get("has_more"):
+            break
+        next_url = str(pagination.get("next") or "").strip()
+        if not next_url or next_url in seen_pages:
+            raise PaddleAPIError("Unexpected Paddle pagination response.")
+        seen_pages.add(next_url)
+        query = parse_qs(urlparse(next_url).query)
+        next_params = {key: values[-1] for key, values in query.items() if values}
+        if not next_params:
+            raise PaddleAPIError("Unexpected Paddle pagination response.")
+        params = {**params, **next_params}
+    return transactions
+
+
+def get_transaction_invoice(*, transaction_id: str, disposition: str = "attachment") -> dict:
+    cleaned = str(transaction_id or "").strip()
+    if not cleaned.startswith("txn_"):
+        raise ValueError("Paddle transaction ID is required.")
+    cleaned_disposition = str(disposition or "").strip().lower()
+    if cleaned_disposition not in {"attachment", "inline"}:
+        raise ValueError("A supported invoice disposition is required.")
+    return _request(
+        "GET",
+        f"/transactions/{cleaned}/invoice",
+        params={"disposition": cleaned_disposition},
+    )
 
 
 def _subscription_items(items: list[dict]) -> list[dict]:

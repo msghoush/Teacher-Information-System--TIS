@@ -47,6 +47,23 @@
     .portal-section h2 { margin:0; color:var(--brand-dark); font-size:21px; letter-spacing:0; }
     .portal-section-head p { margin:5px 0 0; color:var(--muted); }
     .subscription-actions { display:flex; flex-wrap:wrap; gap:10px; }
+    .billing-summary-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; }
+    .billing-summary-item { min-width:0; border:1px solid var(--line); border-radius:8px; background:#fff; padding:15px; }
+    .billing-summary-item span, .billing-summary-item strong { display:block; }
+    .billing-summary-item span { color:var(--muted); font-size:11px; font-weight:850; text-transform:uppercase; }
+    .billing-summary-item strong { margin-top:6px; color:var(--brand-dark); font-size:17px; overflow-wrap:anywhere; }
+    .billing-table-wrap { width:100%; overflow-x:auto; border:1px solid var(--line); border-radius:8px; background:#fff; }
+    .billing-table { width:100%; min-width:760px; border-collapse:collapse; }
+    .billing-table th, .billing-table td { border-bottom:1px solid #e7edf4; padding:12px 14px; text-align:left; vertical-align:middle; }
+    .billing-table th { background:#f6f9fc; color:#496078; font-size:11px; font-weight:900; text-transform:uppercase; white-space:nowrap; }
+    .billing-table td { color:#26384c; font-size:13px; }
+    .billing-table tr:last-child td { border-bottom:0; }
+    .billing-table .amount { color:#172033; font-weight:900; white-space:nowrap; }
+    .billing-status { display:inline-flex; border-radius:999px; background:#edf6f4; padding:5px 8px; color:#137c78; font-size:11px; font-weight:900; white-space:nowrap; }
+    .billing-empty, .billing-error { border:1px dashed #bdc9d6; border-radius:8px; background:#f8fafc; padding:22px; text-align:center; }
+    .billing-empty strong, .billing-error strong { display:block; color:var(--brand-dark); }
+    .billing-empty p, .billing-error p { margin:6px auto 0; color:var(--muted); line-height:1.5; }
+    .billing-error .btn { margin-top:13px; }
     .btn.destructive { border-color:#e3a2aa; background:#fff; color:#a11d2f; box-shadow:none; }
     .btn.destructive:hover { border-color:#c86f7b; background:#fff7f8; box-shadow:0 10px 22px rgba(161, 29, 47, .1); }
     .comparison-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; }
@@ -81,6 +98,7 @@
         .overview-grid { grid-template-columns:1fr; }
         .supporting-metrics { grid-template-columns:repeat(3, minmax(0, 1fr)); grid-template-rows:auto; }
         .comparison-grid { grid-template-columns:1fr; }
+        .billing-summary-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width:640px) {
         .subscription-heading, .plan-overview-head, .pending-change-head, .portal-section-head, .support-band { align-items:flex-start; flex-direction:column; }
@@ -88,7 +106,7 @@
         .plan-overview { padding:19px 16px; }
         .plan-overview h2 { font-size:26px; }
         .recurring-price strong { font-size:30px; }
-        .overview-facts, .supporting-metrics, .pending-details, .feature-groups { grid-template-columns:1fr; }
+        .overview-facts, .supporting-metrics, .pending-details, .feature-groups, .billing-summary-grid { grid-template-columns:1fr; }
         .lifecycle-badge, .pending-status { white-space:normal; }
         .subscription-actions, .subscription-actions .btn { width:100%; }
     }
@@ -180,6 +198,60 @@
             {% if subscription_portal.can_downgrade %}<a class="btn secondary" href="#plan-comparison">Downgrade Plan</a>{% endif %}
             {% if subscription_portal.can_cancel %}<a class="btn destructive" href="/saas/subscription/cancel">Cancel Subscription</a>{% endif %}
         </div>
+    </section>
+    {% endif %}
+
+    {% if billing_history %}
+    <section class="portal-section" aria-labelledby="billing-summary-title">
+        <div class="portal-section-head"><div><h2 id="billing-summary-title">Billing Summary</h2><p>Your current confirmed subscription and latest provider billing information.</p></div></div>
+        <div class="billing-summary-grid">
+            <article class="billing-summary-item"><span>Current Plan</span><strong>{{ billing_history.current_plan }}</strong></article>
+            <article class="billing-summary-item"><span>{{ billing_history.recurring_cost_title }}</span><strong>{{ billing_history.recurring_cost_label }}</strong></article>
+            <article class="billing-summary-item"><span>Billing Interval</span><strong>{{ billing_history.billing_interval }}</strong></article>
+            <article class="billing-summary-item"><span>Next Renewal</span><strong>{{ billing_history.next_renewal }}</strong></article>
+            <article class="billing-summary-item"><span>Latest Payment</span><strong>{{ billing_history.latest_payment }}</strong></article>
+            <article class="billing-summary-item"><span>Total Paid Branches</span><strong>{{ billing_history.paid_branch_quantity if billing_history.paid_branch_quantity is not none else "Not Available" }}</strong></article>
+        </div>
+    </section>
+
+    <section class="portal-section" aria-labelledby="billing-history-title">
+        <div class="portal-section-head"><div><h2 id="billing-history-title">Billing History</h2><p>Payments and adjustments recorded by the billing provider.</p></div></div>
+        {% if not billing_history.available %}
+        <div class="billing-error" role="status"><strong>Billing history is temporarily unavailable.</strong><p>{{ billing_history.error_message }}</p><a class="btn secondary" href="/saas/subscription">Try Again</a></div>
+        {% elif billing_history.history %}
+        <div class="billing-table-wrap" tabindex="0" aria-label="Scrollable billing history">
+            <table class="billing-table">
+                <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Currency</th><th>Payment Status</th><th>Transaction Type</th></tr></thead>
+                <tbody>
+                    {% for entry in billing_history.history %}
+                    <tr><td>{{ entry.date_label }}</td><td>{{ entry.description }}</td><td class="amount">{{ entry.amount_label }}</td><td>{{ entry.currency_code }}</td><td><span class="billing-status">{{ entry.status_label }}</span></td><td>{{ entry.transaction_type_label }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="billing-empty"><strong>No billing history is available.</strong><p>Completed payments and provider adjustments will appear here.</p></div>
+        {% endif %}
+    </section>
+
+    <section class="portal-section" aria-labelledby="invoice-history-title">
+        <div class="portal-section-head"><div><h2 id="invoice-history-title">Invoice History</h2><p>Download invoice documents provided securely by Paddle.</p></div></div>
+        {% if not billing_history.available %}
+        <div class="billing-error" role="status"><strong>Invoices are temporarily unavailable.</strong><p>Please try again shortly.</p></div>
+        {% elif billing_history.invoices %}
+        <div class="billing-table-wrap" tabindex="0" aria-label="Scrollable invoice history">
+            <table class="billing-table">
+                <thead><tr><th>Invoice Number</th><th>Invoice Date</th><th>Total Amount</th><th>Currency</th><th>Payment Status</th><th>Invoice</th></tr></thead>
+                <tbody>
+                    {% for invoice in billing_history.invoices %}
+                    <tr><td>{{ invoice.invoice_number }}</td><td>{{ invoice.invoice_date_label }}</td><td class="amount">{{ invoice.total_label }}</td><td>{{ invoice.currency_code }}</td><td><span class="billing-status">{{ invoice.status_label }}</span></td><td><a class="btn secondary" href="{{ invoice.download_path }}">Download Invoice</a></td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="billing-empty"><strong>No invoices yet.</strong><p>Provider invoice documents will appear after eligible transactions are completed.</p></div>
+        {% endif %}
     </section>
     {% endif %}
 

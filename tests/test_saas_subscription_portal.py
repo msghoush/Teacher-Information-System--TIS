@@ -2,7 +2,7 @@ from datetime import datetime
 from pathlib import Path
 import unittest
 import uuid
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -50,8 +50,14 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
 
         self.app.dependency_overrides[get_db] = override_get_db
         self.client = TestClient(self.app)
+        self.billing_transactions_patcher = patch(
+            "saas.billing_history_service.paddle_client.list_transactions",
+            return_value=[],
+        )
+        self.billing_transactions_patcher.start()
 
     def tearDown(self):
+        self.billing_transactions_patcher.stop()
         self.client.close()
         self.engine.dispose()
 
@@ -510,8 +516,8 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
             "Cancel Subscription",
         ):
             self.assertIn(label, response.text)
-        self.assertNotIn("Billing History", response.text)
-        self.assertNotIn("Invoices", response.text)
+        self.assertIn("Billing History", response.text)
+        self.assertIn("Invoice History", response.text)
         self.assertNotIn("Coming Soon", response.text)
         self.assertIn("Subscription Actions", response.text)
         self.assertIn("features-disclosure", response.text)
@@ -555,8 +561,8 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.assertNotIn("PADDLE_API_KEY", template)
         self.assertNotIn("provider_", template)
         self.assertNotIn("Coming Soon", template)
-        self.assertNotIn("Billing History", template)
-        self.assertNotIn("Invoices", template)
+        self.assertIn("Billing History", template)
+        self.assertIn("Invoice History", template)
 
     def test_individual_action_visibility_uses_lifecycle_allowed_actions(self):
         fixture = self._create_subscription(
@@ -669,6 +675,279 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.assertNotIn('action="/saas/subscription/plans/preview"', response.text)
         denied = self.client.get("/saas/subscription/cancel", follow_redirects=False)
         self.assertEqual(denied.status_code, 302)
+
+    def test_billing_history_and_invoices_use_provider_transactions_in_chronological_order(self):
+        fixture = self._create_subscription(
+            plan_code="professional",
+            quantity=4,
+            active_branches=2,
+            next_billed_at=datetime(2027, 8, 18),
+        )
+        db = self.Session()
+        try:
+            subscription = db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"])
+            provider_subscription_id = subscription.provider_subscription_id
+        finally:
+            db.close()
+        transactions = [
+            {
+                "id": "txn_01failedrenewaltransaction",
+                "subscription_id": provider_subscription_id,
+                "customer_id": "ctm_01billingcustomer",
+                "status": "past_due",
+                "origin": "subscription_recurring",
+                "collection_mode": "automatic",
+                "invoice_number": None,
+                "billed_at": "2027-07-18T10:00:00Z",
+                "created_at": "2027-07-18T09:00:00Z",
+                "currency_code": "USD",
+                "details": {"totals": {"grand_total": "31600"}},
+                "adjustments": [],
+            },
+            {
+                "id": "txn_01olderbillingtransaction",
+                "subscription_id": provider_subscription_id,
+                "customer_id": "ctm_01billingcustomer",
+                "status": "completed",
+                "origin": "web",
+                "collection_mode": "automatic",
+                "invoice_number": "100-00001",
+                "billed_at": "2027-07-01T10:00:00Z",
+                "created_at": "2027-07-01T09:00:00Z",
+                "currency_code": "USD",
+                "details": {"totals": {"grand_total": "31600"}},
+                "adjustments": [],
+            },
+            {
+                "id": "txn_01newerbillingtransaction",
+                "subscription_id": provider_subscription_id,
+                "customer_id": "ctm_01billingcustomer",
+                "status": "completed",
+                "origin": "subscription_update",
+                "collection_mode": "automatic",
+                "invoice_number": "100-00002",
+                "billed_at": "2027-07-16T10:00:00Z",
+                "created_at": "2027-07-16T09:00:00Z",
+                "currency_code": "USD",
+                "details": {"totals": {"grand_total": "7556"}},
+                "adjustments": [{
+                    "action": "credit",
+                    "status": "approved",
+                    "created_at": "2027-07-17T10:00:00Z",
+                    "totals": {"total": "1200"},
+                }],
+            },
+        ]
+        with patch(
+            "saas.billing_history_service.paddle_client.list_transactions",
+            return_value=transactions,
+        ):
+            response = self._open(fixture)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Billing Summary", response.text)
+        self.assertIn("Annual Cost", response.text)
+        self.assertIn("$316.00", response.text)
+        self.assertIn("Prorated subscription change", response.text)
+        self.assertIn("Payment Failed", response.text)
+        self.assertIn("-$12.00", response.text)
+        self.assertIn("100-00001", response.text)
+        self.assertIn("100-00002", response.text)
+        self.assertIn("Download Invoice", response.text)
+        history_section = response.text.split(">Billing History<", 1)[1].split(">Invoice History<", 1)[0]
+        self.assertLess(history_section.index("July 18, 2027"), history_section.index("July 17, 2027"))
+        self.assertLess(history_section.index("July 17, 2027"), history_section.index("July 16, 2027"))
+        self.assertLess(history_section.index("July 16, 2027"), history_section.index("July 01, 2027"))
+
+    def test_empty_billing_history_has_professional_empty_states(self):
+        fixture = self._create_subscription(
+            plan_code="starter",
+            quantity=1,
+            active_branches=1,
+        )
+        response = self._open(fixture)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("No billing history is available.", response.text)
+        self.assertIn("No invoices yet.", response.text)
+        self.assertNotIn("<tbody>\n                </tbody>", response.text)
+
+    def test_provider_failure_is_customer_safe_and_does_not_expose_diagnostics(self):
+        fixture = self._create_subscription(
+            plan_code="professional",
+            quantity=4,
+            active_branches=2,
+        )
+        provider_errors = (
+            paddle_client.PaddleAPIError(
+                "secret provider detail",
+                status_code=503,
+                body={"error": {"code": "provider_secret_code", "detail": "secret provider detail"}},
+            ),
+            paddle_client.httpx.ConnectError("private network diagnostic"),
+        )
+        for provider_error in provider_errors:
+            with self.subTest(error_type=type(provider_error).__name__), patch(
+                "saas.billing_history_service.paddle_client.list_transactions",
+                side_effect=provider_error,
+            ):
+                response = self._open(fixture)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn("Billing history is temporarily unavailable.", response.text)
+                self.assertIn("Invoices are temporarily unavailable.", response.text)
+                self.assertIn("Try Again", response.text)
+                self.assertNotIn("secret provider detail", response.text)
+                self.assertNotIn("provider_secret_code", response.text)
+                self.assertNotIn("private network diagnostic", response.text)
+
+    def test_unauthorized_user_cannot_see_or_download_billing_documents(self):
+        fixture = self._create_subscription(
+            plan_code="professional",
+            quantity=3,
+            active_branches=1,
+        )
+        db = self.Session()
+        try:
+            link = db.query(saas.models.SaaSAccountUserLink).filter_by(
+                saas_account_id=fixture["account_id"]
+            ).one()
+            user = db.query(models.User).get(link.operational_user_id)
+            user.role = auth.ROLE_LIMITED
+            db.commit()
+        finally:
+            db.close()
+        with patch(
+            "saas.billing_history_service.paddle_client.list_transactions"
+        ) as provider_call:
+            response = self._open(fixture)
+            denied = self.client.get(
+                "/saas/subscription/invoices/100-00001/download",
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("Billing Summary", response.text)
+        self.assertNotIn("Billing History", response.text)
+        self.assertNotIn("Invoice History", response.text)
+        self.assertEqual(denied.status_code, 403)
+        provider_call.assert_not_called()
+
+    def test_invoice_download_reauthorizes_and_redirects_to_fresh_paddle_url(self):
+        fixture = self._create_subscription(
+            plan_code="professional",
+            quantity=4,
+            active_branches=2,
+        )
+        db = self.Session()
+        try:
+            subscription = db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"])
+            provider_subscription_id = subscription.provider_subscription_id
+        finally:
+            db.close()
+        transaction = {
+            "id": "txn_01downloadinvoice",
+            "subscription_id": provider_subscription_id,
+            "customer_id": "ctm_01billingcustomer",
+            "status": "completed",
+            "origin": "subscription_recurring",
+            "collection_mode": "automatic",
+            "invoice_number": "100-00009",
+            "billed_at": "2027-07-18T10:00:00Z",
+            "currency_code": "USD",
+            "details": {"totals": {"grand_total": "31600"}},
+        }
+        invoice_url = "https://paddle-invoices.example.test/invoice.pdf"
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+        with (
+            patch(
+                "saas.billing_history_service.paddle_client.list_transactions",
+                return_value=[transaction],
+            ),
+            patch(
+                "saas.billing_history_service.paddle_client.get_transaction_invoice",
+                return_value={"url": invoice_url},
+            ) as invoice_call,
+            patch("saas.billing_history_service.audit.write_audit_event") as audit_call,
+        ):
+            response = self.client.get(
+                "/saas/subscription/invoices/100-00009/download",
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["location"], invoice_url)
+        invoice_call.assert_called_once_with(
+            transaction_id="txn_01downloadinvoice",
+            disposition="attachment",
+        )
+        audit_call.assert_called_once()
+
+    def test_invoice_download_rejects_unrelated_provider_transaction(self):
+        fixture = self._create_subscription(
+            plan_code="professional",
+            quantity=4,
+            active_branches=2,
+        )
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+        with (
+            patch(
+                "saas.billing_history_service.paddle_client.list_transactions",
+                return_value=[{
+                    "id": "txn_01unrelatedinvoice",
+                    "subscription_id": "sub_01anothercustomer",
+                    "status": "completed",
+                    "collection_mode": "automatic",
+                    "invoice_number": "100-00010",
+                    "details": {"totals": {"grand_total": "31600"}},
+                }],
+            ),
+            patch(
+                "saas.billing_history_service.paddle_client.get_transaction_invoice"
+            ) as invoice_call,
+        ):
+            response = self.client.get(
+                "/saas/subscription/invoices/100-00010/download",
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("Invoice+is+unavailable", response.headers["location"])
+        invoice_call.assert_not_called()
+
+
+class PaddleBillingHistoryClientTests(unittest.TestCase):
+    def test_list_transactions_follows_provider_pagination(self):
+        first = Mock()
+        first.status_code = 200
+        first.json.return_value = {
+            "data": [{"id": "txn_first"}],
+            "meta": {"pagination": {
+                "has_more": True,
+                "next": "https://sandbox-api.paddle.com/transactions?subscription_id=sub_01valid&after=txn_first&per_page=30",
+            }},
+        }
+        second = Mock()
+        second.status_code = 200
+        second.json.return_value = {
+            "data": [{"id": "txn_second"}],
+            "meta": {"pagination": {"has_more": False, "next": None}},
+        }
+        with (
+            patch.dict("os.environ", {"PADDLE_API_KEY": "test-key"}),
+            patch("saas.paddle_client.httpx.request", side_effect=[first, second]) as request_call,
+        ):
+            rows = paddle_client.list_transactions(subscription_id="sub_01valid")
+        self.assertEqual([row["id"] for row in rows], ["txn_first", "txn_second"])
+        self.assertEqual(request_call.call_count, 2)
+        self.assertEqual(request_call.call_args_list[1].kwargs["params"]["after"], "txn_first")
+
+    def test_invoice_client_uses_read_only_invoice_endpoint(self):
+        with patch("saas.paddle_client._request", return_value={"url": "https://example.test/invoice.pdf"}) as request_call:
+            result = paddle_client.get_transaction_invoice(
+                transaction_id="txn_01valid",
+                disposition="attachment",
+            )
+        self.assertEqual(result["url"], "https://example.test/invoice.pdf")
+        request_call.assert_called_once_with(
+            "GET",
+            "/transactions/txn_01valid/invoice",
+            params={"disposition": "attachment"},
+        )
 
 
 if __name__ == "__main__":
