@@ -10,7 +10,7 @@ import audit
 from dependencies import get_db
 import email_service
 import location_service
-from saas import billing_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import billing_history_service, billing_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -1103,12 +1103,18 @@ def subscription_portal(request: Request, db: Session = Depends(get_db)):
     if redirect:
         return redirect
     portal = subscription_portal_service.build_subscription_portal(db, account)
+    billing_history = None
+    try:
+        billing_history = billing_history_service.build_billing_history(db, account, portal)
+    except billing_history_service.BillingHistoryAccessError:
+        pass
     return _render(
         request,
         "saas/subscription.html",
         {
             "account": account,
             "subscription_portal": portal,
+            "billing_history": billing_history,
             "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
             "notice": request.query_params.get("notice", ""),
             "error": request.query_params.get("error", ""),
@@ -1119,6 +1125,29 @@ def subscription_portal(request: Request, db: Session = Depends(get_db)):
             ).strip(),
         },
     )
+
+
+@router.get("/subscription/invoices/{invoice_number}/download")
+def download_subscription_invoice(
+    invoice_number: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    try:
+        invoice_url = billing_history_service.get_invoice_download_url(
+            db, account, invoice_number
+        )
+    except billing_history_service.BillingHistoryAccessError as exc:
+        raise HTTPException(status_code=403, detail="Billing access is not available.") from exc
+    except billing_history_service.InvoiceUnavailableError as exc:
+        return RedirectResponse(
+            "/saas/subscription?error=" + quote_plus(str(exc)),
+            status_code=302,
+        )
+    return RedirectResponse(invoice_url, status_code=302)
 
 
 @router.get("/subscription/cancel", response_class=HTMLResponse)

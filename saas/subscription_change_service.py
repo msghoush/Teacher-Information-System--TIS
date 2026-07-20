@@ -77,7 +77,7 @@ def _safe_provider_failure(exc: Exception) -> SubscriptionChangeError:
     )
 
 
-def _resolve_actor(db: Session, account, school_group_id: int):
+def resolve_billing_actor(db: Session, account, school_group_id: int):
     links = db.query(models.SaaSAccountUserLink).filter(
         models.SaaSAccountUserLink.saas_account_id == account.id,
         models.SaaSAccountUserLink.school_group_id == school_group_id,
@@ -124,7 +124,7 @@ def resolve_change_context(db: Session, account, *, lock: bool = False) -> Chang
     ).all()
     if len(plan_prices) != 1:
         raise SubscriptionChangeError("This subscription requires review before it can be changed.", code="ambiguous_plan_price", status_code=409)
-    actor = _resolve_actor(db, account, int(resolution.school_group_id))
+    actor = resolve_billing_actor(db, account, int(resolution.school_group_id))
     return ChangeContext(account, actor, resolution, subscription, contract, plan_prices[0])
 
 
