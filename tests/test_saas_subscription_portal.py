@@ -563,6 +563,12 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.assertNotIn("Coming Soon", template)
         self.assertIn("Billing History", template)
         self.assertIn("Invoice History", template)
+        self.assertEqual(template.count('class="billing-summary-item"'), 5)
+        self.assertIn('class="transaction-badge is-{{ transaction_class }}"', template)
+        self.assertIn('class="billing-status is-{{ status_class }}"', template)
+        self.assertIn('icon("download", "invoice-download-icon")', template)
+        self.assertIn("Need additional capacity?", template)
+        self.assertIn("@media (prefers-reduced-motion:reduce)", template)
 
     def test_individual_action_visibility_uses_lifecycle_allowed_actions(self):
         fixture = self._create_subscription(
@@ -753,6 +759,12 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.assertIn("100-00001", response.text)
         self.assertIn("100-00002", response.text)
         self.assertIn("Download Invoice", response.text)
+        self.assertIn('class="transaction-badge is-failed"', response.text)
+        self.assertIn('class="transaction-badge is-credit"', response.text)
+        self.assertIn('class="transaction-badge is-update"', response.text)
+        self.assertIn('class="billing-status is-paid"', response.text)
+        self.assertIn('class="billing-status is-payment-failed"', response.text)
+        self.assertIn('data-tis-icon="download"', response.text)
         history_section = response.text.split(">Billing History<", 1)[1].split(">Invoice History<", 1)[0]
         self.assertLess(history_section.index("July 18, 2027"), history_section.index("July 17, 2027"))
         self.assertLess(history_section.index("July 17, 2027"), history_section.index("July 16, 2027"))

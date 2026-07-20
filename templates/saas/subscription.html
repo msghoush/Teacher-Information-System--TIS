@@ -1,4 +1,5 @@
 {% extends "saas/base.html" %}
+{% from "_app_icons.html" import icon %}
 {% block content %}
 <style>
     .subscription-page { display:grid; gap:28px; }
@@ -47,19 +48,41 @@
     .portal-section h2 { margin:0; color:var(--brand-dark); font-size:21px; letter-spacing:0; }
     .portal-section-head p { margin:5px 0 0; color:var(--muted); }
     .subscription-actions { display:flex; flex-wrap:wrap; gap:10px; }
-    .billing-summary-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; }
-    .billing-summary-item { min-width:0; border:1px solid var(--line); border-radius:8px; background:#fff; padding:15px; }
+    .billing-summary-grid { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:10px; }
+    .billing-summary-item { position:relative; min-width:0; overflow:hidden; border:1px solid #d6e1ed; border-radius:8px; background:#fbfdff; padding:15px 16px; transition:border-color .18s ease, background-color .18s ease, transform .18s ease; }
+    .billing-summary-item::before { position:absolute; inset:0 auto 0 0; width:3px; background:#b7cde5; content:""; }
+    .billing-summary-item:hover { border-color:#b9cde2; background:#fff; transform:translateY(-1px); }
     .billing-summary-item span, .billing-summary-item strong { display:block; }
-    .billing-summary-item span { color:var(--muted); font-size:11px; font-weight:850; text-transform:uppercase; }
-    .billing-summary-item strong { margin-top:6px; color:var(--brand-dark); font-size:17px; overflow-wrap:anywhere; }
-    .billing-table-wrap { width:100%; overflow-x:auto; border:1px solid var(--line); border-radius:8px; background:#fff; }
-    .billing-table { width:100%; min-width:760px; border-collapse:collapse; }
-    .billing-table th, .billing-table td { border-bottom:1px solid #e7edf4; padding:12px 14px; text-align:left; vertical-align:middle; }
-    .billing-table th { background:#f6f9fc; color:#496078; font-size:11px; font-weight:900; text-transform:uppercase; white-space:nowrap; }
-    .billing-table td { color:#26384c; font-size:13px; }
+    .billing-summary-item span { color:#60748b; font-size:11px; font-weight:850; text-transform:uppercase; }
+    .billing-summary-item strong { margin-top:7px; color:var(--brand-dark); font-size:17px; line-height:1.3; overflow-wrap:anywhere; }
+    .billing-table-wrap { width:100%; overflow-x:auto; border:1px solid #d5e0ec; border-radius:8px; background:#fff; scrollbar-color:#b9c9da #f2f6fa; }
+    .billing-table { width:100%; min-width:790px; border-collapse:collapse; }
+    .billing-table th, .billing-table td { border-bottom:1px solid #e5ebf2; padding:15px 16px; text-align:left; vertical-align:middle; }
+    .billing-table th { background:#eef3f8; color:#3c526b; font-size:11px; font-weight:900; text-transform:uppercase; white-space:nowrap; }
+    .billing-table tbody tr { transition:background-color .16s ease; }
+    .billing-table tbody tr:hover { background:#f8fbfe; }
+    .billing-table td { color:#26384c; font-size:13px; line-height:1.45; }
     .billing-table tr:last-child td { border-bottom:0; }
-    .billing-table .amount { color:#172033; font-weight:900; white-space:nowrap; }
-    .billing-status { display:inline-flex; border-radius:999px; background:#edf6f4; padding:5px 8px; color:#137c78; font-size:11px; font-weight:900; white-space:nowrap; }
+    .billing-table .amount { color:#172033; font-variant-numeric:tabular-nums; font-weight:900; text-align:right; white-space:nowrap; }
+    .billing-table th.amount { text-align:right; }
+    .billing-status, .transaction-badge { display:inline-flex; align-items:center; min-height:26px; border:1px solid #d3dde8; border-radius:999px; background:#f5f7fa; padding:4px 9px; color:#506176; font-size:11px; font-weight:900; line-height:1.25; white-space:nowrap; transition:border-color .16s ease, background-color .16s ease; }
+    .billing-status::before { width:6px; height:6px; margin-right:6px; border-radius:50%; background:#7b8a9c; content:""; }
+    .billing-status.is-paid, .billing-status.is-completed { border-color:#b9ddcf; background:#eef8f4; color:#176149; }
+    .billing-status.is-paid::before, .billing-status.is-completed::before { background:#27836a; }
+    .billing-status.is-pending, .billing-status.is-billed { border-color:#bfd4e9; background:#f0f6fc; color:#315f8e; }
+    .billing-status.is-pending::before, .billing-status.is-billed::before { background:#5387b8; }
+    .billing-status.is-payment-failed, .billing-status.is-failed, .billing-status.is-rejected { border-color:#ebc5ca; background:#fcf3f4; color:#933545; }
+    .billing-status.is-payment-failed::before, .billing-status.is-failed::before, .billing-status.is-rejected::before { background:#b65362; }
+    .billing-status.is-refunded, .billing-status.is-canceled, .billing-status.is-reversed { border-color:#d5dce4; background:#f5f7f9; color:#5e6977; }
+    .transaction-badge.is-payment, .transaction-badge.is-renewal { border-color:#bfd5ea; background:#f1f6fb; color:#315f8e; }
+    .transaction-badge.is-update, .transaction-badge.is-upgrade, .transaction-badge.is-branch-increase { border-color:#bddbd8; background:#f0f8f7; color:#246965; }
+    .transaction-badge.is-downgrade, .transaction-badge.is-branch-reduction { border-color:#e6d3ae; background:#fbf7ee; color:#775d2b; }
+    .transaction-badge.is-refund, .transaction-badge.is-credit { border-color:#d6c9e4; background:#f7f3fa; color:#68517d; }
+    .transaction-badge.is-failed { border-color:#ebc5ca; background:#fcf3f4; color:#933545; }
+    .billing-status:hover, .transaction-badge:hover { border-color:#aebfce; }
+    .invoice-action { text-align:right; white-space:nowrap; }
+    .invoice-download { min-height:38px; padding:8px 12px; white-space:nowrap; }
+    .invoice-download-icon { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
     .billing-empty, .billing-error { border:1px dashed #bdc9d6; border-radius:8px; background:#f8fafc; padding:22px; text-align:center; }
     .billing-empty strong, .billing-error strong { display:block; color:var(--brand-dark); }
     .billing-empty p, .billing-error p { margin:6px auto 0; color:var(--muted); line-height:1.5; }
@@ -67,13 +90,15 @@
     .btn.destructive { border-color:#e3a2aa; background:#fff; color:#a11d2f; box-shadow:none; }
     .btn.destructive:hover { border-color:#c86f7b; background:#fff7f8; box-shadow:0 10px 22px rgba(161, 29, 47, .1); }
     .comparison-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; }
-    .plan-panel { position:relative; display:flex; min-width:0; flex-direction:column; border:1px solid var(--line); border-radius:8px; background:#fff; padding:17px; }
-    .plan-panel.is-current { border-color:#0a4ea3; box-shadow:inset 0 3px 0 #0a4ea3; }
+    .plan-panel { position:relative; display:flex; min-width:0; flex-direction:column; border:1px solid var(--line); border-radius:8px; background:#fff; padding:17px; transition:border-color .18s ease, background-color .18s ease, transform .18s ease; }
+    .plan-panel:hover { border-color:#bdccdc; transform:translateY(-1px); }
+    .plan-panel.is-current { border-color:#8db8e3; background:#f6faff; box-shadow:inset 0 3px 0 #0a4ea3; }
+    .plan-panel.is-current:hover { border-color:#79a9d9; }
     .plan-panel h3 { margin:0 0 9px; color:var(--brand-dark); font-size:18px; letter-spacing:0; }
     .plan-panel ul { margin:0 0 15px; padding-left:18px; color:var(--muted); font-size:13px; line-height:1.55; }
     .plan-panel .plan-action { margin-top:auto; }
     .plan-panel .plan-action .btn { width:100%; }
-    .current-label { align-self:flex-start; margin-bottom:9px; border-radius:999px; background:#eaf3ff; padding:4px 8px; color:#0a4ea3; font-size:10px; font-weight:900; text-transform:uppercase; }
+    .current-label { align-self:flex-start; margin-bottom:10px; border:1px solid #b9d4ef; border-radius:999px; background:#eaf3ff; padding:5px 9px; color:#0a4ea3; font-size:10px; font-weight:900; text-transform:uppercase; }
     .current-plan-state { margin-top:auto; border-top:1px solid var(--line); padding-top:10px; color:#0a4ea3; font-size:13px; font-weight:900; }
     .scheduled-plan-state { margin-top:auto; border:1px solid #f0c36a; border-radius:6px; background:#fff8e8; padding:10px 12px; color:#5f4a20; text-align:center; }
     .scheduled-plan-state strong, .scheduled-plan-state span { display:block; }
@@ -91,14 +116,14 @@
     .feature-row strong { color:#172033; font-size:13px; }
     .feature-state { flex:0 0 auto; color:#64748b; font-size:11px; font-weight:900; white-space:nowrap; }
     .feature-state.is-included { color:#137c78; }
-    .support-band { display:flex; align-items:center; justify-content:space-between; gap:18px; border:1px solid #bad7f4; border-radius:8px; background:#eef7ff; padding:18px; }
-    .support-band h2 { margin-bottom:6px; }
+    .support-band { display:flex; align-items:center; justify-content:space-between; gap:20px; border:1px solid #b9cfe6; border-left:4px solid #4b83ba; border-radius:8px; background:#f4f8fc; padding:20px 22px; }
+    .support-band h2 { margin-bottom:6px; color:var(--brand-dark); }
     .support-band p { margin:0; color:#40556f; }
     @media (max-width:900px) {
         .overview-grid { grid-template-columns:1fr; }
         .supporting-metrics { grid-template-columns:repeat(3, minmax(0, 1fr)); grid-template-rows:auto; }
         .comparison-grid { grid-template-columns:1fr; }
-        .billing-summary-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+        .billing-summary-grid { grid-template-columns:repeat(3, minmax(0, 1fr)); }
     }
     @media (max-width:640px) {
         .subscription-heading, .plan-overview-head, .pending-change-head, .portal-section-head, .support-band { align-items:flex-start; flex-direction:column; }
@@ -109,6 +134,13 @@
         .overview-facts, .supporting-metrics, .pending-details, .feature-groups, .billing-summary-grid { grid-template-columns:1fr; }
         .lifecycle-badge, .pending-status { white-space:normal; }
         .subscription-actions, .subscription-actions .btn { width:100%; }
+        .billing-table th, .billing-table td { padding:13px 14px; }
+        .billing-status, .transaction-badge { white-space:normal; }
+        .support-band .btn { width:100%; }
+    }
+    @media (prefers-reduced-motion:reduce) {
+        .billing-summary-item, .billing-table tbody tr, .billing-status, .transaction-badge, .plan-panel { transition:none; }
+        .billing-summary-item:hover, .plan-panel:hover { transform:none; }
     }
 </style>
 
@@ -205,11 +237,10 @@
     <section class="portal-section" aria-labelledby="billing-summary-title">
         <div class="portal-section-head"><div><h2 id="billing-summary-title">Billing Summary</h2><p>Your current confirmed subscription and latest provider billing information.</p></div></div>
         <div class="billing-summary-grid">
-            <article class="billing-summary-item"><span>Current Plan</span><strong>{{ billing_history.current_plan }}</strong></article>
             <article class="billing-summary-item"><span>{{ billing_history.recurring_cost_title }}</span><strong>{{ billing_history.recurring_cost_label }}</strong></article>
+            <article class="billing-summary-item"><span>Latest Payment</span><strong>{{ billing_history.latest_payment }}</strong></article>
             <article class="billing-summary-item"><span>Billing Interval</span><strong>{{ billing_history.billing_interval }}</strong></article>
             <article class="billing-summary-item"><span>Next Renewal</span><strong>{{ billing_history.next_renewal }}</strong></article>
-            <article class="billing-summary-item"><span>Latest Payment</span><strong>{{ billing_history.latest_payment }}</strong></article>
             <article class="billing-summary-item"><span>Total Paid Branches</span><strong>{{ billing_history.paid_branch_quantity if billing_history.paid_branch_quantity is not none else "Not Available" }}</strong></article>
         </div>
     </section>
@@ -221,10 +252,24 @@
         {% elif billing_history.history %}
         <div class="billing-table-wrap" tabindex="0" aria-label="Scrollable billing history">
             <table class="billing-table">
-                <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Currency</th><th>Payment Status</th><th>Transaction Type</th></tr></thead>
+                <thead><tr><th>Date</th><th>Description</th><th class="amount">Amount</th><th>Currency</th><th>Payment Status</th><th>Transaction Type</th></tr></thead>
                 <tbody>
                     {% for entry in billing_history.history %}
-                    <tr><td>{{ entry.date_label }}</td><td>{{ entry.description }}</td><td class="amount">{{ entry.amount_label }}</td><td>{{ entry.currency_code }}</td><td><span class="billing-status">{{ entry.status_label }}</span></td><td>{{ entry.transaction_type_label }}</td></tr>
+                    {% set status_class = entry.status_label|lower|replace(" ", "-") %}
+                    {% set description_lower = entry.description|lower %}
+                    {% set transaction_lower = entry.transaction_type_label|lower %}
+                    {% if "refund" in description_lower %}{% set transaction_label = "Refund" %}{% set transaction_class = "refund" %}
+                    {% elif "credit" in description_lower %}{% set transaction_label = "Credit" %}{% set transaction_class = "credit" %}
+                    {% elif entry.status_label == "Payment Failed" %}{% set transaction_label = "Failed Payment" %}{% set transaction_class = "failed" %}
+                    {% elif transaction_lower in ["initial payment", "subscription payment"] %}{% set transaction_label = "Subscription Payment" %}{% set transaction_class = "payment" %}
+                    {% elif "renewal" in transaction_lower %}{% set transaction_label = entry.transaction_type_label %}{% set transaction_class = "renewal" %}
+                    {% elif "upgrade" in transaction_lower %}{% set transaction_label = entry.transaction_type_label %}{% set transaction_class = "upgrade" %}
+                    {% elif "downgrade" in transaction_lower %}{% set transaction_label = entry.transaction_type_label %}{% set transaction_class = "downgrade" %}
+                    {% elif "branch increase" in transaction_lower %}{% set transaction_label = entry.transaction_type_label %}{% set transaction_class = "branch-increase" %}
+                    {% elif "branch reduction" in transaction_lower %}{% set transaction_label = entry.transaction_type_label %}{% set transaction_class = "branch-reduction" %}
+                    {% elif "update" in transaction_lower %}{% set transaction_label = entry.transaction_type_label %}{% set transaction_class = "update" %}
+                    {% else %}{% set transaction_label = entry.transaction_type_label %}{% set transaction_class = "neutral" %}{% endif %}
+                    <tr><td>{{ entry.date_label }}</td><td>{{ entry.description }}</td><td class="amount">{{ entry.amount_label }}</td><td>{{ entry.currency_code }}</td><td><span class="billing-status is-{{ status_class }}">{{ entry.status_label }}</span></td><td><span class="transaction-badge is-{{ transaction_class }}">{{ transaction_label }}</span></td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -241,10 +286,11 @@
         {% elif billing_history.invoices %}
         <div class="billing-table-wrap" tabindex="0" aria-label="Scrollable invoice history">
             <table class="billing-table">
-                <thead><tr><th>Invoice Number</th><th>Invoice Date</th><th>Total Amount</th><th>Currency</th><th>Payment Status</th><th>Invoice</th></tr></thead>
+                <thead><tr><th>Invoice Number</th><th>Invoice Date</th><th class="amount">Total Amount</th><th>Currency</th><th>Payment Status</th><th class="invoice-action">Invoice</th></tr></thead>
                 <tbody>
                     {% for invoice in billing_history.invoices %}
-                    <tr><td>{{ invoice.invoice_number }}</td><td>{{ invoice.invoice_date_label }}</td><td class="amount">{{ invoice.total_label }}</td><td>{{ invoice.currency_code }}</td><td><span class="billing-status">{{ invoice.status_label }}</span></td><td><a class="btn secondary" href="{{ invoice.download_path }}">Download Invoice</a></td></tr>
+                    {% set invoice_status_class = invoice.status_label|lower|replace(" ", "-") %}
+                    <tr><td>{{ invoice.invoice_number }}</td><td>{{ invoice.invoice_date_label }}</td><td class="amount">{{ invoice.total_label }}</td><td>{{ invoice.currency_code }}</td><td><span class="billing-status is-{{ invoice_status_class }}">{{ invoice.status_label }}</span></td><td class="invoice-action"><a class="btn secondary invoice-download" href="{{ invoice.download_path }}">{{ icon("download", "invoice-download-icon") }}<span>Download Invoice</span></a></td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -290,7 +336,7 @@
     </section>
 
     <section class="support-band">
-        <div><h2>Need more branches or features?</h2><p>Contact TIS Support to discuss subscription requirements.</p></div>
+        <div><h2>Need additional capacity?</h2><p>Our team can help you expand your TIS subscription.</p></div>
         <a class="btn secondary" href="mailto:{{ support_email }}">Contact TIS Support</a>
     </section>
 </div>
