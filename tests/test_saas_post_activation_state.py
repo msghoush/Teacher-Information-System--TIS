@@ -282,7 +282,7 @@ class SaaSPostActivationStateTests(unittest.TestCase):
 
         portal = self.client.get("/saas/subscription")
         self.assertEqual(portal.status_code, 200)
-        self.assertIn("Manual Review", portal.text)
+        self.assertIn("Status Unavailable", portal.text)
         self.assertIn("Not Available", portal.text)
         self.assertNotIn("Continue to Secure Payment", portal.text)
 

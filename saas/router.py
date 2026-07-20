@@ -10,7 +10,7 @@ import audit
 from dependencies import get_db
 import email_service
 import location_service
-from saas import billing_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import billing_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -1118,6 +1118,69 @@ def subscription_portal(request: Request, db: Session = Depends(get_db)):
                 or "info@tisplatform.com"
             ).strip(),
         },
+    )
+
+
+@router.get("/subscription/cancel", response_class=HTMLResponse)
+def subscription_cancellation_confirmation(request: Request, db: Session = Depends(get_db)):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    try:
+        lifecycle = subscription_cancellation_service.get_cancellation_confirmation(db, account)
+        portal = subscription_portal_service.build_subscription_portal(db, account)
+    except subscription_change_service.SubscriptionChangeError as exc:
+        return _subscription_change_error(exc, "/saas/subscription")
+    return _render(request, "saas/subscription_cancel_confirm.html", {
+        "account": account,
+        "lifecycle": lifecycle,
+        "subscription_portal": portal,
+        "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
+        "error": request.query_params.get("error", ""),
+    })
+
+
+@router.post("/subscription/cancel")
+def request_subscription_cancellation(
+    request: Request,
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    try:
+        subscription_cancellation_service.request_cancellation(db, account)
+        db.commit()
+    except subscription_change_service.SubscriptionChangeError as exc:
+        db.commit()
+        return _subscription_change_error(exc, "/saas/subscription/cancel")
+    return RedirectResponse(
+        "/saas/subscription?notice=" + quote_plus("Cancellation request submitted. Paddle confirmation is pending."),
+        status_code=302,
+    )
+
+
+@router.post("/subscription/cancellation/undo")
+def undo_subscription_cancellation(
+    request: Request,
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    try:
+        subscription_cancellation_service.request_cancellation_reversal(db, account)
+        db.commit()
+    except subscription_change_service.SubscriptionChangeError as exc:
+        db.commit()
+        return _subscription_change_error(exc, "/saas/subscription")
+    return RedirectResponse(
+        "/saas/subscription?notice=" + quote_plus("Keep Subscription request submitted. Paddle confirmation is pending."),
+        status_code=302,
     )
 
 

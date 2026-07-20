@@ -20,7 +20,7 @@ import main
 import models
 import saas.models
 from dependencies import get_db
-from saas import entitlement_service, paddle_client, payment_lifecycle_reconciliation_service, payment_service, service, subscription_change_service, subscription_plan_change_service, subscription_portal_service
+from saas import entitlement_service, paddle_client, payment_lifecycle_reconciliation_service, payment_service, service, subscription_cancellation_service, subscription_change_service, subscription_lifecycle_service, subscription_plan_change_service, subscription_portal_service
 from saas.router import router as saas_router
 
 
@@ -1643,6 +1643,384 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         finally:
             db.close()
 
+    def test_lifecycle_resolver_centralizes_active_scheduled_and_fail_closed_states(self):
+        active = self._fixture(quantity=4, active_branches=2, plan_code="professional")
+        db = self.Session()
+        try:
+            lifecycle = subscription_lifecycle_service.resolve_subscription_lifecycle(
+                db, self._account(db, active)
+            )
+            self.assertEqual(lifecycle.lifecycle_status, subscription_lifecycle_service.ACTIVE)
+            self.assertEqual(lifecycle.display_status, "Active")
+            self.assertTrue(lifecycle.allowed_actions.can_upgrade)
+            self.assertTrue(lifecycle.allowed_actions.can_downgrade)
+            self.assertTrue(lifecycle.allowed_actions.can_increase_quantity)
+            self.assertTrue(lifecycle.allowed_actions.can_decrease_quantity)
+            self.assertTrue(lifecycle.allowed_actions.can_cancel)
+        finally:
+            db.close()
+
+        downgrade = self._fixture(quantity=4, active_branches=2, plan_code="professional")
+        downgrade_id, _target, _price, _provider, _ = self._plan_preview(downgrade, "starter")
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).get(downgrade_id)
+            row.status = "scheduled"
+            row.submitted_at = datetime.utcnow()
+            row.effective_at = datetime(2026, 8, 15)
+            db.commit()
+            lifecycle = subscription_lifecycle_service.resolve_subscription_lifecycle(
+                db, self._account(db, downgrade)
+            )
+            self.assertEqual(lifecycle.lifecycle_status, subscription_lifecycle_service.SCHEDULED_DOWNGRADE)
+            self.assertEqual(lifecycle.pending_target_plan, "Starter")
+            self.assertFalse(any(vars(lifecycle.allowed_actions).values()))
+        finally:
+            db.close()
+
+        reduction = self._fixture(quantity=4, active_branches=2)
+        reduction_id, _ = self._preview(reduction, 3, current=4)
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).get(reduction_id)
+            row.status = "scheduled"
+            row.submitted_at = datetime.utcnow()
+            row.effective_at = datetime(2026, 8, 15)
+            db.commit()
+            lifecycle = subscription_lifecycle_service.resolve_subscription_lifecycle(
+                db, self._account(db, reduction)
+            )
+            self.assertEqual(lifecycle.lifecycle_status, subscription_lifecycle_service.SCHEDULED_QUANTITY_CHANGE)
+            self.assertEqual(lifecycle.pending_target_quantity, 3)
+            self.assertFalse(lifecycle.allowed_actions.can_cancel)
+        finally:
+            db.close()
+
+        processing = self._fixture(quantity=3, active_branches=2)
+        processing_id, _ = self._preview(processing, 4)
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).get(processing_id)
+            row.status = "payment_pending"
+            row.submitted_at = datetime.utcnow()
+            db.commit()
+            lifecycle = subscription_lifecycle_service.resolve_subscription_lifecycle(
+                db, self._account(db, processing)
+            )
+            self.assertEqual(lifecycle.lifecycle_status, subscription_lifecycle_service.PROCESSING)
+            self.assertEqual(lifecycle.display_status, "Processing")
+            self.assertFalse(any(vars(lifecycle.allowed_actions).values()))
+        finally:
+            db.close()
+
+        for provider_status, expected in (
+            ("canceled", subscription_lifecycle_service.CANCELED),
+            ("expired", subscription_lifecycle_service.EXPIRED),
+            ("past_due", subscription_lifecycle_service.PAYMENT_ISSUE),
+            ("paused", subscription_lifecycle_service.PAYMENT_ISSUE),
+        ):
+            fixture = self._fixture(quantity=2, active_branches=1)
+            db = self.Session()
+            try:
+                db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"]).status = provider_status
+                db.commit()
+                lifecycle = subscription_lifecycle_service.resolve_subscription_lifecycle(
+                    db, self._account(db, fixture)
+                )
+                self.assertEqual(lifecycle.lifecycle_status, expected)
+                self.assertFalse(any(vars(lifecycle.allowed_actions).values()))
+            finally:
+                db.close()
+
+        unlinked_cancellation = self._fixture(quantity=2, active_branches=1)
+        db = self.Session()
+        try:
+            subscription = db.query(saas.models.PaymentSubscription).get(
+                unlinked_cancellation["subscription_id"]
+            )
+            subscription.cancel_at_period_end = True
+            db.commit()
+            lifecycle = subscription_lifecycle_service.resolve_subscription_lifecycle(
+                db, self._account(db, unlinked_cancellation)
+            )
+            self.assertEqual(lifecycle.lifecycle_status, subscription_lifecycle_service.UNAVAILABLE)
+            self.assertFalse(any(vars(lifecycle.allowed_actions).values()))
+        finally:
+            db.close()
+
+    def test_cancel_at_period_end_is_idempotent_and_waits_for_webhook_confirmation(self):
+        fixture = self._fixture(quantity=4, active_branches=2)
+        initial = self._add_finalized_initial_payment(fixture)
+        provider = self._provider_subscription(fixture, 4)
+        response = {
+            **provider,
+            "updated_at": "2026-07-18T10:00:00Z",
+            "next_billed_at": None,
+            "scheduled_change": {"action": "cancel", "effective_at": "2026-08-01T00:00:00Z"},
+        }
+        db = self.Session()
+        try:
+            account = self._account(db, fixture)
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=provider),
+                patch.object(paddle_client, "cancel_subscription_at_period_end", return_value=response) as cancel,
+                patch("saas.subscription_cancellation_service.audit.write_audit_event"),
+            ):
+                row = subscription_cancellation_service.request_cancellation(db, account)
+                db.commit()
+                repeated = subscription_cancellation_service.request_cancellation(db, account)
+                db.commit()
+            self.assertEqual(row.id, repeated.id)
+            self.assertEqual(row.status, "submitted")
+            self.assertEqual(cancel.call_count, 1)
+            subscription = db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"])
+            self.assertFalse(subscription.cancel_at_period_end)
+            lifecycle = subscription_lifecycle_service.resolve_subscription_lifecycle(db, account)
+            self.assertEqual(lifecycle.lifecycle_status, subscription_lifecycle_service.PROCESSING)
+            self.assertFalse(any(vars(lifecycle.allowed_actions).values()))
+
+            webhook = {
+                "occurred_at": "2099-07-18T10:01:00Z",
+                "data": response,
+            }
+            with patch("saas.subscription_cancellation_service.audit.write_audit_event"):
+                result = subscription_cancellation_service.reconcile_cancellation_webhook(
+                    db, webhook, "subscription.updated"
+                )
+                db.commit()
+            self.assertEqual(result["status"], "processed")
+            self.assertEqual(row.status, "scheduled")
+            self.assertTrue(subscription.cancel_at_period_end)
+            lifecycle = subscription_lifecycle_service.resolve_subscription_lifecycle(db, account)
+            self.assertEqual(lifecycle.lifecycle_status, subscription_lifecycle_service.SCHEDULED_CANCELLATION)
+            self.assertTrue(lifecycle.allowed_actions.can_undo_cancellation)
+            self.assertFalse(lifecycle.allowed_actions.can_cancel)
+            self.assertEqual(lifecycle.cancellation_effective_date, datetime(2026, 8, 1))
+        finally:
+            db.close()
+        self._assert_finalized_initial_lifecycle(fixture, initial)
+
+    def test_cancellation_reversal_is_provider_authoritative_replay_safe_and_order_safe(self):
+        fixture = self._fixture(quantity=3, active_branches=2)
+        provider = self._provider_subscription(fixture, 3)
+        scheduled = {
+            **provider,
+            "updated_at": "2026-07-18T10:00:00Z",
+            "next_billed_at": None,
+            "scheduled_change": {"action": "cancel", "effective_at": "2026-08-01T00:00:00Z"},
+        }
+        restored = {
+            **provider,
+            "updated_at": "2026-07-18T10:05:00Z",
+            "scheduled_change": None,
+        }
+        db = self.Session()
+        try:
+            account = self._account(db, fixture)
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=provider),
+                patch.object(paddle_client, "cancel_subscription_at_period_end", return_value=scheduled),
+                patch("saas.subscription_cancellation_service.audit.write_audit_event"),
+            ):
+                cancellation = subscription_cancellation_service.request_cancellation(db, account)
+                db.commit()
+            with patch("saas.subscription_cancellation_service.audit.write_audit_event"):
+                subscription_cancellation_service.reconcile_cancellation_webhook(
+                    db,
+                    {"occurred_at": "2099-07-18T10:01:00Z", "data": scheduled},
+                    "subscription.updated",
+                )
+                db.commit()
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=scheduled),
+                patch.object(paddle_client, "remove_subscription_scheduled_change", return_value=restored) as remove,
+                patch("saas.subscription_cancellation_service.audit.write_audit_event"),
+            ):
+                reversal = subscription_cancellation_service.request_cancellation_reversal(db, account)
+                db.commit()
+                repeated = subscription_cancellation_service.request_cancellation_reversal(db, account)
+                db.commit()
+            self.assertEqual(reversal.id, repeated.id)
+            self.assertEqual(remove.call_count, 1)
+            self.assertEqual(cancellation.status, "superseded")
+            self.assertEqual(reversal.status, "submitted")
+            self.assertTrue(db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"]).cancel_at_period_end)
+
+            with patch("saas.subscription_cancellation_service.audit.write_audit_event") as audit_event:
+                subscription_cancellation_service.reconcile_cancellation_webhook(
+                    db,
+                    {"occurred_at": "2099-07-18T10:06:00Z", "data": restored},
+                    "subscription.updated",
+                )
+                subscription_cancellation_service.reconcile_cancellation_webhook(
+                    db,
+                    {"occurred_at": "2099-07-18T10:06:00Z", "data": restored},
+                    "subscription.updated",
+                )
+                stale = subscription_cancellation_service.reconcile_cancellation_webhook(
+                    db,
+                    {"occurred_at": "2000-07-18T10:01:00Z", "data": scheduled},
+                    "subscription.updated",
+                )
+                db.commit()
+            self.assertEqual(reversal.status, "confirmed")
+            self.assertEqual(audit_event.call_count, 1)
+            self.assertEqual(stale["outcome"], "stale_event_ignored")
+            subscription = db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"])
+            self.assertFalse(subscription.cancel_at_period_end)
+            lifecycle = subscription_lifecycle_service.resolve_subscription_lifecycle(db, account)
+            self.assertEqual(lifecycle.lifecycle_status, subscription_lifecycle_service.ACTIVE)
+            self.assertTrue(lifecycle.allowed_actions.can_cancel)
+        finally:
+            db.close()
+
+    def test_cancellation_provider_failure_and_authorization_fail_safely(self):
+        fixture = self._fixture(quantity=3, active_branches=2)
+        provider = self._provider_subscription(fixture, 3)
+        db = self.Session()
+        try:
+            account = self._account(db, fixture)
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=provider),
+                patch.object(
+                    paddle_client,
+                    "cancel_subscription_at_period_end",
+                    side_effect=paddle_client.PaddleAPIError("provider unavailable"),
+                ),
+                patch("saas.subscription_cancellation_service.audit.write_audit_event"),
+            ):
+                with self.assertRaises(subscription_change_service.SubscriptionChangeError):
+                    subscription_cancellation_service.request_cancellation(db, account)
+                db.commit()
+            failed = db.query(saas.models.SubscriptionChangeRequest).filter_by(
+                payment_subscription_id=fixture["subscription_id"],
+                change_type=subscription_cancellation_service.CANCELLATION,
+            ).one()
+            self.assertEqual(failed.status, "failed")
+            self.assertEqual(failed.failure_code, "provider_request_failed")
+            self.assertFalse(db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"]).cancel_at_period_end)
+        finally:
+            db.close()
+
+        fetch_failure = self._fixture(quantity=3, active_branches=2)
+        db = self.Session()
+        try:
+            with (
+                patch.object(
+                    paddle_client,
+                    "get_subscription",
+                    side_effect=paddle_client.PaddleAPIError("provider unavailable"),
+                ),
+                patch("saas.subscription_cancellation_service.audit.write_audit_event"),
+            ):
+                with self.assertRaises(subscription_change_service.SubscriptionChangeError):
+                    subscription_cancellation_service.request_cancellation(
+                        db, self._account(db, fetch_failure)
+                    )
+                db.commit()
+            failed = db.query(saas.models.SubscriptionChangeRequest).filter_by(
+                payment_subscription_id=fetch_failure["subscription_id"],
+                change_type=subscription_cancellation_service.CANCELLATION,
+            ).one()
+            self.assertEqual(failed.status, "failed")
+            self.assertEqual(failed.failure_code, "provider_request_failed")
+        finally:
+            db.close()
+
+        unauthorized = self._fixture(
+            quantity=3,
+            active_branches=2,
+            role=auth.ROLE_LIMITED,
+        )
+        db = self.Session()
+        try:
+            with patch.object(paddle_client, "get_subscription") as provider_call:
+                with self.assertRaises(subscription_change_service.SubscriptionChangeError) as denied:
+                    subscription_cancellation_service.request_cancellation(
+                        db, self._account(db, unauthorized)
+                    )
+            self.assertEqual(denied.exception.status_code, 403)
+            provider_call.assert_not_called()
+        finally:
+            db.close()
+
+    def test_cancellation_effective_webhook_updates_subscription_without_initial_lifecycle_regression(self):
+        fixture = self._fixture(quantity=3, active_branches=2)
+        initial = self._add_finalized_initial_payment(fixture)
+        provider = self._provider_subscription(fixture, 3)
+        scheduled = {
+            **provider,
+            "updated_at": "2026-07-18T10:00:00Z",
+            "scheduled_change": {"action": "cancel", "effective_at": "2026-08-01T00:00:00Z"},
+        }
+        canceled = {
+            **provider,
+            "status": "canceled",
+            "updated_at": "2026-08-01T00:00:01Z",
+            "canceled_at": "2026-08-01T00:00:00Z",
+            "next_billed_at": None,
+            "scheduled_change": None,
+        }
+        db = self.Session()
+        try:
+            account = self._account(db, fixture)
+            with (
+                patch.object(paddle_client, "get_subscription", return_value=provider),
+                patch.object(paddle_client, "cancel_subscription_at_period_end", return_value=scheduled),
+                patch("saas.subscription_cancellation_service.audit.write_audit_event"),
+            ):
+                row = subscription_cancellation_service.request_cancellation(db, account)
+                db.commit()
+            with patch("saas.subscription_cancellation_service.audit.write_audit_event"):
+                scheduled_event = {
+                    "event_id": f"evt_cancel_scheduled_{uuid.uuid4().hex}",
+                    "event_type": "subscription.updated",
+                    "occurred_at": "2099-07-18T10:01:00Z",
+                    "data": scheduled,
+                }
+                canceled_event = {
+                    "event_id": f"evt_cancel_effective_{uuid.uuid4().hex}",
+                    "event_type": "subscription.canceled",
+                    "occurred_at": "2099-08-01T00:00:01Z",
+                    "data": canceled,
+                }
+                with patch("saas.payment_service.verify_webhook_signature"):
+                    scheduled_result = payment_service.process_webhook(
+                        db,
+                        raw_body=json.dumps(scheduled_event).encode("utf-8"),
+                        headers={"Paddle-Signature": "test-signature"},
+                    )
+                    canceled_result = payment_service.process_webhook(
+                        db,
+                        raw_body=json.dumps(canceled_event).encode("utf-8"),
+                        headers={"Paddle-Signature": "test-signature"},
+                    )
+                db.commit()
+                with patch("saas.payment_service.verify_webhook_signature"):
+                    replay = payment_service.process_webhook(
+                        db,
+                        raw_body=json.dumps(canceled_event).encode("utf-8"),
+                        headers={"Paddle-Signature": "test-signature"},
+                    )
+                stale = subscription_cancellation_service.reconcile_cancellation_webhook(
+                    db,
+                    {"occurred_at": "2099-07-18T10:01:00Z", "data": scheduled},
+                    "subscription.updated",
+                )
+            self.assertEqual(scheduled_result["status"], "processed")
+            self.assertEqual(canceled_result["status"], "processed")
+            self.assertEqual(replay["status"], "duplicate")
+            self.assertEqual(stale["outcome"], "stale_event_ignored")
+            self.assertEqual(row.status, "confirmed")
+            subscription = db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"])
+            self.assertEqual(subscription.status, "canceled")
+            lifecycle = subscription_lifecycle_service.resolve_subscription_lifecycle(db, account)
+            self.assertEqual(lifecycle.lifecycle_status, subscription_lifecycle_service.CANCELED)
+            self.assertFalse(any(vars(lifecycle.allowed_actions).values()))
+        finally:
+            db.close()
+        self._assert_finalized_initial_lifecycle(fixture, initial)
+
     def test_paddle_client_methods_send_supported_payloads(self):
         items = [{"price_id": "pri_01abcdefghijklmnopqrstuvwx", "quantity": 5}]
         with patch.object(paddle_client, "_request", return_value={}) as request:
@@ -1657,6 +2035,16 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
                 proration_billing_mode="prorated_immediately", on_payment_failure="prevent_change",
             )
             self.assertEqual(request.call_args.args[2]["on_payment_failure"], "prevent_change")
+            paddle_client.cancel_subscription_at_period_end(
+                subscription_id="sub_01abcdefghijklmnopqrstuvwx"
+            )
+            self.assertEqual(request.call_args.args[:2], ("POST", "/subscriptions/sub_01abcdefghijklmnopqrstuvwx/cancel"))
+            self.assertEqual(request.call_args.args[2], {"effective_from": "next_billing_period"})
+            paddle_client.remove_subscription_scheduled_change(
+                subscription_id="sub_01abcdefghijklmnopqrstuvwx"
+            )
+            self.assertEqual(request.call_args.args[:2], ("PATCH", "/subscriptions/sub_01abcdefghijklmnopqrstuvwx"))
+            self.assertEqual(request.call_args.args[2], {"scheduled_change": None})
 
     def test_migration_is_idempotent_and_catalog_is_unchanged_by_workflow(self):
         fixture = self._fixture(quantity=3, active_branches=2)
