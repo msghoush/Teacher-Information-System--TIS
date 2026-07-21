@@ -27,6 +27,38 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-07-21 - Added Phase 7A KMS Navigation Foundation
+
+Area/module:
+KMS information architecture and developer onboarding
+
+Previous state:
+The KMS had complete root and engineering indexes, but they were long manually maintained file lists. Readers had to determine their own document set from 53 Markdown sources, and three supporting documents lacked normalized title metadata.
+
+New state:
+`docs/KMS_NAVIGATION.md` provides focused reading paths for new humans, new AI conversations, SaaS onboarding, subscriptions, operational modules, database work, Platform Owner tools, landing work, location data, design, decisions, and review/KIA. Root and engineering indexes now use real Markdown links and delegate task selection to the navigation guide. Missing document titles were normalized.
+
+Reason:
+Readers should reach relevant source material quickly without changing the established Markdown, manifest, PDF, or Knowledge Center architecture.
+
+Files changed:
+- KMS navigation guide and documentation indexes
+- title metadata for three supporting documents
+- fixed booklet source list entry for the new authoritative guide
+- project state, change history, module history, PDF, and manifest
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+No; its existing first-read role and product/architecture guidance remain current.
+
+Reviewer/approval notes:
+Phase 7B catalog/PDF navigation, Phase 7C Knowledge Center changes, and Phase 7D enforcement enhancements were not implemented.
+
 ## 2026-07-21 - Added Unified Phase 6 KMS Commands
 
 Area/module:

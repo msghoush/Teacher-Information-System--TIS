@@ -1,19 +1,25 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-07-21T23:04:09.306951+03:00",
+  "generated_at": "2026-07-21T23:28:34.751330+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "ae85904",
+  "commit_sha": "5a3d10e",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "b895c917541b61e14b1d8fdb794b43699b81154b8d0bb3d601142b07baac98ed",
-  "pdf_size_bytes": 362363,
+  "pdf_sha256": "2831ec5d61b34d4c1659d9176f1cab31eacf8d664b73b4357fb8f7f4512b8eb2",
+  "pdf_size_bytes": 375022,
   "included_source_files": [
     {
       "path": "docs/README.md",
-      "modified_at": "2026-07-21T23:03:44.843174+03:00",
-      "size_bytes": 6391,
-      "sha256": "d867e49025394d96330ee976d0eb176aff647bef6beb28ca2e1382ab0fa2b7cb"
+      "modified_at": "2026-07-21T23:27:46.403839+03:00",
+      "size_bytes": 5539,
+      "sha256": "9a238123c32de79483a7b7432307084e32e4440d52fee8e65c43e646cdef8645"
+    },
+    {
+      "path": "docs/KMS_NAVIGATION.md",
+      "modified_at": "2026-07-21T23:26:44.174815+03:00",
+      "size_bytes": 8215,
+      "sha256": "b0f87832285fcfcb2eb26d1cb879fba18e85db62d5272550e10f16f323edcac7"
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
@@ -35,15 +41,15 @@
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-07-21T23:03:44.857137+03:00",
-      "size_bytes": 14232,
-      "sha256": "5d94e9e671c5a0db19289e87dc07a63e2b07939a2eaed6d14b9ec9c4665736f1"
+      "modified_at": "2026-07-21T23:28:13.342293+03:00",
+      "size_bytes": 14380,
+      "sha256": "c08724350aaa596bbaf2dae983709d05064b0d59c2df1c5ef9cf01f0d0081cd3"
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-07-21T23:03:44.869485+03:00",
-      "size_bytes": 34114,
-      "sha256": "c3b6f8600ef4b22b4a38cd338a6da7c7a1a2bec602c9f5c16b2784879b0cc171"
+      "modified_at": "2026-07-21T23:28:13.341187+03:00",
+      "size_bytes": 35626,
+      "sha256": "67fc79f8437e5b28e0e1f3d16cba1bbacbc6bd223ab9eee5fcf70cbc555ec46f"
     },
     {
       "path": "docs/adr/README.md",
@@ -53,9 +59,9 @@
     },
     {
       "path": "docs/engineering/README.md",
-      "modified_at": "2026-06-26T13:27:49.427694+03:00",
-      "size_bytes": 3216,
-      "sha256": "333761203072f8211ab636e01fa6b8c00c59f834f0a5be0860ef7f8768ae1a10"
+      "modified_at": "2026-07-21T23:27:46.406199+03:00",
+      "size_bytes": 3732,
+      "sha256": "6fa2739cb1847f647a3947b091012e126d8d62882428d395fce1e1263dadfcb9"
     },
     {
       "path": "docs/engineering/TIS_MODULE_MAP.md",
@@ -250,6 +256,12 @@
       "sha256": "32934450ec8af0cf6a65534767304d1526550fc1030ec15a92bfd944e4ac3509"
     },
     {
+      "path": "docs/history/engineering-handbook/2026-07-21-kms-phase-7a-navigation-foundation.md",
+      "modified_at": "2026-07-21T23:28:13.342293+03:00",
+      "size_bytes": 1402,
+      "sha256": "8b17556ed6a2eac7bdbaf9c3cf87717fea75f23cb3f732e9dda0371ea065d72d"
+    },
+    {
       "path": "docs/history/engineering-handbook/README.md",
       "modified_at": "2026-06-26T12:47:56.229446+03:00",
       "size_bytes": 514,
@@ -311,21 +323,21 @@
     },
     {
       "path": "docs/marketing/landing_page_source_of_truth.md",
-      "modified_at": "2026-06-21T20:34:50.342869+03:00",
-      "size_bytes": 791,
-      "sha256": "d2216b353bfd9b6de155028f05eb1a3dc1460d05225c79659fbac240df89f610"
+      "modified_at": "2026-07-21T23:26:44.176139+03:00",
+      "size_bytes": 914,
+      "sha256": "8f3ba07749c8f057c321bbb0cd67077b4ed7ba7f168e8ab4ead0399ab4b5e9bc"
     },
     {
       "path": "docs/marketing/tis_landing_page_master_content.md",
-      "modified_at": "2026-06-20T21:42:07.996332+03:00",
-      "size_bytes": 22905,
-      "sha256": "2d23900462194aaa93198d006b85f3f1a9537ac64ce75ad665f7ee35dfbd7559"
+      "modified_at": "2026-07-21T23:26:44.178809+03:00",
+      "size_bytes": 23062,
+      "sha256": "c9391ef50f5bcedaa51e1788288458cb149e76bac0ead49ece31f795986ac455"
     },
     {
       "path": "docs/location-data-roadmap.md",
-      "modified_at": "2026-06-20T16:25:47.730726+03:00",
-      "size_bytes": 3195,
-      "sha256": "086bee093b10f8566bf3d4295921c414e067aea33c1b92cd6ac59350bb105d5f"
+      "modified_at": "2026-07-21T23:26:44.176139+03:00",
+      "size_bytes": 3311,
+      "sha256": "584398a00da21c44cbb0c6c93e7aa54ea4031fa52d72bd2429b132b296fa6020"
     }
   ]
 }
