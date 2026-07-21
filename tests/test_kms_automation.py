@@ -4,6 +4,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -198,3 +200,113 @@ def test_changed_files_includes_deletions(monkeypatch):
 
     assert check_kms_impact.changed_files("base", "head") == ["docs/removed.md"]
     assert "--diff-filter=ACDMRTUXB" in calls[0]
+
+
+def test_pull_request_event_uses_pr_base_and_head_without_re_resolving(monkeypatch):
+    def unexpected_git_call(args):
+        raise AssertionError(f"Unexpected Git call: {args}")
+
+    monkeypatch.setattr(check_kms_impact, "_git_lines", unexpected_git_call)
+
+    assert check_kms_impact.resolve_validation_range(
+        "pull_request",
+        base="pr-base",
+        head="feature-head",
+        target_ref=None,
+    ) == ("pr-base", "feature-head")
+
+
+def test_push_event_uses_target_merge_base_instead_of_previous_commit(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_git_lines(args):
+        calls.append(args)
+        return ["task-merge-base"]
+
+    monkeypatch.setattr(check_kms_impact, "_git_lines", fake_git_lines)
+
+    assert check_kms_impact.resolve_validation_range(
+        "push",
+        base=None,
+        head="follow-up-head",
+        target_ref="origin/master",
+    ) == ("task-merge-base", "follow-up-head")
+    assert calls == [["merge-base", "origin/master", "follow-up-head"]]
+
+    with pytest.raises(ValueError, match="previous commit"):
+        check_kms_impact.resolve_validation_range(
+            "push",
+            base="event-before",
+            head="follow-up-head",
+            target_ref="origin/master",
+        )
+
+
+def test_github_workflow_wires_pull_request_and_push_task_ranges():
+    workflow = (ROOT / ".github" / "workflows" / "kms-enforcement.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "github.event.before" not in workflow
+    assert "github.event.pull_request.base.sha" in workflow
+    assert "github.event.pull_request.head.sha" in workflow
+    assert "github.event.repository.default_branch" in workflow
+    assert "--event-name pull_request" in workflow
+    assert "--event-name push" in workflow
+    assert "--target-ref \"origin/${DEFAULT_BRANCH}\"" in workflow
+
+
+def test_multi_commit_feature_branch_push_checks_the_complete_task(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_git_lines(args):
+        calls.append(args)
+        if args[0] == "merge-base":
+            return ["task-base"]
+        return [
+            ".kms-impact.yml",
+            "docs/CHANGE_HISTORY.md",
+            "docs/PROJECT_STATE.md",
+            "scripts/check_kms_impact.py",
+        ]
+
+    monkeypatch.setattr(check_kms_impact, "_git_lines", fake_git_lines)
+    base, head = check_kms_impact.resolve_validation_range(
+        "push",
+        base=None,
+        head="third-commit",
+        target_ref="origin/master",
+    )
+
+    changed = check_kms_impact.changed_files(base, head)
+
+    assert changed == [
+        ".kms-impact.yml",
+        "docs/CHANGE_HISTORY.md",
+        "docs/PROJECT_STATE.md",
+        "scripts/check_kms_impact.py",
+    ]
+    assert calls[1][-1] == "task-base...third-commit"
+
+
+def test_follow_up_fix_validates_cumulative_declaration_not_last_commit_only():
+    declaration = _declaration(
+        kms_files_updated=("docs/CHANGE_HISTORY.md", "docs/PROJECT_STATE.md")
+    )
+    complete_task = [
+        ".kms-impact.yml",
+        "docs/CHANGE_HISTORY.md",
+        "docs/PROJECT_STATE.md",
+        "scripts/check_kms_impact.py",
+    ]
+    follow_up_commit_only = [
+        ".kms-impact.yml",
+        "docs/CHANGE_HISTORY.md",
+        "scripts/check_kms_impact.py",
+    ]
+
+    assert check_kms_impact.validate_declaration(declaration, complete_task) == []
+    assert any(
+        "Declared KMS file did not change" in error
+        for error in check_kms_impact.validate_declaration(declaration, follow_up_commit_only)
+    )

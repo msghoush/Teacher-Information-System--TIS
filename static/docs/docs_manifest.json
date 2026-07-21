@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-07-21T21:27:39.422838+03:00",
+  "generated_at": "2026-07-21T21:57:58.117119+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "14d6c85",
+  "commit_sha": "6b8a7c5",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "46cf4baf53cbfa3b9bb362a1dbab6e231361b127dfafd747d1acbc71c9115289",
-  "pdf_size_bytes": 356746,
+  "pdf_sha256": "b605fee5d40a396621ace3de0bced2305a3c20c57cd130d7d08342af7a160b0a",
+  "pdf_size_bytes": 359103,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -41,9 +41,9 @@
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-07-21T21:25:06.548409+03:00",
-      "size_bytes": 31348,
-      "sha256": "3f14b8208a1850b9566898939bed5c7382e54f8562527e403ce9c682111a00bb"
+      "modified_at": "2026-07-21T21:57:42.743517+03:00",
+      "size_bytes": 32796,
+      "sha256": "37193cf3de95c22c4d3b78d42515063d845acef3423b16c0cb5796e80575c980"
     },
     {
       "path": "docs/adr/README.md",
@@ -131,9 +131,9 @@
     },
     {
       "path": "docs/engineering/DOCUMENTATION_AUTOMATION.md",
-      "modified_at": "2026-07-21T21:25:06.553724+03:00",
-      "size_bytes": 6062,
-      "sha256": "ac7fd6455ee4908b1a6d61554562f01514c7377c6403da459aa1745679e8a8fc"
+      "modified_at": "2026-07-21T21:57:42.759907+03:00",
+      "size_bytes": 6992,
+      "sha256": "5851825a2eec52cffd3f8e615463d7b43df049bf8cff177e8be7346ef00d7999"
     },
     {
       "path": "docs/engineering/KNOWLEDGE_IMPACT_ASSESSMENT_STANDARD.md",
@@ -245,9 +245,9 @@
     },
     {
       "path": "docs/history/engineering-handbook/2026-07-21-kms-automatic-enforcement.md",
-      "modified_at": "2026-07-21T21:25:06.559994+03:00",
-      "size_bytes": 2240,
-      "sha256": "0b825cd8c782ade43f3afae4e48093a03d356cfb6cb316609a0ed3cc47fdf32a"
+      "modified_at": "2026-07-21T21:57:42.764408+03:00",
+      "size_bytes": 2733,
+      "sha256": "8b752fff58e8f4eb77c48c7f4fa547eb5b64ba54c0212cbd1af10fccfdc5cc6f"
     },
     {
       "path": "docs/history/engineering-handbook/README.md",

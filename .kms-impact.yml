@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Add KMS enforcement, backfill M7 knowledge, and make validation deterministic across platforms.
+summary: Add strict KMS enforcement with deterministic artifacts and task-boundary-aware event validation.
 affected_areas:
   - kms-governance
   - repository-automation

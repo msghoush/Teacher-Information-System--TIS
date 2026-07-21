@@ -166,6 +166,43 @@ def changed_files(base: str | None, head: str | None) -> list[str]:
     return sorted(set([*tracked, *staged, *untracked]))
 
 
+def resolve_validation_range(
+    event_name: str | None,
+    *,
+    base: str | None,
+    head: str | None,
+    target_ref: str | None,
+) -> tuple[str | None, str | None]:
+    if event_name is None:
+        if target_ref:
+            raise ValueError("--target-ref requires --event-name push.")
+        return base, head
+
+    event = event_name.strip().lower()
+    if event == "pull_request":
+        if not base or not head:
+            raise ValueError("Pull-request validation requires --base and --head.")
+        if target_ref:
+            raise ValueError("Pull-request validation does not accept --target-ref.")
+        return base, head
+
+    if event == "push":
+        if base:
+            raise ValueError(
+                "Push validation must use --target-ref, not the previous commit as --base."
+            )
+        if not target_ref or not head:
+            raise ValueError("Push validation requires --target-ref and --head.")
+        merge_bases = _git_lines(["merge-base", target_ref, head])
+        if len(merge_bases) != 1:
+            raise ValueError(
+                f"Expected one merge base for {target_ref} and {head}; found {len(merge_bases)}."
+            )
+        return merge_bases[0], head
+
+    raise ValueError(f"Unsupported event name: {event_name!r}.")
+
+
 def validate_declaration(declaration: ImpactDeclaration, changed: list[str]) -> list[str]:
     errors: list[str] = []
     changed_set = set(changed)
@@ -223,12 +260,27 @@ def validate_declaration(declaration: ImpactDeclaration, changed: list[str]) -> 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate TIS KMS impact and generated artifacts.")
+    parser.add_argument(
+        "--event-name",
+        choices=("pull_request", "push"),
+        help="GitHub event type used to resolve the implementation-task boundary.",
+    )
     parser.add_argument("--base", help="Base Git revision for a three-dot comparison.")
     parser.add_argument("--head", help="Head Git revision for a three-dot comparison.")
+    parser.add_argument(
+        "--target-ref",
+        help="Target branch ref used to find the task merge base for push validation.",
+    )
     args = parser.parse_args()
 
     try:
-        changed = changed_files(args.base, args.head)
+        base, head = resolve_validation_range(
+            args.event_name,
+            base=args.base,
+            head=args.head,
+            target_ref=args.target_ref,
+        )
+        changed = changed_files(base, head)
         declaration = load_declaration()
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"KMS impact check failed: {exc}")

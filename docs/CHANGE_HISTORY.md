@@ -27,6 +27,38 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-07-21 - Aligned Push Enforcement With KIA Task Boundaries
+
+Area/module:
+GitHub Actions and KMS impact validation
+
+Previous state:
+Pull-request enforcement validated the full feature branch against its base, while push enforcement validated only `github.event.before...github.sha`. A follow-up fix commit therefore evaluated a cumulative `.kms-impact.yml` against only the latest commit and incorrectly reported previously updated KMS files as unchanged.
+
+New state:
+Pull requests validate the pull-request base SHA against the actual pull-request head SHA. Pushes to `dev` find the merge base between the repository default branch and the pushed head, then validate that complete task range. Both events apply the unchanged strict declaration and generated-artifact checks to the same logical implementation boundary.
+
+Reason:
+KIA declarations describe approved implementation tasks, which may contain multiple commits. Event delivery boundaries must not redefine those tasks.
+
+Files changed:
+- KMS impact checker
+- KMS enforcement workflow
+- KMS automation regression tests
+- KMS governance documentation and generated artifacts
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+No; product architecture, developer onboarding order, and application behavior are unchanged.
+
+Reviewer/approval notes:
+Enforcement remains strict across the complete task diff. No application behavior or production data changed.
+
 ## 2026-07-21 - Made KMS Enforcement Cross-Platform Deterministic
 
 Area/module:
