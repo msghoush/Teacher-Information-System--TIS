@@ -1,3 +1,12 @@
+---
+title: TIS Landing Page Master Content
+documentation_version: 3.1
+last_updated: 2026-07-21
+source_of_truth: true
+---
+
+# TIS Landing Page Master Content
+
 TIS Landing Page Master Content
 Approved Marketing Foundation
 1. Main Positioning

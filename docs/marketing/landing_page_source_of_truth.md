@@ -1,3 +1,10 @@
+---
+title: TIS Landing Page Source of Truth
+documentation_version: 3.1
+last_updated: 2026-07-21
+source_of_truth: true
+---
+
 # Landing Page Source of Truth
 
 The official source of truth for the public TIS landing website is:

@@ -112,6 +112,7 @@ Documentation/KMS milestones:
 - KMS v3.0 Phase 3D final phase approved for implementation.
 - Automatic KMS enforcement implemented with repository instructions, machine-readable KIA, major-change detection, read-only artifact checks, CI validation, and a deployment prerequisite.
 - Phase 6 unified KMS command implemented with `scripts/kms.py sync` and `scripts/kms.py check`.
+- Phase 7A navigation foundation implemented with task-based reading paths, improved indexes, and normalized supporting-document titles.
 
 M7 subscription-management milestones:
 
@@ -125,7 +126,7 @@ M7 subscription-management milestones:
 
 ## Current Priority
 
-Current priority: enforce automatic KMS synchronization and keep the engineering handbook aligned with completed M7 subscription behavior.
+Current priority: improve KMS navigation and consumption incrementally while preserving strict synchronization and completed M7 subscription context.
 
 Current enforcement scope:
 

@@ -13,79 +13,64 @@ Markdown files are authoritative. The PDF booklet is a generated snapshot and mu
 
 Repository enforcement begins with root `AGENTS.md` and `.kms-impact.yml`. `scripts/check_kms_impact.py` validates the declaration, changed paths, declared Markdown updates, and generated artifacts. It never rewrites documentation.
 
-## First Read For AI Coding Conversations
+## Choose A Reading Path
 
-For any new Codex or ChatGPT coding conversation, load this file first:
+Open the [KMS Navigation Guide](KMS_NAVIGATION.md) to select a focused reading path by role or task. It covers human and AI onboarding, SaaS and subscriptions, operational modules, database work, Platform Owner tools, the public landing website, location data, design, architecture decisions, and review/KIA work.
 
-- `docs/AI_PROJECT_CONTEXT.md`
+For a fast baseline, read:
 
-Then load:
+1. [AI Project Context](AI_PROJECT_CONTEXT.md)
+2. [TIS Master Context](TIS_MASTER_CONTEXT.md)
+3. [Project State](PROJECT_STATE.md)
+4. [Documentation Update Policy](DOCUMENTATION_UPDATE_POLICY.md)
 
-- `docs/TIS_MASTER_CONTEXT.md`
-- `docs/PROJECT_STATE.md`
-- `docs/DOCUMENTATION_UPDATE_POLICY.md`
-- relevant ADRs under `docs/adr/`
-- relevant module history under `docs/history/`
-- engineering handbook docs under `docs/engineering/`
-
-If the task touches the public website, also read:
-
-- `docs/marketing/landing_page_source_of_truth.md`
-- `docs/marketing/tis_landing_page_master_content.md`
-- `docs/adr/0001-separate-nextjs-landing-website.md`
-- `docs/adr/0007-landing-page-visual-system-strategy.md`
+Then follow the relevant task path rather than loading the entire handbook.
 
 ## Core Documents
 
-- `docs/AI_PROJECT_CONTEXT.md`: compact onboarding file for future Codex and ChatGPT conversations.
-- `docs/TIS_MASTER_CONTEXT.md`: long-term product, architecture, SaaS, workflow, roadmap, and critical-rules source of truth.
-- `docs/PROJECT_STATE.md`: living status file for branch strategy, priority, milestones, known issues, and next work.
-- `docs/DOCUMENTATION_UPDATE_POLICY.md`: non-negotiable KMS and Knowledge Impact Assessment policy.
-- `docs/CHANGE_HISTORY.md`: chronological summary of meaningful changes.
+- [KMS Navigation Guide](KMS_NAVIGATION.md): role-based and task-based routes through the KMS.
+- [AI Project Context](AI_PROJECT_CONTEXT.md): compact onboarding file for future Codex and ChatGPT conversations.
+- [TIS Master Context](TIS_MASTER_CONTEXT.md): long-term product, architecture, SaaS, workflow, roadmap, and critical-rules source of truth.
+- [Project State](PROJECT_STATE.md): living status for branch strategy, priorities, milestones, known issues, and next work.
+- [Documentation Update Policy](DOCUMENTATION_UPDATE_POLICY.md): non-negotiable KMS and Knowledge Impact Assessment policy.
+- [Change History](CHANGE_HISTORY.md): chronological summary of meaningful changes.
 
 ## Engineering Handbook
 
-- `docs/engineering/README.md`: engineering onboarding order and handbook index.
-- `docs/engineering/TIS_MODULE_MAP.md`: complete module map with purpose, files, maturity, docs, risks, and guardrails.
-- `docs/engineering/REPOSITORY_ARCHITECTURE.md`: repository structure and ownership boundaries.
-- `docs/engineering/USER_AND_SYSTEM_FLOWS.md`: public customer, SaaS identity, payment, provisioning, operational login, platform owner, KMS, and developer onboarding flows.
-- `docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md`: conceptual data model and tenant/identity isolation rules.
-- `docs/engineering/DEVELOPMENT_STANDARDS.md`: non-negotiable engineering rules.
-- `docs/engineering/UI_UX_DESIGN_PHILOSOPHY.md`: UI/UX principles by product surface.
-- `docs/engineering/PRODUCT_ROADMAP.md`: completed, current, next, and future roadmap.
-- `docs/engineering/REJECTED_DECISIONS.md`: major rejected alternatives and long-term consequences.
-- `docs/engineering/VISUAL_DOCUMENTATION_GUIDE.md`: screenshot, diagram, naming, storage, and visual update standards.
-- `docs/engineering/AI_OPTIMIZATION_GUIDE.md`: definitive onboarding guide for future AI assistants.
-- `docs/engineering/PROJECT_GOVERNANCE.md`: governance, approvals, quality gates, and decision traceability.
-- `docs/engineering/KNOWLEDGE_LIFECYCLE.md`: lifecycle from planning through production and maintenance.
-- `docs/engineering/DOCUMENTATION_AUTOMATION.md`: current/future KMS automation model.
-- `docs/engineering/KNOWLEDGE_IMPACT_ASSESSMENT_STANDARD.md`: formal KIA engineering standard.
-- `docs/engineering/SELF_EVOLVING_WORKFLOW.md`: official workflow that keeps software and KMS synchronized.
-- `docs/engineering/DOCUMENTATION_DEPENDENCY_MAP.md`: propagation map between source docs, manifest, PDF, and Knowledge Center.
-- `docs/engineering/AI_CODING_WORKFLOW.md`: disciplined workflow for future AI coding assistants.
-- `docs/engineering/FUTURE_AUTOMATION_ROADMAP.md`: future automation opportunities.
+Use the [Engineering Handbook Index](engineering/README.md) for the full engineering document map.
+
+Primary engineering references:
+
+- [TIS Module Map](engineering/TIS_MODULE_MAP.md)
+- [Repository Architecture](engineering/REPOSITORY_ARCHITECTURE.md)
+- [User and System Flows](engineering/USER_AND_SYSTEM_FLOWS.md)
+- [Database Architecture Overview](engineering/DATABASE_ARCHITECTURE_OVERVIEW.md)
+- [Development Standards](engineering/DEVELOPMENT_STANDARDS.md)
+- [UI/UX Design Philosophy](engineering/UI_UX_DESIGN_PHILOSOPHY.md)
+- [Product Roadmap](engineering/PRODUCT_ROADMAP.md)
 
 ## Decision And History Documents
 
-- `docs/adr/`: Architecture Decision Records for major accepted decisions.
-- `docs/history/`: module-based history preserving deeper before/after context.
+- [ADR Index](adr/README.md): Architecture Decision Records for major accepted decisions.
+- [Rejected Decisions](engineering/REJECTED_DECISIONS.md): significant alternatives and why they were declined.
+- [Module History Index](history/README.md): module-based history preserving deeper before/after context.
 
 Current module history areas:
 
-- `docs/history/subscriptions/`
-- `docs/history/landing-page/`
-- `docs/history/academic-calendar/`
-- `docs/history/workforce-planning/`
-- `docs/history/saas-onboarding/`
-- `docs/history/provisioning/`
-- `docs/history/platform-knowledge/`
-- `docs/history/engineering-handbook/`
+- [Subscriptions](history/subscriptions/README.md)
+- [Landing Page](history/landing-page/README.md)
+- [Academic Calendar](history/academic-calendar/README.md)
+- [Workforce Planning](history/workforce-planning/README.md)
+- [SaaS Onboarding](history/saas-onboarding/README.md)
+- [Provisioning](history/provisioning/README.md)
+- [Platform Knowledge](history/platform-knowledge/README.md)
+- [Engineering Handbook](history/engineering-handbook/README.md)
 
 ## Supporting Documents
 
-- `docs/location-data-roadmap.md`: location data roadmap and related implementation notes.
-- `docs/marketing/landing_page_source_of_truth.md`: boundary between the public Next.js landing website and the FastAPI application portal.
-- `docs/marketing/tis_landing_page_master_content.md`: approved marketing foundation and landing page content direction.
+- [Location Data Roadmap](location-data-roadmap.md): location data roadmap and related implementation notes.
+- [Landing Page Source of Truth](marketing/landing_page_source_of_truth.md): boundary between the public Next.js landing website and the FastAPI application portal.
+- [Landing Page Master Content](marketing/tis_landing_page_master_content.md): approved marketing foundation and landing page content direction.
 
 ## Generated Snapshot
 

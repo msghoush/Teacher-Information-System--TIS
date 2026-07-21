@@ -32,6 +32,7 @@ MANIFEST_PATH = ROOT / "static" / "docs" / "docs_manifest.json"
 
 CORE_SOURCE_DOCS = [
     ROOT / "docs" / "README.md",
+    ROOT / "docs" / "KMS_NAVIGATION.md",
     ROOT / "docs" / "AI_PROJECT_CONTEXT.md",
     ROOT / "docs" / "DOCUMENTATION_UPDATE_POLICY.md",
     ROOT / "docs" / "TIS_MASTER_CONTEXT.md",
