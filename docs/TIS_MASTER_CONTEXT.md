@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-07-22
 source_of_truth: true
 ---
 
@@ -411,7 +411,7 @@ Owner-only app access:
 - `/platform/knowledge/booklet`: protected inline PDF view.
 - `/platform/knowledge/booklet/download`: protected PDF download.
 
-The Knowledge Center is protected by the existing Platform Owner access pattern. It is not public, not a landing page, and does not regenerate or rewrite source docs.
+The Knowledge Center is protected by the existing Platform Owner access pattern. It is not public, not a landing page, and does not regenerate or rewrite source docs. Its manifest-backed library presents document titles and summaries, groups sources into Core, Engineering, Decisions, History, Marketing, and Supporting sections, supports client-side category/module/freshness filtering and search, and opens documents at their recorded `pdf_page` through the protected booklet route.
 
 Engineering handbook:
 

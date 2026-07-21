@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-07-22
 recommended_first_read: true
 ---
 
@@ -158,8 +158,8 @@ Current priority is automatic KMS synchronization enforcement and reliable post-
 - Change history preserves chronological change context.
 - ADRs preserve major decisions.
 - Module history preserves deeper area-specific evolution.
-- Platform Owner Knowledge Center is implemented as a read-only owner utility.
-- The Knowledge Center uses protected routes for PDF view/download and does not link directly to static PDF paths.
+- Platform Owner Knowledge Center is implemented as a read-only owner utility with manifest-backed document titles, summaries, logical groups, client-side search, category/module/freshness filters, and latest-activity ordering.
+- The Knowledge Center uses protected routes for PDF view/download and source-specific `pdf_page` deep links; it does not link directly to static PDF paths.
 - KMS v3.0 Phase 3A adds a true engineering handbook with module map, repository architecture, workflows, and developer onboarding.
 - KMS v3.0 Phase 3B adds database architecture, development standards, UI/UX philosophy, product roadmap, and stronger human/AI developer guidance.
 - KMS v3.0 Phase 3C adds rejected decisions, visual documentation framework, AI optimization guidance, project governance, and decision traceability.

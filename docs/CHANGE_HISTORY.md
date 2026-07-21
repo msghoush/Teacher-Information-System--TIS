@@ -1,7 +1,7 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-07-22
 source_of_truth: true
 ---
 
@@ -26,6 +26,39 @@ PDF regenerated:
 AI project context updated:
 Reviewer/approval notes:
 ```
+
+## 2026-07-22 - Added Phase 7C Knowledge Center Navigation
+
+Area/module:
+Platform Knowledge Center and KMS navigation
+
+Previous state:
+The owner-only Knowledge Center showed manifest sources in one path-focused table. It had no document search, category/module/freshness filters, logical source groups, descriptive summaries, or links to the source document's page in the protected booklet. ADRs were listed by ascending filename, and module-history areas were not ordered by recent activity.
+
+New state:
+The Knowledge Center enriches manifest-listed sources with Markdown title and summary metadata, groups them into Core, Engineering, Decisions, History, Marketing, and Supporting sections, and provides client-side search plus category, module, and freshness filters. Document and activity links open the existing owner-protected booklet route at the manifest `pdf_page`. ADRs are newest-first, and module-history areas are ordered by their latest dated entry with entry counts.
+
+Reason:
+Platform owners need to locate and consume authoritative knowledge quickly without introducing a database, search service, new route, dependency, or public documentation link.
+
+Files changed:
+- `knowledge_service.py` manifest presentation metadata and activity ordering
+- `templates/platform_knowledge_center.html` grouped library, client-side search/filters, and protected deep links
+- focused Knowledge Center service tests
+- Platform Knowledge KMS source and module-history documents
+- generated PDF and manifest
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+Phase 7C only. Owner access checks, existing routes, application data, KMS source authority, and generator enforcement remain unchanged. No regenerate control was added.
 
 ## 2026-07-21 - Added Phase 7B Professional PDF Navigation
 
