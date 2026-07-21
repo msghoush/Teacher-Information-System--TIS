@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -7,6 +8,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import check_kms_impact  # noqa: E402
+
+generate_docs_pdf = check_kms_impact.generate_docs_pdf
 
 
 def _declaration(**overrides):
@@ -87,3 +90,111 @@ def test_changed_kms_markdown_must_be_declared():
     )
 
     assert any("docs/PROJECT_STATE.md" in error for error in errors)
+
+
+def test_markdown_hash_is_identical_for_lf_and_crlf(tmp_path):
+    lf_source = tmp_path / "lf.md"
+    crlf_source = tmp_path / "crlf.md"
+    lf_source.write_bytes(b"# Heading\n\n- one\n- two\n")
+    crlf_source.write_bytes(b"# Heading\r\n\r\n- one\r\n- two\r\n")
+
+    assert generate_docs_pdf._source_hash(lf_source) == generate_docs_pdf._source_hash(crlf_source)
+
+
+def test_markdown_hash_changes_when_text_changes(tmp_path):
+    source = tmp_path / "source.md"
+    source.write_text("# Current state\n", encoding="utf-8", newline="\n")
+    original_hash = generate_docs_pdf._source_hash(source)
+
+    source.write_text("# Changed state\n", encoding="utf-8", newline="\n")
+
+    assert generate_docs_pdf._source_hash(source) != original_hash
+
+
+def test_changed_markdown_fails_generated_artifact_freshness_check(tmp_path, monkeypatch):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    source = docs_dir / "source.md"
+    source.write_text("# Approved state\n", encoding="utf-8", newline="\n")
+    pdf = tmp_path / "booklet.pdf"
+    pdf.write_bytes(b"generated-pdf")
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "documentation_version": generate_docs_pdf.DOCUMENTATION_VERSION,
+                "included_source_files": [
+                    {
+                        "path": "docs/source.md",
+                        "sha256": generate_docs_pdf._source_hash(source),
+                    }
+                ],
+                "pdf_sha256": generate_docs_pdf._source_hash(pdf),
+                "pdf_size_bytes": pdf.stat().st_size,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(generate_docs_pdf, "ROOT", tmp_path)
+    monkeypatch.setattr(generate_docs_pdf, "SOURCE_DOCS", [source])
+    monkeypatch.setattr(generate_docs_pdf, "OUTPUT_PATH", pdf)
+    monkeypatch.setattr(generate_docs_pdf, "MANIFEST_PATH", manifest)
+
+    assert generate_docs_pdf.check_generated_artifacts() == []
+
+    source.write_text("# Changed state\n", encoding="utf-8", newline="\n")
+
+    assert "Booklet source is stale: docs/source.md" in (
+        generate_docs_pdf.check_generated_artifacts()
+    )
+
+
+def test_source_path_normalization_matches_windows_and_posix_styles():
+    windows_path = r"docs\marketing\landing_page_source_of_truth.md"
+    posix_path = "./docs/marketing/landing_page_source_of_truth.md"
+
+    assert generate_docs_pdf._normalize_source_path(windows_path) == (
+        generate_docs_pdf._normalize_source_path(posix_path)
+    )
+
+
+def test_source_list_comparison_is_cross_platform_and_order_strict():
+    expected = [
+        "docs/README.md",
+        "docs/history/README.md",
+        "docs/history/subscriptions/README.md",
+    ]
+    windows_manifest = [
+        r"docs\README.md",
+        r"docs\history\README.md",
+        r"docs\history\subscriptions\README.md",
+    ]
+
+    assert generate_docs_pdf._compare_source_paths(expected, windows_manifest) == []
+
+    reordered = [windows_manifest[0], windows_manifest[2], windows_manifest[1]]
+    errors = generate_docs_pdf._compare_source_paths(expected, reordered)
+    assert errors == ["Manifest source order does not match the deterministic generator source order."]
+
+
+def test_source_list_comparison_rejects_missing_and_unexpected_sources():
+    expected = ["docs/README.md", "docs/PROJECT_STATE.md"]
+    actual = ["docs/README.md", "docs/UNEXPECTED.md"]
+
+    errors = generate_docs_pdf._compare_source_paths(expected, actual)
+
+    assert "Manifest is missing an expected source: docs/PROJECT_STATE.md" in errors
+    assert "Manifest contains an unexpected source: docs/UNEXPECTED.md" in errors
+
+
+def test_changed_files_includes_deletions(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_git_lines(args):
+        calls.append(args)
+        return ["docs/removed.md"]
+
+    monkeypatch.setattr(check_kms_impact, "_git_lines", fake_git_lines)
+
+    assert check_kms_impact.changed_files("base", "head") == ["docs/removed.md"]
+    assert "--diff-filter=ACDMRTUXB" in calls[0]

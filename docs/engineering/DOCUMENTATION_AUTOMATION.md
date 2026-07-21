@@ -18,6 +18,8 @@ Current approved automation:
 - It generates `static/docs/docs_manifest.json`.
 - The manifest records documentation version, branch, commit SHA, source paths, mtimes, sizes, and hashes.
 - The manifest records the generated PDF hash and size.
+- Markdown source hashes are computed from UTF-8 text normalized to LF, so equivalent CRLF and LF checkouts produce the same hash.
+- Manifest source paths are repository-relative POSIX paths; dynamically discovered sources use a stable case-insensitive sort with an explicit tie-breaker.
 - `scripts/generate_docs_pdf.py --check` validates source coverage, source hashes, PDF identity, manifest metadata, and documentation version without writing files.
 - `.kms-impact.yml` records task-level Knowledge Impact in a small machine-readable schema.
 - `scripts/check_kms_impact.py` classifies likely major changes, validates the declaration against the Git diff, and runs generated-artifact freshness checks.
@@ -36,6 +38,8 @@ Current automation does not:
 - commit or push changes.
 
 Automation blocks stale or undeclared work; humans and approved AI assistants remain responsible for reviewed Markdown updates.
+
+Cross-platform normalization does not relax enforcement. Changed text still changes the source hash, and missing, unexpected, duplicate, or reordered source entries still fail validation.
 
 ## Machine-Readable KIA Declaration
 

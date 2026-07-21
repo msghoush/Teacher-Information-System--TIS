@@ -1,1 +1,2 @@
 *.pdf binary
+*.md text eol=lf

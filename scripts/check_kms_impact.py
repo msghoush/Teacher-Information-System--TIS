@@ -158,10 +158,10 @@ def changed_files(base: str | None, head: str | None) -> list[str]:
     if bool(base) != bool(head):
         raise ValueError("Both --base and --head are required when checking a Git range.")
     if base and head:
-        return sorted(set(_git_lines(["diff", "--name-only", "--diff-filter=ACMRTUXB", f"{base}...{head}"])))
+        return sorted(set(_git_lines(["diff", "--name-only", "--diff-filter=ACDMRTUXB", f"{base}...{head}"])))
 
-    tracked = _git_lines(["diff", "--name-only", "--diff-filter=ACMRTUXB", "HEAD"])
-    staged = _git_lines(["diff", "--cached", "--name-only", "--diff-filter=ACMRTUXB"])
+    tracked = _git_lines(["diff", "--name-only", "--diff-filter=ACDMRTUXB", "HEAD"])
+    staged = _git_lines(["diff", "--cached", "--name-only", "--diff-filter=ACDMRTUXB"])
     untracked = _git_lines(["ls-files", "--others", "--exclude-standard"])
     return sorted(set([*tracked, *staged, *untracked]))
 

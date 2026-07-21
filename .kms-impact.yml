@@ -1,8 +1,9 @@
 knowledge_impact: yes
-summary: Add automatic KMS synchronization enforcement and backfill current M7 knowledge.
+summary: Add KMS enforcement, backfill M7 knowledge, and make validation deterministic across platforms.
 affected_areas:
   - kms-governance
   - repository-automation
+  - cross-platform-validation
   - subscription-lifecycle-documentation
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md

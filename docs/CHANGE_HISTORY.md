@@ -27,6 +27,38 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-07-21 - Made KMS Enforcement Cross-Platform Deterministic
+
+Area/module:
+Repository KMS generation, freshness validation, and CI enforcement
+
+Previous state:
+Markdown source hashes used raw checkout bytes, and dynamically discovered ADR and history sources used native `Path` ordering. A Windows checkout with CRLF line endings could generate a manifest that passed locally but failed on GitHub Linux, where the same committed text used LF and path ordering differed.
+
+New state:
+Markdown is decoded as UTF-8, normalized to LF, and then hashed. Source paths are normalized to repository-relative POSIX paths, dynamic sources use a stable case-insensitive ordering with a deterministic tie-breaker, and source comparison still rejects missing, unexpected, duplicate, or reordered entries. Git diff inspection now includes deleted files.
+
+Reason:
+KMS enforcement must evaluate committed content consistently across developer workstations and GitHub Actions without weakening freshness or source-coverage checks.
+
+Files changed:
+- KMS generator and impact checker
+- Knowledge Center freshness hashing helper
+- KMS automation tests and line-ending attributes
+- generated PDF and manifest
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+No; onboarding, architecture, product behavior, and current priorities are unchanged.
+
+Reviewer/approval notes:
+Repository-governance correction only. No application behavior, production data, SaaS flows, database, or migrations changed.
+
 ## 2026-07-21 - Added Automatic KMS Synchronization Enforcement
 
 Area/module:

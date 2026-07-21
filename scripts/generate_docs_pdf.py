@@ -8,7 +8,7 @@ import subprocess
 import textwrap
 from datetime import datetime
 from html import escape
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -62,9 +62,30 @@ ENGINEERING_DOCS = [
     ROOT / "docs" / "engineering" / "FUTURE_AUTOMATION_ROADMAP.md",
 ]
 
-ADR_DOCS = sorted((ROOT / "docs" / "adr").glob("*.md"))
+def _normalize_source_path(value: str | Path) -> str:
+    raw = str(value).replace("\\", "/")
+    while raw.startswith("./"):
+        raw = raw[2:]
+    if not raw or raw == ".":
+        raise ValueError("Source path cannot be empty.")
+    normalized = PurePosixPath(raw)
+    if normalized.is_absolute() or ".." in normalized.parts:
+        raise ValueError(f"Source path must be repository-relative: {value}")
+    return normalized.as_posix()
 
-HISTORY_DOCS = sorted((ROOT / "docs" / "history").glob("**/*.md"))
+
+def _relative_source_path(path: Path) -> str:
+    return _normalize_source_path(path.relative_to(ROOT).as_posix())
+
+
+def _source_sort_key(path: Path) -> tuple[str, str]:
+    relative = _relative_source_path(path)
+    return relative.casefold(), relative
+
+
+ADR_DOCS = sorted((ROOT / "docs" / "adr").glob("*.md"), key=_source_sort_key)
+
+HISTORY_DOCS = sorted((ROOT / "docs" / "history").glob("**/*.md"), key=_source_sort_key)
 
 SUPPORTING_DOCS = [
     ROOT / "docs" / "marketing" / "landing_page_source_of_truth.md",
@@ -94,22 +115,53 @@ def _run_git(args: list[str]) -> str:
     return value or "unknown"
 
 
+def _source_bytes(path: Path) -> bytes:
+    if path.suffix.lower() != ".md":
+        return path.read_bytes()
+    with path.open("r", encoding="utf-8", newline=None) as handle:
+        text = handle.read()
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    return normalized.encode("utf-8")
+
+
 def _source_hash(path: Path) -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 64), b""):
-            digest.update(chunk)
+    digest.update(_source_bytes(path))
     return digest.hexdigest()
 
 
 def _source_metadata(path: Path) -> dict:
     stat = path.stat()
+    source_bytes = _source_bytes(path)
     return {
-        "path": path.relative_to(ROOT).as_posix(),
+        "path": _relative_source_path(path),
         "modified_at": datetime.fromtimestamp(stat.st_mtime).astimezone().isoformat(),
-        "size_bytes": stat.st_size,
-        "sha256": _source_hash(path),
+        "size_bytes": len(source_bytes),
+        "sha256": hashlib.sha256(source_bytes).hexdigest(),
     }
+
+
+def _compare_source_paths(expected_paths: list[str], manifest_paths: list[str]) -> list[str]:
+    errors: list[str] = []
+    try:
+        expected = [_normalize_source_path(path) for path in expected_paths]
+        actual = [_normalize_source_path(path) for path in manifest_paths]
+    except ValueError as exc:
+        return [str(exc)]
+
+    duplicate_paths = sorted({path for path in actual if actual.count(path) > 1})
+    for path in duplicate_paths:
+        errors.append(f"Manifest contains a duplicate source path: {path}")
+
+    expected_set = set(expected)
+    actual_set = set(actual)
+    for path in sorted(expected_set - actual_set, key=lambda item: (item.casefold(), item)):
+        errors.append(f"Manifest is missing an expected source: {path}")
+    for path in sorted(actual_set - expected_set, key=lambda item: (item.casefold(), item)):
+        errors.append(f"Manifest contains an unexpected source: {path}")
+    if not errors and actual != expected:
+        errors.append("Manifest source order does not match the deterministic generator source order.")
+    return errors
 
 
 def _clean_text(value: str) -> str:
@@ -370,8 +422,8 @@ def _write_manifest(
     included_docs: list[Path],
 ) -> None:
     manifest = {
-        "pdf_path": OUTPUT_PATH.relative_to(ROOT).as_posix(),
-        "manifest_path": MANIFEST_PATH.relative_to(ROOT).as_posix(),
+        "pdf_path": _relative_source_path(OUTPUT_PATH),
+        "manifest_path": _relative_source_path(MANIFEST_PATH),
         "generated_at": generated_at_iso,
         "documentation_version": DOCUMENTATION_VERSION,
         "branch": branch,
@@ -421,7 +473,7 @@ def build_pdf() -> Path:
     ]
 
     for path in included_docs:
-        relative = path.relative_to(ROOT).as_posix()
+        relative = _relative_source_path(path)
         story.append(Paragraph(_inline_markup(f"- {relative}"), styles["body"]))
 
     story.append(PageBreak())
@@ -429,7 +481,7 @@ def build_pdf() -> Path:
     for index, source_path in enumerate(included_docs):
         if index:
             story.append(PageBreak())
-        story.append(Paragraph(_inline_markup(source_path.relative_to(ROOT).as_posix()), styles["h1"]))
+        story.append(Paragraph(_inline_markup(_relative_source_path(source_path)), styles["h1"]))
         story.extend(_markdown_to_flowables(source_path, styles))
 
     doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
@@ -447,14 +499,14 @@ def check_generated_artifacts() -> list[str]:
     included_docs = [path for path in SOURCE_DOCS if path.exists()]
     missing_sources = [path for path in SOURCE_DOCS if not path.exists()]
     for path in missing_sources:
-        errors.append(f"Required PDF source is missing: {path.relative_to(ROOT).as_posix()}")
+        errors.append(f"Required PDF source is missing: {_relative_source_path(path)}")
 
     all_markdown = set((ROOT / "docs").glob("**/*.md"))
-    unlisted_markdown = sorted(all_markdown - set(included_docs))
+    unlisted_markdown = sorted(all_markdown - set(included_docs), key=_source_sort_key)
     for path in unlisted_markdown:
         errors.append(
             "Authoritative Markdown is not included in the booklet source list: "
-            f"{path.relative_to(ROOT).as_posix()}"
+            f"{_relative_source_path(path)}"
         )
 
     if not OUTPUT_PATH.exists() or OUTPUT_PATH.stat().st_size <= 0:
@@ -475,25 +527,25 @@ def check_generated_artifacts() -> list[str]:
             f"expected {DOCUMENTATION_VERSION!r}, found {manifest.get('documentation_version')!r}."
         )
 
-    expected_paths = [path.relative_to(ROOT).as_posix() for path in included_docs]
+    expected_paths = [_relative_source_path(path) for path in included_docs]
     manifest_sources = manifest.get("included_source_files")
     if not isinstance(manifest_sources, list):
         errors.append("Manifest included_source_files must be a list.")
         manifest_sources = []
     manifest_paths = [str(item.get("path") or "") for item in manifest_sources if isinstance(item, dict)]
-    if manifest_paths != expected_paths:
-        errors.append(
-            "Manifest source list does not match the generator source list. "
-            "Regenerate the PDF and manifest."
-        )
+    errors.extend(_compare_source_paths(expected_paths, manifest_paths))
 
-    metadata_by_path = {
-        str(item.get("path") or ""): item
-        for item in manifest_sources
-        if isinstance(item, dict)
-    }
+    metadata_by_path: dict[str, dict] = {}
+    for item in manifest_sources:
+        if not isinstance(item, dict):
+            continue
+        try:
+            normalized_path = _normalize_source_path(str(item.get("path") or ""))
+        except ValueError:
+            continue
+        metadata_by_path[normalized_path] = item
     for path in included_docs:
-        relative = path.relative_to(ROOT).as_posix()
+        relative = _relative_source_path(path)
         metadata = metadata_by_path.get(relative)
         if metadata is None:
             continue

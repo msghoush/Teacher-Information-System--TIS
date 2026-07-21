@@ -20,6 +20,10 @@ TIS has a narrow repository enforcement layer:
 - `scripts/generate_docs_pdf.py --check` verifies source coverage, source hashes, PDF hash/size, version, and manifest consistency without writing.
 - GitHub Actions run enforcement for pull requests and `dev`; production deployment from `master` depends on the same gate.
 
+## Cross-Platform Correction
+
+The initial enforcement release exposed two checkout-dependent differences: Markdown hashes reflected raw CRLF/LF bytes, and dynamic source ordering followed native path comparison. The generator and Knowledge Center now hash normalized UTF-8/LF Markdown. The generator also records repository-relative POSIX paths in a deterministic order while continuing to fail on genuine source-list drift. Impact detection includes deleted files so removing behavior or documentation cannot bypass review.
+
 ## Guardrails
 
 Automation does not generate or rewrite Markdown prose. Reviewed Markdown remains authoritative. KMS files must describe engineering design only and must not contain customer, organization, personal, transaction, invoice, production identifier, webhook payload, secret, credential, environment, or database-row data.
