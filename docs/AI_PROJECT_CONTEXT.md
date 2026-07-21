@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
-documentation_version: 3.0
-last_updated: 2026-06-30
+documentation_version: 3.1
+last_updated: 2026-07-21
 recommended_first_read: true
 ---
 
@@ -42,6 +42,12 @@ Key files and folders:
 - `models.py`, `database.py`, `db_migrations.py`: data model, DB setup, local schema repair/migration logic.
 - `routers/`: modular operational routes.
 - `saas/`: SaaS account, onboarding, payment, billing, and provisioning services/routes.
+- `saas/entitlement_service.py`: provider-confirmed commercial entitlement and paid branch-capacity resolution.
+- `saas/subscription_portal_service.py`: customer subscription portal view model.
+- `saas/subscription_change_service.py`, `saas/subscription_plan_change_service.py`, and `saas/subscription_cancellation_service.py`: provider-authoritative quantity, plan, and cancellation workflows.
+- `saas/subscription_lifecycle_service.py`: centralized lifecycle state and allowed-action policy.
+- `saas/billing_history_service.py`: provider-sourced billing history and short-lived invoice download resolution.
+- `saas/payment_lifecycle_reconciliation_service.py`: guarded reconciliation for attributable finalized payment evidence.
 - `scripts/sync_paddle_price_ids.py`: environment-specific Paddle initial checkout price mapping sync into `subscription_plan_prices.provider_price_id`.
 - `templates/`: Jinja templates.
 - `static/`: static assets and generated documentation output.
@@ -105,6 +111,12 @@ M4: Tenant provisioning foundation with pending organizations, provisioning jobs
 
 M5: Platform access and owner controls, including platform owner/developer identities, permissions, and platform console behavior.
 
+## Completed M7 Subscription Management
+
+M7 includes a normalized entitlement foundation, a customer Subscription Management portal, paid branch-quantity management, upgrades and scheduled downgrades, Paddle-authoritative previews and proration, scheduled cancellation and reversal, a centralized lifecycle/action policy, provider-sourced billing history, protected invoice downloads, and webhook/reconciliation safeguards.
+
+Commercial state fails closed when ownership, provider evidence, or local relationships are ambiguous. TIS does not independently calculate replacement monetary values. Immediate changes require provider-confirmed outcomes; scheduled changes remain pending until provider/webhook evidence reaches the effective boundary.
+
 ## Current SaaS Account Verification State
 
 Phase 1 TIS Account email verification recovery is accepted. Valid verification links now mark the SaaS account email verified/active and redirect to the TIS Account login page with a professional success notice so the customer can continue school workspace setup.
@@ -139,7 +151,7 @@ Phase 3C did not change payment behavior, billing behavior, provisioning behavio
 
 ## Current Priority
 
-Current priority is the TIS Knowledge Management System:
+Current priority is automatic KMS synchronization enforcement and reliable post-M7 engineering context:
 
 - Markdown is source of truth.
 - PDF is generated snapshot.
@@ -152,6 +164,10 @@ Current priority is the TIS Knowledge Management System:
 - KMS v3.0 Phase 3B adds database architecture, development standards, UI/UX philosophy, product roadmap, and stronger human/AI developer guidance.
 - KMS v3.0 Phase 3C adds rejected decisions, visual documentation framework, AI optimization guidance, project governance, and decision traceability.
 - KMS v3.0 Phase 3D completes KMS v1.0 lifecycle standards, dependency mapping, AI coding workflow, and future automation roadmap.
+- Root `AGENTS.md` makes KMS onboarding mandatory for Codex tasks.
+- `.kms-impact.yml` is the machine-readable task declaration.
+- `scripts/check_kms_impact.py` validates major-change classification, declared Markdown updates, and generated-artifact freshness.
+- GitHub Actions block pull-request integration and production deployment when KMS validation fails.
 
 ## Critical Rules
 
@@ -190,7 +206,7 @@ If included docs change, regenerate:
 ## Development Workflow
 
 1. Read this file first.
-2. Read `docs/TIS_MASTER_CONTEXT.md` and `docs/PROJECT_STATE.md`.
+2. Read root `AGENTS.md`, `docs/TIS_MASTER_CONTEXT.md`, and `docs/PROJECT_STATE.md`.
 3. Read `docs/engineering/README.md`.
 4. Read `docs/engineering/DEVELOPMENT_STANDARDS.md`.
 5. Read `docs/engineering/AI_OPTIMIZATION_GUIDE.md`.
@@ -198,10 +214,11 @@ If included docs change, regenerate:
 7. Read relevant engineering docs, ADRs, module history, and supporting docs.
 8. Inspect code before editing.
 9. Keep changes scoped.
-10. Update KMS docs when meaningful behavior, architecture, product state, module map, repository ownership, data model, design philosophy, roadmap, governance, decision traceability, automation, lifecycle, or workflow changes.
+10. Update `.kms-impact.yml` and affected KMS docs when meaningful behavior, architecture, product state, module map, repository ownership, data model, design philosophy, roadmap, governance, decision traceability, automation, lifecycle, or workflow changes.
 11. Regenerate PDF if included source docs changed.
-12. Run validation.
-13. Report KIA in final response.
+12. Run `scripts/generate_docs_pdf.py --check` and `scripts/check_kms_impact.py`.
+13. Run implementation validation.
+14. Report KIA in final response.
 
 ## Landing Page Situation
 
@@ -209,4 +226,4 @@ The public landing implementation is in `tis-landing-website/`. Marketing docs l
 
 ## Next Planned Work
 
-After Phase 2C review, a possible future enhancement is an explicit owner-only regenerate action. It should rebuild the PDF from reviewed Markdown source files only and must not silently rewrite Markdown source docs.
+Review the automatic KMS enforcement baseline, keep M7 subscription documentation synchronized as follow-up fixes evolve, and later consider an explicit owner-only regenerate action. Any regenerate action may rebuild artifacts from reviewed Markdown only and must not rewrite source prose.

@@ -1,7 +1,7 @@
 ---
 title: TIS Change History
-documentation_version: 3.0
-last_updated: 2026-06-30
+documentation_version: 3.1
+last_updated: 2026-07-21
 source_of_truth: true
 ---
 
@@ -26,6 +26,140 @@ PDF regenerated:
 AI project context updated:
 Reviewer/approval notes:
 ```
+
+## 2026-07-21 - Aligned Push Enforcement With KIA Task Boundaries
+
+Area/module:
+GitHub Actions and KMS impact validation
+
+Previous state:
+Pull-request enforcement validated the full feature branch against its base, while push enforcement validated only `github.event.before...github.sha`. A follow-up fix commit therefore evaluated a cumulative `.kms-impact.yml` against only the latest commit and incorrectly reported previously updated KMS files as unchanged.
+
+New state:
+Pull requests validate the pull-request base SHA against the actual pull-request head SHA. Pushes to `dev` find the merge base between the repository default branch and the pushed head, then validate that complete task range. Both events apply the unchanged strict declaration and generated-artifact checks to the same logical implementation boundary.
+
+Reason:
+KIA declarations describe approved implementation tasks, which may contain multiple commits. Event delivery boundaries must not redefine those tasks.
+
+Files changed:
+- KMS impact checker
+- KMS enforcement workflow
+- KMS automation regression tests
+- KMS governance documentation and generated artifacts
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+No; product architecture, developer onboarding order, and application behavior are unchanged.
+
+Reviewer/approval notes:
+Enforcement remains strict across the complete task diff. No application behavior or production data changed.
+
+## 2026-07-21 - Made KMS Enforcement Cross-Platform Deterministic
+
+Area/module:
+Repository KMS generation, freshness validation, and CI enforcement
+
+Previous state:
+Markdown source hashes used raw checkout bytes, and dynamically discovered ADR and history sources used native `Path` ordering. A Windows checkout with CRLF line endings could generate a manifest that passed locally but failed on GitHub Linux, where the same committed text used LF and path ordering differed.
+
+New state:
+Markdown is decoded as UTF-8, normalized to LF, and then hashed. Source paths are normalized to repository-relative POSIX paths, dynamic sources use a stable case-insensitive ordering with a deterministic tie-breaker, and source comparison still rejects missing, unexpected, duplicate, or reordered entries. Git diff inspection now includes deleted files.
+
+Reason:
+KMS enforcement must evaluate committed content consistently across developer workstations and GitHub Actions without weakening freshness or source-coverage checks.
+
+Files changed:
+- KMS generator and impact checker
+- Knowledge Center freshness hashing helper
+- KMS automation tests and line-ending attributes
+- generated PDF and manifest
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+No; onboarding, architecture, product behavior, and current priorities are unchanged.
+
+Reviewer/approval notes:
+Repository-governance correction only. No application behavior, production data, SaaS flows, database, or migrations changed.
+
+## 2026-07-21 - Added Automatic KMS Synchronization Enforcement
+
+Area/module:
+Repository governance, KMS automation, CI, deployment gate, and AI workflow
+
+Previous state:
+KMS updates depended on developers and AI assistants remembering the written KIA policy. PDF/manifest generation was manually triggered, the Knowledge Center detected stale hashes only when viewed, and no test, commit, pull-request, or deployment gate blocked stale or missing documentation.
+
+New state:
+Root `AGENTS.md` makes KMS onboarding mandatory. `.kms-impact.yml` records task-level impact. `scripts/check_kms_impact.py` compares declarations with Git changes, conservatively classifies major paths, validates declared Markdown, and invokes generated-artifact checks. The PDF generator has read-only `--check` mode and manifest PDF hashes. GitHub Actions enforce checks on pull requests and `dev`, and `master` deployment depends on the same gate. Automation never rewrites Markdown.
+
+Reason:
+Major TIS work must not be mergeable or deployable while engineering knowledge is stale, while reviewed Markdown must remain authoritative and free from runtime/customer data.
+
+Files changed:
+- `AGENTS.md`
+- `.kms-impact.yml`
+- `.github/pull_request_template.md`
+- `.github/workflows/kms-enforcement.yml`
+- `.github/workflows/deploy-on-master.yml`
+- `scripts/check_kms_impact.py`
+- `scripts/generate_docs_pdf.py`
+- `tests/test_kms_automation.py`
+- relevant KMS Markdown and generated artifacts
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+Repository-governance automation only. No application behavior, production/customer/tenant/billing data, runtime records, database, migrations, or business logic changed.
+
+## 2026-07-20 - Backfilled Completed M7 Subscription Management
+
+Area/module:
+SaaS entitlements, subscription portal, quantity/plan changes, cancellation, billing history, invoices, Paddle webhooks, and reconciliation
+
+Previous state:
+Module history covered M7 Phases 1, 2, 3, and 6 only. Central project state, architecture maps, workflows, roadmap, change history, PDF, and manifest still described the pre-M7 billing foundation; Phases 4 and 5 and reconciliation protections were absent.
+
+New state:
+KMS records the completed M7 entitlement foundation, read/write customer portal, paid branch quantity management, upgrades and scheduled downgrades, provider-authoritative proration, cancellation/reversal, centralized lifecycle and allowed-action policy, provider billing history, protected invoice downloads, and fail-closed webhook/reconciliation safeguards.
+
+Reason:
+The engineering handbook must describe current implemented subscription behavior before automatic enforcement becomes authoritative.
+
+Files changed:
+- central KMS context/state files
+- subscription and payment ADRs
+- engineering module, repository, database, flow, and roadmap docs
+- subscription module history
+- generated PDF and manifest
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+Documentation backfill only; it records already committed M7 behavior and introduces no SaaS behavior change.
 
 ## 2026-06-30 - Paddle Initial Checkout Price Mapping Configuration
 

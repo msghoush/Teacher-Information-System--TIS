@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
-documentation_version: 3.0
-last_updated: 2026-06-27
+documentation_version: 3.1
+last_updated: 2026-07-21
 source_of_truth: true
 ---
 
@@ -255,6 +255,16 @@ M5: Platform access, permissions, and owner controls
 - Improved permission boundaries for platform and tenant users.
 - Added tests around platform access and role permissions.
 
+### M7: Subscription Management And Entitlements
+
+- Added normalized entitlement definitions and plan entitlement values resolved from one confirmed active provider subscription.
+- Added a customer Subscription Management portal with lifecycle state and centrally controlled allowed actions.
+- Added paid branch-quantity increases and scheduled reductions with operational branch-capacity enforcement.
+- Added plan upgrades and scheduled downgrades using Paddle-authoritative previews and proration behavior.
+- Added scheduled cancellation and reversal while preserving paid access through the confirmed effective period.
+- Added provider-sourced billing history and protected, freshly resolved invoice downloads.
+- Added webhook idempotency, strict provider/local relationship validation, manual-review fail-closed paths, diagnostics, and guarded reconciliation tooling.
+
 ## Paddle And Payment Architecture Summary
 
 The payment architecture is organized under the `saas/` package.
@@ -267,6 +277,14 @@ Key modules:
 - `saas/billing_service.py`: billing status and related account billing behavior.
 - `saas/currency_service.py`: currency-related helpers.
 - `saas/router.py`: SaaS and SaaS admin routes.
+- `saas/entitlement_service.py`: commercial access and paid branch-capacity authority.
+- `saas/subscription_portal_service.py`: customer portal composition.
+- `saas/subscription_change_service.py`: quantity change previews, submissions, schedules, and webhook reconciliation.
+- `saas/subscription_plan_change_service.py`: plan upgrade/downgrade lifecycle.
+- `saas/subscription_cancellation_service.py`: cancellation and reversal lifecycle.
+- `saas/subscription_lifecycle_service.py`: lifecycle resolver and allowed-action policy.
+- `saas/billing_history_service.py`: Paddle transaction history and invoice access.
+- `saas/payment_lifecycle_reconciliation_service.py`: guarded repair from attributable authoritative evidence.
 
 Architecture rules:
 
@@ -280,6 +298,9 @@ Architecture rules:
 - Use `scripts/sync_paddle_price_ids.py` with sandbox or production mapping JSON to configure initial checkout price IDs; never hardcode live Paddle IDs in migrations or source.
 - If an initial checkout price mapping is missing, fail closed before calling Paddle and show customers a support-oriented Secure Payment message while retaining internal plan/interval/currency diagnostics.
 - Paddle transaction checkout uses the public `/saas/payment` launcher as the payment-link page. Set `PADDLE_CHECKOUT_BASE_URL` to `https://app.tisplatform.com/saas/payment`, configure `PADDLE_CLIENT_TOKEN` and `PADDLE_ENVIRONMENT` for Paddle.js, and never expose `PADDLE_API_KEY` to frontend code.
+- Paddle is authoritative for prices, previews, proration, transactions, scheduled changes, and invoice documents. TIS stores workflow/audit state but does not invent monetary outcomes.
+- Subscription changes send the complete retained recurring item set. Immediate changes prevent provider mutation on payment failure; scheduled changes do not change local entitlements before verified effective evidence.
+- Webhooks are signature-verified and idempotent. Ambiguous, mismatched, or incomplete provider evidence fails closed to manual review.
 
 ## Tenant Provisioning Summary
 
@@ -372,6 +393,16 @@ Generated KMS artifacts:
 - `static/docs/TIS_Project_Reference_Booklet.pdf`
 - `static/docs/docs_manifest.json`
 
+Automatic enforcement:
+
+- root `AGENTS.md` defines mandatory Codex KMS behavior,
+- `.kms-impact.yml` records the task-level machine-readable KIA,
+- `scripts/check_kms_impact.py` compares the declaration with changed files and major-change rules,
+- `scripts/generate_docs_pdf.py --check` validates source coverage and snapshot freshness without writing,
+- GitHub Actions require validation for pull requests, `dev`, and `master` deployment.
+
+Automation never rewrites Markdown. It detects omissions and blocks stale work so reviewed human/AI updates remain authoritative.
+
 Owner-only app access:
 
 - `/platform/knowledge`: read-only Platform Owner Knowledge Center.
@@ -413,12 +444,13 @@ Default workflow for approved implementation tasks:
 2. Keep changes scoped to the approved task.
 3. Preserve tenant isolation, permission checks, SaaS flows, and landing page boundaries.
 4. Update tests or add focused tests when behavior changes.
-5. Complete the Knowledge Impact Assessment.
+5. Complete the Knowledge Impact Assessment and update `.kms-impact.yml`.
 6. Update relevant Markdown docs.
 7. Update change history, ADRs, module history, and AI project context when needed.
 8. Regenerate the documentation PDF if included docs changed.
-9. Run reasonable validation.
-10. Report code changes, docs changes, KIA, validation, assumptions, and known issues.
+9. Run `scripts/generate_docs_pdf.py --check` and `scripts/check_kms_impact.py`.
+10. Run reasonable implementation validation.
+11. Report code changes, docs changes, KIA, validation, assumptions, and known issues.
 
 ## Knowledge Impact Assessment Rule
 
@@ -469,3 +501,5 @@ The generated booklet output is:
 - Use `reportlab` for the documentation PDF generator.
 - Do not require LaTeX, Playwright, Chromium, external network calls, or system font dependencies for PDF generation.
 - Always include a Knowledge Impact Assessment in implementation final reports.
+- Always keep `.kms-impact.yml` aligned with the task and actual Git diff.
+- Never put customer, personal, production, credential, secret, environment, transaction, invoice, webhook payload, or database-row data into KMS documentation.

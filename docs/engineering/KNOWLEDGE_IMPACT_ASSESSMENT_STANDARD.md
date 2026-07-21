@@ -1,7 +1,7 @@
 ---
 title: TIS Knowledge Impact Assessment Standard
-documentation_version: 3.0
-last_updated: 2026-06-26
+documentation_version: 3.1
+last_updated: 2026-07-21
 source_of_truth: true
 ---
 
@@ -21,6 +21,8 @@ PDF regenerated: Yes/No
 AI project context updated: Yes/No
 Reason if not updated:
 ```
+
+The same decision must be recorded in `.kms-impact.yml` for machine validation. The repository declaration adds `summary`, `affected_areas`, `kms_files_updated`, `no_impact_reason`, and `major_change_override`.
 
 ## Decision Tree
 
@@ -51,6 +53,7 @@ For knowledge-impacting work:
 - update AI project context if first-read truth changed,
 - regenerate PDF/manifest,
 - report validation.
+- update `.kms-impact.yml` and run `scripts/check_kms_impact.py`.
 
 ## Examples
 
@@ -99,6 +102,8 @@ KIA fails when:
 - ADR-worthy decisions were hidden in code changes,
 - module state changed without module history,
 - AI context became stale after major onboarding truth changed.
+- `.kms-impact.yml` is missing, stale, inconsistent with the Git diff, or uses an unexplained override.
+- generated-artifact validation fails.
 
 ## Developer Responsibilities
 

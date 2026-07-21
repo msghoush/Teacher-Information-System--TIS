@@ -1,7 +1,7 @@
 ---
 title: TIS Documentation Index
-documentation_version: 3.0
-last_updated: 2026-06-26
+documentation_version: 3.1
+last_updated: 2026-07-21
 source_of_truth: true
 ---
 
@@ -10,6 +10,8 @@ source_of_truth: true
 This folder is the source of truth for the TIS Knowledge Management System (KMS).
 
 Markdown files are authoritative. The PDF booklet is a generated snapshot and must never be edited manually.
+
+Repository enforcement begins with root `AGENTS.md` and `.kms-impact.yml`. `scripts/check_kms_impact.py` validates the declaration, changed paths, declared Markdown updates, and generated artifacts. It never rewrites documentation.
 
 ## First Read For AI Coding Conversations
 
@@ -102,6 +104,13 @@ Regenerate the PDF booklet with:
 .\.venv\Scripts\python.exe scripts\generate_docs_pdf.py
 ```
 
+Read-only checks:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py --check
+.\.venv\Scripts\python.exe scripts\check_kms_impact.py
+```
+
 The generator uses existing `reportlab` only. It must not require LaTeX, Playwright, Chromium, network calls, or system fonts.
 
 ## Knowledge Impact Assessment
@@ -120,6 +129,8 @@ Reason if not updated:
 ```
 
 A task is not complete until KIA is assessed. If included source docs change, regenerate the PDF.
+
+Update `.kms-impact.yml` during every task. CI validates it on pull requests and `dev`; deployment from `master` depends on the same KMS gate.
 
 ## Phase Boundary
 

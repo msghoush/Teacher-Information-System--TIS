@@ -1,7 +1,7 @@
 ---
 title: TIS Product Roadmap
-documentation_version: 3.0
-last_updated: 2026-06-26
+documentation_version: 3.1
+last_updated: 2026-07-21
 source_of_truth: true
 ---
 
@@ -43,11 +43,19 @@ Added protected owner-only Knowledge Center for KMS health, source freshness, ma
 
 Added engineering handbook foundation with module map, repository architecture, user/system flows, and onboarding structure.
 
+### M7 Subscription Management
+
+Completed entitlement foundations, customer Subscription Management portal, paid branch quantity management, upgrades and scheduled downgrades, provider-authoritative proration, cancellation/reversal, centralized lifecycle/action policy, Paddle billing history, protected invoice downloads, and webhook/reconciliation safeguards.
+
+### Automatic KMS Enforcement
+
+Added root AI instructions, machine-readable task KIA, major-change detection, read-only PDF/manifest checks, pull-request and `dev` CI validation, and a required KMS gate before `master` deployment.
+
 ## Current
 
-### KMS v3.0 Enhancement
+### KMS Enforcement Review
 
-Current KMS work expands the engineering handbook with database architecture, development standards, UI/UX philosophy, roadmap, and stronger developer/AI guidance.
+Review enforcement against real development tasks, keep classification conservative, and tune only demonstrated false positives without permitting silent no-impact declarations.
 
 ### Landing / Customer Experience Preparation
 
@@ -71,21 +79,13 @@ Improve onboarding language, progress, validation, customer reassurance, and pla
 
 Configure live Paddle behavior when the payment account and production readiness are approved.
 
-### Subscription Lifecycle Management
+### Expand Entitlement Enforcement
 
-Add clearer management for active subscriptions, renewal state, payment failures, and account lifecycle.
+Extend plan entitlement checks beyond the current approved pilot only when commercial rules for each module are reviewed.
 
-### Feature Gating By Plan
+### Subscription Operations Hardening
 
-Introduce plan-based access control for advanced capabilities, future AI features, and subscription tiers.
-
-### Customer Billing Portal
-
-Provide customer-facing billing management if supported by payment architecture and approved product flow.
-
-### Trial / Upgrade / Downgrade / Cancellation Workflows
-
-Define and implement subscription lifecycle actions safely with provider and local billing state alignment.
+Continue production validation, renewal/payment-failure handling, reconciliation observability, and owner support workflows without weakening Paddle authority or tenant isolation.
 
 ## Future
 
@@ -128,7 +128,7 @@ Explore teacher/mobile/parent-style portals only if later approved and aligned w
 ## Roadmap Guardrails
 
 - Do not build AI features before data quality, permissions, and plan boundaries are clear.
-- Do not build subscription lifecycle actions before payment provider behavior is verified.
+- Do not extend subscription lifecycle actions without verified Paddle behavior, fail-closed reconciliation, and updated KMS records.
 - Do not redesign landing/customer journey without preserving the Next.js boundary.
 - Do not expose internal terms to customers.
 - Update KMS docs and roadmap after meaningful roadmap changes.

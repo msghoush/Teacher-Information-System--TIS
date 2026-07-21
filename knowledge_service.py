@@ -45,9 +45,14 @@ def _safe_repo_path(relative_path: str) -> Path | None:
 
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 64), b""):
-            digest.update(chunk)
+    if path.suffix.lower() == ".md":
+        with path.open("r", encoding="utf-8", newline=None) as handle:
+            text = handle.read()
+        digest.update(text.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8"))
+    else:
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 64), b""):
+                digest.update(chunk)
     return digest.hexdigest()
 
 

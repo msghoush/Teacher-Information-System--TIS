@@ -1,7 +1,7 @@
 ---
 title: TIS Documentation Update Policy
-documentation_version: 2.0
-last_updated: 2026-06-26
+documentation_version: 3.1
+last_updated: 2026-07-21
 source_of_truth: true
 ---
 
@@ -33,6 +33,10 @@ Reason if not updated:
 ```
 
 A task is not complete until the KIA is included, even when no documentation changes are needed.
+
+Every task must also update `.kms-impact.yml`. The declaration is the machine-readable form of the KIA and records `knowledge_impact`, a summary, affected areas, KMS files updated, a no-impact reason, and the explicit major-change override. `scripts/check_kms_impact.py` validates it against the actual Git diff.
+
+`knowledge_impact: yes` requires changed authoritative Markdown. `knowledge_impact: no` requires a specific reason. When a path is conservatively classified as major but the change is genuinely non-behavioral, `major_change_override: yes` is allowed only with that written reason.
 
 ## When Documentation Must Be Updated
 
@@ -88,6 +92,19 @@ The generator must remain dependency-light:
 - no Playwright or Chromium,
 - no external network calls,
 - no system font dependency.
+
+Read-only validation:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py --check
+.\.venv\Scripts\python.exe scripts\check_kms_impact.py
+```
+
+The impact checker must never write documentation. GitHub Actions run it for pull requests and `dev`; the production deployment workflow requires it before triggering deployment from `master`.
+
+## Prohibited KMS Content
+
+KMS documentation describes system design only. Never include customer or organization information, personal data, subscription rows, invoices, transactions, real production identifiers, real webhook payloads, credentials, secrets, environment values, database row contents, or test-customer personal details.
 
 ## Reporting Rule
 
