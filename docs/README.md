@@ -79,7 +79,7 @@ Generated files:
 - `static/docs/TIS_Project_Reference_Booklet.pdf`
 - `static/docs/docs_manifest.json`
 
-The PDF is generated from approved Markdown docs. The manifest records the generated timestamp, documentation version, branch, commit SHA, included sources, and source hashes.
+The PDF is generated from approved Markdown docs. It includes a handbook-use page, a page-numbered table of contents, source-document bookmarks, and child bookmarks for major headings. The manifest records the generated timestamp, documentation version, branch, commit SHA, included sources, source hashes, and each source document's starting PDF page.
 
 ## KMS Synchronization
 

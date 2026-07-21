@@ -17,6 +17,7 @@ Current approved automation:
 - It generates `static/docs/TIS_Project_Reference_Booklet.pdf`.
 - It generates `static/docs/docs_manifest.json`.
 - The manifest records documentation version, branch, commit SHA, source paths, mtimes, sizes, and hashes.
+- The manifest records each included source document's starting PDF page.
 - The manifest records the generated PDF hash and size.
 - Markdown source hashes are computed from UTF-8 text normalized to LF, so equivalent CRLF and LF checkouts produce the same hash.
 - Manifest source paths are repository-relative POSIX paths; dynamically discovered sources use a stable case-insensitive sort with an explicit tie-breaker.
@@ -25,6 +26,7 @@ Current approved automation:
 - `scripts/check_kms_impact.py` classifies likely major changes, validates the declaration against the Git diff, and runs generated-artifact freshness checks.
 - `scripts/kms.py sync` runs KIA preflight validation, regenerates the PDF and manifest, runs complete freshness validation, and prints a completion summary.
 - `scripts/kms.py check` is the single read-only validation entry point for local work and CI.
+- The PDF generator uses ReportLab multi-pass layout to produce a stable table of contents, named source destinations, and document/major-heading outlines without external dependencies.
 - GitHub Actions enforce KMS checks on pull requests, `dev` pushes, and before `master` deployment.
 - The Knowledge Center reads the manifest and checks freshness.
 
@@ -140,9 +142,12 @@ The PDF is:
 - a generated snapshot,
 - owner reference material,
 - a reviewable artifact,
+- navigable through a page-numbered table of contents and PDF outlines,
 - not manually edited.
 
 Regenerate after included Markdown docs change.
+
+Every manifest source record must contain a positive `pdf_page`, and pages must increase in fixed source order. Missing or inconsistent page metadata fails freshness validation.
 
 ## AI Context Lifecycle
 

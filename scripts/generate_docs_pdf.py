@@ -23,6 +23,7 @@ from reportlab.platypus import (
     SimpleDocTemplate,
     Spacer,
 )
+from reportlab.platypus.tableofcontents import TableOfContents
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -131,7 +132,7 @@ def _source_hash(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _source_metadata(path: Path) -> dict:
+def _source_metadata(path: Path, *, pdf_page: int) -> dict:
     stat = path.stat()
     source_bytes = _source_bytes(path)
     return {
@@ -139,6 +140,7 @@ def _source_metadata(path: Path) -> dict:
         "modified_at": datetime.fromtimestamp(stat.st_mtime).astimezone().isoformat(),
         "size_bytes": len(source_bytes),
         "sha256": hashlib.sha256(source_bytes).hexdigest(),
+        "pdf_page": pdf_page,
     }
 
 
@@ -197,6 +199,65 @@ def _strip_front_matter(text: str) -> str:
             if lines[index].strip() == "---":
                 return "\n".join(lines[index + 1 :])
     return text
+
+
+def _front_matter_value(path: Path, key: str) -> str:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines or lines[0].strip() != "---":
+        return ""
+    prefix = f"{key}:"
+    for line in lines[1:]:
+        stripped = line.strip()
+        if stripped == "---":
+            break
+        if stripped.lower().startswith(prefix.lower()):
+            return stripped[len(prefix) :].strip().strip('"')
+    return ""
+
+
+def _document_title(path: Path) -> str:
+    front_matter_title = _front_matter_value(path, "title")
+    if front_matter_title:
+        return _clean_text(front_matter_title)
+    text = _strip_front_matter(path.read_text(encoding="utf-8"))
+    for line in text.splitlines():
+        match = re.match(r"^#\s+(.+)$", line.strip())
+        if match:
+            return _clean_text(match.group(1))
+    return path.stem.replace("-", " ").replace("_", " ").title()
+
+
+def _bookmark_key(prefix: str, value: str) -> str:
+    digest = hashlib.sha256(value.encode("utf-8")).hexdigest()[:20]
+    return f"{prefix}-{digest}"
+
+
+class HandbookDocTemplate(SimpleDocTemplate):
+    def __init__(self, *args, source_pages: dict[str, int], **kwargs):
+        super().__init__(*args, **kwargs)
+        self.source_pages = source_pages
+
+    def afterFlowable(self, flowable) -> None:
+        bookmark_key = getattr(flowable, "_kms_bookmark_key", "")
+        bookmark_title = getattr(flowable, "_kms_bookmark_title", "")
+        bookmark_level = getattr(flowable, "_kms_bookmark_level", None)
+        source_path = getattr(flowable, "_kms_source_path", "")
+        if not bookmark_key or not bookmark_title or bookmark_level is None:
+            return
+
+        self.canv.bookmarkPage(bookmark_key)
+        self.canv.addOutlineEntry(
+            _clean_text(bookmark_title),
+            bookmark_key,
+            level=bookmark_level,
+            closed=bookmark_level == 0,
+        )
+        if source_path:
+            self.source_pages[source_path] = self.page
+            self.notify(
+                "TOCEntry",
+                (0, _clean_text(bookmark_title), self.page, bookmark_key),
+            )
 
 
 def _styles():
@@ -284,6 +345,19 @@ def _styles():
             spaceBefore=5,
             spaceAfter=7,
         ),
+        "toc": ParagraphStyle(
+            "TableOfContentsEntry",
+            parent=sample["BodyText"],
+            fontName="Helvetica",
+            fontSize=9.2,
+            leading=13,
+            textColor=colors.HexColor("#1E293B"),
+            leftIndent=8,
+            firstLineIndent=0,
+            rightIndent=24,
+            spaceBefore=2,
+            spaceAfter=2,
+        ),
     }
 
 
@@ -328,13 +402,20 @@ def _add_code_block(story: list, lines: list[str], styles: dict) -> None:
     story.append(Preformatted("\n".join(wrapped_lines), styles["code"]))
 
 
-def _markdown_to_flowables(path: Path, styles: dict) -> list:
+def _markdown_to_flowables(
+    path: Path,
+    styles: dict,
+    *,
+    document_title: str,
+    source_bookmark_key: str,
+) -> list:
     story: list = []
     pending_paragraph: list[str] = []
     pending_list: list[str] = []
     pending_ordered_list: list[str] = []
     code_lines: list[str] = []
     in_code = False
+    major_heading_index = 0
 
     text = _strip_front_matter(path.read_text(encoding="utf-8"))
     for raw_line in text.splitlines():
@@ -369,8 +450,20 @@ def _markdown_to_flowables(path: Path, styles: dict) -> list:
             _add_pending_list(story, pending_list, styles, ordered=False)
             _add_pending_list(story, pending_ordered_list, styles, ordered=True)
             level = len(heading.group(1))
+            heading_title = _clean_text(heading.group(2))
+            if level == 1 and heading_title.casefold() == document_title.casefold():
+                continue
             style_name = "h1" if level == 1 else "h2" if level == 2 else "h3"
-            story.append(Paragraph(_inline_markup(heading.group(2)), styles[style_name]))
+            heading_flowable = Paragraph(_inline_markup(heading.group(2)), styles[style_name])
+            if level == 2:
+                major_heading_index += 1
+                heading_flowable._kms_bookmark_key = _bookmark_key(
+                    "heading",
+                    f"{source_bookmark_key}:{major_heading_index}:{heading_title}",
+                )
+                heading_flowable._kms_bookmark_title = heading_title
+                heading_flowable._kms_bookmark_level = 1
+            story.append(heading_flowable)
             continue
 
         unordered = re.match(r"^[-*]\s+(.+)$", stripped)
@@ -421,6 +514,7 @@ def _write_manifest(
     branch: str,
     commit_sha: str,
     included_docs: list[Path],
+    source_pages: dict[str, int],
 ) -> None:
     manifest = {
         "pdf_path": _relative_source_path(OUTPUT_PATH),
@@ -432,7 +526,13 @@ def _write_manifest(
         "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
         "pdf_sha256": _source_hash(OUTPUT_PATH),
         "pdf_size_bytes": OUTPUT_PATH.stat().st_size,
-        "included_source_files": [_source_metadata(path) for path in included_docs],
+        "included_source_files": [
+            _source_metadata(
+                path,
+                pdf_page=source_pages[_relative_source_path(path)],
+            )
+            for path in included_docs
+        ],
     }
     MANIFEST_PATH.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
@@ -445,11 +545,13 @@ def build_pdf() -> Path:
     generated_at_iso = generated_at_dt.isoformat()
     branch = _run_git(["rev-parse", "--abbrev-ref", "HEAD"])
     commit_sha = _run_git(["rev-parse", "--short", "HEAD"])
+    source_pages: dict[str, int] = {}
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    doc = SimpleDocTemplate(
+    doc = HandbookDocTemplate(
         str(OUTPUT_PATH),
+        source_pages=source_pages,
         pagesize=letter,
         rightMargin=0.72 * inch,
         leftMargin=0.72 * inch,
@@ -469,28 +571,86 @@ def build_pdf() -> Path:
             "Source of truth: Markdown files under docs/ are authoritative. This PDF is a generated snapshot and must not be edited manually.",
             styles["subtitle"],
         ),
-        Spacer(1, 12),
-        Paragraph("Source Documents Included", styles["h2"]),
+        Spacer(1, 20),
+        Paragraph(
+            "Use the table of contents and PDF bookmarks to move directly to each source document. Major document headings are available as child bookmarks.",
+            styles["subtitle"],
+        ),
     ]
 
-    for path in included_docs:
-        relative = _relative_source_path(path)
-        story.append(Paragraph(_inline_markup(f"- {relative}"), styles["body"]))
+    story.append(PageBreak())
+    story.extend(
+        [
+            Paragraph("How to Use This Handbook", styles["h1"]),
+            Paragraph(
+                "Start with the TIS KMS Navigation Guide to choose the smallest useful reading path for your role or task. Use this booklet when a portable, reviewable snapshot is more convenient than browsing the Markdown sources.",
+                styles["body"],
+            ),
+            Paragraph("Navigate", styles["h2"]),
+            Paragraph(
+                "Use the table of contents for document-level page numbers. In PDF viewers that support outlines, open the bookmarks panel to browse every source document and its major headings.",
+                styles["body"],
+            ),
+            Paragraph("Verify", styles["h2"]),
+            Paragraph(
+                "The title page records the documentation version, generated timestamp, branch, and Git commit SHA. The generated manifest records source hashes and each document's starting PDF page.",
+                styles["body"],
+            ),
+            Paragraph("Source Of Truth", styles["h2"]),
+            Paragraph(
+                "Markdown files under docs/ remain authoritative. This PDF is generated and must never be edited manually. When source documents change, run the approved KMS synchronization command to regenerate this snapshot and its manifest.",
+                styles["body"],
+            ),
+        ]
+    )
+
+    story.append(PageBreak())
+    story.append(Paragraph("Table of Contents", styles["h1"]))
+    table_of_contents = TableOfContents()
+    table_of_contents.levelStyles = [styles["toc"]]
+    table_of_contents.dotsMinLevel = 0
+    story.append(table_of_contents)
 
     story.append(PageBreak())
 
     for index, source_path in enumerate(included_docs):
         if index:
             story.append(PageBreak())
-        story.append(Paragraph(_inline_markup(_relative_source_path(source_path)), styles["h1"]))
-        story.extend(_markdown_to_flowables(source_path, styles))
+        relative = _relative_source_path(source_path)
+        document_title = _document_title(source_path)
+        source_bookmark_key = _bookmark_key("source", relative)
+        source_heading = Paragraph(_inline_markup(document_title), styles["h1"])
+        source_heading._kms_bookmark_key = source_bookmark_key
+        source_heading._kms_bookmark_title = document_title
+        source_heading._kms_bookmark_level = 0
+        source_heading._kms_source_path = relative
+        story.append(source_heading)
+        story.append(Paragraph(_inline_markup(relative), styles["subtitle"]))
+        story.extend(
+            _markdown_to_flowables(
+                source_path,
+                styles,
+                document_title=document_title,
+                source_bookmark_key=source_bookmark_key,
+            )
+        )
 
-    doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
+    doc.multiBuild(story, onFirstPage=_footer, onLaterPages=_footer)
+    missing_source_pages = [
+        _relative_source_path(path)
+        for path in included_docs
+        if _relative_source_path(path) not in source_pages
+    ]
+    if missing_source_pages:
+        raise RuntimeError(
+            "PDF navigation did not capture source pages: " + ", ".join(missing_source_pages)
+        )
     _write_manifest(
         generated_at_iso=generated_at_iso,
         branch=branch,
         commit_sha=commit_sha,
         included_docs=included_docs,
+        source_pages=source_pages,
     )
     return OUTPUT_PATH
 
@@ -545,6 +705,7 @@ def check_generated_artifacts() -> list[str]:
         except ValueError:
             continue
         metadata_by_path[normalized_path] = item
+    previous_pdf_page = 0
     for path in included_docs:
         relative = _relative_source_path(path)
         metadata = metadata_by_path.get(relative)
@@ -554,6 +715,13 @@ def check_generated_artifacts() -> list[str]:
         current_hash = _source_hash(path)
         if expected_hash != current_hash:
             errors.append(f"Booklet source is stale: {relative}")
+        pdf_page = metadata.get("pdf_page")
+        if isinstance(pdf_page, bool) or not isinstance(pdf_page, int) or pdf_page < 1:
+            errors.append(f"Manifest source has an invalid pdf_page: {relative}")
+        elif pdf_page <= previous_pdf_page:
+            errors.append(f"Manifest source pages are not strictly increasing: {relative}")
+        else:
+            previous_pdf_page = pdf_page
 
     if OUTPUT_PATH.exists() and OUTPUT_PATH.stat().st_size > 0:
         expected_pdf_hash = str(manifest.get("pdf_sha256") or "")

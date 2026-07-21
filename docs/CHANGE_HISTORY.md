@@ -27,6 +27,37 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-07-21 - Added Phase 7B Professional PDF Navigation
+
+Area/module:
+KMS generated booklet and manifest
+
+Previous state:
+The booklet was a linear concatenation of source documents with page footers and a source-path list. It had no page-numbered table of contents, source destinations, outline hierarchy, or manifest mapping from Markdown sources to PDF pages.
+
+New state:
+The ReportLab generator performs a multi-pass build with a "How to Use This Handbook" page, a real table of contents, stable source-document bookmarks, child bookmarks for H2 major headings, and deterministic named destinations. Every manifest source record includes its starting `pdf_page`, and freshness validation requires positive, strictly increasing page values.
+
+Reason:
+The engineering handbook must be practical to navigate as a long-form reference while Markdown remains authoritative and generation stays dependency-light.
+
+Files changed:
+- ReportLab PDF generator and focused automation tests
+- PDF navigation documentation and engineering-handbook history
+- generated PDF and manifest
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+No; product architecture, current engineering guardrails, and onboarding order are unchanged.
+
+Reviewer/approval notes:
+No Knowledge Center UI, route, database, dependency, application behavior, or source-document ordering change was introduced.
+
 ## 2026-07-21 - Added Phase 7A KMS Navigation Foundation
 
 Area/module:

@@ -113,6 +113,7 @@ Documentation/KMS milestones:
 - Automatic KMS enforcement implemented with repository instructions, machine-readable KIA, major-change detection, read-only artifact checks, CI validation, and a deployment prerequisite.
 - Phase 6 unified KMS command implemented with `scripts/kms.py sync` and `scripts/kms.py check`.
 - Phase 7A navigation foundation implemented with task-based reading paths, improved indexes, and normalized supporting-document titles.
+- Phase 7B professional PDF navigation implemented with handbook guidance, a page-numbered table of contents, source and major-heading bookmarks, and manifest source-page metadata.
 
 M7 subscription-management milestones:
 
