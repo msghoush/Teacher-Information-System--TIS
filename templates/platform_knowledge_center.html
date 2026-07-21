@@ -14,12 +14,14 @@
 .knowledge-muted { color:#64748b; font-size:13px; }
 .knowledge-section { background:#fff; border:1px solid #d8e2f0; border-radius:12px; padding:16px; box-shadow:0 7px 20px rgba(15,23,42,.045); }
 .knowledge-section h2 { margin:0 0 10px; font-size:18px; color:#17233b; }
+.knowledge-section-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:12px; }
+.knowledge-section-head h2 { margin-bottom:3px; }
 .status-pill { display:inline-flex; align-items:center; border-radius:999px; padding:4px 9px; font-size:12px; font-weight:800; background:#e2e8f0; color:#334155; }
 .status-current,.status-healthy { background:#dcfce7; color:#166534; }
 .status-stale,.status-warning,.status-needs-attention { background:#fff7e0; color:#8a5a00; }
 .status-missing,.status-missing_pdf,.status-missing_manifest,.status-critical { background:#fee2e2; color:#991b1b; }
 .knowledge-table-wrap { overflow:auto; border:1px solid #e2e8f0; border-radius:10px; }
-.knowledge-table { width:100%; border-collapse:collapse; min-width:760px; }
+.knowledge-table { width:100%; border-collapse:collapse; min-width:900px; }
 .knowledge-table th,.knowledge-table td { padding:9px 10px; border-bottom:1px solid #e2e8f0; text-align:left; vertical-align:top; font-size:13px; }
 .knowledge-table th { background:#f8fafc; color:#334155; font-size:12px; text-transform:uppercase; letter-spacing:.02em; }
 .knowledge-table tr:last-child td { border-bottom:0; }
@@ -29,10 +31,33 @@
 .coverage-item { display:flex; justify-content:space-between; gap:10px; border:1px solid #e2e8f0; border-radius:9px; padding:9px 10px; }
 .kia-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:8px; margin-top:8px; }
 .kia-item { border:1px solid #e2e8f0; border-radius:9px; padding:9px 10px; background:#f8fafc; font-weight:700; color:#334155; }
+.knowledge-filters { display:grid; grid-template-columns:minmax(240px,2fr) repeat(3,minmax(150px,1fr)) auto; gap:9px; align-items:end; padding:12px; margin-bottom:14px; border:1px solid #d8e2f0; border-radius:10px; background:#f8fafc; }
+.knowledge-filter { display:grid; gap:5px; min-width:0; }
+.knowledge-filter label { color:#475569; font-size:12px; font-weight:800; }
+.knowledge-filter input,.knowledge-filter select { width:100%; min-height:38px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#17233b; font:inherit; padding:7px 9px; }
+.knowledge-filter input:focus,.knowledge-filter select:focus { border-color:#0a4ea3; box-shadow:0 0 0 3px rgba(10,78,163,.12); outline:0; }
+.knowledge-clear { min-height:38px; border:1px solid #cbd5e1; border-radius:8px; background:#fff; color:#334155; cursor:pointer; font-weight:800; padding:7px 11px; }
+.knowledge-clear:hover { border-color:#94a3b8; background:#f1f5f9; }
+.knowledge-result-count { color:#475569; font-size:13px; font-weight:700; }
+.document-groups { display:grid; gap:18px; }
+.document-group { min-width:0; }
+.document-group-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 7px; }
+.document-group-header h3 { margin:0; color:#17233b; font-size:15px; }
+.document-group-count { color:#64748b; font-size:12px; font-weight:700; }
+.document-title { display:inline-block; color:#0a4ea3; font-weight:800; line-height:1.35; text-decoration:none; }
+.document-title:hover { text-decoration:underline; }
+.document-summary { max-width:580px; margin-top:3px; color:#475569; line-height:1.45; }
+.document-path { display:block; max-width:580px; margin-top:5px; color:#64748b; font-size:11px; overflow-wrap:anywhere; }
+.document-link { display:inline-flex; align-items:center; white-space:nowrap; color:#0a4ea3; font-weight:800; text-decoration:none; }
+.document-link:hover { text-decoration:underline; }
+.knowledge-empty { border:1px dashed #cbd5e1; border-radius:9px; padding:18px; color:#64748b; text-align:center; }
+.activity-link { color:#17233b; text-decoration:none; }
+.activity-link:hover { color:#0a4ea3; text-decoration:underline; }
 .button { display:inline-flex; align-items:center; justify-content:center; border:0; border-radius:9px; background:#0a4ea3; color:#fff; cursor:pointer; font-weight:700; padding:8px 11px; text-decoration:none; }
 .button.secondary { background:#475569; }
 .button.disabled { opacity:.55; pointer-events:none; cursor:not-allowed; }
-@media (max-width:700px) { .knowledge-header { flex-direction:column; } .knowledge-actions { width:100%; } .button { width:100%; } }
+@media (max-width:1050px) { .knowledge-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:700px) { .knowledge-header,.knowledge-section-head { align-items:flex-start; flex-direction:column; } .knowledge-actions { width:100%; } .button { width:100%; } .knowledge-filters { grid-template-columns:1fr; } .knowledge-clear { width:100%; } }
 </style>
 {% endblock %}
 
@@ -91,34 +116,110 @@
     </section>
 
     <section class="knowledge-section">
-        <h2>Source Documents Included</h2>
+        <div class="knowledge-section-head">
+            <div>
+                <h2>Knowledge Library</h2>
+                <p class="knowledge-muted">Search the source documents included in the current handbook snapshot.</p>
+            </div>
+            <span class="knowledge-result-count" id="knowledgeResultCount" aria-live="polite">{{ knowledge.source_counts.total }} documents</span>
+        </div>
         {% if knowledge.manifest_error %}
         <p class="knowledge-muted">Manifest status: {{ knowledge.manifest_error|replace('_', ' ')|title }}</p>
         {% endif %}
-        <div class="knowledge-table-wrap">
-            <table class="knowledge-table">
-                <thead>
-                    <tr>
-                        <th>Path</th>
-                        <th>Status</th>
-                        <th>Hash</th>
-                        <th>Modified</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for source in knowledge.sources %}
-                    <tr>
-                        <td><code>{{ source.path }}</code></td>
-                        <td><span class="status-pill status-{{ source.status }}">{{ source.status|title }}</span></td>
-                        <td><code>{{ source.short_hash or "n/a" }}</code></td>
-                        <td>{{ source.current_modified_at or source.manifest_modified_at or "n/a" }}</td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="4">No source document metadata is available.</td></tr>
+
+        <div class="knowledge-filters" role="search" aria-label="Filter KMS documents">
+            <div class="knowledge-filter">
+                <label for="knowledgeSearch">Search documents</label>
+                <input id="knowledgeSearch" type="search" placeholder="Title, summary, module, or path" autocomplete="off">
+            </div>
+            <div class="knowledge-filter">
+                <label for="knowledgeCategory">Category</label>
+                <select id="knowledgeCategory">
+                    <option value="">All categories</option>
+                    {% for option in knowledge.category_options %}
+                    <option value="{{ option.key }}">{{ option.label }}</option>
                     {% endfor %}
-                </tbody>
-            </table>
+                </select>
+            </div>
+            <div class="knowledge-filter">
+                <label for="knowledgeModule">Module</label>
+                <select id="knowledgeModule">
+                    <option value="">All modules</option>
+                    {% for option in knowledge.module_options %}
+                    <option value="{{ option.key }}">{{ option.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="knowledge-filter">
+                <label for="knowledgeFreshness">Freshness</label>
+                <select id="knowledgeFreshness">
+                    <option value="">All statuses</option>
+                    {% for option in knowledge.status_options %}
+                    <option value="{{ option.key }}">{{ option.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button class="knowledge-clear" id="knowledgeClearFilters" type="button">Clear</button>
         </div>
+
+        {% if knowledge.source_groups %}
+        <div class="document-groups" id="knowledgeDocumentGroups">
+            {% for group in knowledge.source_groups %}
+            <section class="document-group" data-document-group>
+                <div class="document-group-header">
+                    <h3>{{ group.label }}</h3>
+                    <span class="document-group-count" data-group-count>{{ group.count }} documents</span>
+                </div>
+                <div class="knowledge-table-wrap">
+                    <table class="knowledge-table">
+                        <thead>
+                            <tr>
+                                <th>Document</th>
+                                <th>Module</th>
+                                <th>Freshness</th>
+                                <th>Modified</th>
+                                <th>Booklet</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for source in group.documents %}
+                            <tr data-document-row
+                                data-search="{{ source.title }} {{ source.summary }} {{ source.module_label }} {{ source.path }}"
+                                data-category="{{ source.category }}"
+                                data-module="{{ source.module }}"
+                                data-status="{{ source.status }}">
+                                <td>
+                                    {% if knowledge.pdf.exists and source.pdf_page %}
+                                    <a class="document-title" href="/platform/knowledge/booklet#page={{ source.pdf_page }}" target="_blank" rel="noopener">{{ source.title }}</a>
+                                    {% else %}
+                                    <strong>{{ source.title }}</strong>
+                                    {% endif %}
+                                    <div class="document-summary">{{ source.summary }}</div>
+                                    <code class="document-path">{{ source.path }}</code>
+                                </td>
+                                <td>{{ source.module_label }}</td>
+                                <td><span class="status-pill status-{{ source.status }}">{{ source.status|title }}</span></td>
+                                <td>{{ source.current_modified_at or source.manifest_modified_at or "n/a" }}</td>
+                                <td>
+                                    {% if knowledge.pdf.exists and source.pdf_page %}
+                                    <a class="document-link" href="/platform/knowledge/booklet#page={{ source.pdf_page }}" target="_blank" rel="noopener" aria-label="Open {{ source.title }} at booklet page {{ source.pdf_page }}">Page {{ source.pdf_page }}</a>
+                                    {% else %}
+                                    <span class="knowledge-muted">Unavailable</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="knowledge-empty">No source document metadata is available.</div>
+        {% endif %}
+        <div class="knowledge-empty" id="knowledgeNoResults" hidden>No documents match the current filters.</div>
+        <noscript><p class="knowledge-muted">Enable JavaScript to search and filter this library.</p></noscript>
     </section>
 
     <section class="knowledge-section">
@@ -128,7 +229,10 @@
                 <h3>Change History</h3>
                 <ul class="knowledge-list">
                     {% for entry in knowledge.change_entries %}
-                    <li><strong>{{ entry.title }}</strong><br><span class="knowledge-muted">{{ entry.path }}</span></li>
+                    <li>
+                        {% if knowledge.pdf.exists and entry.pdf_page %}<a class="activity-link" href="/platform/knowledge/booklet#page={{ entry.pdf_page }}" target="_blank" rel="noopener"><strong>{{ entry.title }}</strong></a>{% else %}<strong>{{ entry.title }}</strong>{% endif %}
+                        <br><span class="knowledge-muted">{{ entry.path }}</span>
+                    </li>
                     {% else %}
                     <li>No change-history entries found.</li>
                     {% endfor %}
@@ -138,7 +242,10 @@
                 <h3>ADRs</h3>
                 <ul class="knowledge-list">
                     {% for adr in knowledge.adrs %}
-                    <li><strong>{{ adr.title }}</strong><br><span class="knowledge-muted">{{ adr.status }}{% if adr.date %} | {{ adr.date }}{% endif %} | {{ adr.path }}</span></li>
+                    <li>
+                        {% if knowledge.pdf.exists and adr.pdf_page %}<a class="activity-link" href="/platform/knowledge/booklet#page={{ adr.pdf_page }}" target="_blank" rel="noopener"><strong>{{ adr.title }}</strong></a>{% else %}<strong>{{ adr.title }}</strong>{% endif %}
+                        <br><span class="knowledge-muted">{{ adr.status }}{% if adr.date %} | {{ adr.date }}{% endif %} | {{ adr.path }}</span>
+                    </li>
                     {% else %}
                     <li>No ADRs found.</li>
                     {% endfor %}
@@ -148,7 +255,10 @@
                 <h3>Module History</h3>
                 <ul class="knowledge-list">
                     {% for area in knowledge.module_history_areas %}
-                    <li><strong>{{ area.title }}</strong><br><span class="knowledge-muted">{{ area.path }}</span></li>
+                    <li>
+                        {% if knowledge.pdf.exists and area.pdf_page %}<a class="activity-link" href="/platform/knowledge/booklet#page={{ area.pdf_page }}" target="_blank" rel="noopener"><strong>{{ area.title }}</strong></a>{% else %}<strong>{{ area.title }}</strong>{% endif %}
+                        <br><span class="knowledge-muted">{{ area.entry_count }} entries{% if area.latest_date %} | Latest {{ area.latest_date }}{% endif %} | {{ area.path }}</span>
+                    </li>
                     {% else %}
                     <li>No module history areas found.</li>
                     {% endfor %}
@@ -167,4 +277,57 @@
         </div>
     </section>
 </section>
+
+<script>
+(() => {
+    const search = document.getElementById("knowledgeSearch");
+    const category = document.getElementById("knowledgeCategory");
+    const module = document.getElementById("knowledgeModule");
+    const freshness = document.getElementById("knowledgeFreshness");
+    const clear = document.getElementById("knowledgeClearFilters");
+    const resultCount = document.getElementById("knowledgeResultCount");
+    const noResults = document.getElementById("knowledgeNoResults");
+    const rows = Array.from(document.querySelectorAll("[data-document-row]"));
+    const groups = Array.from(document.querySelectorAll("[data-document-group]"));
+
+    if (!search || !category || !module || !freshness || !clear) return;
+
+    const normalize = (value) => String(value || "").toLocaleLowerCase().trim();
+    const applyFilters = () => {
+        const query = normalize(search.value);
+        let visibleTotal = 0;
+
+        rows.forEach((row) => {
+            const matches = (!query || normalize(row.dataset.search).includes(query))
+                && (!category.value || row.dataset.category === category.value)
+                && (!module.value || row.dataset.module === module.value)
+                && (!freshness.value || row.dataset.status === freshness.value);
+            row.hidden = !matches;
+            if (matches) visibleTotal += 1;
+        });
+
+        groups.forEach((group) => {
+            const visibleRows = Array.from(group.querySelectorAll("[data-document-row]")).filter((row) => !row.hidden);
+            group.hidden = visibleRows.length === 0;
+            const count = group.querySelector("[data-group-count]");
+            if (count) count.textContent = `${visibleRows.length} ${visibleRows.length === 1 ? "document" : "documents"}`;
+        });
+
+        resultCount.textContent = `${visibleTotal} of ${rows.length} documents`;
+        noResults.hidden = visibleTotal !== 0;
+    };
+
+    [search, category, module, freshness].forEach((control) => {
+        control.addEventListener(control === search ? "input" : "change", applyFilters);
+    });
+    clear.addEventListener("click", () => {
+        search.value = "";
+        category.value = "";
+        module.value = "";
+        freshness.value = "";
+        applyFilters();
+        search.focus();
+    });
+})();
+</script>
 {% endblock %}

@@ -1331,6 +1331,28 @@ class PlatformAccessTests(unittest.TestCase):
         denied = main.platform_console(request=request, db=self.db)
         self.assertEqual(denied.status_code, 403)
 
+    def test_knowledge_center_remains_owner_only_with_protected_page_links(self):
+        owner_response = main.platform_knowledge_center(
+            request=self._request("/platform/knowledge", self.platform_owner),
+            db=self.db,
+        )
+        owner_body = bytes(owner_response.body).decode("utf-8")
+        self.assertEqual(owner_response.status_code, 200)
+        self.assertIn('id="knowledgeSearch"', owner_body)
+        self.assertIn("/platform/knowledge/booklet#page=", owner_body)
+        self.assertNotIn("/static/docs/TIS_Project_Reference_Booklet.pdf", owner_body)
+
+        denied = main.platform_knowledge_center(
+            request=self._request(
+                "/platform/knowledge",
+                self.excellence_user,
+                self.branch_a1,
+                self.year_a,
+            ),
+            db=self.db,
+        )
+        self.assertEqual(denied.status_code, 403)
+
     def test_tenant_create_endpoint_rejects_platform_role_and_global_scope(self):
         request = self._request(
             "/users",

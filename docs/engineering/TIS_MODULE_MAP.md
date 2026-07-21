@@ -1,7 +1,7 @@
 ---
 title: TIS Module Map
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-07-22
 source_of_truth: true
 ---
 
@@ -57,7 +57,7 @@ Risks/guardrails:
 ## Knowledge Center
 
 Purpose:
-Show KMS health, source coverage, PDF freshness, ADRs, module history, change history, and KIA policy to platform owners.
+Show KMS health, source coverage, PDF freshness, searchable document metadata, ADRs, module history, change history, and KIA policy to platform owners.
 
 Main files/folders:
 - `knowledge_service.py`
@@ -67,7 +67,7 @@ Main files/folders:
 - `static/docs/TIS_Project_Reference_Booklet.pdf`
 
 Maturity/status:
-Read-only Phase 2C implementation complete. Repository-level impact and freshness enforcement is active; no app regenerate button exists.
+Read-only Phase 2C implementation complete and Phase 7C navigation enhanced. The manifest-backed library groups documents by knowledge area, filters locally by category/module/freshness, searches titles/summaries/paths, and links to protected booklet pages. Repository-level impact and freshness enforcement is active; no app regenerate button exists.
 
 Related docs/ADRs:
 - `docs/adr/0006-documentation-as-source-knowledge-management-system.md`
@@ -75,6 +75,7 @@ Related docs/ADRs:
 
 Risks/guardrails:
 - Do not link directly to `/static/docs/...` from UI.
+- Treat the generated manifest as the source inventory and `pdf_page` authority; do not create a parallel catalog.
 - Do not let the app rewrite Markdown source docs.
 - Do not add regenerate behavior without approval.
 

@@ -1,7 +1,7 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-07-22
 source_of_truth: true
 ---
 
@@ -9,7 +9,7 @@ source_of_truth: true
 
 ## Last Updated
 
-Last updated: 2026-07-21
+Last updated: 2026-07-22
 
 Update this file after every meaningful milestone, active development change, roadmap shift, known issue change, or documentation/KMS change.
 
@@ -114,6 +114,7 @@ Documentation/KMS milestones:
 - Phase 6 unified KMS command implemented with `scripts/kms.py sync` and `scripts/kms.py check`.
 - Phase 7A navigation foundation implemented with task-based reading paths, improved indexes, and normalized supporting-document titles.
 - Phase 7B professional PDF navigation implemented with handbook guidance, a page-numbered table of contents, source and major-heading bookmarks, and manifest source-page metadata.
+- Phase 7C Platform Knowledge Center navigation implemented with manifest-backed titles and summaries, logical document groups, client-side search and filters, protected booklet page links, and newest-first knowledge activity.
 
 M7 subscription-management milestones:
 
@@ -127,7 +128,7 @@ M7 subscription-management milestones:
 
 ## Current Priority
 
-Current priority: improve KMS navigation and consumption incrementally while preserving strict synchronization and completed M7 subscription context.
+Current priority: review Phase 7C Knowledge Center navigation and continue improving KMS consumption incrementally while preserving strict synchronization and completed M7 subscription context.
 
 Current enforcement scope:
 
@@ -159,6 +160,7 @@ Phase 2C completed scope:
 - Added an owner-only Platform Console card.
 - Added platform knowledge module history.
 - Regenerated the PDF and manifest after documentation updates.
+- Phase 7C adds client-side source search, category/module/freshness filters, logical document groups, document titles and summaries, protected booklet page links, and improved ADR/module-history ordering without adding routes or write behavior.
 
 Still out of scope:
 

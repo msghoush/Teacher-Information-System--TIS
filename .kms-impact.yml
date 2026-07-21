@@ -1,15 +1,17 @@
 knowledge_impact: yes
-summary: Add professional Phase 7B PDF navigation and validated source page metadata.
+summary: Add Phase 7C searchable and grouped Platform Knowledge Center navigation.
 affected_areas:
-  - kms-governance
-  - pdf-navigation
+  - platform-knowledge
+  - knowledge-navigation
   - generated-artifacts
 kms_files_updated:
+  - docs/AI_PROJECT_CONTEXT.md
   - docs/CHANGE_HISTORY.md
-  - docs/KMS_NAVIGATION.md
   - docs/PROJECT_STATE.md
   - docs/README.md
-  - docs/engineering/DOCUMENTATION_AUTOMATION.md
-  - docs/history/engineering-handbook/2026-07-21-kms-phase-7b-pdf-navigation.md
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/engineering/TIS_MODULE_MAP.md
+  - docs/history/platform-knowledge/README.md
+  - docs/history/platform-knowledge/2026-07-22-kms-phase-7c-knowledge-center-navigation.md
 no_impact_reason:
 major_change_override: no

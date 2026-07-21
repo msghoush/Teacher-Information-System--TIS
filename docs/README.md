@@ -1,7 +1,7 @@
 ---
 title: TIS Documentation Index
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-07-22
 source_of_truth: true
 ---
 
@@ -80,6 +80,8 @@ Generated files:
 - `static/docs/docs_manifest.json`
 
 The PDF is generated from approved Markdown docs. It includes a handbook-use page, a page-numbered table of contents, source-document bookmarks, and child bookmarks for major headings. The manifest records the generated timestamp, documentation version, branch, commit SHA, included sources, source hashes, and each source document's starting PDF page.
+
+Platform owners can use the protected Knowledge Center at `/platform/knowledge` to search the manifest-backed library, filter by category, module, or freshness, and open a source at its recorded booklet page. The owner utility remains read-only and never links directly to the static PDF path.
 
 ## KMS Synchronization
 
