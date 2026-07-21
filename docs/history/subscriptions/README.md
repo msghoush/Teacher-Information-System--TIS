@@ -1,10 +1,28 @@
 ---
 title: Subscription History
 module: subscriptions
-last_updated: 2026-07-20
+last_updated: 2026-07-21
 ---
 
 # Subscription History
+
+## 2026-07-20 - M7 Phase 5 Lifecycle Policy, Cancellation, And Reversal
+
+The Subscription Management portal now resolves customer-visible state and allowed actions through `saas.subscription_lifecycle_service`. Upgrade, downgrade, branch increase/reduction, cancellation, and cancellation reversal controls are exposed only when authorization, provider subscription state, pending requests, effective dates, and local relationships permit them.
+
+Authorized billing administrators can schedule cancellation at period end and reverse it before the effective boundary. Current paid access remains active until authoritative provider evidence confirms the end of the paid period. Provider conflicts, unknown outcomes, and local/provider mismatches fail closed to manual review.
+
+## 2026-07-18 - M7 Payment Lifecycle And Reconciliation Protections
+
+Initial checkout and post-activation subscription-change transactions are resolved as distinct payment lifecycles. Webhook processing remains signature-verified and idempotent, validates attributable provider subscription/transaction evidence, and prevents change transactions from replaying initial provisioning transitions.
+
+Diagnostics and the sandbox-guarded finalized-lifecycle reconciliation script expose sanitized evidence and default to dry-run behavior. Reconciliation applies only when stored completed webhook evidence and authoritative Paddle transaction data agree; unexpected or ambiguous state is blocked rather than guessed.
+
+## 2026-07-17 - M7 Phase 4 Plan Upgrades And Scheduled Downgrades
+
+Authorized billing administrators can preview and submit plan transitions from `/saas/subscription`. Paddle supplies monetary previews and proration outcomes. Upgrades use immediate provider proration with payment-failure prevention and do not become local entitlement truth before verified completion. Downgrades are scheduled for the next billing period and preserve the current plan until provider/webhook confirmation at the effective boundary.
+
+Customers can cancel or replace an eligible scheduled plan change before it becomes effective. TIS sends complete retained recurring items and enters manual review on provider/local ambiguity.
 
 ## 2026-07-20 - M7 Phase 6 Billing History and Invoice Management
 

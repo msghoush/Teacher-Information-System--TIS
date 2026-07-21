@@ -1,7 +1,7 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.0
-last_updated: 2026-06-26
+documentation_version: 3.1
+last_updated: 2026-07-21
 source_of_truth: true
 ---
 
@@ -81,6 +81,26 @@ Guardrails:
 - Do not use return-page navigation as proof of payment.
 - Keep Paddle-specific details inside `saas/` payment/client service boundaries.
 
+## Active Subscription Management Flow
+
+1. Authorized billing administrator opens `/saas/subscription`.
+2. TIS resolves one confirmed active subscription, entitlements, lifecycle state, paid/active branch capacity, and allowed actions.
+3. Quantity or plan changes are previewed through Paddle; TIS displays provider-returned totals and never recalculates proration.
+4. Immediate increases/upgrades use provider payment-failure prevention and remain locally pending until authoritative confirmation.
+5. Reductions/downgrades are scheduled for the next billing boundary and retain current local access until verified effective evidence.
+6. Scheduled plan or quantity changes may be canceled or replaced before their effective boundary when provider state agrees.
+7. Cancellation is scheduled at period end; reversal removes the provider-scheduled cancellation after reauthorization and validation.
+8. The centralized lifecycle resolver exposes only actions valid for current provider/local state.
+9. Billing history is read from Paddle transactions. Invoice download reauthorizes the user and requests a fresh provider URL.
+
+Guardrails:
+
+- provider and local ownership must match,
+- active branch usage cannot exceed a requested reduced capacity,
+- webhook processing is idempotent,
+- ambiguous outcomes enter manual review,
+- return pages and local requests are not payment confirmation.
+
 ## Provisioning Flow
 
 Flow:
@@ -150,7 +170,7 @@ Flow:
 1. Developer or Codex reads `docs/AI_PROJECT_CONTEXT.md`.
 2. Developer reads master context, project state, engineering docs, relevant ADRs, and module history.
 3. Approved change is implemented.
-4. Knowledge Impact Assessment is completed.
+4. `.kms-impact.yml` and the human-readable Knowledge Impact Assessment are completed.
 5. Relevant docs are updated:
    - master context,
    - project state,
@@ -162,6 +182,7 @@ Flow:
 6. PDF generator runs.
 7. PDF snapshot and manifest are regenerated.
 8. Knowledge Center checks manifest freshness and health.
+9. CI compares the declaration with changed files and blocks stale pull requests, `dev` integration, or `master` deployment.
 
 Guardrails:
 

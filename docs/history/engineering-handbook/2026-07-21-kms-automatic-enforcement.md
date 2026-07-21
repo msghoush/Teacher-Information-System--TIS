@@ -1,0 +1,35 @@
+---
+title: Automatic KMS Synchronization Enforcement
+module: engineering-handbook
+date: 2026-07-21
+---
+
+# 2026-07-21 - Automatic KMS Synchronization Enforcement
+
+## Previous State
+
+KMS governance was documented but not mechanically enforced. Developers and AI assistants manually decided impact, edited Markdown, and regenerated artifacts. The Knowledge Center could detect stale hashes, but no pull-request or deployment gate consumed that status.
+
+## New State
+
+TIS has a narrow repository enforcement layer:
+
+- `AGENTS.md` makes KMS onboarding and completion rules default for Codex.
+- `.kms-impact.yml` records task-level impact, affected areas, updated KMS files, and controlled no-impact overrides.
+- `scripts/check_kms_impact.py` compares the declaration with a Git range or local worktree, classifies likely major changes, and validates generated artifacts.
+- `scripts/generate_docs_pdf.py --check` verifies source coverage, source hashes, PDF hash/size, version, and manifest consistency without writing.
+- GitHub Actions run enforcement for pull requests and `dev`; production deployment from `master` depends on the same gate.
+
+## Guardrails
+
+Automation does not generate or rewrite Markdown prose. Reviewed Markdown remains authoritative. KMS files must describe engineering design only and must not contain customer, organization, personal, transaction, invoice, production identifier, webhook payload, secret, credential, environment, or database-row data.
+
+## Related Files
+
+- `AGENTS.md`
+- `.kms-impact.yml`
+- `scripts/check_kms_impact.py`
+- `scripts/generate_docs_pdf.py`
+- `.github/workflows/kms-enforcement.yml`
+- `.github/workflows/deploy-on-master.yml`
+- `docs/DOCUMENTATION_UPDATE_POLICY.md`

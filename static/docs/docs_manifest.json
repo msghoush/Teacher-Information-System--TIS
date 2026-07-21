@@ -1,47 +1,49 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-06-30T00:59:45.476693+03:00",
-  "documentation_version": "3.0",
+  "generated_at": "2026-07-21T20:37:14.902260+03:00",
+  "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "16ec42b",
+  "commit_sha": "5b0a5c6",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
+  "pdf_sha256": "d616d5675cb81bd4f53f4cdcdbdc245966b849da69d1b65a6a08d0719cc1d2a3",
+  "pdf_size_bytes": 353307,
   "included_source_files": [
     {
       "path": "docs/README.md",
-      "modified_at": "2026-06-26T13:27:49.428691+03:00",
-      "size_bytes": 5847,
-      "sha256": "9419a4a52d54c3a1437b7945545cbeb991dd45482491d210d87afae2a022230e"
+      "modified_at": "2026-07-21T20:30:10.205745+03:00",
+      "size_bytes": 6381,
+      "sha256": "38a7e08c63f386dd46c02b15e92b9b6a4f22324fae09645afb1bee8542844488"
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-06-30T00:58:50.010702+03:00",
-      "size_bytes": 13450,
-      "sha256": "482ad9be6b32e2e8828ba25d0cfac549e93e56c77d3993ea74c8957a14a72f5e"
+      "modified_at": "2026-07-21T20:31:14.641081+03:00",
+      "size_bytes": 16178,
+      "sha256": "10eceee417241ea0332415377f7e7a82f116ab5a0ed582bdcff2918e5acb3950"
     },
     {
       "path": "docs/DOCUMENTATION_UPDATE_POLICY.md",
-      "modified_at": "2026-06-26T12:01:39.550062+03:00",
-      "size_bytes": 3700,
-      "sha256": "03d7df2c4e085d2ab7fe6b763f7d69a664eabcea3c7a6bc51d4d54a92962fba5"
+      "modified_at": "2026-07-21T20:30:10.198719+03:00",
+      "size_bytes": 4989,
+      "sha256": "fcf4bff1f0b3fe279559e9945b0112a3a55cda2f0e52e51e8a97845e0bd166d4"
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-06-30T00:58:35.951550+03:00",
-      "size_bytes": 24437,
-      "sha256": "d53dc1c097dac9d1746a493f86ecf2edd9eaf1a1c19adf903fc5b299e224f24d"
+      "modified_at": "2026-07-21T20:31:40.225300+03:00",
+      "size_bytes": 27811,
+      "sha256": "d5617da20ed0c48d87ba43ac6f4d1cb5fae07f2fe2ddaf3a915dae028038ab08"
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-06-30T00:58:42.174811+03:00",
-      "size_bytes": 12442,
-      "sha256": "68009b8aae7bb4cfa223bc69da5ad8750bf7a4579fa2383e0898ea1575aec755"
+      "modified_at": "2026-07-21T20:37:06.331620+03:00",
+      "size_bytes": 13978,
+      "sha256": "26fdaa4ed92916d64443ae1c24241bee820d90b4bc46b4af076c256f7899d11e"
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-06-30T00:58:28.525056+03:00",
-      "size_bytes": 26659,
-      "sha256": "e276168f3db235bc7f4e86d5691e3df504688badc292ce4e96c423923ecc1413"
+      "modified_at": "2026-07-21T20:32:28.886669+03:00",
+      "size_bytes": 29839,
+      "sha256": "5dcd009224c24656a250a91f7a4122c5e4581fe10015e68b6c895713f9dbe4d6"
     },
     {
       "path": "docs/adr/README.md",
@@ -57,27 +59,27 @@
     },
     {
       "path": "docs/engineering/TIS_MODULE_MAP.md",
-      "modified_at": "2026-06-26T12:46:55.046791+03:00",
-      "size_bytes": 13699,
-      "sha256": "a6c63682c90614a3b85b96021a245fc7dbfb4da12b569fd7c9b59ce1ba6a1d32"
+      "modified_at": "2026-07-21T20:33:20.091485+03:00",
+      "size_bytes": 14742,
+      "sha256": "ed7dbb61cb7bc1bac3fb1d74e657c3c8a4ad456c6ff2653cce5041d61e429732"
     },
     {
       "path": "docs/engineering/REPOSITORY_ARCHITECTURE.md",
-      "modified_at": "2026-06-26T12:46:55.049809+03:00",
-      "size_bytes": 5728,
-      "sha256": "8ab07b2ddf0ad1d25478a908db457342aecae8727992c9f67a88ac6c035ddbc6"
+      "modified_at": "2026-07-21T20:32:57.389658+03:00",
+      "size_bytes": 7160,
+      "sha256": "f8f6a1b692e288ad798aee13cb183c7bb62d4c3e6c57f57c1faa7038229aa86c"
     },
     {
       "path": "docs/engineering/USER_AND_SYSTEM_FLOWS.md",
-      "modified_at": "2026-06-26T12:46:55.052429+03:00",
-      "size_bytes": 6191,
-      "sha256": "7de0507141c0aa42e06990beee901fb9b158aed361fc6870f366653cd179b2fc"
+      "modified_at": "2026-07-21T20:32:57.393135+03:00",
+      "size_bytes": 7746,
+      "sha256": "9acc2dcc4f5b3080dd48fd073a80a320c229fb5db2252a3f6bc574e441b28524"
     },
     {
       "path": "docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md",
-      "modified_at": "2026-06-26T13:05:13.055075+03:00",
-      "size_bytes": 9512,
-      "sha256": "25627461432da2353d4183c5439cd421b964d9a4b2d3b207bef73e93f49fa791"
+      "modified_at": "2026-07-21T20:32:57.391690+03:00",
+      "size_bytes": 10954,
+      "sha256": "26e9a48426513c988ee7e257cbd35f7c0fb7140e01791341ffad49818d42a568"
     },
     {
       "path": "docs/engineering/DEVELOPMENT_STANDARDS.md",
@@ -93,9 +95,9 @@
     },
     {
       "path": "docs/engineering/PRODUCT_ROADMAP.md",
-      "modified_at": "2026-06-26T13:05:13.058494+03:00",
-      "size_bytes": 4831,
-      "sha256": "5a76599e6be5846d2be755fd59002d7f92e54873dc2554105040c58fb9918cc4"
+      "modified_at": "2026-07-21T20:34:02.642468+03:00",
+      "size_bytes": 5278,
+      "sha256": "7dc22d12d201e99d52ab6c7e74540d5ced02927a905a62aec01082f2c46d6763"
     },
     {
       "path": "docs/engineering/REJECTED_DECISIONS.md",
@@ -129,21 +131,21 @@
     },
     {
       "path": "docs/engineering/DOCUMENTATION_AUTOMATION.md",
-      "modified_at": "2026-06-26T13:27:04.289001+03:00",
-      "size_bytes": 3692,
-      "sha256": "6e1d8c353dca0856c118266fb645c95bbff7c58c83e7a0864dcc3b086f1f7a59"
+      "modified_at": "2026-07-21T20:36:16.575900+03:00",
+      "size_bytes": 5585,
+      "sha256": "d67f60af6125a5aaac3666a1df6d48a40297a3657e721e77ab4da297b5d2e4c4"
     },
     {
       "path": "docs/engineering/KNOWLEDGE_IMPACT_ASSESSMENT_STANDARD.md",
-      "modified_at": "2026-06-26T13:27:04.290477+03:00",
-      "size_bytes": 3097,
-      "sha256": "2a2d1826f482c0d657b311a9c7a0ab5399325385b7e5bed9fb33873957052715"
+      "modified_at": "2026-07-21T20:30:10.204438+03:00",
+      "size_bytes": 3518,
+      "sha256": "4ec242c550f53c046305c4c221f5a713347502b11b3a38190eaa22371f7d307f"
     },
     {
       "path": "docs/engineering/SELF_EVOLVING_WORKFLOW.md",
-      "modified_at": "2026-06-26T13:27:04.291570+03:00",
-      "size_bytes": 2227,
-      "sha256": "a2cf3f817d3ef8a6bc67d2d78ae7d276207db9266709d66fc290b8550e95b79e"
+      "modified_at": "2026-07-21T20:30:10.200789+03:00",
+      "size_bytes": 2705,
+      "sha256": "969226803a78a13ce3b4cd48cd3abf7e025c5967bcf68d006f2feb000ea763f1"
     },
     {
       "path": "docs/engineering/DOCUMENTATION_DEPENDENCY_MAP.md",
@@ -153,9 +155,9 @@
     },
     {
       "path": "docs/engineering/AI_CODING_WORKFLOW.md",
-      "modified_at": "2026-06-26T13:27:04.294979+03:00",
-      "size_bytes": 2530,
-      "sha256": "12595c5f044b19ff608a5e488272aad54bd0bd654654ea3965c689201d8fa93a"
+      "modified_at": "2026-07-21T20:30:10.202923+03:00",
+      "size_bytes": 2897,
+      "sha256": "948f80a60ae0404719f69feb3376888bc26f771cd21a4cee014b74e27722bd04"
     },
     {
       "path": "docs/engineering/FUTURE_AUTOMATION_ROADMAP.md",
@@ -177,15 +179,15 @@
     },
     {
       "path": "docs/adr/0003-paddle-payment-architecture.md",
-      "modified_at": "2026-06-26T12:01:39.558915+03:00",
-      "size_bytes": 1220,
-      "sha256": "4cf68281361b1c8a1b1e72fc8baff4d7598552d97ef11d3b8b752c966bfe2ef7"
+      "modified_at": "2026-07-21T20:33:55.256330+03:00",
+      "size_bytes": 3283,
+      "sha256": "db2577bedf156e7953e492e4e4874b9d565dc3e58ca9ce4123beb44e93063795"
     },
     {
       "path": "docs/adr/0004-webhook-only-payment-confirmation.md",
-      "modified_at": "2026-06-26T12:01:39.567891+03:00",
-      "size_bytes": 1301,
-      "sha256": "34b7eb41b6b47f9b1c03645c2038afc351cd97c2c7f196d2e29e5728daa20e37"
+      "modified_at": "2026-07-21T20:33:55.257330+03:00",
+      "size_bytes": 2305,
+      "sha256": "835d2cd6580f9204651c3bb41ddf1e8c8b07df21c368bf22871ebc1a31285013"
     },
     {
       "path": "docs/adr/0005-delayed-tenant-provisioning-after-verified-payment.md",
@@ -242,6 +244,12 @@
       "sha256": "b71464ac5dcf855f8a1d325e6fdda0e32dbc6a1ba2bab6ae14529d8b4ba5010a"
     },
     {
+      "path": "docs/history/engineering-handbook/2026-07-21-kms-automatic-enforcement.md",
+      "modified_at": "2026-07-21T20:33:55.259631+03:00",
+      "size_bytes": 1714,
+      "sha256": "c137e9a8c4111c5e376fba37ed24ffe71b5248fc4a01aa461eae611fce7fdbc8"
+    },
+    {
       "path": "docs/history/engineering-handbook/README.md",
       "modified_at": "2026-06-26T12:47:56.229446+03:00",
       "size_bytes": 514,
@@ -285,15 +293,15 @@
     },
     {
       "path": "docs/history/saas-onboarding/README.md",
-      "modified_at": "2026-06-27T17:50:04.319653+03:00",
-      "size_bytes": 7755,
-      "sha256": "3f2eda30e282dfb438409e07868735777957814d42f5dd475302cb26d8c5f6a7"
+      "modified_at": "2026-07-16T20:48:51.097164+03:00",
+      "size_bytes": 13076,
+      "sha256": "770eb5daa4435d33153e95d39c930ccf369b3154c85a30c9b6fd4f936d5e868e"
     },
     {
       "path": "docs/history/subscriptions/README.md",
-      "modified_at": "2026-06-30T00:58:14.523190+03:00",
-      "size_bytes": 1519,
-      "sha256": "f450b916e9967c70ca03dbc160aca1abe23ffca455f0d47051db86b9cdeec6e0"
+      "modified_at": "2026-07-21T20:33:55.259631+03:00",
+      "size_bytes": 6976,
+      "sha256": "55ec6d587fd538ec1c5a0c579228e0f0a0f03307afaa6ae626914bacf729f2ad"
     },
     {
       "path": "docs/history/workforce-planning/README.md",

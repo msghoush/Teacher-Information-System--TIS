@@ -1,7 +1,7 @@
 ---
 title: TIS Project State
-documentation_version: 3.0
-last_updated: 2026-06-30
+documentation_version: 3.1
+last_updated: 2026-07-21
 source_of_truth: true
 ---
 
@@ -9,7 +9,7 @@ source_of_truth: true
 
 ## Last Updated
 
-Last updated: 2026-06-30
+Last updated: 2026-07-21
 
 Update this file after every meaningful milestone, active development change, roadmap shift, known issue change, or documentation/KMS change.
 
@@ -110,10 +110,31 @@ Documentation/KMS milestones:
 - KMS v3.0 Phase 3B approved for implementation.
 - KMS v3.0 Phase 3C approved for implementation.
 - KMS v3.0 Phase 3D final phase approved for implementation.
+- Automatic KMS enforcement implemented with repository instructions, machine-readable KIA, major-change detection, read-only artifact checks, CI validation, and a deployment prerequisite.
+
+M7 subscription-management milestones:
+
+- Phase 1 entitlement foundation completed.
+- Phase 2 customer Subscription Management portal completed.
+- Phase 3 active paid branch-quantity management completed.
+- Phase 4 upgrades and scheduled downgrades completed with provider-authoritative previews/proration.
+- Phase 5 cancellation/reversal and centralized lifecycle/action policy completed.
+- Phase 6 provider billing history and protected invoice management completed.
+- Webhook and reconciliation safeguards were added across the M7 lifecycle.
 
 ## Current Priority
 
-Current priority: upgrade the generated reference booklet into a true TIS Engineering Handbook.
+Current priority: enforce automatic KMS synchronization and keep the engineering handbook aligned with completed M7 subscription behavior.
+
+Current enforcement scope:
+
+- Codex reads root `AGENTS.md` and authoritative KMS context.
+- Every task updates `.kms-impact.yml`.
+- Major-change paths are conservatively classified by `scripts/check_kms_impact.py`.
+- Generated artifacts are validated through `scripts/generate_docs_pdf.py --check`.
+- Pull requests and `dev` pushes run KMS enforcement.
+- `master` deployment waits for the KMS gate.
+- Automation validates and blocks; it does not rewrite Markdown.
 
 Phase 2A and Phase 2B scope:
 
@@ -189,20 +210,21 @@ KMS v3.0 Phase 3D final scope:
 Known issues and watch points:
 
 - KMS policy depends on future developers and AI agents consistently completing the Knowledge Impact Assessment.
-- Generated PDF can become stale if included Markdown docs change without regeneration.
+- Generated PDF can become stale during local work, but CI now blocks stale artifacts from integration/deployment.
 - The owner-only Knowledge Center is implemented as read-only; there is no regenerate button yet.
 - Public static storage is not sufficient access control for sensitive docs; Phase 2C should serve docs through protected owner-only routes.
 - Render deployment constraints should continue to guide dependency choices.
 - Production memory must be treated as a hard constraint. The 2026-06-27 Render restart/502 investigation found two avoidable memory risks: observation diagnostics doing extra production template renders and global location lookup parsing a 47 MB dataset into a complete in-memory index for simple picker requests. Local stabilization changes now gate observation diagnostics and use scoped location loading; future work must follow the Production Memory and Render Stability standards.
 - Broad filesystem scans may warn about `tis_scope_test_5i3yf0h5/` access denial.
 - Google/Microsoft login is still future work; password-based accounts must remain email-verified before school workspace setup.
+- GitHub repository settings must mark `KMS Enforcement / kms-check` as required on protected branches; this cannot be configured by repository file changes alone.
 
 ## Next Planned Work
 
-Next planned work after Phase 2C review:
+Next planned work:
 
-- Review final KMS v1.0 readiness, handbook completeness, AI readiness, PDF readability, and manifest inclusion.
-- Approve corrections if needed.
+- Review the KMS enforcement rules against real pull requests and tune only demonstrated false positives.
+- Keep M7 documentation current as subscription fixes evolve.
 - Later consider an explicit owner-only regenerate workflow.
 - Review, commit, and deploy the production memory stabilization changes when approved, then monitor Render memory, restart count, and route-level 502s after deployment.
 
@@ -244,9 +266,14 @@ AI project context updated: Yes/No
 Reason if not updated:
 ```
 
-A task is not complete until KIA is assessed. If included docs change, regenerate:
+A task is not complete until KIA is assessed and `.kms-impact.yml` matches the actual task diff. If included docs change, regenerate:
 
 - `static/docs/TIS_Project_Reference_Booklet.pdf`
+
+Then run:
+
+- `.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py --check`
+- `.\.venv\Scripts\python.exe scripts\check_kms_impact.py`
 
 ## Scope Guardrails
 
@@ -254,10 +281,7 @@ A task is not complete until KIA is assessed. If included docs change, regenerat
 - Do not touch operational logic unless required by the approved task.
 - Do not touch database migrations or `tis.db` unless explicitly approved.
 - Do not change the landing page unless explicitly approved.
-- Do not add Platform Owner Knowledge Center routes until reviewed and approved.
 - Do not add a KMS regenerate button until separately approved.
-- Do not implement Phase 3B until reviewed and approved.
-- Do not implement Phase 3C until reviewed and approved.
-- Do not implement Phase 3D until reviewed and approved.
-- Do not begin further KMS work until reviewed and approved.
+- Do not let automation rewrite authoritative Markdown.
+- Do not place customer, personal, production, billing-record, transaction, invoice, webhook payload, credential, secret, environment, or database-row data in KMS docs.
 - Do not commit or push unless explicitly requested.

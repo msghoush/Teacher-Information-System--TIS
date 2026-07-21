@@ -1,7 +1,7 @@
 ---
 title: TIS Database Architecture Overview
-documentation_version: 3.0
-last_updated: 2026-06-26
+documentation_version: 3.1
+last_updated: 2026-07-21
 source_of_truth: true
 ---
 
@@ -93,8 +93,28 @@ Related files:
 - `saas/payment_service.py`
 - `saas/billing_service.py`
 - `saas/paddle_client.py`
+- `saas/entitlement_service.py`
+- `saas/subscription_change_service.py`
+- `saas/subscription_plan_change_service.py`
+- `saas/subscription_cancellation_service.py`
+- `saas/subscription_lifecycle_service.py`
+- `saas/billing_history_service.py`
 - `docs/adr/0003-paddle-payment-architecture.md`
 - `docs/adr/0004-webhook-only-payment-confirmation.md`
+
+### Entitlement And Subscription-Change Records
+
+`EntitlementDefinition` defines commercial capability keys and value types. `PlanEntitlement` associates reviewed values with subscription plans. Runtime entitlement resolution starts from the provisioned school group, paid operational contract, and one confirmed active `PaymentSubscription`; it does not trust onboarding selections, page values, or pending checkout attempts.
+
+`SubscriptionChangeRequest` is durable workflow/audit state for branch quantity, plan transition, and cancellation actions. It records requested/provider-observed state and lifecycle outcomes, but Paddle remains authoritative for monetary previews, proration, scheduled changes, transactions, and invoice documents.
+
+Guardrails:
+
+- `PaymentSubscription.quantity` is paid branch-capacity authority.
+- unresolved ownership, duplicate active relationships, provider mismatches, or incomplete evidence fail closed.
+- scheduled changes do not update effective local entitlements before verified provider/webhook evidence.
+- billing history is retrieved from Paddle and is not copied into a new local financial ledger.
+- invoice URLs are requested fresh and are not persisted.
 
 ## Provisioning Jobs
 

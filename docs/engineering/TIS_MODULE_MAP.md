@@ -1,7 +1,7 @@
 ---
 title: TIS Module Map
-documentation_version: 3.0
-last_updated: 2026-06-26
+documentation_version: 3.1
+last_updated: 2026-07-21
 source_of_truth: true
 ---
 
@@ -67,7 +67,7 @@ Main files/folders:
 - `static/docs/TIS_Project_Reference_Booklet.pdf`
 
 Maturity/status:
-Read-only Phase 2C implementation complete. No regenerate button.
+Read-only Phase 2C implementation complete. Repository-level impact and freshness enforcement is active; no app regenerate button exists.
 
 Related docs/ADRs:
 - `docs/adr/0006-documentation-as-source-knowledge-management-system.md`
@@ -151,11 +151,18 @@ Define SaaS plan catalog and pricing behavior.
 Main files/folders:
 - `saas/pricing_service.py`
 - `saas/router.py`
+- `saas/entitlement_service.py`
+- `saas/subscription_portal_service.py`
+- `saas/subscription_change_service.py`
+- `saas/subscription_plan_change_service.py`
+- `saas/subscription_cancellation_service.py`
+- `saas/subscription_lifecycle_service.py`
 - `templates/saas/plan_catalog.html`
 - `templates/saas/plan_selection.html`
+- `templates/saas/subscription.html`
 
 Maturity/status:
-Implemented foundation.
+M7 implemented: entitlement catalog, customer portal, quantity and plan management, scheduled changes, cancellation/reversal, and centralized lifecycle/action policy.
 
 Related docs/ADRs:
 - `docs/history/subscriptions/`
@@ -176,9 +183,11 @@ Main files/folders:
 - `saas/billing_service.py`
 - `saas/currency_service.py`
 - `saas/router.py`
+- `saas/billing_history_service.py`
+- `saas/payment_lifecycle_reconciliation_service.py`
 
 Maturity/status:
-Implemented foundation.
+Implemented through M7, including provider-authoritative previews/proration, billing history, invoice access, webhook idempotency, fail-closed reconciliation, diagnostics, and guarded repair tooling.
 
 Related docs/ADRs:
 - `docs/adr/0003-paddle-payment-architecture.md`
@@ -188,6 +197,9 @@ Related docs/ADRs:
 Risks/guardrails:
 - Webhook-confirmed payment state is authoritative.
 - Checkout return alone must not trigger verified payment/provisioning.
+- TIS must not calculate replacement financial outcomes when Paddle preview/transaction data is authoritative.
+- Scheduled provider changes must not become local entitlement truth before verified effective evidence.
+- Invoice URLs must be freshly resolved and must not be stored.
 
 ## Provisioning
 

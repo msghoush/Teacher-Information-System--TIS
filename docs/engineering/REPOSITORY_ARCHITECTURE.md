@@ -1,7 +1,7 @@
 ---
 title: TIS Repository Architecture
-documentation_version: 3.0
-last_updated: 2026-06-26
+documentation_version: 3.1
+last_updated: 2026-07-21
 source_of_truth: true
 ---
 
@@ -141,6 +141,14 @@ Key files:
 - `saas/provisioning_service.py`
 - `saas/currency_service.py`
 - `saas/oauth.py`
+- `saas/entitlement_service.py`
+- `saas/subscription_portal_service.py`
+- `saas/subscription_change_service.py`
+- `saas/subscription_plan_change_service.py`
+- `saas/subscription_cancellation_service.py`
+- `saas/subscription_lifecycle_service.py`
+- `saas/billing_history_service.py`
+- `saas/payment_lifecycle_reconciliation_service.py`
 
 Do not change casually:
 - identity separation,
@@ -195,12 +203,39 @@ Do not change casually:
 ## Scripts: `scripts/`
 
 Responsibility:
-Maintenance scripts such as `scripts/generate_docs_pdf.py`.
+Maintenance, diagnostics, and governance scripts. Important examples:
+
+- `scripts/generate_docs_pdf.py`: generate or read-only validate KMS PDF/manifest artifacts.
+- `scripts/check_kms_impact.py`: compare KIA declarations, Git changes, major-path classification, and artifact freshness.
+- `scripts/sync_paddle_price_ids.py`: environment-specific initial checkout price mapping.
+- `scripts/diagnose_paddle_plan_preview.py` and `scripts/diagnose_payment_lifecycle.py`: safe subscription/payment diagnostics.
+- `scripts/reconcile_finalized_payment_lifecycle.py`: guarded sandbox reconciliation from attributable provider evidence.
 
 Do not change casually:
 - PDF generator dependency assumptions,
 - source list behavior,
 - manifest metadata.
+
+## Repository Governance
+
+Responsibility:
+Make KMS impact visible and enforceable without rewriting documentation.
+
+Key files:
+
+- `AGENTS.md`
+- `.kms-impact.yml`
+- `.github/pull_request_template.md`
+- `.github/workflows/kms-enforcement.yml`
+- `.github/workflows/deploy-on-master.yml`
+
+Do not change casually:
+
+- major-path classification,
+- explicit no-impact override requirements,
+- authoritative Markdown/path rules,
+- deployment dependency on KMS validation,
+- prohibition on customer/runtime/secrets data in documentation.
 
 ## Next.js Landing Website: `tis-landing-website/`
 

@@ -1,7 +1,7 @@
 ---
 title: TIS Self-Evolving Workflow
-documentation_version: 3.0
-last_updated: 2026-06-26
+documentation_version: 3.1
+last_updated: 2026-07-21
 source_of_truth: true
 ---
 
@@ -16,11 +16,13 @@ Task
   -> Implementation
   -> Validation
   -> Knowledge Impact Assessment
+  -> Update .kms-impact.yml
   -> Documentation Updates
   -> ADR if required
   -> Module History if required
   -> Regenerate PDF
   -> Regenerate Manifest
+  -> KMS Enforcement Check
   -> Review
   -> Commit
   -> Push
@@ -67,6 +69,8 @@ Complete KIA before final report.
 
 Do not treat documentation as optional when knowledge changed.
 
+Record the same assessment in `.kms-impact.yml`. The declaration must change with the task and match the actual Git diff.
+
 ## Documentation Updates
 
 Update relevant docs:
@@ -95,6 +99,13 @@ If included Markdown docs changed:
 .\.venv\Scripts\python.exe scripts\generate_docs_pdf.py
 ```
 
+Then run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py --check
+.\.venv\Scripts\python.exe scripts\check_kms_impact.py
+```
+
 ## Review
 
 Reviewers check:
@@ -105,6 +116,8 @@ Reviewers check:
 - KMS updates,
 - generated artifacts,
 - KIA.
+
+CI repeats these checks and blocks pull-request completion, `dev` integration, or `master` deployment when declaration or freshness validation fails.
 
 ## Commit / Push / Deployment
 

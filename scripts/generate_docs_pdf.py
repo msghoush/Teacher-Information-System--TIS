@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import re
@@ -25,7 +26,7 @@ from reportlab.platypus import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DOCUMENTATION_VERSION = "3.0"
+DOCUMENTATION_VERSION = "3.1"
 OUTPUT_PATH = ROOT / "static" / "docs" / "TIS_Project_Reference_Booklet.pdf"
 MANIFEST_PATH = ROOT / "static" / "docs" / "docs_manifest.json"
 
@@ -376,6 +377,8 @@ def _write_manifest(
         "branch": branch,
         "commit_sha": commit_sha,
         "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
+        "pdf_sha256": _source_hash(OUTPUT_PATH),
+        "pdf_size_bytes": OUTPUT_PATH.stat().st_size,
         "included_source_files": [_source_metadata(path) for path in included_docs],
     }
     MANIFEST_PATH.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
@@ -439,7 +442,104 @@ def build_pdf() -> Path:
     return OUTPUT_PATH
 
 
-if __name__ == "__main__":
+def check_generated_artifacts() -> list[str]:
+    errors: list[str] = []
+    included_docs = [path for path in SOURCE_DOCS if path.exists()]
+    missing_sources = [path for path in SOURCE_DOCS if not path.exists()]
+    for path in missing_sources:
+        errors.append(f"Required PDF source is missing: {path.relative_to(ROOT).as_posix()}")
+
+    all_markdown = set((ROOT / "docs").glob("**/*.md"))
+    unlisted_markdown = sorted(all_markdown - set(included_docs))
+    for path in unlisted_markdown:
+        errors.append(
+            "Authoritative Markdown is not included in the booklet source list: "
+            f"{path.relative_to(ROOT).as_posix()}"
+        )
+
+    if not OUTPUT_PATH.exists() or OUTPUT_PATH.stat().st_size <= 0:
+        errors.append(f"Generated PDF is missing or empty: {OUTPUT_PATH.relative_to(ROOT).as_posix()}")
+    if not MANIFEST_PATH.exists():
+        errors.append(f"Generated manifest is missing: {MANIFEST_PATH.relative_to(ROOT).as_posix()}")
+        return errors
+
+    try:
+        manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f"Generated manifest is unreadable: {exc}")
+        return errors
+
+    if manifest.get("documentation_version") != DOCUMENTATION_VERSION:
+        errors.append(
+            "Manifest documentation version does not match the generator: "
+            f"expected {DOCUMENTATION_VERSION!r}, found {manifest.get('documentation_version')!r}."
+        )
+
+    expected_paths = [path.relative_to(ROOT).as_posix() for path in included_docs]
+    manifest_sources = manifest.get("included_source_files")
+    if not isinstance(manifest_sources, list):
+        errors.append("Manifest included_source_files must be a list.")
+        manifest_sources = []
+    manifest_paths = [str(item.get("path") or "") for item in manifest_sources if isinstance(item, dict)]
+    if manifest_paths != expected_paths:
+        errors.append(
+            "Manifest source list does not match the generator source list. "
+            "Regenerate the PDF and manifest."
+        )
+
+    metadata_by_path = {
+        str(item.get("path") or ""): item
+        for item in manifest_sources
+        if isinstance(item, dict)
+    }
+    for path in included_docs:
+        relative = path.relative_to(ROOT).as_posix()
+        metadata = metadata_by_path.get(relative)
+        if metadata is None:
+            continue
+        expected_hash = str(metadata.get("sha256") or "")
+        current_hash = _source_hash(path)
+        if expected_hash != current_hash:
+            errors.append(f"Booklet source is stale: {relative}")
+
+    if OUTPUT_PATH.exists() and OUTPUT_PATH.stat().st_size > 0:
+        expected_pdf_hash = str(manifest.get("pdf_sha256") or "")
+        expected_pdf_size = manifest.get("pdf_size_bytes")
+        if not expected_pdf_hash:
+            errors.append("Manifest does not contain pdf_sha256. Regenerate generated artifacts.")
+        elif expected_pdf_hash != _source_hash(OUTPUT_PATH):
+            errors.append("Generated PDF hash does not match the manifest.")
+        if expected_pdf_size != OUTPUT_PATH.stat().st_size:
+            errors.append("Generated PDF size does not match the manifest.")
+
+    return errors
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Generate or validate the TIS KMS PDF snapshot.")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Validate the PDF, manifest, source coverage, and source hashes without writing files.",
+    )
+    args = parser.parse_args()
+
+    if args.check:
+        errors = check_generated_artifacts()
+        if errors:
+            print("KMS generated artifacts are not current:")
+            for error in errors:
+                print(f"- {error}")
+            print("Run: python scripts/generate_docs_pdf.py")
+            return 1
+        print("KMS generated artifacts are current.")
+        return 0
+
     output = build_pdf()
     print(f"Generated {output.relative_to(ROOT).as_posix()}")
     print(f"Generated {MANIFEST_PATH.relative_to(ROOT).as_posix()}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

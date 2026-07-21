@@ -1,7 +1,7 @@
 ---
 title: TIS Documentation Automation
-documentation_version: 3.0
-last_updated: 2026-06-26
+documentation_version: 3.1
+last_updated: 2026-07-21
 source_of_truth: true
 ---
 
@@ -17,7 +17,14 @@ Current approved automation:
 - It generates `static/docs/TIS_Project_Reference_Booklet.pdf`.
 - It generates `static/docs/docs_manifest.json`.
 - The manifest records documentation version, branch, commit SHA, source paths, mtimes, sizes, and hashes.
+- The manifest records the generated PDF hash and size.
+- `scripts/generate_docs_pdf.py --check` validates source coverage, source hashes, PDF identity, manifest metadata, and documentation version without writing files.
+- `.kms-impact.yml` records task-level Knowledge Impact in a small machine-readable schema.
+- `scripts/check_kms_impact.py` classifies likely major changes, validates the declaration against the Git diff, and runs generated-artifact freshness checks.
+- GitHub Actions enforce KMS checks on pull requests, `dev` pushes, and before `master` deployment.
 - The Knowledge Center reads the manifest and checks freshness.
+
+Repository owners must configure the `KMS Enforcement / kms-check` status as a required branch-protection check for protected integration branches. Workflow code makes production deployment depend on KMS validation directly; GitHub branch protection is the external setting that makes failed pull requests unmergeable.
 
 Current automation does not:
 
@@ -25,7 +32,33 @@ Current automation does not:
 - create ADRs,
 - create module history entries,
 - decide KIA outcomes,
+- generate documentation prose,
 - commit or push changes.
+
+Automation blocks stale or undeclared work; humans and approved AI assistants remain responsible for reviewed Markdown updates.
+
+## Machine-Readable KIA Declaration
+
+Every task updates `.kms-impact.yml`:
+
+```yaml
+knowledge_impact: yes
+summary: Describe the implemented engineering change.
+affected_areas:
+  - subscriptions
+kms_files_updated:
+  - docs/CHANGE_HISTORY.md
+no_impact_reason:
+major_change_override: no
+```
+
+Rules:
+
+- `yes` requires changed authoritative `docs/*.md` files.
+- `no` requires a specific reason and no declared KMS Markdown changes.
+- a detected major path with `no` also requires `major_change_override: yes`.
+- every changed authoritative Markdown file must be listed.
+- generated PDF and manifest must be current in both cases.
 
 ## When Documentation Must Be Updated
 
@@ -66,6 +99,8 @@ Validation:
 
 ```powershell
 .\.venv\Scripts\python.exe -m py_compile scripts\generate_docs_pdf.py
+.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py --check
+.\.venv\Scripts\python.exe scripts\check_kms_impact.py
 ```
 
 ## Manifest Lifecycle
@@ -154,4 +189,5 @@ Conditional:
 Optional:
 
 - visual docs until screenshots/diagrams are approved,
-- future CI/hooks/search automation until approved.
+- local Git hooks; CI is authoritative because hooks are optional and bypassable.
+- future search, semantic indexing, and documentation analytics.
