@@ -96,22 +96,21 @@ Generated files:
 
 The PDF is generated from approved Markdown docs. The manifest records the generated timestamp, documentation version, branch, commit SHA, included sources, and source hashes.
 
-## PDF Generation
+## KMS Synchronization
 
-Regenerate the PDF booklet with:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py
-```
-
-Read-only checks:
+Validate KIA, regenerate the PDF and manifest, and verify freshness with:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py --check
-.\.venv\Scripts\python.exe scripts\check_kms_impact.py
+.\.venv\Scripts\python.exe scripts\kms.py sync
 ```
 
-The generator uses existing `reportlab` only. It must not require LaTeX, Playwright, Chromium, network calls, or system fonts.
+Complete read-only validation:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\kms.py check
+```
+
+The command reuses the dependency-light generator and strict impact checker. It must not require LaTeX, Playwright, Chromium, network calls, or system fonts.
 
 ## Knowledge Impact Assessment
 

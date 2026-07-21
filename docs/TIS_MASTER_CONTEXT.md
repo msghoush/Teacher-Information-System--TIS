@@ -397,6 +397,8 @@ Automatic enforcement:
 
 - root `AGENTS.md` defines mandatory Codex KMS behavior,
 - `.kms-impact.yml` records the task-level machine-readable KIA,
+- `scripts/kms.py sync` validates KIA before writing, regenerates PDF/manifest artifacts, and runs post-generation freshness checks,
+- `scripts/kms.py check` provides the single read-only local and CI validation command,
 - `scripts/check_kms_impact.py` compares the declaration with changed files and major-change rules,
 - `scripts/generate_docs_pdf.py --check` validates source coverage and snapshot freshness without writing,
 - GitHub Actions require validation for pull requests, `dev`, and `master` deployment.
@@ -447,8 +449,8 @@ Default workflow for approved implementation tasks:
 5. Complete the Knowledge Impact Assessment and update `.kms-impact.yml`.
 6. Update relevant Markdown docs.
 7. Update change history, ADRs, module history, and AI project context when needed.
-8. Regenerate the documentation PDF if included docs changed.
-9. Run `scripts/generate_docs_pdf.py --check` and `scripts/check_kms_impact.py`.
+8. Run `scripts/kms.py sync` if included docs changed.
+9. Run `scripts/kms.py check` for final read-only enforcement.
 10. Run reasonable implementation validation.
 11. Report code changes, docs changes, KIA, validation, assumptions, and known issues.
 

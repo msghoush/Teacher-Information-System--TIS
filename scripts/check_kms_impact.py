@@ -59,6 +59,14 @@ class ImpactDeclaration:
     major_change_override: str
 
 
+@dataclass(frozen=True)
+class ValidationResult:
+    declaration: ImpactDeclaration
+    changed_files: tuple[str, ...]
+    major_changes: tuple[str, ...]
+    errors: tuple[str, ...]
+
+
 def _unquote(value: str) -> str:
     value = value.strip()
     if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
@@ -258,8 +266,7 @@ def validate_declaration(declaration: ImpactDeclaration, changed: list[str]) -> 
     return errors
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate TIS KMS impact and generated artifacts.")
+def add_range_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--event-name",
         choices=("pull_request", "push"),
@@ -271,37 +278,74 @@ def main() -> int:
         "--target-ref",
         help="Target branch ref used to find the task merge base for push validation.",
     )
-    args = parser.parse_args()
 
+
+def evaluate_kms(
+    *,
+    event_name: str | None = None,
+    base: str | None = None,
+    head: str | None = None,
+    target_ref: str | None = None,
+    include_generated_artifacts: bool = True,
+) -> ValidationResult:
+    resolved_base, resolved_head = resolve_validation_range(
+        event_name,
+        base=base,
+        head=head,
+        target_ref=target_ref,
+    )
+    changed = changed_files(resolved_base, resolved_head)
+    declaration = load_declaration()
+    errors = validate_declaration(declaration, changed)
+    if include_generated_artifacts:
+        errors.extend(generate_docs_pdf.check_generated_artifacts())
+    major = sorted(path for path in changed if is_major_change(path))
+    return ValidationResult(
+        declaration=declaration,
+        changed_files=tuple(changed),
+        major_changes=tuple(major),
+        errors=tuple(errors),
+    )
+
+
+def print_validation_errors(errors: tuple[str, ...] | list[str], *, heading: str) -> None:
+    print(heading)
+    for error in errors:
+        print(f"- {error}")
+    print("Correct .kms-impact.yml, update relevant docs, regenerate the PDF/manifest, and rerun this check.")
+
+
+def print_validation_summary(result: ValidationResult, *, heading: str = "KMS enforcement passed") -> None:
+    print(
+        f"{heading}: {len(result.changed_files)} changed file(s), "
+        f"{len(result.major_changes)} major-change candidate(s), "
+        f"knowledge impact={result.declaration.knowledge_impact}."
+    )
+
+
+def run_validation(**kwargs) -> int:
     try:
-        base, head = resolve_validation_range(
-            args.event_name,
-            base=args.base,
-            head=args.head,
-            target_ref=args.target_ref,
-        )
-        changed = changed_files(base, head)
-        declaration = load_declaration()
+        result = evaluate_kms(**kwargs)
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print(f"KMS impact check failed: {exc}")
         return 1
-
-    errors = validate_declaration(declaration, changed)
-    errors.extend(generate_docs_pdf.check_generated_artifacts())
-    if errors:
-        print("KMS enforcement failed:")
-        for error in errors:
-            print(f"- {error}")
-        print("Correct .kms-impact.yml, update relevant docs, regenerate the PDF/manifest, and rerun this check.")
+    if result.errors:
+        print_validation_errors(result.errors, heading="KMS enforcement failed:")
         return 1
-
-    major = [path for path in changed if is_major_change(path)]
-    print(
-        "KMS enforcement passed: "
-        f"{len(changed)} changed file(s), {len(major)} major-change candidate(s), "
-        f"knowledge impact={declaration.knowledge_impact}."
-    )
+    print_validation_summary(result)
     return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Validate TIS KMS impact and generated artifacts.")
+    add_range_arguments(parser)
+    args = parser.parse_args()
+    return run_validation(
+        event_name=args.event_name,
+        base=args.base,
+        head=args.head,
+        target_ref=args.target_ref,
+    )
 
 
 if __name__ == "__main__":

@@ -111,6 +111,7 @@ Documentation/KMS milestones:
 - KMS v3.0 Phase 3C approved for implementation.
 - KMS v3.0 Phase 3D final phase approved for implementation.
 - Automatic KMS enforcement implemented with repository instructions, machine-readable KIA, major-change detection, read-only artifact checks, CI validation, and a deployment prerequisite.
+- Phase 6 unified KMS command implemented with `scripts/kms.py sync` and `scripts/kms.py check`.
 
 M7 subscription-management milestones:
 
@@ -131,7 +132,8 @@ Current enforcement scope:
 - Codex reads root `AGENTS.md` and authoritative KMS context.
 - Every task updates `.kms-impact.yml`.
 - Major-change paths are conservatively classified by `scripts/check_kms_impact.py`.
-- Generated artifacts are validated through `scripts/generate_docs_pdf.py --check`.
+- Local KMS synchronization runs through `scripts/kms.py sync`.
+- Generated artifacts and KIA are validated read-only through `scripts/kms.py check`.
 - Pull requests and `dev` pushes run KMS enforcement.
 - `master` deployment waits for the KMS gate.
 - Automation validates and blocks; it does not rewrite Markdown.
@@ -270,10 +272,7 @@ A task is not complete until KIA is assessed and `.kms-impact.yml` matches the a
 
 - `static/docs/TIS_Project_Reference_Booklet.pdf`
 
-Then run:
-
-- `.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py --check`
-- `.\.venv\Scripts\python.exe scripts\check_kms_impact.py`
+Then run `.\.venv\Scripts\python.exe scripts\kms.py check` for final read-only validation. When documentation changes, `.\.venv\Scripts\python.exe scripts\kms.py sync` performs generation and post-generation validation together.
 
 ## Scope Guardrails
 

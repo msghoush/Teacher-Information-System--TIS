@@ -23,6 +23,8 @@ Current approved automation:
 - `scripts/generate_docs_pdf.py --check` validates source coverage, source hashes, PDF identity, manifest metadata, and documentation version without writing files.
 - `.kms-impact.yml` records task-level Knowledge Impact in a small machine-readable schema.
 - `scripts/check_kms_impact.py` classifies likely major changes, validates the declaration against the Git diff, and runs generated-artifact freshness checks.
+- `scripts/kms.py sync` runs KIA preflight validation, regenerates the PDF and manifest, runs complete freshness validation, and prints a completion summary.
+- `scripts/kms.py check` is the single read-only validation entry point for local work and CI.
 - GitHub Actions enforce KMS checks on pull requests, `dev` pushes, and before `master` deployment.
 - The Knowledge Center reads the manifest and checks freshness.
 
@@ -102,21 +104,21 @@ Optional updates may be skipped for:
 
 Even when docs are skipped, KIA must explain why.
 
-## Regeneration Command
+## Phase 6 Commands
 
-Use:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py
-```
-
-Validation:
+Synchronize generated artifacts after reviewing and updating authoritative Markdown:
 
 ```powershell
-.\.venv\Scripts\python.exe -m py_compile scripts\generate_docs_pdf.py
-.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py --check
-.\.venv\Scripts\python.exe scripts\check_kms_impact.py
+.\.venv\Scripts\python.exe scripts\kms.py sync
 ```
+
+Run complete read-only validation:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\kms.py check
+```
+
+`sync` aborts before writing when KIA or authoritative Markdown validation fails. It writes only the generated PDF and manifest, then applies the same complete validation used by `check`. The lower-level generator and impact checker remain reusable implementation modules and diagnostic entry points.
 
 ## Manifest Lifecycle
 
