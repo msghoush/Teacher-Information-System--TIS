@@ -175,3 +175,9 @@ Use `python scripts/kms.py sync` after reviewed documentation changes and `pytho
 - **Module history:** deeper before-and-after records for a specific area.
 - **Marketing documents:** approved public positioning and landing implementation boundaries.
 - **Generated artifacts:** the PDF snapshot and manifest; never edit them manually.
+
+## Using The Generated Booklet
+
+The generated PDF includes a "How to Use This Handbook" page and a page-numbered table of contents. Open the PDF viewer's bookmarks or outlines panel to browse every source document and its major headings. Source starting pages are also recorded in `static/docs/docs_manifest.json`.
+
+Markdown remains authoritative. PDF navigation is generated from the fixed source order and must be refreshed through `python scripts/kms.py sync` whenever included source documents change.

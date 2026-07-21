@@ -143,6 +143,7 @@ def test_changed_markdown_fails_generated_artifact_freshness_check(tmp_path, mon
                     {
                         "path": "docs/source.md",
                         "sha256": generate_docs_pdf._source_hash(source),
+                        "pdf_page": 1,
                     }
                 ],
                 "pdf_sha256": generate_docs_pdf._source_hash(pdf),
@@ -201,6 +202,80 @@ def test_source_list_comparison_rejects_missing_and_unexpected_sources():
 
     assert "Manifest is missing an expected source: docs/PROJECT_STATE.md" in errors
     assert "Manifest contains an unexpected source: docs/UNEXPECTED.md" in errors
+
+
+def test_pdf_navigation_keys_are_stable_and_path_specific():
+    first = generate_docs_pdf._bookmark_key("source", "docs/README.md")
+    repeated = generate_docs_pdf._bookmark_key("source", "docs/README.md")
+    second = generate_docs_pdf._bookmark_key("source", "docs/PROJECT_STATE.md")
+
+    assert first == repeated
+    assert first != second
+    assert first.startswith("source-")
+
+
+def test_pdf_build_records_strict_source_pages_and_outline_catalog(tmp_path, monkeypatch):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    first = docs_dir / "first.md"
+    second = docs_dir / "second.md"
+    first.write_text(
+        "---\ntitle: First Document\n---\n\n# First Document\n\n## First Topic\n\nBody.\n",
+        encoding="utf-8",
+    )
+    second.write_text(
+        "---\ntitle: Second Document\n---\n\n# Second Document\n\n## Second Topic\n\nBody.\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "static" / "docs" / "booklet.pdf"
+    manifest_path = tmp_path / "static" / "docs" / "manifest.json"
+    monkeypatch.setattr(generate_docs_pdf, "ROOT", tmp_path)
+    monkeypatch.setattr(generate_docs_pdf, "SOURCE_DOCS", [first, second])
+    monkeypatch.setattr(generate_docs_pdf, "OUTPUT_PATH", output)
+    monkeypatch.setattr(generate_docs_pdf, "MANIFEST_PATH", manifest_path)
+
+    assert generate_docs_pdf.build_pdf() == output
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    pages = [item["pdf_page"] for item in manifest["included_source_files"]]
+    assert pages[0] >= 4
+    assert pages == sorted(set(pages))
+    assert b"/Outlines" in output.read_bytes()
+    assert generate_docs_pdf.check_generated_artifacts() == []
+
+
+def test_freshness_check_rejects_missing_pdf_page_metadata(tmp_path, monkeypatch):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    source = docs_dir / "source.md"
+    source.write_text("# Source\n", encoding="utf-8")
+    pdf = tmp_path / "booklet.pdf"
+    pdf.write_bytes(b"pdf")
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "documentation_version": generate_docs_pdf.DOCUMENTATION_VERSION,
+                "included_source_files": [
+                    {
+                        "path": "docs/source.md",
+                        "sha256": generate_docs_pdf._source_hash(source),
+                    }
+                ],
+                "pdf_sha256": generate_docs_pdf._source_hash(pdf),
+                "pdf_size_bytes": pdf.stat().st_size,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(generate_docs_pdf, "ROOT", tmp_path)
+    monkeypatch.setattr(generate_docs_pdf, "SOURCE_DOCS", [source])
+    monkeypatch.setattr(generate_docs_pdf, "OUTPUT_PATH", pdf)
+    monkeypatch.setattr(generate_docs_pdf, "MANIFEST_PATH", manifest)
+
+    assert "Manifest source has an invalid pdf_page: docs/source.md" in (
+        generate_docs_pdf.check_generated_artifacts()
+    )
 
 
 def test_changed_files_includes_deletions(monkeypatch):
