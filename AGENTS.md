@@ -20,15 +20,13 @@ Minor work may use `knowledge_impact: no` only with a specific explanation. Exam
 1. Update affected authoritative Markdown in the same task.
 2. Update architecture, workflows, module maps, roadmap, change history, ADRs, and module history only where applicable.
 3. Never place customer, organization, personal, billing-record, invoice, transaction, production identifier, webhook payload, credential, secret, environment value, database-row, or test-customer personal data in the KMS.
-4. Regenerate the PDF and manifest after included Markdown changes:
+4. Synchronize the KMS after documentation changes. This validates KIA before writing, regenerates the PDF and manifest, and verifies freshness:
 
-   `python scripts/generate_docs_pdf.py`
+   `python scripts/kms.py sync`
 
-5. Run enforcement:
+5. Run the complete read-only enforcement command whenever synchronization is not required or as a final confirmation:
 
-   `python scripts/generate_docs_pdf.py --check`
-
-   `python scripts/check_kms_impact.py`
+   `python scripts/kms.py check`
 
 6. Report the exact KMS files changed and complete the KIA in the final response.
 

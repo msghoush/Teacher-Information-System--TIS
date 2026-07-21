@@ -28,6 +28,10 @@ The initial enforcement release exposed two checkout-dependent differences: Mark
 
 The initial push workflow compared only the previous pushed commit with the new head, while pull requests compared the complete feature branch. Follow-up commits therefore validated a task-level declaration against a commit-level diff. Push checks now derive the task base from the merge base of the default branch and pushed head. Pull-request and push checks consequently enforce the same cumulative KIA scope without allowing undeclared documentation changes.
 
+## Phase 6 Unified Command
+
+The initial automation exposed generation, artifact checking, and KIA enforcement as separate commands. Phase 6 adds `scripts/kms.py sync` for KIA preflight, PDF/manifest generation, post-generation freshness validation, and completion reporting. `scripts/kms.py check` is the canonical read-only command used locally and by CI. Both commands delegate to the existing generator and checker; they do not duplicate policy or rewrite Markdown.
+
 ## Guardrails
 
 Automation does not generate or rewrite Markdown prose. Reviewed Markdown remains authoritative. KMS files must describe engineering design only and must not contain customer, organization, personal, transaction, invoice, production identifier, webhook payload, secret, credential, environment, or database-row data.
@@ -38,6 +42,7 @@ Automation does not generate or rewrite Markdown prose. Reviewed Markdown remain
 - `.kms-impact.yml`
 - `scripts/check_kms_impact.py`
 - `scripts/generate_docs_pdf.py`
+- `scripts/kms.py`
 - `.github/workflows/kms-enforcement.yml`
 - `.github/workflows/deploy-on-master.yml`
 - `docs/DOCUMENTATION_UPDATE_POLICY.md`

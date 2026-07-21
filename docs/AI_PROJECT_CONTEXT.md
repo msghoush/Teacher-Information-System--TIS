@@ -166,6 +166,8 @@ Current priority is automatic KMS synchronization enforcement and reliable post-
 - KMS v3.0 Phase 3D completes KMS v1.0 lifecycle standards, dependency mapping, AI coding workflow, and future automation roadmap.
 - Root `AGENTS.md` makes KMS onboarding mandatory for Codex tasks.
 - `.kms-impact.yml` is the machine-readable task declaration.
+- `scripts/kms.py sync` is the single local synchronization command; it validates KIA before writing, regenerates the PDF/manifest, then verifies freshness.
+- `scripts/kms.py check` is the single read-only local and CI validation command.
 - `scripts/check_kms_impact.py` validates major-change classification, declared Markdown updates, and generated-artifact freshness.
 - GitHub Actions block pull-request integration and production deployment when KMS validation fails.
 
@@ -197,10 +199,10 @@ AI project context updated: Yes/No
 Reason if not updated:
 ```
 
-If included docs change, regenerate:
+If included docs change, synchronize:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py
+.\.venv\Scripts\python.exe scripts\kms.py sync
 ```
 
 ## Development Workflow
@@ -215,8 +217,8 @@ If included docs change, regenerate:
 8. Inspect code before editing.
 9. Keep changes scoped.
 10. Update `.kms-impact.yml` and affected KMS docs when meaningful behavior, architecture, product state, module map, repository ownership, data model, design philosophy, roadmap, governance, decision traceability, automation, lifecycle, or workflow changes.
-11. Regenerate PDF if included source docs changed.
-12. Run `scripts/generate_docs_pdf.py --check` and `scripts/check_kms_impact.py`.
+11. Run `scripts/kms.py sync` if included source docs changed.
+12. Run `scripts/kms.py check` for final read-only validation.
 13. Run implementation validation.
 14. Report KIA in final response.
 

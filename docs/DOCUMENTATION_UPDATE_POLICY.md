@@ -77,12 +77,12 @@ Update `docs/history/<module>/` when a meaningful module area changes and the pr
 
 `docs/CHANGE_HISTORY.md` remains the chronological summary. Module history stores deeper context.
 
-## PDF Regeneration
+## KMS Synchronization
 
-Regenerate the PDF with:
+Validate KIA, regenerate the PDF and manifest, and verify freshness with:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py
+.\.venv\Scripts\python.exe scripts\kms.py sync
 ```
 
 The generator must remain dependency-light:
@@ -93,14 +93,13 @@ The generator must remain dependency-light:
 - no external network calls,
 - no system font dependency.
 
-Read-only validation:
+Complete read-only validation:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py --check
-.\.venv\Scripts\python.exe scripts\check_kms_impact.py
+.\.venv\Scripts\python.exe scripts\kms.py check
 ```
 
-The impact checker must never write documentation. GitHub Actions run it for pull requests and `dev`; the production deployment workflow requires it before triggering deployment from `master`.
+The `check` command must never write documentation. GitHub Actions run it for pull requests and `dev`; the production deployment workflow requires it before triggering deployment from `master`. The `sync` command writes generated artifacts only and never rewrites authoritative Markdown.
 
 ## Prohibited KMS Content
 

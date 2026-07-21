@@ -96,7 +96,7 @@ Before pushing:
 - confirm branch,
 - confirm tests/checks,
 - confirm KMS artifacts,
-- run `scripts/generate_docs_pdf.py --check` and `scripts/check_kms_impact.py`,
+- run `scripts/kms.py sync` when documentation changed and `scripts/kms.py check` for final read-only enforcement,
 - confirm no forbidden files changed.
 
 ## Deployment Strategy

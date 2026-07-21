@@ -207,6 +207,7 @@ Maintenance, diagnostics, and governance scripts. Important examples:
 
 - `scripts/generate_docs_pdf.py`: generate or read-only validate KMS PDF/manifest artifacts.
 - `scripts/check_kms_impact.py`: compare KIA declarations, Git changes, major-path classification, and artifact freshness.
+- `scripts/kms.py`: supported Phase 6 command surface for one-step synchronization and complete read-only validation; delegates to the generator and checker.
 - `scripts/sync_paddle_price_ids.py`: environment-specific initial checkout price mapping.
 - `scripts/diagnose_paddle_plan_preview.py` and `scripts/diagnose_payment_lifecycle.py`: safe subscription/payment diagnostics.
 - `scripts/reconcile_finalized_payment_lifecycle.py`: guarded sandbox reconciliation from attributable provider evidence.

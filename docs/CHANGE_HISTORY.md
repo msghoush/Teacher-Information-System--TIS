@@ -27,6 +27,38 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-07-21 - Added Unified Phase 6 KMS Commands
+
+Area/module:
+KMS developer workflow, local automation, CI, and deployment validation
+
+Previous state:
+Developers separately ran the PDF generator, artifact freshness check, and KIA impact checker. The repository had all required primitives but no single synchronization command or canonical read-only command shared by local work and CI.
+
+New state:
+`scripts/kms.py sync` validates the task KIA before writing, regenerates the PDF and manifest through the existing generator, runs complete post-generation validation, and prints a concise summary. `scripts/kms.py check` delegates to the existing read-only enforcement logic. GitHub pull-request, `dev`, and deployment gates use the unified check command.
+
+Reason:
+One reliable command reduces missed mechanical steps while preserving reviewed Markdown as the source of truth and keeping enforcement strict.
+
+Files changed:
+- KMS command orchestrator and reusable checker API
+- KMS automation tests
+- repository instructions and CI workflows
+- KMS workflow documentation and generated artifacts
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+The command never rewrites authoritative Markdown and does not change application behavior or production data.
+
 ## 2026-07-21 - Aligned Push Enforcement With KIA Task Boundaries
 
 Area/module:

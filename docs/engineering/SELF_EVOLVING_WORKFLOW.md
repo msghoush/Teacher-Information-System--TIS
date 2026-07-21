@@ -20,9 +20,8 @@ Task
   -> Documentation Updates
   -> ADR if required
   -> Module History if required
-  -> Regenerate PDF
-  -> Regenerate Manifest
-  -> KMS Enforcement Check
+  -> KMS Sync (PDF + Manifest + Freshness)
+  -> KMS Read-Only Check
   -> Review
   -> Commit
   -> Push
@@ -91,20 +90,21 @@ Create/update ADR when architecture or product boundaries change.
 
 Update module history when area-specific before/after context matters.
 
-## Regenerate PDF And Manifest
+## Synchronize And Check KMS
 
 If included Markdown docs changed:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py
+.\.venv\Scripts\python.exe scripts\kms.py sync
 ```
 
-Then run:
+Final read-only confirmation:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\generate_docs_pdf.py --check
-.\.venv\Scripts\python.exe scripts\check_kms_impact.py
+.\.venv\Scripts\python.exe scripts\kms.py check
 ```
+
+`sync` validates KIA before generating derived artifacts and validates freshness afterward. It never edits authoritative Markdown.
 
 ## Review
 

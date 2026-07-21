@@ -10,6 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import check_kms_impact  # noqa: E402
+import kms  # noqa: E402
 
 generate_docs_pdf = check_kms_impact.generate_docs_pdf
 
@@ -25,6 +26,19 @@ def _declaration(**overrides):
     }
     values.update(overrides)
     return check_kms_impact.ImpactDeclaration(**values)
+
+
+def _validation_result(*, errors=()):
+    return check_kms_impact.ValidationResult(
+        declaration=_declaration(),
+        changed_files=(".kms-impact.yml", "docs/CHANGE_HISTORY.md"),
+        major_changes=(),
+        errors=tuple(errors),
+    )
+
+
+def _command_args():
+    return kms.build_parser().parse_args(["check"])
 
 
 def test_parse_declaration_supports_the_repository_schema():
@@ -254,6 +268,13 @@ def test_github_workflow_wires_pull_request_and_push_task_ranges():
     assert "--event-name pull_request" in workflow
     assert "--event-name push" in workflow
     assert "--target-ref \"origin/${DEFAULT_BRANCH}\"" in workflow
+    assert workflow.count("python scripts/kms.py check") == 2
+    assert "python scripts/check_kms_impact.py" not in workflow
+
+    deployment_workflow = (
+        ROOT / ".github" / "workflows" / "deploy-on-master.yml"
+    ).read_text(encoding="utf-8")
+    assert "python scripts/kms.py check" in deployment_workflow
 
 
 def test_multi_commit_feature_branch_push_checks_the_complete_task(monkeypatch):
@@ -310,3 +331,63 @@ def test_follow_up_fix_validates_cumulative_declaration_not_last_commit_only():
         "Declared KMS file did not change" in error
         for error in check_kms_impact.validate_declaration(declaration, follow_up_commit_only)
     )
+
+
+def test_kms_check_delegates_to_complete_read_only_validation(monkeypatch):
+    captured = {}
+
+    def fake_run_validation(**kwargs):
+        captured.update(kwargs)
+        return 0
+
+    monkeypatch.setattr(check_kms_impact, "run_validation", fake_run_validation)
+
+    assert kms.run_check(_command_args()) == 0
+    assert captured == {
+        "event_name": None,
+        "base": None,
+        "head": None,
+        "target_ref": None,
+    }
+
+
+def test_kms_sync_blocks_generation_when_kia_preflight_fails(monkeypatch):
+    args = kms.build_parser().parse_args(["sync"])
+    monkeypatch.setattr(
+        check_kms_impact,
+        "evaluate_kms",
+        lambda **kwargs: _validation_result(errors=("KIA mismatch",)),
+    )
+
+    def unexpected_build():
+        raise AssertionError("Artifact generation must not run after a failed preflight.")
+
+    monkeypatch.setattr(generate_docs_pdf, "build_pdf", unexpected_build)
+
+    assert kms.run_sync(args) == 1
+
+
+def test_kms_sync_generates_then_runs_complete_freshness_validation(tmp_path, monkeypatch):
+    args = kms.build_parser().parse_args(["sync"])
+    include_artifact_checks: list[bool] = []
+
+    def fake_evaluate(**kwargs):
+        include_artifact_checks.append(kwargs.get("include_generated_artifacts", True))
+        return _validation_result()
+
+    pdf = tmp_path / "static" / "docs" / "booklet.pdf"
+    manifest = tmp_path / "static" / "docs" / "manifest.json"
+
+    def fake_build():
+        pdf.parent.mkdir(parents=True)
+        pdf.write_bytes(b"pdf")
+        manifest.write_text("{}", encoding="utf-8")
+        return pdf
+
+    monkeypatch.setattr(check_kms_impact, "evaluate_kms", fake_evaluate)
+    monkeypatch.setattr(generate_docs_pdf, "build_pdf", fake_build)
+    monkeypatch.setattr(generate_docs_pdf, "ROOT", tmp_path)
+    monkeypatch.setattr(generate_docs_pdf, "MANIFEST_PATH", manifest)
+
+    assert kms.run_sync(args) == 0
+    assert include_artifact_checks == [False, True]
