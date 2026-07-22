@@ -330,6 +330,10 @@ class PlatformAccessTests(unittest.TestCase):
             db=self.db,
         )
         body = bytes(console_response.body).decode("utf-8")
+        self.assertIn("Workspace UUID", body)
+        self.assertIn("Classification", body)
+        self.assertIn("Internal Sandbox", body)
+        self.assertIn("Lifecycle", body)
         self.assertEqual(body.count("data-organization-card data-search="), 2)
         self.assertEqual(body.count("data-organization-card data-search=\"group b"), 1)
         expanded_organizations = re.findall(
@@ -1287,6 +1291,7 @@ class PlatformAccessTests(unittest.TestCase):
         console_body = bytes(console.body).decode("utf-8")
         self.assertNotIn("Ownership Management", console_body)
         self.assertNotIn("Create Platform Developer", console_body)
+        self.assertNotIn("Workspace UUID", console_body)
 
         denied = main.create_platform_co_owner(
             request=self._request(

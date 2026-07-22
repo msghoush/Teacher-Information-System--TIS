@@ -51,6 +51,10 @@ Completed entitlement foundations, customer Subscription Management portal, paid
 
 Added root AI instructions, machine-readable task KIA, major-change detection, read-only PDF/manifest checks, pull-request and `dev` CI validation, and a required KMS gate before `master` deployment.
 
+### M8B-1 Workspace Classification Foundation
+
+Added constrained workspace identity/classification/lifecycle metadata, pre-provisioning and identity intent fields, validation-only services, read-only owner visibility, and safe diagnostic/backfill tooling. No commercial behavior or conversion workflow consumes the metadata yet.
+
 ## Current
 
 ### KMS Enforcement Review
@@ -62,6 +66,10 @@ Review enforcement against real development tasks, keep classification conservat
 The product is preparing for stronger public customer journey work from landing page storytelling through SaaS signup, onboarding, billing, and operational access.
 
 ## Next
+
+### M8B-2 Workspace Classification Workflows
+
+Proceed only from a separately approved M8B-2 specification after the M8B-1 migration and backfill are validated. M8B-1 intentionally does not implement demo requests, demo provisioning, expiration, entitlements, conversions, memberships, or Al-Andalus migration.
 
 ### Premium Landing Page Redesign
 

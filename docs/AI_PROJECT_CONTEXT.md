@@ -119,6 +119,14 @@ M7 includes a normalized entitlement foundation, a customer Subscription Managem
 
 Commercial state fails closed when ownership, provider evidence, or local relationships are ambiguous. TIS does not independently calculate replacement monetary values. Immediate changes require provider-confirmed outcomes; scheduled changes remain pending until provider/webhook evidence reaches the effective boundary.
 
+## M8B-1 Workspace Classification Foundation
+
+M8B-1 adds metadata-only workspace classification without changing customer behavior. `SchoolGroup` now owns an immutable workspace UUID, classification (`internal_sandbox`, `customer_demo`, or `customer_paid`), and lifecycle (`provisioning`, `active`, `suspended`, or `archived`). `PendingOrganization.workspace_intent`, `SaaSAccount.account_purpose`, and `User.is_internal_test_identity` preserve the corresponding pre-provisioning and identity intent.
+
+All records that predate M8B-1 are confirmed test data. The controlled backfill classifies them as internal sandbox/test records; it is dry-run by default, transactional, idempotent, and records completion in `schema_migrations`. The separate diagnostic is read-only and reports tenant, onboarding, and Paddle relationship presence without exposing provider identifiers or secrets. Platform Owners can inspect workspace UUID, classification, and lifecycle in `/platform`; Platform Developers and tenant users do not receive that metadata block.
+
+M8B-1 does not use classification for billing, entitlements, permissions, tenant isolation, reset eligibility, or customer routing. Demo workflows, conversions, Al-Andalus migration, memberships, and commercial-state resolution remain later work.
+
 ## Current SaaS Account Verification State
 
 Phase 1 TIS Account email verification recovery is accepted. Valid verification links now mark the SaaS account email verified/active and redirect to the TIS Account login page with a professional success notice so the customer can continue school workspace setup.

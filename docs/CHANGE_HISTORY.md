@@ -27,6 +27,35 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-07-22 - M8B-1 Workspace Classification Foundation
+
+Area/module:
+Workspace identity, SaaS onboarding metadata, provisioning metadata, Platform Console, and database migration tooling
+
+Previous state:
+Operational SchoolGroup records had no stable workspace UUID, classification, or dedicated lifecycle metadata. Pending organizations and identities could not express workspace/test intent independently of onboarding, payment, and tenant state.
+
+New state:
+Added constrained and indexed workspace UUID/classification/lifecycle fields, onboarding workspace intent, SaaS account purpose, and internal-test operational identity metadata. Added centralized validation and conversion rejection, a commercial-state skeleton with no resolution logic, read-only relationship diagnostics, and a dry-run/default transactional idempotent backfill for all confirmed pre-M8B-1 test records. Platform Owners can inspect the metadata read-only. Provisioning only carries intent into metadata and moves the metadata lifecycle from provisioning to active; existing business gates remain unchanged.
+
+Reason:
+Establish the durable classification boundary required by later M8B packages without changing current customer, billing, entitlement, permission, or tenant behavior.
+
+Files changed:
+- models, migration, workspace classification services, diagnostic/backfill scripts, provisioning metadata assignment, Platform Console template/context, and focused tests
+
+Documentation updated:
+- AI context, master context, project state, database architecture, module map, user/system flows, roadmap, ADR 0008, and workspace-classification history
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+M8B-2 and all later demo/commercial/conversion workflows remain out of scope.
+
 ## 2026-07-22 - Corrected Platform Owner Pending Organization Lifecycle Views
 
 Area/module:

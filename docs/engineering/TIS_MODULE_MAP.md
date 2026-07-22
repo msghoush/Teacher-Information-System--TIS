@@ -122,6 +122,32 @@ Risks/guardrails:
 - Pending onboarding data is not the same as operational tenant data.
 - Do not create live tenant records directly from public forms.
 
+## Workspace Classification Foundation
+
+Purpose:
+Provide stable, constrained metadata for distinguishing internal sandbox, customer demo, and customer-paid workspaces without changing commercial or customer behavior.
+
+Main files/folders:
+- `workspace_classification.py`
+- `saas/workspace_classification_service.py`
+- `saas/workspace_classification_admin_service.py`
+- `saas/commercial_state_service.py`
+- `scripts/diagnose_workspace_classification.py`
+- `scripts/backfill_workspace_classification.py`
+
+Maturity/status:
+M8B-1 foundation implemented. Classification and lifecycle are read-only metadata outside provisioning metadata assignment. Commercial resolution and conversions are not implemented.
+
+Related docs/ADRs:
+- `docs/adr/0008-workspace-classification-foundation.md`
+- `docs/history/workspace-classification/README.md`
+
+Risks/guardrails:
+- Do not use classification as a payment, entitlement, permission, tenant-isolation, or reset gate in M8B-1.
+- Do not convert classifications through the validation service.
+- Do not expose workspace metadata outside Platform Owner views.
+- Do not infer customer-paid classification from incomplete onboarding or provider records.
+
 ## Pending Organizations
 
 Purpose:

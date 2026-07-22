@@ -1,8 +1,10 @@
 from datetime import datetime
+import uuid
 
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint, Index, LargeBinary, DateTime, Text, text
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, LargeBinary, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import relationship
 from database import Base
+from workspace_classification import WorkspaceClassification, WorkspaceLifecycleStatus
 
 
 class Branch(Base):
@@ -22,9 +24,29 @@ class Branch(Base):
 
 class SchoolGroup(Base):
     __tablename__ = "school_groups"
+    __table_args__ = (
+        CheckConstraint(
+            "workspace_classification IN ('internal_sandbox','customer_demo','customer_paid')",
+            name="ck_school_groups_workspace_classification",
+        ),
+        CheckConstraint(
+            "workspace_lifecycle_status IN ('provisioning','active','suspended','archived')",
+            name="ck_school_groups_workspace_lifecycle_status",
+        ),
+        Index("uq_school_groups_workspace_uuid", "workspace_uuid", unique=True),
+        Index("ix_school_groups_workspace_classification", "workspace_classification"),
+        Index("ix_school_groups_workspace_lifecycle_status", "workspace_lifecycle_status"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(160), nullable=False, unique=True)
+    workspace_uuid = Column(String(36), nullable=False, default=lambda: str(uuid.uuid4()))
+    workspace_classification = Column(
+        String(32), nullable=False, default=WorkspaceClassification.INTERNAL_SANDBOX.value
+    )
+    workspace_lifecycle_status = Column(
+        String(20), nullable=False, default=WorkspaceLifecycleStatus.ACTIVE.value
+    )
     country_code = Column(String(2))
     country_name = Column(String(120))
     region_name = Column(String(160))
@@ -159,6 +181,7 @@ class User(Base):
             sqlite_where=text("email_normalized IS NOT NULL"),
             postgresql_where=text("email_normalized IS NOT NULL"),
         ),
+        Index("ix_users_internal_test_identity", "is_internal_test_identity"),
     )
 
     id = Column(Integer, primary_key=True)
@@ -184,6 +207,7 @@ class User(Base):
     branch_id = Column(Integer, ForeignKey("branches.id"))
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"))
     is_active = Column(Boolean, default=True)
+    is_internal_test_identity = Column(Boolean, nullable=False, default=False)
     last_login_at = Column(DateTime)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

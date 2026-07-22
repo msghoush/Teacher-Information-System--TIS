@@ -149,6 +149,19 @@ Critical tenant strategy:
 - Do not assume a SaaS account is already provisioned into an operational tenant.
 - Keep onboarding, billing, and tenant provisioning as distinct stages.
 
+### Workspace Classification Foundation
+
+M8B-1 introduces a metadata boundary between workspace identity, workspace classification, and operational tenant state:
+
+- `SchoolGroup.workspace_uuid` is the stable unique workspace identifier.
+- `SchoolGroup.workspace_classification` accepts only `internal_sandbox`, `customer_demo`, or `customer_paid`.
+- `SchoolGroup.workspace_lifecycle_status` accepts only `provisioning`, `active`, `suspended`, or `archived`.
+- `PendingOrganization.workspace_intent` carries pre-provisioning intent.
+- `SaaSAccount.account_purpose` distinguishes internal-test and customer account purpose.
+- `User.is_internal_test_identity` identifies operational identities attributable to internal test data.
+
+The M8B-1 fields are not authorization, entitlement, payment, or reset gates. Existing flows continue unchanged. Classification conversion is explicitly rejected by the foundation service, and the commercial-state service is a data-contract skeleton only. Every pre-M8B-1 workspace/onboarding record is confirmed test data and is assigned internal sandbox/test metadata by the controlled one-time backfill. Future packages must not infer customer-paid status from Paddle or onboarding fields without an approved commercial resolver.
+
 ## SaaS Routes And Account Experience
 
 Core SaaS routes:

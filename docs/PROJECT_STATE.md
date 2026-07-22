@@ -130,9 +130,19 @@ M7 subscription-management milestones:
 - Phase 6 provider billing history and protected invoice management completed.
 - Webhook and reconciliation safeguards were added across the M7 lifecycle.
 
+M8B-1 workspace-classification foundation:
+
+- Added stable workspace UUID, workspace classification, and workspace lifecycle metadata to `SchoolGroup`.
+- Added onboarding workspace intent, SaaS account purpose, and operational internal-test identity metadata.
+- Added constrained enums, indexes, validation helpers, conversion rejection, and a commercial-state skeleton with no commercial behavior.
+- Added a read-only relationship diagnostic plus dry-run/default and transactional/idempotent apply backfill commands.
+- Confirmed pre-M8B-1 records are backfilled as internal sandbox/test data; no Al-Andalus conversion is included.
+- Platform Owners can inspect the metadata read-only in Platform Console; developers and tenant users cannot.
+- Existing onboarding, authentication, Paddle, provisioning, permissions, tenant isolation, entitlements, and customer flows remain authoritative and unchanged.
+
 ## Current Priority
 
-Current priority: review Phase 7D navigation/catalog enforcement in local and CI workflows while preserving strict synchronization and completed M7 subscription context.
+Current priority: validate the M8B-1 metadata/backfill rollout before any M8B-2 workflow consumes workspace classification.
 
 Current enforcement scope:
 
