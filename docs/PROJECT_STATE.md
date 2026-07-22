@@ -149,9 +149,18 @@ M8B-2 commercial-state and entitlement foundation:
 - Platform Owners can inspect Commercial State, Workspace Entitlement, and Branch Entitlement Summary; developers and tenants cannot.
 - No customer access rule, branch behavior, feature restriction, demo lifecycle, onboarding, provisioning, role, or conversion behavior consumes M8B-2 yet.
 
+M8B-3 demo-request workflow:
+
+- Completed onboarding now ends with an explicit Request Demo or Subscribe Now choice.
+- Subscribe Now continues the approved plan-selection, checkout, Paddle, and provisioning lifecycle unchanged.
+- Demo requests are validated, snapshot commercial context, prevent duplicate pending requests, and never create or activate a workspace.
+- Platform Owners can search, filter, sort, approve, reject, or cancel requests; approval records review only and rejection requires a reason.
+- Customers can inspect their request and withdraw it only while Pending Review.
+- Submit, approve, reject, cancel, and withdraw transitions create durable audit and internal-notification events. No email is sent.
+
 ## Current Priority
 
-Current priority: validate M8B-2 commercial resolution before any M8B-3 workflow enforces or mutates commercial state.
+Current priority: validate M8B-3 review-only demo requests before separately approved M8B-4 demo provisioning and activation work.
 
 Current enforcement scope:
 

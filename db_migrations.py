@@ -3505,6 +3505,122 @@ def _commercial_entitlement_foundation(engine, connection):
                 "payment_subscription_id": payment_subscription_id,
             },
         )
+
+
+def _saas_demo_request_workflow(engine, connection):
+    datetime_type = _datetime_type(engine)
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_demo_requests (
+            id {id_sql},
+            request_uuid VARCHAR(36) NOT NULL UNIQUE,
+            requester_saas_account_id INTEGER NOT NULL,
+            pending_organization_id INTEGER NOT NULL,
+            school_group_id INTEGER,
+            workspace_uuid_snapshot VARCHAR(36),
+            workspace_classification_snapshot VARCHAR(32) NOT NULL,
+            commercial_state_snapshot VARCHAR(40) NOT NULL,
+            entitlement_snapshot_json TEXT NOT NULL DEFAULT '{{}}',
+            status VARCHAR(24) NOT NULL DEFAULT 'pending_review',
+            rejection_reason TEXT,
+            submitted_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            approved_at {datetime_type},
+            rejected_at {datetime_type},
+            cancelled_at {datetime_type},
+            status_updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_saas_demo_requests_requester
+                FOREIGN KEY (requester_saas_account_id) REFERENCES saas_accounts(id) ON DELETE CASCADE,
+            CONSTRAINT fk_saas_demo_requests_organization
+                FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations(id) ON DELETE CASCADE,
+            CONSTRAINT fk_saas_demo_requests_workspace
+                FOREIGN KEY (school_group_id) REFERENCES school_groups(id) ON DELETE SET NULL,
+            CONSTRAINT ck_saas_demo_requests_status
+                CHECK (status IN ('pending_review','approved','rejected','cancelled')),
+            CONSTRAINT ck_saas_demo_requests_classification
+                CHECK (workspace_classification_snapshot IN ('internal_sandbox','customer_demo','customer_paid')),
+            CONSTRAINT ck_saas_demo_requests_commercial_state
+                CHECK (commercial_state_snapshot IN ('provisioning','internal_sandbox_active','customer_demo_active','customer_paid_active','inactive','suspended','archived','manual_review'))
+        )
+        """,
+    )
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_demo_request_reviews (
+            id {id_sql},
+            review_uuid VARCHAR(36) NOT NULL UNIQUE,
+            demo_request_id INTEGER NOT NULL UNIQUE,
+            reviewer_user_id INTEGER,
+            decision VARCHAR(20) NOT NULL,
+            reason TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_saas_demo_request_reviews_request
+                FOREIGN KEY (demo_request_id) REFERENCES saas_demo_requests(id) ON DELETE CASCADE,
+            CONSTRAINT fk_saas_demo_request_reviews_reviewer
+                FOREIGN KEY (reviewer_user_id) REFERENCES users(id) ON DELETE SET NULL,
+            CONSTRAINT ck_saas_demo_request_reviews_decision
+                CHECK (decision IN ('approved','rejected')),
+            CONSTRAINT ck_saas_demo_request_reviews_rejection_reason
+                CHECK (decision != 'rejected' OR (reason IS NOT NULL AND length(trim(reason)) > 0))
+        )
+        """,
+    )
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_demo_request_events (
+            id {id_sql},
+            demo_request_id INTEGER NOT NULL,
+            event_category VARCHAR(20) NOT NULL,
+            event_type VARCHAR(40) NOT NULL,
+            actor_type VARCHAR(24) NOT NULL,
+            actor_saas_account_id INTEGER,
+            actor_user_id INTEGER,
+            details_json TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_saas_demo_request_events_request
+                FOREIGN KEY (demo_request_id) REFERENCES saas_demo_requests(id) ON DELETE CASCADE,
+            CONSTRAINT fk_saas_demo_request_events_saas_actor
+                FOREIGN KEY (actor_saas_account_id) REFERENCES saas_accounts(id) ON DELETE SET NULL,
+            CONSTRAINT fk_saas_demo_request_events_platform_actor
+                FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL,
+            CONSTRAINT ck_saas_demo_request_events_category
+                CHECK (event_category IN ('audit','notification')),
+            CONSTRAINT ck_saas_demo_request_events_type
+                CHECK (event_type IN ('request_submitted','request_approved','request_rejected','request_cancelled','request_withdrawn')),
+            CONSTRAINT ck_saas_demo_request_events_actor_type
+                CHECK (actor_type IN ('customer','platform_owner','system'))
+        )
+        """,
+    )
+    for table_name, index_name, column_name in (
+        ("saas_demo_requests", "ix_saas_demo_requests_requester", "requester_saas_account_id"),
+        ("saas_demo_requests", "ix_saas_demo_requests_organization", "pending_organization_id"),
+        ("saas_demo_requests", "ix_saas_demo_requests_workspace", "school_group_id"),
+        ("saas_demo_requests", "ix_saas_demo_requests_status", "status"),
+        ("saas_demo_requests", "ix_saas_demo_requests_submitted", "submitted_at"),
+        ("saas_demo_request_reviews", "ix_saas_demo_request_reviews_reviewer", "reviewer_user_id"),
+        ("saas_demo_request_reviews", "ix_saas_demo_request_reviews_decision", "decision"),
+        ("saas_demo_request_events", "ix_saas_demo_request_events_request", "demo_request_id"),
+        ("saas_demo_request_events", "ix_saas_demo_request_events_category", "event_category"),
+        ("saas_demo_request_events", "ix_saas_demo_request_events_type", "event_type"),
+        ("saas_demo_request_events", "ix_saas_demo_request_events_created", "created_at"),
+    ):
+        _create_index_if_missing(engine, connection, table_name, index_name, column_name)
+    _execute(
+        connection,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_saas_demo_requests_pending_org
+        ON saas_demo_requests (pending_organization_id)
+        WHERE status = 'pending_review'
+        """,
+    )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -3645,6 +3761,11 @@ MIGRATIONS = (
         migration_id="20260722_003_commercial_entitlement_foundation",
         description="Add workspace and branch commercial entitlement foundations",
         apply=_commercial_entitlement_foundation,
+    ),
+    Migration(
+        migration_id="20260722_004_saas_demo_request_workflow",
+        description="Add the customer demo request and Platform Owner review workflow",
+        apply=_saas_demo_request_workflow,
     ),
 )
 

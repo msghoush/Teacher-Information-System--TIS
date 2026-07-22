@@ -59,6 +59,10 @@ Added constrained workspace identity/classification/lifecycle metadata, pre-prov
 
 Added normalized workspace and branch entitlement records, typed feature/limit values, read-only effective entitlement/commercial-state resolvers, conservative validation, and Platform Owner-only visibility. No enforcement or customer workflow changed.
 
+### M8B-3 Demo Request Workflow
+
+Added the post-onboarding Request Demo or Subscribe Now choice, validated review-only demo requests, customer status/withdrawal, a Platform Owner review queue, constrained review decisions, and durable audit/internal-notification events. Approval does not provision or activate a demo.
+
 ## Current
 
 ### KMS Enforcement Review
@@ -71,9 +75,9 @@ The product is preparing for stronger public customer journey work from landing 
 
 ## Next
 
-### M8B-3 Commercial Lifecycle Workflows
+### M8B-4 Demo Provisioning And Activation
 
-Proceed only from a separately approved M8B-3 specification after M8B-2 resolution is validated. Demo requests, approval/rejection, provisioning, expiration, schedulers, reminders, enforcement, conversion, memberships, and Al-Andalus migration remain unimplemented.
+Proceed only from a separately approved M8B-4 specification. Demo provisioning, activation, expiration, schedulers, reminders, enforcement, conversion, memberships, and Al-Andalus migration remain unimplemented.
 
 ### Premium Landing Page Redesign
 

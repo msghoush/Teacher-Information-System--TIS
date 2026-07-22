@@ -174,6 +174,16 @@ A partial unique index permits only one active workspace entitlement per SchoolG
 
 Migration `20260722_003_commercial_entitlement_foundation` seeds one foundation entitlement for each existing classified workspace without changing classification. It does not create branch overrides, convert Al-Andalus, or infer demo/paid policy. Paid rows are linked only when exactly one persisted active/trialing subscription can be identified; ambiguity remains unresolved and fails closed.
 
+### SaaS Demo Request Records
+
+M8B-3 adds three review-only tables:
+
+- `saas_demo_requests`: one customer submission with requester, pending organization, optional future workspace reference, immutable classification/commercial/entitlement snapshots, status, and transition timestamps.
+- `saas_demo_request_reviews`: one Platform Owner approval or rejection decision per request; rejected reviews require a reason.
+- `saas_demo_request_events`: append-only audit and internal-notification events for submission and every status transition.
+
+A partial unique index permits only one Pending Review request per pending organization. Check constraints protect request status, review decision, event category/type/actor, classification snapshot, commercial-state snapshot, and rejection-reason requirements. Migration `20260722_004_saas_demo_request_workflow` creates the records without backfill and without changing existing onboarding, payment, or workspace data.
+
 Related files:
 - `workspace_classification.py`
 - `saas/workspace_classification_service.py`
@@ -187,6 +197,9 @@ Related files:
 - `saas/branch_entitlement_service.py`
 - `saas/commercial_state_service.py`
 - `docs/adr/0009-commercial-state-and-entitlement-resolution.md`
+- `demo_workflow.py`
+- `saas/demo_request_service.py`
+- `docs/adr/0010-review-only-saas-demo-requests.md`
 
 ## Branches
 

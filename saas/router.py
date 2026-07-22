@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+import json
 import os
 from urllib.parse import quote_plus
 
@@ -10,7 +11,8 @@ import audit
 from dependencies import get_db
 import email_service
 import location_service
-from saas import billing_history_service, billing_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from demo_workflow import DemoRequestStatus
+from saas import billing_history_service, billing_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -991,6 +993,19 @@ def account_dashboard(request: Request, db: Session = Depends(get_db)):
     if redirect:
         return redirect
     setup_console = service.build_setup_console_context(db, account)
+    organization = service.get_pending_organization_for_account(db, account)
+    current_plan_selection = (
+        billing_service.get_current_plan_selection(db, organization)
+        if organization is not None
+        else None
+    )
+    demo_request = demo_request_service.get_latest_for_organization(db, organization)
+    if organization is not None and current_plan_selection is None:
+        setup_console = demo_request_service.apply_customer_setup_context(
+            setup_console,
+            organization,
+            demo_request,
+        )
     db.commit()
     return _render(
         request,
@@ -999,6 +1014,7 @@ def account_dashboard(request: Request, db: Session = Depends(get_db)):
             "account": account,
             "notice": request.query_params.get("notice", ""),
             "setup_console": setup_console,
+            "demo_request": demo_request,
         },
     )
 
@@ -2107,7 +2123,210 @@ def submit_onboarding(
             error=str(exc),
             status_code=422,
         )
-    return RedirectResponse("/saas/account?notice=Your+School+Workspace+Setup+is+ready+for+Subscription+Setup.", status_code=302)
+    return RedirectResponse(
+        f"/saas/onboarding/{organization_uuid}/commercial-choice",
+        status_code=302,
+    )
+
+
+@router.get("/onboarding/{organization_uuid}/commercial-choice", response_class=HTMLResponse)
+def commercial_choice_step(
+    organization_uuid: str,
+    request: Request,
+    error: str = Query(""),
+    notice: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    try:
+        demo_request_service.validate_commercial_choice(db, account, organization)
+    except demo_request_service.DemoRequestError as exc:
+        db.rollback()
+        return RedirectResponse(
+            f"/saas/account?notice={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    demo_request = demo_request_service.get_latest_for_organization(db, organization)
+    if demo_request and demo_request.status in {
+        DemoRequestStatus.PENDING_REVIEW.value,
+        DemoRequestStatus.APPROVED.value,
+    }:
+        db.commit()
+        return RedirectResponse(f"/saas/demo-requests/{demo_request.request_uuid}", status_code=302)
+    branch_count = service.count_billable_pending_branches(db, organization)
+    db.commit()
+    return _render(
+        request,
+        "saas/commercial_choice.html",
+        {
+            "account": account,
+            "organization": organization,
+            "demo_request": demo_request,
+            "branch_count": branch_count,
+            "error": error,
+            "notice": notice,
+        },
+    )
+
+
+@router.post("/onboarding/{organization_uuid}/commercial-choice/request-demo")
+def request_demo_step(
+    organization_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    try:
+        row = demo_request_service.submit_demo_request(db, account, organization)
+        draft_lifecycle_service.record_meaningful_activity(
+            db,
+            account,
+            organization=organization,
+            source="demo_request_submitted",
+        )
+        db.commit()
+    except demo_request_service.DemoRequestError as exc:
+        db.rollback()
+        audit.write_audit_event({
+            "event_type": "saas_demo_request",
+            "action": "submit",
+            "result": "blocked",
+            "actor_saas_account_id": int(getattr(account, "id", 0) or 0),
+            "pending_organization_id": int(getattr(organization, "id", 0) or 0),
+        })
+        return RedirectResponse(
+            f"/saas/onboarding/{organization_uuid}/commercial-choice?error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    audit.write_audit_event({
+        "event_type": "saas_demo_request",
+        "action": "submit",
+        "result": "success",
+        "actor_saas_account_id": int(account.id),
+        "pending_organization_id": int(organization.id),
+        "demo_request_uuid": row.request_uuid,
+    })
+    return RedirectResponse(
+        f"/saas/demo-requests/{row.request_uuid}?notice="
+        + quote_plus("Your demo request has been submitted for review."),
+        status_code=302,
+    )
+
+
+@router.post("/onboarding/{organization_uuid}/commercial-choice/subscribe")
+def subscribe_now_step(
+    organization_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    organization = service.get_owned_pending_organization(db, account, organization_uuid)
+    if not organization:
+        db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    try:
+        demo_request_service.prepare_subscription_choice(db, account, organization)
+        draft_lifecycle_service.record_meaningful_activity(
+            db,
+            account,
+            organization=organization,
+            source="subscription_path_selected",
+        )
+        db.commit()
+    except demo_request_service.DemoRequestError as exc:
+        db.rollback()
+        return RedirectResponse(
+            f"/saas/onboarding/{organization_uuid}/commercial-choice?error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    return RedirectResponse(f"/saas/onboarding/{organization_uuid}/plan", status_code=302)
+
+
+@router.get("/demo-requests/{request_uuid}", response_class=HTMLResponse)
+def customer_demo_request_status(
+    request_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    row = demo_request_service.get_owned_request(db, account, request_uuid)
+    if not row:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Demo request not found.")
+    card = demo_request_service.build_request_card(db, row)
+    db.commit()
+    return _render(
+        request,
+        "saas/demo_request_status.html",
+        {
+            "account": account,
+            "organization": card.organization,
+            "demo_request": row,
+            "status_label": demo_request_service.status_label(row.status),
+            "status_tone": demo_request_service.status_tone(row.status),
+            "branch_count": card.branch_count,
+            "notice": request.query_params.get("notice", ""),
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@router.post("/demo-requests/{request_uuid}/withdraw")
+def withdraw_customer_demo_request(
+    request_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    row = demo_request_service.get_owned_request(db, account, request_uuid)
+    if not row:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Demo request not found.")
+    try:
+        demo_request_service.withdraw_request(db, row, account)
+        db.commit()
+    except demo_request_service.DemoRequestError as exc:
+        db.rollback()
+        audit.write_audit_event({
+            "event_type": "saas_demo_request",
+            "action": "withdraw",
+            "result": "blocked",
+            "actor_saas_account_id": int(account.id),
+            "demo_request_uuid": request_uuid,
+        })
+        return RedirectResponse(
+            f"/saas/demo-requests/{request_uuid}?error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    audit.write_audit_event({
+        "event_type": "saas_demo_request",
+        "action": "withdraw",
+        "result": "success",
+        "actor_saas_account_id": int(account.id),
+        "demo_request_uuid": request_uuid,
+    })
+    return RedirectResponse(
+        f"/saas/demo-requests/{request_uuid}?notice=" + quote_plus("Demo request withdrawn."),
+        status_code=302,
+    )
 
 
 @router.get("/onboarding/{organization_uuid}/plan", response_class=HTMLResponse)
@@ -2123,6 +2342,14 @@ def plan_selection_step(
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    try:
+        demo_request_service.ensure_subscription_path_available(db, organization)
+    except demo_request_service.DemoRequestError:
+        demo_request = demo_request_service.get_latest_for_organization(db, organization)
+        db.rollback()
+        if demo_request:
+            return RedirectResponse(f"/saas/demo-requests/{demo_request.request_uuid}", status_code=302)
         return RedirectResponse("/saas/account", status_code=302)
     closed_redirect = _closed_initial_checkout_redirect(db, organization)
     if closed_redirect:
@@ -2167,6 +2394,14 @@ def select_plan_step(
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
+        return RedirectResponse("/saas/account", status_code=302)
+    try:
+        demo_request_service.ensure_subscription_path_available(db, organization)
+    except demo_request_service.DemoRequestError:
+        demo_request = demo_request_service.get_latest_for_organization(db, organization)
+        db.rollback()
+        if demo_request:
+            return RedirectResponse(f"/saas/demo-requests/{demo_request.request_uuid}", status_code=302)
         return RedirectResponse("/saas/account", status_code=302)
     closed_redirect = _closed_initial_checkout_redirect(db, organization)
     if closed_redirect:
@@ -2445,6 +2680,189 @@ async def paddle_webhook(request: Request, db: Session = Depends(get_db)):
         db.rollback()
         return PlainTextResponse("Webhook processing failed.", status_code=500)
     return PlainTextResponse(str(result.get("status") or "ok"), status_code=200)
+
+
+@admin_router.get("/demo-requests", response_class=HTMLResponse)
+def demo_request_review_queue(
+    request: Request,
+    q: str = Query(""),
+    status: str = Query(""),
+    sort: str = Query("submitted_desc"),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    error = request.query_params.get("error", "")
+    try:
+        cards = demo_request_service.list_review_queue(
+            db,
+            search=q,
+            status=status,
+            sort=sort,
+        )
+    except demo_request_service.DemoRequestError as exc:
+        cards = []
+        error = str(exc)
+    counts = {
+        "all": demo_request_service.count_requests(db),
+        "pending_review": demo_request_service.count_requests(
+            db, status=DemoRequestStatus.PENDING_REVIEW.value
+        ),
+        "approved": demo_request_service.count_requests(
+            db, status=DemoRequestStatus.APPROVED.value
+        ),
+        "rejected": demo_request_service.count_requests(
+            db, status=DemoRequestStatus.REJECTED.value
+        ),
+        "cancelled": demo_request_service.count_requests(
+            db, status=DemoRequestStatus.CANCELLED.value
+        ),
+    }
+    db.commit()
+    return _render(
+        request,
+        "saas/admin_demo_requests.html",
+        {
+            "current_user": current_user,
+            "cards": cards,
+            "counts": counts,
+            "search": q,
+            "status_filter": status,
+            "sort": sort,
+            "status_options": demo_request_service.STATUS_LABELS,
+            "status_label": demo_request_service.status_label,
+            "status_tone": demo_request_service.status_tone,
+            "notice": request.query_params.get("notice", ""),
+            "error": error,
+        },
+    )
+
+
+@admin_router.get("/demo-requests/{request_uuid}", response_class=HTMLResponse)
+def demo_request_review_detail(
+    request_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    row = demo_request_service.get_request_by_uuid(db, request_uuid)
+    if not row:
+        raise HTTPException(status_code=404, detail="Demo request not found.")
+    card = demo_request_service.build_request_card(db, row)
+    events = demo_request_service.list_events(db, row)
+    try:
+        entitlement_snapshot = json.loads(row.entitlement_snapshot_json or "{}")
+    except (TypeError, ValueError):
+        entitlement_snapshot = {"resolution_status": "manual_review"}
+    db.commit()
+    return _render(
+        request,
+        "saas/admin_demo_request_detail.html",
+        {
+            "current_user": current_user,
+            "card": card,
+            "demo_request": row,
+            "events": events,
+            "entitlement_snapshot": entitlement_snapshot,
+            "status_label": demo_request_service.status_label(row.status),
+            "status_tone": demo_request_service.status_tone(row.status),
+            "notice": request.query_params.get("notice", ""),
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+def _demo_review_audit(current_user, row, *, action: str, result: str) -> None:
+    audit.write_audit_event({
+        "event_type": "saas_demo_request_review",
+        "action": action,
+        "result": result,
+        "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+        "demo_request_uuid": str(getattr(row, "request_uuid", "") or ""),
+        "pending_organization_id": int(getattr(row, "pending_organization_id", 0) or 0),
+    })
+
+
+@admin_router.post("/demo-requests/{request_uuid}/approve")
+def approve_demo_request(
+    request_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    row = demo_request_service.get_request_by_uuid(db, request_uuid)
+    if not row:
+        raise HTTPException(status_code=404, detail="Demo request not found.")
+    try:
+        demo_request_service.approve_request(db, row, current_user)
+        db.commit()
+    except demo_request_service.DemoRequestError as exc:
+        db.rollback()
+        _demo_review_audit(current_user, row, action="approve", result="blocked")
+        return RedirectResponse(
+            f"/saas-admin/demo-requests/{request_uuid}?error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    _demo_review_audit(current_user, row, action="approve", result="success")
+    return RedirectResponse(
+        f"/saas-admin/demo-requests/{request_uuid}?notice="
+        + quote_plus("Demo request approved. No workspace was provisioned."),
+        status_code=302,
+    )
+
+
+@admin_router.post("/demo-requests/{request_uuid}/reject")
+def reject_demo_request(
+    request_uuid: str,
+    request: Request,
+    reason: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    row = demo_request_service.get_request_by_uuid(db, request_uuid)
+    if not row:
+        raise HTTPException(status_code=404, detail="Demo request not found.")
+    try:
+        demo_request_service.reject_request(db, row, current_user, reason=reason)
+        db.commit()
+    except demo_request_service.DemoRequestError as exc:
+        db.rollback()
+        _demo_review_audit(current_user, row, action="reject", result="blocked")
+        return RedirectResponse(
+            f"/saas-admin/demo-requests/{request_uuid}?error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    _demo_review_audit(current_user, row, action="reject", result="success")
+    return RedirectResponse(
+        f"/saas-admin/demo-requests/{request_uuid}?notice=" + quote_plus("Demo request rejected."),
+        status_code=302,
+    )
+
+
+@admin_router.post("/demo-requests/{request_uuid}/cancel")
+def cancel_demo_request(
+    request_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    row = demo_request_service.get_request_by_uuid(db, request_uuid)
+    if not row:
+        raise HTTPException(status_code=404, detail="Demo request not found.")
+    try:
+        demo_request_service.cancel_request(db, row, current_user)
+        db.commit()
+    except demo_request_service.DemoRequestError as exc:
+        db.rollback()
+        _demo_review_audit(current_user, row, action="cancel", result="blocked")
+        return RedirectResponse(
+            f"/saas-admin/demo-requests/{request_uuid}?error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    _demo_review_audit(current_user, row, action="cancel", result="success")
+    return RedirectResponse(
+        f"/saas-admin/demo-requests/{request_uuid}?notice=" + quote_plus("Demo request cancelled."),
+        status_code=302,
+    )
 
 
 @admin_router.get("/pending-organizations", response_class=HTMLResponse)

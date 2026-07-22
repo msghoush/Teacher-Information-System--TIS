@@ -1,0 +1,88 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .demo-queue-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+    .demo-queue-metrics { display: grid; grid-template-columns: repeat(4, minmax(100px, 1fr)); gap: 10px; margin-bottom: 18px; }
+    .demo-queue-metric { border: 1px solid var(--line); border-radius: 12px; background: #f8fbff; padding: 13px; }
+    .demo-queue-metric strong, .demo-queue-metric span { display: block; }
+    .demo-queue-metric strong { font-size: 22px; }
+    .demo-queue-metric span { color: var(--muted); font-size: 12px; font-weight: 800; }
+    .demo-queue-filter { display: grid; grid-template-columns: minmax(220px, 1fr) 190px 190px auto; gap: 12px; align-items: end; margin-bottom: 18px; }
+    .demo-queue-filter input, .demo-queue-filter select { margin-bottom: 0; }
+    .demo-queue-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .demo-queue-table { min-width: 920px; }
+    .demo-status { display: inline-flex; border: 1px solid #d7e1ec; border-radius: 999px; background: #f4f7fa; color: #41566e; padding: 5px 9px; font-size: 11px; font-weight: 900; white-space: nowrap; }
+    .demo-status.warning { border-color: #efd28e; background: #fff8e2; color: #7b570b; }
+    .demo-status.success { border-color: #b7dfca; background: #eaf8f1; color: #166144; }
+    .demo-status.danger { border-color: #eebcc3; background: #fff1f3; color: #9b2838; }
+    .demo-org-cell strong, .demo-org-cell span { display: block; }
+    .demo-org-cell span { margin-top: 4px; color: var(--muted); font-size: 12px; }
+    .demo-empty { border: 1px dashed #b9cbe0; border-radius: 14px; background: #f8fbff; padding: 28px; text-align: center; }
+    @media (max-width: 800px) { .demo-queue-head { align-items: flex-start; flex-direction: column; } .demo-queue-metrics, .demo-queue-filter { grid-template-columns: 1fr; } }
+</style>
+
+<div class="demo-queue-head">
+    <div>
+        <span class="page-eyebrow">Platform Owner</span>
+        <h1>Demo Request Review Queue</h1>
+        <p class="page-subtitle">Review customer-submitted demo requests. Approval records a decision only and does not provision a workspace.</p>
+    </div>
+    <a class="btn secondary" href="/platform">Platform Console</a>
+</div>
+
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<section class="demo-queue-metrics" aria-label="Demo request counts">
+    <div class="demo-queue-metric"><strong>{{ counts.pending_review }}</strong><span>Pending Review</span></div>
+    <div class="demo-queue-metric"><strong>{{ counts.approved }}</strong><span>Approved</span></div>
+    <div class="demo-queue-metric"><strong>{{ counts.rejected }}</strong><span>Rejected</span></div>
+    <div class="demo-queue-metric"><strong>{{ counts.cancelled }}</strong><span>Cancelled</span></div>
+</section>
+
+<form class="demo-queue-filter" method="get" action="/saas-admin/demo-requests">
+    <div><label for="demo-search">Search</label><input id="demo-search" name="q" value="{{ search }}" placeholder="Organization or requester"></div>
+    <div>
+        <label for="demo-status-filter">Status</label>
+        <select id="demo-status-filter" name="status">
+            <option value="">All statuses</option>
+            {% for value, label in status_options.items() %}<option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    <div>
+        <label for="demo-sort">Sort</label>
+        <select id="demo-sort" name="sort">
+            <option value="submitted_desc" {% if sort == 'submitted_desc' %}selected{% endif %}>Newest first</option>
+            <option value="submitted_asc" {% if sort == 'submitted_asc' %}selected{% endif %}>Oldest first</option>
+            <option value="organization_asc" {% if sort == 'organization_asc' %}selected{% endif %}>Organization</option>
+            <option value="status_asc" {% if sort == 'status_asc' %}selected{% endif %}>Status</option>
+        </select>
+    </div>
+    <button class="btn secondary" type="submit">Apply</button>
+</form>
+
+{% if cards %}
+<div class="demo-queue-table-wrap">
+    <table class="table demo-queue-table">
+        <thead><tr><th>Organization</th><th>Requester</th><th>Submitted</th><th>Commercial Snapshot</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody>
+        {% for card in cards %}
+            <tr>
+                <td class="demo-org-cell"><strong>{{ card.organization.organization_name if card.organization else 'Organization unavailable' }}</strong><span>{{ card.branch_count }} configured branch{% if card.branch_count != 1 %}es{% endif %}</span></td>
+                <td class="demo-org-cell"><strong>{{ (card.requester.first_name ~ ' ' ~ card.requester.last_name)|trim if card.requester else 'Requester unavailable' }}</strong><span>{{ card.requester.email if card.requester else '' }}</span></td>
+                <td>{{ card.request.submitted_at.strftime('%b %d, %Y') if card.request.submitted_at else 'Not available' }}</td>
+                <td class="demo-org-cell"><strong>{{ card.request.workspace_classification_snapshot|replace('_', ' ')|title }}</strong><span>{{ card.request.commercial_state_snapshot|replace('_', ' ')|title }}</span></td>
+                <td><span class="demo-status {{ status_tone(card.request.status) }}">{{ status_label(card.request.status) }}</span></td>
+                <td><a class="btn secondary" href="/saas-admin/demo-requests/{{ card.request.request_uuid }}">Review Request</a></td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<section class="demo-empty">
+    <h2>No demo requests found</h2>
+    <p class="muted">New customer requests will appear here after completed School Workspace Setup.</p>
+</section>
+{% endif %}
+{% endblock %}

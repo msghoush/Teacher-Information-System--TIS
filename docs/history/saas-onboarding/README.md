@@ -1,12 +1,18 @@
 ---
 title: SaaS Onboarding History
 module: saas-onboarding
-last_updated: 2026-07-16
+last_updated: 2026-07-22
 ---
 
 # SaaS Onboarding History
 
 This folder tracks meaningful changes to signup, login, account, organization onboarding, contacts, branches, academic setup, review, and account self-service.
+
+## 2026-07-22 - M8B-3 Demo Request Workflow
+
+Completed onboarding now presents Request Demo and Subscribe Now. Subscribe Now preserves the existing plan-selection and Paddle lifecycle. Request Demo validates the verified customer and complete onboarding record, stores a review-only commercial snapshot, and prevents duplicate pending requests.
+
+Customers can view request status and withdraw a pending request. Platform Owners have a searchable/filterable review queue and may approve, reject with a mandatory reason, or cancel. Approval creates review evidence only; no SchoolGroup, entitlement, checkout, payment, provisioning, activation, or email is created. Durable audit and internal-notification events record every transition.
 
 ## 2026-07-16 - M7 Phase 2 Read-Only Subscription Management Portal
 

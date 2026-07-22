@@ -135,6 +135,14 @@ The commercial resolver combines persisted workspace classification/lifecycle me
 
 These results are visible only to Platform Owners in `/platform`. They are not wired into tenant authorization, feature restrictions, branch behavior, onboarding, Paddle, demo expiration, or customer workflows. Internal sandbox workspaces created outside the migration retain a compatibility-only implicit entitlement so existing development flows remain unchanged.
 
+## M8B-3 Demo Request Workflow
+
+M8B-3 adds the first customer-facing commercial choice after completed onboarding: Request Demo or Subscribe Now. Subscribe Now continues into the existing plan-selection and Paddle workflow unchanged. Request Demo validates the verified account and completed organization, contact, academic, and branch setup before creating a `SaaSDemoRequest` in Pending Review.
+
+The request records the requester, pending organization, submission time, customer-demo classification intent, provisioning commercial-state snapshot, and a fail-closed pre-provisioning entitlement snapshot. It does not create a SchoolGroup, workspace entitlement, subscription, checkout, or Paddle record. The workflow is separate from the legacy public marketing `DemoRequest` lead table.
+
+Platform Owners have a searchable and sortable review queue. Approval records a review decision only; rejection requires a reason; owner cancellation and customer withdrawal are limited to Pending Review. Every transition creates durable audit and internal-notification events, but M8B-3 sends no email and performs no demo provisioning or activation.
+
 ## Current SaaS Account Verification State
 
 Phase 1 TIS Account email verification recovery is accepted. Valid verification links now mark the SaaS account email verified/active and redirect to the TIS Account login page with a professional success notice so the customer can continue school workspace setup.

@@ -122,6 +122,30 @@ Risks/guardrails:
 - Pending onboarding data is not the same as operational tenant data.
 - Do not create live tenant records directly from public forms.
 
+## SaaS Demo Request Workflow
+
+Purpose:
+Offer verified customers a post-onboarding choice between the unchanged subscription workflow and a review-only demo request.
+
+Main files/folders:
+- `demo_workflow.py`
+- `saas/demo_request_service.py`
+- `saas/router.py`
+- `templates/saas/commercial_choice.html`
+- `templates/saas/demo_request_status.html`
+- `templates/saas/admin_demo_requests.html`
+- `templates/saas/admin_demo_request_detail.html`
+
+Maturity/status:
+M8B-3 implemented. Submission, customer status/withdrawal, Platform Owner review, durable audit events, and internal-notification events are available. Provisioning, activation, expiration, and email delivery are not implemented.
+
+Risks/guardrails:
+- Do not confuse SaaS demo requests with legacy public marketing demo leads.
+- Approval is a review decision only and must not create a SchoolGroup or entitlement.
+- Subscribe Now must continue through the existing provider-authoritative billing path.
+- Only Platform Owners may review, reject, approve, or cancel requests.
+- Customer withdrawal is valid only while Pending Review.
+
 ## Workspace Classification Foundation
 
 Purpose:

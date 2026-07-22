@@ -1,0 +1,70 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .commercial-choice-head { max-width: 760px; margin-bottom: 22px; }
+    .commercial-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .commercial-option { display: flex; min-height: 310px; flex-direction: column; border: 1px solid var(--line); border-radius: 18px; background: #fff; padding: 22px; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+    .commercial-option:hover { transform: translateY(-2px); border-color: #aac5e2; box-shadow: 0 16px 34px rgba(16, 35, 63, .08); }
+    .commercial-option h2 { margin-bottom: 8px; }
+    .commercial-option p { color: var(--muted); line-height: 1.6; }
+    .commercial-option ul { display: grid; gap: 9px; margin: 8px 0 24px; padding-left: 20px; color: #334155; line-height: 1.45; }
+    .commercial-option form { margin-top: auto; }
+    .commercial-option .btn { width: 100%; }
+    .commercial-choice-summary { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+    .commercial-choice-summary span { border: 1px solid var(--line); border-radius: 999px; background: #f8fbff; padding: 7px 11px; color: #40566f; font-size: 12px; font-weight: 800; }
+    @media (max-width: 760px) { .commercial-choice-grid { grid-template-columns: 1fr; } .commercial-option { min-height: 0; } }
+</style>
+
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<header class="commercial-choice-head">
+    <span class="page-eyebrow">Commercial Path</span>
+    <h1>Choose how to continue</h1>
+    <p class="page-subtitle">{{ organization.organization_name }} is ready for the next step. Request a guided review or continue directly to subscription selection.</p>
+</header>
+
+<div class="commercial-choice-summary" aria-label="School workspace summary">
+    <span>Setup reviewed</span>
+    <span>{{ branch_count }} configured branch{% if branch_count != 1 %}es{% endif %}</span>
+    <span>Email verified</span>
+</div>
+
+{% if demo_request and demo_request.status in ('rejected', 'cancelled') %}
+<div class="warning">The previous demo request is {{ demo_request.status|replace('_', ' ') }}. You can continue with a subscription now.</div>
+{% endif %}
+
+<section class="commercial-choice-grid" aria-label="Commercial options">
+    <article class="commercial-option">
+        <span class="metric-badge">Guided Review</span>
+        <h2>Request Demo</h2>
+        <p>Ask the TIS team to review your submitted school setup and demo requirements.</p>
+        <ul>
+            <li>No payment or subscription is created.</li>
+            <li>A Platform Owner reviews the request.</li>
+            <li>Approval does not activate or provision a workspace yet.</li>
+        </ul>
+        <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/commercial-choice/request-demo">
+            <button class="btn secondary" type="submit">Request Demo</button>
+        </form>
+    </article>
+
+    <article class="commercial-option">
+        <span class="metric-badge">Direct Subscription</span>
+        <h2>Subscribe Now</h2>
+        <p>Continue to the existing TIS subscription selection and Secure Payment workflow.</p>
+        <ul>
+            <li>Choose a plan and billing interval.</li>
+            <li>Review branch-based pricing before payment.</li>
+            <li>Workspace Activation remains payment-confirmed.</li>
+        </ul>
+        <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/commercial-choice/subscribe">
+            <button class="btn" type="submit">Subscribe Now</button>
+        </form>
+    </article>
+</section>
+
+<div class="wizard-actions" style="margin-top:18px;">
+    <a class="btn secondary" href="/saas/account">Back to Account Setup</a>
+</div>
+{% endblock %}

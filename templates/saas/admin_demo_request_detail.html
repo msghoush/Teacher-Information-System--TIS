@@ -1,0 +1,90 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .demo-review-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
+    .demo-review-status { display: inline-flex; border: 1px solid #d7e1ec; border-radius: 999px; background: #f4f7fa; color: #41566e; padding: 7px 11px; font-size: 12px; font-weight: 900; }
+    .demo-review-status.warning { border-color: #efd28e; background: #fff8e2; color: #7b570b; }
+    .demo-review-status.success { border-color: #b7dfca; background: #eaf8f1; color: #166144; }
+    .demo-review-status.danger { border-color: #eebcc3; background: #fff1f3; color: #9b2838; }
+    .demo-review-section { margin-top: 22px; }
+    .demo-review-section > h2 { margin-bottom: 12px; }
+    .demo-review-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .demo-review-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .demo-review-action { border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 18px; }
+    .demo-review-action.full { grid-column: 1 / -1; border-color: #efc2c7; background: #fffafb; }
+    .demo-review-action textarea { min-height: 110px; }
+    .demo-event-list { display: grid; gap: 8px; }
+    .demo-event { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 9px 0; font-size: 13px; }
+    @media (max-width: 800px) { .demo-review-head { flex-direction: column; } .demo-review-grid, .demo-review-actions { grid-template-columns: 1fr; } .demo-review-action.full { grid-column: auto; } }
+</style>
+
+<div class="demo-review-head">
+    <div>
+        <span class="page-eyebrow">Demo Review</span>
+        <h1>{{ card.organization.organization_name if card.organization else 'Organization unavailable' }}</h1>
+        <p class="page-subtitle">Review the submitted organization and commercial snapshot. No action on this page provisions or activates a workspace.</p>
+    </div>
+    <span class="demo-review-status {{ status_tone }}">{{ status_label }}</span>
+</div>
+
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<section class="demo-review-section">
+    <h2>Organization Summary</h2>
+    <div class="demo-review-grid">
+        <div class="stat"><strong>Requester</strong><p>{{ card.requester.first_name }} {{ card.requester.last_name }}<br>{{ card.requester.email }}</p></div>
+        <div class="stat"><strong>Submitted</strong><p>{{ demo_request.submitted_at.strftime('%B %d, %Y at %H:%M UTC') if demo_request.submitted_at else 'Not available' }}</p></div>
+        <div class="stat"><strong>Configured Branches</strong><p>{{ card.branch_count }}</p></div>
+        <div class="stat"><strong>Educational Program</strong><p>{{ card.organization.educational_program or 'Not available' }}</p></div>
+        <div class="stat"><strong>Location</strong><p>{{ card.organization.city_name or 'Not available' }}{% if card.organization.country_name %}, {{ card.organization.country_name }}{% endif %}</p></div>
+        <div class="stat"><strong>Primary Contact</strong><p>{% if card.primary_contact %}{{ card.primary_contact.first_name }} {{ card.primary_contact.last_name }}<br>{{ card.primary_contact.email }}{% else %}Not available{% endif %}</p></div>
+    </div>
+</section>
+
+<section class="demo-review-section">
+    <h2>Commercial Snapshot</h2>
+    <div class="demo-review-grid">
+        <div class="stat"><strong>Workspace Classification</strong><p>{{ demo_request.workspace_classification_snapshot|replace('_', ' ')|title }}</p></div>
+        <div class="stat"><strong>Commercial State</strong><p>{{ demo_request.commercial_state_snapshot|replace('_', ' ')|title }}</p></div>
+        <div class="stat"><strong>Entitlement Resolution</strong><p>{{ entitlement_snapshot.get('resolution_status', 'manual_review')|replace('_', ' ')|title }}</p></div>
+    </div>
+</section>
+
+{% if demo_request.status == 'pending_review' %}
+<section class="demo-review-section" aria-label="Review actions">
+    <h2>Review Actions</h2>
+    <div class="demo-review-actions">
+        <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/approve">
+            <h3>Approve Request</h3>
+            <p class="muted">Record approval only. Demo provisioning remains unavailable until M8B-4.</p>
+            <button class="btn" type="submit">Approve</button>
+        </form>
+        <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/reject">
+            <h3>Reject Request</h3>
+            <label for="rejection-reason">Reason</label>
+            <textarea id="rejection-reason" name="reason" maxlength="4000" required></textarea>
+            <button class="btn danger" type="submit">Reject</button>
+        </form>
+        <form class="demo-review-action full" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/cancel">
+            <h3>Cancel Request</h3>
+            <p class="muted">Close this pending request without approval or rejection.</p>
+            <button class="btn secondary" type="submit">Cancel Request</button>
+        </form>
+    </div>
+</section>
+{% elif demo_request.status == 'rejected' %}
+<section class="demo-review-section"><h2>Rejection Reason</h2><div class="error">{{ demo_request.rejection_reason }}</div></section>
+{% endif %}
+
+<section class="demo-review-section">
+    <h2>Request History</h2>
+    <div class="demo-event-list">
+        {% for event in events %}
+        <div class="demo-event"><span>{{ event.event_type|replace('_', ' ')|title }} <span class="muted">({{ event.event_category }})</span></span><time>{{ event.created_at.strftime('%b %d, %Y %H:%M UTC') if event.created_at else '' }}</time></div>
+        {% else %}<p class="muted">No request events are available.</p>{% endfor %}
+    </div>
+</section>
+
+<div class="actions" style="margin-top:22px;"><a class="btn secondary" href="/saas-admin/demo-requests">Back to Review Queue</a></div>
+{% endblock %}
