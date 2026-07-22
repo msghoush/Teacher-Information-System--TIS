@@ -55,22 +55,24 @@
 .account-head { display:flex; justify-content:space-between; gap:12px; margin-bottom:8px; }
 .notice { background:#eff6ff; color:#1e3a8a; border-radius:10px; padding:10px 12px; margin-bottom:14px; }
 .owner-workbench { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(260px,.75fr); gap:14px; margin-bottom:18px; }
-.owner-card { position:relative; overflow:hidden; border:1px solid #d8e2f0; border-radius:18px; background:#fff; padding:18px; box-shadow:0 12px 32px rgba(15,23,42,.06); }
-.owner-card.primary { border-color:#bad7f3; background:linear-gradient(135deg,#fff,#f2f8ff); }
-.owner-card.primary::before { content:""; position:absolute; inset:0 auto 0 0; width:5px; background:linear-gradient(180deg,#0a4ea3,#168a88); }
+.owner-card { position:relative; overflow:hidden; border:1px solid #d8e2f0; border-radius:8px; background:#fff; padding:18px; box-shadow:0 8px 22px rgba(15,23,42,.05); }
+.owner-card.primary { border-color:#bad7f3; background:#f8fbff; }
+.owner-card.primary::before { content:""; position:absolute; inset:0 auto 0 0; width:4px; background:#0a4ea3; }
 .owner-kicker { display:inline-flex; margin-bottom:8px; border-radius:999px; background:#eaf4ff; color:#0a4ea3; padding:5px 10px; font-size:12px; font-weight:800; }
 .owner-card h2 { margin:0 0 6px; color:#10233f; font-size:22px; }
 .owner-card p { margin:0; }
 .owner-actions { display:flex; flex-wrap:wrap; gap:9px; margin-top:14px; }
 .owner-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:9px; margin-top:16px; }
-.owner-stat { border:1px solid #d8e2f0; border-radius:13px; background:rgba(255,255,255,.78); padding:10px; }
+.owner-stat { border:1px solid #d8e2f0; border-radius:7px; background:#fff; padding:11px; }
 .owner-stat strong { display:block; color:#0a4ea3; font-size:20px; line-height:1; }
 .owner-stat span { color:#64748b; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
 .owner-recent { display:grid; gap:8px; margin-top:14px; }
-.owner-recent-item { display:flex; justify-content:space-between; gap:10px; border:1px solid #e2e8f0; border-radius:12px; background:#fff; padding:10px; color:inherit; text-decoration:none; }
+.owner-recent-item { display:flex; justify-content:space-between; gap:10px; border:1px solid #e2e8f0; border-radius:7px; background:#fff; padding:11px; color:inherit; text-decoration:none; transition:border-color .16s ease, background .16s ease; }
+.owner-recent-item:hover { border-color:#a8c5e3; background:#f8fbff; }
 .owner-recent-item strong { display:block; color:#17365d; font-size:13px; }
 .owner-recent-item span { display:block; color:#64748b; font-size:12px; }
-.owner-empty { margin-top:14px; border:1px dashed #b8cce2; border-radius:12px; background:#f8fbff; padding:12px; color:#64748b; font-size:13px; line-height:1.45; }
+.owner-recent-status { align-self:center; border:1px solid #bad4ee; border-radius:999px; background:#edf6ff; color:#175b94 !important; padding:5px 9px; font-size:11px !important; font-weight:800; white-space:nowrap; }
+.owner-empty { margin-top:14px; border:1px dashed #b8cce2; border-radius:8px; background:#f8fbff; padding:16px; color:#64748b; font-size:13px; line-height:1.45; }
 @media (max-width:900px) { .owner-workbench { grid-template-columns:1fr; } .owner-stats { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:700px) { .platform-toolbar,.organization-card summary,.branch-row,.account-head,.account-profile-head,.owner-recent-item { align-items:stretch; flex-direction:column; } .account-profile-forms { grid-template-columns:1fr; } .owner-stats { grid-template-columns:1fr; } }
 </style>
@@ -86,22 +88,26 @@
     <article class="owner-card primary">
         <span class="owner-kicker">Platform Owner</span>
         <h2>SaaS Admin</h2>
-        <p class="muted">Review SaaS onboarding records, customer signup progress, billing readiness, and pending workspace activation.</p>
+        <p class="muted">Review organizations that still require onboarding, payment, or workspace-activation work.</p>
         <div class="owner-stats" aria-label="SaaS admin summary">
-            <div class="owner-stat"><strong>{{ saas_admin_summary.pending_count }}</strong><span>Organizations</span></div>
-            <div class="owner-stat"><strong>{{ saas_admin_summary.ready_count }}</strong><span>Ready</span></div>
-            <div class="owner-stat"><strong>{{ saas_admin_summary.draft_count }}</strong><span>Drafts</span></div>
+            <div class="owner-stat"><strong>{{ saas_admin_summary.pending_count }}</strong><span>Pending</span></div>
+            <div class="owner-stat"><strong>{{ saas_admin_summary.ready_count }}</strong><span>Subscription ready</span></div>
+            <div class="owner-stat"><strong>{{ saas_admin_summary.draft_count }}</strong><span>Setup drafts</span></div>
             <div class="owner-stat"><strong>{{ saas_admin_summary.account_count }}</strong><span>SaaS accounts</span></div>
         </div>
         <div class="owner-actions">
-            <a class="button" href="/saas-admin/pending-organizations">Open Pending Organizations</a>
+            {% if saas_admin_summary.pending_count %}
+            <a class="button" href="/saas-admin/pending-organizations">Review Pending Organizations</a>
+            {% else %}
+            <a class="button secondary" href="/saas-admin/pending-organizations?view=history">View Organization Records</a>
+            {% endif %}
             <a class="button secondary" href="/saas-admin/accounts">Manage SaaS Accounts</a>
             <a class="button secondary" href="/saas-admin/provisioning">Provisioning Queue</a>
         </div>
     </article>
     <article class="owner-card">
-        <span class="owner-kicker">Recently Updated</span>
-        <h2>Latest SaaS Records</h2>
+        <span class="owner-kicker">Pending Queue</span>
+        <h2>Recent Pending Activity</h2>
         {% if saas_admin_summary.recent %}
         <div class="owner-recent">
             {% for item in saas_admin_summary.recent %}
@@ -110,13 +116,13 @@
                     <strong>{{ item.organization.organization_name or "Untitled organization draft" }}</strong>
                     <span>{{ item.owner_email or "No owner email" }}</span>
                 </span>
-                <span>{{ item.organization.status }} / {{ item.organization.onboarding_step }}</span>
+                <span class="owner-recent-status">{{ item.lifecycle_label }}</span>
             </a>
             {% endfor %}
         </div>
         {% else %}
         <div class="owner-empty">
-            No pending organizations yet. A SaaS account appears here only after the customer starts organization setup from the SaaS account dashboard.
+            No organizations currently require onboarding, payment, or workspace-activation work.
         </div>
         {% endif %}
         <div class="owner-actions">

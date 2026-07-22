@@ -1,17 +1,17 @@
 knowledge_impact: yes
-summary: Add Phase 7D KMS navigation and catalog enforcement.
+summary: Define authoritative Platform Owner pending-organization lifecycle filtering and presentation.
 affected_areas:
-  - kms-governance
-  - catalog-validation
-  - generated-artifacts
+  - saas-onboarding
+  - provisioning
+  - platform-owner-console
+  - lifecycle-management
 kms_files_updated:
-  - docs/CHANGE_HISTORY.md
-  - docs/DOCUMENTATION_UPDATE_POLICY.md
-  - docs/KMS_NAVIGATION.md
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
-  - docs/engineering/DOCUMENTATION_AUTOMATION.md
-  - docs/engineering/REPOSITORY_ARCHITECTURE.md
-  - docs/history/engineering-handbook/README.md
-  - docs/history/engineering-handbook/2026-07-22-kms-phase-7d-navigation-catalog-enforcement.md
+  - docs/CHANGE_HISTORY.md
+  - docs/engineering/TIS_MODULE_MAP.md
+  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
+  - docs/history/provisioning/README.md
 no_impact_reason:
 major_change_override: no

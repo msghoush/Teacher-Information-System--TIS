@@ -125,7 +125,7 @@ Risks/guardrails:
 ## Pending Organizations
 
 Purpose:
-Represent SaaS organizations waiting for review, payment readiness, or provisioning.
+Represent the Platform Owner work queue for organizations still waiting on setup, review, payment, or incomplete/recoverable provisioning, while preserving completed and historical records separately.
 
 Main files/folders:
 - `saas/models.py`
@@ -135,13 +135,16 @@ Main files/folders:
 - `templates/saas/admin_pending_organization_detail.html`
 
 Maturity/status:
-Implemented foundation.
+Implemented with lifecycle-aware pending filtering and retained Organization Records.
 
 Related docs/ADRs:
 - `docs/adr/0005-delayed-tenant-provisioning-after-verified-payment.md`
 
 Risks/guardrails:
 - Keep pending state separate from provisioned tenant state.
+- Do not count a row as pending when a tenant link, completed provisioning job, or final tenant billing state exists.
+- Resolve active tenant display from coherent payment, active subscription, contract, tenant-link, and active SchoolGroup evidence; conflicting completed evidence must fail closed to Lifecycle Review Required.
+- Preserve raw onboarding fields as history rather than rewriting them solely for owner presentation.
 - Preserve platform owner review and auditability.
 
 ## Plans And Pricing

@@ -151,9 +151,11 @@ Flow:
 1. Platform owner logs in through `/login`.
 2. Owner lands in platform context.
 3. Owner uses `/platform` for organization context and owner/developer controls.
-4. Owner uses SaaS admin pages for pending organizations, payments, and provisioning.
-5. Owner uses `/platform/knowledge` to review KMS health.
-6. Owner views/downloads the PDF through protected routes:
+4. Platform Console pending counts include only organizations still requiring setup, review, payment, or incomplete/recoverable activation work.
+5. Owner opens Pending Queue for current work or Organization Records for active, completed, rejected, and lifecycle-review history.
+6. Owner uses SaaS admin pages for payments and provisioning.
+7. Owner uses `/platform/knowledge` to review KMS health.
+8. Owner views/downloads the PDF through protected routes:
    - `/platform/knowledge/booklet`
    - `/platform/knowledge/booklet/download`
 
@@ -161,6 +163,7 @@ Guardrails:
 
 - Platform developers are not owners.
 - Owner-only pages must use existing owner access helpers.
+- Active tenant evidence takes precedence over stale onboarding status; conflicting completed evidence is labeled Lifecycle Review Required and excluded from the normal pending queue.
 - Do not expose KMS PDF through direct static links.
 
 ## Knowledge Management Flow

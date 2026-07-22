@@ -1,88 +1,109 @@
 {% extends "saas/base.html" %}
 {% block content %}
 <style>
-    .pending-org-table-wrap {
-        width: 100%;
-        max-width: 100%;
-        overflow-x: auto;
-        overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
-        border: 1px solid var(--line);
-        border-radius: 16px;
-        background: #fff;
-    }
-    .pending-org-table-wrap .table {
-        min-width: 1180px;
-        border: 0;
-        border-radius: 0;
-    }
-    .pending-org-table th,
-    .pending-org-table td {
-        white-space: nowrap;
-    }
-    .pending-org-table .org-cell,
-    .pending-org-table .owner-cell,
-    .pending-org-table .billing-cell {
-        white-space: normal;
-        min-width: 210px;
-    }
-    .pending-org-table .actions-cell {
-        position: sticky;
-        right: 0;
-        min-width: 250px;
-        background: #fff;
-        box-shadow: -12px 0 18px rgba(16, 35, 63, .08);
-        z-index: 1;
-    }
-    .pending-org-table th.actions-cell {
-        background: #f2f7fd;
-        z-index: 2;
-    }
-    .pending-org-row-actions {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: nowrap;
-        margin-top: 0;
-    }
-    .pending-org-row-actions .btn {
-        min-height: 38px;
-        padding: 8px 12px;
-        white-space: nowrap;
-    }
-    @media (max-width: 760px) {
-        .pending-org-table .actions-cell {
-            min-width: 230px;
-        }
+    .owner-page-head { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:18px; }
+    .owner-page-head h1 { margin-bottom:6px; }
+    .owner-page-count { min-width:112px; border:1px solid var(--line); border-radius:8px; background:#f8fbff; padding:12px 14px; text-align:right; }
+    .owner-page-count strong { display:block; color:var(--brand); font-size:24px; line-height:1; }
+    .owner-page-count span { color:var(--muted); font-size:12px; font-weight:800; }
+    .owner-view-tabs { display:flex; gap:4px; width:fit-content; margin:0 0 18px; border:1px solid var(--line); border-radius:8px; background:#f3f7fc; padding:4px; }
+    .owner-view-tab { border-radius:6px; color:#47627e; padding:9px 13px; font-size:13px; font-weight:800; text-decoration:none; }
+    .owner-view-tab.active { background:#fff; color:var(--brand); box-shadow:0 2px 7px rgba(16,35,63,.08); }
+    .owner-filter { display:grid; grid-template-columns:minmax(220px,320px) auto; align-items:end; gap:10px; margin-bottom:16px; }
+    .owner-filter label { margin-bottom:5px; }
+    .owner-filter select { margin:0; min-height:42px; border-radius:8px; }
+    .owner-filter .actions { margin:0; }
+    .owner-filter .btn { min-height:42px; border-radius:8px; padding:9px 14px; }
+    .pending-org-table-wrap { width:100%; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line); border-radius:8px; background:#fff; }
+    .pending-org-table-wrap .table { min-width:930px; border:0; border-radius:0; }
+    .pending-org-table th { background:#edf4fb; color:#36516d; }
+    .pending-org-table td { padding-top:15px; padding-bottom:15px; }
+    .pending-org-table .org-cell { min-width:220px; white-space:normal; }
+    .pending-org-table .setup-cell { min-width:145px; }
+    .pending-org-table .commercial-cell { min-width:150px; }
+    .pending-org-table .activation-cell { min-width:180px; white-space:normal; }
+    .pending-org-table .actions-cell { position: sticky; right: 0; min-width:205px; background:#fff; box-shadow:-8px 0 14px rgba(16,35,63,.07); z-index:1; }
+    .pending-org-table th.actions-cell { background:#edf4fb; z-index:2; }
+    .pending-org-row-actions { display:flex; align-items:center; gap:7px; flex-wrap:nowrap; margin:0; }
+    .pending-org-row-actions .btn { min-height:36px; border-radius:7px; padding:7px 10px; font-size:12px; white-space:nowrap; }
+    .owner-status-badge { display:inline-flex; align-items:center; border:1px solid #d5e0eb; border-radius:999px; background:#f3f6f9; color:#43566b; padding:5px 9px; font-size:11px; font-weight:900; }
+    .owner-status-badge.success { border-color:#b7dfca; background:#eaf8f1; color:#166144; }
+    .owner-status-badge.info { border-color:#bad4ee; background:#edf6ff; color:#175b94; }
+    .owner-status-badge.warning { border-color:#efd28e; background:#fff8e2; color:#7b570b; }
+    .owner-status-badge.danger { border-color:#eebcc3; background:#fff1f3; color:#9b2838; }
+    .owner-cell-title { display:block; margin-bottom:3px; color:#17365d; }
+    .owner-cell-meta { display:block; color:var(--muted); font-size:12px; line-height:1.45; }
+    .owner-progress { width:104px; height:5px; margin-top:7px; overflow:hidden; border-radius:999px; background:#e5edf6; }
+    .owner-progress span { display:block; height:100%; background:var(--brand); }
+    .owner-empty-state { border:1px dashed #b8cbe0; border-radius:8px; background:#f8fbff; padding:34px 24px; text-align:center; }
+    .owner-empty-state h2 { margin-bottom:7px; font-size:20px; }
+    .owner-empty-state p { max-width:600px; margin:0 auto 16px; }
+    @media (max-width:720px) {
+        .owner-page-head { flex-direction:column; }
+        .owner-page-count { width:100%; text-align:left; }
+        .owner-filter { grid-template-columns:1fr; }
+        .owner-view-tabs { width:100%; }
+        .owner-view-tab { flex:1; text-align:center; }
     }
 </style>
-<h1>Pending Organizations</h1>
+
+<div class="owner-page-head">
+    <div>
+        <span class="page-eyebrow">Platform Owner</span>
+        <h1>{{ "Organization Records" if view_mode == "history" else "Pending Organizations" }}</h1>
+        <p class="page-subtitle">
+            {% if view_mode == "history" %}
+            Review retained active, completed, rejected, and lifecycle-review organization records.
+            {% else %}
+            Review organizations that still require onboarding, payment, or workspace-activation work.
+            {% endif %}
+        </p>
+    </div>
+    <div class="owner-page-count" aria-label="Organization count">
+        <strong>{{ cards|length }}</strong>
+        <span>{{ "records" if view_mode == "history" else "pending" }}</span>
+    </div>
+</div>
+
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
-<p class="muted">
-    Showing organization applications across all statuses. If a customer account has not started organization setup yet, there is no pending organization record to show here.
-</p>
-<form method="get" action="/saas-admin/pending-organizations" class="actions" style="margin-bottom:18px;">
-    <input name="status" value="{{ status_filter }}" placeholder="Filter by status">
-    <button class="btn secondary" type="submit">Filter</button>
-    <a class="btn secondary" href="/saas-admin/pending-organizations">Clear</a>
+
+<nav class="owner-view-tabs" aria-label="Organization record views">
+    <a class="owner-view-tab {% if view_mode == 'pending' %}active{% endif %}" href="/saas-admin/pending-organizations">Pending Queue</a>
+    <a class="owner-view-tab {% if view_mode == 'history' %}active{% endif %}" href="/saas-admin/pending-organizations?view=history">Organization Records</a>
+</nav>
+
+<form method="get" action="/saas-admin/pending-organizations" class="owner-filter">
+    <input type="hidden" name="view" value="{{ view_mode }}">
+    <div>
+        <label for="organization-status-filter">Onboarding record status</label>
+        <select id="organization-status-filter" name="status">
+            <option value="">All relevant statuses</option>
+            <option value="draft" {% if status_filter == "draft" %}selected{% endif %}>Draft</option>
+            <option value="in_progress" {% if status_filter == "in_progress" %}selected{% endif %}>Setup in progress</option>
+            <option value="under_review" {% if status_filter == "under_review" %}selected{% endif %}>Under review</option>
+            <option value="changes_requested" {% if status_filter == "changes_requested" %}selected{% endif %}>Changes requested</option>
+            <option value="ready_for_checkout" {% if status_filter == "ready_for_checkout" %}selected{% endif %}>Ready for subscription</option>
+            {% if view_mode == "history" %}<option value="rejected" {% if status_filter == "rejected" %}selected{% endif %}>Not approved</option>{% endif %}
+        </select>
+    </div>
+    <div class="actions">
+        <button class="btn secondary" type="submit">Apply Filter</button>
+        <a class="btn secondary" href="/saas-admin/pending-organizations{% if view_mode == 'history' %}?view=history{% endif %}">Clear</a>
+    </div>
 </form>
-<div class="notice">
-    {{ cards|length }} organization record(s) shown{% if status_filter %} for status "{{ status_filter }}"{% endif %}.
-</div>
-<div class="pending-org-table-wrap" aria-label="Pending organizations table">
+
+{% if cards %}
+<div class="pending-org-table-wrap" aria-label="{{ 'Organization records' if view_mode == 'history' else 'Pending organizations' }} table">
     <table class="table pending-org-table">
         <thead>
             <tr>
                 <th>Organization</th>
-                <th>Owner</th>
-                <th>Status</th>
-                <th>Step</th>
-                <th>Plan</th>
-                <th>Progress</th>
-                <th>Billing</th>
+                <th>Lifecycle</th>
+                <th>Setup</th>
+                <th>Subscription</th>
+                <th>Payment &amp; Activation</th>
                 <th>Updated</th>
-                <th>Branches</th>
                 <th class="actions-cell">Actions</th>
             </tr>
         </thead>
@@ -90,44 +111,51 @@
             {% for card in cards %}
             <tr>
                 <td class="org-cell">
-                    <strong>{{ card.organization.organization_name or "Untitled organization draft" }}</strong><br>
-                    <span class="muted">{{ card.organization.organization_uuid }}</span>
+                    <strong class="owner-cell-title">{{ card.organization.organization_name or "Untitled organization draft" }}</strong>
+                    <span class="owner-cell-meta">{{ card.owner_account.email if card.owner_account else "Owner account unavailable" }}</span>
+                    <span class="owner-cell-meta">{{ card.branches_count }} branch{{ "es" if card.branches_count != 1 else "" }}</span>
                 </td>
-                <td class="owner-cell">
-                    {% if card.owner_account %}
-                    {{ card.owner_account.email }}<br>
-                    <span class="muted">{{ card.owner_account.first_name }} {{ card.owner_account.last_name }}</span>
-                    {% else %}
-                    <span class="muted">No owner account found</span>
-                    {% endif %}
+                <td>
+                    <span class="owner-status-badge {{ card.lifecycle.tone }}">{{ card.lifecycle.label }}</span>
+                    {% if card.lifecycle.warning %}<span class="owner-cell-meta" style="margin-top:6px;">{{ card.lifecycle.warning }}</span>{% endif %}
                 </td>
-                <td>{{ card.organization.status }}</td>
-                <td>{{ card.organization.onboarding_step }}</td>
-                <td>{% if card.current_plan %}{{ card.current_plan.plan_name }}{% else %}-{% endif %}</td>
-                <td>{{ card.progress.completion_percent }}%</td>
-                <td class="billing-cell">
-                    {{ card.organization.billing_status }}<br>
-                    <span class="muted">Payment: {{ card.organization.payment_status }}</span>
-                    {% if card.current_provisioning_job %}<br><span class="muted">Provisioning: {{ card.current_provisioning_job.job_status }}</span>{% elif card.current_tenant_link %}<br><span class="muted">Provisioning: tenant_active</span>{% endif %}
+                <td class="setup-cell">
+                    <strong class="owner-cell-title">{{ card.lifecycle.onboarding_label }}</strong>
+                    <span class="owner-cell-meta">{{ customer_status_label(card.organization.onboarding_step, "Setup") }}</span>
+                    <div class="owner-progress" aria-label="{{ card.progress.completion_percent }} percent complete"><span style="width:{{ card.progress.completion_percent }}%;"></span></div>
                 </td>
-                <td>{{ card.organization.updated_at }}</td>
-                <td>{{ card.branches_count }}</td>
+                <td class="commercial-cell">
+                    <strong class="owner-cell-title">{{ card.current_plan.plan_name if card.current_plan else "Not selected" }}</strong>
+                    <span class="owner-cell-meta">{{ customer_status_label(card.current_billing_interval, "No billing interval") }}</span>
+                </td>
+                <td class="activation-cell">
+                    <strong class="owner-cell-title">{{ card.lifecycle.payment_label }}</strong>
+                    <span class="owner-cell-meta">{{ card.lifecycle.billing_label }}</span>
+                    <span class="owner-cell-meta">Activation: {{ card.lifecycle.provisioning_label }}</span>
+                </td>
+                <td><span class="owner-cell-meta">{{ card.organization.updated_at.strftime("%b %d, %Y") if card.organization.updated_at else "Not available" }}</span></td>
                 <td class="actions-cell">
-                    <div class="actions pending-org-row-actions">
+                    <div class="pending-org-row-actions">
                         <a class="btn secondary" href="/saas-admin/pending-organizations/{{ card.organization.organization_uuid }}">View Details</a>
                         <a class="btn secondary" href="/saas-admin/pending-organizations/{{ card.organization.organization_uuid }}/analyze-test-workspace">Analyze Workspace</a>
                     </div>
-                </td>
-            </tr>
-            {% else %}
-            <tr>
-                <td colspan="10">
-                    <strong>No pending organizations found.</strong><br>
-                    <span class="muted">Ask the tester to sign in to the account dashboard and click Set up your organization. A signup alone creates only an account record.</span>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+{% else %}
+<section class="owner-empty-state" aria-live="polite">
+    {% if view_mode == "history" %}
+    <h2>No organization records match this filter</h2>
+    <p class="muted">Completed and historical SaaS organization records will remain available here.</p>
+    <a class="btn secondary" href="/saas-admin/pending-organizations?view=history">Clear Filter</a>
+    {% else %}
+    <h2>No pending organizations</h2>
+    <p class="muted">There are no organizations waiting for onboarding, payment, or workspace activation work.</p>
+    <a class="btn secondary" href="/saas-admin/pending-organizations?view=history">View Organization Records</a>
+    {% endif %}
+</section>
+{% endif %}
 {% endblock %}

@@ -790,9 +790,18 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         )
         db = self._db()
         try:
-            organization_uuid = db.query(saas.models.PendingOrganization).filter_by(
+            organization = db.query(saas.models.PendingOrganization).filter_by(
                 id=result["organization_id"]
-            ).first().organization_uuid
+            ).one()
+            organization_uuid = organization.organization_uuid
+            self.assertEqual(organization.status, "ready_for_checkout")
+            self.assertEqual(organization.billing_status, "tenant_active")
+            self.assertEqual(organization.payment_status, "paid")
+            self.assertEqual(saas_service.count_pending_organizations(db), 0)
+            self.assertEqual(
+                saas_service.build_pending_card(db, organization).lifecycle.key,
+                "active_tenant",
+            )
         finally:
             db.close()
 
@@ -942,6 +951,13 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             db.close()
 
         response = self._platform_client().get("/saas-admin/pending-organizations")
+        history_response = self._platform_client(user_id="9006").get(
+            "/saas-admin/pending-organizations?view=history"
+        )
+        developer_response = self._platform_client(
+            user_id="9008",
+            platform_role=auth.PLATFORM_ROLE_DEVELOPER,
+        ).get("/saas-admin/pending-organizations")
         tenant_response = self._tenant_client().get("/saas-admin/pending-organizations")
 
         self.assertEqual(response.status_code, 200)
@@ -949,21 +965,64 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         self.assertIn("overflow-x: auto", response.text)
         self.assertIn("position: sticky", response.text)
         self.assertIn("right: 0", response.text)
-        self.assertIn("Analysis Table Academy", response.text)
-        self.assertIn("View Details", response.text)
-        self.assertIn("Analyze Workspace", response.text)
+        self.assertIn("No pending organizations", response.text)
+        self.assertNotIn("Analysis Table Academy", response.text)
+        self.assertEqual(history_response.status_code, 200)
+        self.assertIn("Analysis Table Academy", history_response.text)
+        self.assertIn("Active Tenant", history_response.text)
+        self.assertIn("View Details", history_response.text)
+        self.assertIn("Analyze Workspace", history_response.text)
         self.assertNotIn(
             f'/saas-admin/pending-organizations/{organization_uuid}/delete"',
-            response.text,
+            history_response.text,
         )
-        self.assertNotIn(">Delete</button>", response.text)
-        self.assertIn(f"/saas-admin/pending-organizations/{organization_uuid}", response.text)
+        self.assertNotIn(">Delete</button>", history_response.text)
+        self.assertIn(f"/saas-admin/pending-organizations/{organization_uuid}", history_response.text)
         self.assertIn(
             f"/saas-admin/pending-organizations/{organization_uuid}/analyze-test-workspace",
-            response.text,
+            history_response.text,
         )
+        self.assertEqual(developer_response.status_code, 403)
+        self.assertNotIn("Organization Records", developer_response.text)
         self.assertEqual(tenant_response.status_code, 403)
         self.assertNotIn("Analyze Workspace", tenant_response.text)
+
+    def test_completed_provisioning_with_pending_payment_is_manual_review_not_pending(self):
+        result = self._complete_paid_provisioning(
+            email="lifecycle-review@academy.edu",
+            organization_name="Lifecycle Review Academy",
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                id=result["organization_id"]
+            ).one()
+            subscription = db.query(saas.models.PaymentSubscription).filter_by(
+                pending_organization_id=organization.id
+            ).one()
+            organization.status = "ready_for_checkout"
+            organization.billing_status = "checkout_started"
+            organization.payment_status = "pending"
+            organization.payment_confirmed_at = None
+            subscription.status = "pending"
+            db.commit()
+
+            self.assertEqual(saas_service.count_pending_organizations(db), 0)
+            card = saas_service.build_pending_card(db, organization)
+            self.assertEqual(card.lifecycle.key, "manual_review")
+            self.assertFalse(card.lifecycle.is_pending)
+            self.assertEqual(card.lifecycle.label, "Lifecycle Review Required")
+        finally:
+            db.close()
+
+        owner_client = self._platform_client(user_id="9007")
+        pending_response = owner_client.get("/saas-admin/pending-organizations")
+        history_response = owner_client.get("/saas-admin/pending-organizations?view=history")
+
+        self.assertNotIn("Lifecycle Review Academy", pending_response.text)
+        self.assertIn("Lifecycle Review Academy", history_response.text)
+        self.assertIn("Lifecycle Review Required", history_response.text)
+        self.assertNotIn("checkout_started", history_response.text)
 
     def test_delete_test_workspace_confirmation_is_owner_only(self):
         result = self._complete_paid_provisioning(

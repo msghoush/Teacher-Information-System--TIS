@@ -2451,10 +2451,16 @@ async def paddle_webhook(request: Request, db: Session = Depends(get_db)):
 def pending_organizations_dashboard(
     request: Request,
     status: str = Query(""),
+    view: str = Query("pending"),
     db: Session = Depends(get_db),
 ):
     current_user = _require_platform_owner(request, db)
-    organizations = service.list_pending_organizations(db, status=status)
+    view_mode = "history" if str(view or "").strip().lower() == "history" else "pending"
+    organizations = (
+        service.list_organization_records(db, status=status)
+        if view_mode == "history"
+        else service.list_pending_organizations(db, status=status)
+    )
     cards = [service.build_pending_card(db, organization) for organization in organizations]
     db.commit()
     return _render(
@@ -2464,6 +2470,7 @@ def pending_organizations_dashboard(
             "current_user": current_user,
             "cards": cards,
             "status_filter": status,
+            "view_mode": view_mode,
             "notice": request.query_params.get("notice", ""),
             "error": request.query_params.get("error", ""),
         },

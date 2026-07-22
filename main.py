@@ -44,7 +44,7 @@ import permission_registry
 import public_url
 import role_permission_service
 import saas.models  # Register SaaS metadata before create_all.
-from saas import entitlement_service
+from saas import entitlement_service, service as saas_service
 from visual_design import (
     VISUAL_COMPONENT_MAP,
     build_visual_design_config,
@@ -9544,37 +9544,30 @@ def platform_console(
     }
     if auth.is_platform_owner(current_user):
         try:
-            pending_query = db.query(saas.models.PendingOrganization)
-            recent_pending = pending_query.order_by(
-                saas.models.PendingOrganization.updated_at.desc(),
-                saas.models.PendingOrganization.id.desc(),
-            ).limit(5).all()
-            owner_ids = {
-                row.owner_saas_account_id
-                for row in recent_pending
-                if getattr(row, "owner_saas_account_id", None)
-            }
-            owner_accounts = {
-                row.id: row
-                for row in db.query(saas.models.SaaSAccount).filter(
-                    saas.models.SaaSAccount.id.in_(owner_ids)
-                ).all()
-            } if owner_ids else {}
+            recent_pending = saas_service.list_pending_organizations(db, limit=5)
+            recent_cards = [
+                saas_service.build_pending_card(db, organization)
+                for organization in recent_pending
+            ]
             saas_admin_summary = {
-                "pending_count": pending_query.count(),
-                "ready_count": db.query(saas.models.PendingOrganization).filter(
-                    saas.models.PendingOrganization.status == "ready_for_checkout"
-                ).count(),
-                "draft_count": db.query(saas.models.PendingOrganization).filter(
-                    saas.models.PendingOrganization.status.in_(("draft", "in_progress"))
-                ).count(),
+                "pending_count": saas_service.count_pending_organizations(db),
+                "ready_count": saas_service.count_pending_organizations(
+                    db,
+                    statuses=("ready_for_checkout",),
+                ),
+                "draft_count": saas_service.count_pending_organizations(
+                    db,
+                    statuses=("draft", "in_progress"),
+                ),
                 "account_count": db.query(saas.models.SaaSAccount).count(),
                 "recent": [
                     {
-                        "organization": row,
-                        "owner_email": getattr(owner_accounts.get(row.owner_saas_account_id), "email", ""),
+                        "organization": card.organization,
+                        "owner_email": getattr(card.owner_account, "email", ""),
+                        "lifecycle_label": card.lifecycle.label,
+                        "onboarding_label": card.lifecycle.onboarding_label,
                     }
-                    for row in recent_pending
+                    for card in recent_cards
                 ],
             }
         except Exception as exc:
