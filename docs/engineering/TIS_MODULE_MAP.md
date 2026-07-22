@@ -136,17 +136,37 @@ Main files/folders:
 - `scripts/backfill_workspace_classification.py`
 
 Maturity/status:
-M8B-1 foundation implemented. Classification and lifecycle are read-only metadata outside provisioning metadata assignment. Commercial resolution and conversions are not implemented.
+M8B-2 foundation implemented. Classification, lifecycle, workspace entitlement, branch entitlement, and effective commercial state can be resolved read-only. Conversion and enforcement are not implemented.
 
 Related docs/ADRs:
 - `docs/adr/0008-workspace-classification-foundation.md`
 - `docs/history/workspace-classification/README.md`
+- `docs/adr/0009-commercial-state-and-entitlement-resolution.md`
 
 Risks/guardrails:
 - Do not use classification as a payment, entitlement, permission, tenant-isolation, or reset gate in M8B-1.
 - Do not convert classifications through the validation service.
 - Do not expose workspace metadata outside Platform Owner views.
 - Do not infer customer-paid classification from incomplete onboarding or provider records.
+- Keep paid plan capabilities authoritative in the existing M7 subscription entitlement resolver.
+- Fail closed on missing, ambiguous, orphaned, stale, or cross-tenant entitlement relationships.
+- Do not use M8B-2 results for tenant authorization or feature enforcement yet.
+
+### Commercial Entitlement Resolution
+
+Purpose:
+Resolve effective workspace entitlement, branch commercial activity, and commercial state from persisted local evidence without modifying rows or calling Paddle.
+
+Main files/folders:
+- `commercial_entitlements.py`
+- `saas/commercial_validation_service.py`
+- `saas/workspace_entitlement_service.py`
+- `saas/branch_entitlement_service.py`
+- `saas/commercial_state_service.py`
+- `saas/models.py`
+
+Maturity/status:
+M8B-2 read-only foundation implemented. No customer-facing enforcement, demo expiration, billing mutation, or conversion orchestration.
 
 ## Pending Organizations
 

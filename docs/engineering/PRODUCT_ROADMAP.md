@@ -55,6 +55,10 @@ Added root AI instructions, machine-readable task KIA, major-change detection, r
 
 Added constrained workspace identity/classification/lifecycle metadata, pre-provisioning and identity intent fields, validation-only services, read-only owner visibility, and safe diagnostic/backfill tooling. No commercial behavior or conversion workflow consumes the metadata yet.
 
+### M8B-2 Commercial State And Entitlement Foundation
+
+Added normalized workspace and branch entitlement records, typed feature/limit values, read-only effective entitlement/commercial-state resolvers, conservative validation, and Platform Owner-only visibility. No enforcement or customer workflow changed.
+
 ## Current
 
 ### KMS Enforcement Review
@@ -67,9 +71,9 @@ The product is preparing for stronger public customer journey work from landing 
 
 ## Next
 
-### M8B-2 Workspace Classification Workflows
+### M8B-3 Commercial Lifecycle Workflows
 
-Proceed only from a separately approved M8B-2 specification after the M8B-1 migration and backfill are validated. M8B-1 intentionally does not implement demo requests, demo provisioning, expiration, entitlements, conversions, memberships, or Al-Andalus migration.
+Proceed only from a separately approved M8B-3 specification after M8B-2 resolution is validated. Demo requests, approval/rejection, provisioning, expiration, schedulers, reminders, enforcement, conversion, memberships, and Al-Andalus migration remain unimplemented.
 
 ### Premium Landing Page Redesign
 

@@ -162,6 +162,10 @@ M8B-1 introduces a metadata boundary between workspace identity, workspace class
 
 The M8B-1 fields are not authorization, entitlement, payment, or reset gates. Existing flows continue unchanged. Classification conversion is explicitly rejected by the foundation service, and the commercial-state service is a data-contract skeleton only. Every pre-M8B-1 workspace/onboarding record is confirmed test data and is assigned internal sandbox/test metadata by the controlled one-time backfill. Future packages must not infer customer-paid status from Paddle or onboarding fields without an approved commercial resolver.
 
+M8B-2 implements that commercial resolver as a read-only foundation. Workspace entitlements are separate from classification and lifecycle, and branch commercial activity is separate from operational `Branch.status`. The resolver recognizes provisioning, active internal sandbox, active customer demo, active customer paid, inactive, suspended, archived, and manual-review outcomes. It does not implement demo expiration or authorization enforcement.
+
+Paid workspace resolution delegates plan capabilities and paid branch quantity to the existing M7 entitlement resolver and requires a matching persisted `PaymentSubscription`. Demo and internal entitlements use explicit workspace values tied to the shared `EntitlementDefinition` catalog. Branches inherit their workspace entitlement unless an optional coherent `BranchEntitlement` says active or inactive. All calculations are read-only and fail closed on ambiguity or tenant mismatch.
+
 ## SaaS Routes And Account Experience
 
 Core SaaS routes:

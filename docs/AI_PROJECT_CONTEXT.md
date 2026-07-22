@@ -127,6 +127,14 @@ All records that predate M8B-1 are confirmed test data. The controlled backfill 
 
 M8B-1 does not use classification for billing, entitlements, permissions, tenant isolation, reset eligibility, or customer routing. Demo workflows, conversions, Al-Andalus migration, memberships, and commercial-state resolution remain later work.
 
+## M8B-2 Commercial State And Entitlement Foundation
+
+M8B-2 adds a read-only commercial decision layer without changing customer access or billing behavior. `WorkspaceEntitlement` is the workspace-level entitlement envelope, `WorkspaceEntitlementValue` reuses the existing normalized entitlement catalog for features and limits, and `BranchEntitlement` optionally records whether a branch inherits, is explicitly active, or is commercially inactive.
+
+The commercial resolver combines persisted workspace classification/lifecycle metadata with one coherent effective workspace entitlement. Customer-paid workspaces additionally require the existing M7 confirmed subscription entitlement resolution and matching `PaymentSubscription`; M8B-2 does not calculate billing state or contact Paddle. Missing, ambiguous, cross-tenant, orphaned, or invalid relationships fail closed to manual review.
+
+These results are visible only to Platform Owners in `/platform`. They are not wired into tenant authorization, feature restrictions, branch behavior, onboarding, Paddle, demo expiration, or customer workflows. Internal sandbox workspaces created outside the migration retain a compatibility-only implicit entitlement so existing development flows remain unchanged.
+
 ## Current SaaS Account Verification State
 
 Phase 1 TIS Account email verification recovery is accepted. Valid verification links now mark the SaaS account email verified/active and redirect to the TIS Account login page with a professional success notice so the customer can continue school workspace setup.

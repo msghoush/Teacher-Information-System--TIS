@@ -429,6 +429,110 @@ class PlanEntitlement(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class WorkspaceEntitlement(Base):
+    __tablename__ = "workspace_entitlements"
+    __table_args__ = (
+        Index("uq_workspace_entitlements_uuid", "entitlement_uuid", unique=True),
+        Index("ix_workspace_entitlements_group", "school_group_id"),
+        Index("ix_workspace_entitlements_type", "entitlement_type"),
+        Index("ix_workspace_entitlements_status", "status"),
+        Index("ix_workspace_entitlements_subscription", "payment_subscription_id"),
+        Index(
+            "uq_workspace_entitlements_active_group",
+            "school_group_id",
+            unique=True,
+            sqlite_where=text("status = 'active'"),
+            postgresql_where=text("status = 'active'"),
+        ),
+        CheckConstraint(
+            "entitlement_type IN ('internal_sandbox','demo','paid')",
+            name="ck_workspace_entitlements_type",
+        ),
+        CheckConstraint(
+            "status IN ('pending','active','inactive','suspended','ended')",
+            name="ck_workspace_entitlements_status",
+        ),
+        CheckConstraint(
+            "source IN ('system','migration','subscription','platform')",
+            name="ck_workspace_entitlements_source",
+        ),
+        CheckConstraint(
+            "effective_to IS NULL OR effective_from IS NULL OR effective_to > effective_from",
+            name="ck_workspace_entitlements_effective_window",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    entitlement_uuid = Column(String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4()))
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    entitlement_type = Column(String(32), nullable=False)
+    status = Column(String(20), nullable=False, default="pending")
+    source = Column(String(20), nullable=False, default="system")
+    payment_subscription_id = Column(Integer, ForeignKey("payment_subscriptions.id"), index=True)
+    effective_from = Column(DateTime)
+    effective_to = Column(DateTime)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class WorkspaceEntitlementValue(Base):
+    __tablename__ = "workspace_entitlement_values"
+    __table_args__ = (
+        Index(
+            "uq_workspace_entitlement_values_definition",
+            "workspace_entitlement_id",
+            "entitlement_definition_id",
+            unique=True,
+        ),
+        Index("ix_workspace_entitlement_values_workspace", "workspace_entitlement_id"),
+        Index("ix_workspace_entitlement_values_definition", "entitlement_definition_id"),
+        Index("ix_workspace_entitlement_values_status", "status"),
+        CheckConstraint(
+            "status IN ('active','inactive')",
+            name="ck_workspace_entitlement_values_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    workspace_entitlement_id = Column(
+        Integer, ForeignKey("workspace_entitlements.id"), nullable=False, index=True
+    )
+    entitlement_definition_id = Column(
+        Integer, ForeignKey("entitlement_definitions.id"), nullable=False, index=True
+    )
+    value = Column(Text)
+    status = Column(String(20), nullable=False, default="active")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class BranchEntitlement(Base):
+    __tablename__ = "branch_entitlements"
+    __table_args__ = (
+        Index("uq_branch_entitlements_uuid", "branch_entitlement_uuid", unique=True),
+        Index("uq_branch_entitlements_branch", "branch_id", unique=True),
+        Index("ix_branch_entitlements_group", "school_group_id"),
+        Index("ix_branch_entitlements_workspace", "workspace_entitlement_id"),
+        Index("ix_branch_entitlements_mode", "entitlement_mode"),
+        CheckConstraint(
+            "entitlement_mode IN ('inherit','active','inactive')",
+            name="ck_branch_entitlements_mode",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    branch_entitlement_uuid = Column(String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4()))
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, unique=True, index=True)
+    workspace_entitlement_id = Column(
+        Integer, ForeignKey("workspace_entitlements.id"), nullable=False, index=True
+    )
+    entitlement_mode = Column(String(20), nullable=False, default="inherit")
+    reason_code = Column(String(80))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class SubscriptionPlanPrice(Base):
     __tablename__ = "subscription_plan_prices"
     __table_args__ = (
