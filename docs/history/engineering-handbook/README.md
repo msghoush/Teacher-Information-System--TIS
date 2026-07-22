@@ -1,12 +1,16 @@
 ---
 title: Engineering Handbook History
 module: engineering-handbook
-last_updated: 2026-06-26
+last_updated: 2026-07-22
 ---
 
 # Engineering Handbook History
 
 This folder tracks meaningful changes to the TIS Engineering Handbook, including module maps, repository architecture, user/system flows, and onboarding guidance for humans and AI coding conversations.
+
+Latest change:
+
+- `2026-07-22-kms-phase-7d-navigation-catalog-enforcement.md`: strict source-title, catalog, navigation-link, source-inventory, and PDF page-bound validation.
 
 Related files:
 

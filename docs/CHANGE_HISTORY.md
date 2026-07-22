@@ -27,6 +27,39 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-07-22 - Added Phase 7D Navigation And Catalog Enforcement
+
+Area/module:
+KMS governance, navigation, catalog, and generated-artifact validation
+
+Previous state:
+KMS checks enforced KIA, source coverage, deterministic source ordering, normalized hashes, freshness, PDF identity, and positive increasing `pdf_page` values. They did not require usable titles, constrain catalog taxonomy, validate the KMS navigation guide's targets, or prove that source pages existed within the generated PDF.
+
+New state:
+`scripts/kms.py check` now uses a shared approved catalog to validate every included Markdown title, category, and module; requires the normalized manifest inventory to exactly match the generator list; validates every KMS Navigation link as an existing listed Markdown source inside `docs/`; and rejects missing, non-positive, non-integer, non-increasing, or out-of-range PDF pages. Existing KIA, hashes, freshness, ordering, coverage, and artifact checks are unchanged.
+
+Reason:
+Phase 7A-7C navigation and catalog conventions must be enforceable through the same local and CI gate that protects KMS synchronization.
+
+Files changed:
+- shared KMS catalog vocabulary and path classifier
+- ReportLab generator/read-only validation
+- focused KMS automation tests
+- KMS navigation, policy, automation, repository architecture, project state, and module history
+- generated PDF and manifest
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+No; first-read product, architecture, workflow, and critical-rule context is unchanged.
+
+Reviewer/approval notes:
+Phase 7D only. Knowledge Center UI/routes, application behavior, database, dependencies, `tis.db`, commits, and pushes remain unchanged.
+
 ## 2026-07-22 - Added Phase 7C Knowledge Center Navigation
 
 Area/module:
