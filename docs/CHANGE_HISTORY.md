@@ -27,6 +27,35 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-07-22 - M8B-2 Commercial State And Entitlement Foundation
+
+Area/module:
+Workspace commercial state, entitlement modeling, branch entitlement resolution, database architecture, and Platform Console
+
+Previous state:
+M8B-1 stored workspace classification and lifecycle metadata but had no commercial decision engine, effective workspace entitlement, or branch-level commercial entitlement model.
+
+New state:
+Added normalized workspace entitlement envelopes, typed entitlement values tied to the existing catalog, and optional branch inherit/active/inactive records. Added separated read-only validation, workspace entitlement, branch entitlement, and commercial-state services. Paid resolution reuses the confirmed M7 subscription entitlement authority. Platform Owners can inspect effective results without mutation controls.
+
+Reason:
+Future demo and paid workflows need one conservative commercial decision foundation before any customer access or lifecycle behavior is changed.
+
+Files changed:
+- commercial entitlement enums, SaaS models/migration, four resolver/validation services, Platform Console context/template, and focused regression tests
+
+Documentation updated:
+- AI context, master context, project state, database architecture, module map, workflows, roadmap, ADR 0009, and workspace-classification history
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+No M8B-3 workflow, enforcement, demo expiration, Paddle change, customer onboarding change, conversion, membership, role, or Al-Andalus migration is included.
+
 ## 2026-07-22 - M8B-1 Workspace Classification Foundation
 
 Area/module:

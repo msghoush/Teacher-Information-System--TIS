@@ -1,11 +1,11 @@
 knowledge_impact: yes
-summary: Add the M8B-1 workspace classification schema, validation foundation, diagnostics, controlled backfill, and owner-only read-only metadata view.
+summary: Add the M8B-2 commercial-state, workspace-entitlement, and branch-entitlement read-only foundation.
 affected_areas:
   - database-architecture
   - workspace-classification
-  - provisioning
+  - commercial-entitlements
+  - subscription-entitlements
   - platform-owner-console
-  - saas-onboarding
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/TIS_MASTER_CONTEXT.md
@@ -15,7 +15,7 @@ kms_files_updated:
   - docs/engineering/TIS_MODULE_MAP.md
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
   - docs/engineering/PRODUCT_ROADMAP.md
-  - docs/adr/0008-workspace-classification-foundation.md
+  - docs/adr/0009-commercial-state-and-entitlement-resolution.md
   - docs/history/workspace-classification/README.md
 no_impact_reason:
 major_change_override: no

@@ -162,6 +162,18 @@ Allowed workspace classifications are `internal_sandbox`, `customer_demo`, and `
 
 The read-only diagnostic resolves relationship presence across `TenantProvisioningLink`, `PendingOrganization`, `SubscriptionContract`, `PaymentSubscription`, and `PaymentCustomer`. It reports no Paddle identifiers. The controlled backfill is one transaction, defaults to dry-run, records a durable marker, and never performs a workspace conversion.
 
+### Commercial Entitlement Records
+
+M8B-2 adds three normalized tables:
+
+- `workspace_entitlements`: one effective entitlement envelope per SchoolGroup, with type, lifecycle status, source, optional confirmed payment-subscription link, and a validity window reserved for later workflows.
+- `workspace_entitlement_values`: typed feature/limit values linked to the existing `EntitlementDefinition` catalog.
+- `branch_entitlements`: optional branch-level inherit/active/inactive intent linked to the branch, SchoolGroup, and effective workspace entitlement.
+
+A partial unique index permits only one active workspace entitlement per SchoolGroup. Branch entitlement is unique per branch. Check constraints protect entitlement type, status, source, mode, and validity-window ordering. Service validation additionally rejects cross-tenant branch links, stale workspace-entitlement references, invalid typed values, and classification/entitlement mismatches.
+
+Migration `20260722_003_commercial_entitlement_foundation` seeds one foundation entitlement for each existing classified workspace without changing classification. It does not create branch overrides, convert Al-Andalus, or infer demo/paid policy. Paid rows are linked only when exactly one persisted active/trialing subscription can be identified; ambiguity remains unresolved and fails closed.
+
 Related files:
 - `workspace_classification.py`
 - `saas/workspace_classification_service.py`
@@ -169,6 +181,12 @@ Related files:
 - `scripts/diagnose_workspace_classification.py`
 - `scripts/backfill_workspace_classification.py`
 - `docs/adr/0008-workspace-classification-foundation.md`
+- `commercial_entitlements.py`
+- `saas/commercial_validation_service.py`
+- `saas/workspace_entitlement_service.py`
+- `saas/branch_entitlement_service.py`
+- `saas/commercial_state_service.py`
+- `docs/adr/0009-commercial-state-and-entitlement-resolution.md`
 
 ## Branches
 

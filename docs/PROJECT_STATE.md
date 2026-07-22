@@ -140,9 +140,18 @@ M8B-1 workspace-classification foundation:
 - Platform Owners can inspect the metadata read-only in Platform Console; developers and tenant users cannot.
 - Existing onboarding, authentication, Paddle, provisioning, permissions, tenant isolation, entitlements, and customer flows remain authoritative and unchanged.
 
+M8B-2 commercial-state and entitlement foundation:
+
+- Added normalized workspace entitlement, workspace entitlement value, and branch entitlement records.
+- Added read-only workspace, branch, and effective commercial-state resolvers with conservative manual-review outcomes.
+- Paid workspace capability resolution reuses the confirmed M7 subscription entitlement engine; no billing calculations or Paddle calls were added.
+- Existing internal sandbox workspaces are seeded with foundation entitlements, while newly created internal test workspaces can use a read-only compatibility entitlement.
+- Platform Owners can inspect Commercial State, Workspace Entitlement, and Branch Entitlement Summary; developers and tenants cannot.
+- No customer access rule, branch behavior, feature restriction, demo lifecycle, onboarding, provisioning, role, or conversion behavior consumes M8B-2 yet.
+
 ## Current Priority
 
-Current priority: validate the M8B-1 metadata/backfill rollout before any M8B-2 workflow consumes workspace classification.
+Current priority: validate M8B-2 commercial resolution before any M8B-3 workflow enforces or mutates commercial state.
 
 Current enforcement scope:
 

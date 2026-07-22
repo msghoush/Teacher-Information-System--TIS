@@ -44,7 +44,14 @@ import permission_registry
 import public_url
 import role_permission_service
 import saas.models  # Register SaaS metadata before create_all.
-from saas import entitlement_service, service as saas_service, workspace_classification_service
+from saas import (
+    branch_entitlement_service,
+    commercial_state_service,
+    entitlement_service,
+    service as saas_service,
+    workspace_classification_service,
+    workspace_entitlement_service,
+)
 from visual_design import (
     VISUAL_COMPONENT_MAP,
     build_visual_design_config,
@@ -9470,6 +9477,28 @@ def platform_console(
                     "lifecycle_label": view.lifecycle_label,
                     "lifecycle_value": view.lifecycle.value,
                 }
+                commercial = commercial_state_service.resolve_commercial_state(db, group.id)
+                workspace_entitlement = commercial.workspace_entitlement
+                branch_summary = branch_entitlement_service.summarize_branch_entitlements(
+                    db, group.id
+                )
+                workspace_metadata_by_group[group.id].update({
+                    "commercial_state_label": commercial_state_service.commercial_state_label(
+                        commercial
+                    ),
+                    "workspace_entitlement_label": (
+                        workspace_entitlement_service.workspace_entitlement_label(
+                            workspace_entitlement
+                        )
+                        if workspace_entitlement
+                        else "Manual Review Required"
+                    ),
+                    "branch_entitlement_summary": (
+                        branch_entitlement_service.branch_entitlement_summary_label(
+                            branch_summary
+                        )
+                    ),
+                })
             except workspace_classification_service.WorkspaceClassificationValidationError:
                 workspace_metadata_by_group[group.id] = {
                     "workspace_uuid": group.workspace_uuid or "Unavailable",
@@ -9477,6 +9506,9 @@ def platform_console(
                     "classification_value": "unavailable",
                     "lifecycle_label": "Unavailable",
                     "lifecycle_value": "unavailable",
+                    "commercial_state_label": "Manual Review Required",
+                    "workspace_entitlement_label": "Manual Review Required",
+                    "branch_entitlement_summary": "Manual Review Required",
                 }
     branches = db.query(models.Branch).all()
     tenant_user_count_by_branch = {

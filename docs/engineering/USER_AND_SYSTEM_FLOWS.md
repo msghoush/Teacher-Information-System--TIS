@@ -181,6 +181,21 @@ Guardrails:
 - Apply does not call Paddle, migrate Al-Andalus, convert workspaces, or change payment/provisioning state.
 - Failures roll back the full backfill transaction.
 
+## Commercial State Resolution Flow
+
+1. Resolve the SchoolGroup workspace classification and lifecycle.
+2. Resolve exactly one effective workspace entitlement, or use the compatibility-only implicit entitlement for an internal sandbox created outside migration.
+3. Validate entitlement type against workspace classification and parse explicit values through the shared entitlement catalog.
+4. For customer-paid workspaces, resolve the existing M7 confirmed subscription entitlement and require the linked local `PaymentSubscription` to match.
+5. Resolve each branch as inherited, explicitly active, or commercially inactive while independently respecting operational branch status.
+6. Return a read-only effective commercial state or fail closed to Manual Review Required.
+
+Guardrails:
+- No resolver writes rows or calls Paddle.
+- No resolver changes current tenant access, feature checks, branch mutations, onboarding, or provisioning.
+- Demo expiration and commercial-state mutation remain later work.
+- Cross-tenant and orphan branch entitlement relationships fail closed.
+
 ## Knowledge Management Flow
 
 Flow:

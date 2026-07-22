@@ -3311,6 +3311,200 @@ def _workspace_classification_foundation(engine, connection):
                 )
 
 
+def _commercial_entitlement_foundation(engine, connection):
+    datetime_type = _datetime_type(engine)
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS workspace_entitlements (
+            id {id_sql},
+            entitlement_uuid VARCHAR(36) NOT NULL,
+            school_group_id INTEGER NOT NULL,
+            entitlement_type VARCHAR(32) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            source VARCHAR(20) NOT NULL DEFAULT 'system',
+            payment_subscription_id INTEGER,
+            effective_from {datetime_type},
+            effective_to {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_workspace_entitlements_type
+                CHECK (entitlement_type IN ('internal_sandbox','demo','paid')),
+            CONSTRAINT ck_workspace_entitlements_status
+                CHECK (status IN ('pending','active','inactive','suspended','ended')),
+            CONSTRAINT ck_workspace_entitlements_source
+                CHECK (source IN ('system','migration','subscription','platform')),
+            CONSTRAINT ck_workspace_entitlements_effective_window
+                CHECK (effective_to IS NULL OR effective_from IS NULL OR effective_to > effective_from),
+            FOREIGN KEY (school_group_id) REFERENCES school_groups (id),
+            FOREIGN KEY (payment_subscription_id) REFERENCES payment_subscriptions (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection, connection, "workspace_entitlements",
+        "uq_workspace_entitlements_uuid", "entitlement_uuid",
+    )
+    for index_name, columns in (
+        ("ix_workspace_entitlements_group", "school_group_id"),
+        ("ix_workspace_entitlements_type", "entitlement_type"),
+        ("ix_workspace_entitlements_status", "status"),
+        ("ix_workspace_entitlements_subscription", "payment_subscription_id"),
+    ):
+        _create_index_if_missing(
+            connection, connection, "workspace_entitlements", index_name, columns
+        )
+    _execute(
+        connection,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_workspace_entitlements_active_group
+        ON workspace_entitlements (school_group_id)
+        WHERE status = 'active'
+        """,
+    )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS workspace_entitlement_values (
+            id {id_sql},
+            workspace_entitlement_id INTEGER NOT NULL,
+            entitlement_definition_id INTEGER NOT NULL,
+            value TEXT,
+            status VARCHAR(20) NOT NULL DEFAULT 'active',
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_workspace_entitlement_values_status
+                CHECK (status IN ('active','inactive')),
+            FOREIGN KEY (workspace_entitlement_id) REFERENCES workspace_entitlements (id),
+            FOREIGN KEY (entitlement_definition_id) REFERENCES entitlement_definitions (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection, connection, "workspace_entitlement_values",
+        "uq_workspace_entitlement_values_definition",
+        "workspace_entitlement_id, entitlement_definition_id",
+    )
+    for index_name, columns in (
+        ("ix_workspace_entitlement_values_workspace", "workspace_entitlement_id"),
+        ("ix_workspace_entitlement_values_definition", "entitlement_definition_id"),
+        ("ix_workspace_entitlement_values_status", "status"),
+    ):
+        _create_index_if_missing(
+            connection, connection, "workspace_entitlement_values", index_name, columns
+        )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS branch_entitlements (
+            id {id_sql},
+            branch_entitlement_uuid VARCHAR(36) NOT NULL,
+            school_group_id INTEGER NOT NULL,
+            branch_id INTEGER NOT NULL,
+            workspace_entitlement_id INTEGER NOT NULL,
+            entitlement_mode VARCHAR(20) NOT NULL DEFAULT 'inherit',
+            reason_code VARCHAR(80),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_branch_entitlements_mode
+                CHECK (entitlement_mode IN ('inherit','active','inactive')),
+            FOREIGN KEY (school_group_id) REFERENCES school_groups (id),
+            FOREIGN KEY (branch_id) REFERENCES branches (id),
+            FOREIGN KEY (workspace_entitlement_id) REFERENCES workspace_entitlements (id)
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection, connection, "branch_entitlements",
+        "uq_branch_entitlements_uuid", "branch_entitlement_uuid",
+    )
+    _create_unique_index_if_missing(
+        connection, connection, "branch_entitlements",
+        "uq_branch_entitlements_branch", "branch_id",
+    )
+    for index_name, columns in (
+        ("ix_branch_entitlements_group", "school_group_id"),
+        ("ix_branch_entitlements_workspace", "workspace_entitlement_id"),
+        ("ix_branch_entitlements_mode", "entitlement_mode"),
+    ):
+        _create_index_if_missing(
+            connection, connection, "branch_entitlements", index_name, columns
+        )
+
+    if not _table_exists(connection, "school_groups"):
+        return
+    group_rows = connection.execute(text(
+        """
+        SELECT id, workspace_classification, workspace_lifecycle_status
+        FROM school_groups
+        ORDER BY id
+        """
+    )).all()
+    type_by_classification = {
+        "internal_sandbox": "internal_sandbox",
+        "customer_demo": "demo",
+        "customer_paid": "paid",
+    }
+    status_by_lifecycle = {
+        "provisioning": "pending",
+        "active": "active",
+        "suspended": "suspended",
+        "archived": "ended",
+    }
+    for group_id, classification, lifecycle in group_rows:
+        existing_id = connection.execute(
+            text("SELECT id FROM workspace_entitlements WHERE school_group_id = :group_id LIMIT 1"),
+            {"group_id": group_id},
+        ).scalar()
+        if existing_id:
+            continue
+        entitlement_type = type_by_classification.get(str(classification or "").lower())
+        entitlement_status = status_by_lifecycle.get(str(lifecycle or "").lower())
+        if not entitlement_type or not entitlement_status:
+            logger.warning(
+                "Skipped workspace entitlement seed for school_group_id=%s due to invalid classification metadata",
+                group_id,
+            )
+            continue
+        payment_subscription_id = None
+        if entitlement_type == "paid" and _table_exists(connection, "payment_subscriptions"):
+            candidates = connection.execute(
+                text(
+                    """
+                    SELECT ps.id
+                    FROM payment_subscriptions ps
+                    JOIN subscription_contracts sc ON sc.id = ps.subscription_contract_id
+                    WHERE sc.school_group_id = :group_id
+                      AND ps.status IN ('active', 'trialing')
+                    ORDER BY ps.id
+                    """
+                ),
+                {"group_id": group_id},
+            ).all()
+            if len(candidates) == 1:
+                payment_subscription_id = candidates[0][0]
+        _execute(
+            connection,
+            """
+            INSERT INTO workspace_entitlements (
+                entitlement_uuid, school_group_id, entitlement_type, status,
+                source, payment_subscription_id, created_at, updated_at
+            ) VALUES (
+                :entitlement_uuid, :school_group_id, :entitlement_type, :status,
+                'migration', :payment_subscription_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            )
+            """,
+            {
+                "entitlement_uuid": str(uuid.uuid4()),
+                "school_group_id": group_id,
+                "entitlement_type": entitlement_type,
+                "status": entitlement_status,
+                "payment_subscription_id": payment_subscription_id,
+            },
+        )
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -3446,6 +3640,11 @@ MIGRATIONS = (
         migration_id="20260722_001_workspace_classification_foundation",
         description="Add workspace classification, lifecycle, intent, and internal identity metadata",
         apply=_workspace_classification_foundation,
+    ),
+    Migration(
+        migration_id="20260722_003_commercial_entitlement_foundation",
+        description="Add workspace and branch commercial entitlement foundations",
+        apply=_commercial_entitlement_foundation,
     ),
 )
 
