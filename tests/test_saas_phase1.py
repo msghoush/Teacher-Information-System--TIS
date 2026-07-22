@@ -890,7 +890,10 @@ class SaaSPhase1Tests(unittest.TestCase):
             follow_redirects=False,
         )
         self.assertEqual(submit_response.status_code, 302)
-        self.assertIn("/saas/account?notice=", submit_response.headers["location"])
+        self.assertEqual(
+            submit_response.headers["location"],
+            f"/saas/onboarding/{org_uuid}/commercial-choice",
+        )
 
         db = self._db()
         try:
@@ -916,7 +919,8 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         dashboard_response = self.client.get("/saas/account")
         self.assertEqual(dashboard_response.status_code, 200)
-        self.assertIn("Choose your subscription", dashboard_response.text)
+        self.assertIn("Choose how to continue", dashboard_response.text)
+        self.assertIn("Choose Demo or Subscription", dashboard_response.text)
         self.assertIn('data-setup-step="review_confirmation" data-setup-state="complete"', dashboard_response.text)
         self.assertIn('data-setup-step="subscription_selection" data-setup-state="current"', dashboard_response.text)
         self.assertEqual(dashboard_response.text.count('data-primary-cta="true"'), 1)
@@ -1049,7 +1053,10 @@ class SaaSPhase1Tests(unittest.TestCase):
             follow_redirects=False,
         )
         self.assertEqual(submit_response.status_code, 302)
-        self.assertIn("/saas/account?notice=", submit_response.headers["location"])
+        self.assertEqual(
+            submit_response.headers["location"],
+            f"/saas/onboarding/{org_uuid}/commercial-choice",
+        )
 
     def test_onboarding_validation_errors_preserve_submitted_form_values(self):
         self._signup_and_verify("preserve@academy.edu")
@@ -1402,7 +1409,10 @@ class SaaSPhase1Tests(unittest.TestCase):
             follow_redirects=False,
         )
         self.assertEqual(submit_response.status_code, 302)
-        self.assertIn("/saas/account?notice=", submit_response.headers["location"])
+        self.assertEqual(
+            submit_response.headers["location"],
+            f"/saas/onboarding/{org_uuid}/commercial-choice",
+        )
 
         db = self._db()
         try:

@@ -342,6 +342,139 @@ class PendingOrganizationEvent(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class SaaSDemoRequest(Base):
+    __tablename__ = "saas_demo_requests"
+    __table_args__ = (
+        Index("uq_saas_demo_requests_uuid", "request_uuid", unique=True),
+        Index("ix_saas_demo_requests_requester", "requester_saas_account_id"),
+        Index("ix_saas_demo_requests_organization", "pending_organization_id"),
+        Index("ix_saas_demo_requests_workspace", "school_group_id"),
+        Index("ix_saas_demo_requests_status", "status"),
+        Index("ix_saas_demo_requests_submitted", "submitted_at"),
+        Index(
+            "uq_saas_demo_requests_pending_org",
+            "pending_organization_id",
+            unique=True,
+            sqlite_where=text("status = 'pending_review'"),
+            postgresql_where=text("status = 'pending_review'"),
+        ),
+        CheckConstraint(
+            "status IN ('pending_review','approved','rejected','cancelled')",
+            name="ck_saas_demo_requests_status",
+        ),
+        CheckConstraint(
+            "workspace_classification_snapshot IN ('internal_sandbox','customer_demo','customer_paid')",
+            name="ck_saas_demo_requests_classification",
+        ),
+        CheckConstraint(
+            "commercial_state_snapshot IN ('provisioning','internal_sandbox_active','customer_demo_active','customer_paid_active','inactive','suspended','archived','manual_review')",
+            name="ck_saas_demo_requests_commercial_state",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    request_uuid = Column(String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4()))
+    requester_saas_account_id = Column(
+        Integer,
+        ForeignKey("saas_accounts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    pending_organization_id = Column(
+        Integer,
+        ForeignKey("pending_organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    school_group_id = Column(Integer, ForeignKey("school_groups.id", ondelete="SET NULL"), index=True)
+    workspace_uuid_snapshot = Column(String(36))
+    workspace_classification_snapshot = Column(String(32), nullable=False)
+    commercial_state_snapshot = Column(String(40), nullable=False)
+    entitlement_snapshot_json = Column(Text, nullable=False, default="{}")
+    status = Column(String(24), nullable=False, default="pending_review")
+    rejection_reason = Column(Text)
+    submitted_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    approved_at = Column(DateTime)
+    rejected_at = Column(DateTime)
+    cancelled_at = Column(DateTime)
+    status_updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SaaSDemoRequestReview(Base):
+    __tablename__ = "saas_demo_request_reviews"
+    __table_args__ = (
+        Index("uq_saas_demo_request_reviews_uuid", "review_uuid", unique=True),
+        Index("uq_saas_demo_request_reviews_request", "demo_request_id", unique=True),
+        Index("ix_saas_demo_request_reviews_reviewer", "reviewer_user_id"),
+        Index("ix_saas_demo_request_reviews_decision", "decision"),
+        CheckConstraint(
+            "decision IN ('approved','rejected')",
+            name="ck_saas_demo_request_reviews_decision",
+        ),
+        CheckConstraint(
+            "decision != 'rejected' OR (reason IS NOT NULL AND length(trim(reason)) > 0)",
+            name="ck_saas_demo_request_reviews_rejection_reason",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    review_uuid = Column(String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4()))
+    demo_request_id = Column(
+        Integer,
+        ForeignKey("saas_demo_requests.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    reviewer_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    decision = Column(String(20), nullable=False)
+    reason = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class SaaSDemoRequestEvent(Base):
+    __tablename__ = "saas_demo_request_events"
+    __table_args__ = (
+        Index("ix_saas_demo_request_events_request", "demo_request_id"),
+        Index("ix_saas_demo_request_events_category", "event_category"),
+        Index("ix_saas_demo_request_events_type", "event_type"),
+        Index("ix_saas_demo_request_events_created", "created_at"),
+        CheckConstraint(
+            "event_category IN ('audit','notification')",
+            name="ck_saas_demo_request_events_category",
+        ),
+        CheckConstraint(
+            "event_type IN ('request_submitted','request_approved','request_rejected','request_cancelled','request_withdrawn')",
+            name="ck_saas_demo_request_events_type",
+        ),
+        CheckConstraint(
+            "actor_type IN ('customer','platform_owner','system')",
+            name="ck_saas_demo_request_events_actor_type",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    demo_request_id = Column(
+        Integer,
+        ForeignKey("saas_demo_requests.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    event_category = Column(String(20), nullable=False)
+    event_type = Column(String(40), nullable=False)
+    actor_type = Column(String(24), nullable=False)
+    actor_saas_account_id = Column(
+        Integer,
+        ForeignKey("saas_accounts.id", ondelete="SET NULL"),
+        index=True,
+    )
+    actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    details_json = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class PendingOrganizationNote(Base):
     __tablename__ = "pending_organization_notes"
     __table_args__ = (

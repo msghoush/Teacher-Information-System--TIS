@@ -166,6 +166,10 @@ M8B-2 implements that commercial resolver as a read-only foundation. Workspace e
 
 Paid workspace resolution delegates plan capabilities and paid branch quantity to the existing M7 entitlement resolver and requires a matching persisted `PaymentSubscription`. Demo and internal entitlements use explicit workspace values tied to the shared `EntitlementDefinition` catalog. Branches inherit their workspace entitlement unless an optional coherent `BranchEntitlement` says active or inactive. All calculations are read-only and fail closed on ambiguity or tenant mismatch.
 
+M8B-3 introduces a separate SaaS demo-request aggregate after onboarding review. A verified customer with complete onboarding may choose Request Demo or Subscribe Now. Subscribe Now preserves the existing plan-selection and Paddle path. Request Demo captures immutable commercial/classification/entitlement context and starts in Pending Review without creating an operational workspace.
+
+Only Platform Owners can approve, reject, or cancel requests. Approval creates a review record but does not provision or activate a demo. Rejection requires a reason, and customers may withdraw only while review is pending. Durable request events serve both audit and internal-notification purposes; email delivery remains out of scope.
+
 ## SaaS Routes And Account Experience
 
 Core SaaS routes:
@@ -176,7 +180,7 @@ Core SaaS routes:
 
 Related SaaS areas include plan selection, onboarding organization details, contacts, branch setup, academic setup, onboarding review, billing status, checkout summary, checkout return, checkout cancel, sessions, security, and profile pages.
 
-Platform owner SaaS administration exists under `/saas-admin` for pending organizations, payments, and provisioning workflows.
+Platform owner SaaS administration exists under `/saas-admin` for pending organizations, demo-request review, payments, and provisioning workflows.
 
 The Platform Owner pending queue is an operational work queue, not a list of every `PendingOrganization` row. It includes draft/setup, review, checkout/payment, and incomplete or recoverable provisioning states only while no completed tenant link, completed provisioning job, or final tenant billing state exists. Confirmed active tenants and retained rejected/completed records remain available under Organization Records. When completed provisioning evidence conflicts with payment, subscription, contract, tenant, or SchoolGroup evidence, the owner lifecycle resolver labels the record Lifecycle Review Required and fails closed instead of presenting it as ordinary pending work. Raw onboarding status remains historical and does not override confirmed operational truth.
 

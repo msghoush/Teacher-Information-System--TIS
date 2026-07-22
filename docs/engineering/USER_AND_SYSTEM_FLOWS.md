@@ -26,8 +26,8 @@ Flow:
    - branches,
    - academic setup,
    - review.
-9. User selects a plan.
-10. User enters checkout.
+9. User chooses Request Demo or Subscribe Now.
+10. Subscribe Now continues to plan selection and the existing Paddle checkout path.
 11. Paddle handles payment.
 12. Return/cancel page informs the user of checkout navigation result.
 13. Paddle webhook confirms payment.
@@ -42,6 +42,24 @@ Guardrails:
 - Checkout return is not authoritative payment confirmation.
 - Public signup must not directly create operational tenant data.
 - Provisioning should occur only through the approved flow.
+
+## Demo Request Flow
+
+1. A verified customer completes organization, contact, branch, academic, and review onboarding.
+2. TIS presents Request Demo and Subscribe Now.
+3. Request Demo revalidates account ownership, verification, onboarding completeness, branch configuration, and absence of conflicting payment/provisioning state.
+4. TIS creates one Pending Review SaaS demo request with classification, commercial-state, and entitlement snapshots.
+5. The customer can view status and withdraw only while Pending Review.
+6. A Platform Owner searches, filters, and sorts the review queue.
+7. Approval creates a review record only; rejection requires a reason; owner cancellation is allowed only while pending.
+8. Each action creates durable audit and internal-notification events.
+
+Guardrails:
+
+- No request or approval creates a SchoolGroup, workspace entitlement, checkout, payment, or Paddle record.
+- Duplicate pending requests and invalid terminal transitions fail closed.
+- Non-owner platform users and tenant/customer identities cannot access review actions.
+- M8B-3 does not send email or provision/activate demos.
 
 ## SaaS Identity Flow
 

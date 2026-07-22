@@ -1,0 +1,57 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .demo-status-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
+    .demo-status-badge { display: inline-flex; border: 1px solid #d7e1ec; border-radius: 999px; background: #f4f7fa; color: #41566e; padding: 7px 11px; font-size: 12px; font-weight: 900; white-space: nowrap; }
+    .demo-status-badge.warning { border-color: #efd28e; background: #fff8e2; color: #7b570b; }
+    .demo-status-badge.success { border-color: #b7dfca; background: #eaf8f1; color: #166144; }
+    .demo-status-badge.danger { border-color: #eebcc3; background: #fff1f3; color: #9b2838; }
+    .demo-status-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .demo-status-actions { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 18px; }
+    @media (max-width: 760px) { .demo-status-head { flex-direction: column; } .demo-status-grid { grid-template-columns: 1fr; } }
+</style>
+
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<header class="demo-status-head">
+    <div>
+        <span class="page-eyebrow">Demo Request</span>
+        <h1>{{ organization.organization_name }}</h1>
+        <p class="page-subtitle">Your submitted request is available here while the TIS team completes its review.</p>
+    </div>
+    <span class="demo-status-badge {{ status_tone }}">{{ status_label }}</span>
+</header>
+
+<section class="demo-status-grid" aria-label="Demo request summary">
+    <div class="stat"><strong>Submitted</strong><p>{{ demo_request.submitted_at.strftime('%B %d, %Y') if demo_request.submitted_at else 'Not available' }}</p></div>
+    <div class="stat"><strong>Organization</strong><p>{{ organization.organization_name }}</p></div>
+    <div class="stat"><strong>Configured Branches</strong><p>{{ branch_count }}</p></div>
+</section>
+
+{% if demo_request.status == 'pending_review' %}
+<div class="notice" style="margin-top:18px;">Your request is pending Platform Owner review. No workspace or subscription has been created.</div>
+{% elif demo_request.status == 'approved' %}
+<div class="success" style="margin-top:18px;">Your demo request has been approved. Demo provisioning and activation are not part of this stage.</div>
+{% elif demo_request.status == 'rejected' %}
+<div class="error" style="margin-top:18px;">
+    <strong>Request not approved</strong><br>
+    {{ demo_request.rejection_reason or 'Contact TIS Support for more information.' }}
+</div>
+{% else %}
+<div class="warning" style="margin-top:18px;">This demo request is closed. Your submitted school setup remains available.</div>
+{% endif %}
+
+<div class="demo-status-actions actions">
+    <a class="btn secondary" href="/saas/account">Back to Account Setup</a>
+    {% if demo_request.status == 'pending_review' %}
+    <form method="post" action="/saas/demo-requests/{{ demo_request.request_uuid }}/withdraw">
+        <button class="btn danger" type="submit">Withdraw Request</button>
+    </form>
+    {% elif demo_request.status in ('rejected', 'cancelled') %}
+    <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/commercial-choice/subscribe">
+        <button class="btn" type="submit">Subscribe Now</button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

@@ -47,6 +47,7 @@ import saas.models  # Register SaaS metadata before create_all.
 from saas import (
     branch_entitlement_service,
     commercial_state_service,
+    demo_request_service,
     entitlement_service,
     service as saas_service,
     workspace_classification_service,
@@ -9595,6 +9596,7 @@ def platform_console(
         "ready_count": 0,
         "draft_count": 0,
         "account_count": 0,
+        "pending_demo_count": 0,
         "recent": [],
     }
     if auth.is_platform_owner(current_user):
@@ -9615,6 +9617,10 @@ def platform_console(
                     statuses=("draft", "in_progress"),
                 ),
                 "account_count": db.query(saas.models.SaaSAccount).count(),
+                "pending_demo_count": demo_request_service.count_requests(
+                    db,
+                    status="pending_review",
+                ),
                 "recent": [
                     {
                         "organization": card.organization,

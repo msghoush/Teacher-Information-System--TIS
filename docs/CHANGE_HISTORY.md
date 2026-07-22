@@ -27,6 +27,35 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-07-22 - M8B-3 Demo Request Workflow
+
+Area/module:
+SaaS onboarding commercial choice, demo request lifecycle, Platform Owner review, audit, and internal notifications
+
+Previous state:
+Completed onboarding continued directly to subscription plan selection. TIS had no SaaS-owned review lifecycle for a customer demo request.
+
+New state:
+Customers can choose Request Demo or Subscribe Now after onboarding. Demo submission records validated commercial context and starts in Pending Review. Customers can inspect and withdraw pending requests. Platform Owners can search/filter/sort requests and approve, reject with a reason, or cancel. Every action creates durable audit and internal-notification events. Approval records review only and does not provision or activate a workspace.
+
+Reason:
+Demo requests need a safe, auditable review boundary before separately approved provisioning work begins.
+
+Files changed:
+- SaaS demo enums/models/migration/service, customer and owner routes/templates, Platform Console navigation, and focused regression tests
+
+Documentation updated:
+- AI context, master context, project state, database architecture, module map, workflows, roadmap, ADR 0010, and SaaS onboarding history
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+M8B-3 only. No demo provisioning, activation, expiration, email delivery, Paddle change, entitlement enforcement, role change, conversion, membership, schema change outside the new review aggregate, commit, or push.
+
 ## 2026-07-22 - M8B-2 Commercial State And Entitlement Foundation
 
 Area/module:

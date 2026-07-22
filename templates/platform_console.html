@@ -66,7 +66,7 @@
 .owner-card h2 { margin:0 0 6px; color:#10233f; font-size:22px; }
 .owner-card p { margin:0; }
 .owner-actions { display:flex; flex-wrap:wrap; gap:9px; margin-top:14px; }
-.owner-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:9px; margin-top:16px; }
+.owner-stats { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:9px; margin-top:16px; }
 .owner-stat { border:1px solid #d8e2f0; border-radius:7px; background:#fff; padding:11px; }
 .owner-stat strong { display:block; color:#0a4ea3; font-size:20px; line-height:1; }
 .owner-stat span { color:#64748b; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
@@ -98,6 +98,7 @@
             <div class="owner-stat"><strong>{{ saas_admin_summary.ready_count }}</strong><span>Subscription ready</span></div>
             <div class="owner-stat"><strong>{{ saas_admin_summary.draft_count }}</strong><span>Setup drafts</span></div>
             <div class="owner-stat"><strong>{{ saas_admin_summary.account_count }}</strong><span>SaaS accounts</span></div>
+            <div class="owner-stat"><strong>{{ saas_admin_summary.pending_demo_count }}</strong><span>Demo reviews</span></div>
         </div>
         <div class="owner-actions">
             {% if saas_admin_summary.pending_count %}
@@ -106,6 +107,7 @@
             <a class="button secondary" href="/saas-admin/pending-organizations?view=history">View Organization Records</a>
             {% endif %}
             <a class="button secondary" href="/saas-admin/accounts">Manage SaaS Accounts</a>
+            <a class="button secondary" href="/saas-admin/demo-requests">Review Demo Requests</a>
             <a class="button secondary" href="/saas-admin/provisioning">Provisioning Queue</a>
         </div>
     </article>
