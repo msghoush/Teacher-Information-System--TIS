@@ -4,6 +4,7 @@ import os
 import re
 import tempfile
 import unittest
+import uuid
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -23,6 +24,7 @@ import db_migrations
 import main
 import models
 import permission_registry
+import saas.models as saas_models
 import tenant_integrity
 from routers import observations, subjects, teachers, users
 from ui_shell import build_shell_context
@@ -819,6 +821,61 @@ class PlatformAccessTests(unittest.TestCase):
         self.assertIn('id="owner_user_id" name="co_owner_user_id" value=""', body)
         self.assertNotIn('id="developer_user_id" name="developer_user_id" value="9001"', body)
         self.assertNotIn('id="owner_user_id" name="co_owner_user_id" value="9001"', body)
+
+    def test_platform_console_counts_only_true_pending_organizations(self):
+        account = saas_models.SaaSAccount(
+            account_uuid=str(uuid.uuid4()),
+            email="owner-lifecycle@example.com",
+            email_normalized="owner-lifecycle@example.com",
+            status="active",
+            onboarding_status="tenant_active",
+        )
+        self.db.add(account)
+        self.db.flush()
+        completed = saas_models.PendingOrganization(
+            organization_uuid=str(uuid.uuid4()),
+            owner_saas_account_id=account.id,
+            organization_name="Completed Workspace",
+            status="ready_for_checkout",
+            onboarding_step="review",
+            billing_status="tenant_active",
+            payment_status="paid",
+        )
+        self.db.add(completed)
+        self.db.commit()
+
+        completed_only = main.platform_console(
+            request=self._request("/platform", self.platform_owner),
+            db=self.db,
+        )
+        completed_body = bytes(completed_only.body).decode("utf-8")
+        self.assertIn("<strong>0</strong><span>Pending</span>", completed_body)
+        self.assertIn("View Organization Records", completed_body)
+        self.assertNotIn("Open Pending Organizations", completed_body)
+        self.assertNotIn("Review Pending Organizations", completed_body)
+        self.assertNotIn("Completed Workspace", completed_body)
+
+        pending = saas_models.PendingOrganization(
+            organization_uuid=str(uuid.uuid4()),
+            owner_saas_account_id=account.id,
+            organization_name="Pending Workspace",
+            status="draft",
+            onboarding_step="organization",
+            billing_status="not_started",
+            payment_status="pending",
+        )
+        self.db.add(pending)
+        self.db.commit()
+
+        with_pending = main.platform_console(
+            request=self._request("/platform", self.platform_owner),
+            db=self.db,
+        )
+        pending_body = bytes(with_pending.body).decode("utf-8")
+        self.assertIn("<strong>1</strong><span>Pending</span>", pending_body)
+        self.assertIn("Review Pending Organizations", pending_body)
+        self.assertIn("Pending Workspace", pending_body)
+        self.assertNotIn("Completed Workspace", pending_body)
 
     def test_owner_email_change_requires_password_is_unique_and_resets_verification(self):
         self.platform_owner.email_normalized = auth.normalize_email(self.platform_owner.email)

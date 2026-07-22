@@ -9,6 +9,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 from fastapi import Request
+from sqlalchemy import and_, exists, not_
 from sqlalchemy.orm import Session
 
 import auth
@@ -48,6 +49,14 @@ PENDING_ORGANIZATION_ACTIVE_STATUSES = (
     "under_review",
     "activated",
 )
+PENDING_ORGANIZATION_QUEUE_STATUSES = (
+    "draft",
+    "in_progress",
+    "changes_requested",
+    "ready_for_checkout",
+    "under_review",
+)
+FINAL_ORGANIZATION_BILLING_STATUSES = {"provisioning_completed", "tenant_active"}
 BLOCKED_DELETE_BILLING_STATUSES = {
     "ready_for_provisioning",
     "provisioning_started",
@@ -93,6 +102,7 @@ class PendingOrganizationCard:
     branches_count: int
     current_step_url: str
     current_plan: object = None
+    current_billing_interval: str = ""
     current_plan_selection: object = None
     current_checkout_session: object = None
     current_subscription_contract: object = None
@@ -101,6 +111,20 @@ class PendingOrganizationCard:
     current_payment_subscription: object = None
     current_provisioning_job: object = None
     current_tenant_link: object = None
+    lifecycle: object = None
+
+
+@dataclass(frozen=True)
+class OwnerOrganizationLifecycle:
+    key: str
+    label: str
+    tone: str
+    is_pending: bool
+    onboarding_label: str
+    billing_label: str
+    payment_label: str
+    provisioning_label: str
+    warning: str = ""
 
 
 def _utcnow() -> datetime:
@@ -1256,6 +1280,200 @@ def list_pending_events(db: Session, organization):
     ).order_by(models.PendingOrganizationEvent.created_at.desc(), models.PendingOrganizationEvent.id.desc()).all()
 
 
+def _owner_status_label(value: str | None, *, fallback: str = "Not started") -> str:
+    cleaned = str(value or "").strip().lower()
+    labels = {
+        "draft": "Draft",
+        "in_progress": "Setup in progress",
+        "changes_requested": "Changes requested",
+        "under_review": "Under review",
+        "ready_for_checkout": "Ready for subscription",
+        "rejected": "Not approved",
+        "not_started": "Not started",
+        "plan_selected": "Plan selected",
+        "checkout_ready": "Checkout ready",
+        "checkout_initiated": "Secure payment started",
+        "checkout_started": "Secure payment started",
+        "payment_processing": "Payment processing",
+        "payment_confirmed": "Payment confirmed",
+        "ready_for_provisioning": "Ready for activation",
+        "provisioning_started": "Activation in progress",
+        "provisioning_retrying": "Activation retry scheduled",
+        "provisioning_failed": "Activation needs attention",
+        "provisioning_completed": "Activation complete",
+        "tenant_active": "Active subscription",
+        "pending": "Pending",
+        "paid": "Paid",
+        "failed": "Needs attention",
+        "cancelled": "Cancelled",
+        "refunded": "Refunded",
+        "queued": "Queued",
+        "running": "In progress",
+        "retrying": "Retry scheduled",
+        "completed": "Complete",
+    }
+    if not cleaned:
+        return fallback
+    return labels.get(cleaned, cleaned.replace("_", " ").capitalize())
+
+
+def resolve_owner_organization_lifecycle(
+    db: Session,
+    organization,
+    *,
+    contract=None,
+    payment_attempt=None,
+    payment_subscription=None,
+    provisioning_job=None,
+    tenant_link=None,
+) -> OwnerOrganizationLifecycle:
+    """Resolve owner-facing lifecycle truth without rewriting historical onboarding fields."""
+    import models as operational_models
+
+    organization_status = str(getattr(organization, "status", "") or "").strip().lower()
+    billing_status = str(getattr(organization, "billing_status", "") or "").strip().lower()
+    payment_status = str(getattr(organization, "payment_status", "") or "").strip().lower()
+    subscription_status = str(getattr(payment_subscription, "status", "") or "").strip().lower()
+    contract_status = str(getattr(contract, "contract_status", "") or "").strip().lower()
+    job_status = str(getattr(provisioning_job, "job_status", "") or "").strip().lower()
+    tenant_status = str(getattr(tenant_link, "tenant_status", "") or "").strip().lower()
+
+    school_group = None
+    if tenant_link and getattr(tenant_link, "school_group_id", None):
+        school_group = db.query(operational_models.SchoolGroup).filter(
+            operational_models.SchoolGroup.id == tenant_link.school_group_id,
+            operational_models.SchoolGroup.status == True,
+        ).one_or_none()
+
+    payment_confirmed = bool(
+        payment_status == "paid"
+        or getattr(organization, "payment_confirmed_at", None) is not None
+        or str(getattr(payment_attempt, "status", "") or "").strip().lower() == "payment_confirmed"
+        or (
+            subscription_status in {"active", "trialing"}
+            and str(getattr(payment_subscription, "provider_subscription_id", "") or "").strip()
+            and int(getattr(payment_subscription, "quantity", 0) or 0) > 0
+        )
+        or (
+            str(getattr(contract, "payment_status", "") or "").strip().lower() == "paid"
+            and getattr(contract, "paid_at", None) is not None
+        )
+    )
+    tenant_active = bool(tenant_link and school_group and tenant_status == "tenant_active")
+    commercial_link_resolved = bool(
+        payment_subscription
+        and contract
+        and tenant_link
+        and int(getattr(payment_subscription, "subscription_contract_id", 0) or 0) == int(contract.id)
+        and int(getattr(tenant_link, "subscription_contract_id", 0) or 0) == int(contract.id)
+        and int(getattr(tenant_link, "school_group_id", 0) or 0)
+        == int(getattr(contract, "school_group_id", 0) or 0)
+    )
+    subscription_active = subscription_status in {"active", "trialing"}
+
+    if tenant_active and payment_confirmed and subscription_active and commercial_link_resolved:
+        return OwnerOrganizationLifecycle(
+            key="active_tenant",
+            label="Active Tenant",
+            tone="success",
+            is_pending=False,
+            onboarding_label="Complete",
+            billing_label="Active subscription",
+            payment_label="Paid",
+            provisioning_label="Complete",
+        )
+
+    completed_evidence = bool(
+        tenant_link
+        or job_status == "completed"
+        or billing_status in FINAL_ORGANIZATION_BILLING_STATUSES
+        or contract_status in FINAL_ORGANIZATION_BILLING_STATUSES
+    )
+    if completed_evidence:
+        return OwnerOrganizationLifecycle(
+            key="manual_review",
+            label="Lifecycle Review Required",
+            tone="warning",
+            is_pending=False,
+            onboarding_label="Review required",
+            billing_label=_owner_status_label(billing_status),
+            payment_label=_owner_status_label(payment_status, fallback="Pending"),
+            provisioning_label=_owner_status_label(job_status or tenant_status),
+            warning=(
+                "Provisioning completion exists, but payment, subscription, tenant, and contract evidence "
+                "do not resolve to one active commercial lifecycle."
+            ),
+        )
+
+    if organization_status == "rejected":
+        return OwnerOrganizationLifecycle(
+            key="rejected",
+            label="Not Approved",
+            tone="neutral",
+            is_pending=False,
+            onboarding_label="Not approved",
+            billing_label=_owner_status_label(billing_status),
+            payment_label=_owner_status_label(payment_status, fallback="Pending"),
+            provisioning_label="Not started",
+        )
+
+    if organization_status not in PENDING_ORGANIZATION_QUEUE_STATUSES:
+        return OwnerOrganizationLifecycle(
+            key="manual_review",
+            label="Lifecycle Review Required",
+            tone="warning",
+            is_pending=False,
+            onboarding_label=_owner_status_label(organization_status, fallback="Review required"),
+            billing_label=_owner_status_label(billing_status),
+            payment_label=_owner_status_label(payment_status, fallback="Pending"),
+            provisioning_label=_owner_status_label(job_status),
+            warning="The onboarding state is not recognized as an active pending-organization state.",
+        )
+
+    if job_status in {"queued", "running", "retrying", "failed"} or billing_status in {
+        "ready_for_provisioning",
+        "provisioning_started",
+        "provisioning_retrying",
+        "provisioning_failed",
+    }:
+        label = "Activation Needs Attention" if job_status == "failed" or billing_status == "provisioning_failed" else "Workspace Activation"
+        tone = "danger" if label == "Activation Needs Attention" else "info"
+    elif payment_status in {"failed", "cancelled", "refunded"} or billing_status in {
+        "payment_failed",
+        "payment_cancelled",
+        "payment_refunded",
+        "payment_reconciliation_required",
+    }:
+        label = "Payment Needs Attention"
+        tone = "danger"
+    elif billing_status in {"checkout_started", "checkout_initiated", "payment_processing"}:
+        label = "Secure Payment"
+        tone = "info"
+    elif organization_status == "under_review":
+        label = "Under Review"
+        tone = "info"
+    elif organization_status == "changes_requested":
+        label = "Changes Requested"
+        tone = "warning"
+    elif organization_status == "ready_for_checkout":
+        label = "Subscription Setup"
+        tone = "info"
+    else:
+        label = "Organization Setup"
+        tone = "neutral"
+
+    return OwnerOrganizationLifecycle(
+        key="pending",
+        label=label,
+        tone=tone,
+        is_pending=True,
+        onboarding_label=_owner_status_label(organization_status),
+        billing_label=_owner_status_label(billing_status),
+        payment_label=_owner_status_label(payment_status, fallback="Pending"),
+        provisioning_label=_owner_status_label(job_status),
+    )
+
+
 def build_pending_card(db: Session, organization):
     if not organization:
         return None
@@ -1269,16 +1487,29 @@ def build_pending_card(db: Session, organization):
     selection = billing_service.get_current_plan_selection(db, organization)
     checkout_session = billing_service.get_current_checkout_session(db, organization)
     contract = billing_service.get_current_subscription_contract(db, organization)
-    current_plan = None
-    if selection:
-        current_plan = db.query(models.SubscriptionPlan).filter(
-            models.SubscriptionPlan.id == selection.plan_id
-        ).first()
     payment_customer = payment_service.get_payment_customer(db, organization)
     payment_attempt = payment_service.get_current_payment_attempt(db, organization)
     payment_subscription = payment_service.get_payment_subscription(db, organization)
     provisioning_job = provisioning_service.get_latest_provisioning_job(db, organization)
     tenant_link = provisioning_service.get_tenant_provisioning_link(db, organization)
+    current_plan_id = (
+        getattr(payment_subscription, "plan_id", None)
+        or getattr(selection, "plan_id", None)
+    )
+    current_plan = None
+    if current_plan_id:
+        current_plan = db.query(models.SubscriptionPlan).filter(
+            models.SubscriptionPlan.id == current_plan_id
+        ).first()
+    lifecycle = resolve_owner_organization_lifecycle(
+        db,
+        organization,
+        contract=contract,
+        payment_attempt=payment_attempt,
+        payment_subscription=payment_subscription,
+        provisioning_job=provisioning_job,
+        tenant_link=tenant_link,
+    )
     return PendingOrganizationCard(
         organization=organization,
         owner_account=owner_account,
@@ -1286,6 +1517,11 @@ def build_pending_card(db: Session, organization):
         branches_count=int(branches_count or 0),
         current_step_url=organization_step_url(organization),
         current_plan=current_plan,
+        current_billing_interval=str(
+            getattr(payment_subscription, "billing_interval", "")
+            or getattr(selection, "billing_interval", "")
+            or ""
+        ),
         current_plan_selection=selection,
         current_checkout_session=checkout_session,
         current_subscription_contract=contract,
@@ -1294,6 +1530,7 @@ def build_pending_card(db: Session, organization):
         current_payment_subscription=payment_subscription,
         current_provisioning_job=provisioning_job,
         current_tenant_link=tenant_link,
+        lifecycle=lifecycle,
     )
 
 
@@ -1650,12 +1887,64 @@ def build_setup_console_context(db: Session, account) -> dict:
     }
 
 
-def list_pending_organizations(db: Session, *, status: str = ""):
-    query = db.query(models.PendingOrganization)
+def pending_organization_condition():
+    organization_id = models.PendingOrganization.id
+    return and_(
+        models.PendingOrganization.status.in_(PENDING_ORGANIZATION_QUEUE_STATUSES),
+        not_(models.PendingOrganization.billing_status.in_(FINAL_ORGANIZATION_BILLING_STATUSES)),
+        not_(
+            exists().where(
+                models.TenantProvisioningLink.pending_organization_id == organization_id
+            )
+        ),
+        not_(
+            exists().where(
+                and_(
+                    models.ProvisioningJob.pending_organization_id == organization_id,
+                    models.ProvisioningJob.job_status == "completed",
+                )
+            )
+        ),
+    )
+
+
+def pending_organizations_query(db: Session):
+    return db.query(models.PendingOrganization).filter(pending_organization_condition())
+
+
+def count_pending_organizations(db: Session, *, statuses: tuple[str, ...] | None = None) -> int:
+    query = pending_organizations_query(db)
+    if statuses:
+        query = query.filter(models.PendingOrganization.status.in_(statuses))
+    return int(query.count())
+
+
+def list_pending_organizations(db: Session, *, status: str = "", limit: int | None = None):
+    query = pending_organizations_query(db)
     cleaned_status = str(status or "").strip().lower()
     if cleaned_status:
         query = query.filter(models.PendingOrganization.status == cleaned_status)
-    return query.order_by(models.PendingOrganization.updated_at.desc(), models.PendingOrganization.id.desc()).all()
+    query = query.order_by(
+        models.PendingOrganization.updated_at.desc(),
+        models.PendingOrganization.id.desc(),
+    )
+    if limit is not None:
+        query = query.limit(max(0, int(limit)))
+    return query.all()
+
+
+def list_organization_records(db: Session, *, status: str = "", limit: int | None = None):
+    query = db.query(models.PendingOrganization).filter(not_(pending_organization_condition()))
+    cleaned_status = str(status or "").strip().lower()
+    if cleaned_status:
+        query = query.filter(models.PendingOrganization.status == cleaned_status)
+    query = query.order_by(
+        models.PendingOrganization.updated_at.desc(),
+        models.PendingOrganization.id.desc(),
+    )
+    if limit is not None:
+        query = query.limit(max(0, int(limit)))
+    return query.all()
 
 
 def add_pending_note(db: Session, organization, *, author_type: str, author_ref: str, note: str, is_internal: bool = True):

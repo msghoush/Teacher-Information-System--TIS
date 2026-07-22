@@ -161,6 +161,8 @@ Related SaaS areas include plan selection, onboarding organization details, cont
 
 Platform owner SaaS administration exists under `/saas-admin` for pending organizations, payments, and provisioning workflows.
 
+The Platform Owner pending queue is an operational work queue, not a list of every `PendingOrganization` row. It includes draft/setup, review, checkout/payment, and incomplete or recoverable provisioning states only while no completed tenant link, completed provisioning job, or final tenant billing state exists. Confirmed active tenants and retained rejected/completed records remain available under Organization Records. When completed provisioning evidence conflicts with payment, subscription, contract, tenant, or SchoolGroup evidence, the owner lifecycle resolver labels the record Lifecycle Review Required and fails closed instead of presenting it as ordinary pending work. Raw onboarding status remains historical and does not override confirmed operational truth.
+
 ### TIS Account Email Verification Recovery
 
 The accepted Phase 1 verification recovery improvement strengthens the public TIS Account setup journey without changing payment, billing, provisioning, tenant activation, database schema, migrations, operational modules, or the landing website.
@@ -308,7 +310,7 @@ Tenant provisioning turns a pending SaaS organization into an operational TIS sc
 
 Key provisioning concepts:
 
-- Pending organization: SaaS onboarding entity not yet fully operational.
+- Pending organization: SaaS onboarding entity still requiring setup, review, payment, or incomplete/recoverable activation work, with no completed tenant evidence.
 - Provisioning job: controlled action to create or update operational tenant structures.
 - Platform owner review: human oversight before or during provisioning.
 - Retry behavior: failed provisioning work should be recoverable without corrupting tenant data.
@@ -319,6 +321,7 @@ Provisioning rules:
 - Keep provisioning idempotent where possible.
 - Log or surface errors clearly.
 - Do not merge tenant data across school groups.
+- Treat active tenant/subscription evidence as authoritative over stale onboarding status in Platform Owner queue presentation.
 
 ## Landing Page Strategy
 

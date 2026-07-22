@@ -65,6 +65,9 @@ M5: Platform access and owner controls
 - Platform owner and platform developer identities exist.
 - Platform console and owner/developer management controls exist.
 - Permission registry and platform access tests support this boundary.
+- Platform Owner pending counts and lists now use one lifecycle-aware query boundary instead of counting every historical `PendingOrganization` row.
+- Active/completed tenants are retained in Organization Records, while unresolved completed-provisioning combinations are surfaced conservatively as Lifecycle Review Required.
+- Owner-facing organization lifecycle labels reconcile onboarding, payment, subscription, contract, tenant-link, provisioning-job, and active SchoolGroup evidence without mutating historical status fields.
 
 SaaS account setup stabilization:
 

@@ -2907,12 +2907,13 @@ class SaaSPhase1Tests(unittest.TestCase):
         dashboard_response = admin_client.get("/saas-admin/pending-organizations")
         self.assertEqual(dashboard_response.status_code, 200)
         self.assertIn("Professional", dashboard_response.text)
-        self.assertIn("checkout_ready", dashboard_response.text)
+        self.assertIn("Checkout ready", dashboard_response.text)
+        self.assertNotIn("checkout_ready", dashboard_response.text)
 
         detail_response = admin_client.get(f"/saas-admin/pending-organizations/{org_uuid}")
         self.assertEqual(detail_response.status_code, 200)
         self.assertIn("Professional", detail_response.text)
-        self.assertIn("Checkout: ready", detail_response.text)
+        self.assertIn("Checkout: Ready", detail_response.text)
         db = self._db()
         try:
             self.assertEqual(
@@ -2951,7 +2952,7 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         detail_response = admin_client.get(f"/saas-admin/pending-organizations/{org_uuid}")
         self.assertEqual(detail_response.status_code, 200)
-        self.assertIn("Pending Organization Detail", detail_response.text)
+        self.assertIn("Organization Record", detail_response.text)
 
         note_response = admin_client.post(
             f"/saas-admin/pending-organizations/{org_uuid}/notes",

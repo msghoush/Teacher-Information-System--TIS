@@ -111,6 +111,8 @@ M4: Tenant provisioning foundation with pending organizations, provisioning jobs
 
 M5: Platform access and owner controls, including platform owner/developer identities, permissions, and platform console behavior.
 
+Platform Owner pending-organization views use a centralized owner lifecycle projection. The pending queue includes only records still in draft/setup, review, subscription checkout/payment, or incomplete/recoverable workspace activation. An active tenant link plus one coherent confirmed subscription, payment, contract, and active SchoolGroup resolves as Active Tenant and is excluded from pending counts. Completed-provisioning evidence that does not reconcile across those records is excluded from the normal queue and shown as Lifecycle Review Required in retained Organization Records. Historical onboarding fields are not rewritten by this projection.
+
 ## Completed M7 Subscription Management
 
 M7 includes a normalized entitlement foundation, a customer Subscription Management portal, paid branch-quantity management, upgrades and scheduled downgrades, Paddle-authoritative previews and proration, scheduled cancellation and reversal, a centralized lifecycle/action policy, provider-sourced billing history, protected invoice downloads, and webhook/reconciliation safeguards.

@@ -13,6 +13,11 @@
     .owner-control-copy { max-width: 760px; }
     .owner-control-copy p { margin-bottom: 0; }
     .owner-detail-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .owner-lifecycle-badge { display:inline-flex; margin-bottom:8px; border:1px solid #d5e0eb; border-radius:999px; background:#f3f6f9; color:#43566b; padding:5px 9px; font-size:11px; font-weight:900; }
+    .owner-lifecycle-badge.success { border-color:#b7dfca; background:#eaf8f1; color:#166144; }
+    .owner-lifecycle-badge.info { border-color:#bad4ee; background:#edf6ff; color:#175b94; }
+    .owner-lifecycle-badge.warning { border-color:#efd28e; background:#fff8e2; color:#7b570b; }
+    .owner-lifecycle-badge.danger { border-color:#eebcc3; background:#fff1f3; color:#9b2838; }
     @media (max-width: 980px) {
         .owner-overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
@@ -22,7 +27,7 @@
     }
 </style>
 
-<h1>Pending Organization Detail</h1>
+<h1>Organization Record</h1>
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
@@ -31,19 +36,21 @@
     <div class="owner-overview-grid">
         <div class="stat">
             <strong>{{ organization.organization_name or "Untitled draft" }}</strong>
-            <p>Status: {{ organization.status }}<br>Billing: {{ organization.billing_status }}<br>Payment: {{ organization.payment_status }}<br>Progress: {{ card.progress.completion_percent }}%<br>Educational Program: {{ organization.educational_program or "-" }}</p>
+            <span class="owner-lifecycle-badge {{ card.lifecycle.tone }}">{{ card.lifecycle.label }}</span>
+            <p>Onboarding: {{ card.lifecycle.onboarding_label }}<br>Billing: {{ card.lifecycle.billing_label }}<br>Payment: {{ card.lifecycle.payment_label }}<br>Progress: {{ card.progress.completion_percent }}%<br>Educational Program: {{ organization.educational_program or "-" }}</p>
+            {% if card.lifecycle.warning %}<p class="muted">{{ card.lifecycle.warning }}</p>{% endif %}
         </div>
         <div class="stat">
             <strong>Commercial selection</strong>
-            <p>{% if card.current_plan_selection %}Plan: {{ card.current_plan.plan_name if card.current_plan else card.current_plan_selection.plan_id }}<br>Interval: {{ card.current_plan_selection.billing_interval }}<br>Checkout: {{ card.current_checkout_session.status if card.current_checkout_session else "not_started" }}{% else %}No plan selected yet.{% endif %}</p>
+            <p>{% if card.current_plan_selection or card.current_payment_subscription %}Plan: {{ card.current_plan.plan_name if card.current_plan else "Plan unavailable" }}<br>Interval: {{ customer_status_label(card.current_billing_interval, "Not available") }}<br>Checkout: {% if card.lifecycle.key == "active_tenant" %}Complete{% elif card.lifecycle.key == "manual_review" %}Review required{% else %}{{ customer_status_label(card.current_checkout_session.status, "Not started") if card.current_checkout_session else "Not started" }}{% endif %}{% else %}No plan selected yet.{% endif %}</p>
         </div>
         <div class="stat">
             <strong>Payment tracking</strong>
-            <p>{% if card.current_payment_attempt %}Attempt: {{ card.current_payment_attempt.status }}<br>Transaction: {{ card.current_payment_attempt.provider_transaction_id or "-" }}{% if card.current_payment_subscription %}<br>Subscription: {{ card.current_payment_subscription.status }}<br>Subscription ID: {{ card.current_payment_subscription.provider_subscription_id }}{% endif %}{% else %}No payment attempt launched yet.{% endif %}</p>
+            <p>{% if card.current_payment_attempt %}Attempt: {{ customer_status_label(card.current_payment_attempt.status) }}{% if card.current_payment_subscription %}<br>Subscription: {{ customer_status_label(card.current_payment_subscription.status) }}{% endif %}{% else %}No payment attempt launched yet.{% endif %}</p>
         </div>
         <div class="stat">
             <strong>Provisioning summary</strong>
-            <p>{% if card.current_provisioning_job %}Job: {{ card.current_provisioning_job.job_status }}<br>Attempts: {{ card.current_provisioning_job.attempt_count }} / {{ card.current_provisioning_job.max_attempts }}{% if card.current_tenant_link %}<br>School Group ID: {{ card.current_tenant_link.school_group_id }}{% endif %}{% else %}No provisioning job queued yet.{% endif %}</p>
+            <p>Activation: {{ card.lifecycle.provisioning_label }}{% if card.current_provisioning_job %}<br>Attempts: {{ card.current_provisioning_job.attempt_count }} / {{ card.current_provisioning_job.max_attempts }}{% if card.current_tenant_link %}<br>School Group ID: {{ card.current_tenant_link.school_group_id }}{% endif %}{% else %}<br>No provisioning job queued yet.{% endif %}</p>
         </div>
         <div class="stat">
             <strong>Primary contact</strong>
@@ -71,10 +78,10 @@
             <form method="post" action="/saas-admin/pending-organizations/{{ organization.organization_uuid }}/status">
                 <label>Status</label>
                 <select name="status">
-                    <option value="ready_for_checkout" {% if organization.status == "ready_for_checkout" %}selected{% endif %}>ready_for_checkout</option>
-                    <option value="under_review" {% if organization.status == "under_review" %}selected{% endif %}>under_review</option>
-                    <option value="changes_requested" {% if organization.status == "changes_requested" %}selected{% endif %}>changes_requested</option>
-                    <option value="rejected" {% if organization.status == "rejected" %}selected{% endif %}>rejected</option>
+                    <option value="ready_for_checkout" {% if organization.status == "ready_for_checkout" %}selected{% endif %}>Ready for subscription</option>
+                    <option value="under_review" {% if organization.status == "under_review" %}selected{% endif %}>Under review</option>
+                    <option value="changes_requested" {% if organization.status == "changes_requested" %}selected{% endif %}>Changes requested</option>
+                    <option value="rejected" {% if organization.status == "rejected" %}selected{% endif %}>Not approved</option>
                 </select>
                 <label>Reason / note</label>
                 <input name="rejection_reason" value="{{ organization.rejection_reason or '' }}">

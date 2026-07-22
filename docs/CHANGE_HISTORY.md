@@ -27,6 +27,39 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-07-22 - Corrected Platform Owner Pending Organization Lifecycle Views
+
+Area/module:
+SaaS onboarding, provisioning lifecycle, and Platform Owner administration
+
+Previous state:
+Platform Console counted every `PendingOrganization` row, and the Pending Organizations page listed every row regardless of completed checkout, active subscription, tenant link, or completed provisioning. Historical `ready_for_checkout` values could therefore make active tenants appear pending, while conflicting completed-provisioning records displayed raw internal statuses without a clear review state.
+
+New state:
+One shared lifecycle-aware query now defines the pending queue as draft/setup, review, checkout/payment, or incomplete/recoverable activation work with no tenant link, completed provisioning job, or final tenant billing state. A shared owner lifecycle projection reconciles payment, subscription, contract, tenant-link, provisioning-job, and active SchoolGroup evidence. Coherent active tenants move to retained Organization Records; conflicting completed evidence is labeled Lifecycle Review Required. Platform Console counts/actions and the owner table use the same rule and readable labels.
+
+Reason:
+The Platform Owner work queue must represent actionable unfinished onboarding rather than historical database rows, without mutating payment, provisioning, or onboarding evidence.
+
+Files changed:
+- centralized SaaS owner lifecycle query and projection
+- Platform Console summary and owner admin routes
+- pending organization list/detail templates
+- focused lifecycle, filtering, count, and access tests
+- authoritative KMS context, module map, workflow, project state, and provisioning history
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Yes
+
+AI project context updated:
+Yes
+
+Reviewer/approval notes:
+No schema, migration, payment, checkout, provisioning transition, permission, production data, commit, or push change. Historical records remain directly accessible.
+
 ## 2026-07-22 - Added Phase 7D Navigation And Catalog Enforcement
 
 Area/module:
