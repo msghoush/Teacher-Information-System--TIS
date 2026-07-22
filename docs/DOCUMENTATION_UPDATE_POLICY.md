@@ -1,7 +1,7 @@
 ---
 title: TIS Documentation Update Policy
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-07-22
 source_of_truth: true
 ---
 
@@ -100,6 +100,25 @@ Complete read-only validation:
 ```
 
 The `check` command must never write documentation. GitHub Actions run it for pull requests and `dev`; the production deployment workflow requires it before triggering deployment from `master`. The `sync` command writes generated artifacts only and never rewrites authoritative Markdown.
+
+## Navigation And Catalog Integrity
+
+Every included Markdown source must have a usable front-matter `title` or level-one Markdown heading. Placeholder, empty, punctuation-only, or excessively long titles are invalid.
+
+The approved document categories are:
+
+- `core`
+- `engineering`
+- `decisions`
+- `history`
+- `marketing`
+- `supporting`
+
+The approved module values are maintained in `kms_catalog.py`. Declared front-matter taxonomy must use the exact approved slug, and any declared category must match the source path's category. New modules require a reviewed catalog update and focused validation.
+
+`docs/KMS_NAVIGATION.md` may link only to existing, listed Markdown sources inside `docs/` through relative POSIX-style paths. External URLs, parent-directory escapes, root-relative links, non-Markdown targets, missing targets, and unlisted authoritative documents fail validation.
+
+The manifest source inventory must exactly match the normalized generator source list in deterministic order. Every source must have a positive integer `pdf_page`, source pages must increase in generator order, and no source page may exceed the generated PDF page count.
 
 ## Prohibited KMS Content
 

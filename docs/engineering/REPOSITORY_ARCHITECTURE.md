@@ -1,7 +1,7 @@
 ---
 title: TIS Repository Architecture
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-07-22
 source_of_truth: true
 ---
 
@@ -104,6 +104,17 @@ Do not change casually:
 - platform-vs-tenant shell behavior,
 - design-studio gating,
 - scope display.
+
+### `knowledge_service.py` And `kms_catalog.py`
+
+Responsibility:
+`knowledge_service.py` reads the generated KMS manifest and approved Markdown metadata for the owner-only Knowledge Center. `kms_catalog.py` provides the dependency-free approved category/module vocabulary and deterministic source-path classification shared by the service and KMS validation tooling.
+
+Do not change casually:
+- owner-only read behavior,
+- manifest freshness semantics,
+- approved category or module slugs,
+- path classification without matching KMS tests and documentation.
 
 ## Feature Routers: `routers/`
 
@@ -216,6 +227,7 @@ Do not change casually:
 - PDF generator dependency assumptions,
 - source list behavior,
 - manifest metadata.
+- title, catalog, navigation-link, source-inventory, and PDF page-bound validation.
 
 ## Repository Governance
 

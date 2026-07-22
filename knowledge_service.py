@@ -4,8 +4,16 @@ import hashlib
 import json
 import re
 from datetime import datetime
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any
+
+from kms_catalog import (
+    CATEGORY_LABELS,
+    DOCUMENT_CATEGORIES,
+    document_category,
+    document_module,
+    module_label,
+)
 
 
 ROOT = Path(__file__).resolve().parent
@@ -23,76 +31,6 @@ REQUIRED_DOCUMENTS = {
     "PDF snapshot": PDF_PATH,
     "Manifest": MANIFEST_PATH,
 }
-
-DOCUMENT_CATEGORIES = (
-    ("core", "Core"),
-    ("engineering", "Engineering"),
-    ("decisions", "Decisions"),
-    ("history", "History"),
-    ("marketing", "Marketing"),
-    ("supporting", "Supporting"),
-)
-CATEGORY_LABELS = dict(DOCUMENT_CATEGORIES)
-CORE_DOCUMENTS = {
-    "docs/README.md",
-    "docs/KMS_NAVIGATION.md",
-    "docs/AI_PROJECT_CONTEXT.md",
-    "docs/DOCUMENTATION_UPDATE_POLICY.md",
-    "docs/TIS_MASTER_CONTEXT.md",
-    "docs/PROJECT_STATE.md",
-    "docs/CHANGE_HISTORY.md",
-}
-ADR_MODULES = {
-    "0001": "landing-page",
-    "0002": "identity-access",
-    "0003": "subscriptions",
-    "0004": "subscriptions",
-    "0005": "provisioning",
-    "0006": "platform-knowledge",
-    "0007": "landing-page",
-}
-ENGINEERING_MODULES = {
-    "README": "engineering-handbook",
-    "TIS_MODULE_MAP": "architecture",
-    "REPOSITORY_ARCHITECTURE": "architecture",
-    "USER_AND_SYSTEM_FLOWS": "architecture",
-    "DATABASE_ARCHITECTURE_OVERVIEW": "database",
-    "DEVELOPMENT_STANDARDS": "engineering-governance",
-    "UI_UX_DESIGN_PHILOSOPHY": "design",
-    "PRODUCT_ROADMAP": "product-roadmap",
-    "REJECTED_DECISIONS": "architecture",
-    "VISUAL_DOCUMENTATION_GUIDE": "design",
-    "AI_OPTIMIZATION_GUIDE": "ai-workflow",
-    "PROJECT_GOVERNANCE": "engineering-governance",
-    "KNOWLEDGE_LIFECYCLE": "platform-knowledge",
-    "DOCUMENTATION_AUTOMATION": "platform-knowledge",
-    "KNOWLEDGE_IMPACT_ASSESSMENT_STANDARD": "platform-knowledge",
-    "SELF_EVOLVING_WORKFLOW": "platform-knowledge",
-    "DOCUMENTATION_DEPENDENCY_MAP": "platform-knowledge",
-    "AI_CODING_WORKFLOW": "ai-workflow",
-    "FUTURE_AUTOMATION_ROADMAP": "platform-knowledge",
-}
-MODULE_LABELS = {
-    "academic-calendar": "Academic Calendar",
-    "ai-workflow": "AI Workflow",
-    "architecture": "Architecture",
-    "database": "Database",
-    "design": "Design",
-    "engineering-governance": "Engineering Governance",
-    "engineering-handbook": "Engineering Handbook",
-    "identity-access": "Identity And Access",
-    "kms-core": "KMS Core",
-    "landing-page": "Landing Page",
-    "location-data": "Location Data",
-    "module-history": "Module History",
-    "platform-knowledge": "Platform Knowledge",
-    "product-roadmap": "Product Roadmap",
-    "provisioning": "Provisioning",
-    "saas-onboarding": "SaaS Onboarding",
-    "subscriptions": "Subscriptions",
-    "workforce-planning": "Workforce Planning",
-}
-
 
 def _relative(path: Path) -> str:
     try:
@@ -254,45 +192,15 @@ def _read_document_identity(path: Path) -> tuple[str, str, dict[str, str]]:
 
 
 def _document_category(source_path: str) -> str:
-    normalized = source_path.replace("\\", "/")
-    if normalized in CORE_DOCUMENTS:
-        return "core"
-    if normalized.startswith("docs/engineering/"):
-        return "engineering"
-    if normalized.startswith("docs/adr/"):
-        return "decisions"
-    if normalized.startswith("docs/history/"):
-        return "history"
-    if normalized.startswith("docs/marketing/"):
-        return "marketing"
-    return "supporting"
+    return document_category(source_path)
 
 
 def _document_module(source_path: str, category: str, metadata: dict[str, str]) -> str:
-    normalized = source_path.replace("\\", "/")
-    parts = PurePosixPath(normalized).parts
-    declared_module = metadata.get("module", "").strip().lower().replace(" ", "-")
-    if declared_module:
-        return declared_module
-    if category == "core":
-        return "kms-core"
-    if category == "engineering":
-        return ENGINEERING_MODULES.get(Path(normalized).stem, "engineering-handbook")
-    if category == "decisions":
-        return ADR_MODULES.get(Path(normalized).name[:4], "architecture")
-    if category == "history" and len(parts) > 2:
-        if normalized == "docs/history/README.md":
-            return "module-history"
-        return parts[2]
-    if category == "marketing":
-        return "landing-page"
-    if normalized == "docs/location-data-roadmap.md":
-        return "location-data"
-    return "supporting"
+    return document_module(source_path, category, metadata.get("module", ""))
 
 
 def _module_label(module: str) -> str:
-    return MODULE_LABELS.get(module, module.replace("-", " ").title())
+    return module_label(module)
 
 
 def _document_details(path: Path | None, source_path: str) -> dict[str, str]:

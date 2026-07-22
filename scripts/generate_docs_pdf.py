@@ -5,10 +5,25 @@ import hashlib
 import json
 import re
 import subprocess
+import sys
 import textwrap
 from datetime import datetime
 from html import escape
 from pathlib import Path, PurePosixPath
+from urllib.parse import unquote
+
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from kms_catalog import (  # noqa: E402
+    APPROVED_CATEGORIES,
+    APPROVED_MODULES,
+    document_category,
+    document_module,
+    normalize_taxonomy_value,
+)
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -25,8 +40,6 @@ from reportlab.platypus import (
 )
 from reportlab.platypus.tableofcontents import TableOfContents
 
-
-ROOT = Path(__file__).resolve().parents[1]
 DOCUMENTATION_VERSION = "3.1"
 OUTPUT_PATH = ROOT / "static" / "docs" / "TIS_Project_Reference_Booklet.pdf"
 MANIFEST_PATH = ROOT / "static" / "docs" / "docs_manifest.json"
@@ -215,7 +228,7 @@ def _front_matter_value(path: Path, key: str) -> str:
     return ""
 
 
-def _document_title(path: Path) -> str:
+def _declared_document_title(path: Path) -> str:
     front_matter_title = _front_matter_value(path, "title")
     if front_matter_title:
         return _clean_text(front_matter_title)
@@ -224,7 +237,137 @@ def _document_title(path: Path) -> str:
         match = re.match(r"^#\s+(.+)$", line.strip())
         if match:
             return _clean_text(match.group(1))
+    return ""
+
+
+def _document_title(path: Path) -> str:
+    declared_title = _declared_document_title(path)
+    if declared_title:
+        return declared_title
     return path.stem.replace("-", " ").replace("_", " ").title()
+
+
+def _is_usable_title(title: str) -> bool:
+    normalized = re.sub(r"\s+", " ", _clean_text(title)).strip()
+    if len(normalized) < 2 or len(normalized) > 160:
+        return False
+    if normalized.casefold() in {"document", "todo", "tbd", "title", "untitled"}:
+        return False
+    return bool(re.search(r"[A-Za-z0-9]", normalized))
+
+
+def _validate_source_catalog(source_docs: list[Path]) -> list[str]:
+    errors: list[str] = []
+    for path in source_docs:
+        if not path.exists() or not path.is_file():
+            continue
+        relative = _relative_source_path(path)
+        title = _declared_document_title(path)
+        if not _is_usable_title(title):
+            errors.append(f"Included Markdown source has no usable title: {relative}")
+
+        category = document_category(relative)
+        declared_category = _front_matter_value(path, "category").strip()
+        if category not in APPROVED_CATEGORIES:
+            errors.append(f"Source uses an unapproved category {category!r}: {relative}")
+        if declared_category:
+            if declared_category not in APPROVED_CATEGORIES:
+                errors.append(
+                    f"Source declares an unapproved category {declared_category!r}: {relative}"
+                )
+            elif declared_category != category:
+                errors.append(
+                    f"Source category {declared_category!r} does not match path category "
+                    f"{category!r}: {relative}"
+                )
+
+        declared_module = _front_matter_value(path, "module").strip()
+        normalized_declared_module = normalize_taxonomy_value(declared_module)
+        if declared_module and (
+            declared_module != normalized_declared_module
+            or declared_module not in APPROVED_MODULES
+        ):
+            errors.append(f"Source declares an unapproved module {declared_module!r}: {relative}")
+        module = document_module(relative, category, declared_module)
+        if module not in APPROVED_MODULES:
+            errors.append(f"Source uses an unapproved module {module!r}: {relative}")
+    return errors
+
+
+def _markdown_links(path: Path) -> list[tuple[int, str]]:
+    links: list[tuple[int, str]] = []
+    in_code_block = False
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_code_block = not in_code_block
+            continue
+        if in_code_block:
+            continue
+        for match in re.finditer(r"(?<!!)\[[^\]]+\]\(([^)]+)\)", line):
+            links.append((line_number, match.group(1).strip()))
+    return links
+
+
+def _validate_navigation_links(
+    navigation_path: Path,
+    listed_source_paths: list[str],
+) -> list[str]:
+    if not navigation_path.exists():
+        return ["KMS navigation document is missing: docs/KMS_NAVIGATION.md"]
+
+    errors: list[str] = []
+    docs_root = (ROOT / "docs").resolve()
+    listed = {_normalize_source_path(path) for path in listed_source_paths}
+    for line_number, raw_destination in _markdown_links(navigation_path):
+        destination = raw_destination
+        if destination.startswith("<") and destination.endswith(">"):
+            destination = destination[1:-1].strip()
+        prefix = f"docs/KMS_NAVIGATION.md:{line_number}"
+        if not destination or "\\" in destination or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", destination):
+            errors.append(f"Navigation link must be a relative docs path at {prefix}: {raw_destination}")
+            continue
+        if destination.startswith(("/", "//")) or "?" in destination:
+            errors.append(f"Navigation link must be a relative docs path at {prefix}: {raw_destination}")
+            continue
+
+        path_part = unquote(destination.split("#", 1)[0]).strip()
+        candidate = navigation_path if not path_part else navigation_path.parent / path_part
+        try:
+            resolved = candidate.resolve()
+            resolved.relative_to(docs_root)
+        except (OSError, ValueError):
+            errors.append(f"Navigation link leaves docs/ at {prefix}: {raw_destination}")
+            continue
+        if resolved.suffix.lower() != ".md":
+            errors.append(f"Navigation link is not a Markdown document at {prefix}: {raw_destination}")
+            continue
+        if not resolved.exists() or not resolved.is_file():
+            errors.append(f"Navigation link points to a missing document at {prefix}: {raw_destination}")
+            continue
+
+        relative = _relative_source_path(resolved)
+        if relative not in listed:
+            errors.append(
+                f"Navigation link points to an unlisted authoritative document at {prefix}: {relative}"
+            )
+    return errors
+
+
+def _validate_authoritative_sources(source_docs: list[Path]) -> list[str]:
+    errors = _validate_source_catalog(source_docs)
+    expected_paths = [_relative_source_path(path) for path in source_docs]
+    navigation_path = ROOT / "docs" / "KMS_NAVIGATION.md"
+    if _relative_source_path(navigation_path) in expected_paths:
+        errors.extend(_validate_navigation_links(navigation_path, expected_paths))
+    return errors
+
+
+def _pdf_page_count(path: Path) -> int:
+    try:
+        return len(re.findall(rb"/Type\s*/Page\b", path.read_bytes()))
+    except OSError:
+        return 0
 
 
 def _bookmark_key(prefix: str, value: str) -> str:
@@ -540,6 +683,9 @@ def _write_manifest(
 def build_pdf() -> Path:
     styles = _styles()
     included_docs = [path for path in SOURCE_DOCS if path.exists()]
+    source_errors = _validate_authoritative_sources(SOURCE_DOCS)
+    if source_errors:
+        raise RuntimeError("KMS source validation failed:\n- " + "\n- ".join(source_errors))
     generated_at_dt = datetime.now().astimezone()
     generated_at_display = generated_at_dt.strftime("%Y-%m-%d %H:%M %Z")
     generated_at_iso = generated_at_dt.isoformat()
@@ -658,6 +804,7 @@ def build_pdf() -> Path:
 def check_generated_artifacts() -> list[str]:
     errors: list[str] = []
     included_docs = [path for path in SOURCE_DOCS if path.exists()]
+    errors.extend(_validate_authoritative_sources(SOURCE_DOCS))
     missing_sources = [path for path in SOURCE_DOCS if not path.exists()]
     for path in missing_sources:
         errors.append(f"Required PDF source is missing: {_relative_source_path(path)}")
@@ -688,7 +835,7 @@ def check_generated_artifacts() -> list[str]:
             f"expected {DOCUMENTATION_VERSION!r}, found {manifest.get('documentation_version')!r}."
         )
 
-    expected_paths = [_relative_source_path(path) for path in included_docs]
+    expected_paths = [_relative_source_path(path) for path in SOURCE_DOCS]
     manifest_sources = manifest.get("included_source_files")
     if not isinstance(manifest_sources, list):
         errors.append("Manifest included_source_files must be a list.")
@@ -705,6 +852,9 @@ def check_generated_artifacts() -> list[str]:
         except ValueError:
             continue
         metadata_by_path[normalized_path] = item
+    pdf_page_count = _pdf_page_count(OUTPUT_PATH) if OUTPUT_PATH.exists() else 0
+    if OUTPUT_PATH.exists() and OUTPUT_PATH.stat().st_size > 0 and pdf_page_count < 1:
+        errors.append("Generated PDF page count could not be determined.")
     previous_pdf_page = 0
     for path in included_docs:
         relative = _relative_source_path(path)
@@ -718,6 +868,10 @@ def check_generated_artifacts() -> list[str]:
         pdf_page = metadata.get("pdf_page")
         if isinstance(pdf_page, bool) or not isinstance(pdf_page, int) or pdf_page < 1:
             errors.append(f"Manifest source has an invalid pdf_page: {relative}")
+        elif pdf_page_count and pdf_page > pdf_page_count:
+            errors.append(
+                f"Manifest source pdf_page exceeds the generated PDF page count: {relative}"
+            )
         elif pdf_page <= previous_pdf_page:
             errors.append(f"Manifest source pages are not strictly increasing: {relative}")
         else:

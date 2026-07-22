@@ -1,7 +1,7 @@
 ---
 title: TIS Documentation Automation
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-07-22
 source_of_truth: true
 ---
 
@@ -21,7 +21,8 @@ Current approved automation:
 - The manifest records the generated PDF hash and size.
 - Markdown source hashes are computed from UTF-8 text normalized to LF, so equivalent CRLF and LF checkouts produce the same hash.
 - Manifest source paths are repository-relative POSIX paths; dynamically discovered sources use a stable case-insensitive sort with an explicit tie-breaker.
-- `scripts/generate_docs_pdf.py --check` validates source coverage, source hashes, PDF identity, manifest metadata, and documentation version without writing files.
+- `scripts/generate_docs_pdf.py --check` validates source coverage, titles, approved catalog taxonomy, navigation links, source hashes, PDF identity, manifest metadata, PDF page bounds, and documentation version without writing files.
+- `kms_catalog.py` is the dependency-free shared vocabulary and path classifier for Knowledge Center presentation and KMS enforcement.
 - `.kms-impact.yml` records task-level Knowledge Impact in a small machine-readable schema.
 - `scripts/check_kms_impact.py` classifies likely major changes, validates the declaration against the Git diff, and runs generated-artifact freshness checks.
 - `scripts/kms.py sync` runs KIA preflight validation, regenerates the PDF and manifest, runs complete freshness validation, and prints a completion summary.
@@ -44,6 +45,18 @@ Current automation does not:
 Automation blocks stale or undeclared work; humans and approved AI assistants remain responsible for reviewed Markdown updates.
 
 Cross-platform normalization does not relax enforcement. Changed text still changes the source hash, and missing, unexpected, duplicate, or reordered source entries still fail validation.
+
+## Phase 7D Navigation And Catalog Validation
+
+The complete `scripts/kms.py check` path enforces:
+
+- a usable front-matter title or H1 for every included Markdown source,
+- categories and modules from the approved values in `kms_catalog.py`,
+- exact normalized manifest/source-list membership and deterministic order,
+- a positive integer `pdf_page` for every source, strict source-page ordering, and a page no greater than the generated PDF page count,
+- relative links in `docs/KMS_NAVIGATION.md` that remain inside `docs/`, resolve to existing Markdown files, and target listed booklet sources.
+
+The checker reports genuine missing, unexpected, duplicate, reordered, stale, invalid-taxonomy, invalid-title, invalid-page, and invalid-navigation conditions. It does not repair them or weaken existing KIA and freshness gates.
 
 ## Git Event Task Boundaries
 
@@ -147,7 +160,7 @@ The PDF is:
 
 Regenerate after included Markdown docs change.
 
-Every manifest source record must contain a positive `pdf_page`, and pages must increase in fixed source order. Missing or inconsistent page metadata fails freshness validation.
+Every manifest source record must contain a positive integer `pdf_page`, pages must increase in fixed source order, and each page must be within the generated PDF's actual page count. Missing, inconsistent, or out-of-range page metadata fails freshness validation.
 
 ## AI Context Lifecycle
 

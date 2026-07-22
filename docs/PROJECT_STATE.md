@@ -115,6 +115,7 @@ Documentation/KMS milestones:
 - Phase 7A navigation foundation implemented with task-based reading paths, improved indexes, and normalized supporting-document titles.
 - Phase 7B professional PDF navigation implemented with handbook guidance, a page-numbered table of contents, source and major-heading bookmarks, and manifest source-page metadata.
 - Phase 7C Platform Knowledge Center navigation implemented with manifest-backed titles and summaries, logical document groups, client-side search and filters, protected booklet page links, and newest-first knowledge activity.
+- Phase 7D KMS navigation and catalog enforcement implemented with usable-title checks, approved category/module vocabulary, exact source inventory checks, docs-only navigation links, and generated PDF page-bound validation.
 
 M7 subscription-management milestones:
 
@@ -128,7 +129,7 @@ M7 subscription-management milestones:
 
 ## Current Priority
 
-Current priority: review Phase 7C Knowledge Center navigation and continue improving KMS consumption incrementally while preserving strict synchronization and completed M7 subscription context.
+Current priority: review Phase 7D navigation/catalog enforcement in local and CI workflows while preserving strict synchronization and completed M7 subscription context.
 
 Current enforcement scope:
 
@@ -140,6 +141,7 @@ Current enforcement scope:
 - Pull requests and `dev` pushes run KMS enforcement.
 - `master` deployment waits for the KMS gate.
 - Automation validates and blocks; it does not rewrite Markdown.
+- Phase 7D also blocks missing or unusable source titles, unapproved catalog values, invalid KMS navigation targets, source-list drift, and missing, non-positive, non-increasing, or out-of-range manifest PDF pages.
 
 Phase 2A and Phase 2B scope:
 

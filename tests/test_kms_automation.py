@@ -41,6 +41,12 @@ def _command_args():
     return kms.build_parser().parse_args(["check"])
 
 
+def _write_markdown(path: Path, content: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8", newline="\n")
+    return path
+
+
 def test_parse_declaration_supports_the_repository_schema():
     declaration = check_kms_impact.parse_declaration_text(
         """
@@ -127,13 +133,119 @@ def test_markdown_hash_changes_when_text_changes(tmp_path):
     assert generate_docs_pdf._source_hash(source) != original_hash
 
 
+def test_source_catalog_accepts_front_matter_and_h1_titles(tmp_path, monkeypatch):
+    front_matter = _write_markdown(
+        tmp_path / "docs" / "engineering" / "guide.md",
+        "---\ntitle: Engineering Guide\n---\n\nBody.\n",
+    )
+    h1_only = _write_markdown(
+        tmp_path / "docs" / "supporting.md",
+        "# Supporting Guide\n\nBody.\n",
+    )
+    monkeypatch.setattr(generate_docs_pdf, "ROOT", tmp_path)
+
+    assert generate_docs_pdf._validate_source_catalog([front_matter, h1_only]) == []
+
+
+@pytest.mark.parametrize("title", ["", "TBD", "Untitled", "!"])
+def test_source_catalog_rejects_missing_or_unusable_titles(tmp_path, monkeypatch, title):
+    heading = f"# {title}\n" if title else "Body without a title.\n"
+    source = _write_markdown(tmp_path / "docs" / "source.md", heading)
+    monkeypatch.setattr(generate_docs_pdf, "ROOT", tmp_path)
+
+    assert generate_docs_pdf._validate_source_catalog([source]) == [
+        "Included Markdown source has no usable title: docs/source.md"
+    ]
+
+
+def test_source_catalog_rejects_unapproved_or_mismatched_taxonomy(tmp_path, monkeypatch):
+    source = _write_markdown(
+        tmp_path / "docs" / "engineering" / "guide.md",
+        "---\n"
+        "title: Engineering Guide\n"
+        "category: core\n"
+        "module: unknown-module\n"
+        "---\n\n"
+        "Body.\n",
+    )
+    monkeypatch.setattr(generate_docs_pdf, "ROOT", tmp_path)
+
+    errors = generate_docs_pdf._validate_source_catalog([source])
+
+    assert "Source category 'core' does not match path category 'engineering': docs/engineering/guide.md" in errors
+    assert "Source declares an unapproved module 'unknown-module': docs/engineering/guide.md" in errors
+    assert "Source uses an unapproved module 'unknown-module': docs/engineering/guide.md" in errors
+
+    source.write_text(
+        source.read_text(encoding="utf-8").replace("category: core", "category: forbidden"),
+        encoding="utf-8",
+    )
+    errors = generate_docs_pdf._validate_source_catalog([source])
+    assert "Source declares an unapproved category 'forbidden': docs/engineering/guide.md" in errors
+
+
+def test_navigation_validation_accepts_listed_relative_docs_links(tmp_path, monkeypatch):
+    navigation = _write_markdown(
+        tmp_path / "docs" / "KMS_NAVIGATION.md",
+        "# Navigation\n\n[Guide](engineering/guide.md#overview)\n",
+    )
+    guide = _write_markdown(
+        tmp_path / "docs" / "engineering" / "guide.md",
+        "# Guide\n\n## Overview\n",
+    )
+    monkeypatch.setattr(generate_docs_pdf, "ROOT", tmp_path)
+
+    assert generate_docs_pdf._validate_navigation_links(
+        navigation,
+        ["docs/KMS_NAVIGATION.md", "docs/engineering/guide.md"],
+    ) == []
+
+
+@pytest.mark.parametrize(
+    ("destination", "create_target", "listed_target", "expected"),
+    [
+        ("https://example.com/guide.md", False, False, "must be a relative docs path"),
+        ("../AGENTS.md", True, False, "leaves docs/"),
+        ("missing.md", False, False, "points to a missing document"),
+        ("unlisted.md", True, False, "points to an unlisted authoritative document"),
+        ("asset.txt", True, True, "is not a Markdown document"),
+    ],
+)
+def test_navigation_validation_rejects_invalid_targets(
+    tmp_path,
+    monkeypatch,
+    destination,
+    create_target,
+    listed_target,
+    expected,
+):
+    navigation = _write_markdown(
+        tmp_path / "docs" / "KMS_NAVIGATION.md",
+        f"# Navigation\n\n[Target]({destination})\n",
+    )
+    target_path = tmp_path / "docs" / destination
+    if destination == "../AGENTS.md":
+        target_path = tmp_path / "AGENTS.md"
+    if create_target:
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.write_text("# Target\n", encoding="utf-8")
+    listed = ["docs/KMS_NAVIGATION.md"]
+    if listed_target:
+        listed.append(target_path.relative_to(tmp_path).as_posix())
+    monkeypatch.setattr(generate_docs_pdf, "ROOT", tmp_path)
+
+    errors = generate_docs_pdf._validate_navigation_links(navigation, listed)
+
+    assert any(expected in error for error in errors)
+
+
 def test_changed_markdown_fails_generated_artifact_freshness_check(tmp_path, monkeypatch):
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
     source = docs_dir / "source.md"
     source.write_text("# Approved state\n", encoding="utf-8", newline="\n")
     pdf = tmp_path / "booklet.pdf"
-    pdf.write_bytes(b"generated-pdf")
+    pdf.write_bytes(b"%PDF-1.4\n1 0 obj << /Type /Page >> endobj\n")
     manifest = tmp_path / "manifest.json"
     manifest.write_text(
         json.dumps(
@@ -244,7 +356,8 @@ def test_pdf_build_records_strict_source_pages_and_outline_catalog(tmp_path, mon
     assert generate_docs_pdf.check_generated_artifacts() == []
 
 
-def test_freshness_check_rejects_missing_pdf_page_metadata(tmp_path, monkeypatch):
+@pytest.mark.parametrize("pdf_page", [None, 0, -1, True, "1"])
+def test_freshness_check_rejects_invalid_pdf_page_metadata(tmp_path, monkeypatch, pdf_page):
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir()
     source = docs_dir / "source.md"
@@ -252,16 +365,17 @@ def test_freshness_check_rejects_missing_pdf_page_metadata(tmp_path, monkeypatch
     pdf = tmp_path / "booklet.pdf"
     pdf.write_bytes(b"pdf")
     manifest = tmp_path / "manifest.json"
+    source_metadata = {
+        "path": "docs/source.md",
+        "sha256": generate_docs_pdf._source_hash(source),
+    }
+    if pdf_page is not None:
+        source_metadata["pdf_page"] = pdf_page
     manifest.write_text(
         json.dumps(
             {
                 "documentation_version": generate_docs_pdf.DOCUMENTATION_VERSION,
-                "included_source_files": [
-                    {
-                        "path": "docs/source.md",
-                        "sha256": generate_docs_pdf._source_hash(source),
-                    }
-                ],
+                "included_source_files": [source_metadata],
                 "pdf_sha256": generate_docs_pdf._source_hash(pdf),
                 "pdf_size_bytes": pdf.stat().st_size,
             }
@@ -274,6 +388,28 @@ def test_freshness_check_rejects_missing_pdf_page_metadata(tmp_path, monkeypatch
     monkeypatch.setattr(generate_docs_pdf, "MANIFEST_PATH", manifest)
 
     assert "Manifest source has an invalid pdf_page: docs/source.md" in (
+        generate_docs_pdf.check_generated_artifacts()
+    )
+
+
+def test_freshness_check_rejects_pdf_page_beyond_generated_page_count(tmp_path, monkeypatch):
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    source = docs_dir / "source.md"
+    source.write_text("# Source\n\nBody.\n", encoding="utf-8")
+    output = tmp_path / "static" / "docs" / "booklet.pdf"
+    manifest_path = tmp_path / "static" / "docs" / "manifest.json"
+    monkeypatch.setattr(generate_docs_pdf, "ROOT", tmp_path)
+    monkeypatch.setattr(generate_docs_pdf, "SOURCE_DOCS", [source])
+    monkeypatch.setattr(generate_docs_pdf, "OUTPUT_PATH", output)
+    monkeypatch.setattr(generate_docs_pdf, "MANIFEST_PATH", manifest_path)
+    generate_docs_pdf.build_pdf()
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["included_source_files"][0]["pdf_page"] = 999
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    assert "Manifest source pdf_page exceeds the generated PDF page count: docs/source.md" in (
         generate_docs_pdf.check_generated_artifacts()
     )
 

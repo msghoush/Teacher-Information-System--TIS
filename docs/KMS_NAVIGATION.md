@@ -1,7 +1,7 @@
 ---
 title: TIS KMS Navigation Guide
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-07-22
 source_of_truth: true
 ---
 
@@ -44,7 +44,7 @@ Read in this order:
 5. [TIS Module Map](engineering/TIS_MODULE_MAP.md)
 6. Relevant [ADRs](adr/README.md) and [module history](history/README.md)
 
-Also follow the repository-level instructions in [`AGENTS.md`](../AGENTS.md).
+Also follow the repository-level instructions in root `AGENTS.md`.
 
 ## SaaS Accounts And Onboarding
 
@@ -181,3 +181,14 @@ Use `python scripts/kms.py sync` after reviewed documentation changes and `pytho
 The generated PDF includes a "How to Use This Handbook" page and a page-numbered table of contents. Open the PDF viewer's bookmarks or outlines panel to browse every source document and its major headings. Source starting pages are also recorded in `static/docs/docs_manifest.json`.
 
 Markdown remains authoritative. PDF navigation is generated from the fixed source order and must be refreshed through `python scripts/kms.py sync` whenever included source documents change.
+
+## Navigation Integrity
+
+Every Markdown link in this guide must:
+
+- use a relative POSIX-style path,
+- resolve to a Markdown file inside `docs/`,
+- point to an existing authoritative document included in the booklet source list,
+- avoid external URLs, root-relative paths, parent-directory escapes, and direct generated-artifact links.
+
+`python scripts/kms.py check` enforces these rules. References to repository files outside `docs/`, such as root `AGENTS.md`, must remain code paths rather than clickable links in this guide.
