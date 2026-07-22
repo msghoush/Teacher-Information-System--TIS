@@ -148,6 +148,28 @@ Related files:
 - `models.py`
 - `main.py`
 
+### Workspace Classification Metadata
+
+`SchoolGroup` is the canonical operational workspace record. M8B-1 adds:
+
+- globally unique, non-null `workspace_uuid`,
+- constrained/indexed `workspace_classification`,
+- constrained/indexed `workspace_lifecycle_status`.
+
+Pre-provisioning intent remains on `PendingOrganization.workspace_intent`; identity intent remains on `SaaSAccount.account_purpose` and `User.is_internal_test_identity`. These fields are metadata only in M8B-1 and are not joined into payment, entitlement, authorization, or reset decisions.
+
+Allowed workspace classifications are `internal_sandbox`, `customer_demo`, and `customer_paid`. Allowed lifecycle values are `provisioning`, `active`, `suspended`, and `archived`. New-schema tables use named check constraints and non-null columns. The compatibility migration fills legacy values, adds indexes and PostgreSQL constraints, and installs equivalent SQLite value guards without rebuilding existing tables.
+
+The read-only diagnostic resolves relationship presence across `TenantProvisioningLink`, `PendingOrganization`, `SubscriptionContract`, `PaymentSubscription`, and `PaymentCustomer`. It reports no Paddle identifiers. The controlled backfill is one transaction, defaults to dry-run, records a durable marker, and never performs a workspace conversion.
+
+Related files:
+- `workspace_classification.py`
+- `saas/workspace_classification_service.py`
+- `saas/workspace_classification_admin_service.py`
+- `scripts/diagnose_workspace_classification.py`
+- `scripts/backfill_workspace_classification.py`
+- `docs/adr/0008-workspace-classification-foundation.md`
+
 ## Branches
 
 Represents:

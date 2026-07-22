@@ -17,7 +17,8 @@ import models as operational_models
 import permission_registry
 import public_url
 import role_permission_service
-from saas import models, service
+from saas import models, service, workspace_classification_service
+from workspace_classification import WorkspaceLifecycleStatus
 
 READY_FOR_PROVISIONING = "ready_for_provisioning"
 PROVISIONING_STARTED = "provisioning_started"
@@ -233,6 +234,10 @@ def _create_school_group(db: Session, organization):
     )
     school_group = operational_models.SchoolGroup(
         name=group_name,
+        workspace_classification=workspace_classification_service.validate_classification(
+            getattr(organization, "workspace_intent", "internal_sandbox")
+        ).value,
+        workspace_lifecycle_status=WorkspaceLifecycleStatus.PROVISIONING.value,
         country_code=str(getattr(organization, "country_code", "") or "").strip()[:2] or None,
         country_name=str(getattr(organization, "country_name", "") or "").strip()[:120] or None,
         region_name=str(getattr(organization, "region_name", "") or "").strip()[:160] or None,
@@ -345,6 +350,9 @@ def _create_owner_user(db: Session, account, organization, school_group, primary
         branch_id=primary_branch.id if primary_branch else None,
         academic_year_id=academic_year.id if academic_year else None,
         is_active=True,
+        is_internal_test_identity=workspace_classification_service.is_internal_sandbox(
+            school_group.workspace_classification
+        ),
         created_at=_utcnow(),
         updated_at=_utcnow(),
     )
@@ -500,6 +508,7 @@ def _mark_success(db: Session, *, job, organization, contract, tenant_link, scho
     job.completed_at = _utcnow()
     job.last_error = None
     tenant_link.tenant_status = TENANT_ACTIVE
+    school_group.workspace_lifecycle_status = WorkspaceLifecycleStatus.ACTIVE.value
     tenant_link.activated_at = tenant_link.activated_at or _utcnow()
     service.log_pending_event(
         db,

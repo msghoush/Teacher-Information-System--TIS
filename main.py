@@ -44,7 +44,7 @@ import permission_registry
 import public_url
 import role_permission_service
 import saas.models  # Register SaaS metadata before create_all.
-from saas import entitlement_service, service as saas_service
+from saas import entitlement_service, service as saas_service, workspace_classification_service
 from visual_design import (
     VISUAL_COMPONENT_MAP,
     build_visual_design_config,
@@ -9455,6 +9455,29 @@ def platform_console(
         )
 
     school_groups = db.query(models.SchoolGroup).order_by(models.SchoolGroup.name.asc()).all()
+    workspace_metadata_by_group = {}
+    if auth.is_platform_owner(current_user):
+        for group in school_groups:
+            try:
+                view = workspace_classification_service.build_read_only_view(
+                    group.workspace_classification,
+                    group.workspace_lifecycle_status,
+                )
+                workspace_metadata_by_group[group.id] = {
+                    "workspace_uuid": group.workspace_uuid,
+                    "classification_label": view.classification_label,
+                    "classification_value": view.classification.value,
+                    "lifecycle_label": view.lifecycle_label,
+                    "lifecycle_value": view.lifecycle.value,
+                }
+            except workspace_classification_service.WorkspaceClassificationValidationError:
+                workspace_metadata_by_group[group.id] = {
+                    "workspace_uuid": group.workspace_uuid or "Unavailable",
+                    "classification_label": "Unavailable",
+                    "classification_value": "unavailable",
+                    "lifecycle_label": "Unavailable",
+                    "lifecycle_value": "unavailable",
+                }
     branches = db.query(models.Branch).all()
     tenant_user_count_by_branch = {
         branch_id: count
@@ -9585,6 +9608,7 @@ def platform_console(
             "branches": branches,
             "branch_count_by_group": branch_count_by_group,
             "tenant_user_count_by_group": tenant_user_count_by_group,
+            "workspace_metadata_by_group": workspace_metadata_by_group,
             "selected_school_group_id": getattr(current_user, "scope_school_group_id", None),
             "platform_owners": platform_owners,
             "platform_developers": platform_developers,

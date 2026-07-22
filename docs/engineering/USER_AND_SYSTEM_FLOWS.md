@@ -154,8 +154,9 @@ Flow:
 4. Platform Console pending counts include only organizations still requiring setup, review, payment, or incomplete/recoverable activation work.
 5. Owner opens Pending Queue for current work or Organization Records for active, completed, rejected, and lifecycle-review history.
 6. Owner uses SaaS admin pages for payments and provisioning.
-7. Owner uses `/platform/knowledge` to review KMS health.
-8. Owner views/downloads the PDF through protected routes:
+7. Owner can inspect Workspace UUID, Classification, and Lifecycle as read-only metadata on `/platform`.
+8. Owner uses `/platform/knowledge` to review KMS health.
+9. Owner views/downloads the PDF through protected routes:
    - `/platform/knowledge/booklet`
    - `/platform/knowledge/booklet/download`
 
@@ -165,6 +166,20 @@ Guardrails:
 - Owner-only pages must use existing owner access helpers.
 - Active tenant evidence takes precedence over stale onboarding status; conflicting completed evidence is labeled Lifecycle Review Required and excluded from the normal pending queue.
 - Do not expose KMS PDF through direct static links.
+- Workspace classification metadata does not authorize access or change commercial state in M8B-1.
+
+## Workspace Classification Diagnostic And Backfill Flow
+
+1. Operator runs `scripts/diagnose_workspace_classification.py` to inspect every SchoolGroup and its tenant, onboarding, and Paddle relationship presence.
+2. Operator runs `scripts/backfill_workspace_classification.py` without `--apply` for a read-only plan.
+3. After review, operator reruns with `--apply`.
+4. One transaction classifies all pre-M8B-1 records as internal sandbox/test data and records an idempotency marker.
+5. A repeated apply reports `already_applied` and changes nothing.
+
+Guardrails:
+- The diagnostic and dry run do not change rows.
+- Apply does not call Paddle, migrate Al-Andalus, convert workspaces, or change payment/provisioning state.
+- Failures roll back the full backfill transaction.
 
 ## Knowledge Management Flow
 

@@ -1,17 +1,21 @@
 knowledge_impact: yes
-summary: Define authoritative Platform Owner pending-organization lifecycle filtering and presentation.
+summary: Add the M8B-1 workspace classification schema, validation foundation, diagnostics, controlled backfill, and owner-only read-only metadata view.
 affected_areas:
-  - saas-onboarding
+  - database-architecture
+  - workspace-classification
   - provisioning
   - platform-owner-console
-  - lifecycle-management
+  - saas-onboarding
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
+  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/engineering/TIS_MODULE_MAP.md
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
-  - docs/history/provisioning/README.md
+  - docs/engineering/PRODUCT_ROADMAP.md
+  - docs/adr/0008-workspace-classification-foundation.md
+  - docs/history/workspace-classification/README.md
 no_impact_reason:
 major_change_override: no

@@ -59,6 +59,15 @@ def _create_unique_index_if_missing(bind, connection, table_name: str, index_nam
     _execute(connection, f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} ON {table_name} ({columns_sql})")
 
 
+def _check_constraint_exists(bind, table_name: str, constraint_name: str) -> bool:
+    if not _table_exists(bind, table_name):
+        return False
+    return any(
+        constraint.get("name") == constraint_name
+        for constraint in inspect(bind).get_check_constraints(table_name)
+    )
+
+
 def _ensure_schema_migrations_table(engine):
     with engine.begin() as connection:
         _execute(
@@ -104,14 +113,33 @@ def _ensure_default_school_group(connection) -> int | None:
     if default_group_id:
         return int(default_group_id)
 
-    _execute(
-        connection,
-        """
-        INSERT INTO school_groups (name, status, created_at, updated_at)
-        VALUES (:name, :status, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        """,
-        {"name": "Al-Andalus Schools", "status": True},
-    )
+    if _column_exists(connection, "school_groups", "workspace_uuid"):
+        _execute(
+            connection,
+            """
+            INSERT INTO school_groups (
+                name, workspace_uuid, workspace_classification,
+                workspace_lifecycle_status, status, created_at, updated_at
+            ) VALUES (
+                :name, :workspace_uuid, 'internal_sandbox',
+                'active', :status, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            )
+            """,
+            {
+                "name": "Al-Andalus Schools",
+                "workspace_uuid": str(uuid.uuid4()),
+                "status": True,
+            },
+        )
+    else:
+        _execute(
+            connection,
+            """
+            INSERT INTO school_groups (name, status, created_at, updated_at)
+            VALUES (:name, :status, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+            {"name": "Al-Andalus Schools", "status": True},
+        )
     default_group_id = connection.execute(
         text("SELECT id FROM school_groups WHERE name = :name ORDER BY id ASC LIMIT 1"),
         {"name": "Al-Andalus Schools"},
@@ -3145,6 +3173,144 @@ def _subscription_plan_changes(engine, connection):
         _create_index_if_missing(connection, connection, "subscription_change_requests", index_name, columns)
 
 
+def _workspace_classification_foundation(engine, connection):
+    if _table_exists(connection, "school_groups"):
+        _add_column_if_missing(
+            connection, connection, "school_groups", "workspace_uuid",
+            "workspace_uuid VARCHAR(36)",
+        )
+        _add_column_if_missing(
+            connection, connection, "school_groups", "workspace_classification",
+            "workspace_classification VARCHAR(32) NOT NULL DEFAULT 'internal_sandbox'",
+        )
+        _add_column_if_missing(
+            connection, connection, "school_groups", "workspace_lifecycle_status",
+            "workspace_lifecycle_status VARCHAR(20) NOT NULL DEFAULT 'active'",
+        )
+        missing_uuid_rows = connection.execute(
+            text("SELECT id FROM school_groups WHERE workspace_uuid IS NULL OR workspace_uuid = ''")
+        ).all()
+        for row in missing_uuid_rows:
+            _execute(
+                connection,
+                "UPDATE school_groups SET workspace_uuid = :workspace_uuid WHERE id = :row_id",
+                {"workspace_uuid": str(uuid.uuid4()), "row_id": row[0]},
+            )
+        _execute(
+            connection,
+            """
+            UPDATE school_groups
+            SET workspace_lifecycle_status = 'suspended'
+            WHERE status = FALSE AND workspace_lifecycle_status = 'active'
+            """,
+        )
+        _create_unique_index_if_missing(
+            connection, connection, "school_groups", "uq_school_groups_workspace_uuid", "workspace_uuid"
+        )
+        _create_index_if_missing(
+            connection, connection, "school_groups",
+            "ix_school_groups_workspace_classification", "workspace_classification",
+        )
+        _create_index_if_missing(
+            connection, connection, "school_groups",
+            "ix_school_groups_workspace_lifecycle_status", "workspace_lifecycle_status",
+        )
+
+    if _table_exists(connection, "pending_organizations"):
+        _add_column_if_missing(
+            connection, connection, "pending_organizations", "workspace_intent",
+            "workspace_intent VARCHAR(32) NOT NULL DEFAULT 'internal_sandbox'",
+        )
+        _create_index_if_missing(
+            connection, connection, "pending_organizations",
+            "ix_pending_organizations_workspace_intent", "workspace_intent",
+        )
+
+    if _table_exists(connection, "saas_accounts"):
+        _add_column_if_missing(
+            connection, connection, "saas_accounts", "account_purpose",
+            "account_purpose VARCHAR(20) NOT NULL DEFAULT 'internal_test'",
+        )
+        _create_index_if_missing(
+            connection, connection, "saas_accounts",
+            "ix_saas_accounts_account_purpose", "account_purpose",
+        )
+
+    if _table_exists(connection, "users"):
+        _add_column_if_missing(
+            connection, connection, "users", "is_internal_test_identity",
+            "is_internal_test_identity BOOLEAN NOT NULL DEFAULT FALSE",
+        )
+        _create_index_if_missing(
+            connection, connection, "users",
+            "ix_users_internal_test_identity", "is_internal_test_identity",
+        )
+
+    dialect = connection.dialect.name
+    constraints = (
+        (
+            "school_groups", "ck_school_groups_workspace_classification", "workspace_classification",
+            "workspace_classification IN ('internal_sandbox','customer_demo','customer_paid')",
+        ),
+        (
+            "school_groups", "ck_school_groups_workspace_lifecycle_status", "workspace_lifecycle_status",
+            "workspace_lifecycle_status IN ('provisioning','active','suspended','archived')",
+        ),
+        (
+            "pending_organizations", "ck_pending_organizations_workspace_intent", "workspace_intent",
+            "workspace_intent IN ('internal_sandbox','customer_demo','customer_paid')",
+        ),
+        (
+            "saas_accounts", "ck_saas_accounts_account_purpose", "account_purpose",
+            "account_purpose IN ('internal_test','customer')",
+        ),
+    )
+    if dialect == "postgresql":
+        for table_name, constraint_name, _column_name, expression in constraints:
+            if _table_exists(connection, table_name) and not _check_constraint_exists(
+                connection, table_name, constraint_name
+            ):
+                _execute(
+                    connection,
+                    f"ALTER TABLE {table_name} ADD CONSTRAINT {constraint_name} CHECK ({expression})",
+                )
+        if _table_exists(connection, "school_groups"):
+            _execute(
+                connection,
+                "ALTER TABLE school_groups ALTER COLUMN workspace_uuid SET NOT NULL",
+            )
+    elif dialect == "sqlite":
+        for table_name, constraint_name, column_name, expression in constraints:
+            if not _table_exists(connection, table_name):
+                continue
+            for operation in ("INSERT", "UPDATE"):
+                trigger_name = f"trg_{constraint_name}_{operation.lower()}"
+                _execute(
+                    connection,
+                    f"""
+                    CREATE TRIGGER IF NOT EXISTS {trigger_name}
+                    BEFORE {operation} ON {table_name}
+                    WHEN NOT ({expression.replace(column_name, f'NEW.{column_name}')})
+                    BEGIN
+                        SELECT RAISE(ABORT, '{constraint_name}');
+                    END
+                    """,
+                )
+        if _table_exists(connection, "school_groups"):
+            for operation in ("INSERT", "UPDATE"):
+                _execute(
+                    connection,
+                    f"""
+                    CREATE TRIGGER IF NOT EXISTS trg_school_groups_workspace_uuid_{operation.lower()}
+                    BEFORE {operation} ON school_groups
+                    WHEN NEW.workspace_uuid IS NULL OR length(NEW.workspace_uuid) != 36
+                    BEGIN
+                        SELECT RAISE(ABORT, 'ck_school_groups_workspace_uuid');
+                    END
+                    """,
+                )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -3275,6 +3441,11 @@ MIGRATIONS = (
         migration_id="20260717_001_subscription_plan_changes",
         description="Extend active subscription changes with provider-confirmed plan transitions",
         apply=_subscription_plan_changes,
+    ),
+    Migration(
+        migration_id="20260722_001_workspace_classification_foundation",
+        description="Add workspace classification, lifecycle, intent, and internal identity metadata",
+        apply=_workspace_classification_foundation,
     ),
 )
 

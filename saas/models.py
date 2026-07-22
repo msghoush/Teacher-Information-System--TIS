@@ -1,9 +1,10 @@
 from datetime import datetime
 import uuid
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, text
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, text
 
 from database import Base
+from workspace_classification import AccountPurpose, WorkspaceIntent
 
 
 class SaaSAccount(Base):
@@ -19,6 +20,11 @@ class SaaSAccount(Base):
         Index("ix_saas_accounts_status", "status"),
         Index("ix_saas_accounts_onboarding_status", "onboarding_status"),
         Index("ix_saas_accounts_last_meaningful_activity", "last_meaningful_activity_at"),
+        Index("ix_saas_accounts_account_purpose", "account_purpose"),
+        CheckConstraint(
+            "account_purpose IN ('internal_test','customer')",
+            name="ck_saas_accounts_account_purpose",
+        ),
     )
 
     id = Column(Integer, primary_key=True)
@@ -30,6 +36,9 @@ class SaaSAccount(Base):
     last_name = Column(String(120))
     status = Column(String(20), nullable=False, default="pending_verification")
     onboarding_status = Column(String(30), nullable=False, default="not_started")
+    account_purpose = Column(
+        String(20), nullable=False, default=AccountPurpose.INTERNAL_TEST.value
+    )
     email_verified_at = Column(DateTime)
     last_login_at = Column(DateTime)
     last_meaningful_activity_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -185,10 +194,18 @@ class PendingOrganization(Base):
         Index("ix_pending_organizations_step", "onboarding_step"),
         Index("ix_pending_organizations_name", "organization_name"),
         Index("ix_pending_organizations_last_meaningful_activity", "last_meaningful_activity_at"),
+        Index("ix_pending_organizations_workspace_intent", "workspace_intent"),
+        CheckConstraint(
+            "workspace_intent IN ('internal_sandbox','customer_demo','customer_paid')",
+            name="ck_pending_organizations_workspace_intent",
+        ),
     )
 
     id = Column(Integer, primary_key=True)
     organization_uuid = Column(String(36), nullable=False, unique=True, index=True)
+    workspace_intent = Column(
+        String(32), nullable=False, default=WorkspaceIntent.INTERNAL_SANDBOX.value
+    )
     owner_saas_account_id = Column(Integer, ForeignKey("saas_accounts.id"), nullable=False, index=True)
     status = Column(String(30), nullable=False, default="draft")
     onboarding_step = Column(String(40), nullable=False, default="organization")
