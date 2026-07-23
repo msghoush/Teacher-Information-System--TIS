@@ -496,6 +496,10 @@ class SaaSDemoWorkspaceProvisioning(Base):
             "provisioning_status IN ('provisioning','active','failed')",
             name="ck_saas_demo_workspace_provisioning_status",
         ),
+        CheckConstraint(
+            "lifecycle_processing_status IN ('pending','processing','failed','expired')",
+            name="ck_saas_demo_workspace_provisioning_lifecycle_status",
+        ),
     )
 
     id = Column(Integer, primary_key=True)
@@ -533,6 +537,13 @@ class SaaSDemoWorkspaceProvisioning(Base):
     completed_at = Column(DateTime)
     activated_at = Column(DateTime)
     failed_at = Column(DateTime)
+    demo_expires_at = Column(DateTime(timezone=True))
+    reminder_due_at = Column(DateTime(timezone=True))
+    reminder_sent_at = Column(DateTime(timezone=True))
+    expired_at = Column(DateTime(timezone=True))
+    lifecycle_processing_status = Column(String(24), nullable=False, default="pending")
+    lifecycle_last_processed_at = Column(DateTime(timezone=True))
+    lifecycle_failure_code = Column(String(80))
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -572,6 +583,109 @@ class SaaSDemoProvisioningEvent(Base):
     event_status = Column(String(20), nullable=False, default="ok")
     details_json = Column(Text)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class SaaSDemoLifecycleEvent(Base):
+    __tablename__ = "saas_demo_lifecycle_events"
+    __table_args__ = (
+        Index("uq_saas_demo_lifecycle_events_dedup", "deduplication_key", unique=True),
+        Index("ix_saas_demo_lifecycle_events_provisioning", "demo_provisioning_id"),
+        Index("ix_saas_demo_lifecycle_events_type", "event_type"),
+        Index("ix_saas_demo_lifecycle_events_created", "created_at"),
+        CheckConstraint(
+            "event_type IN ('reminder_became_due','reminder_notification_created',"
+            "'expiration_processing_started','demo_expired','workspace_suspended',"
+            "'access_blocked','lifecycle_processing_failed')",
+            name="ck_saas_demo_lifecycle_events_type",
+        ),
+        CheckConstraint(
+            "actor_type IN ('system','tenant_user')",
+            name="ck_saas_demo_lifecycle_events_actor_type",
+        ),
+        CheckConstraint(
+            "event_status IN ('ok','failed')",
+            name="ck_saas_demo_lifecycle_events_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    demo_provisioning_id = Column(
+        Integer,
+        ForeignKey("saas_demo_workspace_provisioning.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    event_type = Column(String(48), nullable=False)
+    actor_type = Column(String(24), nullable=False, default="system")
+    actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    event_status = Column(String(20), nullable=False, default="ok")
+    reason_code = Column(String(80))
+    deduplication_key = Column(String(180), nullable=False, unique=True)
+    details_json = Column(Text)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class SaaSDemoLifecycleNotification(Base):
+    __tablename__ = "saas_demo_lifecycle_notifications"
+    __table_args__ = (
+        Index(
+            "uq_saas_demo_lifecycle_notifications_dedup",
+            "deduplication_key",
+            unique=True,
+        ),
+        Index(
+            "ix_saas_demo_lifecycle_notifications_provisioning",
+            "demo_provisioning_id",
+        ),
+        Index(
+            "ix_saas_demo_lifecycle_notifications_saas_account",
+            "recipient_saas_account_id",
+        ),
+        Index(
+            "ix_saas_demo_lifecycle_notifications_user",
+            "recipient_user_id",
+        ),
+        CheckConstraint(
+            "notification_type IN ('expiration_reminder')",
+            name="ck_saas_demo_lifecycle_notifications_type",
+        ),
+        CheckConstraint(
+            "recipient_type IN ('saas_account','platform_owner')",
+            name="ck_saas_demo_lifecycle_notifications_recipient",
+        ),
+        CheckConstraint(
+            "(recipient_type = 'saas_account' AND recipient_saas_account_id IS NOT NULL "
+            "AND recipient_user_id IS NULL) OR "
+            "(recipient_type = 'platform_owner' AND recipient_user_id IS NOT NULL "
+            "AND recipient_saas_account_id IS NULL)",
+            name="ck_saas_demo_lifecycle_notifications_recipient_target",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    demo_provisioning_id = Column(
+        Integer,
+        ForeignKey("saas_demo_workspace_provisioning.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    notification_type = Column(String(40), nullable=False)
+    recipient_type = Column(String(24), nullable=False)
+    recipient_saas_account_id = Column(
+        Integer,
+        ForeignKey("saas_accounts.id", ondelete="CASCADE"),
+        index=True,
+    )
+    recipient_user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    title = Column(String(160), nullable=False)
+    message = Column(Text, nullable=False)
+    deduplication_key = Column(String(180), nullable=False, unique=True)
+    read_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
 
 class PendingOrganizationNote(Base):

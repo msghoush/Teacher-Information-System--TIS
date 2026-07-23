@@ -1372,7 +1372,7 @@ def resolve_owner_organization_lifecycle(
     subscription_active = subscription_status in {"active", "trialing"}
 
     demo_request_id = int(getattr(tenant_link, "demo_request_id", 0) or 0)
-    if tenant_active and demo_request_id:
+    if demo_request_id:
         demo_request = db.query(models.SaaSDemoRequest).filter(
             models.SaaSDemoRequest.id == demo_request_id,
             models.SaaSDemoRequest.pending_organization_id == organization.id,
@@ -1385,8 +1385,32 @@ def resolve_owner_organization_lifecycle(
                 models.SaaSDemoWorkspaceProvisioning.school_group_id == school_group.id,
                 models.SaaSDemoWorkspaceProvisioning.provisioning_status == "active",
             ).one_or_none()
+        demo_lifecycle = None
+        if demo_provisioning:
+            from saas import demo_lifecycle_service
+
+            demo_lifecycle = demo_lifecycle_service.resolve_demo_lifecycle(
+                db,
+                provisioning=demo_provisioning,
+            )
         if (
-            demo_request
+            demo_lifecycle
+            and demo_lifecycle.resolved
+            and demo_lifecycle.lifecycle_state in {"expired", "suspended"}
+        ):
+            return OwnerOrganizationLifecycle(
+                key="expired_demo",
+                label="Demo Expired",
+                tone="warning",
+                is_pending=False,
+                onboarding_label="Complete",
+                billing_label="Demo expired",
+                payment_label="Not required",
+                provisioning_label="Complete",
+            )
+        if (
+            tenant_active
+            and demo_request
             and demo_provisioning
             and str(getattr(school_group, "workspace_classification", "") or "")
             == "customer_demo"

@@ -12,7 +12,7 @@ from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import billing_history_service, billing_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import billing_history_service, billing_service, commercial_state_service, demo_lifecycle_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -1003,12 +1003,22 @@ def account_dashboard(request: Request, db: Session = Depends(get_db)):
     demo_provisioning = demo_provisioning_service.get_provisioning_for_request(
         db, demo_request
     )
+    demo_lifecycle = (
+        demo_lifecycle_service.resolve_demo_lifecycle(
+            db,
+            provisioning=demo_provisioning,
+        )
+        if demo_provisioning
+        and demo_provisioning.provisioning_status == "active"
+        else None
+    )
     if organization is not None and current_plan_selection is None:
         setup_console = demo_request_service.apply_customer_setup_context(
             setup_console,
             organization,
             demo_request,
             demo_provisioning,
+            demo_lifecycle,
         )
     db.commit()
     return _render(
@@ -1020,6 +1030,7 @@ def account_dashboard(request: Request, db: Session = Depends(get_db)):
             "setup_console": setup_console,
             "demo_request": demo_request,
             "demo_provisioning": demo_provisioning,
+            "demo_lifecycle": demo_lifecycle,
         },
     )
 
@@ -2275,6 +2286,20 @@ def customer_demo_request_status(
         db.rollback()
         raise HTTPException(status_code=404, detail="Demo request not found.")
     card = demo_request_service.build_request_card(db, row)
+    demo_lifecycle = (
+        demo_lifecycle_service.resolve_demo_lifecycle(
+            db,
+            provisioning=card.provisioning,
+        )
+        if card.provisioning
+        and card.provisioning.provisioning_status == "active"
+        else None
+    )
+    lifecycle_notifications = demo_lifecycle_service.list_customer_notifications(
+        db,
+        card.provisioning,
+        account.id,
+    )
     db.commit()
     return _render(
         request,
@@ -2287,6 +2312,9 @@ def customer_demo_request_status(
             "status_tone": demo_request_service.status_tone(row.status),
             "branch_count": card.branch_count,
             "demo_provisioning": card.provisioning,
+            "demo_lifecycle": demo_lifecycle,
+            "lifecycle_notifications": lifecycle_notifications,
+            "format_lifecycle_datetime": demo_lifecycle_service.format_lifecycle_datetime,
             "provisioning_status_label": demo_provisioning_service.provisioning_status_label(
                 card.provisioning
             ),
@@ -2764,6 +2792,29 @@ def demo_request_review_detail(
     provisioning_events = demo_provisioning_service.list_provisioning_events(
         db, card.provisioning
     )
+    demo_lifecycle = (
+        demo_lifecycle_service.resolve_demo_lifecycle(
+            db,
+            provisioning=card.provisioning,
+        )
+        if card.provisioning
+        and card.provisioning.provisioning_status == "active"
+        else None
+    )
+    lifecycle_events = demo_lifecycle_service.list_lifecycle_events(
+        db, card.provisioning
+    )
+    lifecycle_notifications = demo_lifecycle_service.list_lifecycle_notifications(
+        db, card.provisioning
+    )
+    commercial_state = (
+        commercial_state_service.resolve_commercial_state(
+            db,
+            card.provisioning.school_group_id,
+        )
+        if card.provisioning and card.provisioning.school_group_id
+        else None
+    )
     try:
         entitlement_snapshot = json.loads(row.entitlement_snapshot_json or "{}")
     except (TypeError, ValueError):
@@ -2779,6 +2830,11 @@ def demo_request_review_detail(
             "events": events,
             "provisioning_events": provisioning_events,
             "demo_provisioning": card.provisioning,
+            "demo_lifecycle": demo_lifecycle,
+            "lifecycle_events": lifecycle_events,
+            "lifecycle_notifications": lifecycle_notifications,
+            "effective_commercial_state": commercial_state,
+            "format_lifecycle_datetime": demo_lifecycle_service.format_lifecycle_datetime,
             "provisioning_status_label": demo_provisioning_service.provisioning_status_label(
                 card.provisioning
             ),

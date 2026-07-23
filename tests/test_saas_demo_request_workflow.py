@@ -2,7 +2,8 @@ import json
 import os
 import re
 import unittest
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import patch
 
 os.environ["TIS_SESSION_SECRET"] = "unit-test-session-secret-that-is-long-enough"
@@ -10,18 +11,21 @@ os.environ["TIS_SESSION_SECRET"] = "unit-test-session-secret-that-is-long-enough
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import auth
+import authorization
 import db_migrations
 import models
 import saas.models
 from dependencies import get_db
 from saas import (
     commercial_state_service,
+    demo_lifecycle_service,
     demo_provisioning_service,
     demo_request_service,
     provisioning_service,
@@ -236,6 +240,93 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 302)
         return owner
+
+    def _activate_demo(
+        self,
+        *,
+        email: str = "lifecycle.demo@academy.edu",
+        owner_user_id: str = "9180",
+    ):
+        organization_uuid = self._complete_onboarding(email)
+        request_uuid = self._submit_demo(organization_uuid)
+        owner = self._approve_demo(request_uuid, user_id=owner_user_id)
+        response = owner.post(
+            f"/saas-admin/demo-requests/{request_uuid}/provision",
+            follow_redirects=False,
+        )
+        self.assertIn("notice=", response.headers["location"])
+        db = self._db()
+        try:
+            request_row = db.query(saas.models.SaaSDemoRequest).filter_by(
+                request_uuid=request_uuid
+            ).one()
+            provisioning = db.query(saas.models.SaaSDemoWorkspaceProvisioning).filter_by(
+                demo_request_id=request_row.id
+            ).one()
+            account_link = db.query(saas.models.SaaSAccountUserLink).filter_by(
+                saas_account_id=request_row.requester_saas_account_id,
+                school_group_id=request_row.school_group_id,
+            ).one()
+            return {
+                "organization_uuid": organization_uuid,
+                "request_uuid": request_uuid,
+                "request_id": request_row.id,
+                "provisioning_id": provisioning.id,
+                "school_group_id": request_row.school_group_id,
+                "entitlement_id": provisioning.workspace_entitlement_id,
+                "tenant_link_id": provisioning.tenant_provisioning_link_id,
+                "saas_account_id": request_row.requester_saas_account_id,
+                "operational_user_id": account_link.operational_user_id,
+                "owner_client": owner,
+            }
+        finally:
+            db.close()
+
+    @staticmethod
+    def _request(path: str, *, accept: str = "text/html") -> Request:
+        return Request(
+            {
+                "type": "http",
+                "http_version": "1.1",
+                "method": "GET",
+                "scheme": "https",
+                "path": path,
+                "raw_path": path.encode(),
+                "query_string": b"",
+                "headers": [(b"accept", accept.encode())],
+                "client": ("127.0.0.1", 1234),
+                "server": ("testserver", 443),
+            }
+        )
+
+    def _set_demo_started_at(self, fixture: dict, started_at: datetime) -> datetime:
+        started = demo_lifecycle_service.as_utc(started_at)
+        reminder_due, expires = demo_lifecycle_service.calculate_lifecycle_dates(started)
+        db = self._db()
+        try:
+            provisioning = db.get(
+                saas.models.SaaSDemoWorkspaceProvisioning,
+                fixture["provisioning_id"],
+            )
+            entitlement = db.get(
+                saas.models.WorkspaceEntitlement,
+                fixture["entitlement_id"],
+            )
+            provisioning.activated_at = demo_lifecycle_service.storage_datetime(started)
+            provisioning.reminder_due_at = demo_lifecycle_service.storage_datetime(
+                reminder_due
+            )
+            provisioning.demo_expires_at = demo_lifecycle_service.storage_datetime(expires)
+            provisioning.reminder_sent_at = None
+            provisioning.expired_at = None
+            provisioning.lifecycle_processing_status = "pending"
+            provisioning.lifecycle_failure_code = None
+            entitlement.effective_from = demo_lifecycle_service.storage_datetime(started)
+            entitlement.effective_to = demo_lifecycle_service.storage_datetime(expires)
+            db.commit()
+        finally:
+            db.close()
+        return started
 
     def test_customer_choice_offers_demo_or_existing_subscription_workflow(self):
         organization_uuid = self._complete_onboarding()
@@ -813,6 +904,446 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         self.assertTrue({
             "saas_demo_workspace_provisioning",
             "saas_demo_provisioning_events",
+        }.issubset(set(inspect(self.engine).get_table_names())))
+        self.assertEqual(db_migrations.run_pending_migrations(self.engine), [])
+
+    def test_demo_lifecycle_uses_exact_activation_based_dates_and_timezone(self):
+        fixture = self._activate_demo()
+        db = self._db()
+        try:
+            provisioning = db.get(
+                saas.models.SaaSDemoWorkspaceProvisioning,
+                fixture["provisioning_id"],
+            )
+            started = demo_lifecycle_service.as_utc(provisioning.activated_at)
+            reminder = demo_lifecycle_service.as_utc(provisioning.reminder_due_at)
+            expires = demo_lifecycle_service.as_utc(provisioning.demo_expires_at)
+            self.assertEqual(reminder - started, timedelta(days=6))
+            self.assertEqual(expires - started, timedelta(days=7))
+            resolution = demo_lifecycle_service.resolve_demo_lifecycle(
+                db,
+                provisioning=provisioning,
+                observed_at=started + timedelta(days=5),
+            )
+            self.assertTrue(resolution.resolved)
+            self.assertEqual(resolution.lifecycle_state, "active")
+            self.assertEqual(resolution.timezone_name, "Asia/Beirut")
+            self.assertEqual(
+                resolution.display_expires_at.utcoffset(),
+                timedelta(hours=3),
+            )
+            reminder_resolution = demo_lifecycle_service.resolve_demo_lifecycle(
+                db,
+                provisioning=provisioning,
+                observed_at=started + timedelta(days=6),
+            )
+            self.assertEqual(reminder_resolution.lifecycle_state, "reminder_due")
+        finally:
+            db.close()
+
+    def test_day_six_reminder_is_dry_run_safe_and_idempotent(self):
+        fixture = self._activate_demo(
+            email="reminder.demo@academy.edu",
+            owner_user_id="9181",
+        )
+        observed = demo_lifecycle_service.utc_now()
+        self._set_demo_started_at(fixture, observed - timedelta(days=6))
+
+        dry_run = demo_lifecycle_service.process_due_demo_lifecycles(
+            self.Session,
+            dry_run=True,
+            observed_at=observed,
+        )
+        self.assertEqual(dry_run.reminders_due, 1)
+        db = self._db()
+        try:
+            self.assertEqual(db.query(saas.models.SaaSDemoLifecycleEvent).count(), 0)
+            self.assertEqual(
+                db.query(saas.models.SaaSDemoLifecycleNotification).count(),
+                0,
+            )
+        finally:
+            db.close()
+
+        applied = demo_lifecycle_service.process_due_demo_lifecycles(
+            self.Session,
+            dry_run=False,
+            observed_at=observed,
+        )
+        self.assertEqual(applied.reminders_created, 1)
+        repeated = demo_lifecycle_service.process_due_demo_lifecycles(
+            self.Session,
+            dry_run=False,
+            observed_at=observed + timedelta(minutes=5),
+        )
+        self.assertEqual(repeated.reminders_created, 0)
+        db = self._db()
+        try:
+            provisioning = db.get(
+                saas.models.SaaSDemoWorkspaceProvisioning,
+                fixture["provisioning_id"],
+            )
+            self.assertIsNotNone(provisioning.reminder_sent_at)
+            self.assertEqual(
+                db.query(saas.models.SaaSDemoLifecycleNotification).count(),
+                2,
+            )
+            self.assertEqual(
+                {
+                    row.recipient_type
+                    for row in db.query(
+                        saas.models.SaaSDemoLifecycleNotification
+                    ).all()
+                },
+                {"saas_account", "platform_owner"},
+            )
+            self.assertEqual(
+                db.query(saas.models.SaaSDemoLifecycleEvent).filter(
+                    saas.models.SaaSDemoLifecycleEvent.event_type.in_(
+                        ("reminder_became_due", "reminder_notification_created")
+                    )
+                ).count(),
+                2,
+            )
+        finally:
+            db.close()
+        customer_page = self.client.get(
+            f"/saas/demo-requests/{fixture['request_uuid']}"
+        )
+        self.assertIn("Your TIS demo expires soon", customer_page.text)
+        self.assertIn("workspace data will be preserved", customer_page.text)
+
+    def test_day_seven_expiration_is_idempotent_and_preserves_tenant_data(self):
+        fixture = self._activate_demo(
+            email="expiration.demo@academy.edu",
+            owner_user_id="9182",
+        )
+        observed = demo_lifecycle_service.utc_now()
+        self._set_demo_started_at(fixture, observed - timedelta(days=7))
+        db = self._db()
+        try:
+            counts_before = (
+                db.query(models.Branch).filter_by(
+                    school_group_id=fixture["school_group_id"]
+                ).count(),
+                db.query(models.User).filter_by(
+                    school_group_id=fixture["school_group_id"]
+                ).count(),
+                db.query(saas.models.SaaSAccountUserLink).filter_by(
+                    school_group_id=fixture["school_group_id"]
+                ).count(),
+            )
+        finally:
+            db.close()
+
+        applied = demo_lifecycle_service.process_due_demo_lifecycles(
+            self.Session,
+            dry_run=False,
+            observed_at=observed,
+        )
+        self.assertEqual(applied.expired, 1)
+        repeated = demo_lifecycle_service.process_due_demo_lifecycles(
+            self.Session,
+            dry_run=False,
+            observed_at=observed + timedelta(hours=1),
+        )
+        self.assertEqual(repeated.expired, 0)
+        db = self._db()
+        try:
+            provisioning = db.get(
+                saas.models.SaaSDemoWorkspaceProvisioning,
+                fixture["provisioning_id"],
+            )
+            group = db.get(models.SchoolGroup, fixture["school_group_id"])
+            entitlement = db.get(
+                saas.models.WorkspaceEntitlement,
+                fixture["entitlement_id"],
+            )
+            tenant_link = db.get(
+                saas.models.TenantProvisioningLink,
+                fixture["tenant_link_id"],
+            )
+            request_row = db.get(
+                saas.models.SaaSDemoRequest,
+                fixture["request_id"],
+            )
+            self.assertEqual(group.workspace_lifecycle_status, "suspended")
+            self.assertEqual(entitlement.status, "ended")
+            self.assertEqual(tenant_link.tenant_status, "demo_expired")
+            self.assertEqual(request_row.commercial_state_snapshot, "suspended")
+            self.assertEqual(provisioning.lifecycle_processing_status, "expired")
+            self.assertEqual(
+                demo_lifecycle_service.as_utc(provisioning.expired_at),
+                demo_lifecycle_service.as_utc(provisioning.demo_expires_at),
+            )
+            self.assertEqual(
+                (
+                    db.query(models.Branch).filter_by(
+                        school_group_id=fixture["school_group_id"]
+                    ).count(),
+                    db.query(models.User).filter_by(
+                        school_group_id=fixture["school_group_id"]
+                    ).count(),
+                    db.query(saas.models.SaaSAccountUserLink).filter_by(
+                        school_group_id=fixture["school_group_id"]
+                    ).count(),
+                ),
+                counts_before,
+            )
+            self.assertEqual(
+                db.query(saas.models.SaaSDemoLifecycleEvent).filter_by(
+                    event_type="demo_expired"
+                ).count(),
+                1,
+            )
+        finally:
+            db.close()
+
+        customer_page = self.client.get(
+            f"/saas/demo-requests/{fixture['request_uuid']}"
+        )
+        self.assertIn("Demo Expired", customer_page.text)
+        self.assertIn("Subscribe Now", customer_page.text)
+        self.assertIn("tenant data remain preserved", customer_page.text)
+        owner_page = fixture["owner_client"].get(
+            f"/saas-admin/demo-requests/{fixture['request_uuid']}"
+        )
+        self.assertIn("Demo Lifecycle", owner_page.text)
+        self.assertIn("Workspace Suspended", owner_page.text)
+        self.assertIn("Expired", owner_page.text)
+
+    def test_expiration_rolls_back_atomically_and_retry_succeeds(self):
+        fixture = self._activate_demo(
+            email="retry.lifecycle@academy.edu",
+            owner_user_id="9183",
+        )
+        observed = demo_lifecycle_service.utc_now()
+        self._set_demo_started_at(fixture, observed - timedelta(days=7))
+        with patch(
+            "saas.demo_lifecycle_service.commercial_state_service.resolve_commercial_state",
+            side_effect=RuntimeError("forced lifecycle verification failure"),
+        ):
+            failed = demo_lifecycle_service.process_due_demo_lifecycles(
+                self.Session,
+                dry_run=False,
+                observed_at=observed,
+            )
+        self.assertEqual(failed.failed, 1)
+        db = self._db()
+        try:
+            provisioning = db.get(
+                saas.models.SaaSDemoWorkspaceProvisioning,
+                fixture["provisioning_id"],
+            )
+            self.assertEqual(provisioning.lifecycle_processing_status, "failed")
+            self.assertEqual(
+                db.get(models.SchoolGroup, fixture["school_group_id"]).workspace_lifecycle_status,
+                "active",
+            )
+            self.assertEqual(
+                db.get(
+                    saas.models.WorkspaceEntitlement,
+                    fixture["entitlement_id"],
+                ).status,
+                "active",
+            )
+            self.assertIsNone(provisioning.expired_at)
+            self.assertEqual(
+                db.query(saas.models.SaaSDemoLifecycleEvent).filter_by(
+                    event_type="lifecycle_processing_failed"
+                ).count(),
+                1,
+            )
+        finally:
+            db.close()
+        retried = demo_lifecycle_service.process_due_demo_lifecycles(
+            self.Session,
+            dry_run=False,
+            observed_at=observed + timedelta(minutes=1),
+        )
+        self.assertEqual(retried.expired, 1)
+
+    def test_demo_access_enforcement_blocks_web_api_and_existing_session(self):
+        fixture = self._activate_demo(
+            email="access.lifecycle@academy.edu",
+            owner_user_id="9184",
+        )
+        db = self._db()
+        try:
+            user = db.get(models.User, fixture["operational_user_id"])
+            user.scope_school_group_id = fixture["school_group_id"]
+            self.assertIsNone(
+                authorization.enforce_workspace_commercial_access(
+                    self._request("/dashboard"),
+                    db,
+                    current_user=user,
+                )
+            )
+        finally:
+            db.close()
+        observed = demo_lifecycle_service.utc_now()
+        self._set_demo_started_at(fixture, observed - timedelta(days=7))
+        demo_lifecycle_service.process_due_demo_lifecycles(
+            self.Session,
+            dry_run=False,
+            observed_at=observed,
+        )
+        db = self._db()
+        try:
+            user = db.get(models.User, fixture["operational_user_id"])
+            user.scope_school_group_id = fixture["school_group_id"]
+            web_response = authorization.enforce_workspace_commercial_access(
+                self._request("/dashboard"),
+                db,
+                current_user=user,
+            )
+            self.assertEqual(web_response.status_code, 302)
+            self.assertIn("/demo-expired", web_response.headers["location"])
+            api_response = authorization.enforce_workspace_commercial_access(
+                self._request(
+                    "/dashboard/api/hiring-plan",
+                    accept="application/json",
+                ),
+                db,
+                current_user=user,
+            )
+            self.assertEqual(api_response.status_code, 403)
+            self.assertIn(b'"code":"demo_expired"', api_response.body)
+            self.assertEqual(
+                db.query(saas.models.SaaSDemoLifecycleEvent).filter_by(
+                    event_type="access_blocked"
+                ).count(),
+                1,
+            )
+        finally:
+            db.close()
+
+    def test_non_demo_workspaces_bypass_demo_access_enforcement(self):
+        db = self._db()
+        try:
+            for index, classification in enumerate(
+                ("customer_paid", "internal_sandbox"),
+                start=1,
+            ):
+                group = models.SchoolGroup(
+                    name=f"Non Demo {index}",
+                    workspace_uuid=f"00000000-0000-0000-0000-{index:012d}",
+                    workspace_classification=classification,
+                    workspace_lifecycle_status="active",
+                    status=True,
+                )
+                db.add(group)
+                db.flush()
+                user = SimpleNamespace(
+                    user_type=auth.USER_TYPE_TENANT,
+                    school_group_id=group.id,
+                    scope_school_group_id=group.id,
+                )
+                self.assertIsNone(
+                    authorization.enforce_workspace_commercial_access(
+                        self._request("/dashboard"),
+                        db,
+                        current_user=user,
+                    )
+                )
+            db.rollback()
+        finally:
+            db.close()
+
+    def test_inconsistent_demo_lifecycle_fails_closed_without_diagnostics(self):
+        fixture = self._activate_demo(
+            email="manual.review.lifecycle@academy.edu",
+            owner_user_id="9186",
+        )
+        db = self._db()
+        try:
+            provisioning = db.get(
+                saas.models.SaaSDemoWorkspaceProvisioning,
+                fixture["provisioning_id"],
+            )
+            provisioning.demo_expires_at = (
+                provisioning.activated_at + timedelta(days=8)
+            )
+            db.commit()
+            resolution = demo_lifecycle_service.resolve_demo_lifecycle(
+                db,
+                provisioning=provisioning,
+            )
+            self.assertEqual(resolution.lifecycle_state, "manual_review")
+            self.assertEqual(
+                resolution.reason_code,
+                "inconsistent_demo_lifecycle_timestamps",
+            )
+            user = db.get(models.User, fixture["operational_user_id"])
+            user.scope_school_group_id = fixture["school_group_id"]
+            response = authorization.enforce_workspace_commercial_access(
+                self._request("/dashboard/api/hiring-plan", accept="application/json"),
+                db,
+                current_user=user,
+            )
+            self.assertEqual(response.status_code, 403)
+            self.assertIn(b'"code":"demo_access_unavailable"', response.body)
+            self.assertNotIn(b"inconsistent_demo_lifecycle_timestamps", response.body)
+        finally:
+            db.close()
+
+    def test_m8b5_migration_backfills_lifecycle_dates_and_is_idempotent(self):
+        fixture = self._activate_demo(
+            email="migration.lifecycle@academy.edu",
+            owner_user_id="9185",
+        )
+        db = self._db()
+        try:
+            provisioning = db.get(
+                saas.models.SaaSDemoWorkspaceProvisioning,
+                fixture["provisioning_id"],
+            )
+            started = demo_lifecycle_service.as_utc(provisioning.activated_at)
+            provisioning.reminder_due_at = None
+            provisioning.demo_expires_at = None
+            db.commit()
+        finally:
+            db.close()
+        with self.engine.begin() as connection:
+            connection.execute(text("DROP TABLE saas_demo_lifecycle_notifications"))
+            connection.execute(text("DROP TABLE saas_demo_lifecycle_events"))
+            connection.execute(text(
+                "DELETE FROM schema_migrations "
+                "WHERE migration_id = '20260723_002_demo_workspace_lifecycle'"
+            ))
+        self.assertEqual(
+            db_migrations.run_pending_migrations(self.engine),
+            ["20260723_002_demo_workspace_lifecycle"],
+        )
+        db = self._db()
+        try:
+            provisioning = db.get(
+                saas.models.SaaSDemoWorkspaceProvisioning,
+                fixture["provisioning_id"],
+            )
+            self.assertLessEqual(
+                abs(
+                    (
+                        demo_lifecycle_service.as_utc(provisioning.reminder_due_at)
+                        - (started + timedelta(days=6))
+                    ).total_seconds()
+                ),
+                1,
+            )
+            self.assertLessEqual(
+                abs(
+                    (
+                        demo_lifecycle_service.as_utc(provisioning.demo_expires_at)
+                        - (started + timedelta(days=7))
+                    ).total_seconds()
+                ),
+                1,
+            )
+        finally:
+            db.close()
+        self.assertTrue({
+            "saas_demo_lifecycle_events",
+            "saas_demo_lifecycle_notifications",
         }.issubset(set(inspect(self.engine).get_table_names())))
         self.assertEqual(db_migrations.run_pending_migrations(self.engine), [])
 

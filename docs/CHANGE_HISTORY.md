@@ -27,6 +27,35 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-07-23 - M8B-5 Standard Customer Demo Lifecycle
+
+Area/module:
+Customer-demo lifecycle metadata, resolver, scheduled processing, internal notifications, expiration, operational access enforcement, and owner/customer UI
+
+Previous state:
+Activated customer-demo workspaces had no standard duration, reminder, expiration transition, or request-time access gate.
+
+New state:
+Customer demos last exactly seven days from activation. Day 6 creates idempotent internal customer and Platform Owner notifications. Day 7 processing atomically ends the demo entitlement and suspends the workspace while preserving tenant data. Operational middleware blocks expired or ambiguous demos across web, API, download, and existing-session requests.
+
+Reason:
+Customer demos require a predictable, provider-independent lifecycle that cannot be extended by scheduler delay or stale sessions and never destroys evaluation data.
+
+Files changed:
+Demo lifecycle enums/models/migration/service/command, M8B-4 activation metadata, authorization middleware, operational and SaaS UI, lifecycle tests, ADR, and KMS.
+
+Documentation updated:
+AI/master context, project state, database architecture, module map, flows, roadmap, ADR index/0012, and SaaS onboarding history.
+
+PDF regenerated:
+Yes, through `python scripts/kms.py sync`.
+
+AI project context updated:
+Yes.
+
+Reviewer/approval notes:
+M8B-5 only. No demo-to-paid conversion, Paddle change, email, manual extension, archive/delete, read-only expired mode, special migration, membership, ownership transfer, commit, or push.
+
 ## 2026-07-23 - M8B-4 Demo Workspace Provisioning And Activation
 
 Area/module:

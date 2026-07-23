@@ -35,3 +35,4 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0009-commercial-state-and-entitlement-resolution.md`
 - `0010-review-only-saas-demo-requests.md`
 - `0011-demo-workspace-provisioning-and-commercial-source-links.md`
+- `0012-seven-day-demo-lifecycle-and-access-enforcement.md`

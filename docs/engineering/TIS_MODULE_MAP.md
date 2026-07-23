@@ -139,7 +139,7 @@ Main files/folders:
 - `templates/saas/admin_demo_request_detail.html`
 
 Maturity/status:
-M8B-4 implemented. Submission, customer status/withdrawal, Platform Owner review, atomic demo workspace provisioning, activation, durable audit events, and internal-notification events are available. Expiration, lifecycle scheduling, conversion, and email delivery are not implemented.
+M8B-5 implemented. Submission, review, atomic provisioning, activation, seven-day lifecycle resolution, Day 6 internal reminders, Day 7 expiration, and server-side expired-access enforcement are available. Conversion, manual extension, archive/delete, and email delivery are not implemented.
 
 Risks/guardrails:
 - Do not confuse SaaS demo requests with legacy public marketing demo leads.
@@ -147,6 +147,15 @@ Risks/guardrails:
 - Provisioning requires coherent approval, customer-demo intent, commercial state, entitlement snapshot, and organization data.
 - Demo provisioning must not create or infer paid subscription evidence.
 - Failed provisioning must roll back workspace records and preserve the Approved request for a controlled retry.
+- `activated_at` is the only lifecycle clock authority; approval and submission timestamps never determine expiration.
+- Expiration preserves tenant data and blocks all normal operational access rather than creating a read-only mode.
+- Paid workspaces, internal sandboxes, and Platform Console access must never pass through demo expiration enforcement.
+
+Main M8B-5 files:
+- `saas/demo_lifecycle_service.py`
+- `scripts/process_demo_lifecycle.py`
+- `authorization.py`
+- `templates/demo_access_blocked.html`
 - Subscribe Now must continue through the existing provider-authoritative billing path.
 - Only Platform Owners may review, reject, approve, or cancel requests.
 - Customer withdrawal is valid only while Pending Review.

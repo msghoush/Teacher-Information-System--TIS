@@ -63,6 +63,26 @@
     {% endif %}
 </section>
 
+{% if demo_lifecycle %}
+<section class="demo-review-section">
+    <h2>Demo Lifecycle</h2>
+    <div class="demo-review-grid">
+        <div class="stat"><strong>Effective Lifecycle</strong><p>{{ demo_lifecycle.lifecycle_state|replace('_', ' ')|title }}</p></div>
+        <div class="stat"><strong>Effective Commercial State</strong><p>{{ effective_commercial_state.commercial_state|replace('_', ' ')|title if effective_commercial_state else 'Not available' }}</p></div>
+        <div class="stat"><strong>Processing Status</strong><p>{{ demo_lifecycle.lifecycle_processing_status|replace('_', ' ')|title }}</p></div>
+        <div class="stat"><strong>Activated</strong><p>{{ format_lifecycle_datetime(demo_lifecycle.display_started_at) }}</p></div>
+        <div class="stat"><strong>Expires</strong><p>{{ format_lifecycle_datetime(demo_lifecycle.display_expires_at) }}</p></div>
+        <div class="stat"><strong>Time Remaining</strong><p>{{ demo_lifecycle.time_remaining_label }}</p></div>
+        <div class="stat"><strong>Reminder Status</strong><p>{% if demo_lifecycle.reminder_sent_at %}Notification Created{% elif demo_lifecycle.lifecycle_state == 'reminder_due' %}Due{% else %}Not Due{% endif %}</p></div>
+        <div class="stat"><strong>Reminder Due</strong><p>{{ format_lifecycle_datetime(demo_lifecycle.display_reminder_due_at) }}</p></div>
+        <div class="stat"><strong>Expired At</strong><p>{{ format_lifecycle_datetime(demo_lifecycle.display_expired_at) if demo_lifecycle.display_expired_at else 'Not expired' }}</p></div>
+    </div>
+    {% if demo_provisioning.lifecycle_failure_code %}
+    <div class="error" style="margin-top:12px;"><strong>Lifecycle Failure</strong><br>{{ demo_provisioning.lifecycle_failure_code|replace('_', ' ')|title }}</div>
+    {% endif %}
+</section>
+{% endif %}
+
 {% if demo_request.status == 'pending_review' %}
 <section class="demo-review-section" aria-label="Review actions">
     <h2>Review Actions</h2>
@@ -113,6 +133,28 @@
     <div class="demo-event-list">
         {% for event in provisioning_events %}
         <div class="demo-event"><span>{{ event.event_type|replace('_', ' ')|title }} <span class="muted">({{ event.event_category }})</span></span><time>{{ event.created_at.strftime('%b %d, %Y %H:%M UTC') if event.created_at else '' }}</time></div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if lifecycle_events %}
+<section class="demo-review-section">
+    <h2>Lifecycle Processing History</h2>
+    <div class="demo-event-list">
+        {% for event in lifecycle_events %}
+        <div class="demo-event"><span>{{ event.event_type|replace('_', ' ')|title }}{% if event.reason_code %} <span class="muted">({{ event.reason_code|replace('_', ' ') }})</span>{% endif %}</span><time>{{ event.created_at.strftime('%b %d, %Y %H:%M UTC') if event.created_at else '' }}</time></div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if lifecycle_notifications %}
+<section class="demo-review-section">
+    <h2>Lifecycle Notifications</h2>
+    <div class="demo-event-list">
+        {% for notification in lifecycle_notifications %}
+        <div class="demo-event"><span>{{ notification.title }} <span class="muted">({{ notification.recipient_type|replace('_', ' ') }})</span></span><time>{{ notification.created_at.strftime('%b %d, %Y %H:%M UTC') if notification.created_at else '' }}</time></div>
         {% endfor %}
     </div>
 </section>

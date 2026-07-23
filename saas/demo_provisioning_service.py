@@ -22,6 +22,7 @@ from demo_workflow import (
 )
 from saas import (
     commercial_state_service,
+    demo_lifecycle_service,
     demo_request_service,
     models,
     provisioning_service,
@@ -293,8 +294,13 @@ def _activate_workspace(
         academic_year=workspace.academic_year,
     )
     activated_at = _utcnow()
+    reminder_due_at, demo_expires_at = demo_lifecycle_service.calculate_lifecycle_dates(
+        activated_at
+    )
     workspace.school_group.workspace_lifecycle_status = WorkspaceLifecycleStatus.ACTIVE.value
     entitlement.status = WorkspaceEntitlementStatus.ACTIVE.value
+    entitlement.effective_from = activated_at
+    entitlement.effective_to = demo_lifecycle_service.storage_datetime(demo_expires_at)
     tenant_link.tenant_status = provisioning_service.TENANT_ACTIVE
     tenant_link.activated_at = activated_at
     db.flush()
@@ -344,6 +350,13 @@ def _activate_workspace(
     provisioning.completed_at = activated_at
     provisioning.activated_at = activated_at
     provisioning.failed_at = None
+    provisioning.demo_expires_at = demo_lifecycle_service.storage_datetime(demo_expires_at)
+    provisioning.reminder_due_at = demo_lifecycle_service.storage_datetime(reminder_due_at)
+    provisioning.reminder_sent_at = None
+    provisioning.expired_at = None
+    provisioning.lifecycle_processing_status = "pending"
+    provisioning.lifecycle_last_processed_at = None
+    provisioning.lifecycle_failure_code = None
     return tenant_link, commercial
 
 
@@ -374,6 +387,13 @@ def provision_demo_workspace(db: Session, demo_request, actor):
         provisioning.completed_at = None
         provisioning.activated_at = None
         provisioning.failed_at = None
+        provisioning.demo_expires_at = None
+        provisioning.reminder_due_at = None
+        provisioning.reminder_sent_at = None
+        provisioning.expired_at = None
+        provisioning.lifecycle_processing_status = "pending"
+        provisioning.lifecycle_last_processed_at = None
+        provisioning.lifecycle_failure_code = None
 
     _record_event_pair(
         db,

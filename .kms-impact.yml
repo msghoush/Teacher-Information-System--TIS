@@ -1,9 +1,12 @@
 knowledge_impact: yes
-summary: Add atomic M8B-4 customer-demo workspace provisioning and activation from approved demo requests.
+summary: Add the M8B-5 seven-day customer-demo lifecycle, reminders, expiration, and server-side access enforcement.
 affected_areas:
   - database-architecture
   - saas-onboarding
   - demo-workspace-provisioning
+  - demo-workspace-lifecycle
+  - authentication-and-access-enforcement
+  - internal-notifications
   - commercial-state-and-entitlements
   - permissions-and-audit
   - platform-owner-console
@@ -17,7 +20,7 @@ kms_files_updated:
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
   - docs/engineering/PRODUCT_ROADMAP.md
   - docs/adr/README.md
-  - docs/adr/0011-demo-workspace-provisioning-and-commercial-source-links.md
+  - docs/adr/0012-seven-day-demo-lifecycle-and-access-enforcement.md
   - docs/history/saas-onboarding/README.md
 no_impact_reason:
 major_change_override: no

@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-07-23T13:22:43.212202+03:00",
+  "generated_at": "2026-07-23T14:33:17.803600+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "9d59966",
+  "commit_sha": "749af57",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "61299fe169b783409e20d05e17853bad05ef7296ddddbfbc52b70f831113cca0",
-  "pdf_size_bytes": 555001,
+  "pdf_sha256": "ffb58daa1310d9c05ed075d2115b5ecd72064ce6fecfd9a28bced22cb74314dd",
+  "pdf_size_bytes": 566041,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-07-23T13:13:48.743550+03:00",
-      "size_bytes": 22233,
-      "sha256": "d72ee8512436847a158420a8b8e2d853ffaa40a22b1767bd5c8a9208ccd74458",
+      "modified_at": "2026-07-23T14:32:30.033274+03:00",
+      "size_bytes": 23843,
+      "sha256": "6e0e1535d9fbe544f2200ba9e737e9f9f6952425ec7c46657ea18d2626a8568d",
       "pdf_page": 14
     },
     {
@@ -39,416 +39,423 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-07-23T13:13:48.744885+03:00",
-      "size_bytes": 33205,
-      "sha256": "14c2a8afcef63d7856431b000dcf37485cf6e57868fac7c4ed3e23b39e636ee9",
+      "modified_at": "2026-07-23T14:32:30.035191+03:00",
+      "size_bytes": 34184,
+      "sha256": "a824a744ba9519e3b93be00978d2866602f68ac0f86a16c9285075feaa04502a",
       "pdf_page": 25
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-07-23T13:13:48.747262+03:00",
-      "size_bytes": 19423,
-      "sha256": "1fb37af2aa4988af633faff090e2b68c08306ac76ae127b5210a2fe769a28625",
+      "modified_at": "2026-07-23T14:32:30.037255+03:00",
+      "size_bytes": 20279,
+      "sha256": "a610c12f50f9a4e3adfa7ab66e7298a39bd09bf6bed0872ff750baf3778be076",
       "pdf_page": 39
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-07-23T13:13:35.608310+03:00",
-      "size_bytes": 48972,
-      "sha256": "2cbee196953e5e370b0df5354e57d9945f9e7549ae60518ac6ca15766d109a5f",
+      "modified_at": "2026-07-23T14:32:48.078299+03:00",
+      "size_bytes": 50527,
+      "sha256": "941fee8e9d31a3a037f719682d5d39568b53b27612670c5533771c9bb83d2672",
       "pdf_page": 48
     },
     {
       "path": "docs/adr/README.md",
-      "modified_at": "2026-07-23T13:22:38.009769+03:00",
-      "size_bytes": 1289,
-      "sha256": "b4d85aeb2fe8d121d5baaf1a1a9c55bc92733a963c94af691d9ff47214b3ca51",
-      "pdf_page": 69
+      "modified_at": "2026-07-23T14:32:30.053577+03:00",
+      "size_bytes": 1349,
+      "sha256": "a59adefe1fc1c6b2143a2ed92ba07d9e597620f0557a24a3bc9fc9dc5f50d27a",
+      "pdf_page": 70
     },
     {
       "path": "docs/engineering/README.md",
       "modified_at": "2026-07-21T23:27:46.406199+03:00",
       "size_bytes": 3732,
       "sha256": "6fa2739cb1847f647a3947b091012e126d8d62882428d395fce1e1263dadfcb9",
-      "pdf_page": 70
+      "pdf_page": 71
     },
     {
       "path": "docs/engineering/TIS_MODULE_MAP.md",
-      "modified_at": "2026-07-23T13:13:48.750836+03:00",
-      "size_bytes": 19412,
-      "sha256": "910c954d542df3efe2678494dfe54a3e6e651bdbe15b591d873593d48c9f11d7",
-      "pdf_page": 72
+      "modified_at": "2026-07-23T14:32:30.039255+03:00",
+      "size_bytes": 19924,
+      "sha256": "8424e9e9e253d893908cca4b38ab48dafec467aa1754fbd5b51c87a529c73ec6",
+      "pdf_page": 73
     },
     {
       "path": "docs/engineering/REPOSITORY_ARCHITECTURE.md",
       "modified_at": "2026-07-22T15:15:11.936858+03:00",
       "size_bytes": 7959,
       "sha256": "567c7b5261bcfdfff9532c2ba4c95db04cb880083aacce7fa7a76602b3c9ddeb",
-      "pdf_page": 86
+      "pdf_page": 87
     },
     {
       "path": "docs/engineering/USER_AND_SYSTEM_FLOWS.md",
-      "modified_at": "2026-07-23T13:13:48.753012+03:00",
-      "size_bytes": 12232,
-      "sha256": "b960ec6a0ef0c27b9b28b0ed0407567040e66077def300893be2cde157b2d99b",
-      "pdf_page": 92
+      "modified_at": "2026-07-23T14:32:30.041250+03:00",
+      "size_bytes": 13567,
+      "sha256": "fbec22f79377da274d5c660131349d806faf849832071b069087eb5f3200dab2",
+      "pdf_page": 93
     },
     {
       "path": "docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md",
-      "modified_at": "2026-07-23T13:13:48.748498+03:00",
-      "size_bytes": 16608,
-      "sha256": "795f0c575f8789886b1dd83bc90dad1e68a785cacab3cff344834dc80cc11fd3",
-      "pdf_page": 100
+      "modified_at": "2026-07-23T14:32:48.080294+03:00",
+      "size_bytes": 17880,
+      "sha256": "154a0dacaaa5c6be23a41e0d453c8bc3dd8ce9c8ae9864b74419e364d631a38b",
+      "pdf_page": 101
     },
     {
       "path": "docs/engineering/DEVELOPMENT_STANDARDS.md",
       "modified_at": "2026-06-27T11:08:40.400991+03:00",
       "size_bytes": 6381,
       "sha256": "24bafb2185e3ff6041d8bfaecb03a3b8279c6d62e819067882162060b6cb66e2",
-      "pdf_page": 109
+      "pdf_page": 111
     },
     {
       "path": "docs/engineering/UI_UX_DESIGN_PHILOSOPHY.md",
       "modified_at": "2026-06-26T13:05:13.057254+03:00",
       "size_bytes": 3944,
       "sha256": "c14c41f0f71a6ce0dbd9e61bcda0b6538ab3ceb126c220c2d3b565343280afa7",
-      "pdf_page": 113
+      "pdf_page": 115
     },
     {
       "path": "docs/engineering/PRODUCT_ROADMAP.md",
-      "modified_at": "2026-07-23T13:13:48.754204+03:00",
-      "size_bytes": 6844,
-      "sha256": "bb4b7fa336018d407df1e638bb143ed40cccfc8c14294aae6a3c23dcee64636a",
-      "pdf_page": 117
+      "modified_at": "2026-07-23T14:32:30.048234+03:00",
+      "size_bytes": 7221,
+      "sha256": "ab97e79105252f1bfc2f7e31558ff0b85503a170c0e8635244fc17e6be464829",
+      "pdf_page": 119
     },
     {
       "path": "docs/engineering/REJECTED_DECISIONS.md",
       "modified_at": "2026-06-26T13:18:05.584744+03:00",
       "size_bytes": 6924,
       "sha256": "cace3f12b5d77ce6219dbae6837be6c5f8992bfa9f8c22772c2d8d66376c49fb",
-      "pdf_page": 121
+      "pdf_page": 123
     },
     {
       "path": "docs/engineering/VISUAL_DOCUMENTATION_GUIDE.md",
       "modified_at": "2026-06-26T13:18:05.587011+03:00",
       "size_bytes": 3717,
       "sha256": "ab210443840279b0abe247f13455ccd544d6960b90f97b1a63706545c56a8045",
-      "pdf_page": 124
+      "pdf_page": 126
     },
     {
       "path": "docs/engineering/AI_OPTIMIZATION_GUIDE.md",
       "modified_at": "2026-06-26T13:18:05.588272+03:00",
       "size_bytes": 4954,
       "sha256": "64ef502ace2c6845354d5d193678d7a66de9e0cf4e61093335692b53ec1169e5",
-      "pdf_page": 128
+      "pdf_page": 130
     },
     {
       "path": "docs/engineering/PROJECT_GOVERNANCE.md",
       "modified_at": "2026-06-26T13:18:05.590266+03:00",
       "size_bytes": 4700,
       "sha256": "877912b8d21739fac32d636fef679de4f14cb89f22923d0d91d840f5acc08c82",
-      "pdf_page": 132
+      "pdf_page": 134
     },
     {
       "path": "docs/engineering/KNOWLEDGE_LIFECYCLE.md",
       "modified_at": "2026-06-26T13:27:04.287907+03:00",
       "size_bytes": 3186,
       "sha256": "15c24ad42123f15fb6a607932227567031e1b9c77d3453ac3a73b31bf7e9fa02",
-      "pdf_page": 136
+      "pdf_page": 138
     },
     {
       "path": "docs/engineering/DOCUMENTATION_AUTOMATION.md",
       "modified_at": "2026-07-22T15:15:11.926416+03:00",
       "size_bytes": 9127,
       "sha256": "6f6433327014d23717b100b97804f9d6e1783fe85964ae0e06454259e086a322",
-      "pdf_page": 139
+      "pdf_page": 141
     },
     {
       "path": "docs/engineering/KNOWLEDGE_IMPACT_ASSESSMENT_STANDARD.md",
       "modified_at": "2026-07-21T20:30:10.204438+03:00",
       "size_bytes": 3518,
       "sha256": "4ec242c550f53c046305c4c221f5a713347502b11b3a38190eaa22371f7d307f",
-      "pdf_page": 144
+      "pdf_page": 146
     },
     {
       "path": "docs/engineering/SELF_EVOLVING_WORKFLOW.md",
       "modified_at": "2026-07-21T23:03:44.864261+03:00",
       "size_bytes": 2771,
       "sha256": "b4b8d1d526c952dd4641436bbd22da6aea1f659efad5297f52084449dca007ab",
-      "pdf_page": 147
+      "pdf_page": 149
     },
     {
       "path": "docs/engineering/DOCUMENTATION_DEPENDENCY_MAP.md",
       "modified_at": "2026-06-26T13:27:04.292963+03:00",
       "size_bytes": 3284,
       "sha256": "c89dfd535cb014a8bfbf76ced52b41400ed6d5d19b17bfd3c96fadbdac01fff9",
-      "pdf_page": 150
+      "pdf_page": 152
     },
     {
       "path": "docs/engineering/AI_CODING_WORKFLOW.md",
       "modified_at": "2026-07-21T23:03:44.847162+03:00",
       "size_bytes": 2932,
       "sha256": "84aaffcacfb346033d9ee0ead91b4a6ec4aec1d005aa716c2b222dd8e89b38b7",
-      "pdf_page": 153
+      "pdf_page": 155
     },
     {
       "path": "docs/engineering/FUTURE_AUTOMATION_ROADMAP.md",
       "modified_at": "2026-06-26T13:27:04.300737+03:00",
       "size_bytes": 2639,
       "sha256": "f87a2e9edd6e6d97f5f05ff163b25cabb64fc1304061bce5c080d57636cbc726",
-      "pdf_page": 156
+      "pdf_page": 158
     },
     {
       "path": "docs/adr/0001-separate-nextjs-landing-website.md",
       "modified_at": "2026-06-26T12:01:39.552568+03:00",
       "size_bytes": 1272,
       "sha256": "5f68232525d029766fd22c078efe53043507791ea0aaf405a272c8906ff3c839",
-      "pdf_page": 159
+      "pdf_page": 161
     },
     {
       "path": "docs/adr/0002-separate-saas-identity-and-operational-users.md",
       "modified_at": "2026-06-26T12:01:39.554568+03:00",
       "size_bytes": 1229,
       "sha256": "7f1a0fb90da44ea124048794fc46735bac53f81d72abb671169d7debad2b6ee9",
-      "pdf_page": 160
+      "pdf_page": 162
     },
     {
       "path": "docs/adr/0003-paddle-payment-architecture.md",
       "modified_at": "2026-07-21T20:33:55.256330+03:00",
       "size_bytes": 3283,
       "sha256": "db2577bedf156e7953e492e4e4874b9d565dc3e58ca9ce4123beb44e93063795",
-      "pdf_page": 161
+      "pdf_page": 163
     },
     {
       "path": "docs/adr/0004-webhook-only-payment-confirmation.md",
       "modified_at": "2026-07-21T20:33:55.257330+03:00",
       "size_bytes": 2305,
       "sha256": "835d2cd6580f9204651c3bb41ddf1e8c8b07df21c368bf22871ebc1a31285013",
-      "pdf_page": 163
+      "pdf_page": 165
     },
     {
       "path": "docs/adr/0005-delayed-tenant-provisioning-after-verified-payment.md",
       "modified_at": "2026-06-26T12:01:39.569886+03:00",
       "size_bytes": 1354,
       "sha256": "287048f0c664bfcbf28bf87c8b796edd40f14d35895c66795bcf2b9c33e663b6",
-      "pdf_page": 165
+      "pdf_page": 167
     },
     {
       "path": "docs/adr/0006-documentation-as-source-knowledge-management-system.md",
       "modified_at": "2026-06-26T12:01:39.575398+03:00",
       "size_bytes": 1374,
       "sha256": "f81a4ddd88dac8e5238e2f35555ddbea064dd22851a5e0ba6bcc087413cdbfb6",
-      "pdf_page": 166
+      "pdf_page": 168
     },
     {
       "path": "docs/adr/0007-landing-page-visual-system-strategy.md",
       "modified_at": "2026-06-26T12:01:39.577393+03:00",
       "size_bytes": 1359,
       "sha256": "43d7b5d0695b440f7dfc4805bed636d54dd921f949b2648558b873dbfdfe6908",
-      "pdf_page": 168
+      "pdf_page": 170
     },
     {
       "path": "docs/adr/0008-workspace-classification-foundation.md",
       "modified_at": "2026-07-22T22:32:26.374359+03:00",
       "size_bytes": 1990,
       "sha256": "bcc5101fdd7f44837666da58f50a2f00c48151c131e95e5ef77325d5d3f5803c",
-      "pdf_page": 169
+      "pdf_page": 171
     },
     {
       "path": "docs/adr/0009-commercial-state-and-entitlement-resolution.md",
       "modified_at": "2026-07-22T23:24:03.453284+03:00",
       "size_bytes": 2197,
       "sha256": "c623f43b2384e9c099a33239295ad8805f91f688965cfc0c88dffd7a0d9a8979",
-      "pdf_page": 171
+      "pdf_page": 173
     },
     {
       "path": "docs/adr/0010-review-only-saas-demo-requests.md",
       "modified_at": "2026-07-23T00:05:58.515738+03:00",
       "size_bytes": 1562,
       "sha256": "90f40f8c016d15898078c060c2a18b06f19bde500b8a7bb34b1fa70f2366ae45",
-      "pdf_page": 173
+      "pdf_page": 175
     },
     {
       "path": "docs/adr/0011-demo-workspace-provisioning-and-commercial-source-links.md",
       "modified_at": "2026-07-23T13:13:35.625493+03:00",
       "size_bytes": 2264,
       "sha256": "dc6811d76d9493c66606b2c417dd7b128f669554593376021d63e5cbbba06f8c",
-      "pdf_page": 174
+      "pdf_page": 176
+    },
+    {
+      "path": "docs/adr/0012-seven-day-demo-lifecycle-and-access-enforcement.md",
+      "modified_at": "2026-07-23T14:32:30.058090+03:00",
+      "size_bytes": 2187,
+      "sha256": "cf8a950adbffeab03eb32feb462dfafa6714ebf2ec94adf22b66c4f6e9c47dbf",
+      "pdf_page": 177
     },
     {
       "path": "docs/history/academic-calendar/README.md",
       "modified_at": "2026-06-26T12:01:39.591102+03:00",
       "size_bytes": 367,
       "sha256": "f2e21ac28b38079b715ab86736afe8fdd4ded0ed86e301a5097ff6aef62bd263",
-      "pdf_page": 175
+      "pdf_page": 178
     },
     {
       "path": "docs/history/engineering-handbook/2026-06-26-kms-v3-engineering-handbook.md",
       "modified_at": "2026-06-26T12:47:56.230444+03:00",
       "size_bytes": 1861,
       "sha256": "9df47871dc9a1f90d51358fb655b9776d67fecf750cbfc7dfa0321f503c5dead",
-      "pdf_page": 176
+      "pdf_page": 179
     },
     {
       "path": "docs/history/engineering-handbook/2026-06-26-kms-v3-phase-3b-engineering-layers.md",
       "modified_at": "2026-06-26T13:06:10.702508+03:00",
       "size_bytes": 1860,
       "sha256": "0698554ac5c127cc3658864f661b363cbccd7b037305ed47b649afeba4d4f08b",
-      "pdf_page": 178
+      "pdf_page": 181
     },
     {
       "path": "docs/history/engineering-handbook/2026-06-26-kms-v3-phase-3c-governance-ai-traceability.md",
       "modified_at": "2026-06-26T13:19:02.369731+03:00",
       "size_bytes": 1993,
       "sha256": "9d641bdeba461892612cb952a9ce5298d1d2f1760f1a053b9bb17f9a81f680a8",
-      "pdf_page": 180
+      "pdf_page": 183
     },
     {
       "path": "docs/history/engineering-handbook/2026-06-26-kms-v3-phase-3d-lifecycle-foundation.md",
       "modified_at": "2026-06-26T13:28:04.787479+03:00",
       "size_bytes": 2128,
       "sha256": "8eddf233477470a196aef60df65c021f734b2714bc897f86200ea9d176b0743e",
-      "pdf_page": 182
+      "pdf_page": 185
     },
     {
       "path": "docs/history/engineering-handbook/2026-06-27-production-memory-stability-guardrails.md",
       "modified_at": "2026-06-27T11:09:37.033374+03:00",
       "size_bytes": 3131,
       "sha256": "b71464ac5dcf855f8a1d325e6fdda0e32dbc6a1ba2bab6ae14529d8b4ba5010a",
-      "pdf_page": 184
+      "pdf_page": 187
     },
     {
       "path": "docs/history/engineering-handbook/2026-07-21-kms-automatic-enforcement.md",
       "modified_at": "2026-07-21T23:03:44.873475+03:00",
       "size_bytes": 3222,
       "sha256": "32934450ec8af0cf6a65534767304d1526550fc1030ec15a92bfd944e4ac3509",
-      "pdf_page": 186
+      "pdf_page": 189
     },
     {
       "path": "docs/history/engineering-handbook/2026-07-21-kms-phase-7a-navigation-foundation.md",
       "modified_at": "2026-07-21T23:28:13.342293+03:00",
       "size_bytes": 1402,
       "sha256": "8b17556ed6a2eac7bdbaf9c3cf87717fea75f23cb3f732e9dda0371ea065d72d",
-      "pdf_page": 188
+      "pdf_page": 191
     },
     {
       "path": "docs/history/engineering-handbook/2026-07-21-kms-phase-7b-pdf-navigation.md",
       "modified_at": "2026-07-22T00:02:44.818621+03:00",
       "size_bytes": 1528,
       "sha256": "8f499946c8eaeb37b7d5165ad6a2755a6f44bffe58280005ed0da136999f0f7d",
-      "pdf_page": 189
+      "pdf_page": 192
     },
     {
       "path": "docs/history/engineering-handbook/2026-07-22-kms-phase-7d-navigation-catalog-enforcement.md",
       "modified_at": "2026-07-22T15:15:11.944836+03:00",
       "size_bytes": 3070,
       "sha256": "c7e4386962199bfcf37492a6e1f314e83c1b99be5b974ad00a9a4ef4f6333807",
-      "pdf_page": 190
+      "pdf_page": 193
     },
     {
       "path": "docs/history/engineering-handbook/README.md",
       "modified_at": "2026-07-22T15:15:11.942841+03:00",
       "size_bytes": 690,
       "sha256": "32d5d0a0b85b2cf551558da275ee0a183d4c4958fa47206821e6c2eefc138675",
-      "pdf_page": 192
+      "pdf_page": 195
     },
     {
       "path": "docs/history/landing-page/README.md",
       "modified_at": "2026-06-26T12:01:39.588621+03:00",
       "size_bytes": 483,
       "sha256": "c1f6c28d79ca91717d675843072afabf130c4118e722118cefa92ab727a5b2f1",
-      "pdf_page": 193
+      "pdf_page": 196
     },
     {
       "path": "docs/history/platform-knowledge/2026-06-26-platform-owner-knowledge-center.md",
       "modified_at": "2026-06-26T12:20:42.631009+03:00",
       "size_bytes": 2063,
       "sha256": "1f9319b1860fd875ab31de08742bcb2ca2c022a7fb81962389fac8fd93c49187",
-      "pdf_page": 194
+      "pdf_page": 197
     },
     {
       "path": "docs/history/platform-knowledge/2026-07-22-kms-phase-7c-knowledge-center-navigation.md",
       "modified_at": "2026-07-22T00:32:50.395513+03:00",
       "size_bytes": 2738,
       "sha256": "c5e20a2e083e746ca00316d3f6e5dd4ecd32ac0ea3fb66225ed6f8bad87d18ff",
-      "pdf_page": 196
+      "pdf_page": 199
     },
     {
       "path": "docs/history/platform-knowledge/README.md",
       "modified_at": "2026-07-22T00:32:50.392522+03:00",
       "size_bytes": 675,
       "sha256": "0fc76c537e0a1d3f40a70e4944a846038645aa7ec823bdc642de026a716a17d4",
-      "pdf_page": 198
+      "pdf_page": 201
     },
     {
       "path": "docs/history/provisioning/2026-06-26-kms-foundation.md",
       "modified_at": "2026-06-26T12:01:39.604435+03:00",
       "size_bytes": 1614,
       "sha256": "94aa0a563e22c309aefb08ee5c1d16f5c7ac02c0b9502be6d9facf97ce7a3b93",
-      "pdf_page": 199
+      "pdf_page": 202
     },
     {
       "path": "docs/history/provisioning/README.md",
       "modified_at": "2026-07-22T15:49:33.925789+03:00",
       "size_bytes": 1227,
       "sha256": "1ede01f940f4f7eae8f3e3fa578ae13c9ff6b47448fd26063ac9c829115593b6",
-      "pdf_page": 201
+      "pdf_page": 204
     },
     {
       "path": "docs/history/README.md",
       "modified_at": "2026-06-26T12:01:39.581382+03:00",
       "size_bytes": 825,
       "sha256": "ffef1bf02364c16ea9cfab4070d944f3588e455ebf9a0167fb566027359f6051",
-      "pdf_page": 202
+      "pdf_page": 205
     },
     {
       "path": "docs/history/saas-onboarding/README.md",
-      "modified_at": "2026-07-23T13:13:35.621497+03:00",
-      "size_bytes": 14639,
-      "sha256": "078ac4dfc9c9f140243166afe781eb4a7404a58a2948a93c845f33409dc11d32",
-      "pdf_page": 203
+      "modified_at": "2026-07-23T14:32:30.051605+03:00",
+      "size_bytes": 15449,
+      "sha256": "9d1215440e5ce65978c447837cf474e5496ae445e1205124e7c909997b6bf720",
+      "pdf_page": 206
     },
     {
       "path": "docs/history/subscriptions/README.md",
       "modified_at": "2026-07-21T20:33:55.259631+03:00",
       "size_bytes": 6976,
       "sha256": "55ec6d587fd538ec1c5a0c579228e0f0a0f03307afaa6ae626914bacf729f2ad",
-      "pdf_page": 209
+      "pdf_page": 212
     },
     {
       "path": "docs/history/workforce-planning/README.md",
       "modified_at": "2026-06-26T12:01:39.593100+03:00",
       "size_bytes": 423,
       "sha256": "f0f9ddbf7d501b12ea7aa0d02114a6926fe0560a70b7d97bf212c0bdb2622d06",
-      "pdf_page": 211
+      "pdf_page": 214
     },
     {
       "path": "docs/history/workspace-classification/README.md",
       "modified_at": "2026-07-22T23:24:03.479214+03:00",
       "size_bytes": 1585,
       "sha256": "c9580e0b0340d48b5e93fc3601f7b9fdcddd65c3facc54ab2906b9386642197e",
-      "pdf_page": 212
+      "pdf_page": 215
     },
     {
       "path": "docs/marketing/landing_page_source_of_truth.md",
       "modified_at": "2026-07-21T23:26:44.176139+03:00",
       "size_bytes": 914,
       "sha256": "8f3ba07749c8f057c321bbb0cd67077b4ed7ba7f168e8ab4ead0399ab4b5e9bc",
-      "pdf_page": 213
+      "pdf_page": 216
     },
     {
       "path": "docs/marketing/tis_landing_page_master_content.md",
       "modified_at": "2026-07-21T23:26:44.178809+03:00",
       "size_bytes": 23062,
       "sha256": "c9391ef50f5bcedaa51e1788288458cb149e76bac0ead49ece31f795986ac455",
-      "pdf_page": 214
+      "pdf_page": 217
     },
     {
       "path": "docs/location-data-roadmap.md",
       "modified_at": "2026-07-21T23:26:44.176139+03:00",
       "size_bytes": 3311,
       "sha256": "584398a00da21c44cbb0c6c93e7aa54ea4031fa52d72bd2429b132b296fa6020",
-      "pdf_page": 222
+      "pdf_page": 225
     }
   ]
 }

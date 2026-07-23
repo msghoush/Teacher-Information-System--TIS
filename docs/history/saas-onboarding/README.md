@@ -8,6 +8,12 @@ last_updated: 2026-07-23
 
 This folder tracks meaningful changes to signup, login, account, organization onboarding, contacts, branches, academic setup, review, and account self-service.
 
+## 2026-07-23 - M8B-5 Standard Customer Demo Lifecycle
+
+Customer demos now run for exactly seven days from successful workspace activation. The centralized resolver derives Day 6 and Day 7 boundaries in UTC, presents them in the organization timezone, and fails closed on inconsistent lifecycle evidence.
+
+The independently callable processor is dry-run by default. Apply mode creates idempotent internal reminder notifications and atomically ends the demo entitlement and suspends the workspace at expiration. Operational middleware rechecks customer-demo access on every protected request, including existing sessions; web users are routed to subscription guidance and APIs return a safe 403. Workspace users, branches, and all tenant data remain preserved, and Platform Owner inspection remains available.
+
 ## 2026-07-23 - M8B-4 Demo Workspace Provisioning And Activation
 
 Platform Owners can now provision an Approved customer-demo request through a separate, fail-closed action. The demo service revalidates the approval, organization, customer-demo intent, commercial snapshot, entitlement snapshot, and duplicate absence before reusing the shared operational workspace builder.

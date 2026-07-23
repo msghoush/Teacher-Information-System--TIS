@@ -500,7 +500,13 @@ def list_events(db: Session, row):
     ).all()
 
 
-def apply_customer_setup_context(context: dict, organization, row, provisioning=None) -> dict:
+def apply_customer_setup_context(
+    context: dict,
+    organization,
+    row,
+    provisioning=None,
+    lifecycle=None,
+) -> dict:
     updated = dict(context)
     org_uuid = str(getattr(organization, "organization_uuid", "") or "")
     if row is None:
@@ -519,6 +525,48 @@ def apply_customer_setup_context(context: dict, organization, row, provisioning=
     provisioning_status = str(
         getattr(provisioning, "provisioning_status", "") or ""
     ).strip().lower()
+    lifecycle_state = str(
+        getattr(lifecycle, "lifecycle_state", "") or ""
+    ).strip().lower()
+    if provisioning_status == "active" and lifecycle_state == "expired":
+        updated.update({
+            "title": "Your demo has expired",
+            "subtitle": "Operational access is blocked, but your workspace data is preserved.",
+            "status_banner": "The standard seven-day demo period is complete.",
+            "primary_action": {
+                "label": "Subscribe Now",
+                "url": "/saas/subscription",
+                "method": "get",
+            },
+            "help_text": "Choose a subscription to restore operational workspace access.",
+        })
+        return updated
+    if provisioning_status == "active" and lifecycle_state == "reminder_due":
+        updated.update({
+            "title": "Your demo expires soon",
+            "subtitle": "Subscribe to retain access after the demo period.",
+            "status_banner": "Your demo expires in approximately one day.",
+            "primary_action": {
+                "label": "Subscribe Now",
+                "url": "/saas/subscription",
+                "method": "get",
+            },
+            "help_text": "Your workspace data will remain preserved if the demo expires.",
+        })
+        return updated
+    if provisioning_status == "active" and lifecycle_state == "manual_review":
+        updated.update({
+            "title": "Demo access information is unavailable",
+            "subtitle": "Your workspace data remains safe.",
+            "status_banner": "Please contact TIS Support.",
+            "primary_action": {
+                "label": "View Demo Request",
+                "url": f"/saas/demo-requests/{row.request_uuid}",
+                "method": "get",
+            },
+            "help_text": "No internal commercial diagnostics are shown here.",
+        })
+        return updated
     if provisioning_status == "active":
         updated.update({
             "title": "Your demo workspace is active",

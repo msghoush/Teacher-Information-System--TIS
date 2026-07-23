@@ -167,9 +167,18 @@ M8B-4 demo workspace provisioning and activation:
 - Successful provisioning activates the SchoolGroup and entitlement, links the request to the workspace, records activation metadata and audit/internal events, and blocks duplicates.
 - Customers see safe approval/provisioning/active states; Platform Owners see provisioning result and failure details. No email is sent.
 
+M8B-5 standard customer-demo lifecycle:
+
+- Demo duration is exactly seven days from successful activation; the reminder boundary is exactly Day 6.
+- One resolver owns Active, Reminder Due, Expired, Suspended, and Manual Review outcomes using UTC calculations and organization-timezone display.
+- The dry-run/default lifecycle command creates idempotent internal reminders and atomically expires due demos only when run with `--apply`.
+- Expiration ends the demo entitlement and suspends the workspace while preserving users, branches, and all tenant data.
+- Operational middleware blocks expired or ambiguous demos for web, API, download, and existing-session requests; Platform users, paid tenants, and internal sandboxes are unaffected.
+- Customer and Platform Owner pages show safe lifecycle state, expiration timing, reminder state, and processing history. No email is sent.
+
 ## Current Priority
 
-Current priority: validate M8B-4 demo provisioning and activation before any separately approved M8B-5 expiration or lifecycle automation work.
+Current priority: validate M8B-5 lifecycle automation and access enforcement before any separately approved M8B-6 work.
 
 Current enforcement scope:
 
