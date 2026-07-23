@@ -3850,6 +3850,249 @@ def _demo_workspace_provisioning(engine, connection):
         )
 
 
+def _demo_workspace_lifecycle(engine, connection):
+    datetime_type = (
+        "TIMESTAMPTZ" if engine.dialect.name == "postgresql" else "DATETIME"
+    )
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+    table_name = "saas_demo_workspace_provisioning"
+    for column_name, column_sql in (
+        ("demo_expires_at", f"demo_expires_at {datetime_type}"),
+        ("reminder_due_at", f"reminder_due_at {datetime_type}"),
+        ("reminder_sent_at", f"reminder_sent_at {datetime_type}"),
+        ("expired_at", f"expired_at {datetime_type}"),
+        (
+            "lifecycle_processing_status",
+            "lifecycle_processing_status VARCHAR(24) NOT NULL DEFAULT 'pending'",
+        ),
+        (
+            "lifecycle_last_processed_at",
+            f"lifecycle_last_processed_at {datetime_type}",
+        ),
+        ("lifecycle_failure_code", "lifecycle_failure_code VARCHAR(80)"),
+    ):
+        _add_column_if_missing(
+            connection,
+            connection,
+            table_name,
+            column_name,
+            column_sql,
+        )
+    for index_name, column_name in (
+        ("ix_saas_demo_workspace_provisioning_expires", "demo_expires_at"),
+        ("ix_saas_demo_workspace_provisioning_reminder_due", "reminder_due_at"),
+        (
+            "ix_saas_demo_workspace_provisioning_lifecycle_status",
+            "lifecycle_processing_status",
+        ),
+    ):
+        _create_index_if_missing(
+            connection,
+            connection,
+            table_name,
+            index_name,
+            column_name,
+        )
+
+    if engine.dialect.name == "postgresql":
+        if not _check_constraint_exists(
+            connection,
+            table_name,
+            "ck_saas_demo_workspace_provisioning_lifecycle_status",
+        ):
+            _execute(
+                connection,
+                """
+                ALTER TABLE saas_demo_workspace_provisioning
+                ADD CONSTRAINT ck_saas_demo_workspace_provisioning_lifecycle_status
+                CHECK (lifecycle_processing_status IN ('pending','processing','failed','expired'))
+                """,
+            )
+        _execute(
+            connection,
+            """
+            UPDATE saas_demo_workspace_provisioning
+            SET reminder_due_at = activated_at AT TIME ZONE 'UTC' + INTERVAL '6 days',
+                demo_expires_at = activated_at AT TIME ZONE 'UTC' + INTERVAL '7 days'
+            WHERE activated_at IS NOT NULL
+              AND (reminder_due_at IS NULL OR demo_expires_at IS NULL)
+            """,
+        )
+    else:
+        for operation in ("INSERT", "UPDATE"):
+            _execute(
+                connection,
+                f"""
+                CREATE TRIGGER IF NOT EXISTS
+                    trg_demo_provisioning_lifecycle_status_{operation.lower()}
+                BEFORE {operation} ON saas_demo_workspace_provisioning
+                WHEN NEW.lifecycle_processing_status NOT IN
+                    ('pending','processing','failed','expired')
+                BEGIN
+                    SELECT RAISE(
+                        ABORT,
+                        'ck_saas_demo_workspace_provisioning_lifecycle_status'
+                    );
+                END
+                """,
+            )
+        _execute(
+            connection,
+            """
+            UPDATE saas_demo_workspace_provisioning
+            SET reminder_due_at = datetime(activated_at, '+6 days'),
+                demo_expires_at = datetime(activated_at, '+7 days')
+            WHERE activated_at IS NOT NULL
+              AND (reminder_due_at IS NULL OR demo_expires_at IS NULL)
+            """,
+        )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_demo_lifecycle_events (
+            id {id_sql},
+            demo_provisioning_id INTEGER NOT NULL,
+            event_type VARCHAR(48) NOT NULL,
+            actor_type VARCHAR(24) NOT NULL DEFAULT 'system',
+            actor_user_id INTEGER,
+            event_status VARCHAR(20) NOT NULL DEFAULT 'ok',
+            reason_code VARCHAR(80),
+            deduplication_key VARCHAR(180) NOT NULL UNIQUE,
+            details_json TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_saas_demo_lifecycle_events_type
+                CHECK (event_type IN (
+                    'reminder_became_due','reminder_notification_created',
+                    'expiration_processing_started','demo_expired',
+                    'workspace_suspended','access_blocked',
+                    'lifecycle_processing_failed'
+                )),
+            CONSTRAINT ck_saas_demo_lifecycle_events_actor_type
+                CHECK (actor_type IN ('system','tenant_user')),
+            CONSTRAINT ck_saas_demo_lifecycle_events_status
+                CHECK (event_status IN ('ok','failed')),
+            FOREIGN KEY (demo_provisioning_id)
+                REFERENCES saas_demo_workspace_provisioning(id) ON DELETE CASCADE,
+            FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+        """,
+    )
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_demo_lifecycle_notifications (
+            id {id_sql},
+            demo_provisioning_id INTEGER NOT NULL,
+            notification_type VARCHAR(40) NOT NULL,
+            recipient_type VARCHAR(24) NOT NULL,
+            recipient_saas_account_id INTEGER,
+            recipient_user_id INTEGER,
+            title VARCHAR(160) NOT NULL,
+            message TEXT NOT NULL,
+            deduplication_key VARCHAR(180) NOT NULL UNIQUE,
+            read_at {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_saas_demo_lifecycle_notifications_type
+                CHECK (notification_type IN ('expiration_reminder')),
+            CONSTRAINT ck_saas_demo_lifecycle_notifications_recipient
+                CHECK (recipient_type IN ('saas_account','platform_owner')),
+            CONSTRAINT ck_saas_demo_lifecycle_notifications_recipient_target
+                CHECK (
+                    (
+                        recipient_type = 'saas_account'
+                        AND recipient_saas_account_id IS NOT NULL
+                        AND recipient_user_id IS NULL
+                    )
+                    OR (
+                        recipient_type = 'platform_owner'
+                        AND recipient_user_id IS NOT NULL
+                        AND recipient_saas_account_id IS NULL
+                    )
+                ),
+            FOREIGN KEY (demo_provisioning_id)
+                REFERENCES saas_demo_workspace_provisioning(id) ON DELETE CASCADE,
+            FOREIGN KEY (recipient_saas_account_id)
+                REFERENCES saas_accounts(id) ON DELETE CASCADE,
+            FOREIGN KEY (recipient_user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """,
+    )
+    for target_table, index_name, columns in (
+        (
+            "saas_demo_lifecycle_events",
+            "ix_saas_demo_lifecycle_events_provisioning",
+            "demo_provisioning_id",
+        ),
+        (
+            "saas_demo_lifecycle_events",
+            "ix_saas_demo_lifecycle_events_type",
+            "event_type",
+        ),
+        (
+            "saas_demo_lifecycle_events",
+            "ix_saas_demo_lifecycle_events_created",
+            "created_at",
+        ),
+        (
+            "saas_demo_lifecycle_notifications",
+            "ix_saas_demo_lifecycle_notifications_provisioning",
+            "demo_provisioning_id",
+        ),
+        (
+            "saas_demo_lifecycle_notifications",
+            "ix_saas_demo_lifecycle_notifications_saas_account",
+            "recipient_saas_account_id",
+        ),
+        (
+            "saas_demo_lifecycle_notifications",
+            "ix_saas_demo_lifecycle_notifications_user",
+            "recipient_user_id",
+        ),
+    ):
+        _create_index_if_missing(
+            connection,
+            connection,
+            target_table,
+            index_name,
+            columns,
+        )
+
+    if engine.dialect.name == "postgresql":
+        _execute(
+            connection,
+            """
+            UPDATE workspace_entitlements AS entitlement
+            SET effective_to = provisioning.demo_expires_at
+            FROM saas_demo_workspace_provisioning AS provisioning
+            WHERE entitlement.id = provisioning.workspace_entitlement_id
+              AND entitlement.entitlement_type = 'demo'
+              AND provisioning.demo_expires_at IS NOT NULL
+              AND entitlement.effective_to IS NULL
+            """,
+        )
+    else:
+        _execute(
+            connection,
+            """
+            UPDATE workspace_entitlements
+            SET effective_to = (
+                SELECT provisioning.demo_expires_at
+                FROM saas_demo_workspace_provisioning AS provisioning
+                WHERE provisioning.workspace_entitlement_id = workspace_entitlements.id
+            )
+            WHERE entitlement_type = 'demo'
+              AND effective_to IS NULL
+              AND EXISTS (
+                SELECT 1
+                FROM saas_demo_workspace_provisioning AS provisioning
+                WHERE provisioning.workspace_entitlement_id = workspace_entitlements.id
+                  AND provisioning.demo_expires_at IS NOT NULL
+              )
+            """,
+        )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -4000,6 +4243,11 @@ MIGRATIONS = (
         migration_id="20260723_001_demo_workspace_provisioning",
         description="Add atomic customer demo workspace provisioning and activation records",
         apply=_demo_workspace_provisioning,
+    ),
+    Migration(
+        migration_id="20260723_002_demo_workspace_lifecycle",
+        description="Add seven-day customer demo lifecycle processing and notification records",
+        apply=_demo_workspace_lifecycle,
     ),
 )
 

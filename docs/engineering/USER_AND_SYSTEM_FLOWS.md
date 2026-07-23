@@ -67,6 +67,25 @@ Guardrails:
 - Duplicate, rejected, cancelled, incoherent, or already provisioned requests fail closed.
 - M8B-4 sends no email and does not implement expiration, scheduling, login blocking, or conversion.
 
+## Customer Demo Lifecycle Flow
+
+1. Successful M8B-4 activation records the authoritative demo start.
+2. TIS derives reminder due at start plus six days and expiration at start plus seven days.
+3. Before Day 6, the resolver returns Active and operational access continues.
+4. At Day 6, the resolver returns Reminder Due; the processor creates one customer notification and one per active Platform Owner.
+5. At Day 7, access fails closed immediately even if scheduled processing has not run.
+6. Apply-mode processing atomically ends the demo entitlement, suspends the SchoolGroup, marks the demo tenant link expired, and records lifecycle events.
+7. Web requests redirect to the preserved-data and subscription page; API/download requests receive a safe 403.
+8. Existing sessions are rechecked on every protected request. Platform users remain able to inspect the workspace.
+
+Guardrails:
+
+- Use `activated_at`, never request submission or approval, for lifecycle calculations.
+- Store and calculate in UTC; convert only customer/owner display values to the organization timezone.
+- Expiration never deletes, archives, deactivates branches, or mutates operational tenant data.
+- Reminder and expiration actions are idempotent and failure-audited.
+- No email, Paddle change, conversion, extension, or read-only expired mode is included.
+
 ## SaaS Identity Flow
 
 Flow:

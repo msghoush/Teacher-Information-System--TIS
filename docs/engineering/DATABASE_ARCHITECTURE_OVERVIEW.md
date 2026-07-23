@@ -195,6 +195,17 @@ M8B-4 adds:
 
 Migration `20260723_001_demo_workspace_provisioning` generalizes the existing link without changing paid rows and creates the demo provisioning/event tables. Demo workspace, entitlement, link, request association, and activation updates are performed in one savepoint-backed transaction; failed workspace changes roll back while the outer provisioning aggregate retains the failure for audit and retry.
 
+### Demo Workspace Lifecycle Records
+
+M8B-5 extends `saas_demo_workspace_provisioning` with reminder due/sent, demo expiration, expired, processing-status, last-processed, and failure-code metadata. `activated_at` remains the authority; persisted reminder and expiration timestamps are derived indexes and must validate as activation plus six and seven days.
+
+Two normalized tables support lifecycle history and in-app delivery:
+
+- `saas_demo_lifecycle_events`: deduplicated audit records for reminder due/delivery, expiration start/completion, workspace suspension, access blocking, and processing failure.
+- `saas_demo_lifecycle_notifications`: recipient-scoped internal reminder notifications for the requesting SaaS account and active Platform Owners.
+
+Migration `20260723_002_demo_workspace_lifecycle` adds constrained lifecycle metadata, backfills activation-derived timestamps for existing active demos, aligns demo entitlement `effective_to`, and creates the event/notification tables. It does not expire data during migration. The separately scheduled processor performs expiration after a dry run.
+
 Related files:
 - `workspace_classification.py`
 - `saas/workspace_classification_service.py`
@@ -210,8 +221,12 @@ Related files:
 - `docs/adr/0009-commercial-state-and-entitlement-resolution.md`
 - `demo_workflow.py`
 - `saas/demo_provisioning_service.py`
+- `saas/demo_lifecycle_service.py`
+- `scripts/process_demo_lifecycle.py`
+- `authorization.py`
 - `saas/provisioning_service.py`
 - `docs/adr/0011-demo-workspace-provisioning-and-commercial-source-links.md`
+- `docs/adr/0012-seven-day-demo-lifecycle-and-access-enforcement.md`
 - `saas/demo_request_service.py`
 - `docs/adr/0010-review-only-saas-demo-requests.md`
 

@@ -8460,6 +8460,14 @@ async def inactivity_timeout_middleware(request: Request, call_next):
                         return _clear_auth_session_cookies(timeout_response)
             current_user = auth.get_current_user(request, db)
 
+        commercial_access_response = authorization.enforce_workspace_commercial_access(
+            request,
+            db,
+            current_user=current_user,
+        )
+        if commercial_access_response is not None:
+            return commercial_access_response
+
         permission_response = authorization.enforce_route_permission(
             request,
             db,
@@ -9442,6 +9450,46 @@ def login(
         auth.set_scope_cookie(response, "academic_year_id", active_year.id, request)
     auth.set_scope_cookie(response, IDLE_TIMEOUT_COOKIE_KEY, int(time.time()), request)
     return response
+
+
+@app.get("/demo-expired", response_class=HTMLResponse)
+def demo_access_blocked(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+    if auth.is_platform_user(current_user):
+        return RedirectResponse(url="/platform", status_code=302)
+
+    from saas import demo_lifecycle_service
+
+    school_group_id = (
+        getattr(current_user, "scope_school_group_id", None)
+        or auth.get_user_school_group_id(db, current_user)
+    )
+    lifecycle = demo_lifecycle_service.resolve_demo_lifecycle(
+        db,
+        school_group_id=school_group_id,
+    )
+    if lifecycle.can_access:
+        return RedirectResponse(url="/dashboard", status_code=302)
+    school_group = db.query(models.SchoolGroup).filter(
+        models.SchoolGroup.id == school_group_id
+    ).one_or_none()
+    is_expired = lifecycle.lifecycle_state == "expired"
+    return templates.TemplateResponse(
+        request,
+        "demo_access_blocked.html",
+        {
+            "request": request,
+            "current_user": current_user,
+            "school_group": school_group,
+            "is_expired": is_expired,
+        },
+        status_code=403,
+    )
 
 
 @app.get("/platform", response_class=HTMLResponse)

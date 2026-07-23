@@ -1,0 +1,84 @@
+{% from "_tis_logo.html" import tis_logo, tis_logo_path with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Demo Access | TIS</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', path=tis_logo_path(theme='light', compact=true)) }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/branding.css') }}">
+    <style>
+        :root { color-scheme: light; }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background: #f4f7fb;
+            color: #17324d;
+            font-family: Arial, sans-serif;
+        }
+        .demo-access {
+            width: min(680px, 100%);
+            padding: 32px;
+            border: 1px solid #d4dfec;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 16px 38px rgba(25, 51, 77, 0.08);
+        }
+        .demo-access__brand { width: 190px; margin-bottom: 28px; }
+        .demo-access__eyebrow {
+            margin: 0 0 8px;
+            color: #a35312;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        h1 { margin: 0 0 12px; font-size: 32px; line-height: 1.2; }
+        p { margin: 0 0 12px; color: #52677d; line-height: 1.65; }
+        .demo-access__notice {
+            margin: 22px 0;
+            padding: 16px;
+            border-left: 4px solid #d08a32;
+            background: #fff8e8;
+        }
+        .demo-access__actions { display: flex; flex-wrap: wrap; gap: 10px; }
+        .demo-access__button {
+            display: inline-flex;
+            align-items: center;
+            min-height: 42px;
+            padding: 10px 16px;
+            border: 1px solid #174f86;
+            border-radius: 6px;
+            background: #174f86;
+            color: #fff;
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .demo-access__button.secondary { background: #fff; color: #174f86; }
+    </style>
+</head>
+<body>
+    <main class="demo-access">
+        <div class="demo-access__brand">{{ tis_logo(theme="light", compact=false, alt="TIS") }}</div>
+        <p class="demo-access__eyebrow">Customer Demo Workspace</p>
+        <h1>{% if is_expired %}Your TIS demo has expired{% else %}Demo access is unavailable{% endif %}</h1>
+        {% if is_expired %}
+        <p>The standard seven-day demo period for {{ school_group.name if school_group else 'this workspace' }} has ended.</p>
+        <div class="demo-access__notice">
+            Operational access is now blocked. Your workspace, users, branches, and tenant data remain preserved.
+        </div>
+        <p>A subscription is required to restore operational access.</p>
+        {% else %}
+        <p>We could not safely confirm this demo workspace's commercial access state.</p>
+        <div class="demo-access__notice">Please contact TIS Support. Your workspace data remains preserved.</div>
+        {% endif %}
+        <div class="demo-access__actions">
+            <a class="demo-access__button" href="/saas/login?next_path=/saas/subscription">Subscribe Now</a>
+            <a class="demo-access__button secondary" href="/logout">Sign Out</a>
+        </div>
+    </main>
+</body>
+</html>

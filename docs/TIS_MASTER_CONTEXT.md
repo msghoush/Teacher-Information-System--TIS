@@ -174,6 +174,10 @@ M8B-4 consumes an approved request through a separate demo-provisioning aggregat
 
 The workspace, entitlement, tenant link, request linkage, and activation transition are atomic. Failure rolls back those records while preserving the approved request and a retryable provisioning failure record. Success activates the customer-demo workspace and entitlement, records activation metadata and internal audit events, and prevents a second provisioning attempt. Platform Owners see detailed provisioning outcomes; customers see only Approved, Provisioning In Progress, Demo Active, or a safe support state.
 
+M8B-5 makes the M8B-4 activation timestamp the only demo clock authority. The resolver derives Day 6 and Day 7 boundaries, validates persisted lifecycle metadata, converts values to the organization's timezone only for display, and fails closed on inconsistent ownership, entitlement, timestamps, or timezone.
+
+The idempotent lifecycle processor creates internal reminder notifications on Day 6 and atomically expires demos at Day 7. Expiration ends the demo entitlement, suspends the SchoolGroup, marks the demo tenant link expired, updates the commercial snapshot to suspended, and preserves every operational row. The operational request middleware enforces the resolver for customer-demo tenant users on every request, so an existing authenticated session cannot bypass expiration. Web users receive the preserved-data/subscription page; API and download requests receive a safe 403. Platform administration, paid tenants, and internal sandboxes bypass this demo-only gate.
+
 ## SaaS Routes And Account Experience
 
 Core SaaS routes:

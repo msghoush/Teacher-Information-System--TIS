@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 
@@ -13,6 +14,7 @@ from ui_shell import build_shell_context
 
 
 templates = Jinja2Templates(directory="templates")
+logger = logging.getLogger("tis.authorization")
 
 
 @dataclass(frozen=True)
@@ -245,6 +247,96 @@ def _is_api_or_download_request(request: Request) -> bool:
         return True
     accept = str(request.headers.get("accept") or "").lower()
     return "application/json" in accept and "text/html" not in accept
+
+
+def enforce_workspace_commercial_access(
+    request: Request,
+    db: Session,
+    *,
+    current_user=None,
+):
+    path = str(request.url.path or "")
+    if (
+        current_user is None
+        or auth.is_platform_user(current_user)
+        or is_public_path(path)
+        or path == "/demo-expired"
+        or path.startswith("/static/")
+        or path.startswith("/landing-public/")
+        or path == "/saas"
+        or path.startswith("/saas/")
+        or path == "/saas-admin"
+        or path.startswith("/saas-admin/")
+    ):
+        return None
+
+    school_group_id = (
+        getattr(current_user, "scope_school_group_id", None)
+        or auth.get_user_school_group_id(db, current_user)
+    )
+    if not school_group_id:
+        return None
+    from models import SchoolGroup
+    from saas import demo_lifecycle_service
+    from workspace_classification import WorkspaceClassification
+
+    school_group = db.query(SchoolGroup).filter(
+        SchoolGroup.id == school_group_id
+    ).one_or_none()
+    if (
+        school_group is None
+        or school_group.workspace_classification
+        != WorkspaceClassification.CUSTOMER_DEMO.value
+    ):
+        return None
+
+    lifecycle = demo_lifecycle_service.resolve_demo_lifecycle(
+        db,
+        school_group_id=school_group_id,
+    )
+    if lifecycle.can_access:
+        return None
+    try:
+        if demo_lifecycle_service.record_access_blocked(
+            db,
+            school_group_id,
+            current_user,
+        ):
+            db.commit()
+    except Exception:
+        db.rollback()
+        logger.warning(
+            "Unable to record deduplicated demo access block school_group_id=%s",
+            school_group_id,
+            exc_info=True,
+        )
+
+    detail = (
+        "This demo has expired. Operational access is unavailable, but workspace "
+        "data remains preserved."
+        if lifecycle.lifecycle_state == "expired"
+        else "Demo access is currently unavailable. Please contact TIS Support."
+    )
+    if _is_api_or_download_request(request):
+        return JSONResponse(
+            {
+                "detail": detail,
+                "code": (
+                    "demo_expired"
+                    if lifecycle.lifecycle_state == "expired"
+                    else "demo_access_unavailable"
+                ),
+            },
+            status_code=403,
+        )
+    return RedirectResponse(
+        url=(
+            "/demo-expired?state=expired"
+            if lifecycle.lifecycle_state == "expired"
+            else "/demo-expired?state=unavailable"
+        ),
+        status_code=302,
+    )
 
 
 def build_access_denied_response(

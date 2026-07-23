@@ -151,6 +151,16 @@ Demo provisioning reuses the paid provisioning engine's shared workspace-record 
 
 Workspace records, the demo entitlement, tenant link, request linkage, and activation are committed atomically. A failed attempt rolls the workspace changes back, leaves the request Approved and unprovisioned, and records a retryable failure outcome. Successful activation sets the SchoolGroup and demo entitlement active, records activation metadata and audit/internal events, and prevents duplicate provisioning. M8B-4 sends no email and implements no expiration, scheduler, login restriction, or conversion behavior.
 
+## M8B-5 Standard Customer Demo Lifecycle
+
+Every customer-demo workspace lasts exactly seven days from the M8B-4 `activated_at` timestamp. Day 6 reminder and Day 7 expiration timestamps are derived from that single authority, calculated with timezone-aware UTC values, and displayed in the onboarding organization's IANA timezone. Missing or inconsistent timestamps fail closed.
+
+`saas.demo_lifecycle_service` is the authoritative read-only resolver and independently callable processor. It resolves Active, Reminder Due, Expired, Suspended, or Manual Review; creates idempotent internal Day 6 notifications for the requesting SaaS account and active Platform Owners; and atomically ends the demo entitlement and suspends the SchoolGroup at expiration. Workspace users, branches, and all tenant data remain preserved.
+
+The operational authentication middleware checks customer-demo commercial access on every protected request, including existing sessions. Active and reminder-due demos continue normally. Expired or ambiguous demos are redirected to the subscription activation experience, while protected API/download requests receive a customer-safe 403. Platform users, paid workspaces, internal sandboxes, public/authentication routes, secure logout, and SaaS subscription routes are unaffected. Access-block auditing is deduplicated.
+
+Run the lifecycle processor safely with `python scripts/process_demo_lifecycle.py --dry-run`; use `--apply` only for scheduled execution after validating the report. M8B-5 sends no email and adds no extension, conversion, archive, deletion, or read-only expired mode.
+
 ## Current SaaS Account Verification State
 
 Phase 1 TIS Account email verification recovery is accepted. Valid verification links now mark the SaaS account email verified/active and redirect to the TIS Account login page with a professional success notice so the customer can continue school workspace setup.

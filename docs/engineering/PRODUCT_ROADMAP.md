@@ -67,6 +67,10 @@ Added the post-onboarding Request Demo or Subscribe Now choice, validated review
 
 Added Platform Owner-triggered provisioning for approved customer-demo requests. The flow reuses the operational provisioning engine, creates an explicit demo entitlement and demo-sourced tenant link, activates atomically, records retryable failure and activation events, and creates no paid billing evidence.
 
+### M8B-5 Standard Customer Demo Lifecycle
+
+Added the activation-based seven-day demo clock, Day 6 internal reminders, Day 7 atomic expiration, data-preserving workspace suspension, server-side web/API access enforcement, customer subscription guidance, owner lifecycle visibility, and a dry-run/default scheduled processor.
+
 ## Current
 
 ### KMS Enforcement Review
@@ -79,9 +83,9 @@ The product is preparing for stronger public customer journey work from landing 
 
 ## Next
 
-### M8B-5 Demo Lifecycle
+### M8B-6 Next Approved Commercial Package
 
-Proceed only from a separately approved M8B-5 specification. Demo expiration, schedulers, reminders, login restrictions, conversion, suspension workflows, memberships, and Al-Andalus migration remain unimplemented.
+Proceed only from a separately approved M8B-6 specification. Demo-to-paid conversion, manual extension/override, internal-sandbox conversion, special migrations, memberships, ownership transfer, and expanded role architecture remain unimplemented.
 
 ### Premium Landing Page Redesign
 
