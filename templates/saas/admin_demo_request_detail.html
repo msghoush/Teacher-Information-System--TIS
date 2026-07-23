@@ -22,7 +22,7 @@
     <div>
         <span class="page-eyebrow">Demo Review</span>
         <h1>{{ card.organization.organization_name if card.organization else 'Organization unavailable' }}</h1>
-        <p class="page-subtitle">Review the submitted organization and commercial snapshot. No action on this page provisions or activates a workspace.</p>
+        <p class="page-subtitle">Review the approved organization, commercial snapshot, and demo workspace activation state.</p>
     </div>
     <span class="demo-review-status {{ status_tone }}">{{ status_label }}</span>
 </div>
@@ -51,13 +51,25 @@
     </div>
 </section>
 
+<section class="demo-review-section">
+    <h2>Demo Workspace Provisioning</h2>
+    <div class="demo-review-grid">
+        <div class="stat"><strong>Provisioning Status</strong><p><span class="demo-review-status {{ provisioning_status_tone }}">{{ provisioning_status_label }}</span></p></div>
+        <div class="stat"><strong>Activation Time</strong><p>{{ demo_provisioning.activated_at.strftime('%B %d, %Y at %H:%M UTC') if demo_provisioning and demo_provisioning.activated_at else 'Not available' }}</p></div>
+        <div class="stat"><strong>Provisioning Result</strong><p>{{ demo_provisioning.result_code|replace('_', ' ')|title if demo_provisioning and demo_provisioning.result_code else 'Not available' }}</p></div>
+    </div>
+    {% if demo_provisioning and demo_provisioning.provisioning_status == 'failed' %}
+    <div class="error" style="margin-top:12px;"><strong>Failure Reason</strong><br>{{ demo_provisioning.failure_reason or 'No diagnostic reason was recorded.' }}</div>
+    {% endif %}
+</section>
+
 {% if demo_request.status == 'pending_review' %}
 <section class="demo-review-section" aria-label="Review actions">
     <h2>Review Actions</h2>
     <div class="demo-review-actions">
         <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/approve">
             <h3>Approve Request</h3>
-            <p class="muted">Record approval only. Demo provisioning remains unavailable until M8B-4.</p>
+            <p class="muted">Record approval only. Approval does not automatically provision or activate a workspace.</p>
             <button class="btn" type="submit">Approve</button>
         </form>
         <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/reject">
@@ -75,6 +87,15 @@
 </section>
 {% elif demo_request.status == 'rejected' %}
 <section class="demo-review-section"><h2>Rejection Reason</h2><div class="error">{{ demo_request.rejection_reason }}</div></section>
+{% elif demo_request.status == 'approved' and (not demo_provisioning or demo_provisioning.provisioning_status == 'failed') %}
+<section class="demo-review-section" aria-label="Demo provisioning action">
+    <h2>Workspace Activation</h2>
+    <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/provision">
+        <h3>{% if demo_provisioning %}Retry Demo Provisioning{% else %}Provision Demo Workspace{% endif %}</h3>
+        <p class="muted">Create and activate the approved Customer Demo workspace. No Paddle transaction, subscription, or email will be created.</p>
+        <button class="btn" type="submit">{% if demo_provisioning %}Retry Provisioning{% else %}Provision and Activate{% endif %}</button>
+    </form>
+ </section>
 {% endif %}
 
 <section class="demo-review-section">
@@ -85,6 +106,17 @@
         {% else %}<p class="muted">No request events are available.</p>{% endfor %}
     </div>
 </section>
+
+{% if provisioning_events %}
+<section class="demo-review-section">
+    <h2>Provisioning History</h2>
+    <div class="demo-event-list">
+        {% for event in provisioning_events %}
+        <div class="demo-event"><span>{{ event.event_type|replace('_', ' ')|title }} <span class="muted">({{ event.event_category }})</span></span><time>{{ event.created_at.strftime('%b %d, %Y %H:%M UTC') if event.created_at else '' }}</time></div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
 
 <div class="actions" style="margin-top:22px;"><a class="btn secondary" href="/saas-admin/demo-requests">Back to Review Queue</a></div>
 {% endblock %}

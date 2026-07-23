@@ -1,7 +1,7 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-07-22
+last_updated: 2026-07-23
 source_of_truth: true
 ---
 
@@ -26,6 +26,35 @@ PDF regenerated:
 AI project context updated:
 Reviewer/approval notes:
 ```
+
+## 2026-07-23 - M8B-4 Demo Workspace Provisioning And Activation
+
+Area/module:
+Approved SaaS demo requests, operational workspace provisioning, commercial entitlement activation, Platform Console, and customer status
+
+Previous state:
+Platform Owner approval created review evidence only. No supported path could create or activate a customer-demo workspace without entering the paid subscription lifecycle.
+
+New state:
+Platform Owners can provision an approved, coherent customer-demo request. TIS reuses the shared operational workspace builder, creates an explicit demo entitlement and demo-sourced tenant link, activates the workspace atomically, records provisioning and activation events, and prevents duplicate provisioning. Failures roll back workspace changes while preserving the Approved request and retryable failure details.
+
+Reason:
+Approved demos require operational access without fabricating Paddle, payment, or subscription-contract evidence.
+
+Files changed:
+Demo provisioning enums, models, migration, service, shared provisioning builder, owner/customer routes and templates, lifecycle display, tests, ADR, and KMS.
+
+Documentation updated:
+AI context, master context, project state, database architecture, module map, flows, roadmap, ADR, and SaaS onboarding history.
+
+PDF regenerated:
+Yes, through `python scripts/kms.py sync`.
+
+AI project context updated:
+Yes.
+
+Reviewer/approval notes:
+M8B-4 only. No expiration, reminder, scheduler, login blocking, conversion, suspension workflow, billing/Paddle change, membership, Al-Andalus migration, commit, or push.
 
 ## 2026-07-22 - M8B-3 Demo Request Workflow
 

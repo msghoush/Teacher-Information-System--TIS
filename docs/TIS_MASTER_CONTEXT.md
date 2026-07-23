@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
 documentation_version: 3.1
-last_updated: 2026-07-22
+last_updated: 2026-07-23
 source_of_truth: true
 ---
 
@@ -169,6 +169,10 @@ Paid workspace resolution delegates plan capabilities and paid branch quantity t
 M8B-3 introduces a separate SaaS demo-request aggregate after onboarding review. A verified customer with complete onboarding may choose Request Demo or Subscribe Now. Subscribe Now preserves the existing plan-selection and Paddle path. Request Demo captures immutable commercial/classification/entitlement context and starts in Pending Review without creating an operational workspace.
 
 Only Platform Owners can approve, reject, or cancel requests. Approval creates a review record but does not provision or activate a demo. Rejection requires a reason, and customers may withdraw only while review is pending. Durable request events serve both audit and internal-notification purposes; email delivery remains out of scope.
+
+M8B-4 consumes an approved request through a separate demo-provisioning aggregate. Provisioning reuses the shared operational workspace builder but creates a customer-demo SchoolGroup and explicit demo entitlement without a Paddle object, payment subscription, or subscription contract. `TenantProvisioningLink` accepts exactly one commercial source: a paid `SubscriptionContract` or an approved `SaaSDemoRequest`.
+
+The workspace, entitlement, tenant link, request linkage, and activation transition are atomic. Failure rolls back those records while preserving the approved request and a retryable provisioning failure record. Success activates the customer-demo workspace and entitlement, records activation metadata and internal audit events, and prevents a second provisioning attempt. Platform Owners see detailed provisioning outcomes; customers see only Approved, Provisioning In Progress, Demo Active, or a safe support state.
 
 ## SaaS Routes And Account Experience
 

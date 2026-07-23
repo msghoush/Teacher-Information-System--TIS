@@ -1,7 +1,7 @@
 ---
 title: TIS Architecture Decision Records
-documentation_version: 2.0
-last_updated: 2026-06-26
+documentation_version: 3.1
+last_updated: 2026-07-23
 ---
 
 # Architecture Decision Records
@@ -31,3 +31,7 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0005-delayed-tenant-provisioning-after-verified-payment.md`
 - `0006-documentation-as-source-knowledge-management-system.md`
 - `0007-landing-page-visual-system-strategy.md`
+- `0008-workspace-classification-foundation.md`
+- `0009-commercial-state-and-entitlement-resolution.md`
+- `0010-review-only-saas-demo-requests.md`
+- `0011-demo-workspace-provisioning-and-commercial-source-links.md`

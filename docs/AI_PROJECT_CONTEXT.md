@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-07-22
+last_updated: 2026-07-23
 recommended_first_read: true
 ---
 
@@ -142,6 +142,14 @@ M8B-3 adds the first customer-facing commercial choice after completed onboardin
 The request records the requester, pending organization, submission time, customer-demo classification intent, provisioning commercial-state snapshot, and a fail-closed pre-provisioning entitlement snapshot. It does not create a SchoolGroup, workspace entitlement, subscription, checkout, or Paddle record. The workflow is separate from the legacy public marketing `DemoRequest` lead table.
 
 Platform Owners have a searchable and sortable review queue. Approval records a review decision only; rejection requires a reason; owner cancellation and customer withdrawal are limited to Pending Review. Every transition creates durable audit and internal-notification events, but M8B-3 sends no email and performs no demo provisioning or activation.
+
+## M8B-4 Demo Workspace Provisioning And Activation
+
+M8B-4 adds a Platform Owner-only provisioning action for an approved SaaS demo request. The service fails closed unless the approval review, organization, customer-demo intent, pre-provisioning commercial snapshot, and entitlement snapshot remain coherent and no workspace has already been provisioned.
+
+Demo provisioning reuses the paid provisioning engine's shared workspace-record builder for the SchoolGroup, branches, academic year, owner user, account link, role permissions, and branding. It creates no Paddle, payment, subscription-contract, payment-subscription, checkout, or billing record. A demo-backed `TenantProvisioningLink` identifies the operational tenant without fabricating a paid contract.
+
+Workspace records, the demo entitlement, tenant link, request linkage, and activation are committed atomically. A failed attempt rolls the workspace changes back, leaves the request Approved and unprovisioned, and records a retryable failure outcome. Successful activation sets the SchoolGroup and demo entitlement active, records activation metadata and audit/internal events, and prevents duplicate provisioning. M8B-4 sends no email and implements no expiration, scheduler, login restriction, or conversion behavior.
 
 ## Current SaaS Account Verification State
 

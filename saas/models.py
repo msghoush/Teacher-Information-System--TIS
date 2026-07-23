@@ -475,6 +475,105 @@ class SaaSDemoRequestEvent(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class SaaSDemoWorkspaceProvisioning(Base):
+    __tablename__ = "saas_demo_workspace_provisioning"
+    __table_args__ = (
+        Index("uq_saas_demo_workspace_provisioning_uuid", "provisioning_uuid", unique=True),
+        Index("uq_saas_demo_workspace_provisioning_request", "demo_request_id", unique=True),
+        Index("uq_saas_demo_workspace_provisioning_group", "school_group_id", unique=True),
+        Index(
+            "uq_saas_demo_workspace_provisioning_entitlement",
+            "workspace_entitlement_id",
+            unique=True,
+        ),
+        Index(
+            "uq_saas_demo_workspace_provisioning_tenant_link",
+            "tenant_provisioning_link_id",
+            unique=True,
+        ),
+        Index("ix_saas_demo_workspace_provisioning_status", "provisioning_status"),
+        CheckConstraint(
+            "provisioning_status IN ('provisioning','active','failed')",
+            name="ck_saas_demo_workspace_provisioning_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    provisioning_uuid = Column(
+        String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4())
+    )
+    demo_request_id = Column(
+        Integer,
+        ForeignKey("saas_demo_requests.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    school_group_id = Column(
+        Integer, ForeignKey("school_groups.id", ondelete="SET NULL"), unique=True, index=True
+    )
+    workspace_entitlement_id = Column(
+        Integer,
+        ForeignKey("workspace_entitlements.id", ondelete="SET NULL"),
+        unique=True,
+        index=True,
+    )
+    tenant_provisioning_link_id = Column(
+        Integer,
+        ForeignKey("tenant_provisioning_links.id", ondelete="SET NULL"),
+        unique=True,
+        index=True,
+    )
+    triggered_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    provisioning_status = Column(String(24), nullable=False, default="provisioning")
+    attempt_count = Column(Integer, nullable=False, default=0)
+    result_code = Column(String(80))
+    failure_reason = Column(Text)
+    started_at = Column(DateTime)
+    completed_at = Column(DateTime)
+    activated_at = Column(DateTime)
+    failed_at = Column(DateTime)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SaaSDemoProvisioningEvent(Base):
+    __tablename__ = "saas_demo_provisioning_events"
+    __table_args__ = (
+        Index("ix_saas_demo_provisioning_events_provisioning", "demo_provisioning_id"),
+        Index("ix_saas_demo_provisioning_events_category", "event_category"),
+        Index("ix_saas_demo_provisioning_events_type", "event_type"),
+        Index("ix_saas_demo_provisioning_events_created", "created_at"),
+        CheckConstraint(
+            "event_category IN ('audit','notification')",
+            name="ck_saas_demo_provisioning_events_category",
+        ),
+        CheckConstraint(
+            "event_type IN ('provisioning_started','provisioning_completed','provisioning_failed','activation_completed')",
+            name="ck_saas_demo_provisioning_events_type",
+        ),
+        CheckConstraint(
+            "actor_type IN ('platform_owner','system')",
+            name="ck_saas_demo_provisioning_events_actor_type",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    demo_provisioning_id = Column(
+        Integer,
+        ForeignKey("saas_demo_workspace_provisioning.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    event_category = Column(String(20), nullable=False)
+    event_type = Column(String(40), nullable=False)
+    actor_type = Column(String(24), nullable=False)
+    actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    event_status = Column(String(20), nullable=False, default="ok")
+    details_json = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class PendingOrganizationNote(Base):
     __tablename__ = "pending_organization_notes"
     __table_args__ = (
@@ -1076,13 +1175,25 @@ class TenantProvisioningLink(Base):
     __table_args__ = (
         Index("uq_tenant_provisioning_links_pending_org", "pending_organization_id", unique=True),
         Index("uq_tenant_provisioning_links_contract", "subscription_contract_id", unique=True),
+        Index("uq_tenant_provisioning_links_demo_request", "demo_request_id", unique=True),
         Index("uq_tenant_provisioning_links_school_group", "school_group_id", unique=True),
         Index("ix_tenant_provisioning_links_status", "tenant_status"),
+        CheckConstraint(
+            "(subscription_contract_id IS NOT NULL AND demo_request_id IS NULL) OR "
+            "(subscription_contract_id IS NULL AND demo_request_id IS NOT NULL)",
+            name="ck_tenant_provisioning_links_commercial_source",
+        ),
     )
 
     id = Column(Integer, primary_key=True)
     pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, unique=True, index=True)
-    subscription_contract_id = Column(Integer, ForeignKey("subscription_contracts.id"), nullable=False, unique=True, index=True)
+    subscription_contract_id = Column(Integer, ForeignKey("subscription_contracts.id"), unique=True, index=True)
+    demo_request_id = Column(
+        Integer,
+        ForeignKey("saas_demo_requests.id"),
+        unique=True,
+        index=True,
+    )
     school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, unique=True, index=True)
     owner_operational_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     primary_branch_id = Column(Integer, ForeignKey("branches.id"), index=True)

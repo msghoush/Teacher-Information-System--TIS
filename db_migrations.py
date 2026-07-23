@@ -3621,6 +3621,235 @@ def _saas_demo_request_workflow(engine, connection):
     )
 
 
+def _sqlite_generalize_tenant_provisioning_links(connection):
+    columns = {
+        column["name"]: column
+        for column in inspect(connection).get_columns("tenant_provisioning_links")
+    }
+    contract_column = columns.get("subscription_contract_id")
+    if (
+        "demo_request_id" in columns
+        and contract_column is not None
+        and bool(contract_column.get("nullable"))
+    ):
+        return
+
+    _execute(connection, "PRAGMA defer_foreign_keys = ON")
+    _execute(connection, "PRAGMA legacy_alter_table = ON")
+    _execute(
+        connection,
+        "ALTER TABLE tenant_provisioning_links RENAME TO tenant_provisioning_links_m8b4_legacy",
+    )
+    _execute(
+        connection,
+        """
+        CREATE TABLE tenant_provisioning_links (
+            id INTEGER PRIMARY KEY,
+            pending_organization_id INTEGER NOT NULL,
+            subscription_contract_id INTEGER,
+            demo_request_id INTEGER,
+            school_group_id INTEGER NOT NULL,
+            owner_operational_user_id INTEGER NOT NULL,
+            primary_branch_id INTEGER,
+            primary_academic_year_id INTEGER,
+            tenant_status VARCHAR(30) NOT NULL DEFAULT 'tenant_active',
+            activated_at DATETIME,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_tenant_provisioning_links_commercial_source CHECK (
+                (subscription_contract_id IS NOT NULL AND demo_request_id IS NULL)
+                OR (subscription_contract_id IS NULL AND demo_request_id IS NOT NULL)
+            ),
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            FOREIGN KEY (subscription_contract_id) REFERENCES subscription_contracts (id),
+            FOREIGN KEY (demo_request_id) REFERENCES saas_demo_requests (id),
+            FOREIGN KEY (school_group_id) REFERENCES school_groups (id),
+            FOREIGN KEY (owner_operational_user_id) REFERENCES users (id),
+            FOREIGN KEY (primary_branch_id) REFERENCES branches (id),
+            FOREIGN KEY (primary_academic_year_id) REFERENCES academic_years (id)
+        )
+        """,
+    )
+    _execute(
+        connection,
+        """
+        INSERT INTO tenant_provisioning_links (
+            id, pending_organization_id, subscription_contract_id, demo_request_id,
+            school_group_id, owner_operational_user_id, primary_branch_id,
+            primary_academic_year_id, tenant_status, activated_at, created_at, updated_at
+        )
+        SELECT
+            id, pending_organization_id, subscription_contract_id, NULL,
+            school_group_id, owner_operational_user_id, primary_branch_id,
+            primary_academic_year_id, tenant_status, activated_at, created_at, updated_at
+        FROM tenant_provisioning_links_m8b4_legacy
+        """,
+    )
+    _execute(connection, "DROP TABLE tenant_provisioning_links_m8b4_legacy")
+    _execute(connection, "PRAGMA legacy_alter_table = OFF")
+
+
+def _demo_workspace_provisioning(engine, connection):
+    datetime_type = _datetime_type(engine)
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+
+    if engine.dialect.name == "sqlite":
+        _sqlite_generalize_tenant_provisioning_links(connection)
+    else:
+        _add_column_if_missing(
+            connection,
+            connection,
+            "tenant_provisioning_links",
+            "demo_request_id",
+            "demo_request_id INTEGER",
+        )
+        _execute(
+            connection,
+            """
+            ALTER TABLE tenant_provisioning_links
+            ALTER COLUMN subscription_contract_id DROP NOT NULL
+            """,
+        )
+        _ensure_postgres_fk(
+            engine,
+            connection,
+            table_name="tenant_provisioning_links",
+            constraint_name="fk_tenant_provisioning_links_demo_request",
+            column_name="demo_request_id",
+            target_table="saas_demo_requests",
+        )
+        if not _check_constraint_exists(
+            connection,
+            "tenant_provisioning_links",
+            "ck_tenant_provisioning_links_commercial_source",
+        ):
+            _execute(
+                connection,
+                """
+                ALTER TABLE tenant_provisioning_links
+                ADD CONSTRAINT ck_tenant_provisioning_links_commercial_source
+                CHECK (
+                    (subscription_contract_id IS NOT NULL AND demo_request_id IS NULL)
+                    OR (subscription_contract_id IS NULL AND demo_request_id IS NOT NULL)
+                ) NOT VALID
+                """,
+            )
+            _execute(
+                connection,
+                """
+                ALTER TABLE tenant_provisioning_links
+                VALIDATE CONSTRAINT ck_tenant_provisioning_links_commercial_source
+                """,
+            )
+
+    for index_name, column_name, unique in (
+        ("uq_tenant_provisioning_links_pending_org", "pending_organization_id", True),
+        ("uq_tenant_provisioning_links_contract", "subscription_contract_id", True),
+        ("uq_tenant_provisioning_links_demo_request", "demo_request_id", True),
+        ("uq_tenant_provisioning_links_school_group", "school_group_id", True),
+        ("ix_tenant_provisioning_links_status", "tenant_status", False),
+    ):
+        creator = _create_unique_index_if_missing if unique else _create_index_if_missing
+        creator(
+            connection,
+            connection,
+            "tenant_provisioning_links",
+            index_name,
+            column_name,
+        )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_demo_workspace_provisioning (
+            id {id_sql},
+            provisioning_uuid VARCHAR(36) NOT NULL UNIQUE,
+            demo_request_id INTEGER NOT NULL UNIQUE,
+            school_group_id INTEGER UNIQUE,
+            workspace_entitlement_id INTEGER UNIQUE,
+            tenant_provisioning_link_id INTEGER UNIQUE,
+            triggered_by_user_id INTEGER,
+            provisioning_status VARCHAR(24) NOT NULL DEFAULT 'provisioning',
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            result_code VARCHAR(80),
+            failure_reason TEXT,
+            started_at {datetime_type},
+            completed_at {datetime_type},
+            activated_at {datetime_type},
+            failed_at {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_saas_demo_workspace_provisioning_status
+                CHECK (provisioning_status IN ('provisioning','active','failed')),
+            FOREIGN KEY (demo_request_id) REFERENCES saas_demo_requests(id) ON DELETE CASCADE,
+            FOREIGN KEY (school_group_id) REFERENCES school_groups(id) ON DELETE SET NULL,
+            FOREIGN KEY (workspace_entitlement_id) REFERENCES workspace_entitlements(id) ON DELETE SET NULL,
+            FOREIGN KEY (tenant_provisioning_link_id) REFERENCES tenant_provisioning_links(id) ON DELETE SET NULL,
+            FOREIGN KEY (triggered_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+        """,
+    )
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_demo_provisioning_events (
+            id {id_sql},
+            demo_provisioning_id INTEGER NOT NULL,
+            event_category VARCHAR(20) NOT NULL,
+            event_type VARCHAR(40) NOT NULL,
+            actor_type VARCHAR(24) NOT NULL,
+            actor_user_id INTEGER,
+            event_status VARCHAR(20) NOT NULL DEFAULT 'ok',
+            details_json TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_saas_demo_provisioning_events_category
+                CHECK (event_category IN ('audit','notification')),
+            CONSTRAINT ck_saas_demo_provisioning_events_type
+                CHECK (event_type IN ('provisioning_started','provisioning_completed','provisioning_failed','activation_completed')),
+            CONSTRAINT ck_saas_demo_provisioning_events_actor_type
+                CHECK (actor_type IN ('platform_owner','system')),
+            FOREIGN KEY (demo_provisioning_id)
+                REFERENCES saas_demo_workspace_provisioning(id) ON DELETE CASCADE,
+            FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+        """,
+    )
+    for table_name, index_name, column_name in (
+        (
+            "saas_demo_workspace_provisioning",
+            "ix_saas_demo_workspace_provisioning_status",
+            "provisioning_status",
+        ),
+        (
+            "saas_demo_provisioning_events",
+            "ix_saas_demo_provisioning_events_provisioning",
+            "demo_provisioning_id",
+        ),
+        (
+            "saas_demo_provisioning_events",
+            "ix_saas_demo_provisioning_events_category",
+            "event_category",
+        ),
+        (
+            "saas_demo_provisioning_events",
+            "ix_saas_demo_provisioning_events_type",
+            "event_type",
+        ),
+        (
+            "saas_demo_provisioning_events",
+            "ix_saas_demo_provisioning_events_created",
+            "created_at",
+        ),
+    ):
+        _create_index_if_missing(
+            connection,
+            connection,
+            table_name,
+            index_name,
+            column_name,
+        )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -3766,6 +3995,11 @@ MIGRATIONS = (
         migration_id="20260722_004_saas_demo_request_workflow",
         description="Add the customer demo request and Platform Owner review workflow",
         apply=_saas_demo_request_workflow,
+    ),
+    Migration(
+        migration_id="20260723_001_demo_workspace_provisioning",
+        description="Add atomic customer demo workspace provisioning and activation records",
+        apply=_demo_workspace_provisioning,
     ),
 )
 

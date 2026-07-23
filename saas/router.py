@@ -12,7 +12,7 @@ from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import billing_history_service, billing_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import billing_history_service, billing_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -1000,11 +1000,15 @@ def account_dashboard(request: Request, db: Session = Depends(get_db)):
         else None
     )
     demo_request = demo_request_service.get_latest_for_organization(db, organization)
+    demo_provisioning = demo_provisioning_service.get_provisioning_for_request(
+        db, demo_request
+    )
     if organization is not None and current_plan_selection is None:
         setup_console = demo_request_service.apply_customer_setup_context(
             setup_console,
             organization,
             demo_request,
+            demo_provisioning,
         )
     db.commit()
     return _render(
@@ -1015,6 +1019,7 @@ def account_dashboard(request: Request, db: Session = Depends(get_db)):
             "notice": request.query_params.get("notice", ""),
             "setup_console": setup_console,
             "demo_request": demo_request,
+            "demo_provisioning": demo_provisioning,
         },
     )
 
@@ -2281,6 +2286,13 @@ def customer_demo_request_status(
             "status_label": demo_request_service.status_label(row.status),
             "status_tone": demo_request_service.status_tone(row.status),
             "branch_count": card.branch_count,
+            "demo_provisioning": card.provisioning,
+            "provisioning_status_label": demo_provisioning_service.provisioning_status_label(
+                card.provisioning
+            ),
+            "provisioning_status_tone": demo_provisioning_service.provisioning_status_tone(
+                card.provisioning
+            ),
             "notice": request.query_params.get("notice", ""),
             "error": request.query_params.get("error", ""),
         },
@@ -2749,6 +2761,9 @@ def demo_request_review_detail(
         raise HTTPException(status_code=404, detail="Demo request not found.")
     card = demo_request_service.build_request_card(db, row)
     events = demo_request_service.list_events(db, row)
+    provisioning_events = demo_provisioning_service.list_provisioning_events(
+        db, card.provisioning
+    )
     try:
         entitlement_snapshot = json.loads(row.entitlement_snapshot_json or "{}")
     except (TypeError, ValueError):
@@ -2762,6 +2777,14 @@ def demo_request_review_detail(
             "card": card,
             "demo_request": row,
             "events": events,
+            "provisioning_events": provisioning_events,
+            "demo_provisioning": card.provisioning,
+            "provisioning_status_label": demo_provisioning_service.provisioning_status_label(
+                card.provisioning
+            ),
+            "provisioning_status_tone": demo_provisioning_service.provisioning_status_tone(
+                card.provisioning
+            ),
             "entitlement_snapshot": entitlement_snapshot,
             "status_label": demo_request_service.status_label(row.status),
             "status_tone": demo_request_service.status_tone(row.status),
@@ -2780,6 +2803,54 @@ def _demo_review_audit(current_user, row, *, action: str, result: str) -> None:
         "demo_request_uuid": str(getattr(row, "request_uuid", "") or ""),
         "pending_organization_id": int(getattr(row, "pending_organization_id", 0) or 0),
     })
+
+
+@admin_router.post("/demo-requests/{request_uuid}/provision")
+def provision_approved_demo_request(
+    request_uuid: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    row = demo_request_service.get_request_by_uuid(db, request_uuid)
+    if not row:
+        raise HTTPException(status_code=404, detail="Demo request not found.")
+    try:
+        provisioning = demo_provisioning_service.provision_demo_workspace(
+            db, row, current_user
+        )
+        db.commit()
+    except demo_provisioning_service.DemoProvisioningError as exc:
+        db.rollback()
+        _demo_review_audit(current_user, row, action="provision", result="blocked")
+        return RedirectResponse(
+            f"/saas-admin/demo-requests/{request_uuid}?error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    except Exception:
+        db.rollback()
+        _demo_review_audit(current_user, row, action="provision", result="failed")
+        return RedirectResponse(
+            f"/saas-admin/demo-requests/{request_uuid}?error="
+            + quote_plus("Demo workspace provisioning could not be completed safely."),
+            status_code=302,
+        )
+    result = (
+        "success"
+        if provisioning.provisioning_status == "active"
+        else "failed"
+    )
+    _demo_review_audit(current_user, row, action="provision", result=result)
+    message = (
+        "Demo workspace provisioned and activated."
+        if result == "success"
+        else "Demo workspace provisioning failed. The approved request was preserved."
+    )
+    parameter = "notice" if result == "success" else "error"
+    return RedirectResponse(
+        f"/saas-admin/demo-requests/{request_uuid}?{parameter}={quote_plus(message)}",
+        status_code=302,
+    )
 
 
 @admin_router.post("/demo-requests/{request_uuid}/approve")

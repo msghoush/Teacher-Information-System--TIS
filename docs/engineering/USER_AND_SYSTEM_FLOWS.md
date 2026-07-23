@@ -1,7 +1,7 @@
 ---
 title: TIS User And System Flows
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-07-23
 source_of_truth: true
 ---
 
@@ -52,14 +52,20 @@ Guardrails:
 5. The customer can view status and withdraw only while Pending Review.
 6. A Platform Owner searches, filters, and sorts the review queue.
 7. Approval creates a review record only; rejection requires a reason; owner cancellation is allowed only while pending.
-8. Each action creates durable audit and internal-notification events.
+8. A Platform Owner separately starts provisioning for an Approved request.
+9. TIS revalidates review evidence, customer-demo intent, commercial/entitlement snapshots, organization completeness, and duplicate absence.
+10. One atomic transaction creates the operational workspace through the shared provisioning builder, creates the demo entitlement and demo-sourced tenant link, activates both, and links the request.
+11. Failure rolls back workspace records, leaves the request Approved and unprovisioned, and records a retryable failure outcome.
+12. Each review, provisioning, and activation action creates durable audit and internal-notification events.
 
 Guardrails:
 
-- No request or approval creates a SchoolGroup, workspace entitlement, checkout, payment, or Paddle record.
+- Request and approval alone create no SchoolGroup or entitlement.
+- Demo provisioning creates no checkout, payment, paid subscription, subscription contract, or Paddle record.
 - Duplicate pending requests and invalid terminal transitions fail closed.
 - Non-owner platform users and tenant/customer identities cannot access review actions.
-- M8B-3 does not send email or provision/activate demos.
+- Duplicate, rejected, cancelled, incoherent, or already provisioned requests fail closed.
+- M8B-4 sends no email and does not implement expiration, scheduling, login blocking, or conversion.
 
 ## SaaS Identity Flow
 

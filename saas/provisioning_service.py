@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -33,6 +34,17 @@ JOB_STATUS_COMPLETED = "completed"
 JOB_STATUS_RETRYING = "retrying"
 JOB_STATUS_FAILED = "failed"
 JOB_STATUS_SKIPPED = "skipped"
+
+
+@dataclass(frozen=True)
+class ProvisionedWorkspaceRecords:
+    organization: object
+    account: object
+    school_group: object
+    branches: tuple
+    primary_branch: object
+    academic_year: object
+    owner_user: object
 
 
 def _utcnow() -> datetime:
@@ -386,18 +398,30 @@ def _ensure_tenant_provisioning_link(
     db: Session,
     *,
     organization,
-    contract,
     school_group,
     owner_user,
     primary_branch,
     academic_year,
+    contract=None,
+    demo_request=None,
 ):
+    if (contract is None) == (demo_request is None):
+        raise ValueError("Tenant provisioning requires exactly one commercial source.")
     link = get_tenant_provisioning_link(db, organization)
     if link:
+        if contract is not None and int(getattr(link, "subscription_contract_id", 0) or 0) != int(
+            getattr(contract, "id", 0) or 0
+        ):
+            raise ValueError("Tenant provisioning link belongs to another commercial source.")
+        if demo_request is not None and int(getattr(link, "demo_request_id", 0) or 0) != int(
+            getattr(demo_request, "id", 0) or 0
+        ):
+            raise ValueError("Tenant provisioning link belongs to another commercial source.")
         return link
     link = models.TenantProvisioningLink(
         pending_organization_id=organization.id,
-        subscription_contract_id=contract.id,
+        subscription_contract_id=getattr(contract, "id", None),
+        demo_request_id=getattr(demo_request, "id", None),
         school_group_id=school_group.id,
         owner_operational_user_id=owner_user.id,
         primary_branch_id=getattr(primary_branch, "id", None),
@@ -408,6 +432,71 @@ def _ensure_tenant_provisioning_link(
     db.add(link)
     db.flush()
     return link
+
+
+def ensure_tenant_provisioning_link(
+    db: Session,
+    *,
+    organization,
+    school_group,
+    owner_user,
+    primary_branch,
+    academic_year,
+    contract=None,
+    demo_request=None,
+):
+    return _ensure_tenant_provisioning_link(
+        db,
+        organization=organization,
+        school_group=school_group,
+        owner_user=owner_user,
+        primary_branch=primary_branch,
+        academic_year=academic_year,
+        contract=contract,
+        demo_request=demo_request,
+    )
+
+
+def create_workspace_records(db: Session, organization) -> ProvisionedWorkspaceRecords:
+    account = db.query(models.SaaSAccount).filter(
+        models.SaaSAccount.id == organization.owner_saas_account_id
+    ).first()
+    if not account:
+        raise ValueError("Provisioning owner account is missing.")
+
+    school_group = _create_school_group(db, organization)
+    branches = _create_branches(db, organization, school_group)
+    primary_branch = branches[0]
+    academic_year = _create_academic_year(db, organization, school_group)
+    role_permission_service.seed_tenant_role_permissions(
+        db,
+        school_group_id=school_group.id,
+        updated_by_user_id="system",
+    )
+    owner_user = _create_owner_user(
+        db,
+        account,
+        organization,
+        school_group,
+        primary_branch,
+        academic_year,
+    )
+    _ensure_account_user_link(db, account, owner_user, organization, school_group)
+    _copy_pending_logo_to_school_group(
+        db,
+        organization,
+        school_group.id,
+        getattr(owner_user, "user_id", None),
+    )
+    return ProvisionedWorkspaceRecords(
+        organization=organization,
+        account=account,
+        school_group=school_group,
+        branches=tuple(branches),
+        primary_branch=primary_branch,
+        academic_year=academic_year,
+        owner_user=owner_user,
+    )
 
 
 def _send_activation_email(account, organization):
@@ -583,46 +672,24 @@ def _provision_organization(db: Session, job):
             raise ValueError("Provisioning link exists but school group is missing.")
         return organization, contract, existing_link, school_group, None, None
 
-    account = db.query(models.SaaSAccount).filter(
-        models.SaaSAccount.id == organization.owner_saas_account_id
-    ).first()
-    if not account:
-        raise ValueError("Provisioning owner account is missing.")
-
-    school_group = _create_school_group(db, organization)
-    branches = _create_branches(db, organization, school_group)
-    primary_branch = branches[0]
-    academic_year = _create_academic_year(db, organization, school_group)
-    role_permission_service.seed_tenant_role_permissions(
-        db,
-        school_group_id=school_group.id,
-        updated_by_user_id="system",
-    )
-    owner_user = _create_owner_user(
-        db,
-        account,
-        organization,
-        school_group,
-        primary_branch,
-        academic_year,
-    )
-    _ensure_account_user_link(db, account, owner_user, organization, school_group)
-    _copy_pending_logo_to_school_group(
-        db,
-        organization,
-        school_group.id,
-        getattr(owner_user, "user_id", None),
-    )
+    workspace = create_workspace_records(db, organization)
     tenant_link = _ensure_tenant_provisioning_link(
         db,
         organization=organization,
         contract=contract,
-        school_group=school_group,
-        owner_user=owner_user,
-        primary_branch=primary_branch,
-        academic_year=academic_year,
+        school_group=workspace.school_group,
+        owner_user=workspace.owner_user,
+        primary_branch=workspace.primary_branch,
+        academic_year=workspace.academic_year,
     )
-    return organization, contract, tenant_link, school_group, owner_user, account
+    return (
+        organization,
+        contract,
+        tenant_link,
+        workspace.school_group,
+        workspace.owner_user,
+        workspace.account,
+    )
 
 
 def process_job(db: Session, job):
