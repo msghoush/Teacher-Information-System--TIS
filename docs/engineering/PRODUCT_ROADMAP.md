@@ -1,7 +1,7 @@
 ---
 title: TIS Product Roadmap
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-07-23
 source_of_truth: true
 ---
 
@@ -63,6 +63,10 @@ Added normalized workspace and branch entitlement records, typed feature/limit v
 
 Added the post-onboarding Request Demo or Subscribe Now choice, validated review-only demo requests, customer status/withdrawal, a Platform Owner review queue, constrained review decisions, and durable audit/internal-notification events. Approval does not provision or activate a demo.
 
+### M8B-4 Demo Workspace Provisioning And Activation
+
+Added Platform Owner-triggered provisioning for approved customer-demo requests. The flow reuses the operational provisioning engine, creates an explicit demo entitlement and demo-sourced tenant link, activates atomically, records retryable failure and activation events, and creates no paid billing evidence.
+
 ## Current
 
 ### KMS Enforcement Review
@@ -75,9 +79,9 @@ The product is preparing for stronger public customer journey work from landing 
 
 ## Next
 
-### M8B-4 Demo Provisioning And Activation
+### M8B-5 Demo Lifecycle
 
-Proceed only from a separately approved M8B-4 specification. Demo provisioning, activation, expiration, schedulers, reminders, enforcement, conversion, memberships, and Al-Andalus migration remain unimplemented.
+Proceed only from a separately approved M8B-5 specification. Demo expiration, schedulers, reminders, login restrictions, conversion, suspension workflows, memberships, and Al-Andalus migration remain unimplemented.
 
 ### Premium Landing Page Redesign
 

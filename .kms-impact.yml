@@ -1,9 +1,10 @@
 knowledge_impact: yes
-summary: Add the M8B-3 customer demo-request and Platform Owner review workflow without provisioning or activation.
+summary: Add atomic M8B-4 customer-demo workspace provisioning and activation from approved demo requests.
 affected_areas:
   - database-architecture
   - saas-onboarding
-  - demo-request-lifecycle
+  - demo-workspace-provisioning
+  - commercial-state-and-entitlements
   - permissions-and-audit
   - platform-owner-console
 kms_files_updated:
@@ -15,7 +16,8 @@ kms_files_updated:
   - docs/engineering/TIS_MODULE_MAP.md
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
   - docs/engineering/PRODUCT_ROADMAP.md
-  - docs/adr/0010-review-only-saas-demo-requests.md
+  - docs/adr/README.md
+  - docs/adr/0011-demo-workspace-provisioning-and-commercial-source-links.md
   - docs/history/saas-onboarding/README.md
 no_impact_reason:
 major_change_override: no

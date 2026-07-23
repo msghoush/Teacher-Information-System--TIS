@@ -18,7 +18,7 @@
     <div>
         <span class="page-eyebrow">Demo Request</span>
         <h1>{{ organization.organization_name }}</h1>
-        <p class="page-subtitle">Your submitted request is available here while the TIS team completes its review.</p>
+        <p class="page-subtitle">Track your request and demo workspace activation here.</p>
     </div>
     <span class="demo-status-badge {{ status_tone }}">{{ status_label }}</span>
 </header>
@@ -32,7 +32,15 @@
 {% if demo_request.status == 'pending_review' %}
 <div class="notice" style="margin-top:18px;">Your request is pending Platform Owner review. No workspace or subscription has been created.</div>
 {% elif demo_request.status == 'approved' %}
-<div class="success" style="margin-top:18px;">Your demo request has been approved. Demo provisioning and activation are not part of this stage.</div>
+    {% if demo_provisioning and demo_provisioning.provisioning_status == 'active' %}
+    <div class="success" style="margin-top:18px;"><strong>Demo Active</strong><br>Your demo workspace is ready in the TIS Platform.</div>
+    {% elif demo_provisioning and demo_provisioning.provisioning_status == 'provisioning' %}
+    <div class="notice" style="margin-top:18px;"><strong>Provisioning In Progress</strong><br>Your approved demo workspace is being prepared.</div>
+    {% elif demo_provisioning and demo_provisioning.provisioning_status == 'failed' %}
+    <div class="warning" style="margin-top:18px;"><strong>Workspace Activation Needs Attention</strong><br>Your demo remains approved. Please contact TIS Support.</div>
+    {% else %}
+    <div class="success" style="margin-top:18px;"><strong>Demo Approved</strong><br>Your request is ready for workspace provisioning.</div>
+    {% endif %}
 {% elif demo_request.status == 'rejected' %}
 <div class="error" style="margin-top:18px;">
     <strong>Request not approved</strong><br>
@@ -52,6 +60,8 @@
     <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/commercial-choice/subscribe">
         <button class="btn" type="submit">Subscribe Now</button>
     </form>
+    {% elif demo_provisioning and demo_provisioning.provisioning_status == 'active' %}
+    <a class="btn" href="/login">Enter TIS Platform</a>
     {% endif %}
 </div>
 {% endblock %}

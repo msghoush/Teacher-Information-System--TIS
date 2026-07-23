@@ -1,7 +1,7 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-07-22
+last_updated: 2026-07-23
 source_of_truth: true
 ---
 
@@ -158,9 +158,18 @@ M8B-3 demo-request workflow:
 - Customers can inspect their request and withdraw it only while Pending Review.
 - Submit, approve, reject, cancel, and withdraw transitions create durable audit and internal-notification events. No email is sent.
 
+M8B-4 demo workspace provisioning and activation:
+
+- Only a Platform Owner can provision a coherently approved customer-demo request.
+- Demo provisioning reuses the shared operational workspace builder and creates no Paddle, checkout, payment, subscription, or paid-contract record.
+- Demo workspaces receive an explicit demo entitlement and a tenant link sourced by the demo request rather than a fabricated subscription contract.
+- Workspace creation and activation are atomic; failures preserve the Approved request, roll back workspace records, and retain a retryable failure outcome.
+- Successful provisioning activates the SchoolGroup and entitlement, links the request to the workspace, records activation metadata and audit/internal events, and blocks duplicates.
+- Customers see safe approval/provisioning/active states; Platform Owners see provisioning result and failure details. No email is sent.
+
 ## Current Priority
 
-Current priority: validate M8B-3 review-only demo requests before separately approved M8B-4 demo provisioning and activation work.
+Current priority: validate M8B-4 demo provisioning and activation before any separately approved M8B-5 expiration or lifecycle automation work.
 
 Current enforcement scope:
 

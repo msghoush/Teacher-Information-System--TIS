@@ -1,7 +1,7 @@
 ---
 title: TIS Database Architecture Overview
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-07-23
 source_of_truth: true
 ---
 
@@ -184,6 +184,17 @@ M8B-3 adds three review-only tables:
 
 A partial unique index permits only one Pending Review request per pending organization. Check constraints protect request status, review decision, event category/type/actor, classification snapshot, commercial-state snapshot, and rejection-reason requirements. Migration `20260722_004_saas_demo_request_workflow` creates the records without backfill and without changing existing onboarding, payment, or workspace data.
 
+### Demo Workspace Provisioning Records
+
+M8B-4 adds:
+
+- `saas_demo_workspace_provisioning`: one durable provisioning aggregate per demo request, with optional resulting SchoolGroup, workspace entitlement, and tenant link references; attempt count; status; activation time; and safe result/failure fields.
+- `saas_demo_provisioning_events`: append-only provisioning audit/internal events for started, completed, failed, and activation-completed outcomes.
+
+`tenant_provisioning_links` now permits either `subscription_contract_id` or `demo_request_id`, with a check constraint requiring exactly one source. Existing paid links retain their subscription contract. Demo links cannot carry a contract, and request/source uniqueness prevents one approved request from identifying multiple operational tenants.
+
+Migration `20260723_001_demo_workspace_provisioning` generalizes the existing link without changing paid rows and creates the demo provisioning/event tables. Demo workspace, entitlement, link, request association, and activation updates are performed in one savepoint-backed transaction; failed workspace changes roll back while the outer provisioning aggregate retains the failure for audit and retry.
+
 Related files:
 - `workspace_classification.py`
 - `saas/workspace_classification_service.py`
@@ -198,6 +209,9 @@ Related files:
 - `saas/commercial_state_service.py`
 - `docs/adr/0009-commercial-state-and-entitlement-resolution.md`
 - `demo_workflow.py`
+- `saas/demo_provisioning_service.py`
+- `saas/provisioning_service.py`
+- `docs/adr/0011-demo-workspace-provisioning-and-commercial-source-links.md`
 - `saas/demo_request_service.py`
 - `docs/adr/0010-review-only-saas-demo-requests.md`
 

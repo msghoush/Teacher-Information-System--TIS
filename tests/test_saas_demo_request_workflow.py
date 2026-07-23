@@ -20,7 +20,12 @@ import db_migrations
 import models
 import saas.models
 from dependencies import get_db
-from saas import demo_request_service
+from saas import (
+    commercial_state_service,
+    demo_provisioning_service,
+    demo_request_service,
+    provisioning_service,
+)
 from saas.router import admin_router as saas_admin_router, router as saas_router
 
 
@@ -223,6 +228,15 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         self.extra_clients.append(client)
         return client
 
+    def _approve_demo(self, request_uuid: str, *, user_id: str = "9190"):
+        owner = self._platform_client(user_id=user_id)
+        response = owner.post(
+            f"/saas-admin/demo-requests/{request_uuid}/approve",
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        return owner
+
     def test_customer_choice_offers_demo_or_existing_subscription_workflow(self):
         organization_uuid = self._complete_onboarding()
         page = self.client.get(f"/saas/onboarding/{organization_uuid}/commercial-choice")
@@ -342,7 +356,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         detail = owner.get(f"/saas-admin/demo-requests/{request_uuid}")
         self.assertEqual(detail.status_code, 200)
         self.assertIn("Approve Request", detail.text)
-        self.assertIn("provisions or activates a workspace", detail.text)
+        self.assertIn("does not automatically provision or activate a workspace", detail.text)
 
         with patch("saas.router.audit.write_audit_event") as write_audit:
             approved = owner.post(
@@ -476,6 +490,331 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             db.rollback()
         finally:
             db.close()
+
+    def test_demo_workspace_provisioning_activates_without_billing_or_email(self):
+        organization_uuid = self._complete_onboarding()
+        request_uuid = self._submit_demo(organization_uuid)
+        owner = self._approve_demo(request_uuid, user_id="9191")
+
+        with (
+            patch("email_service.send_email") as send_email,
+            patch("saas.paddle_client.create_transaction") as create_transaction,
+        ):
+            response = owner.post(
+                f"/saas-admin/demo-requests/{request_uuid}/provision",
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("notice=", response.headers["location"])
+        send_email.assert_not_called()
+        create_transaction.assert_not_called()
+
+        db = self._db()
+        try:
+            request_row = db.query(saas.models.SaaSDemoRequest).filter_by(
+                request_uuid=request_uuid
+            ).one()
+            provisioning = db.query(saas.models.SaaSDemoWorkspaceProvisioning).filter_by(
+                demo_request_id=request_row.id
+            ).one()
+            group = db.query(models.SchoolGroup).filter_by(
+                id=request_row.school_group_id
+            ).one()
+            entitlement = db.query(saas.models.WorkspaceEntitlement).filter_by(
+                school_group_id=group.id
+            ).one()
+            tenant_link = db.query(saas.models.TenantProvisioningLink).filter_by(
+                pending_organization_id=request_row.pending_organization_id
+            ).one()
+            self.assertEqual(request_row.status, "approved")
+            self.assertEqual(request_row.commercial_state_snapshot, "customer_demo_active")
+            self.assertEqual(group.workspace_classification, "customer_demo")
+            self.assertEqual(group.workspace_lifecycle_status, "active")
+            self.assertEqual(entitlement.entitlement_type, "demo")
+            self.assertEqual(entitlement.status, "active")
+            self.assertEqual(entitlement.source, "platform")
+            self.assertIsNone(entitlement.payment_subscription_id)
+            self.assertEqual(tenant_link.demo_request_id, request_row.id)
+            self.assertIsNone(tenant_link.subscription_contract_id)
+            self.assertEqual(provisioning.provisioning_status, "active")
+            self.assertEqual(provisioning.result_code, "demo_workspace_active")
+            self.assertIsNotNone(provisioning.activated_at)
+            self.assertEqual(
+                db.query(models.Branch).filter_by(school_group_id=group.id).count(),
+                2,
+            )
+            self.assertEqual(
+                db.query(saas.models.SubscriptionContract).filter_by(
+                    pending_organization_id=request_row.pending_organization_id
+                ).count(),
+                0,
+            )
+            self.assertEqual(db.query(saas.models.PaymentSubscription).count(), 0)
+            self.assertEqual(db.query(saas.models.PaymentAttempt).count(), 0)
+            self.assertEqual(db.query(saas.models.ProvisioningJob).count(), 0)
+            resolution = commercial_state_service.resolve_commercial_state(db, group.id)
+            self.assertTrue(resolution.resolved)
+            self.assertEqual(resolution.commercial_state, "customer_demo_active")
+            event_types = {
+                row.event_type
+                for row in db.query(saas.models.SaaSDemoProvisioningEvent).filter_by(
+                    demo_provisioning_id=provisioning.id
+                ).all()
+            }
+            self.assertEqual(
+                event_types,
+                {
+                    "provisioning_started",
+                    "provisioning_completed",
+                    "activation_completed",
+                },
+            )
+        finally:
+            db.close()
+
+        customer_page = self.client.get(f"/saas/demo-requests/{request_uuid}")
+        self.assertIn("Demo Active", customer_page.text)
+        self.assertIn("Enter TIS Platform", customer_page.text)
+        account_page = self.client.get("/saas/account")
+        self.assertIn("Demo Workspace Activation is complete", account_page.text)
+        self.assertNotIn("Continue to Secure Payment", account_page.text)
+        owner_page = owner.get(f"/saas-admin/demo-requests/{request_uuid}")
+        self.assertIn("Demo Active", owner_page.text)
+        self.assertIn("Demo Workspace Active", owner_page.text)
+
+    def test_demo_provisioning_rolls_back_and_retry_is_safe(self):
+        organization_uuid = self._complete_onboarding("rollback.demo@academy.edu")
+        request_uuid = self._submit_demo(organization_uuid)
+        owner = self._approve_demo(request_uuid, user_id="9192")
+        db = self._db()
+        try:
+            initial_group_count = db.query(models.SchoolGroup).count()
+            initial_user_count = db.query(models.User).count()
+            initial_entitlement_count = db.query(
+                saas.models.WorkspaceEntitlement
+            ).count()
+            initial_tenant_link_count = db.query(
+                saas.models.TenantProvisioningLink
+            ).count()
+            initial_account_link_count = db.query(
+                saas.models.SaaSAccountUserLink
+            ).count()
+        finally:
+            db.close()
+
+        with patch(
+            "saas.provisioning_service._create_branches",
+            side_effect=ValueError("forced branch provisioning failure"),
+        ):
+            failed = owner.post(
+                f"/saas-admin/demo-requests/{request_uuid}/provision",
+                follow_redirects=False,
+            )
+        self.assertIn("error=", failed.headers["location"])
+        db = self._db()
+        try:
+            request_row = db.query(saas.models.SaaSDemoRequest).filter_by(
+                request_uuid=request_uuid
+            ).one()
+            provisioning = db.query(saas.models.SaaSDemoWorkspaceProvisioning).filter_by(
+                demo_request_id=request_row.id
+            ).one()
+            self.assertEqual(request_row.status, "approved")
+            self.assertIsNone(request_row.school_group_id)
+            self.assertEqual(request_row.commercial_state_snapshot, "provisioning")
+            self.assertEqual(provisioning.provisioning_status, "failed")
+            self.assertEqual(provisioning.attempt_count, 1)
+            self.assertIn("forced branch provisioning failure", provisioning.failure_reason)
+            self.assertEqual(db.query(models.SchoolGroup).count(), initial_group_count)
+            self.assertEqual(db.query(models.User).count(), initial_user_count)
+            self.assertEqual(
+                db.query(saas.models.WorkspaceEntitlement).count(),
+                initial_entitlement_count,
+            )
+            self.assertEqual(
+                db.query(saas.models.TenantProvisioningLink).count(),
+                initial_tenant_link_count,
+            )
+            self.assertEqual(
+                db.query(saas.models.SaaSAccountUserLink).count(),
+                initial_account_link_count,
+            )
+            self.assertTrue(
+                db.query(saas.models.SaaSDemoProvisioningEvent).filter_by(
+                    demo_provisioning_id=provisioning.id,
+                    event_type="provisioning_failed",
+                    event_category="audit",
+                ).one()
+            )
+        finally:
+            db.close()
+
+        customer_page = self.client.get(f"/saas/demo-requests/{request_uuid}")
+        self.assertIn("Workspace Activation Needs Attention", customer_page.text)
+        self.assertNotIn("forced branch provisioning failure", customer_page.text)
+        owner_page = owner.get(f"/saas-admin/demo-requests/{request_uuid}")
+        self.assertIn("forced branch provisioning failure", owner_page.text)
+        retry = owner.post(
+            f"/saas-admin/demo-requests/{request_uuid}/provision",
+            follow_redirects=False,
+        )
+        self.assertIn("notice=", retry.headers["location"])
+        db = self._db()
+        try:
+            provisioning = db.query(saas.models.SaaSDemoWorkspaceProvisioning).one()
+            self.assertEqual(provisioning.provisioning_status, "active")
+            self.assertEqual(provisioning.attempt_count, 2)
+            self.assertEqual(db.query(saas.models.TenantProvisioningLink).count(), 1)
+        finally:
+            db.close()
+
+    def test_demo_provisioning_validation_and_duplicate_guards(self):
+        organization_uuid = self._complete_onboarding("guards.demo@academy.edu")
+        request_uuid = self._submit_demo(organization_uuid)
+        owner = self._platform_client(user_id="9193")
+        pending = owner.post(
+            f"/saas-admin/demo-requests/{request_uuid}/provision",
+            follow_redirects=False,
+        )
+        self.assertIn("error=", pending.headers["location"])
+        db = self._db()
+        try:
+            self.assertEqual(db.query(saas.models.SaaSDemoWorkspaceProvisioning).count(), 0)
+        finally:
+            db.close()
+
+        owner.post(
+            f"/saas-admin/demo-requests/{request_uuid}/approve",
+            follow_redirects=False,
+        )
+        db = self._db()
+        try:
+            request_row = db.query(saas.models.SaaSDemoRequest).filter_by(
+                request_uuid=request_uuid
+            ).one()
+            request_row.workspace_classification_snapshot = "customer_paid"
+            db.commit()
+        finally:
+            db.close()
+        wrong_classification = owner.post(
+            f"/saas-admin/demo-requests/{request_uuid}/provision",
+            follow_redirects=False,
+        )
+        self.assertIn("error=", wrong_classification.headers["location"])
+        db = self._db()
+        try:
+            request_row = db.query(saas.models.SaaSDemoRequest).filter_by(
+                request_uuid=request_uuid
+            ).one()
+            request_row.workspace_classification_snapshot = "customer_demo"
+            db.commit()
+        finally:
+            db.close()
+
+        first = owner.post(
+            f"/saas-admin/demo-requests/{request_uuid}/provision",
+            follow_redirects=False,
+        )
+        self.assertIn("notice=", first.headers["location"])
+        db = self._db()
+        try:
+            counts_before = (
+                db.query(models.SchoolGroup).count(),
+                db.query(saas.models.WorkspaceEntitlement).count(),
+                db.query(saas.models.TenantProvisioningLink).count(),
+                db.query(saas.models.SaaSDemoWorkspaceProvisioning).count(),
+            )
+        finally:
+            db.close()
+        duplicate = owner.post(
+            f"/saas-admin/demo-requests/{request_uuid}/provision",
+            follow_redirects=False,
+        )
+        self.assertIn("error=", duplicate.headers["location"])
+        db = self._db()
+        try:
+            self.assertEqual(
+                (
+                    db.query(models.SchoolGroup).count(),
+                    db.query(saas.models.WorkspaceEntitlement).count(),
+                    db.query(saas.models.TenantProvisioningLink).count(),
+                    db.query(saas.models.SaaSDemoWorkspaceProvisioning).count(),
+                ),
+                counts_before,
+            )
+        finally:
+            db.close()
+
+    def test_demo_provisioning_is_platform_owner_only(self):
+        organization_uuid = self._complete_onboarding("permissions.demo@academy.edu")
+        request_uuid = self._submit_demo(organization_uuid)
+        owner = self._approve_demo(request_uuid, user_id="9194")
+        self.assertEqual(
+            self.client.post(
+                f"/saas-admin/demo-requests/{request_uuid}/provision",
+                follow_redirects=False,
+            ).status_code,
+            403,
+        )
+        developer = self._platform_client(
+            role=auth.PLATFORM_ROLE_DEVELOPER,
+            user_id="9195",
+        )
+        self.assertEqual(
+            developer.post(
+                f"/saas-admin/demo-requests/{request_uuid}/provision",
+                follow_redirects=False,
+            ).status_code,
+            403,
+        )
+        self.assertIn(
+            "notice=",
+            owner.post(
+                f"/saas-admin/demo-requests/{request_uuid}/provision",
+                follow_redirects=False,
+            ).headers["location"],
+        )
+
+    def test_m8b4_migration_generalizes_existing_paid_tenant_links(self):
+        with self.engine.begin() as connection:
+            connection.execute(text("DROP TABLE saas_demo_provisioning_events"))
+            connection.execute(text("DROP TABLE saas_demo_workspace_provisioning"))
+            connection.execute(text("DROP TABLE tenant_provisioning_links"))
+            connection.execute(text(
+                """
+                CREATE TABLE tenant_provisioning_links (
+                    id INTEGER PRIMARY KEY,
+                    pending_organization_id INTEGER NOT NULL,
+                    subscription_contract_id INTEGER NOT NULL,
+                    school_group_id INTEGER NOT NULL,
+                    owner_operational_user_id INTEGER NOT NULL,
+                    primary_branch_id INTEGER,
+                    primary_academic_year_id INTEGER,
+                    tenant_status VARCHAR(30) NOT NULL DEFAULT 'tenant_active',
+                    activated_at DATETIME,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            ))
+            connection.execute(text(
+                "DELETE FROM schema_migrations WHERE migration_id = '20260723_001_demo_workspace_provisioning'"
+            ))
+        self.assertEqual(
+            db_migrations.run_pending_migrations(self.engine),
+            ["20260723_001_demo_workspace_provisioning"],
+        )
+        columns = {
+            column["name"]: column
+            for column in inspect(self.engine).get_columns("tenant_provisioning_links")
+        }
+        self.assertIn("demo_request_id", columns)
+        self.assertTrue(columns["subscription_contract_id"]["nullable"])
+        self.assertTrue({
+            "saas_demo_workspace_provisioning",
+            "saas_demo_provisioning_events",
+        }.issubset(set(inspect(self.engine).get_table_names())))
+        self.assertEqual(db_migrations.run_pending_migrations(self.engine), [])
 
 
 if __name__ == "__main__":

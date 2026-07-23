@@ -31,6 +31,7 @@ class DemoRequestCard:
     primary_contact: object | None
     branch_count: int
     review: object | None
+    provisioning: object | None
 
 
 STATUS_LABELS = {
@@ -152,6 +153,11 @@ def validate_commercial_choice(db: Session, account, organization) -> None:
     _validate_completed_onboarding(db, account, organization)
     if service.initial_checkout_is_closed(db, organization):
         raise DemoRequestError("Initial setup is complete. Manage the active subscription from Subscription Management.")
+
+
+def validate_demo_provisioning_context(db: Session, account, organization) -> None:
+    _validate_completed_onboarding(db, account, organization)
+    _validate_no_commercial_activity(db, organization)
 
 
 def _entitlement_snapshot(db: Session, organization) -> dict:
@@ -422,6 +428,9 @@ def build_request_card(db: Session, row) -> DemoRequestCard:
     review = db.query(models.SaaSDemoRequestReview).filter(
         models.SaaSDemoRequestReview.demo_request_id == row.id
     ).one_or_none()
+    provisioning = db.query(models.SaaSDemoWorkspaceProvisioning).filter(
+        models.SaaSDemoWorkspaceProvisioning.demo_request_id == row.id
+    ).one_or_none()
     return DemoRequestCard(
         request=row,
         organization=organization,
@@ -429,6 +438,7 @@ def build_request_card(db: Session, row) -> DemoRequestCard:
         primary_contact=primary_contact,
         branch_count=branch_count,
         review=review,
+        provisioning=provisioning,
     )
 
 
@@ -490,7 +500,7 @@ def list_events(db: Session, row):
     ).all()
 
 
-def apply_customer_setup_context(context: dict, organization, row) -> dict:
+def apply_customer_setup_context(context: dict, organization, row, provisioning=None) -> dict:
     updated = dict(context)
     org_uuid = str(getattr(organization, "organization_uuid", "") or "")
     if row is None:
@@ -506,6 +516,48 @@ def apply_customer_setup_context(context: dict, organization, row) -> dict:
             "help_text": "Your workspace will not be activated until the selected commercial path is completed.",
         })
         return updated
+    provisioning_status = str(
+        getattr(provisioning, "provisioning_status", "") or ""
+    ).strip().lower()
+    if provisioning_status == "active":
+        updated.update({
+            "title": "Your demo workspace is active",
+            "subtitle": f"{updated.get('workspace_name', 'Your school workspace')} is ready.",
+            "status_banner": "Demo Workspace Activation is complete.",
+            "primary_action": {
+                "label": "Enter TIS Platform",
+                "url": "/login",
+                "method": "get",
+            },
+            "help_text": "Your approved demo workspace is available in the TIS Platform.",
+        })
+        return updated
+    if provisioning_status == "provisioning":
+        updated.update({
+            "title": "Demo workspace provisioning is in progress",
+            "subtitle": f"TIS is preparing {updated.get('workspace_name', 'your school workspace')}.",
+            "status_banner": "Your approved demo workspace is being activated.",
+            "primary_action": {
+                "label": "View Demo Request",
+                "url": f"/saas/demo-requests/{row.request_uuid}",
+                "method": "get",
+            },
+            "help_text": "Workspace access will appear after provisioning completes.",
+        })
+        return updated
+    if provisioning_status == "failed":
+        updated.update({
+            "title": "Demo workspace activation needs attention",
+            "subtitle": "Your approved request is safe and remains available.",
+            "status_banner": "Demo workspace activation could not be completed.",
+            "primary_action": {
+                "label": "View Demo Request",
+                "url": f"/saas/demo-requests/{row.request_uuid}",
+                "method": "get",
+            },
+            "help_text": "Please contact TIS Support. No internal diagnostic details are shown here.",
+        })
+        return updated
     label = status_label(row.status)
     updated.update({
         "title": f"Demo request: {label}",
@@ -513,13 +565,21 @@ def apply_customer_setup_context(context: dict, organization, row) -> dict:
         "status_banner": (
             "Your request is waiting for Platform Owner review."
             if row.status == DemoRequestStatus.PENDING_REVIEW.value
-            else f"Your demo request status is {label}."
+            else (
+                "Your demo request is approved and ready for workspace provisioning."
+                if row.status == DemoRequestStatus.APPROVED.value
+                else f"Your demo request status is {label}."
+            )
         ),
         "primary_action": {
             "label": "View Demo Request",
             "url": f"/saas/demo-requests/{row.request_uuid}",
             "method": "get",
         },
-        "help_text": "Demo approval records the review decision only. Workspace Activation is not part of this stage.",
+        "help_text": (
+            "The TIS team can now provision your approved demo workspace."
+            if row.status == DemoRequestStatus.APPROVED.value
+            else "Your demo request remains available in your TIS Account."
+        ),
     })
     return updated

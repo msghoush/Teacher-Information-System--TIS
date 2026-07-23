@@ -1,12 +1,18 @@
 ---
 title: SaaS Onboarding History
 module: saas-onboarding
-last_updated: 2026-07-22
+last_updated: 2026-07-23
 ---
 
 # SaaS Onboarding History
 
 This folder tracks meaningful changes to signup, login, account, organization onboarding, contacts, branches, academic setup, review, and account self-service.
+
+## 2026-07-23 - M8B-4 Demo Workspace Provisioning And Activation
+
+Platform Owners can now provision an Approved customer-demo request through a separate, fail-closed action. The demo service revalidates the approval, organization, customer-demo intent, commercial snapshot, entitlement snapshot, and duplicate absence before reusing the shared operational workspace builder.
+
+The transaction creates the customer-demo SchoolGroup, branches, academic year, owner user, permissions, account link, explicit demo entitlement, and demo-sourced tenant link, then activates the workspace and entitlement. No Paddle, payment, paid subscription, subscription contract, checkout, or email record is created. Failures roll back all workspace changes, preserve the Approved request, and retain a safe retryable outcome plus audit event.
 
 ## 2026-07-22 - M8B-3 Demo Request Workflow
 

@@ -25,7 +25,7 @@
     <div>
         <span class="page-eyebrow">Platform Owner</span>
         <h1>Demo Request Review Queue</h1>
-        <p class="page-subtitle">Review customer-submitted demo requests. Approval records a decision only and does not provision a workspace.</p>
+        <p class="page-subtitle">Review customer demo requests and monitor approved workspace provisioning.</p>
     </div>
     <a class="btn secondary" href="/platform">Platform Console</a>
 </div>
@@ -64,7 +64,7 @@
 {% if cards %}
 <div class="demo-queue-table-wrap">
     <table class="table demo-queue-table">
-        <thead><tr><th>Organization</th><th>Requester</th><th>Submitted</th><th>Commercial Snapshot</th><th>Status</th><th>Action</th></tr></thead>
+        <thead><tr><th>Organization</th><th>Requester</th><th>Submitted</th><th>Commercial Snapshot</th><th>Request</th><th>Provisioning</th><th>Action</th></tr></thead>
         <tbody>
         {% for card in cards %}
             <tr>
@@ -73,6 +73,7 @@
                 <td>{{ card.request.submitted_at.strftime('%b %d, %Y') if card.request.submitted_at else 'Not available' }}</td>
                 <td class="demo-org-cell"><strong>{{ card.request.workspace_classification_snapshot|replace('_', ' ')|title }}</strong><span>{{ card.request.commercial_state_snapshot|replace('_', ' ')|title }}</span></td>
                 <td><span class="demo-status {{ status_tone(card.request.status) }}">{{ status_label(card.request.status) }}</span></td>
+                <td><span class="demo-status {{ 'success' if card.provisioning and card.provisioning.provisioning_status == 'active' else ('danger' if card.provisioning and card.provisioning.provisioning_status == 'failed' else ('warning' if card.provisioning else '')) }}">{{ card.provisioning.provisioning_status|replace('_', ' ')|title if card.provisioning else 'Not Started' }}</span></td>
                 <td><a class="btn secondary" href="/saas-admin/demo-requests/{{ card.request.request_uuid }}">Review Request</a></td>
             </tr>
         {% endfor %}

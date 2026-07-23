@@ -1,7 +1,7 @@
 ---
 title: TIS Module Map
 documentation_version: 3.1
-last_updated: 2026-07-22
+last_updated: 2026-07-23
 source_of_truth: true
 ---
 
@@ -125,11 +125,13 @@ Risks/guardrails:
 ## SaaS Demo Request Workflow
 
 Purpose:
-Offer verified customers a post-onboarding choice between the unchanged subscription workflow and a review-only demo request.
+Offer verified customers a post-onboarding choice between the unchanged subscription workflow and a reviewed customer-demo workspace.
 
 Main files/folders:
 - `demo_workflow.py`
 - `saas/demo_request_service.py`
+- `saas/demo_provisioning_service.py`
+- `saas/provisioning_service.py`
 - `saas/router.py`
 - `templates/saas/commercial_choice.html`
 - `templates/saas/demo_request_status.html`
@@ -137,11 +139,14 @@ Main files/folders:
 - `templates/saas/admin_demo_request_detail.html`
 
 Maturity/status:
-M8B-3 implemented. Submission, customer status/withdrawal, Platform Owner review, durable audit events, and internal-notification events are available. Provisioning, activation, expiration, and email delivery are not implemented.
+M8B-4 implemented. Submission, customer status/withdrawal, Platform Owner review, atomic demo workspace provisioning, activation, durable audit events, and internal-notification events are available. Expiration, lifecycle scheduling, conversion, and email delivery are not implemented.
 
 Risks/guardrails:
 - Do not confuse SaaS demo requests with legacy public marketing demo leads.
-- Approval is a review decision only and must not create a SchoolGroup or entitlement.
+- Approval remains review evidence only; a separate Platform Owner provisioning action creates the workspace.
+- Provisioning requires coherent approval, customer-demo intent, commercial state, entitlement snapshot, and organization data.
+- Demo provisioning must not create or infer paid subscription evidence.
+- Failed provisioning must roll back workspace records and preserve the Approved request for a controlled retry.
 - Subscribe Now must continue through the existing provider-authoritative billing path.
 - Only Platform Owners may review, reject, approve, or cancel requests.
 - Customer withdrawal is valid only while Pending Review.

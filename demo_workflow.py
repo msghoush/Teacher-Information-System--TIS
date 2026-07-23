@@ -32,8 +32,23 @@ class DemoRequestActorType(str, Enum):
     SYSTEM = "system"
 
 
+class DemoProvisioningStatus(str, Enum):
+    PROVISIONING = "provisioning"
+    ACTIVE = "active"
+    FAILED = "failed"
+
+
+class DemoProvisioningEventType(str, Enum):
+    PROVISIONING_STARTED = "provisioning_started"
+    PROVISIONING_COMPLETED = "provisioning_completed"
+    PROVISIONING_FAILED = "provisioning_failed"
+    ACTIVATION_COMPLETED = "activation_completed"
+
+
 DEMO_REQUEST_STATUS_VALUES = tuple(item.value for item in DemoRequestStatus)
 DEMO_REVIEW_DECISION_VALUES = tuple(item.value for item in DemoReviewDecision)
 DEMO_REQUEST_EVENT_CATEGORY_VALUES = tuple(item.value for item in DemoRequestEventCategory)
 DEMO_REQUEST_EVENT_TYPE_VALUES = tuple(item.value for item in DemoRequestEventType)
 DEMO_REQUEST_ACTOR_TYPE_VALUES = tuple(item.value for item in DemoRequestActorType)
+DEMO_PROVISIONING_STATUS_VALUES = tuple(item.value for item in DemoProvisioningStatus)
+DEMO_PROVISIONING_EVENT_TYPE_VALUES = tuple(item.value for item in DemoProvisioningEventType)

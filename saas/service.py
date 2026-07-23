@@ -1371,6 +1371,38 @@ def resolve_owner_organization_lifecycle(
     )
     subscription_active = subscription_status in {"active", "trialing"}
 
+    demo_request_id = int(getattr(tenant_link, "demo_request_id", 0) or 0)
+    if tenant_active and demo_request_id:
+        demo_request = db.query(models.SaaSDemoRequest).filter(
+            models.SaaSDemoRequest.id == demo_request_id,
+            models.SaaSDemoRequest.pending_organization_id == organization.id,
+            models.SaaSDemoRequest.status == "approved",
+        ).one_or_none()
+        demo_provisioning = None
+        if demo_request:
+            demo_provisioning = db.query(models.SaaSDemoWorkspaceProvisioning).filter(
+                models.SaaSDemoWorkspaceProvisioning.demo_request_id == demo_request.id,
+                models.SaaSDemoWorkspaceProvisioning.school_group_id == school_group.id,
+                models.SaaSDemoWorkspaceProvisioning.provisioning_status == "active",
+            ).one_or_none()
+        if (
+            demo_request
+            and demo_provisioning
+            and str(getattr(school_group, "workspace_classification", "") or "")
+            == "customer_demo"
+            and str(getattr(school_group, "workspace_lifecycle_status", "") or "") == "active"
+        ):
+            return OwnerOrganizationLifecycle(
+                key="active_demo",
+                label="Active Demo",
+                tone="success",
+                is_pending=False,
+                onboarding_label="Complete",
+                billing_label="Demo access",
+                payment_label="Not required",
+                provisioning_label="Complete",
+            )
+
     if tenant_active and payment_confirmed and subscription_active and commercial_link_resolved:
         return OwnerOrganizationLifecycle(
             key="active_tenant",
