@@ -101,7 +101,7 @@ class WorkspaceClassificationFoundationTests(unittest.TestCase):
         with self.assertRaises(workspace_classification_service.WorkspaceClassificationValidationError):
             workspace_classification_service.validate_lifecycle_status("deleted")
 
-    def test_classification_transitions_are_validation_only_and_conversion_is_blocked(self):
+    def test_classification_transitions_allow_only_approved_demo_to_paid_path(self):
         self.assertEqual(
             workspace_classification_service.validate_classification_transition(
                 "internal_sandbox", "internal_sandbox"
@@ -112,6 +112,12 @@ class WorkspaceClassificationFoundationTests(unittest.TestCase):
             workspace_classification_service.validate_classification_transition(
                 "internal_sandbox", "customer_paid"
             )
+        self.assertEqual(
+            workspace_classification_service.validate_classification_transition(
+                "customer_demo", "customer_paid"
+            ),
+            WorkspaceClassification.CUSTOMER_PAID,
+        )
         self.assertEqual(
             workspace_classification_service.validate_lifecycle_transition(
                 "provisioning", "active"

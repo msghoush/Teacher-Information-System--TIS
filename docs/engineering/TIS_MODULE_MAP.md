@@ -131,6 +131,7 @@ Main files/folders:
 - `demo_workflow.py`
 - `saas/demo_request_service.py`
 - `saas/demo_provisioning_service.py`
+- `saas/demo_conversion_service.py`
 - `saas/provisioning_service.py`
 - `saas/router.py`
 - `templates/saas/commercial_choice.html`
@@ -139,7 +140,7 @@ Main files/folders:
 - `templates/saas/admin_demo_request_detail.html`
 
 Maturity/status:
-M8B-5 implemented. Submission, review, atomic provisioning, activation, seven-day lifecycle resolution, Day 6 internal reminders, Day 7 expiration, and server-side expired-access enforcement are available. Conversion, manual extension, archive/delete, and email delivery are not implemented.
+M8B-6 implemented. Submission, review, atomic provisioning, activation, seven-day lifecycle resolution, Day 6 internal reminders, Day 7 expiration, server-side expired-access enforcement, and provider-confirmed conversion of the existing demo tenant to Customer Paid are available. Manual extension, internal-sandbox conversion, archive/delete, and email delivery are not implemented.
 
 Risks/guardrails:
 - Do not confuse SaaS demo requests with legacy public marketing demo leads.
@@ -150,9 +151,14 @@ Risks/guardrails:
 - `activated_at` is the only lifecycle clock authority; approval and submission timestamps never determine expiration.
 - Expiration preserves tenant data and blocks all normal operational access rather than creating a read-only mode.
 - Paid workspaces, internal sandboxes, and Platform Console access must never pass through demo expiration enforcement.
+- Demo-to-paid conversion requires an active coherent demo and a confirmed M7 subscription for the same organization.
+- Conversion preserves the SchoolGroup and tenant link row; it must never invoke operational reprovisioning.
+- A failed workspace conversion preserves confirmed payment evidence, rolls back workspace mutations, records failure, and remains retryable.
+- Completed conversions must not re-enter demo reminder or expiration processing.
 
-Main M8B-5 files:
+Main M8B-5 and M8B-6 files:
 - `saas/demo_lifecycle_service.py`
+- `saas/demo_conversion_service.py`
 - `scripts/process_demo_lifecycle.py`
 - `authorization.py`
 - `templates/demo_access_blocked.html`
@@ -174,7 +180,7 @@ Main files/folders:
 - `scripts/backfill_workspace_classification.py`
 
 Maturity/status:
-M8B-2 foundation implemented. Classification, lifecycle, workspace entitlement, branch entitlement, and effective commercial state can be resolved read-only. Conversion and enforcement are not implemented.
+M8B-6 commercial transition implemented only for the dedicated active Customer Demo to Customer Paid workflow. Classification, lifecycle, workspace entitlement, branch entitlement, and effective commercial state remain centrally resolved. Other classification conversions remain prohibited.
 
 Related docs/ADRs:
 - `docs/adr/0008-workspace-classification-foundation.md`
@@ -183,7 +189,7 @@ Related docs/ADRs:
 
 Risks/guardrails:
 - Do not use classification as a payment, entitlement, permission, tenant-isolation, or reset gate in M8B-1.
-- Do not convert classifications through the validation service.
+- Permit classification conversion only through the dedicated M8B-6 demo-to-paid service.
 - Do not expose workspace metadata outside Platform Owner views.
 - Do not infer customer-paid classification from incomplete onboarding or provider records.
 - Keep paid plan capabilities authoritative in the existing M7 subscription entitlement resolver.

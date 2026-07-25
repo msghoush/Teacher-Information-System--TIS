@@ -8,6 +8,14 @@ last_updated: 2026-07-23
 
 This folder tracks meaningful changes to signup, login, account, organization onboarding, contacts, branches, academic setup, review, and account self-service.
 
+## 2026-07-23 - M8B-6 Demo-To-Paid Workspace Conversion
+
+Eligible active Customer Demo workspaces can now enter the unchanged M7 subscription checkout. Provider-confirmed payment triggers a dedicated, idempotent conversion service rather than paid tenant provisioning.
+
+The conversion preserves the SchoolGroup, workspace UUID, tenant link row, pending organization, branches, users, permissions, academic records, and all request/demo/audit history. One atomic transaction ends the demo entitlement, creates the confirmed subscription-backed paid entitlement, relinks branch entitlement rows, changes the workspace classification to Customer Paid, and moves the existing tenant link from demo-request evidence to the confirmed subscription contract.
+
+Conversion Requested, Processing, Completed, and Failed states plus audit/internal-notification events are durable. Failure rolls back workspace mutations while preserving confirmed provider payment records for retry. Completed workspaces no longer enter demo reminder or expiration processing. Expired, ambiguous, cross-tenant, internal-sandbox, already-paid, or incoherent workspaces fail closed.
+
 ## 2026-07-23 - M8B-5 Standard Customer Demo Lifecycle
 
 Customer demos now run for exactly seven days from successful workspace activation. The centralized resolver derives Day 6 and Day 7 boundaries in UTC, presents them in the organization timezone, and fails closed on inconsistent lifecycle evidence.

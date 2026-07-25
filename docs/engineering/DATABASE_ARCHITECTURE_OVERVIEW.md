@@ -206,6 +206,15 @@ Two normalized tables support lifecycle history and in-app delivery:
 
 Migration `20260723_002_demo_workspace_lifecycle` adds constrained lifecycle metadata, backfills activation-derived timestamps for existing active demos, aligns demo entitlement `effective_to`, and creates the event/notification tables. It does not expire data during migration. The separately scheduled processor performs expiration after a dry run.
 
+### Demo-To-Paid Conversion Records
+
+M8B-6 adds:
+
+- `saas_demo_to_paid_conversions`: one durable conversion aggregate per demo request, provisioning record, and SchoolGroup. It links the existing demo workspace to the confirmed `SubscriptionContract` and `PaymentSubscription`, records the previous demo entitlement and resulting paid entitlement, and tracks requested, processing, completed, or failed status.
+- `saas_demo_conversion_events`: append-only audit and internal-notification history for conversion requested, started, completed, and failed outcomes.
+
+Migration `20260723_003_demo_to_paid_conversion` also permits the terminal `converted` demo lifecycle processing status. Conversion never creates another SchoolGroup or tenant link. One atomic workspace transaction ends the demo entitlement, creates the paid entitlement, relinks existing branch entitlements, changes the SchoolGroup classification, and moves the existing tenant link from the preserved demo-request source to the confirmed subscription contract. Provider payment records commit independently and remain intact if workspace conversion rolls back.
+
 Related files:
 - `workspace_classification.py`
 - `saas/workspace_classification_service.py`
@@ -222,11 +231,13 @@ Related files:
 - `demo_workflow.py`
 - `saas/demo_provisioning_service.py`
 - `saas/demo_lifecycle_service.py`
+- `saas/demo_conversion_service.py`
 - `scripts/process_demo_lifecycle.py`
 - `authorization.py`
 - `saas/provisioning_service.py`
 - `docs/adr/0011-demo-workspace-provisioning-and-commercial-source-links.md`
 - `docs/adr/0012-seven-day-demo-lifecycle-and-access-enforcement.md`
+- `docs/adr/0013-demo-to-paid-workspace-conversion.md`
 - `saas/demo_request_service.py`
 - `docs/adr/0010-review-only-saas-demo-requests.md`
 

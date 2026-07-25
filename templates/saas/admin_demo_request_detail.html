@@ -83,6 +83,23 @@
 </section>
 {% endif %}
 
+{% if demo_conversion %}
+<section class="demo-review-section">
+    <h2>Demo-to-Paid Conversion</h2>
+    <div class="demo-review-grid">
+        <div class="stat"><strong>Conversion Status</strong><p>{{ demo_conversion.status|replace('_', ' ')|title }}</p></div>
+        <div class="stat"><strong>Conversion Time</strong><p>{{ demo_conversion.completed_at.strftime('%B %d, %Y at %H:%M UTC') if demo_conversion.completed_at else 'Not completed' }}</p></div>
+        <div class="stat"><strong>Subscription Linkage</strong><p>{% if demo_conversion.subscription_contract_id and demo_conversion.payment_subscription_id %}Contract {{ demo_conversion.subscription_contract_id }} / Subscription {{ demo_conversion.payment_subscription_id }}{% else %}Awaiting confirmed subscription{% endif %}</p></div>
+        <div class="stat"><strong>Previous Demo Reference</strong><p>{{ demo_request.request_uuid }}</p></div>
+        <div class="stat"><strong>Conversion Attempts</strong><p>{{ demo_conversion.attempt_count }}</p></div>
+        <div class="stat"><strong>Result</strong><p>{{ demo_conversion.reason_code|replace('_', ' ')|title if demo_conversion.reason_code else 'Pending' }}</p></div>
+    </div>
+    {% if demo_conversion.status == 'failed' %}
+    <div class="error" style="margin-top:12px;"><strong>Conversion Failure</strong><br>{{ demo_conversion.failure_reason or 'The conversion did not complete safely.' }}</div>
+    {% endif %}
+</section>
+{% endif %}
+
 {% if demo_request.status == 'pending_review' %}
 <section class="demo-review-section" aria-label="Review actions">
     <h2>Review Actions</h2>
@@ -133,6 +150,17 @@
     <div class="demo-event-list">
         {% for event in provisioning_events %}
         <div class="demo-event"><span>{{ event.event_type|replace('_', ' ')|title }} <span class="muted">({{ event.event_category }})</span></span><time>{{ event.created_at.strftime('%b %d, %Y %H:%M UTC') if event.created_at else '' }}</time></div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if conversion_events %}
+<section class="demo-review-section">
+    <h2>Conversion History</h2>
+    <div class="demo-event-list">
+        {% for event in conversion_events %}
+        <div class="demo-event"><span>{{ event.event_type|replace('_', ' ')|title }} <span class="muted">({{ event.event_category }})</span>{% if event.reason_code %} &middot; {{ event.reason_code|replace('_', ' ')|title }}{% endif %}</span><time>{{ event.created_at.strftime('%b %d, %Y %H:%M UTC') if event.created_at else '' }}</time></div>
         {% endfor %}
     </div>
 </section>

@@ -12,7 +12,7 @@ from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import billing_history_service, billing_service, commercial_state_service, demo_lifecycle_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import billing_history_service, billing_service, commercial_state_service, demo_conversion_service, demo_lifecycle_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -2265,6 +2265,15 @@ def subscribe_now_step(
         db.commit()
     except demo_request_service.DemoRequestError as exc:
         db.rollback()
+        demo_request = demo_request_service.get_latest_for_organization(
+            db, organization
+        )
+        if demo_request and demo_request.status == DemoRequestStatus.APPROVED.value:
+            return RedirectResponse(
+                f"/saas/demo-requests/{demo_request.request_uuid}?error="
+                + quote_plus(str(exc)),
+                status_code=302,
+            )
         return RedirectResponse(
             f"/saas/onboarding/{organization_uuid}/commercial-choice?error={quote_plus(str(exc))}",
             status_code=302,
@@ -2286,6 +2295,7 @@ def customer_demo_request_status(
         db.rollback()
         raise HTTPException(status_code=404, detail="Demo request not found.")
     card = demo_request_service.build_request_card(db, row)
+    demo_conversion = demo_conversion_service.get_conversion_for_request(db, row)
     demo_lifecycle = (
         demo_lifecycle_service.resolve_demo_lifecycle(
             db,
@@ -2293,6 +2303,10 @@ def customer_demo_request_status(
         )
         if card.provisioning
         and card.provisioning.provisioning_status == "active"
+        and not (
+            demo_conversion
+            and demo_conversion.status == "completed"
+        )
         else None
     )
     lifecycle_notifications = demo_lifecycle_service.list_customer_notifications(
@@ -2313,6 +2327,7 @@ def customer_demo_request_status(
             "branch_count": card.branch_count,
             "demo_provisioning": card.provisioning,
             "demo_lifecycle": demo_lifecycle,
+            "demo_conversion": demo_conversion,
             "lifecycle_notifications": lifecycle_notifications,
             "format_lifecycle_datetime": demo_lifecycle_service.format_lifecycle_datetime,
             "provisioning_status_label": demo_provisioning_service.provisioning_status_label(
@@ -2788,6 +2803,10 @@ def demo_request_review_detail(
     if not row:
         raise HTTPException(status_code=404, detail="Demo request not found.")
     card = demo_request_service.build_request_card(db, row)
+    demo_conversion = demo_conversion_service.get_conversion_for_request(db, row)
+    conversion_events = demo_conversion_service.list_conversion_events(
+        db, demo_conversion
+    )
     events = demo_request_service.list_events(db, row)
     provisioning_events = demo_provisioning_service.list_provisioning_events(
         db, card.provisioning
@@ -2799,6 +2818,10 @@ def demo_request_review_detail(
         )
         if card.provisioning
         and card.provisioning.provisioning_status == "active"
+        and not (
+            demo_conversion
+            and demo_conversion.status == "completed"
+        )
         else None
     )
     lifecycle_events = demo_lifecycle_service.list_lifecycle_events(
@@ -2831,6 +2854,8 @@ def demo_request_review_detail(
             "provisioning_events": provisioning_events,
             "demo_provisioning": card.provisioning,
             "demo_lifecycle": demo_lifecycle,
+            "demo_conversion": demo_conversion,
+            "conversion_events": conversion_events,
             "lifecycle_events": lifecycle_events,
             "lifecycle_notifications": lifecycle_notifications,
             "effective_commercial_state": commercial_state,

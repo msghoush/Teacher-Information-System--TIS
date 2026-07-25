@@ -659,7 +659,9 @@ def process_due_demo_lifecycles(
             models.SaaSDemoRequest.id
             == models.SaaSDemoWorkspaceProvisioning.demo_request_id,
         ).filter(
-            models.SaaSDemoWorkspaceProvisioning.provisioning_status == "active"
+            models.SaaSDemoWorkspaceProvisioning.provisioning_status == "active",
+            models.SaaSDemoWorkspaceProvisioning.lifecycle_processing_status
+            != DemoLifecycleProcessingStatus.CONVERTED.value,
         )
         if request_uuid:
             query = query.filter(models.SaaSDemoRequest.request_uuid == request_uuid)

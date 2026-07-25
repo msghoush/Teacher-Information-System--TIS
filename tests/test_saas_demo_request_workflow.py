@@ -2,6 +2,7 @@ import json
 import os
 import re
 import unittest
+import uuid
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -25,10 +26,15 @@ import saas.models
 from dependencies import get_db
 from saas import (
     commercial_state_service,
+    demo_conversion_service,
     demo_lifecycle_service,
     demo_provisioning_service,
     demo_request_service,
+    entitlement_service,
     provisioning_service,
+    service,
+    workspace_classification_service,
+    workspace_entitlement_service,
 )
 from saas.router import admin_router as saas_admin_router, router as saas_router
 
@@ -327,6 +333,115 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         finally:
             db.close()
         return started
+
+    def _confirmed_subscription_for_demo(
+        self,
+        fixture: dict,
+        *,
+        status: str = "active",
+        quantity: int = 2,
+        request_conversion: bool = True,
+    ) -> dict:
+        db = self._db()
+        try:
+            demo_request = db.get(saas.models.SaaSDemoRequest, fixture["request_id"])
+            organization = db.get(
+                saas.models.PendingOrganization,
+                demo_request.pending_organization_id,
+            )
+            account = db.get(
+                saas.models.SaaSAccount,
+                demo_request.requester_saas_account_id,
+            )
+            if request_conversion:
+                conversion = demo_conversion_service.request_demo_conversion(
+                    db,
+                    account,
+                    organization,
+                )
+            else:
+                conversion = None
+            plan = db.query(saas.models.SubscriptionPlan).filter_by(
+                plan_code="professional"
+            ).one()
+            price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+                plan_id=plan.id,
+                billing_interval="monthly",
+                currency_code="USD",
+                is_active=True,
+            ).one()
+            price.provider_price_id = (
+                price.provider_price_id
+                or f"pri_conversion_{fixture['provisioning_id']}"
+            )
+            now = datetime.now(UTC).replace(tzinfo=None)
+            contract = saas.models.SubscriptionContract(
+                pending_organization_id=organization.id,
+                plan_id=plan.id,
+                billing_interval="monthly",
+                contract_status="paid_pending_provisioning",
+                payment_status="paid",
+                paid_at=now,
+                base_currency_code="USD",
+                base_amount_minor=price.amount_minor * quantity,
+                display_currency_code="USD",
+                display_amount_minor=price.amount_minor * quantity,
+                billable_branch_count=quantity,
+            )
+            db.add(contract)
+            db.flush()
+            subscription = saas.models.PaymentSubscription(
+                pending_organization_id=organization.id,
+                subscription_contract_id=contract.id,
+                provider="paddle",
+                provider_subscription_id=(
+                    f"sub_demo_conversion_{fixture['provisioning_id']}"
+                ),
+                provider_price_id=price.provider_price_id,
+                plan_id=plan.id,
+                billing_interval="monthly",
+                currency_code="USD",
+                quantity=quantity,
+                unit_amount_minor=price.amount_minor,
+                amount_minor=price.amount_minor * quantity,
+                status=status,
+                current_period_start=now,
+                current_period_end=now + timedelta(days=30),
+            )
+            db.add(subscription)
+            db.commit()
+            return {
+                "organization_id": organization.id,
+                "account_id": account.id,
+                "contract_id": contract.id,
+                "subscription_id": subscription.id,
+                "conversion_id": getattr(conversion, "id", None),
+            }
+        finally:
+            db.close()
+
+    def _convert_demo(self, fixture: dict, commercial: dict):
+        db = self._db()
+        try:
+            outcome = demo_conversion_service.convert_confirmed_demo_subscription(
+                db,
+                organization=db.get(
+                    saas.models.PendingOrganization,
+                    commercial["organization_id"],
+                ),
+                contract=db.get(
+                    saas.models.SubscriptionContract,
+                    commercial["contract_id"],
+                ),
+                subscription=db.get(
+                    saas.models.PaymentSubscription,
+                    commercial["subscription_id"],
+                ),
+            )
+            db.commit()
+            return outcome
+        finally:
+            db.close()
 
     def test_customer_choice_offers_demo_or_existing_subscription_workflow(self):
         organization_uuid = self._complete_onboarding()
@@ -1286,6 +1401,455 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             self.assertNotIn(b"inconsistent_demo_lifecycle_timestamps", response.body)
         finally:
             db.close()
+
+    def test_active_demo_can_enter_subscription_path_without_reprovisioning(self):
+        fixture = self._activate_demo(
+            email="conversion.checkout@academy.edu",
+            owner_user_id="9187",
+        )
+        page = self.client.get(
+            f"/saas/demo-requests/{fixture['request_uuid']}"
+        )
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("Subscribe Now", page.text)
+        response = self.client.post(
+            f"/saas/onboarding/{fixture['organization_uuid']}/commercial-choice/subscribe",
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.headers["location"],
+            f"/saas/onboarding/{fixture['organization_uuid']}/plan",
+        )
+        db = self._db()
+        try:
+            conversion = db.query(
+                saas.models.SaaSDemoToPaidConversion
+            ).one()
+            self.assertEqual(conversion.status, "requested")
+            self.assertEqual(conversion.school_group_id, fixture["school_group_id"])
+            self.assertFalse(
+                service.initial_checkout_is_closed(
+                    db,
+                    db.get(
+                        saas.models.PendingOrganization,
+                        conversion.pending_organization_id,
+                    ),
+                )
+            )
+            self.assertEqual(
+                db.query(saas.models.SaaSDemoConversionEvent).filter_by(
+                    event_type="conversion_requested"
+                ).count(),
+                2,
+            )
+            self.assertEqual(db.query(saas.models.ProvisioningJob).count(), 0)
+        finally:
+            db.close()
+
+    def test_successful_conversion_preserves_tenant_and_resolves_paid_access(self):
+        fixture = self._activate_demo(
+            email="conversion.success@academy.edu",
+            owner_user_id="9188",
+        )
+        db = self._db()
+        try:
+            group = db.get(models.SchoolGroup, fixture["school_group_id"])
+            branches = db.query(models.Branch).filter_by(
+                school_group_id=group.id
+            ).order_by(models.Branch.id).all()
+            academic_year = db.query(models.AcademicYear).filter_by(
+                school_group_id=group.id
+            ).one()
+            subject = models.Subject(
+                subject_code="M8B6-MATH",
+                subject_name="Conversion Mathematics",
+                branch_id=branches[0].id,
+                academic_year_id=academic_year.id,
+            )
+            branch_entitlement = saas.models.BranchEntitlement(
+                school_group_id=group.id,
+                branch_id=branches[0].id,
+                workspace_entitlement_id=fixture["entitlement_id"],
+                entitlement_mode="inherit",
+            )
+            db.add_all([subject, branch_entitlement])
+            db.commit()
+            preserved = {
+                "workspace_uuid": group.workspace_uuid,
+                "group_name": group.name,
+                "branch_ids": tuple(row.id for row in branches),
+                "user_ids": tuple(
+                    row[0]
+                    for row in db.query(models.User.id).filter_by(
+                        school_group_id=group.id
+                    ).order_by(models.User.id).all()
+                ),
+                "permission_ids": tuple(
+                    row[0]
+                    for row in db.query(models.RolePermission.id).filter_by(
+                        school_group_id=group.id
+                    ).order_by(models.RolePermission.id).all()
+                ),
+                "academic_year_ids": tuple(
+                    row[0]
+                    for row in db.query(models.AcademicYear.id).filter_by(
+                        school_group_id=group.id
+                    ).order_by(models.AcademicYear.id).all()
+                ),
+                "subject_id": subject.id,
+                "tenant_link_id": fixture["tenant_link_id"],
+                "group_count": db.query(models.SchoolGroup).count(),
+            }
+        finally:
+            db.close()
+        commercial = self._confirmed_subscription_for_demo(fixture)
+        outcome = self._convert_demo(fixture, commercial)
+        self.assertTrue(outcome.completed)
+
+        db = self._db()
+        try:
+            group = db.get(models.SchoolGroup, fixture["school_group_id"])
+            conversion = db.get(
+                saas.models.SaaSDemoToPaidConversion,
+                commercial["conversion_id"],
+            )
+            tenant_link = db.get(
+                saas.models.TenantProvisioningLink,
+                fixture["tenant_link_id"],
+            )
+            contract = db.get(
+                saas.models.SubscriptionContract,
+                commercial["contract_id"],
+            )
+            provisioning = db.get(
+                saas.models.SaaSDemoWorkspaceProvisioning,
+                fixture["provisioning_id"],
+            )
+            demo_entitlement = db.get(
+                saas.models.WorkspaceEntitlement,
+                fixture["entitlement_id"],
+            )
+            paid_entitlement = db.get(
+                saas.models.WorkspaceEntitlement,
+                conversion.paid_workspace_entitlement_id,
+            )
+            self.assertEqual(group.workspace_classification, "customer_paid")
+            self.assertEqual(group.workspace_lifecycle_status, "active")
+            self.assertEqual(group.workspace_uuid, preserved["workspace_uuid"])
+            self.assertEqual(group.name, preserved["group_name"])
+            self.assertEqual(
+                db.query(models.SchoolGroup).count(),
+                preserved["group_count"],
+            )
+            self.assertEqual(
+                tuple(
+                    row[0]
+                    for row in db.query(models.Branch.id).filter_by(
+                        school_group_id=group.id
+                    ).order_by(models.Branch.id).all()
+                ),
+                preserved["branch_ids"],
+            )
+            self.assertEqual(
+                tuple(
+                    row[0]
+                    for row in db.query(models.User.id).filter_by(
+                        school_group_id=group.id
+                    ).order_by(models.User.id).all()
+                ),
+                preserved["user_ids"],
+            )
+            self.assertEqual(
+                tuple(
+                    row[0]
+                    for row in db.query(models.RolePermission.id).filter_by(
+                        school_group_id=group.id
+                    ).order_by(models.RolePermission.id).all()
+                ),
+                preserved["permission_ids"],
+            )
+            self.assertEqual(
+                tuple(
+                    row[0]
+                    for row in db.query(models.AcademicYear.id).filter_by(
+                        school_group_id=group.id
+                    ).order_by(models.AcademicYear.id).all()
+                ),
+                preserved["academic_year_ids"],
+            )
+            self.assertIsNotNone(db.get(models.Subject, preserved["subject_id"]))
+            self.assertEqual(tenant_link.id, preserved["tenant_link_id"])
+            self.assertIsNone(tenant_link.demo_request_id)
+            self.assertEqual(tenant_link.subscription_contract_id, contract.id)
+            self.assertEqual(contract.school_group_id, group.id)
+            self.assertEqual(contract.contract_status, "tenant_active")
+            self.assertEqual(demo_entitlement.status, "ended")
+            self.assertEqual(paid_entitlement.status, "active")
+            self.assertEqual(paid_entitlement.entitlement_type, "paid")
+            self.assertEqual(
+                paid_entitlement.payment_subscription_id,
+                commercial["subscription_id"],
+            )
+            self.assertEqual(
+                db.query(saas.models.BranchEntitlement).one().workspace_entitlement_id,
+                paid_entitlement.id,
+            )
+            self.assertEqual(provisioning.lifecycle_processing_status, "converted")
+            self.assertEqual(conversion.status, "completed")
+            self.assertEqual(
+                db.get(
+                    saas.models.SaaSDemoRequest,
+                    fixture["request_id"],
+                ).workspace_classification_snapshot,
+                "customer_demo",
+            )
+            paid = entitlement_service.resolve_entitlements(db, group.id)
+            workspace = workspace_entitlement_service.resolve_workspace_entitlement(
+                db, group.id
+            )
+            state = commercial_state_service.resolve_commercial_state(db, group.id)
+            self.assertTrue(paid.resolved)
+            self.assertEqual(paid.subscription_id, commercial["subscription_id"])
+            self.assertEqual(workspace.entitlement_type, "paid")
+            self.assertEqual(state.commercial_state, "customer_paid_active")
+            self.assertEqual(
+                {
+                    row[0]
+                    for row in db.query(
+                        saas.models.SaaSDemoConversionEvent.event_type
+                    ).all()
+                },
+                {
+                    "conversion_requested",
+                    "conversion_started",
+                    "conversion_completed",
+                },
+            )
+        finally:
+            db.close()
+
+        repeated = self._convert_demo(fixture, commercial)
+        self.assertTrue(repeated.completed)
+        result = demo_lifecycle_service.process_due_demo_lifecycles(
+            self.Session,
+            dry_run=False,
+            observed_at=demo_lifecycle_service.utc_now() + timedelta(days=8),
+        )
+        self.assertEqual(result.scanned, 0)
+        customer_page = self.client.get(
+            f"/saas/demo-requests/{fixture['request_uuid']}"
+        )
+        self.assertIn("Subscription Active", customer_page.text)
+        self.assertIn("No workspace or data was recreated", customer_page.text)
+        owner_page = fixture["owner_client"].get(
+            f"/saas-admin/demo-requests/{fixture['request_uuid']}"
+        )
+        self.assertIn("Demo-to-Paid Conversion", owner_page.text)
+        self.assertIn("Converted", owner_page.text)
+        self.assertIn("Conversion History", owner_page.text)
+
+    def test_conversion_failure_rolls_back_demo_and_allows_retry(self):
+        fixture = self._activate_demo(
+            email="conversion.rollback@academy.edu",
+            owner_user_id="9189",
+        )
+        commercial = self._confirmed_subscription_for_demo(fixture)
+        unresolved = SimpleNamespace(
+            resolved=False,
+            commercial_state="manual_review",
+        )
+        with patch(
+            "saas.demo_conversion_service.commercial_state_service.resolve_commercial_state",
+            return_value=unresolved,
+        ):
+            outcome = self._convert_demo(fixture, commercial)
+        self.assertEqual(outcome.status, "failed")
+        self.assertEqual(outcome.reason_code, "paid_commercial_validation_failed")
+
+        db = self._db()
+        try:
+            group = db.get(models.SchoolGroup, fixture["school_group_id"])
+            link = db.get(
+                saas.models.TenantProvisioningLink,
+                fixture["tenant_link_id"],
+            )
+            demo_entitlement = db.get(
+                saas.models.WorkspaceEntitlement,
+                fixture["entitlement_id"],
+            )
+            conversion = db.get(
+                saas.models.SaaSDemoToPaidConversion,
+                commercial["conversion_id"],
+            )
+            self.assertEqual(group.workspace_classification, "customer_demo")
+            self.assertEqual(link.demo_request_id, fixture["request_id"])
+            self.assertIsNone(link.subscription_contract_id)
+            self.assertEqual(demo_entitlement.status, "active")
+            self.assertEqual(
+                db.query(saas.models.WorkspaceEntitlement).filter_by(
+                    entitlement_type="paid"
+                ).count(),
+                0,
+            )
+            self.assertEqual(
+                db.get(
+                    saas.models.PaymentSubscription,
+                    commercial["subscription_id"],
+                ).status,
+                "active",
+            )
+            self.assertEqual(conversion.status, "failed")
+            self.assertEqual(
+                db.query(saas.models.SaaSDemoConversionEvent).filter_by(
+                    event_type="conversion_failed"
+                ).count(),
+                2,
+            )
+        finally:
+            db.close()
+
+        retried = self._convert_demo(fixture, commercial)
+        self.assertTrue(retried.completed)
+
+    def test_conversion_rejects_expired_demo_and_unconfirmed_subscription(self):
+        expired = self._activate_demo(
+            email="conversion.expired@academy.edu",
+            owner_user_id="9191",
+        )
+        expired_commercial = self._confirmed_subscription_for_demo(expired)
+        observed = demo_lifecycle_service.utc_now()
+        self._set_demo_started_at(expired, observed - timedelta(days=8))
+        demo_lifecycle_service.process_due_demo_lifecycles(
+            self.Session,
+            dry_run=False,
+            observed_at=observed,
+        )
+        expired_outcome = self._convert_demo(expired, expired_commercial)
+        self.assertEqual(expired_outcome.status, "failed")
+        self.assertIn(
+            expired_outcome.reason_code,
+            {"workspace_not_active_customer_demo", "demo_lifecycle_not_convertible"},
+        )
+
+        pending = self._activate_demo(
+            email="conversion.pending@academy.edu",
+            owner_user_id="PEND9192",
+        )
+        pending_commercial = self._confirmed_subscription_for_demo(
+            pending,
+            status="pending",
+        )
+        pending_outcome = self._convert_demo(pending, pending_commercial)
+        self.assertEqual(pending_outcome.status, "failed")
+        self.assertEqual(
+            pending_outcome.reason_code,
+            "subscription_not_confirmed_active",
+        )
+        db = self._db()
+        try:
+            self.assertEqual(
+                db.get(models.SchoolGroup, pending["school_group_id"]).workspace_classification,
+                "customer_demo",
+            )
+            self.assertEqual(
+                db.get(
+                    saas.models.SaaSDemoWorkspaceProvisioning,
+                    pending["provisioning_id"],
+                ).lifecycle_processing_status,
+                "pending",
+            )
+        finally:
+            db.close()
+
+    def test_conversion_rejects_cross_tenant_subscription_and_other_classifications(self):
+        fixture = self._activate_demo(
+            email="conversion.tenant@academy.edu",
+            owner_user_id="9193",
+        )
+        commercial = self._confirmed_subscription_for_demo(fixture)
+        db = self._db()
+        try:
+            account = saas.models.SaaSAccount(
+                account_uuid=str(uuid.uuid4()),
+                email="unrelated.conversion@example.com",
+                email_normalized="unrelated.conversion@example.com",
+                status="active",
+            )
+            db.add(account)
+            db.flush()
+            unrelated = saas.models.PendingOrganization(
+                organization_uuid=str(uuid.uuid4()),
+                owner_saas_account_id=account.id,
+                organization_name="Unrelated Conversion Organization",
+            )
+            db.add(unrelated)
+            db.flush()
+            subscription = db.get(
+                saas.models.PaymentSubscription,
+                commercial["subscription_id"],
+            )
+            subscription.pending_organization_id = unrelated.id
+            db.commit()
+        finally:
+            db.close()
+        outcome = self._convert_demo(fixture, commercial)
+        self.assertEqual(outcome.status, "failed")
+        self.assertEqual(outcome.reason_code, "subscription_organization_mismatch")
+        with self.assertRaises(
+            workspace_classification_service.WorkspaceClassificationTransitionError
+        ):
+            workspace_classification_service.validate_classification_transition(
+                "internal_sandbox",
+                "customer_paid",
+            )
+        self.assertEqual(
+            workspace_classification_service.validate_classification_transition(
+                "customer_demo",
+                "customer_paid",
+            ).value,
+            "customer_paid",
+        )
+
+    def test_m8b6_migration_creates_conversion_ledger_and_is_idempotent(self):
+        with self.engine.begin() as connection:
+            connection.execute(text("DROP TABLE saas_demo_conversion_events"))
+            connection.execute(text("DROP TABLE saas_demo_to_paid_conversions"))
+            connection.execute(
+                text(
+                    "DELETE FROM schema_migrations "
+                    "WHERE migration_id = '20260723_003_demo_to_paid_conversion'"
+                )
+            )
+        self.assertEqual(
+            db_migrations.run_pending_migrations(self.engine),
+            ["20260723_003_demo_to_paid_conversion"],
+        )
+        self.assertTrue(
+            {
+                "saas_demo_to_paid_conversions",
+                "saas_demo_conversion_events",
+            }.issubset(set(inspect(self.engine).get_table_names()))
+        )
+        fixture = self._activate_demo(
+            email="conversion.migration@academy.edu",
+            owner_user_id="9194",
+        )
+        db = self._db()
+        try:
+            provisioning = db.get(
+                saas.models.SaaSDemoWorkspaceProvisioning,
+                fixture["provisioning_id"],
+            )
+            provisioning.lifecycle_processing_status = "converted"
+            db.commit()
+            provisioning.lifecycle_processing_status = "unsupported"
+            with self.assertRaises(IntegrityError):
+                db.commit()
+            db.rollback()
+        finally:
+            db.close()
+        self.assertEqual(db_migrations.run_pending_migrations(self.engine), [])
 
     def test_m8b5_migration_backfills_lifecycle_dates_and_is_idempotent(self):
         fixture = self._activate_demo(

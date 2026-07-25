@@ -1739,11 +1739,16 @@ def initial_checkout_is_closed(db: Session, organization) -> bool:
         models.PaymentSubscription.pending_organization_id == organization.id,
         models.PaymentSubscription.status == "active",
     ).first() is not None
-    has_active_tenant = db.query(models.TenantProvisioningLink.id).filter(
+    active_tenant_link = db.query(models.TenantProvisioningLink).filter(
         models.TenantProvisioningLink.pending_organization_id == organization.id,
         models.TenantProvisioningLink.tenant_status == "tenant_active",
-    ).first() is not None
-    return bool(has_active_subscription or has_active_tenant)
+    ).one_or_none()
+    has_paid_active_tenant = bool(
+        active_tenant_link
+        and active_tenant_link.subscription_contract_id
+        and not active_tenant_link.demo_request_id
+    )
+    return bool(has_active_subscription or has_paid_active_tenant)
 
 
 def ensure_initial_checkout_available(db: Session, organization) -> None:

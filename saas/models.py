@@ -497,7 +497,7 @@ class SaaSDemoWorkspaceProvisioning(Base):
             name="ck_saas_demo_workspace_provisioning_status",
         ),
         CheckConstraint(
-            "lifecycle_processing_status IN ('pending','processing','failed','expired')",
+            "lifecycle_processing_status IN ('pending','processing','failed','expired','converted')",
             name="ck_saas_demo_workspace_provisioning_lifecycle_status",
         ),
     )
@@ -685,6 +685,149 @@ class SaaSDemoLifecycleNotification(Base):
     message = Column(Text, nullable=False)
     deduplication_key = Column(String(180), nullable=False, unique=True)
     read_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class SaaSDemoToPaidConversion(Base):
+    __tablename__ = "saas_demo_to_paid_conversions"
+    __table_args__ = (
+        Index("uq_saas_demo_to_paid_conversions_uuid", "conversion_uuid", unique=True),
+        Index("uq_saas_demo_to_paid_conversions_request", "demo_request_id", unique=True),
+        Index(
+            "uq_saas_demo_to_paid_conversions_provisioning",
+            "demo_provisioning_id",
+            unique=True,
+        ),
+        Index("uq_saas_demo_to_paid_conversions_group", "school_group_id", unique=True),
+        Index("ix_saas_demo_to_paid_conversions_contract", "subscription_contract_id"),
+        Index("ix_saas_demo_to_paid_conversions_subscription", "payment_subscription_id"),
+        Index("ix_saas_demo_to_paid_conversions_status", "status"),
+        CheckConstraint(
+            "status IN ('requested','processing','completed','failed')",
+            name="ck_saas_demo_to_paid_conversions_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    conversion_uuid = Column(
+        String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4())
+    )
+    demo_request_id = Column(
+        Integer,
+        ForeignKey("saas_demo_requests.id"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    demo_provisioning_id = Column(
+        Integer,
+        ForeignKey("saas_demo_workspace_provisioning.id"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    school_group_id = Column(
+        Integer,
+        ForeignKey("school_groups.id"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    pending_organization_id = Column(
+        Integer,
+        ForeignKey("pending_organizations.id"),
+        nullable=False,
+        index=True,
+    )
+    requested_by_saas_account_id = Column(
+        Integer,
+        ForeignKey("saas_accounts.id", ondelete="SET NULL"),
+        index=True,
+    )
+    subscription_contract_id = Column(
+        Integer,
+        ForeignKey("subscription_contracts.id"),
+        unique=True,
+        index=True,
+    )
+    payment_subscription_id = Column(
+        Integer,
+        ForeignKey("payment_subscriptions.id"),
+        unique=True,
+        index=True,
+    )
+    previous_demo_entitlement_id = Column(
+        Integer,
+        ForeignKey("workspace_entitlements.id"),
+        index=True,
+    )
+    paid_workspace_entitlement_id = Column(
+        Integer,
+        ForeignKey("workspace_entitlements.id"),
+        unique=True,
+        index=True,
+    )
+    status = Column(String(24), nullable=False, default="requested")
+    attempt_count = Column(Integer, nullable=False, default=0)
+    reason_code = Column(String(80))
+    failure_reason = Column(Text)
+    requested_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    started_at = Column(DateTime(timezone=True))
+    completed_at = Column(DateTime(timezone=True))
+    failed_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+
+class SaaSDemoConversionEvent(Base):
+    __tablename__ = "saas_demo_conversion_events"
+    __table_args__ = (
+        Index("ix_saas_demo_conversion_events_conversion", "demo_conversion_id"),
+        Index("ix_saas_demo_conversion_events_category", "event_category"),
+        Index("ix_saas_demo_conversion_events_type", "event_type"),
+        Index("ix_saas_demo_conversion_events_created", "created_at"),
+        CheckConstraint(
+            "event_category IN ('audit','notification')",
+            name="ck_saas_demo_conversion_events_category",
+        ),
+        CheckConstraint(
+            "event_type IN ('conversion_requested','conversion_started',"
+            "'conversion_completed','conversion_failed')",
+            name="ck_saas_demo_conversion_events_type",
+        ),
+        CheckConstraint(
+            "actor_type IN ('customer','system')",
+            name="ck_saas_demo_conversion_events_actor_type",
+        ),
+        CheckConstraint(
+            "event_status IN ('ok','failed')",
+            name="ck_saas_demo_conversion_events_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    demo_conversion_id = Column(
+        Integer,
+        ForeignKey("saas_demo_to_paid_conversions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    event_category = Column(String(20), nullable=False)
+    event_type = Column(String(40), nullable=False)
+    actor_type = Column(String(24), nullable=False)
+    actor_saas_account_id = Column(
+        Integer,
+        ForeignKey("saas_accounts.id", ondelete="SET NULL"),
+        index=True,
+    )
+    event_status = Column(String(20), nullable=False, default="ok")
+    reason_code = Column(String(80))
+    details_json = Column(Text)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
 
