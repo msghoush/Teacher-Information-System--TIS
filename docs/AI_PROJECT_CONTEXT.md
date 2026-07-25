@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-07-23
+last_updated: 2026-07-25
 recommended_first_read: true
 ---
 
@@ -58,6 +58,7 @@ The public marketing website is separate:
 - `tis-landing-website/`
 - Next.js / Node runtime
 - Source of truth for public landing implementation
+- M8 landing integration exposes customer account setup from the public website through Open Account CTAs that use `NEXT_PUBLIC_TIS_APP_BASE_URL` and route to the deployed app's `/saas/signup` path.
 
 Legacy FastAPI landing files are not the source of truth:
 

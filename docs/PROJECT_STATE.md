@@ -1,7 +1,7 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-07-23
+last_updated: 2026-07-25
 source_of_truth: true
 ---
 
@@ -9,7 +9,7 @@ source_of_truth: true
 
 ## Last Updated
 
-Last updated: 2026-07-22
+Last updated: 2026-07-25
 
 Update this file after every meaningful milestone, active development change, roadmap shift, known issue change, or documentation/KMS change.
 
@@ -185,9 +185,16 @@ M8B-6 demo-to-paid conversion:
 - Conversion states and audit/internal events remain durable, failures preserve paid records and demo operation for retry, and completed conversions leave demo lifecycle processing.
 - Expired, ambiguous, cross-tenant, internal-sandbox, paid, and already-converted workspaces remain fail-closed.
 
+M8 Landing Integration:
+
+- Final M8 landing integration exposes the completed customer account setup path from the public Next.js landing website.
+- `tis-landing-website/` now has Open Account entry points in the navigation, hero, and final CTA area.
+- All Open Account links use one shared destination built from `NEXT_PUBLIC_TIS_APP_BASE_URL` plus `/saas/signup`.
+- This did not modify the FastAPI SaaS application, authentication, onboarding backend, payment, provisioning, database, operational modules, or M9 scope.
+
 ## Current Priority
 
-Current priority: validate M8B-6 demo-to-paid conversion before any separately approved M8B-7 work.
+Current priority: validate the final M8 public landing integration before any separately approved M9 work.
 
 Current enforcement scope:
 

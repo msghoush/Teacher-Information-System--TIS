@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
 documentation_version: 3.1
-last_updated: 2026-07-23
+last_updated: 2026-07-25
 source_of_truth: true
 ---
 
@@ -116,6 +116,7 @@ Landing architecture:
 - Global styles: `tis-landing-website/src/app/globals.css`.
 - Logo component: `tis-landing-website/src/components/tis-logo.tsx`.
 - Public assets: `tis-landing-website/public/`.
+- M8 landing integration uses `NEXT_PUBLIC_TIS_APP_BASE_URL` as the configurable deployed application base URL. Public Open Account CTAs build one shared registration destination at `/saas/signup` without changing SaaS routes or backend behavior.
 
 The application portal remains separate:
 
@@ -373,6 +374,7 @@ Landing priorities:
 - Present TIS as a connected academic operations platform.
 - Show credible platform capabilities.
 - Support early access, demo requests, and signup pathways.
+- Expose Open Account entry points that send qualified visitors from the public website to the deployed TIS Account signup flow.
 - Keep the landing page separate from operational app templates.
 
 Landing rule:

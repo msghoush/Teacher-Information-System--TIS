@@ -1,7 +1,7 @@
 ---
 title: Landing Page History
 module: landing-page
-last_updated: 2026-06-26
+last_updated: 2026-07-25
 ---
 
 # Landing Page History
@@ -14,3 +14,7 @@ Related docs:
 - `docs/adr/0007-landing-page-visual-system-strategy.md`
 - `docs/marketing/landing_page_source_of_truth.md`
 - `docs/marketing/tis_landing_page_master_content.md`
+
+History entries:
+
+- `2026-07-25-m8-landing-integration-open-account.md`: final M8 Open Account entry points from the public landing website to the deployed TIS Account signup flow.

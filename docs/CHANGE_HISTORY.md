@@ -1,7 +1,7 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-07-23
+last_updated: 2026-07-25
 source_of_truth: true
 ---
 
@@ -26,6 +26,44 @@ PDF regenerated:
 AI project context updated:
 Reviewer/approval notes:
 ```
+
+## 2026-07-25 - M8 Landing Integration Open Account Entry Points
+
+Area/module:
+Next.js public landing website, public-to-account routing, and deployment configuration
+
+Previous state:
+The public landing website explained TIS and supported demo/early-access conversion, but it did not expose a final M8 Open Account entry point into the deployed TIS Account signup journey.
+
+New state:
+The Next.js landing website now has Open Account entry points in the navigation, hero CTA area, and final CTA area. All Open Account links use one shared URL derived from `NEXT_PUBLIC_TIS_APP_BASE_URL` and the existing `/saas/signup` account registration path.
+
+Reason:
+M8A and M8B-1 through M8B-6 are already completed in the SaaS application. The final M8 integration step is to let visitors on `tisplatform.com` enter the deployed customer account setup flow without coupling the landing project to the FastAPI app.
+
+Files changed:
+- `tis-landing-website/src/app/page.tsx`
+- `tis-landing-website/.env.example`
+- `tis-landing-website/README.md`
+- `.kms-impact.yml`
+- `docs/AI_PROJECT_CONTEXT.md`
+- `docs/TIS_MASTER_CONTEXT.md`
+- `docs/PROJECT_STATE.md`
+- `docs/CHANGE_HISTORY.md`
+- `docs/history/landing-page/README.md`
+- `docs/history/landing-page/2026-07-25-m8-landing-integration-open-account.md`
+
+Documentation updated:
+AI/master context, project state, change history, and landing-page history.
+
+PDF regenerated:
+Yes, through `python scripts/kms.py sync`.
+
+AI project context updated:
+Yes.
+
+Reviewer/approval notes:
+M8 landing integration only. No FastAPI SaaS application, authentication, onboarding backend, Paddle, database, API, demo workflow, provisioning, commercial state, commit, push, or M9 work.
 
 ## 2026-07-23 - M8B-6 Demo-To-Paid Workspace Conversion
 
