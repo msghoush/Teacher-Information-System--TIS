@@ -58,6 +58,10 @@ Pilot enforcement is limited to allocation-plan PDF/XLSX exports. Both the exist
 
 Upgrades, downgrades, proration, refunds, Paddle subscription changes, branch-specific plans, and customer subscription-management UI remain later M7 work.
 
+## 2026-07-26 - Test Workspace Reset Subscription-Change Dependency
+
+The Platform Owner-only test workspace/account reset now deletes `subscription_change_requests` scoped by the selected operational `school_group_id` before deleting that workspace's users. The request model can reference the workspace user, SaaS account, subscription contract, and payment subscription, so this narrow ordering rule prevents foreign-key deletion failures without changing lifecycle rules, customer behavior, or the preservation of records from other workspaces. The reset remains one transaction with the existing validation blocks, rollback behavior, pre-analysis counts, and structured diagnostics.
+
 ## 2026-07-14 - M6 Phase 3 Abandoned Draft Cleanup
 
 Automatic cleanup applies only to unpaid, unprovisioned SaaS drafts. A draft becomes eligible after the globally configured inactivity period (30 days by default) and only after its final reminder was sent successfully for the current activity cycle. Any later meaningful activity restarts the lifecycle and prevents deletion.

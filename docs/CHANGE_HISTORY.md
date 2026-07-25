@@ -11,6 +11,35 @@ This file is the chronological summary of meaningful TIS changes. It does not re
 
 Newest entries should be added first.
 
+## 2026-07-26 - Test Workspace Reset Subscription-Change Dependency Fix
+
+Area/module:
+Platform Owner test workspace/account reset, subscription-change records, and workspace-deletion diagnostics
+
+Previous state:
+The controlled test workspace reset deleted scoped operational users before deleting scoped subscription-change requests. A request referencing a workspace user could therefore cause the database to reject the user deletion and roll the transaction back.
+
+New state:
+The reset deletes `subscription_change_requests` for the selected `school_group_id` before any selected workspace user is deleted. Pre-analysis now counts the same scoped records, existing structured diagnostics retain their model/table/row-count events, and all deletion work remains inside the existing transaction.
+
+Reason:
+Preserve foreign-key integrity while allowing Platform Owners to reset only the selected internal test workspace/account and retain all other workspaces unchanged.
+
+Files changed:
+Workspace analysis/deletion services, focused Phase 5 regression tests, and KMS sources.
+
+Documentation updated:
+AI/master context, project state, change history, and SaaS onboarding history.
+
+PDF regenerated:
+Yes, through `python scripts/kms.py sync`.
+
+AI project context updated:
+Yes.
+
+Reviewer/approval notes:
+Minimal dependency-order fix only. No foreign-key, cascade, schema, lifecycle, customer-facing, commit, or push change.
+
 ## 2026-07-25 - Landing CTA Consolidation And Customer Demo Domain Policy
 
 Area/module:

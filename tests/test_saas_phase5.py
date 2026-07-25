@@ -406,6 +406,52 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         finally:
             db.close()
 
+    def _add_subscription_change_request(self, db, result: dict) -> int:
+        organization = db.query(saas.models.PendingOrganization).filter_by(
+            id=result["organization_id"]
+        ).one()
+        contract = db.query(saas.models.SubscriptionContract).filter_by(
+            pending_organization_id=organization.id
+        ).one()
+        subscription = db.query(saas.models.PaymentSubscription).filter_by(
+            pending_organization_id=organization.id
+        ).one()
+        account = db.query(saas.models.SaaSAccount).filter_by(
+            id=organization.owner_saas_account_id
+        ).one()
+        user = db.query(models.User).filter_by(
+            school_group_id=result["school_group_id"]
+        ).first()
+        current_price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+            plan_id=subscription.plan_id,
+            billing_interval=subscription.billing_interval,
+            currency_code=subscription.currency_code,
+            provider_price_id=subscription.provider_price_id,
+            is_active=True,
+        ).one()
+        row = saas.models.SubscriptionChangeRequest(
+            school_group_id=result["school_group_id"],
+            subscription_contract_id=contract.id,
+            payment_subscription_id=subscription.id,
+            provider_subscription_id=subscription.provider_subscription_id,
+            requested_by_user_id=user.id,
+            requested_by_saas_account_id=account.id,
+            change_type="branch_quantity",
+            current_quantity=subscription.quantity,
+            requested_quantity=subscription.quantity,
+            quantity_delta=0,
+            current_plan_price_id=current_price.id,
+            provider_price_id=subscription.provider_price_id,
+            billing_interval=subscription.billing_interval,
+            currency_code=subscription.currency_code,
+            effective_mode="immediate",
+            status="completed",
+            idempotency_key=f"test-workspace-delete-{time.time_ns()}",
+        )
+        db.add(row)
+        db.flush()
+        return row.id
+
     def _platform_client(self, *, user_id: str = "9005", platform_role: str = auth.PLATFORM_ROLE_OWNER):
         db = self._db()
         try:
@@ -1204,6 +1250,61 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         )
         self.assertEqual(repeated.status_code, 404)
 
+    def test_delete_test_workspace_removes_scoped_subscription_change_requests_before_users(self):
+        target = self._complete_paid_provisioning(
+            email="delete-change-request@academy.edu",
+            organization_name="Change Request Delete Academy",
+        )
+        unrelated = self._complete_paid_provisioning(
+            email="keep-change-request@academy.edu",
+            organization_name="Keep Change Request Academy",
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                id=target["organization_id"]
+            ).one()
+            organization_uuid = organization.organization_uuid
+            target_request_id = self._add_subscription_change_request(db, target)
+            unrelated_request_id = self._add_subscription_change_request(db, unrelated)
+            db.commit()
+        finally:
+            db.close()
+
+        with self.assertLogs("saas", level="INFO") as deletion_logs:
+            response = self._platform_client(user_id="9017").post(
+                f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-workspace",
+                data={
+                    "confirmation_name": "Change Request Delete Academy",
+                    "reason": "Repeat complete test workflow",
+                },
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("Test+workspace+permanently+deleted", response.headers["location"])
+        log_output = "\n".join(deletion_logs.output)
+        self.assertIn("subscription_change_requests", log_output)
+        self.assertLess(
+            log_output.index("delete_step=begin model=SubscriptionChangeRequest"),
+            log_output.index("delete_step=begin model=User"),
+        )
+
+        db = self._db()
+        try:
+            self.assertIsNone(
+                db.query(saas.models.SubscriptionChangeRequest).filter_by(
+                    id=target_request_id
+                ).first()
+            )
+            self.assertIsNotNone(
+                db.query(saas.models.SubscriptionChangeRequest).filter_by(
+                    id=unrelated_request_id
+                ).first()
+            )
+        finally:
+            db.close()
+
     def test_delete_test_workspace_rolls_back_every_row_on_failure(self):
         result = self._complete_paid_provisioning(
             email="delete-rollback@academy.edu",
@@ -1213,11 +1314,14 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         db = self._db()
         try:
             organization_uuid = db.query(saas.models.PendingOrganization).filter_by(id=result["organization_id"]).first().organization_uuid
+            change_request_id = self._add_subscription_change_request(db, result)
+            db.commit()
             before = {
                 "pending": db.query(saas.models.PendingOrganization).count(),
                 "groups": db.query(models.SchoolGroup).count(),
                 "branches": db.query(models.Branch).count(),
                 "users": db.query(models.User).count(),
+                "subscription_change_requests": db.query(saas.models.SubscriptionChangeRequest).count(),
             }
         finally:
             db.close()
@@ -1247,7 +1351,13 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
                 "groups": db.query(models.SchoolGroup).count(),
                 "branches": db.query(models.Branch).count(),
                 "users": db.query(models.User).count(),
+                "subscription_change_requests": db.query(saas.models.SubscriptionChangeRequest).count(),
             }
+            self.assertIsNotNone(
+                db.query(saas.models.SubscriptionChangeRequest).filter_by(
+                    id=change_request_id
+                ).first()
+            )
         finally:
             db.close()
         self.assertEqual(before, after)
@@ -1410,6 +1520,8 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             organization_uuid = organization.organization_uuid
             account = db.query(saas.models.SaaSAccount).filter_by(email_normalized=email).first()
             account_id = account.id
+            change_request_id = self._add_subscription_change_request(db, result)
+            db.commit()
             plan_count = db.query(saas.models.SubscriptionPlan).count()
             price_count = db.query(saas.models.SubscriptionPlanPrice).count()
         finally:
@@ -1440,6 +1552,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             self.assertIsNone(db.query(saas.models.SaaSAccount).filter_by(id=account_id).first())
             self.assertIsNone(db.query(saas.models.PendingOrganization).filter_by(id=result["organization_id"]).first())
             self.assertIsNone(db.query(models.SchoolGroup).filter_by(id=result["school_group_id"]).first())
+            self.assertIsNone(db.query(saas.models.SubscriptionChangeRequest).filter_by(id=change_request_id).first())
             self.assertIsNotNone(db.query(saas.models.PendingOrganization).filter_by(id=unrelated["organization_id"]).first())
             self.assertIsNotNone(db.query(models.SchoolGroup).filter_by(id=unrelated["school_group_id"]).first())
             self.assertEqual(db.query(saas.models.SubscriptionPlan).count(), plan_count)
