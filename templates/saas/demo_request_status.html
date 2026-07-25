@@ -32,12 +32,17 @@
     <div class="stat"><strong>Demo Expires</strong><p>{{ format_lifecycle_datetime(demo_lifecycle.display_expires_at) }}</p></div>
     <div class="stat"><strong>Workspace Timezone</strong><p>{{ demo_lifecycle.timezone_name }}</p></div>
     {% endif %}
+    {% if demo_conversion %}
+    <div class="stat"><strong>Conversion Status</strong><p>{{ demo_conversion.status|replace('_', ' ')|title }}</p></div>
+    {% endif %}
 </section>
 
 {% if demo_request.status == 'pending_review' %}
 <div class="notice" style="margin-top:18px;">Your request is pending Platform Owner review. No workspace or subscription has been created.</div>
 {% elif demo_request.status == 'approved' %}
-    {% if demo_lifecycle and demo_lifecycle.lifecycle_state == 'expired' %}
+    {% if demo_conversion and demo_conversion.status == 'completed' %}
+    <div class="success" style="margin-top:18px;"><strong>Subscription Active</strong><br>Your existing workspace is now covered by your TIS subscription. No workspace or data was recreated.</div>
+    {% elif demo_lifecycle and demo_lifecycle.lifecycle_state == 'expired' %}
     <div class="warning" style="margin-top:18px;"><strong>Demo Expired</strong><br>Operational access is blocked. Your workspace, users, branches, and tenant data remain preserved.</div>
     {% elif demo_lifecycle and demo_lifecycle.lifecycle_state == 'reminder_due' %}
     <div class="warning" style="margin-top:18px;"><strong>Demo Expires Soon</strong><br>Your demo expires in approximately one day. Subscribe to retain operational access. Your workspace data will be preserved.</div>
@@ -71,7 +76,10 @@
 
 <div class="demo-status-actions actions">
     <a class="btn secondary" href="/saas/account">Back to Account Setup</a>
-    {% if demo_request.status == 'pending_review' %}
+    {% if demo_conversion and demo_conversion.status == 'completed' %}
+    <a class="btn" href="/login">Enter TIS Platform</a>
+    <a class="btn secondary" href="/saas/subscription">Subscription Management</a>
+    {% elif demo_request.status == 'pending_review' %}
     <form method="post" action="/saas/demo-requests/{{ demo_request.request_uuid }}/withdraw">
         <button class="btn danger" type="submit">Withdraw Request</button>
     </form>
@@ -79,8 +87,13 @@
     <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/commercial-choice/subscribe">
         <button class="btn" type="submit">Subscribe Now</button>
     </form>
-    {% elif demo_lifecycle and demo_lifecycle.lifecycle_state in ('reminder_due', 'expired') %}
-    <a class="btn" href="/saas/subscription">Subscribe Now</a>
+    {% elif demo_lifecycle and demo_lifecycle.lifecycle_state in ('active', 'reminder_due', 'expired') %}
+    <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/commercial-choice/subscribe">
+        <button class="btn" type="submit">Subscribe Now</button>
+    </form>
+    {% if demo_lifecycle.can_access %}
+    <a class="btn secondary" href="/login">Enter TIS Platform</a>
+    {% endif %}
     {% elif demo_provisioning and demo_provisioning.provisioning_status == 'active' and demo_lifecycle and demo_lifecycle.can_access %}
     <a class="btn" href="/login">Enter TIS Platform</a>
     {% endif %}

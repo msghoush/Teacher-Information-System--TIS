@@ -86,6 +86,26 @@ Guardrails:
 - Reminder and expiration actions are idempotent and failure-audited.
 - No email, Paddle change, conversion, extension, or read-only expired mode is included.
 
+## Demo-To-Paid Conversion Flow
+
+1. An active, coherently provisioned Customer Demo chooses Subscribe Now.
+2. TIS records a requested conversion and continues through the existing M7 plan selection and Paddle checkout.
+3. No new operational workspace, tenant link, branch, user, permission, or academic record is created.
+4. `transaction.completed` remains the payment authority and establishes the confirmed `SubscriptionContract` and active `PaymentSubscription`.
+5. If the existing tenant link is demo-sourced, webhook reconciliation invokes the dedicated conversion service instead of paid provisioning.
+6. The service locks and revalidates the request, provisioning aggregate, SchoolGroup, demo entitlement, tenant link, contract, subscription, price, interval, quantity, and tenant ownership.
+7. One atomic workspace transaction ends the demo entitlement, creates the subscription-backed paid entitlement, relinks branch entitlements, changes the SchoolGroup to Customer Paid Active, and moves the same tenant link to the confirmed contract.
+8. Existing M7 entitlement, workspace-entitlement, and commercial-state resolvers validate the resulting Customer Paid Active state before commit.
+9. Success records completion and lets the customer continue into the same operational workspace. Completed conversions no longer enter demo lifecycle processing.
+10. Failure rolls back workspace mutations, preserves provider-confirmed payment records, records a safe retryable failure, and may be retried from a later subscription webhook.
+
+Guardrails:
+
+- Never infer conversion from checkout return navigation, onboarding selection, or an unconfirmed payment attempt.
+- Never run paid tenant provisioning for a valid existing demo tenant.
+- Expired, suspended, ambiguous, cross-tenant, internal-sandbox, already-paid, and incoherent workspaces fail closed.
+- Conversion does not change Paddle pricing, subscription mutation, webhook authority, tenant isolation, or operational permissions.
+
 ## SaaS Identity Flow
 
 Flow:

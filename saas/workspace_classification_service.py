@@ -106,11 +106,18 @@ def is_customer_workspace(value) -> bool:
 def validate_classification_transition(current, requested) -> WorkspaceClassification:
     current_value = validate_classification(current)
     requested_value = validate_classification(requested)
+    if current_value is requested_value:
+        return current_value
+    if (
+        current_value is WorkspaceClassification.CUSTOMER_DEMO
+        and requested_value is WorkspaceClassification.CUSTOMER_PAID
+    ):
+        return requested_value
     if current_value is not requested_value:
         raise WorkspaceClassificationTransitionError(
-            "Workspace classification conversion is not available in M8B-1."
+            "Only Customer Demo to Customer Paid conversion is supported."
         )
-    return current_value
+    return requested_value
 
 
 def validate_lifecycle_transition(current, requested) -> WorkspaceLifecycleStatus:

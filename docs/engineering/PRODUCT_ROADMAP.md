@@ -71,6 +71,10 @@ Added Platform Owner-triggered provisioning for approved customer-demo requests.
 
 Added the activation-based seven-day demo clock, Day 6 internal reminders, Day 7 atomic expiration, data-preserving workspace suspension, server-side web/API access enforcement, customer subscription guidance, owner lifecycle visibility, and a dry-run/default scheduled processor.
 
+### M8B-6 Demo-To-Paid Workspace Conversion
+
+Added provider-confirmed conversion of an eligible active Customer Demo into Customer Paid on the same SchoolGroup and tenant link. The flow preserves operational identity and data, replaces the demo entitlement with the confirmed subscription-backed entitlement atomically, records durable conversion history, supports safe retry after failure, and removes completed conversions from demo lifecycle processing.
+
 ## Current
 
 ### KMS Enforcement Review
@@ -83,9 +87,9 @@ The product is preparing for stronger public customer journey work from landing 
 
 ## Next
 
-### M8B-6 Next Approved Commercial Package
+### M8B-7 Next Approved Commercial Package
 
-Proceed only from a separately approved M8B-6 specification. Demo-to-paid conversion, manual extension/override, internal-sandbox conversion, special migrations, memberships, ownership transfer, and expanded role architecture remain unimplemented.
+Proceed only from a separately approved M8B-7 specification. Manual demo extension/override, internal-sandbox conversion, special migrations, memberships, ownership transfer, and expanded role architecture remain unimplemented.
 
 ### Premium Landing Page Redesign
 

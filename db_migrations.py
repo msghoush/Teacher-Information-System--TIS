@@ -4093,6 +4093,193 @@ def _demo_workspace_lifecycle(engine, connection):
         )
 
 
+def _demo_to_paid_conversion(engine, connection):
+    datetime_type = (
+        "TIMESTAMPTZ" if engine.dialect.name == "postgresql" else "DATETIME"
+    )
+    id_sql = (
+        "SERIAL PRIMARY KEY"
+        if engine.dialect.name == "postgresql"
+        else "INTEGER PRIMARY KEY"
+    )
+    provisioning_table = "saas_demo_workspace_provisioning"
+    if engine.dialect.name == "postgresql":
+        if _check_constraint_exists(
+            connection,
+            provisioning_table,
+            "ck_saas_demo_workspace_provisioning_lifecycle_status",
+        ):
+            _execute(
+                connection,
+                """
+                ALTER TABLE saas_demo_workspace_provisioning
+                DROP CONSTRAINT ck_saas_demo_workspace_provisioning_lifecycle_status
+                """,
+            )
+        _execute(
+            connection,
+            """
+            ALTER TABLE saas_demo_workspace_provisioning
+            ADD CONSTRAINT ck_saas_demo_workspace_provisioning_lifecycle_status
+            CHECK (
+                lifecycle_processing_status IN (
+                    'pending','processing','failed','expired','converted'
+                )
+            )
+            """,
+        )
+    else:
+        for operation in ("insert", "update"):
+            _execute(
+                connection,
+                f"""
+                DROP TRIGGER IF EXISTS
+                    trg_demo_provisioning_lifecycle_status_{operation}
+                """,
+            )
+            _execute(
+                connection,
+                f"""
+                CREATE TRIGGER
+                    trg_demo_provisioning_lifecycle_status_{operation}
+                BEFORE {operation.upper()} ON saas_demo_workspace_provisioning
+                WHEN NEW.lifecycle_processing_status NOT IN
+                    ('pending','processing','failed','expired','converted')
+                BEGIN
+                    SELECT RAISE(
+                        ABORT,
+                        'ck_saas_demo_workspace_provisioning_lifecycle_status'
+                    );
+                END
+                """,
+            )
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_demo_to_paid_conversions (
+            id {id_sql},
+            conversion_uuid VARCHAR(36) NOT NULL UNIQUE,
+            demo_request_id INTEGER NOT NULL UNIQUE,
+            demo_provisioning_id INTEGER NOT NULL UNIQUE,
+            school_group_id INTEGER NOT NULL UNIQUE,
+            pending_organization_id INTEGER NOT NULL,
+            requested_by_saas_account_id INTEGER,
+            subscription_contract_id INTEGER UNIQUE,
+            payment_subscription_id INTEGER UNIQUE,
+            previous_demo_entitlement_id INTEGER,
+            paid_workspace_entitlement_id INTEGER UNIQUE,
+            status VARCHAR(24) NOT NULL DEFAULT 'requested',
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            reason_code VARCHAR(80),
+            failure_reason TEXT,
+            requested_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            started_at {datetime_type},
+            completed_at {datetime_type},
+            failed_at {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_saas_demo_to_paid_conversions_status
+                CHECK (status IN ('requested','processing','completed','failed')),
+            FOREIGN KEY (demo_request_id) REFERENCES saas_demo_requests(id),
+            FOREIGN KEY (demo_provisioning_id)
+                REFERENCES saas_demo_workspace_provisioning(id),
+            FOREIGN KEY (school_group_id) REFERENCES school_groups(id),
+            FOREIGN KEY (pending_organization_id)
+                REFERENCES pending_organizations(id),
+            FOREIGN KEY (requested_by_saas_account_id)
+                REFERENCES saas_accounts(id) ON DELETE SET NULL,
+            FOREIGN KEY (subscription_contract_id)
+                REFERENCES subscription_contracts(id),
+            FOREIGN KEY (payment_subscription_id)
+                REFERENCES payment_subscriptions(id),
+            FOREIGN KEY (previous_demo_entitlement_id)
+                REFERENCES workspace_entitlements(id),
+            FOREIGN KEY (paid_workspace_entitlement_id)
+                REFERENCES workspace_entitlements(id)
+        )
+        """,
+    )
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_demo_conversion_events (
+            id {id_sql},
+            demo_conversion_id INTEGER NOT NULL,
+            event_category VARCHAR(20) NOT NULL,
+            event_type VARCHAR(40) NOT NULL,
+            actor_type VARCHAR(24) NOT NULL,
+            actor_saas_account_id INTEGER,
+            event_status VARCHAR(20) NOT NULL DEFAULT 'ok',
+            reason_code VARCHAR(80),
+            details_json TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_saas_demo_conversion_events_category
+                CHECK (event_category IN ('audit','notification')),
+            CONSTRAINT ck_saas_demo_conversion_events_type
+                CHECK (
+                    event_type IN (
+                        'conversion_requested','conversion_started',
+                        'conversion_completed','conversion_failed'
+                    )
+                ),
+            CONSTRAINT ck_saas_demo_conversion_events_actor_type
+                CHECK (actor_type IN ('customer','system')),
+            CONSTRAINT ck_saas_demo_conversion_events_status
+                CHECK (event_status IN ('ok','failed')),
+            FOREIGN KEY (demo_conversion_id)
+                REFERENCES saas_demo_to_paid_conversions(id) ON DELETE CASCADE,
+            FOREIGN KEY (actor_saas_account_id)
+                REFERENCES saas_accounts(id) ON DELETE SET NULL
+        )
+        """,
+    )
+    for table_name, index_name, columns in (
+        (
+            "saas_demo_to_paid_conversions",
+            "ix_saas_demo_to_paid_conversions_status",
+            "status",
+        ),
+        (
+            "saas_demo_to_paid_conversions",
+            "ix_saas_demo_to_paid_conversions_contract",
+            "subscription_contract_id",
+        ),
+        (
+            "saas_demo_to_paid_conversions",
+            "ix_saas_demo_to_paid_conversions_subscription",
+            "payment_subscription_id",
+        ),
+        (
+            "saas_demo_conversion_events",
+            "ix_saas_demo_conversion_events_conversion",
+            "demo_conversion_id",
+        ),
+        (
+            "saas_demo_conversion_events",
+            "ix_saas_demo_conversion_events_category",
+            "event_category",
+        ),
+        (
+            "saas_demo_conversion_events",
+            "ix_saas_demo_conversion_events_type",
+            "event_type",
+        ),
+        (
+            "saas_demo_conversion_events",
+            "ix_saas_demo_conversion_events_created",
+            "created_at",
+        ),
+    ):
+        _create_index_if_missing(
+            connection,
+            connection,
+            table_name,
+            index_name,
+            columns,
+        )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -4248,6 +4435,11 @@ MIGRATIONS = (
         migration_id="20260723_002_demo_workspace_lifecycle",
         description="Add seven-day customer demo lifecycle processing and notification records",
         apply=_demo_workspace_lifecycle,
+    ),
+    Migration(
+        migration_id="20260723_003_demo_to_paid_conversion",
+        description="Add atomic Customer Demo to Customer Paid conversion records and events",
+        apply=_demo_to_paid_conversion,
     ),
 )
 

@@ -1210,6 +1210,7 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
             contract.payment_provider = PROVIDER
             contract.paid_at = contract.paid_at or _utcnow()
             contract.contract_status = "paid_pending_provisioning"
+            payment_subscription = None
             if provider_subscription_id:
                 subscription_payload = {
                     "data": {
@@ -1218,7 +1219,7 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
                         "status": "active",
                     }
                 }
-                _upsert_subscription_from_payload(
+                payment_subscription = _upsert_subscription_from_payload(
                     db,
                     organization,
                     contract,
@@ -1229,13 +1230,36 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
                 )
             from saas import provisioning_service
 
-            provisioning_service.enqueue_ready_for_provisioning(
-                db,
-                organization,
-                contract,
-                trigger_source="payment_webhook",
+            tenant_link = provisioning_service.get_tenant_provisioning_link(
+                db, organization
             )
-            provisioning_service.process_pending_jobs(db, limit=1)
+            if tenant_link and tenant_link.demo_request_id:
+                from saas import demo_conversion_service
+
+                conversion = demo_conversion_service.convert_confirmed_demo_subscription(
+                    db,
+                    organization=organization,
+                    contract=contract,
+                    subscription=payment_subscription,
+                )
+                service.log_pending_event(
+                    db,
+                    organization=organization,
+                    event_type=(
+                        "demo_conversion_completed"
+                        if conversion.completed
+                        else "demo_conversion_failed"
+                    ),
+                    details={"reason_code": conversion.reason_code},
+                )
+            else:
+                provisioning_service.enqueue_ready_for_provisioning(
+                    db,
+                    organization,
+                    contract,
+                    trigger_source="payment_webhook",
+                )
+                provisioning_service.process_pending_jobs(db, limit=1)
         service.log_pending_event(db, organization=organization, event_type="payment_confirmed", details={"provider_transaction_id": str(data.get("id") or "")})
     elif event_type in {"transaction.payment_failed", "transaction.past_due"}:
         _apply_attempt_state(db, attempt, status=ATTEMPT_STATUS_PAYMENT_FAILED, failure_reason=str(data.get("status") or event_type))
@@ -1273,7 +1297,7 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
                 return _mark_manual_reconciliation(
                     db, webhook_row, organization, contract, attempt, reason=reconciliation_error
                 )
-            _upsert_subscription_from_payload(
+            payment_subscription = _upsert_subscription_from_payload(
                 db,
                 organization,
                 contract,
@@ -1282,6 +1306,36 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
                 attempt=attempt,
                 item_summary=item_summary,
             )
+            tenant_link = db.query(models.TenantProvisioningLink).filter(
+                models.TenantProvisioningLink.pending_organization_id
+                == organization.id
+            ).one_or_none()
+            if (
+                tenant_link
+                and tenant_link.demo_request_id
+                and _clean_text(contract.payment_status).lower() == PAYMENT_PAID
+                and contract.paid_at is not None
+            ):
+                from saas import demo_conversion_service
+
+                conversion = (
+                    demo_conversion_service.convert_confirmed_demo_subscription(
+                        db,
+                        organization=organization,
+                        contract=contract,
+                        subscription=payment_subscription,
+                    )
+                )
+                service.log_pending_event(
+                    db,
+                    organization=organization,
+                    event_type=(
+                        "demo_conversion_completed"
+                        if conversion.completed
+                        else "demo_conversion_failed"
+                    ),
+                    details={"reason_code": conversion.reason_code},
+                )
         service.log_pending_event(db, organization=organization, event_type="subscription_sync", details={"event_type": event_type, "provider_subscription_id": provider_subscription_id})
     else:
         webhook_row.processing_status = "ignored"

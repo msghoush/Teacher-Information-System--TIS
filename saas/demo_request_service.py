@@ -284,9 +284,28 @@ def prepare_subscription_choice(db: Session, account, organization) -> None:
     _validate_completed_onboarding(db, account, organization)
     active_request = _pending_or_approved_request(db, organization)
     if active_request:
-        raise DemoRequestError(
-            "Withdraw the pending demo request before subscribing. Approved demo requests require TIS review."
+        if active_request.status == DemoRequestStatus.PENDING_REVIEW.value:
+            raise DemoRequestError(
+                "Withdraw the pending demo request before subscribing."
+            )
+        from saas import demo_conversion_service
+
+        try:
+            demo_conversion_service.request_demo_conversion(
+                db,
+                account,
+                organization,
+            )
+        except demo_conversion_service.DemoConversionError as exc:
+            raise DemoRequestError(str(exc)) from exc
+        service.log_pending_event(
+            db,
+            organization=organization,
+            account=account,
+            event_type="demo_conversion_requested",
+            details={"demo_request_uuid": active_request.request_uuid},
         )
+        return
     organization.workspace_intent = workspace_classification_service.validate_workspace_intent(
         WorkspaceIntent.CUSTOMER_PAID.value
     ).value
@@ -303,7 +322,15 @@ def prepare_subscription_choice(db: Session, account, organization) -> None:
 
 
 def ensure_subscription_path_available(db: Session, organization) -> None:
-    if _pending_or_approved_request(db, organization):
+    active_request = _pending_or_approved_request(db, organization)
+    if not active_request:
+        return
+    if active_request.status == DemoRequestStatus.APPROVED.value:
+        from saas import demo_conversion_service
+
+        if demo_conversion_service.demo_conversion_checkout_available(db, organization):
+            return
+    if active_request:
         raise DemoRequestError(
             "A demo request is already in progress. View its status before choosing a subscription."
         )

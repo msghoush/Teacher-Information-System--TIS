@@ -58,6 +58,7 @@ class DemoLifecycleProcessingStatus(str, Enum):
     PROCESSING = "processing"
     FAILED = "failed"
     EXPIRED = "expired"
+    CONVERTED = "converted"
 
 
 class DemoLifecycleEventType(str, Enum):
@@ -79,6 +80,30 @@ class DemoLifecycleNotificationRecipient(str, Enum):
     PLATFORM_OWNER = "platform_owner"
 
 
+class DemoConversionStatus(str, Enum):
+    REQUESTED = "requested"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class DemoConversionEventType(str, Enum):
+    CONVERSION_REQUESTED = "conversion_requested"
+    CONVERSION_STARTED = "conversion_started"
+    CONVERSION_COMPLETED = "conversion_completed"
+    CONVERSION_FAILED = "conversion_failed"
+
+
+class DemoConversionEventCategory(str, Enum):
+    AUDIT = "audit"
+    NOTIFICATION = "notification"
+
+
+class DemoConversionActorType(str, Enum):
+    CUSTOMER = "customer"
+    SYSTEM = "system"
+
+
 DEMO_REQUEST_STATUS_VALUES = tuple(item.value for item in DemoRequestStatus)
 DEMO_REVIEW_DECISION_VALUES = tuple(item.value for item in DemoReviewDecision)
 DEMO_REQUEST_EVENT_CATEGORY_VALUES = tuple(item.value for item in DemoRequestEventCategory)
@@ -97,3 +122,9 @@ DEMO_LIFECYCLE_NOTIFICATION_TYPE_VALUES = tuple(
 DEMO_LIFECYCLE_NOTIFICATION_RECIPIENT_VALUES = tuple(
     item.value for item in DemoLifecycleNotificationRecipient
 )
+DEMO_CONVERSION_STATUS_VALUES = tuple(item.value for item in DemoConversionStatus)
+DEMO_CONVERSION_EVENT_TYPE_VALUES = tuple(item.value for item in DemoConversionEventType)
+DEMO_CONVERSION_EVENT_CATEGORY_VALUES = tuple(
+    item.value for item in DemoConversionEventCategory
+)
+DEMO_CONVERSION_ACTOR_TYPE_VALUES = tuple(item.value for item in DemoConversionActorType)

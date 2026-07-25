@@ -27,6 +27,35 @@ AI project context updated:
 Reviewer/approval notes:
 ```
 
+## 2026-07-23 - M8B-6 Demo-To-Paid Workspace Conversion
+
+Area/module:
+Customer-demo checkout, provider-confirmed subscription reconciliation, workspace classification, commercial entitlements, demo lifecycle, customer status, and Platform Owner inspection
+
+Previous state:
+An activated Customer Demo could not become Customer Paid without risking a second provisioning path or leaving paid commercial evidence disconnected from the existing operational workspace.
+
+New state:
+An eligible active Customer Demo can use the existing M7 subscription checkout. After provider-confirmed payment, TIS atomically converts the same SchoolGroup and tenant link to Customer Paid, replaces the demo entitlement with the confirmed subscription-backed paid entitlement, preserves all operational data and history, and exits demo lifecycle processing. Durable conversion state and events support idempotency, audit, and retry after failure.
+
+Reason:
+Customers must retain one workspace, tenant identity, organization, branches, users, permissions, and academic history when moving from evaluation to a paid subscription.
+
+Files changed:
+Conversion enums/models/migration/service, classification transition validation, demo checkout and lifecycle integration, payment-webhook reconciliation, customer/owner UI, tests, ADR, and KMS.
+
+Documentation updated:
+AI/master context, project state, database architecture, module map, flows, roadmap, ADR index/0013, and SaaS onboarding history.
+
+PDF regenerated:
+Yes, through `python scripts/kms.py sync`.
+
+AI project context updated:
+Yes.
+
+Reviewer/approval notes:
+M8B-6 only. No tenant reprovisioning, Paddle API redesign, pricing change, demo extension, manual conversion override, internal-sandbox conversion, archive/delete, membership, ownership transfer, commit, or push.
+
 ## 2026-07-23 - M8B-5 Standard Customer Demo Lifecycle
 
 Area/module:

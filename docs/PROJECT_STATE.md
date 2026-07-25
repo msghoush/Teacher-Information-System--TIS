@@ -176,9 +176,18 @@ M8B-5 standard customer-demo lifecycle:
 - Operational middleware blocks expired or ambiguous demos for web, API, download, and existing-session requests; Platform users, paid tenants, and internal sandboxes are unaffected.
 - Customer and Platform Owner pages show safe lifecycle state, expiration timing, reminder state, and processing history. No email is sent.
 
+M8B-6 demo-to-paid conversion:
+
+- Active, coherently provisioned Customer Demo workspaces may proceed through the existing subscription checkout.
+- Provider-confirmed subscription payment converts the same SchoolGroup and tenant link; no workspace, organization, branch, user, permission, or academic record is recreated.
+- The demo entitlement is ended and replaced by a paid entitlement linked to the confirmed M7 subscription.
+- The existing tenant link moves from its demo-request source to the confirmed subscription contract in the same atomic conversion transaction.
+- Conversion states and audit/internal events remain durable, failures preserve paid records and demo operation for retry, and completed conversions leave demo lifecycle processing.
+- Expired, ambiguous, cross-tenant, internal-sandbox, paid, and already-converted workspaces remain fail-closed.
+
 ## Current Priority
 
-Current priority: validate M8B-5 lifecycle automation and access enforcement before any separately approved M8B-6 work.
+Current priority: validate M8B-6 demo-to-paid conversion before any separately approved M8B-7 work.
 
 Current enforcement scope:
 

@@ -161,6 +161,14 @@ The operational authentication middleware checks customer-demo commercial access
 
 Run the lifecycle processor safely with `python scripts/process_demo_lifecycle.py --dry-run`; use `--apply` only for scheduled execution after validating the report. M8B-5 sends no email and adds no extension, conversion, archive, deletion, or read-only expired mode.
 
+## M8B-6 Demo-To-Paid Conversion
+
+An active Customer Demo may enter the existing subscription checkout without closing or recreating its operational tenant. After `transaction.completed` establishes one confirmed active M7 subscription for the same pending organization, `saas.demo_conversion_service` atomically converts the existing SchoolGroup from `customer_demo` to `customer_paid`.
+
+The conversion preserves the workspace UUID, SchoolGroup, tenant link row, organization, branches, users, permissions, academic data, and all demo/request/audit history. It ends the demo entitlement, creates a paid entitlement linked to the confirmed `PaymentSubscription`, moves branch entitlement links, and replaces the tenant link's demo source with the confirmed `SubscriptionContract`. Existing M7, workspace-entitlement, and commercial-state resolvers must then resolve the same tenant as Customer Paid Active.
+
+Conversion Requested, Processing, Completed, and Failed states are durable and retryable. Any conversion failure rolls back workspace mutations while retaining confirmed provider payment records. Expired, invalid, ambiguous, cross-tenant, internal-sandbox, paid, or already-converted workspaces fail closed. Completed conversions no longer enter demo reminder or expiration processing.
+
 ## Current SaaS Account Verification State
 
 Phase 1 TIS Account email verification recovery is accepted. Valid verification links now mark the SaaS account email verified/active and redirect to the TIS Account login page with a professional success notice so the customer can continue school workspace setup.
