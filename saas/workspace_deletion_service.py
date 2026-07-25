@@ -247,6 +247,9 @@ def delete_test_workspace(
     deleted += _delete(db.query(models.ProvisioningJob).filter_by(pending_organization_id=pending_id))
     deleted += _delete(db.query(models.SaaSAccountUserLink).filter_by(pending_organization_id=pending_id))
     deleted += _delete(db.query(models.TenantProvisioningLink).filter_by(pending_organization_id=pending_id))
+    deleted += _delete(db.query(models.SubscriptionChangeRequest).filter(
+        models.SubscriptionChangeRequest.school_group_id == school_group_id
+    ))
 
     assignment_ids = [row[0] for row in db.query(operational_models.CalendarEventAssignment.id).filter(or_(
         operational_models.CalendarEventAssignment.calendar_event_id.in_(event_ids) if event_ids else False,
@@ -321,9 +324,6 @@ def delete_test_workspace(
     _update(db.query(models.PendingOrganization).filter_by(id=pending_id), {models.PendingOrganization.last_payment_attempt_id: None})
     _update(db.query(models.CheckoutSession).filter_by(pending_organization_id=pending_id), {models.CheckoutSession.last_payment_attempt_id: None})
     _update(db.query(models.SubscriptionContract).filter_by(pending_organization_id=pending_id), {models.SubscriptionContract.selected_checkout_session_id: None})
-    payment_subscription_ids = [row[0] for row in db.query(models.PaymentSubscription.id).filter_by(pending_organization_id=pending_id).all()]
-    if payment_subscription_ids:
-        deleted += _delete(db.query(models.SubscriptionChangeRequest).filter(models.SubscriptionChangeRequest.payment_subscription_id.in_(payment_subscription_ids)))
     deleted += _delete(db.query(models.PaymentSubscription).filter_by(pending_organization_id=pending_id))
     deleted += _delete(db.query(models.PaymentAttempt).filter_by(pending_organization_id=pending_id))
     deleted += _delete(db.query(models.CheckoutSession).filter_by(pending_organization_id=pending_id))

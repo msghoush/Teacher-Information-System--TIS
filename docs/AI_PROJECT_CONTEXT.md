@@ -172,6 +172,10 @@ The conversion preserves the workspace UUID, SchoolGroup, tenant link row, organ
 
 Conversion Requested, Processing, Completed, and Failed states are durable and retryable. Any conversion failure rolls back workspace mutations while retaining confirmed provider payment records. Expired, invalid, ambiguous, cross-tenant, internal-sandbox, paid, or already-converted workspaces fail closed. Completed conversions no longer enter demo reminder or expiration processing.
 
+## Test Workspace Reset Dependency Rule
+
+The Platform Owner-only test workspace reset keeps its existing preflight and single-transaction rollback behavior. Before it deletes scoped operational `User` records, it deletes `SubscriptionChangeRequest` rows scoped by the selected workspace's authoritative `school_group_id`. This prevents user, account, contract, and subscription foreign-key references from blocking removal while preserving subscription-change records belonging to every other workspace. Pre-analysis and structured deletion diagnostics report the same scoped record set.
+
 ## Current SaaS Account Verification State
 
 Phase 1 TIS Account email verification recovery is accepted. Valid verification links now mark the SaaS account email verified/active and redirect to the TIS Account login page with a professional success notice so the customer can continue school workspace setup.
