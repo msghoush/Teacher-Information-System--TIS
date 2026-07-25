@@ -8,6 +8,14 @@ last_updated: 2026-07-23
 
 This folder tracks meaningful changes to signup, login, account, organization onboarding, contacts, branches, academic setup, review, and account self-service.
 
+## 2026-07-25 - Landing Intent Continuity And One Customer Demo Per Organization Domain
+
+The public landing conversion paths now enter TIS Account signup with a validated `demo` or `subscribe` intent. The intent is persisted on the SaaS account and copied to School Workspace Setup so the final commercial-choice page can emphasize the customer's original path while still allowing either Request Demo or Subscribe Now.
+
+Customer Demo requests now resolve a normalized organization domain, preferring the organization identity and using a work email only when necessary. Public email providers require an official organization website or domain. A transactionally unique domain-eligibility reservation prevents a second customer demo across pending, approved, active, expired, rejected, cancelled, or converted history. The reservation never causes tenant reprovisioning or Demo-to-Paid workspace replacement, and Internal Sandbox history is excluded.
+
+Migration `20260725_001_demo_domain_eligibility_policy` adds safe historical normalization. It reserves ambiguous duplicate domains for manual review rather than merging, deleting, or guessing across existing customer records. The companion diagnostic command defaults to dry-run and produces the duplicate-domain review list.
+
 ## 2026-07-23 - M8B-6 Demo-To-Paid Workspace Conversion
 
 Eligible active Customer Demo workspaces can now enter the unchanged M7 subscription checkout. Provider-confirmed payment triggers a dedicated, idempotent conversion service rather than paid tenant provisioning.

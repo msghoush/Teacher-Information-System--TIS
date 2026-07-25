@@ -17,4 +17,5 @@ Related docs:
 
 History entries:
 
+- `2026-07-25-landing-cta-and-demo-domain-policy.md`: replaces overlapping public conversion CTAs with Request a Demo and Subscribe Now, both using configured deployed SaaS signup URLs and explicit onboarding intent.
 - `2026-07-25-m8-landing-integration-open-account.md`: final M8 Open Account entry points from the public landing website to the deployed TIS Account signup flow.

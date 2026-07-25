@@ -14,8 +14,8 @@ This document describes the major end-to-end flows a developer must understand b
 Flow:
 
 1. Public visitor opens `https://tisplatform.com`.
-2. Visitor clicks a signup/get-started path.
-3. Visitor reaches SaaS signup at `/saas/signup`.
+2. Visitor chooses Request a Demo or Subscribe Now.
+3. Visitor reaches SaaS signup at `/saas/signup?intent=demo` or `/saas/signup?intent=subscribe`.
 4. SaaS account is created.
 5. Email verification is completed when required.
 6. User signs into SaaS account through `/saas/login`.
@@ -26,7 +26,7 @@ Flow:
    - branches,
    - academic setup,
    - review.
-9. User chooses Request Demo or Subscribe Now.
+9. The final commercial-choice page emphasizes the saved intent, while the user may still choose Request Demo or Subscribe Now.
 10. Subscribe Now continues to plan selection and the existing Paddle checkout path.
 11. Paddle handles payment.
 12. Return/cancel page informs the user of checkout navigation result.
@@ -47,8 +47,8 @@ Guardrails:
 
 1. A verified customer completes organization, contact, branch, academic, and review onboarding.
 2. TIS presents Request Demo and Subscribe Now.
-3. Request Demo revalidates account ownership, verification, onboarding completeness, branch configuration, and absence of conflicting payment/provisioning state.
-4. TIS creates one Pending Review SaaS demo request with classification, commercial-state, and entitlement snapshots.
+3. Request Demo revalidates account ownership, verification, onboarding completeness, branch configuration, absence of conflicting payment/provisioning state, and normalized organization-domain eligibility.
+4. TIS creates one Pending Review SaaS demo request plus a transactionally unique customer-demo eligibility reservation for the normalized organization domain.
 5. The customer can view status and withdraw only while Pending Review.
 6. A Platform Owner searches, filters, and sorts the review queue.
 7. Approval creates a review record only; rejection requires a reason; owner cancellation is allowed only while pending.
@@ -62,7 +62,8 @@ Guardrails:
 
 - Request and approval alone create no SchoolGroup or entitlement.
 - Demo provisioning creates no checkout, payment, paid subscription, subscription contract, or Paddle record.
-- Duplicate pending requests and invalid terminal transitions fail closed.
+- A prior customer demo request, activation, expiry, rejection, cancellation, or demo-to-paid conversion for the same normalized organization domain blocks a new customer demo. Platform Owners extend/reactivate where separately allowed, or the customer subscribes using the existing workspace.
+- Public email providers require an official organization website or domain before a demo request. Internal Sandbox workspaces do not consume customer demo eligibility.
 - Non-owner platform users and tenant/customer identities cannot access review actions.
 - Duplicate, rejected, cancelled, incoherent, or already provisioned requests fail closed.
 - M8B-4 sends no email and does not implement expiration, scheduling, login blocking, or conversion.

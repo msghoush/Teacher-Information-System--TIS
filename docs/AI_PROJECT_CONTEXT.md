@@ -58,7 +58,9 @@ The public marketing website is separate:
 - `tis-landing-website/`
 - Next.js / Node runtime
 - Source of truth for public landing implementation
-- M8 landing integration exposes customer account setup from the public website through Open Account CTAs that use `NEXT_PUBLIC_TIS_APP_BASE_URL` and route to the deployed app's `/saas/signup` path.
+- M8 landing integration exposes two public conversion paths through `NEXT_PUBLIC_TIS_APP_BASE_URL`: Request a Demo routes to `/saas/signup?intent=demo`, while Subscribe Now routes to `/saas/signup?intent=subscribe`.
+- The selected intent is preserved through TIS Account signup and School Workspace Setup, then emphasized on the customer-safe commercial-choice page without removing the customer's ability to choose either path.
+- Customer demo eligibility is reserved once per normalized organization domain. Existing Customer Demo history, including expired or converted demos, remains ineligible for a second demo; internal sandbox history does not consume customer eligibility.
 
 Legacy FastAPI landing files are not the source of truth:
 

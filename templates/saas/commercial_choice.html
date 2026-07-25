@@ -4,6 +4,7 @@
     .commercial-choice-head { max-width: 760px; margin-bottom: 22px; }
     .commercial-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
     .commercial-option { display: flex; min-height: 310px; flex-direction: column; border: 1px solid var(--line); border-radius: 18px; background: #fff; padding: 22px; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+    .commercial-option.preferred { border-color: #57a9c5; box-shadow: 0 18px 38px rgba(33, 120, 157, .12); }
     .commercial-option:hover { transform: translateY(-2px); border-color: #aac5e2; box-shadow: 0 16px 34px rgba(16, 35, 63, .08); }
     .commercial-option h2 { margin-bottom: 8px; }
     .commercial-option p { color: var(--muted); line-height: 1.6; }
@@ -35,9 +36,10 @@
 {% endif %}
 
 <section class="commercial-choice-grid" aria-label="Commercial options">
-    <article class="commercial-option">
+    <article class="commercial-option{% if preferred_intent == 'demo' %} preferred{% endif %}">
         <span class="metric-badge">Guided Review</span>
         <h2>Request Demo</h2>
+        {% if preferred_intent == 'demo' %}<p><strong>Selected from your TIS journey.</strong></p>{% endif %}
         <p>Ask the TIS team to review your submitted school setup and demo requirements.</p>
         <ul>
             <li>No payment or subscription is created.</li>
@@ -49,9 +51,10 @@
         </form>
     </article>
 
-    <article class="commercial-option">
+    <article class="commercial-option{% if preferred_intent == 'subscribe' %} preferred{% endif %}">
         <span class="metric-badge">Direct Subscription</span>
         <h2>Subscribe Now</h2>
+        {% if preferred_intent == 'subscribe' %}<p><strong>Selected from your TIS journey.</strong></p>{% endif %}
         <p>Continue to the existing TIS subscription selection and Secure Payment workflow.</p>
         <ul>
             <li>Choose a plan and billing interval.</li>

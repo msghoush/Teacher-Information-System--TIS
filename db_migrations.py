@@ -3621,6 +3621,166 @@ def _saas_demo_request_workflow(engine, connection):
     )
 
 
+def _normalize_demo_domain_for_migration(value) -> str:
+    cleaned = str(value or "").strip().lower().strip(".")
+    if not cleaned:
+        return ""
+    if "@" in cleaned and "/" not in cleaned:
+        cleaned = cleaned.rsplit("@", 1)[-1]
+    candidate = cleaned.split("://", 1)[-1].split("/", 1)[0]
+    candidate = candidate.split("@", 1)[-1].split(":", 1)[0].strip().strip(".")
+    if not candidate or len(candidate) > 180 or any(part == "" for part in candidate.split(".")):
+        return ""
+    return candidate if set(candidate) <= set("abcdefghijklmnopqrstuvwxyz0123456789.-") else ""
+
+
+def _demo_domain_eligibility_policy(engine, connection):
+    if not _table_exists(connection, "saas_demo_requests"):
+        return
+    _add_column_if_missing(
+        connection,
+        connection,
+        "saas_accounts",
+        "signup_intent",
+        "signup_intent VARCHAR(20)",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "commercial_intent",
+        "commercial_intent VARCHAR(20)",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "saas_demo_requests",
+        "organization_domain_normalized",
+        "organization_domain_normalized VARCHAR(180)",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_accounts",
+        "ix_saas_accounts_signup_intent",
+        "signup_intent",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "pending_organizations",
+        "ix_pending_organizations_commercial_intent",
+        "commercial_intent",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_demo_requests",
+        "ix_saas_demo_requests_domain",
+        "organization_domain_normalized",
+    )
+
+    datetime_type = _datetime_type(engine)
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_demo_domain_eligibilities (
+            id {id_sql},
+            normalized_domain VARCHAR(180) NOT NULL UNIQUE,
+            demo_request_id INTEGER UNIQUE,
+            status VARCHAR(20) NOT NULL DEFAULT 'reserved',
+            manual_review_reason TEXT,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_saas_demo_domain_eligibilities_request
+                FOREIGN KEY (demo_request_id) REFERENCES saas_demo_requests(id) ON DELETE SET NULL,
+            CONSTRAINT ck_saas_demo_domain_eligibilities_status
+                CHECK (status IN ('reserved','manual_review'))
+        )
+        """,
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_demo_domain_eligibilities",
+        "ix_saas_demo_domain_eligibilities_demo_request",
+        "demo_request_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "saas_demo_domain_eligibilities",
+        "ix_saas_demo_domain_eligibilities_status",
+        "status",
+    )
+
+    rows = connection.execute(
+        text(
+            """
+            SELECT dr.id, dr.workspace_classification_snapshot,
+                   po.primary_domain, po.website, sa.email
+            FROM saas_demo_requests dr
+            JOIN pending_organizations po ON po.id = dr.pending_organization_id
+            JOIN saas_accounts sa ON sa.id = dr.requester_saas_account_id
+            """
+        )
+    ).mappings().all()
+    public_domains = {"gmail.com", "outlook.com", "hotmail.com", "yahoo.com", "icloud.com"}
+    grouped: dict[str, list[int]] = {}
+    for row in rows:
+        if str(row["workspace_classification_snapshot"] or "").strip().lower() != "customer_demo":
+            continue
+        domain = _normalize_demo_domain_for_migration(row["primary_domain"])
+        if not domain:
+            domain = _normalize_demo_domain_for_migration(row["website"])
+        if not domain:
+            email_domain = _normalize_demo_domain_for_migration(row["email"])
+            domain = "" if email_domain in public_domains else email_domain
+        if not domain:
+            continue
+        _execute(
+            connection,
+            "UPDATE saas_demo_requests SET organization_domain_normalized = :domain WHERE id = :id",
+            {"domain": domain, "id": row["id"]},
+        )
+        grouped.setdefault(domain, []).append(int(row["id"]))
+
+    for domain, request_ids in grouped.items():
+        existing = connection.execute(
+            text(
+                "SELECT id FROM saas_demo_domain_eligibilities "
+                "WHERE normalized_domain = :domain LIMIT 1"
+            ),
+            {"domain": domain},
+        ).scalar()
+        if existing:
+            continue
+        if len(request_ids) == 1:
+            _execute(
+                connection,
+                """
+                INSERT INTO saas_demo_domain_eligibilities
+                    (normalized_domain, demo_request_id, status, created_at, updated_at)
+                VALUES (:domain, :demo_request_id, 'reserved', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                {"domain": domain, "demo_request_id": request_ids[0]},
+            )
+        else:
+            _execute(
+                connection,
+                """
+                INSERT INTO saas_demo_domain_eligibilities
+                    (normalized_domain, status, manual_review_reason, created_at, updated_at)
+                VALUES (:domain, 'manual_review', :reason, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                {
+                    "domain": domain,
+                    "reason": "Multiple historical customer demo requests share this organization domain.",
+                },
+            )
+
+
 def _sqlite_generalize_tenant_provisioning_links(connection):
     columns = {
         column["name"]: column
@@ -4440,6 +4600,11 @@ MIGRATIONS = (
         migration_id="20260723_003_demo_to_paid_conversion",
         description="Add atomic Customer Demo to Customer Paid conversion records and events",
         apply=_demo_to_paid_conversion,
+    ),
+    Migration(
+        migration_id="20260725_001_demo_domain_eligibility_policy",
+        description="Preserve landing journey intent and enforce one customer demo opportunity per organization domain",
+        apply=_demo_domain_eligibility_policy,
     ),
 )
 

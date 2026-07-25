@@ -36,6 +36,7 @@
         <div class="stat"><strong>Requester</strong><p>{{ card.requester.first_name }} {{ card.requester.last_name }}<br>{{ card.requester.email }}</p></div>
         <div class="stat"><strong>Submitted</strong><p>{{ demo_request.submitted_at.strftime('%B %d, %Y at %H:%M UTC') if demo_request.submitted_at else 'Not available' }}</p></div>
         <div class="stat"><strong>Configured Branches</strong><p>{{ card.branch_count }}</p></div>
+        <div class="stat"><strong>Organization Domain</strong><p>{{ demo_request.organization_domain_normalized or 'Manual review needed' }}</p></div>
         <div class="stat"><strong>Educational Program</strong><p>{{ card.organization.educational_program or 'Not available' }}</p></div>
         <div class="stat"><strong>Location</strong><p>{{ card.organization.city_name or 'Not available' }}{% if card.organization.country_name %}, {{ card.organization.country_name }}{% endif %}</p></div>
         <div class="stat"><strong>Primary Contact</strong><p>{% if card.primary_contact %}{{ card.primary_contact.first_name }} {{ card.primary_contact.last_name }}<br>{{ card.primary_contact.email }}{% else %}Not available{% endif %}</p></div>
@@ -56,7 +57,9 @@
     <div class="demo-review-grid">
         <div class="stat"><strong>Provisioning Status</strong><p><span class="demo-review-status {{ provisioning_status_tone }}">{{ provisioning_status_label }}</span></p></div>
         <div class="stat"><strong>Activation Time</strong><p>{{ demo_provisioning.activated_at.strftime('%B %d, %Y at %H:%M UTC') if demo_provisioning and demo_provisioning.activated_at else 'Not available' }}</p></div>
+        <div class="stat"><strong>Demo Expiration</strong><p>{{ format_lifecycle_datetime(demo_provisioning.demo_expires_at) if demo_provisioning and demo_provisioning.demo_expires_at else 'Not available' }}</p></div>
         <div class="stat"><strong>Provisioning Result</strong><p>{{ demo_provisioning.result_code|replace('_', ' ')|title if demo_provisioning and demo_provisioning.result_code else 'Not available' }}</p></div>
+        <div class="stat"><strong>Converted to Paid</strong><p>{{ 'Yes' if demo_conversion and demo_conversion.status == 'completed' else 'No' }}</p></div>
     </div>
     {% if demo_provisioning and demo_provisioning.provisioning_status == 'failed' %}
     <div class="error" style="margin-top:12px;"><strong>Failure Reason</strong><br>{{ demo_provisioning.failure_reason or 'No diagnostic reason was recorded.' }}</div>

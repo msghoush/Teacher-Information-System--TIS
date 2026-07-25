@@ -64,11 +64,12 @@
 {% if cards %}
 <div class="demo-queue-table-wrap">
     <table class="table demo-queue-table">
-        <thead><tr><th>Organization</th><th>Requester</th><th>Submitted</th><th>Commercial Snapshot</th><th>Request</th><th>Provisioning</th><th>Action</th></tr></thead>
+        <thead><tr><th>Organization</th><th>Organization Domain</th><th>Requester</th><th>Submitted</th><th>Commercial Snapshot</th><th>Request</th><th>Provisioning</th><th>Action</th></tr></thead>
         <tbody>
         {% for card in cards %}
             <tr>
                 <td class="demo-org-cell"><strong>{{ card.organization.organization_name if card.organization else 'Organization unavailable' }}</strong><span>{{ card.branch_count }} configured branch{% if card.branch_count != 1 %}es{% endif %}</span></td>
+                <td>{{ card.request.organization_domain_normalized or 'Manual review needed' }}</td>
                 <td class="demo-org-cell"><strong>{{ (card.requester.first_name ~ ' ' ~ card.requester.last_name)|trim if card.requester else 'Requester unavailable' }}</strong><span>{{ card.requester.email if card.requester else '' }}</span></td>
                 <td>{{ card.request.submitted_at.strftime('%b %d, %Y') if card.request.submitted_at else 'Not available' }}</td>
                 <td class="demo-org-cell"><strong>{{ card.request.workspace_classification_snapshot|replace('_', ' ')|title }}</strong><span>{{ card.request.commercial_state_snapshot|replace('_', ' ')|title }}</span></td>
