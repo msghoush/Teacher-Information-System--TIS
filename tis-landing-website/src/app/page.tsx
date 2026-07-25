@@ -42,7 +42,9 @@ import type {
 } from "react";
 import type { LucideIcon } from "lucide-react";
 
-const appPortalUrl = "https://app.tisplatform.com";
+const tisAppBaseUrl = normalizeConfiguredUrl(process.env.NEXT_PUBLIC_TIS_APP_BASE_URL);
+const appPortalUrl = tisAppBaseUrl;
+const openAccountUrl = buildTisAppUrl("/saas/signup");
 
 const problems = [
   {
@@ -508,11 +510,19 @@ function Header({
         <nav
           id="mobile-navigation"
           className={cn(
-            "mt-4 w-full border-t border-slate-200 pt-3 text-sm font-semibold text-slate-600 md:mt-0 md:flex md:w-auto md:items-center md:justify-center md:gap-x-5 md:border-0 md:pt-0",
+            "mt-4 w-full border-t border-slate-200 pt-3 text-sm font-semibold text-slate-600 md:mt-0 md:flex md:w-auto md:items-center md:justify-center md:gap-x-3 md:border-0 md:pt-0 lg:gap-x-5",
             menuOpen ? "grid grid-cols-2 gap-2" : "hidden"
           )}
           aria-label="Primary navigation"
         >
+          <a
+            className="focus-ring button-primary col-span-2 inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-white md:col-span-auto md:px-3 lg:px-4"
+            href={openAccountUrl}
+            aria-label="Open a TIS Account"
+            onClick={() => setMenuOpen(false)}
+          >
+            Open Account
+          </a>
           <a className="nav-link focus-ring rounded-md px-2 py-2 md:px-0 md:py-0" href="#capabilities" onClick={() => setMenuOpen(false)}>
             Features
           </a>
@@ -607,11 +617,18 @@ function Hero({ pageReady }: { pageReady: boolean }) {
             style={{ "--enter-delay": "320ms" } as CSSProperties}
           >
             <a
-              href="#request-demo"
+              href={openAccountUrl}
               className="focus-ring button-primary inline-flex h-12 items-center justify-center rounded-xl px-6 text-base font-bold text-white shadow-card"
+              aria-label="Open a TIS Account"
+            >
+              Open Account
+              <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
+            </a>
+            <a
+              href="#request-demo"
+              className="focus-ring button-secondary inline-flex h-12 items-center justify-center rounded-xl px-6 text-base font-bold text-ocean"
             >
               Request Early Access
-              <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
             </a>
             <a
               href="#solution"
@@ -1249,8 +1266,15 @@ function DemoSection() {
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
               <a
-                href="#demo-form"
+                href={openAccountUrl}
                 className="focus-ring button-primary inline-flex h-11 items-center justify-center rounded-xl px-5 text-sm font-bold text-white"
+                aria-label="Open a TIS Account"
+              >
+                Open Account
+              </a>
+              <a
+                href="#demo-form"
+                className="focus-ring button-secondary inline-flex h-11 items-center justify-center rounded-xl px-5 text-sm font-bold text-ocean"
               >
                 Book a Demo
               </a>
@@ -1431,7 +1455,7 @@ function Footer() {
 
         <div className="flex flex-col gap-3 text-sm text-slate-300 md:items-end">
           <a className="footer-link" href={appPortalUrl}>
-            Login: https://app.tisplatform.com
+            Login: TIS Application Portal
           </a>
           <p className="text-slate-400">
             Copyright {new Date().getFullYear()} TIS Platform. All rights reserved.
@@ -1825,6 +1849,25 @@ function getDemoErrors(formData: DemoFormState) {
   }
 
   return errors;
+}
+
+function normalizeConfiguredUrl(value: string | undefined) {
+  const cleaned = (value ?? "").trim().replace(/\/+$/, "");
+
+  if (!cleaned) {
+    throw new Error("NEXT_PUBLIC_TIS_APP_BASE_URL must be configured for the landing website.");
+  }
+
+  const parsed = new URL(cleaned);
+  if (parsed.protocol !== "https:") {
+    throw new Error("NEXT_PUBLIC_TIS_APP_BASE_URL must use https.");
+  }
+
+  return cleaned;
+}
+
+function buildTisAppUrl(path: string) {
+  return `${tisAppBaseUrl}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 function cn(...classes: Array<string | false | null | undefined>) {

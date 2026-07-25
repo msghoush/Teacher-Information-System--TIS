@@ -27,6 +27,12 @@ Open:
 http://localhost:3000
 ```
 
+Create a local env file from `.env.example` and keep the application portal URL pointed at the deployed TIS app:
+
+```bash
+NEXT_PUBLIC_TIS_APP_BASE_URL=https://app.tisplatform.com
+```
+
 ## Production Build
 
 ```bash
@@ -37,6 +43,12 @@ npm run start
 ## Separate Deployment
 
 Deploy this folder as its own web project, separate from the FastAPI application.
+
+Set this environment variable in the landing website hosting project:
+
+```bash
+NEXT_PUBLIC_TIS_APP_BASE_URL=https://app.tisplatform.com
+```
 
 Recommended options:
 
