@@ -62,7 +62,8 @@
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 {% if warning %}<div class="warning">{{ warning }}</div>{% endif %}
 <section class="auth-layout" aria-label="Signup workspace">
-    <form method="post" action="/saas/auth/signup">
+<form method="post" action="/saas/auth/signup">
+    <input type="hidden" name="intent" value="{{ intent }}">
         <div class="grid two">
             <div>
                 <label for="first_name">First name</label>

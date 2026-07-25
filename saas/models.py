@@ -21,6 +21,7 @@ class SaaSAccount(Base):
         Index("ix_saas_accounts_onboarding_status", "onboarding_status"),
         Index("ix_saas_accounts_last_meaningful_activity", "last_meaningful_activity_at"),
         Index("ix_saas_accounts_account_purpose", "account_purpose"),
+        Index("ix_saas_accounts_signup_intent", "signup_intent"),
         CheckConstraint(
             "account_purpose IN ('internal_test','customer')",
             name="ck_saas_accounts_account_purpose",
@@ -36,6 +37,7 @@ class SaaSAccount(Base):
     last_name = Column(String(120))
     status = Column(String(20), nullable=False, default="pending_verification")
     onboarding_status = Column(String(30), nullable=False, default="not_started")
+    signup_intent = Column(String(20))
     account_purpose = Column(
         String(20), nullable=False, default=AccountPurpose.INTERNAL_TEST.value
     )
@@ -195,6 +197,7 @@ class PendingOrganization(Base):
         Index("ix_pending_organizations_name", "organization_name"),
         Index("ix_pending_organizations_last_meaningful_activity", "last_meaningful_activity_at"),
         Index("ix_pending_organizations_workspace_intent", "workspace_intent"),
+        Index("ix_pending_organizations_commercial_intent", "commercial_intent"),
         CheckConstraint(
             "workspace_intent IN ('internal_sandbox','customer_demo','customer_paid')",
             name="ck_pending_organizations_workspace_intent",
@@ -206,6 +209,7 @@ class PendingOrganization(Base):
     workspace_intent = Column(
         String(32), nullable=False, default=WorkspaceIntent.INTERNAL_SANDBOX.value
     )
+    commercial_intent = Column(String(20))
     owner_saas_account_id = Column(Integer, ForeignKey("saas_accounts.id"), nullable=False, index=True)
     status = Column(String(30), nullable=False, default="draft")
     onboarding_step = Column(String(40), nullable=False, default="organization")
@@ -351,6 +355,7 @@ class SaaSDemoRequest(Base):
         Index("ix_saas_demo_requests_workspace", "school_group_id"),
         Index("ix_saas_demo_requests_status", "status"),
         Index("ix_saas_demo_requests_submitted", "submitted_at"),
+        Index("ix_saas_demo_requests_domain", "organization_domain_normalized"),
         Index(
             "uq_saas_demo_requests_pending_org",
             "pending_organization_id",
@@ -391,6 +396,7 @@ class SaaSDemoRequest(Base):
     workspace_classification_snapshot = Column(String(32), nullable=False)
     commercial_state_snapshot = Column(String(40), nullable=False)
     entitlement_snapshot_json = Column(Text, nullable=False, default="{}")
+    organization_domain_normalized = Column(String(180))
     status = Column(String(24), nullable=False, default="pending_review")
     rejection_reason = Column(Text)
     submitted_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -398,6 +404,32 @@ class SaaSDemoRequest(Base):
     rejected_at = Column(DateTime)
     cancelled_at = Column(DateTime)
     status_updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SaaSDemoDomainEligibility(Base):
+    __tablename__ = "saas_demo_domain_eligibilities"
+    __table_args__ = (
+        Index("uq_saas_demo_domain_eligibilities_domain", "normalized_domain", unique=True),
+        Index("ix_saas_demo_domain_eligibilities_demo_request", "demo_request_id"),
+        Index("ix_saas_demo_domain_eligibilities_status", "status"),
+        CheckConstraint(
+            "status IN ('reserved','manual_review')",
+            name="ck_saas_demo_domain_eligibilities_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    normalized_domain = Column(String(180), nullable=False, unique=True)
+    demo_request_id = Column(
+        Integer,
+        ForeignKey("saas_demo_requests.id", ondelete="SET NULL"),
+        unique=True,
+        index=True,
+    )
+    status = Column(String(20), nullable=False, default="reserved")
+    manual_review_reason = Column(Text)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

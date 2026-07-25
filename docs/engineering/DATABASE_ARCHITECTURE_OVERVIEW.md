@@ -181,8 +181,11 @@ M8B-3 adds three review-only tables:
 - `saas_demo_requests`: one customer submission with requester, pending organization, optional future workspace reference, immutable classification/commercial/entitlement snapshots, status, and transition timestamps.
 - `saas_demo_request_reviews`: one Platform Owner approval or rejection decision per request; rejected reviews require a reason.
 - `saas_demo_request_events`: append-only audit and internal-notification events for submission and every status transition.
+- `saas_demo_domain_eligibilities`: one unique normalized organization-domain reservation for a Customer Demo opportunity, optionally linked to historical request evidence or marked for manual review when legacy records are ambiguous.
 
 A partial unique index permits only one Pending Review request per pending organization. Check constraints protect request status, review decision, event category/type/actor, classification snapshot, commercial-state snapshot, and rejection-reason requirements. Migration `20260722_004_saas_demo_request_workflow` creates the records without backfill and without changing existing onboarding, payment, or workspace data.
+
+Migration `20260725_001_demo_domain_eligibility_policy` adds customer journey-intent fields, a nullable normalized domain snapshot, and the eligibility table with a database unique invariant. It backfills unambiguous Customer Demo records, reserves ambiguous duplicate domains for manual review, and never merges, deletes, reprovisions, or replaces customer workspaces. `scripts/diagnose_demo_domain_eligibility.py` is dry-run by default and can apply the same safe reservation backfill after review.
 
 ### Demo Workspace Provisioning Records
 

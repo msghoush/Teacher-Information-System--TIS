@@ -74,7 +74,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
     def _db(self):
         return self.Session()
 
-    def _signup_verify_login(self, client: TestClient, email: str):
+    def _signup_verify_login(self, client: TestClient, email: str, *, intent: str = ""):
         messages = []
 
         def fake_send_email(**kwargs):
@@ -90,6 +90,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
                     "email": email,
                     "password": "strong-password-123",
                     "confirm_password": "strong-password-123",
+                    "intent": intent,
                 },
                 follow_redirects=False,
             )
@@ -106,10 +107,21 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(login.status_code, 302)
 
-    def _complete_onboarding(self, email: str = "demo.requester@academy.edu") -> str:
-        self._signup_verify_login(self.client, email)
+    def _complete_onboarding(
+        self,
+        email: str = "demo.requester@academy.edu",
+        *,
+        client: TestClient | None = None,
+        intent: str = "",
+        domain: str = "",
+    ) -> str:
+        client = client or self.client
+        organization_domain = domain or (
+            f"{email.rsplit('@', 1)[0].replace('.', '-')}.example.edu"
+        )
+        self._signup_verify_login(client, email, intent=intent)
         self.assertEqual(
-            self.client.post("/saas/onboarding/start", follow_redirects=False).status_code,
+            client.post("/saas/onboarding/start", follow_redirects=False).status_code,
             302,
         )
         db = self._db()
@@ -120,13 +132,13 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             organization_uuid = organization.organization_uuid
         finally:
             db.close()
-        self.client.post(
+        client.post(
             f"/saas/onboarding/{organization_uuid}/organization",
             data={
                 "organization_name": "Demo Academy",
                 "legal_name": "Demo Academy Legal",
-                "website": "https://demo-academy.example.com",
-                "primary_domain": "demo-academy.example.com",
+                "website": f"https://{organization_domain}",
+                "primary_domain": organization_domain,
                 "phone": "+9611000000",
                 "educational_program": "BOTH",
                 "country_code": "LB",
@@ -145,7 +157,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             },
             follow_redirects=False,
         )
-        self.client.post(
+        client.post(
             f"/saas/onboarding/{organization_uuid}/branches",
             data={
                 "branch_name": ["Main Campus", "North Campus"],
@@ -160,7 +172,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             },
             follow_redirects=False,
         )
-        self.client.post(
+        client.post(
             f"/saas/onboarding/{organization_uuid}/academic_setup",
             data={
                 "first_academic_year_name": "2026-2027",
@@ -170,7 +182,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             },
             follow_redirects=False,
         )
-        self.client.post(
+        client.post(
             f"/saas/onboarding/{organization_uuid}/contacts",
             data={
                 "first_name": "Demo",
@@ -182,7 +194,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             },
             follow_redirects=False,
         )
-        submitted = self.client.post(
+        submitted = client.post(
             f"/saas/onboarding/{organization_uuid}/submit",
             follow_redirects=False,
         )
@@ -193,8 +205,9 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         )
         return organization_uuid
 
-    def _submit_demo(self, organization_uuid: str):
-        response = self.client.post(
+    def _submit_demo(self, organization_uuid: str, *, client: TestClient | None = None):
+        client = client or self.client
+        response = client.post(
             f"/saas/onboarding/{organization_uuid}/commercial-choice/request-demo",
             follow_redirects=False,
         )
@@ -654,6 +667,154 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         self.assertEqual(empty.status_code, 200)
         self.assertIn("No demo requests found", empty.text)
 
+    def test_landing_intent_survives_signup_and_is_emphasized_at_commercial_choice(self):
+        organization_uuid = self._complete_onboarding(
+            email="intent.demo@academy.edu",
+            intent="demo",
+        )
+        db = self._db()
+        try:
+            account = db.query(saas.models.SaaSAccount).filter_by(
+                email_normalized="intent.demo@academy.edu"
+            ).one()
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=organization_uuid
+            ).one()
+            self.assertEqual(account.signup_intent, "demo")
+            self.assertEqual(organization.commercial_intent, "demo")
+        finally:
+            db.close()
+
+        choice = self.client.get(
+            f"/saas/onboarding/{organization_uuid}/commercial-choice"
+        )
+        self.assertEqual(choice.status_code, 200)
+        self.assertIn("Selected from your TIS journey.", choice.text)
+        self.assertIn("Request Demo", choice.text)
+        self.assertIn("Subscribe Now", choice.text)
+
+    def test_subscribe_intent_is_preserved_through_school_workspace_setup(self):
+        organization_uuid = self._complete_onboarding(
+            email="intent.subscribe@academy.edu",
+            intent="subscribe",
+        )
+        db = self._db()
+        try:
+            account = db.query(saas.models.SaaSAccount).filter_by(
+                email_normalized="intent.subscribe@academy.edu"
+            ).one()
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=organization_uuid
+            ).one()
+            self.assertEqual(account.signup_intent, "subscribe")
+            self.assertEqual(organization.commercial_intent, "subscribe")
+        finally:
+            db.close()
+
+        choice = self.client.get(
+            f"/saas/onboarding/{organization_uuid}/commercial-choice"
+        )
+        self.assertEqual(choice.status_code, 200)
+        self.assertEqual(choice.text.count("Selected from your TIS journey."), 1)
+        self.assertIn("Subscribe Now", choice.text)
+
+    def test_one_customer_demo_is_reserved_per_normalized_organization_domain(self):
+        first_organization_uuid = self._complete_onboarding(
+            email="principal@academy.edu",
+            domain="demo-academy.example.com",
+        )
+        first_request_uuid = self._submit_demo(first_organization_uuid)
+
+        second_client = TestClient(self.app)
+        self.extra_clients.append(second_client)
+        second_organization_uuid = self._complete_onboarding(
+            email="ict@academy.edu",
+            client=second_client,
+            domain="demo-academy.example.com",
+        )
+        blocked = second_client.post(
+            f"/saas/onboarding/{second_organization_uuid}/commercial-choice/request-demo",
+            follow_redirects=False,
+        )
+        self.assertEqual(blocked.status_code, 302)
+        self.assertIn("error=", blocked.headers["location"])
+        self.assertIn("demo+opportunity+has+already+been+used+or+requested", blocked.headers["location"])
+
+        db = self._db()
+        try:
+            request_row = db.query(saas.models.SaaSDemoRequest).filter_by(
+                request_uuid=first_request_uuid
+            ).one()
+            eligibility = db.query(saas.models.SaaSDemoDomainEligibility).filter_by(
+                normalized_domain="demo-academy.example.com"
+            ).one()
+            self.assertEqual(request_row.organization_domain_normalized, "demo-academy.example.com")
+            self.assertEqual(eligibility.demo_request_id, request_row.id)
+            request_row.status = "approved"
+            db.commit()
+            self.assertEqual(
+                db.query(saas.models.SaaSDemoDomainEligibility).filter_by(
+                    normalized_domain="demo-academy.example.com"
+                ).count(),
+                1,
+            )
+        finally:
+            db.close()
+
+    def test_public_email_requires_an_official_organization_domain_for_demo(self):
+        organization_uuid = self._complete_onboarding(
+            email="principal@gmail.com"
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=organization_uuid
+            ).one()
+            organization.primary_domain = ""
+            organization.website = ""
+            db.commit()
+        finally:
+            db.close()
+
+        blocked = self.client.post(
+            f"/saas/onboarding/{organization_uuid}/commercial-choice/request-demo",
+            follow_redirects=False,
+        )
+        self.assertEqual(blocked.status_code, 302)
+        self.assertIn("official+website+or+primary+domain", blocked.headers["location"])
+
+    def test_domain_eligibility_database_unique_invariant_blocks_races(self):
+        db = self._db()
+        try:
+            db.add(
+                saas.models.SaaSDemoDomainEligibility(
+                    normalized_domain="race.example.edu",
+                    status="reserved",
+                )
+            )
+            db.commit()
+            db.add(
+                saas.models.SaaSDemoDomainEligibility(
+                    normalized_domain="race.example.edu",
+                    status="reserved",
+                )
+            )
+            with self.assertRaises(IntegrityError):
+                db.commit()
+            db.rollback()
+        finally:
+            db.close()
+
+    def test_organization_domain_normalization_is_case_whitespace_and_dot_safe(self):
+        self.assertEqual(
+            service.normalize_organization_domain("  .School.Example.EDU.  "),
+            "school.example.edu",
+        )
+        self.assertEqual(
+            service.normalize_organization_domain("HTTPS://School.Example.EDU/setup"),
+            "school.example.edu",
+        )
+
     def test_migration_constraints_and_idempotency(self):
         with self.engine.begin() as connection:
             connection.execute(text("DROP TABLE saas_demo_request_events"))
@@ -662,9 +823,15 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             connection.execute(text(
                 "DELETE FROM schema_migrations WHERE migration_id = '20260722_004_saas_demo_request_workflow'"
             ))
+            connection.execute(text(
+                "DELETE FROM schema_migrations WHERE migration_id = '20260725_001_demo_domain_eligibility_policy'"
+            ))
         self.assertEqual(
             db_migrations.run_pending_migrations(self.engine),
-            ["20260722_004_saas_demo_request_workflow"],
+            [
+                "20260722_004_saas_demo_request_workflow",
+                "20260725_001_demo_domain_eligibility_policy",
+            ],
         )
         tables = set(inspect(self.engine).get_table_names())
         self.assertTrue({

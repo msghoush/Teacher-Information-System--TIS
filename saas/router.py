@@ -712,6 +712,7 @@ def signup_page(
     email: str = Query(""),
     first_name: str = Query(""),
     last_name: str = Query(""),
+    intent: str = Query(""),
     db: Session = Depends(get_db),
 ):
     if _current_account(request, db):
@@ -725,6 +726,7 @@ def signup_page(
             "email": email,
             "first_name": first_name,
             "last_name": last_name,
+            "intent": service.normalize_commercial_intent(intent),
             "google_enabled": oauth.is_provider_configured("google"),
             "microsoft_enabled": oauth.is_provider_configured("microsoft"),
         },
@@ -739,6 +741,7 @@ def signup(
     email: str = Form(...),
     password: str = Form(...),
     confirm_password: str = Form(...),
+    intent: str = Form(""),
     db: Session = Depends(get_db),
 ):
     if service.is_rate_limited(
@@ -752,6 +755,8 @@ def signup(
             url="/saas/signup?error=Too+many+signup+attempts.+Please+try+again+later.",
             status_code=302,
         )
+    normalized_intent = service.normalize_commercial_intent(intent)
+    intent_query = f"&intent={quote_plus(normalized_intent)}" if normalized_intent else ""
     if str(password or "") != str(confirm_password or ""):
         return RedirectResponse(
             url=(
@@ -759,6 +764,7 @@ def signup(
                 f"&email={quote_plus(str(email or ''))}"
                 f"&first_name={quote_plus(str(first_name or ''))}"
                 f"&last_name={quote_plus(str(last_name or ''))}"
+                f"{intent_query}"
             ),
             status_code=302,
         )
@@ -769,6 +775,7 @@ def signup(
             password=password,
             first_name=first_name,
             last_name=last_name,
+            signup_intent=normalized_intent,
             request=request,
         )
         service.send_verification_email(db, account, request)
@@ -788,6 +795,7 @@ def signup(
                 + f"&email={quote_plus(str(email or ''))}"
                 + f"&first_name={quote_plus(str(first_name or ''))}"
                 + f"&last_name={quote_plus(str(last_name or ''))}"
+                + intent_query
             ),
             status_code=302,
         )
@@ -2176,6 +2184,10 @@ def commercial_choice_step(
         db.commit()
         return RedirectResponse(f"/saas/demo-requests/{demo_request.request_uuid}", status_code=302)
     branch_count = service.count_billable_pending_branches(db, organization)
+    preferred_intent = service.normalize_commercial_intent(
+        getattr(organization, "commercial_intent", "")
+        or getattr(account, "signup_intent", "")
+    )
     db.commit()
     return _render(
         request,
@@ -2185,6 +2197,7 @@ def commercial_choice_step(
             "organization": organization,
             "demo_request": demo_request,
             "branch_count": branch_count,
+            "preferred_intent": preferred_intent,
             "error": error,
             "notice": notice,
         },

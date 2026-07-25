@@ -187,10 +187,11 @@ M8B-6 demo-to-paid conversion:
 
 M8 Landing Integration:
 
-- Final M8 landing integration exposes the completed customer account setup path from the public Next.js landing website.
-- `tis-landing-website/` now has Open Account entry points in the navigation, hero, and final CTA area.
-- All Open Account links use one shared destination built from `NEXT_PUBLIC_TIS_APP_BASE_URL` plus `/saas/signup`.
-- This did not modify the FastAPI SaaS application, authentication, onboarding backend, payment, provisioning, database, operational modules, or M9 scope.
+- Final M8 landing integration exposes two clear customer paths from the public Next.js landing website: Request a Demo and Subscribe Now.
+- All public conversion links use the shared `NEXT_PUBLIC_TIS_APP_BASE_URL`, with `/saas/signup?intent=demo` and `/saas/signup?intent=subscribe` as the only destinations.
+- Signup and School Workspace Setup preserve the valid selected intent and emphasize it on the final commercial-choice step without locking the customer into it.
+- A normalized organization-domain eligibility ledger enforces one customer demo opportunity across pending, approved, active, expired, rejected, cancelled, and demo-to-paid history. Internal Sandbox records do not reserve customer eligibility; public email providers require an official organization website or domain before a demo can be requested.
+- Migration `20260725_001_demo_domain_eligibility_policy` backfills safe historical reservations and marks ambiguous duplicate history for manual review without merging, deleting, reprovisioning, or changing existing workspace data.
 
 ## Current Priority
 

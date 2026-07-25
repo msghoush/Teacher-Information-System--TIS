@@ -167,7 +167,9 @@ M8B-2 implements that commercial resolver as a read-only foundation. Workspace e
 
 Paid workspace resolution delegates plan capabilities and paid branch quantity to the existing M7 entitlement resolver and requires a matching persisted `PaymentSubscription`. Demo and internal entitlements use explicit workspace values tied to the shared `EntitlementDefinition` catalog. Branches inherit their workspace entitlement unless an optional coherent `BranchEntitlement` says active or inactive. All calculations are read-only and fail closed on ambiguity or tenant mismatch.
 
-M8B-3 introduces a separate SaaS demo-request aggregate after onboarding review. A verified customer with complete onboarding may choose Request Demo or Subscribe Now. Subscribe Now preserves the existing plan-selection and Paddle path. Request Demo captures immutable commercial/classification/entitlement context and starts in Pending Review without creating an operational workspace.
+M8B-3 introduces a separate SaaS demo-request aggregate after onboarding review. The public landing website enters signup with either a Request a Demo or Subscribe Now intent; the valid intent persists through account and School Workspace Setup and is emphasized, but never locked, at the commercial-choice page. Subscribe Now preserves the existing plan-selection and Paddle path. Request Demo captures immutable commercial/classification/entitlement context and starts in Pending Review without creating an operational workspace.
+
+Customer Demo eligibility is keyed by a normalized organization domain. TIS prefers the pending organization's authoritative domain, uses a work email domain only when no organization identity exists, and requires an official website/domain for public email providers. A unique domain-eligibility reservation prevents concurrent or historical duplicate Customer Demo opportunities. The reservation remains after request review, activation, expiry, cancellation, rejection, or Demo-to-Paid conversion; Internal Sandbox history is excluded.
 
 Only Platform Owners can approve, reject, or cancel requests. Approval creates a review record but does not provision or activate a demo. Rejection requires a reason, and customers may withdraw only while review is pending. Durable request events serve both audit and internal-notification purposes; email delivery remains out of scope.
 
@@ -373,8 +375,8 @@ Landing priorities:
 - Explain the problem of scattered academic operations.
 - Present TIS as a connected academic operations platform.
 - Show credible platform capabilities.
-- Support early access, demo requests, and signup pathways.
-- Expose Open Account entry points that send qualified visitors from the public website to the deployed TIS Account signup flow.
+- Present Request a Demo and Subscribe Now as the two public conversion pathways.
+- Route both paths through environment-configured deployed TIS Account signup URLs with the selected intent.
 - Keep the landing page separate from operational app templates.
 
 Landing rule:

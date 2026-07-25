@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 from fastapi import Request
@@ -83,6 +84,14 @@ PERSONAL_EMAIL_WARNING = (
 DISPOSABLE_EMAIL_BLOCK_MESSAGE = (
     "Disposable email domains are not allowed for TIS Account registration."
 )
+COMMERCIAL_INTENTS = {"demo", "subscribe"}
+PUBLIC_EMAIL_DOMAINS = {
+    "gmail.com",
+    "outlook.com",
+    "hotmail.com",
+    "yahoo.com",
+    "icloud.com",
+}
 
 
 @dataclass(frozen=True)
@@ -169,6 +178,47 @@ def _extract_domain(email: str | None) -> str:
     if not normalized or "@" not in normalized:
         return ""
     return normalized.rsplit("@", 1)[-1]
+
+
+def normalize_commercial_intent(value: str | None) -> str:
+    cleaned = str(value or "").strip().lower()
+    return cleaned if cleaned in COMMERCIAL_INTENTS else ""
+
+
+def normalize_organization_domain(value: str | None) -> str:
+    """Return a stable lower-case organization domain from a domain, email, or website value."""
+    cleaned = str(value or "").strip().lower().strip(".")
+    if not cleaned:
+        return ""
+    if "@" in cleaned and "/" not in cleaned:
+        cleaned = cleaned.rsplit("@", 1)[-1]
+    parsed = urlsplit(cleaned if "://" in cleaned else f"//{cleaned}")
+    candidate = (parsed.hostname or cleaned.split("/", 1)[0]).strip().lower().strip(".")
+    if not candidate or len(candidate) > 180:
+        return ""
+    if any(part == "" for part in candidate.split(".")):
+        return ""
+    allowed = set("abcdefghijklmnopqrstuvwxyz0123456789.-")
+    return candidate if set(candidate) <= allowed else ""
+
+
+def is_public_email_domain(db: Session, domain: str | None) -> bool:
+    normalized = normalize_organization_domain(domain)
+    if not normalized:
+        return False
+    if normalized in PUBLIC_EMAIL_DOMAINS:
+        return True
+    row = db.query(models.BlockedEmailDomain).filter(
+        models.BlockedEmailDomain.domain == normalized,
+        models.BlockedEmailDomain.is_active == True,
+    ).first()
+    return bool(
+        row
+        and (
+            str(getattr(row, "enforcement", "") or "").strip().lower() == "warn"
+            or str(getattr(row, "domain_category", "") or "").strip().lower() == "personal"
+        )
+    )
 
 
 def get_domain_policy(db: Session, email: str | None) -> DomainPolicyResult:
@@ -274,6 +324,7 @@ def create_account(
     password: str,
     first_name: str = "",
     last_name: str = "",
+    signup_intent: str = "",
     request: Request | None = None,
 ):
     cleaned_email = str(email or "").strip()
@@ -297,6 +348,7 @@ def create_account(
         last_name=str(last_name or "").strip()[:120],
         status="pending_verification",
         onboarding_status="not_started",
+        signup_intent=normalize_commercial_intent(signup_intent) or None,
     )
     db.add(account)
     db.flush()
@@ -717,6 +769,7 @@ def create_pending_organization(db: Session, account, request: Request | None = 
         status="draft",
         onboarding_step="organization",
         draft_saved_at=_utcnow(),
+        commercial_intent=normalize_commercial_intent(getattr(account, "signup_intent", "")) or None,
     )
     db.add(organization)
     db.flush()
@@ -1039,7 +1092,7 @@ def save_organization_profile(
         raise ValueError("Organization name is required.")
     organization.legal_name = _clean_text(legal_name, 180)
     organization.website = _clean_text(website, 180)
-    organization.primary_domain = _extract_domain(primary_domain) or _clean_text(primary_domain, 180)
+    organization.primary_domain = normalize_organization_domain(primary_domain)
     organization.phone = _clean_text(phone, 80)
     organization.educational_program = cleaned_program
     organization.country_code = _clean_text(country_code, 2).upper()

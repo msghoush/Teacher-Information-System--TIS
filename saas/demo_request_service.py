@@ -48,6 +48,12 @@ STATUS_TONES = {
     DemoRequestStatus.CANCELLED.value: "neutral",
 }
 
+DEMO_DOMAIN_ALREADY_USED_MESSAGE = (
+    "A demo opportunity has already been used or requested for this organization. "
+    "Please sign in with your organization administrator account, subscribe using the existing workspace, "
+    "or contact TIS support."
+)
+
 
 def _utcnow() -> datetime:
     return datetime.utcnow()
@@ -149,6 +155,48 @@ def _validate_no_commercial_activity(db: Session, organization) -> None:
         )
 
 
+def resolve_customer_demo_domain(db: Session, account, organization) -> str:
+    """Prefer the organization identity; use a work email only when no identity was supplied."""
+    primary_domain = service.normalize_organization_domain(
+        getattr(organization, "primary_domain", "")
+    )
+    website_domain = service.normalize_organization_domain(
+        getattr(organization, "website", "")
+    )
+    organization_domain = primary_domain or website_domain
+    if organization_domain:
+        if service.is_public_email_domain(db, organization_domain):
+            raise DemoRequestError(
+                "Enter your organization's official website or primary domain before requesting a demo."
+            )
+        return organization_domain
+
+    email_domain = service.normalize_organization_domain(getattr(account, "email", ""))
+    if not email_domain or service.is_public_email_domain(db, email_domain):
+        raise DemoRequestError(
+            "Add your organization's official website or primary domain before requesting a demo."
+        )
+    return email_domain
+
+
+def _reserve_customer_demo_domain(db: Session, domain: str):
+    existing = db.query(models.SaaSDemoDomainEligibility).filter(
+        models.SaaSDemoDomainEligibility.normalized_domain == domain
+    ).first()
+    if existing:
+        raise DemoRequestError(DEMO_DOMAIN_ALREADY_USED_MESSAGE)
+    eligibility = models.SaaSDemoDomainEligibility(
+        normalized_domain=domain,
+        status="reserved",
+    )
+    db.add(eligibility)
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        raise DemoRequestError(DEMO_DOMAIN_ALREADY_USED_MESSAGE) from exc
+    return eligibility
+
+
 def validate_commercial_choice(db: Session, account, organization) -> None:
     _validate_completed_onboarding(db, account, organization)
     if service.initial_checkout_is_closed(db, organization):
@@ -233,6 +281,8 @@ def submit_demo_request(db: Session, account, organization):
     _validate_no_commercial_activity(db, organization)
     if _pending_or_approved_request(db, organization):
         raise DemoRequestError("A demo request already exists for this school workspace.")
+    organization_domain = resolve_customer_demo_domain(db, account, organization)
+    eligibility = _reserve_customer_demo_domain(db, organization_domain)
 
     organization.workspace_intent = workspace_classification_service.validate_workspace_intent(
         WorkspaceIntent.CUSTOMER_DEMO.value
@@ -251,6 +301,7 @@ def submit_demo_request(db: Session, account, organization):
         workspace_classification_snapshot=WorkspaceIntent.CUSTOMER_DEMO.value,
         commercial_state_snapshot=CommercialState.PROVISIONING.value,
         entitlement_snapshot_json=json.dumps(snapshot, separators=(",", ":"), sort_keys=True),
+        organization_domain_normalized=organization_domain,
         status=DemoRequestStatus.PENDING_REVIEW.value,
         submitted_at=now,
         status_updated_at=now,
@@ -259,7 +310,8 @@ def submit_demo_request(db: Session, account, organization):
     try:
         db.flush()
     except IntegrityError as exc:
-        raise DemoRequestError("A demo request is already pending for this school workspace.") from exc
+        raise DemoRequestError(DEMO_DOMAIN_ALREADY_USED_MESSAGE) from exc
+    eligibility.demo_request_id = row.id
     _record_action_and_notification(
         db,
         row,
@@ -275,7 +327,11 @@ def submit_demo_request(db: Session, account, organization):
         organization=organization,
         account=account,
         event_type="demo_request_submitted",
-        details={"demo_request_uuid": row.request_uuid, "status": row.status},
+        details={
+            "demo_request_uuid": row.request_uuid,
+            "status": row.status,
+            "organization_domain": organization_domain,
+        },
     )
     return row
 

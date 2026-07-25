@@ -16,7 +16,6 @@ import {
   FileSearch,
   GraduationCap,
   LineChart,
-  LoaderCircle,
   LockKeyhole,
   Menu,
   MessageSquareText,
@@ -32,19 +31,13 @@ import {
   X
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type {
-  CSSProperties,
-  ElementType,
-  FormEvent,
-  InputHTMLAttributes,
-  PointerEvent as ReactPointerEvent,
-  ReactNode
-} from "react";
+import type { CSSProperties, ElementType, PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
 const tisAppBaseUrl = normalizeConfiguredUrl(process.env.NEXT_PUBLIC_TIS_APP_BASE_URL);
 const appPortalUrl = tisAppBaseUrl;
-const openAccountUrl = buildTisAppUrl("/saas/signup");
+const requestDemoUrl = buildTisAppUrl("/saas/signup?intent=demo");
+const subscribeNowUrl = buildTisAppUrl("/saas/signup?intent=subscribe");
 
 const problems = [
   {
@@ -307,29 +300,8 @@ const productImages = {
   }
 };
 
-const initialDemoForm = {
-  schoolName: "",
-  fullName: "",
-  email: "",
-  phone: "",
-  teachers: "",
-  message: ""
-};
-
-type DemoFormState = typeof initialDemoForm;
-type DemoFieldName = keyof DemoFormState;
 type RevealDirection = "up" | "left" | "right" | "fade";
 type SurfaceTone = "ocean" | "teal" | "ai";
-type SubmitState = "idle" | "submitting" | "success" | "error";
-
-const demoFieldIds: Record<DemoFieldName, string> = {
-  schoolName: "school-name",
-  fullName: "full-name",
-  email: "email",
-  phone: "phone",
-  teachers: "teachers",
-  message: "message"
-};
 
 export default function Home() {
   const [pageReady, setPageReady] = useState(false);
@@ -517,11 +489,17 @@ function Header({
         >
           <a
             className="focus-ring button-primary col-span-2 inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-white md:col-span-auto md:px-3 lg:px-4"
-            href={openAccountUrl}
-            aria-label="Open a TIS Account"
+            href={requestDemoUrl}
             onClick={() => setMenuOpen(false)}
           >
-            Open Account
+            Request a Demo
+          </a>
+          <a
+            className="focus-ring button-secondary col-span-2 inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-ocean md:col-span-auto md:px-3 lg:px-4"
+            href={subscribeNowUrl}
+            onClick={() => setMenuOpen(false)}
+          >
+            Subscribe Now
           </a>
           <a className="nav-link focus-ring rounded-md px-2 py-2 md:px-0 md:py-0" href="#capabilities" onClick={() => setMenuOpen(false)}>
             Features
@@ -535,8 +513,8 @@ function Header({
           <a className="nav-link focus-ring rounded-md px-2 py-2 md:px-0 md:py-0" href="#pricing" onClick={() => setMenuOpen(false)}>
             Pricing
           </a>
-          <a className="nav-link focus-ring rounded-md px-2 py-2 md:px-0 md:py-0" href="#request-demo" onClick={() => setMenuOpen(false)}>
-            Book a Demo
+          <a className="nav-link focus-ring rounded-md px-2 py-2 md:px-0 md:py-0" href={requestDemoUrl} onClick={() => setMenuOpen(false)}>
+            Request a Demo
           </a>
         </nav>
 
@@ -617,18 +595,17 @@ function Hero({ pageReady }: { pageReady: boolean }) {
             style={{ "--enter-delay": "320ms" } as CSSProperties}
           >
             <a
-              href={openAccountUrl}
+              href={requestDemoUrl}
               className="focus-ring button-primary inline-flex h-12 items-center justify-center rounded-xl px-6 text-base font-bold text-white shadow-card"
-              aria-label="Open a TIS Account"
             >
-              Open Account
+              Request a Demo
               <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
             </a>
             <a
-              href="#request-demo"
+              href={subscribeNowUrl}
               className="focus-ring button-secondary inline-flex h-12 items-center justify-center rounded-xl px-6 text-base font-bold text-ocean"
             >
-              Request Early Access
+              Subscribe Now
             </a>
             <a
               href="#solution"
@@ -1162,7 +1139,7 @@ function PricingSection() {
                       ))}
                     </div>
                     <a
-                      href="#request-demo"
+                      href={subscribeNowUrl}
                       className={cn(
                         "focus-ring pricing-button mt-8 inline-flex h-11 w-full items-center justify-center rounded-xl border text-sm font-bold transition",
                         featured
@@ -1170,7 +1147,7 @@ function PricingSection() {
                           : "border-ocean text-ocean hover:bg-ocean hover:text-white"
                       )}
                     >
-                      {featured ? "Request Early Access" : "Request Pricing"}
+                      Subscribe Now
                     </a>
                   </div>
                 </InteractiveSurface>
@@ -1191,61 +1168,6 @@ function PricingSection() {
 }
 
 function DemoSection() {
-  const [formData, setFormData] = useState<DemoFormState>(initialDemoForm);
-  const [touched, setTouched] = useState<Partial<Record<DemoFieldName, boolean>>>({});
-  const [submitState, setSubmitState] = useState<SubmitState>("idle");
-  const [submitMessage, setSubmitMessage] = useState("");
-  const errors = getDemoErrors(formData);
-  const isSubmitting = submitState === "submitting";
-  const isSuccess = submitState === "success";
-
-  const handleFieldChange = (field: DemoFieldName, value: string) => {
-    setFormData((current) => ({
-      ...current,
-      [field]: value
-    }));
-
-    if (submitState !== "idle") {
-      setSubmitState("idle");
-      setSubmitMessage("");
-    }
-  };
-
-  const handleFieldBlur = (field: DemoFieldName) => {
-    setTouched((current) => ({
-      ...current,
-      [field]: true
-    }));
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setTouched({
-      schoolName: true,
-      fullName: true,
-      email: true,
-      phone: true,
-      teachers: true,
-      message: true
-    });
-
-    if (Object.keys(errors).length > 0) {
-      setSubmitState("error");
-      setSubmitMessage("Please review the highlighted fields.");
-      return;
-    }
-
-    setSubmitState("submitting");
-    setSubmitMessage("");
-
-    await new Promise((resolve) => window.setTimeout(resolve, 900));
-
-    setSubmitState("success");
-    setSubmitMessage(
-      "Form validation complete. Online delivery is being connected; please email info@tisplatform.com to complete your request."
-    );
-  };
-
   return (
     <section
       id="request-demo"
@@ -1266,23 +1188,16 @@ function DemoSection() {
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
               <a
-                href={openAccountUrl}
+                href={requestDemoUrl}
                 className="focus-ring button-primary inline-flex h-11 items-center justify-center rounded-xl px-5 text-sm font-bold text-white"
-                aria-label="Open a TIS Account"
               >
-                Open Account
+                Request a Demo
               </a>
               <a
-                href="#demo-form"
+                href={subscribeNowUrl}
                 className="focus-ring button-secondary inline-flex h-11 items-center justify-center rounded-xl px-5 text-sm font-bold text-ocean"
               >
-                Book a Demo
-              </a>
-              <a
-                href="mailto:info@tisplatform.com?subject=TIS%20Early%20Access%20Request"
-                className="focus-ring button-secondary inline-flex h-11 items-center justify-center rounded-xl px-5 text-sm font-bold text-ocean"
-              >
-                Request Early Access
+                Subscribe Now
               </a>
             </div>
             <p className="mt-6 text-sm leading-6 text-slate-500">
@@ -1293,138 +1208,20 @@ function DemoSection() {
         </Reveal>
 
         <Reveal direction="right" delay={120}>
-          <form
-            id="demo-form"
-            className={cn(
-              "demo-form-shell rounded-[1.9rem] border border-slate-200/80 bg-white/90 p-6 shadow-soft backdrop-blur-xl",
-              isSuccess && "is-success",
-              submitState === "error" && "is-error"
-            )}
-            noValidate
-            onSubmit={handleSubmit}
-          >
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field
-                label="School Name"
-                name="schoolName"
-                placeholder="Example International School"
-                value={formData.schoolName}
-                onChange={handleFieldChange}
-                onBlur={handleFieldBlur}
-                error={touched.schoolName ? errors.schoolName : undefined}
-                autoComplete="organization"
-              />
-              <Field
-                label="Full Name"
-                name="fullName"
-                placeholder="Your name"
-                value={formData.fullName}
-                onChange={handleFieldChange}
-                onBlur={handleFieldBlur}
-                error={touched.fullName ? errors.fullName : undefined}
-                autoComplete="name"
-              />
-              <Field
-                label="Email"
-                name="email"
-                type="email"
-                placeholder="name@school.edu"
-                value={formData.email}
-                onChange={handleFieldChange}
-                onBlur={handleFieldBlur}
-                error={touched.email ? errors.email : undefined}
-                autoComplete="email"
-              />
-              <Field
-                label="Phone"
-                name="phone"
-                type="tel"
-                placeholder="+966 5X XXX XXXX"
-                value={formData.phone}
-                onChange={handleFieldChange}
-                onBlur={handleFieldBlur}
-                error={touched.phone ? errors.phone : undefined}
-                autoComplete="tel"
-              />
-              <Field
-                label="Number of Teachers"
-                name="teachers"
-                type="number"
-                placeholder="150"
-                value={formData.teachers}
-                onChange={handleFieldChange}
-                onBlur={handleFieldBlur}
-                error={touched.teachers ? errors.teachers : undefined}
-                inputMode="numeric"
-              />
-              <div className="sm:col-span-2">
-                <label htmlFor={demoFieldIds.message} className="text-sm font-bold text-ink">
-                  Message
-                </label>
-                <textarea
-                  id={demoFieldIds.message}
-                  name="message"
-                  rows={5}
-                  placeholder="Tell us about your branches, planning process, or staffing needs."
-                  value={formData.message}
-                  onChange={(event) => handleFieldChange("message", event.target.value)}
-                  onBlur={() => handleFieldBlur("message")}
-                  aria-invalid={Boolean(touched.message && errors.message)}
-                  aria-describedby={errors.message ? "message-error" : undefined}
-                  className={cn(
-                    "demo-textarea mt-2 w-full rounded-2xl border border-slate-300 bg-white/90 text-sm shadow-sm transition duration-300",
-                    touched.message && errors.message
-                      ? "border-rose-300 focus:border-rose-400 focus:ring-rose-200"
-                      : "focus:border-teal focus:ring-teal/25"
-                  )}
-                />
-                <FieldError id="message-error" message={touched.message ? errors.message : undefined} />
-              </div>
-            </div>
-
-            <div
-              className={cn(
-                "form-status mt-5 min-h-6 text-sm font-semibold transition",
-                submitState === "error" && "text-rose-500",
-                isSuccess && "text-teal"
-              )}
-              role="status"
-              aria-live="polite"
-            >
-              {submitMessage}
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className={cn(
-                "focus-ring demo-submit-button mt-4 inline-flex h-12 w-full items-center justify-center rounded-xl px-6 text-base font-bold text-white shadow-card transition sm:w-auto",
-                isSuccess ? "is-success" : "bg-ocean hover:bg-teal",
-                isSubmitting && "cursor-wait"
-              )}
-            >
-              {isSubmitting ? (
-                <LoaderCircle className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />
-              ) : isSuccess ? (
-                <CheckCircle2 className="mr-2 h-5 w-5" aria-hidden="true" />
-              ) : null}
-              Book a Demo
-              {!isSubmitting && !isSuccess ? (
+          <div className="demo-form-shell rounded-[1.9rem] border border-slate-200/80 bg-white/90 p-6 shadow-soft backdrop-blur-xl">
+            <p className="text-sm font-bold uppercase tracking-[0.14em] text-teal">Choose your next step</p>
+            <h3 className="mt-3 text-2xl font-bold tracking-[-0.03em] text-ink">Start with the path that fits your school.</h3>
+            <p className="mt-4 text-sm leading-6 text-slate-600">Both paths begin with a secure TIS Account and guided School Workspace Setup. You can review or change the commercial choice before final submission.</p>
+            <div className="mt-7 grid gap-3 sm:grid-cols-2">
+              <a href={requestDemoUrl} className="focus-ring demo-submit-button inline-flex h-12 items-center justify-center rounded-xl px-5 text-sm font-bold text-white shadow-card transition">
+                Request a Demo
                 <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
-              ) : null}
-            </button>
-            <p className="mt-4 max-w-xl text-xs leading-5 text-slate-500">
-              This form does not send automatically yet. To complete a demo request now,
-              email{" "}
-              <a
-                className="font-bold text-ocean underline decoration-ocean/30 underline-offset-2"
-                href="mailto:info@tisplatform.com?subject=TIS%20Demo%20Request"
-              >
-                info@tisplatform.com
               </a>
-              .
-            </p>
-          </form>
+              <a href={subscribeNowUrl} className="focus-ring button-secondary inline-flex h-12 items-center justify-center rounded-xl px-5 text-sm font-bold text-ocean">
+                Subscribe Now
+              </a>
+            </div>
+          </div>
         </Reveal>
       </div>
     </section>
@@ -1675,69 +1472,6 @@ function SectionLabel({
   );
 }
 
-function Field({
-  label,
-  name,
-  value,
-  type = "text",
-  placeholder,
-  onChange,
-  onBlur,
-  error,
-  autoComplete,
-  inputMode
-}: {
-  label: string;
-  name: DemoFieldName;
-  value: string;
-  type?: string;
-  placeholder: string;
-  onChange: (field: DemoFieldName, value: string) => void;
-  onBlur: (field: DemoFieldName) => void;
-  error?: string;
-  autoComplete?: string;
-  inputMode?: InputHTMLAttributes<HTMLInputElement>["inputMode"];
-}) {
-  const fieldId = demoFieldIds[name];
-  const errorId = `${fieldId}-error`;
-
-  return (
-    <div>
-      <label htmlFor={fieldId} className="text-sm font-bold text-ink">
-        {label}
-      </label>
-      <input
-        id={fieldId}
-        name={name}
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={(event) => onChange(name, event.target.value)}
-        onBlur={() => onBlur(name)}
-        autoComplete={autoComplete}
-        inputMode={inputMode}
-        aria-invalid={Boolean(error)}
-        aria-describedby={error ? errorId : undefined}
-        className={cn(
-          "demo-input mt-2 h-11 w-full rounded-2xl border border-slate-300 bg-white/90 text-sm shadow-sm transition duration-300",
-          error
-            ? "border-rose-300 focus:border-rose-400 focus:ring-rose-200"
-            : "focus:border-teal focus:ring-teal/25"
-        )}
-      />
-      <FieldError id={errorId} message={error} />
-    </div>
-  );
-}
-
-function FieldError({ id, message }: { id: string; message?: string }) {
-  return (
-    <div id={id} className="mt-2 min-h-5 text-xs font-medium text-rose-500">
-      {message}
-    </div>
-  );
-}
-
 function Reveal({
   as,
   children,
@@ -1814,41 +1548,6 @@ function InteractiveSurface({
       {children}
     </Tag>
   );
-}
-
-function getDemoErrors(formData: DemoFormState) {
-  const errors: Partial<Record<DemoFieldName, string>> = {};
-
-  if (!formData.schoolName.trim()) {
-    errors.schoolName = "School name is required.";
-  }
-
-  if (!formData.fullName.trim()) {
-    errors.fullName = "Full name is required.";
-  }
-
-  if (!formData.email.trim()) {
-    errors.email = "Email is required.";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
-    errors.email = "Enter a valid email address.";
-  }
-
-  if (formData.phone.trim() && formData.phone.trim().length < 8) {
-    errors.phone = "Phone number looks too short.";
-  }
-
-  if (formData.teachers.trim()) {
-    const teacherCount = Number(formData.teachers);
-    if (!Number.isFinite(teacherCount) || teacherCount <= 0) {
-      errors.teachers = "Enter a valid teacher count.";
-    }
-  }
-
-  if (formData.message.trim().length > 1000) {
-    errors.message = "Keep the message under 1000 characters.";
-  }
-
-  return errors;
 }
 
 function normalizeConfiguredUrl(value: string | undefined) {

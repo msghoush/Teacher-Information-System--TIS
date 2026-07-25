@@ -11,6 +11,35 @@ This file is the chronological summary of meaningful TIS changes. It does not re
 
 Newest entries should be added first.
 
+## 2026-07-25 - Landing CTA Consolidation And Customer Demo Domain Policy
+
+Area/module:
+Public landing conversion routes, TIS Account signup/onboarding, customer-demo request policy, and Platform Owner demo visibility
+
+Previous state:
+The landing website exposed overlapping conversion labels. Signup did not retain a selected commercial path, and demo duplicate protection applied only to a pending request for one onboarding record rather than an organization domain.
+
+New state:
+The landing website exposes Request a Demo and Subscribe Now through environment-configured app URLs with explicit `demo` or `subscribe` intent. The selected intent persists through signup and School Workspace Setup, then is emphasized at commercial choice without preventing a change. Customer Demo eligibility now uses a normalized organization-domain reservation with a database unique invariant. Historical duplicate domains are retained as manual-review reservations; no historical request, workspace, or customer data is merged, deleted, migrated, or reprovisioned.
+
+Reason:
+Schools should have two unambiguous public conversion paths, while each organization receives at most one Customer Demo opportunity and retains the same workspace for Demo-to-Paid.
+
+Files changed:
+Landing CTA source, SaaS models/services/router/templates, database migration, diagnostic command, focused tests, and KMS sources.
+
+Documentation updated:
+AI/master context, project state, user/system flows, database architecture, change history, landing history, and SaaS onboarding history.
+
+PDF regenerated:
+Yes, through `python scripts/kms.py sync`.
+
+AI project context updated:
+Yes.
+
+Reviewer/approval notes:
+Approved M8 scope only. No M9 work, payment change, workspace conversion change, provisioning redesign, commit, or push.
+
 ## Entry Template
 
 ```md
