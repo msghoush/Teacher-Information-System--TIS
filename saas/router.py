@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 import json
+import logging
 import os
 from urllib.parse import quote_plus
 
@@ -13,6 +15,9 @@ import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
 from saas import billing_history_service, billing_service, commercial_state_service, demo_conversion_service, demo_lifecycle_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+
+
+logger = logging.getLogger(__name__)
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
@@ -90,6 +95,40 @@ templates.env.globals["sign_in_method_label"] = _sign_in_method_label
 def _safe_next(next_path: str | None) -> str:
     cleaned = str(next_path or "").strip()
     return cleaned if cleaned.startswith("/saas") else "/saas/account"
+
+
+def _test_deletion_log_context(current_user, organization, *, deletion_mode: str) -> dict[str, object]:
+    return {
+        "deletion_mode": deletion_mode,
+        "organization_id": int(getattr(organization, "id", 0) or 0),
+        "organization_uuid": str(getattr(organization, "organization_uuid", "") or ""),
+        "workspace_id": 0,
+        "account_id": int(getattr(organization, "owner_saas_account_id", 0) or 0),
+        "organization_name": str(getattr(organization, "organization_name", "") or ""),
+        "normalized_domain": service.normalize_organization_domain(
+            str(getattr(organization, "primary_domain", "") or getattr(organization, "website", "") or "")
+        ),
+        "authenticated_platform_owner": str(getattr(current_user, "user_id", "") or ""),
+    }
+
+
+def _log_test_deletion(event: str, context: dict[str, object], **details) -> None:
+    fields = {**context, **details}
+    logger.info(
+        "test_deletion event=%s %s",
+        event,
+        " ".join(f"{key}={value}" for key, value in fields.items()),
+    )
+
+
+def _constraint_name(exc: SQLAlchemyError) -> str:
+    original = getattr(exc, "orig", None)
+    diagnostic = getattr(original, "diag", None)
+    return str(
+        getattr(diagnostic, "constraint_name", None)
+        or getattr(original, "constraint_name", None)
+        or "unavailable"
+    )
 
 
 def _current_account(request: Request, db: Session):
@@ -3171,6 +3210,17 @@ def delete_test_workspace(
     current_user = _require_platform_owner(request, db)
     organization = service.get_pending_organization_by_uuid(db, organization_uuid)
     if not organization:
+        _log_test_deletion(
+            "early_exit",
+            {
+                "deletion_mode": "workspace_only",
+                "organization_uuid": str(organization_uuid or ""),
+                "authenticated_platform_owner": str(getattr(current_user, "user_id", "") or ""),
+            },
+            validation="organization_lookup",
+            reason="pending_organization_not_found",
+            values_checked={"organization_uuid": str(organization_uuid or "")},
+        )
         audit.write_audit_event({
             "event_type": "test_workspace_deletion",
             "result": "blocked_not_found",
@@ -3180,13 +3230,23 @@ def delete_test_workspace(
         })
         raise HTTPException(status_code=404, detail="Pending organization not found.")
 
+    diagnostic_context = _test_deletion_log_context(
+        current_user,
+        organization,
+        deletion_mode="workspace_only",
+    )
+    _log_test_deletion("request_begin", diagnostic_context)
     organization_name = str(organization.organization_name or "")
     school_group_id = 0
     analysis_counts = {}
+    _log_test_deletion("transaction_begin", diagnostic_context, transaction="BEGIN")
     try:
         analysis = workspace_analysis_service.analyze_test_workspace(db, organization)
         school_group_id = int(analysis["school_group_id"] or 0)
         analysis_counts = {row.table: int(row.count or 0) for row in analysis["counts"]}
+        diagnostic_context["workspace_id"] = school_group_id
+        diagnostic_scope = workspace_deletion_service.deletion_diagnostic_scope(analysis)
+        _log_test_deletion("pre_analysis", diagnostic_context, **diagnostic_scope)
         result = workspace_deletion_service.delete_test_workspace(
             db,
             organization,
@@ -3194,8 +3254,21 @@ def delete_test_workspace(
             reason=reason,
         )
         db.commit()
+        _log_test_deletion("transaction_commit", diagnostic_context, transaction="COMMIT")
     except workspace_deletion_service.WorkspaceDeletionBlocked as exc:
         db.rollback()
+        _log_test_deletion(
+            "transaction_rollback",
+            diagnostic_context,
+            transaction="ROLLBACK",
+            validation="workspace_deletion_preflight",
+            reason=str(exc),
+            values_checked={
+                "organization_name": organization_name,
+                "confirmation_name_matches": confirmation_name == organization_name,
+                "reason_present": bool(str(reason or "").strip()),
+            },
+        )
         audit.write_audit_event({
             "event_type": "test_workspace_deletion",
             "result": "blocked",
@@ -3210,8 +3283,43 @@ def delete_test_workspace(
             f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-workspace?error={quote_plus(str(exc))}",
             status_code=302,
         )
-    except Exception:
+    except SQLAlchemyError as exc:
         db.rollback()
+        _log_test_deletion("transaction_rollback", diagnostic_context, transaction="ROLLBACK")
+        logger.exception(
+            "test_workspace_deletion database_failure model=unknown table=unknown "
+            "foreign_key_or_constraint=%s parent_object=pending_organization:%s "
+            "child_object=unknown exception=%s",
+            _constraint_name(exc),
+            diagnostic_context["organization_id"],
+            exc,
+        )
+        audit.write_audit_event({
+            "event_type": "test_workspace_deletion",
+            "result": "failed_rolled_back",
+            "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+            "organization_uuid": str(organization_uuid or ""),
+            "organization_name": organization_name,
+            "school_group_id": school_group_id,
+            "reason": str(reason or "").strip()[:500],
+            "analysis_counts": analysis_counts,
+        })
+        return RedirectResponse(
+            f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-workspace?error="
+            + quote_plus("The workspace could not be deleted. All data was preserved."),
+            status_code=302,
+        )
+    except Exception as exc:
+        db.rollback()
+        _log_test_deletion("transaction_rollback", diagnostic_context, transaction="ROLLBACK")
+        logger.exception(
+            "test_workspace_deletion unexpected_failure parent_object=pending_organization:%s "
+            "workspace_id=%s exception_type=%s exception=%s",
+            diagnostic_context["organization_id"],
+            diagnostic_context["workspace_id"],
+            type(exc).__name__,
+            exc,
+        )
         audit.write_audit_event({
             "event_type": "test_workspace_deletion",
             "result": "failed_rolled_back",
@@ -3285,6 +3393,17 @@ def delete_test_account(
         raise HTTPException(status_code=404, detail="Test account reset is not available.")
     organization = service.get_pending_organization_by_uuid(db, organization_uuid)
     if not organization:
+        _log_test_deletion(
+            "early_exit",
+            {
+                "deletion_mode": "account_and_workspace",
+                "organization_uuid": str(organization_uuid or ""),
+                "authenticated_platform_owner": str(getattr(current_user, "user_id", "") or ""),
+            },
+            validation="organization_lookup",
+            reason="pending_organization_not_found",
+            values_checked={"organization_uuid": str(organization_uuid or "")},
+        )
         audit.write_audit_event({
             "event_type": "test_account_workspace_deletion",
             "result": "blocked_not_found",
@@ -3294,14 +3413,27 @@ def delete_test_account(
         })
         raise HTTPException(status_code=404, detail="Pending organization not found.")
 
+    diagnostic_context = _test_deletion_log_context(
+        current_user,
+        organization,
+        deletion_mode="account_and_workspace",
+    )
+    _log_test_deletion("request_begin", diagnostic_context)
     safe_context = {
         "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
         "organization_uuid": str(organization.organization_uuid or ""),
         "organization_name": str(organization.organization_name or ""),
         "reason": str(reason or "").strip()[:500],
     }
+    _log_test_deletion("transaction_begin", diagnostic_context, transaction="BEGIN")
     try:
         analysis = test_account_deletion_service.analyze_test_account(db, organization)
+        diagnostic_context.update({
+            "workspace_id": analysis.school_group_id,
+            "account_id": analysis.account_id,
+        })
+        diagnostic_scope = test_account_deletion_service.deletion_diagnostic_scope(analysis)
+        _log_test_deletion("pre_analysis", diagnostic_context, **diagnostic_scope)
         safe_context.update({
             "account_id": analysis.account_id,
             "account_uuid": analysis.account_uuid,
@@ -3319,15 +3451,57 @@ def delete_test_account(
             reason=reason,
         )
         db.commit()
+        _log_test_deletion("transaction_commit", diagnostic_context, transaction="COMMIT")
     except test_account_deletion_service.TestAccountDeletionBlocked as exc:
         db.rollback()
+        _log_test_deletion(
+            "transaction_rollback",
+            diagnostic_context,
+            transaction="ROLLBACK",
+            validation="test_account_workspace_preflight",
+            reason=str(exc),
+            values_checked={
+                "organization_name_matches": confirmation_name == safe_context["organization_name"],
+                "account_email_confirmation_present": bool(str(confirmation_email or "").strip()),
+                "reason_present": bool(str(reason or "").strip()),
+            },
+        )
         audit.write_audit_event({"event_type": "test_account_workspace_deletion", "result": "blocked", **safe_context})
         return RedirectResponse(
             f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-account?error={quote_plus(str(exc))}",
             status_code=302,
         )
-    except Exception:
+    except SQLAlchemyError as exc:
         db.rollback()
+        _log_test_deletion("transaction_rollback", diagnostic_context, transaction="ROLLBACK")
+        logger.exception(
+            "test_account_workspace_deletion database_failure model=unknown table=unknown "
+            "foreign_key_or_constraint=%s parent_object=pending_organization:%s "
+            "child_object=selected_test_account:%s exception=%s",
+            _constraint_name(exc),
+            diagnostic_context["organization_id"],
+            diagnostic_context["account_id"],
+            exc,
+        )
+        audit.write_audit_event({"event_type": "test_account_workspace_deletion", "result": "failed_rolled_back", **safe_context})
+        return RedirectResponse(
+            f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-account?error="
+            + quote_plus("The test account could not be deleted. All data was preserved."),
+            status_code=302,
+        )
+    except Exception as exc:
+        db.rollback()
+        _log_test_deletion("transaction_rollback", diagnostic_context, transaction="ROLLBACK")
+        logger.exception(
+            "test_account_workspace_deletion unexpected_failure "
+            "parent_object=pending_organization:%s child_object=selected_test_account:%s "
+            "workspace_id=%s exception_type=%s exception=%s",
+            diagnostic_context["organization_id"],
+            diagnostic_context["account_id"],
+            diagnostic_context["workspace_id"],
+            type(exc).__name__,
+            exc,
+        )
         audit.write_audit_event({"event_type": "test_account_workspace_deletion", "result": "failed_rolled_back", **safe_context})
         return RedirectResponse(
             f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-account?error="
