@@ -1224,6 +1224,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         path = f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-workspace"
 
         with (
+            self.assertLogs("saas.router", level="INFO") as deletion_logs,
             patch("saas.workspace_deletion_service.Session.flush", side_effect=RuntimeError("simulated late failure")),
             patch("saas.router.audit.write_audit_event") as write_audit,
         ):
@@ -1236,6 +1237,9 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("All+data+was+preserved", response.headers["location"])
         self.assertEqual(write_audit.call_args.args[0]["result"], "failed_rolled_back")
+        self.assertTrue(any("event=request_begin" in line for line in deletion_logs.output))
+        self.assertTrue(any("transaction=ROLLBACK" in line for line in deletion_logs.output))
+        self.assertTrue(any("simulated late failure" in line for line in deletion_logs.output))
         db = self._db()
         try:
             after = {
@@ -1499,6 +1503,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
 
         with (
             patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}),
+            self.assertLogs("saas.router", level="INFO") as deletion_logs,
             patch("saas.test_account_deletion_service.Session.flush", side_effect=RuntimeError("simulated failure")),
             patch("saas.router.audit.write_audit_event") as write_audit,
         ):
@@ -1514,6 +1519,9 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
 
         self.assertIn("All+data+was+preserved", response.headers["location"])
         self.assertEqual(write_audit.call_args.args[0]["result"], "failed_rolled_back")
+        self.assertTrue(any("event=request_begin" in line for line in deletion_logs.output))
+        self.assertTrue(any("transaction=ROLLBACK" in line for line in deletion_logs.output))
+        self.assertTrue(any("simulated failure" in line for line in deletion_logs.output))
         db = self._db()
         try:
             after = {

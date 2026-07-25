@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 
 from sqlalchemy import or_
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import models as operational_models
 from saas import models, workspace_analysis_service
+
+
+logger = logging.getLogger(__name__)
 
 
 class WorkspaceDeletionBlocked(ValueError):
@@ -22,21 +27,155 @@ class WorkspaceDeletionResult:
     deleted_records: int
 
 
+def _query_target(query) -> tuple[str, str]:
+    entity = next(
+        (
+            description.get("entity")
+            for description in getattr(query, "column_descriptions", ())
+            if description.get("entity") is not None
+        ),
+        None,
+    )
+    return (
+        str(getattr(entity, "__name__", "UnknownModel")),
+        str(getattr(entity, "__tablename__", "unknown_table")),
+    )
+
+
+def _constraint_name(exc: SQLAlchemyError) -> str:
+    original = getattr(exc, "orig", None)
+    diagnostic = getattr(original, "diag", None)
+    return str(
+        getattr(diagnostic, "constraint_name", None)
+        or getattr(original, "constraint_name", None)
+        or "unavailable"
+    )
+
+
 def _delete(query) -> int:
-    return int(query.delete(synchronize_session=False) or 0)
+    model_name, table_name = _query_target(query)
+    logger.info(
+        "test_workspace_deletion delete_step=begin model=%s table=%s",
+        model_name,
+        table_name,
+    )
+    try:
+        affected_rows = int(query.delete(synchronize_session=False) or 0)
+    except SQLAlchemyError as exc:
+        logger.exception(
+            "test_workspace_deletion database_failure model=%s table=%s "
+            "foreign_key_or_constraint=%s parent_object=selected_workspace "
+            "child_object=%s exception=%s",
+            model_name,
+            table_name,
+            _constraint_name(exc),
+            model_name,
+            exc,
+        )
+        raise
+    logger.info(
+        "test_workspace_deletion delete_step=success model=%s table=%s affected_rows=%s",
+        model_name,
+        table_name,
+        affected_rows,
+    )
+    return affected_rows
+
+
+def _update(query, values) -> int:
+    model_name, table_name = _query_target(query)
+    logger.info(
+        "test_workspace_deletion update_step=begin model=%s table=%s",
+        model_name,
+        table_name,
+    )
+    try:
+        affected_rows = int(query.update(values, synchronize_session=False) or 0)
+    except SQLAlchemyError as exc:
+        logger.exception(
+            "test_workspace_deletion database_failure model=%s table=%s "
+            "foreign_key_or_constraint=%s parent_object=selected_workspace "
+            "child_object=%s exception=%s",
+            model_name,
+            table_name,
+            _constraint_name(exc),
+            model_name,
+            exc,
+        )
+        raise
+    logger.info(
+        "test_workspace_deletion update_step=success model=%s table=%s affected_rows=%s",
+        model_name,
+        table_name,
+        affected_rows,
+    )
+    return affected_rows
 
 
 def _analysis_counts(analysis: dict) -> dict[str, int]:
     return {row.table: int(row.count or 0) for row in analysis["counts"]}
 
 
+_WORKSPACE_DELETION_MODELS = (
+    models.ProvisioningJobEvent, models.ProvisioningJob, models.SaaSAccountUserLink,
+    models.TenantProvisioningLink, operational_models.CalendarEventNotification,
+    operational_models.CalendarEventGradeTarget, operational_models.CalendarEventSectionTarget,
+    operational_models.CalendarEventAssignment, operational_models.CalendarEvent,
+    operational_models.ObservationSelfEvaluationScore, operational_models.ObservationScore,
+    operational_models.ObservationSelfEvaluation, operational_models.Observation,
+    operational_models.TeacherSubjectAllocation, operational_models.TeacherQualificationSelection,
+    operational_models.TeacherSectionAssignment, operational_models.TimetableNonTeachingBlock,
+    operational_models.TimetableEntry, operational_models.HiringPlanDraft,
+    operational_models.TimetableSetting, operational_models.Teacher, operational_models.Subject,
+    operational_models.PlanningSection, operational_models.CalendarEventType,
+    operational_models.BranchLogo, operational_models.SystemNotification,
+    operational_models.PlatformUserPermission, operational_models.User,
+    operational_models.RolePermission, operational_models.SchoolGroupLogo,
+    operational_models.VisualDesignSetting, operational_models.TenantProfile,
+    operational_models.Branch, operational_models.AcademicYear,
+    models.SubscriptionChangeRequest, models.PaymentSubscription, models.PaymentAttempt,
+    models.CheckoutSession, models.SubscriptionContract, models.PaymentCustomer,
+    models.PendingOrganizationPlanSelection, models.PendingOrganizationBranch,
+    models.PendingOrganizationAcademicSetup, models.PendingOrganizationContact,
+    models.PendingOrganizationProgress, models.PendingOrganizationNote,
+    models.PendingOrganizationEvent, models.PendingOrganization, operational_models.SchoolGroup,
+)
+
+
+def deletion_diagnostic_scope(analysis: dict) -> dict[str, object]:
+    """Return read-only deletion scope metadata for backend diagnostics."""
+    record_counts = _analysis_counts(analysis)
+    dependency_tables = (
+        "branches", "academic_years", "users", "teachers", "planning_sections",
+        "calendar_events", "observations", "provisioning_jobs", "payment_subscriptions",
+    )
+    return {
+        "tables_touched": tuple(model.__tablename__ for model in _WORKSPACE_DELETION_MODELS),
+        "record_counts": record_counts,
+        "dependency_counts": {
+            table_name: int(record_counts.get(table_name, 0))
+            for table_name in dependency_tables
+        },
+    }
+
+
 def validate_preflight(db: Session, organization) -> dict:
     analysis = workspace_analysis_service.analyze_test_workspace(db, organization)
     if not analysis["safe_for_future_reset"]:
+        logger.info(
+            "test_workspace_deletion validation_blocked validation=preflight_safe_for_future_reset "
+            "reason=manual_review_required values_checked=%s",
+            {"safe_for_future_reset": False, "warnings": analysis["warnings"]},
+        )
         raise WorkspaceDeletionBlocked(
             "This workspace requires manual review before it can be deleted. No data was changed."
         )
     if not analysis["school_group_id"]:
+        logger.info(
+            "test_workspace_deletion validation_blocked validation=linked_workspace "
+            "reason=workspace_not_resolved values_checked=%s",
+            {"school_group_id": analysis["school_group_id"]},
+        )
         raise WorkspaceDeletionBlocked(
             "A linked operational workspace could not be resolved. No data was changed."
         )
@@ -53,10 +192,20 @@ def delete_test_workspace(
     analysis = validate_preflight(db, organization)
     organization_name = str(organization.organization_name or "")
     if confirmation_name != organization_name:
+        logger.info(
+            "test_workspace_deletion validation_blocked validation=organization_name_confirmation "
+            "reason=typed_name_mismatch values_checked=%s",
+            {"organization_name": organization_name, "confirmation_matches": False},
+        )
         raise WorkspaceDeletionBlocked(
             "The typed organization name does not match. No data was changed."
         )
     if not str(reason or "").strip():
+        logger.info(
+            "test_workspace_deletion validation_blocked validation=deletion_reason "
+            "reason=reason_required values_checked=%s",
+            {"reason_present": False},
+        )
         raise WorkspaceDeletionBlocked("A deletion reason is required. No data was changed.")
 
     pending_id = int(organization.id)
@@ -169,9 +318,9 @@ def delete_test_workspace(
     deleted += _delete(db.query(operational_models.Branch).filter(operational_models.Branch.id.in_(branch_ids))) if branch_ids else 0
     deleted += _delete(db.query(operational_models.AcademicYear).filter(operational_models.AcademicYear.id.in_(year_ids))) if year_ids else 0
 
-    db.query(models.PendingOrganization).filter_by(id=pending_id).update({models.PendingOrganization.last_payment_attempt_id: None}, synchronize_session=False)
-    db.query(models.CheckoutSession).filter_by(pending_organization_id=pending_id).update({models.CheckoutSession.last_payment_attempt_id: None}, synchronize_session=False)
-    db.query(models.SubscriptionContract).filter_by(pending_organization_id=pending_id).update({models.SubscriptionContract.selected_checkout_session_id: None}, synchronize_session=False)
+    _update(db.query(models.PendingOrganization).filter_by(id=pending_id), {models.PendingOrganization.last_payment_attempt_id: None})
+    _update(db.query(models.CheckoutSession).filter_by(pending_organization_id=pending_id), {models.CheckoutSession.last_payment_attempt_id: None})
+    _update(db.query(models.SubscriptionContract).filter_by(pending_organization_id=pending_id), {models.SubscriptionContract.selected_checkout_session_id: None})
     payment_subscription_ids = [row[0] for row in db.query(models.PaymentSubscription.id).filter_by(pending_organization_id=pending_id).all()]
     if payment_subscription_ids:
         deleted += _delete(db.query(models.SubscriptionChangeRequest).filter(models.SubscriptionChangeRequest.payment_subscription_id.in_(payment_subscription_ids)))
@@ -187,7 +336,9 @@ def delete_test_workspace(
         deleted += _delete(db.query(child).filter(child.pending_organization_id == pending_id))
     deleted += _delete(db.query(models.PendingOrganization).filter_by(id=pending_id))
     deleted += _delete(db.query(operational_models.SchoolGroup).filter_by(id=school_group_id))
+    logger.info("test_workspace_deletion flush=begin")
     db.flush()
+    logger.info("test_workspace_deletion flush=success")
 
     return WorkspaceDeletionResult(
         organization_uuid=organization_uuid,
