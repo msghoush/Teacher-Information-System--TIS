@@ -452,6 +452,67 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         db.flush()
         return row.id
 
+    def _add_workspace_entitlement_fixture(self, db, result: dict) -> dict[str, int]:
+        subscription = db.query(saas.models.PaymentSubscription).filter_by(
+            pending_organization_id=result["organization_id"]
+        ).one()
+        entitlement = db.query(saas.models.WorkspaceEntitlement).filter_by(
+            school_group_id=result["school_group_id"]
+        ).first()
+        if entitlement is None:
+            entitlement = saas.models.WorkspaceEntitlement(
+                school_group_id=result["school_group_id"],
+                entitlement_type="paid",
+                status="active",
+                source="subscription",
+                payment_subscription_id=subscription.id,
+            )
+            db.add(entitlement)
+            db.flush()
+
+        value_id = 0
+        definition = db.query(saas.models.EntitlementDefinition).first()
+        if definition is not None:
+            value = db.query(saas.models.WorkspaceEntitlementValue).filter_by(
+                workspace_entitlement_id=entitlement.id,
+                entitlement_definition_id=definition.id,
+            ).first()
+            if value is None:
+                value = saas.models.WorkspaceEntitlementValue(
+                    workspace_entitlement_id=entitlement.id,
+                    entitlement_definition_id=definition.id,
+                    value="true",
+                    status="active",
+                )
+                db.add(value)
+                db.flush()
+            value_id = value.id
+
+        branch_entitlement_id = 0
+        branch = db.query(models.Branch).filter_by(
+            school_group_id=result["school_group_id"]
+        ).first()
+        if branch is not None:
+            branch_entitlement = db.query(saas.models.BranchEntitlement).filter_by(
+                branch_id=branch.id
+            ).first()
+            if branch_entitlement is None:
+                branch_entitlement = saas.models.BranchEntitlement(
+                    school_group_id=result["school_group_id"],
+                    branch_id=branch.id,
+                    workspace_entitlement_id=entitlement.id,
+                    entitlement_mode="inherit",
+                )
+                db.add(branch_entitlement)
+                db.flush()
+            branch_entitlement_id = branch_entitlement.id
+
+        return {
+            "entitlement_id": entitlement.id,
+            "value_id": value_id,
+            "branch_entitlement_id": branch_entitlement_id,
+        }
+
     def _platform_client(self, *, user_id: str = "9005", platform_role: str = auth.PLATFORM_ROLE_OWNER):
         db = self._db()
         try:
@@ -1305,6 +1366,73 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         finally:
             db.close()
 
+    def test_delete_test_workspace_removes_scoped_entitlements_before_school_group(self):
+        target = self._complete_paid_provisioning(
+            email="delete-entitlement@academy.edu",
+            organization_name="Entitlement Delete Academy",
+        )
+        unrelated = self._complete_paid_provisioning(
+            email="keep-entitlement@academy.edu",
+            organization_name="Keep Entitlement Academy",
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                id=target["organization_id"]
+            ).one()
+            organization_uuid = organization.organization_uuid
+            target_entitlements = self._add_workspace_entitlement_fixture(db, target)
+            unrelated_entitlements = self._add_workspace_entitlement_fixture(db, unrelated)
+            target_change_request_id = self._add_subscription_change_request(db, target)
+            db.commit()
+        finally:
+            db.close()
+
+        with self.assertLogs("saas", level="INFO") as deletion_logs:
+            response = self._platform_client(user_id="9018").post(
+                f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-workspace",
+                data={
+                    "confirmation_name": "Entitlement Delete Academy",
+                    "reason": "Repeat complete test workflow",
+                },
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("Test+workspace+permanently+deleted", response.headers["location"])
+        log_output = "\n".join(deletion_logs.output)
+        self.assertIn("workspace_entitlements", log_output)
+        self.assertLess(
+            log_output.index("delete_step=begin model=WorkspaceEntitlement"),
+            log_output.index("delete_step=begin model=SchoolGroup"),
+        )
+        self.assertLess(
+            log_output.index("delete_step=begin model=SubscriptionChangeRequest"),
+            log_output.index("delete_step=begin model=User"),
+        )
+
+        db = self._db()
+        try:
+            self.assertIsNone(db.query(saas.models.WorkspaceEntitlement).filter_by(
+                id=target_entitlements["entitlement_id"]
+            ).first())
+            self.assertIsNone(db.query(saas.models.SubscriptionChangeRequest).filter_by(
+                id=target_change_request_id
+            ).first())
+            if target_entitlements["value_id"]:
+                self.assertIsNone(db.query(saas.models.WorkspaceEntitlementValue).filter_by(
+                    id=target_entitlements["value_id"]
+                ).first())
+            if target_entitlements["branch_entitlement_id"]:
+                self.assertIsNone(db.query(saas.models.BranchEntitlement).filter_by(
+                    id=target_entitlements["branch_entitlement_id"]
+                ).first())
+            self.assertIsNotNone(db.query(saas.models.WorkspaceEntitlement).filter_by(
+                id=unrelated_entitlements["entitlement_id"]
+            ).first())
+        finally:
+            db.close()
+
     def test_delete_test_workspace_rolls_back_every_row_on_failure(self):
         result = self._complete_paid_provisioning(
             email="delete-rollback@academy.edu",
@@ -1315,6 +1443,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         try:
             organization_uuid = db.query(saas.models.PendingOrganization).filter_by(id=result["organization_id"]).first().organization_uuid
             change_request_id = self._add_subscription_change_request(db, result)
+            entitlement_ids = self._add_workspace_entitlement_fixture(db, result)
             db.commit()
             before = {
                 "pending": db.query(saas.models.PendingOrganization).count(),
@@ -1322,6 +1451,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
                 "branches": db.query(models.Branch).count(),
                 "users": db.query(models.User).count(),
                 "subscription_change_requests": db.query(saas.models.SubscriptionChangeRequest).count(),
+                "workspace_entitlements": db.query(saas.models.WorkspaceEntitlement).count(),
             }
         finally:
             db.close()
@@ -1352,12 +1482,16 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
                 "branches": db.query(models.Branch).count(),
                 "users": db.query(models.User).count(),
                 "subscription_change_requests": db.query(saas.models.SubscriptionChangeRequest).count(),
+                "workspace_entitlements": db.query(saas.models.WorkspaceEntitlement).count(),
             }
             self.assertIsNotNone(
                 db.query(saas.models.SubscriptionChangeRequest).filter_by(
                     id=change_request_id
                 ).first()
             )
+            self.assertIsNotNone(db.query(saas.models.WorkspaceEntitlement).filter_by(
+                id=entitlement_ids["entitlement_id"]
+            ).first())
         finally:
             db.close()
         self.assertEqual(before, after)
@@ -1521,6 +1655,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             account = db.query(saas.models.SaaSAccount).filter_by(email_normalized=email).first()
             account_id = account.id
             change_request_id = self._add_subscription_change_request(db, result)
+            entitlement_ids = self._add_workspace_entitlement_fixture(db, result)
             db.commit()
             plan_count = db.query(saas.models.SubscriptionPlan).count()
             price_count = db.query(saas.models.SubscriptionPlanPrice).count()
@@ -1553,6 +1688,9 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             self.assertIsNone(db.query(saas.models.PendingOrganization).filter_by(id=result["organization_id"]).first())
             self.assertIsNone(db.query(models.SchoolGroup).filter_by(id=result["school_group_id"]).first())
             self.assertIsNone(db.query(saas.models.SubscriptionChangeRequest).filter_by(id=change_request_id).first())
+            self.assertIsNone(db.query(saas.models.WorkspaceEntitlement).filter_by(
+                id=entitlement_ids["entitlement_id"]
+            ).first())
             self.assertIsNotNone(db.query(saas.models.PendingOrganization).filter_by(id=unrelated["organization_id"]).first())
             self.assertIsNotNone(db.query(models.SchoolGroup).filter_by(id=unrelated["school_group_id"]).first())
             self.assertEqual(db.query(saas.models.SubscriptionPlan).count(), plan_count)

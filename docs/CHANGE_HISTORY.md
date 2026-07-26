@@ -11,6 +11,35 @@ This file is the chronological summary of meaningful TIS changes. It does not re
 
 Newest entries should be added first.
 
+## 2026-07-26 - Test Workspace Reset Entitlement Dependency Fix
+
+Area/module:
+Platform Owner test workspace/account reset, workspace entitlements, and scoped cleanup dependencies
+
+Previous state:
+The controlled reset reached final SchoolGroup deletion while a selected workspace entitlement still referenced that SchoolGroup. Entitlement child values and branch-entitlement rows also required explicit dependency review.
+
+New state:
+The reset removes selected `workspace_entitlement_values` and `branch_entitlements`, then the selected `workspace_entitlements` rows, before the final SchoolGroup deletion. Every query is scoped to the selected SchoolGroup or its selected entitlement IDs. Global entitlement definitions, subscription plans, prices, and unrelated workspaces remain unchanged.
+
+Reason:
+Preserve entitlement foreign-key integrity while retaining the existing Platform Owner-only test reset guards, transaction rollback, and customer behavior.
+
+Files changed:
+Workspace analysis/deletion services, focused Phase 5 regression tests, and KMS sources.
+
+Documentation updated:
+AI/master context, project state, change history, and SaaS onboarding history.
+
+PDF regenerated:
+Yes, through `python scripts/kms.py sync`.
+
+AI project context updated:
+Yes.
+
+Reviewer/approval notes:
+Minimal scoped dependency fix only. No foreign-key, cascade, entitlement-rule, schema, lifecycle, customer-facing, commit, or push change.
+
 ## 2026-07-26 - Test Workspace Reset Subscription-Change Dependency Fix
 
 Area/module:

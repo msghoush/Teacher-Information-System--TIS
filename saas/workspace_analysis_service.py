@@ -160,6 +160,7 @@ def analyze_test_workspace(db: Session, organization) -> dict:
     observation_ids: list[int] = []
     self_evaluation_ids: list[int] = []
     timetable_setting_ids: list[int] = []
+    workspace_entitlement_ids: list[int] = []
 
     if school_group_id:
         branch_query = db.query(operational_models.Branch).filter(operational_models.Branch.school_group_id == school_group_id)
@@ -221,9 +222,18 @@ def analyze_test_workspace(db: Session, organization) -> dict:
             )
         )
         timetable_setting_ids = _ids(timetable_setting_query, operational_models.TimetableSetting.id)
+        workspace_entitlement_ids = _ids(
+            db.query(models.WorkspaceEntitlement).filter(
+                models.WorkspaceEntitlement.school_group_id == school_group_id
+            ),
+            models.WorkspaceEntitlement.id,
+        )
 
         _add_count(counts, category="Operational tenant", table="school_groups", count=1 if school_group else 0, disposition="tenant-owned")
         _add_count(counts, category="Operational tenant", table="tenant_profiles", count=_count(db.query(operational_models.TenantProfile).filter(operational_models.TenantProfile.school_group_id == school_group_id)), disposition="tenant-owned")
+        _add_count(counts, category="Operational tenant", table="workspace_entitlements", count=len(workspace_entitlement_ids), disposition="tenant-owned")
+        _add_count(counts, category="Operational tenant", table="workspace_entitlement_values", count=_count(db.query(models.WorkspaceEntitlementValue).filter(models.WorkspaceEntitlementValue.workspace_entitlement_id.in_(workspace_entitlement_ids))) if workspace_entitlement_ids else 0, disposition="tenant-owned")
+        _add_count(counts, category="Operational tenant", table="branch_entitlements", count=_count(db.query(models.BranchEntitlement).filter(or_(models.BranchEntitlement.school_group_id == school_group_id, models.BranchEntitlement.workspace_entitlement_id.in_(workspace_entitlement_ids) if workspace_entitlement_ids else False))), disposition="tenant-owned")
         _add_count(counts, category="Operational tenant", table="branches", count=len(branch_ids), disposition="tenant-owned")
         _add_count(counts, category="Operational tenant", table="academic_years", count=len(academic_year_ids), disposition="tenant-owned")
         _add_count(counts, category="Operational tenant", table="users", count=len(user_pks), disposition="tenant-owned")
