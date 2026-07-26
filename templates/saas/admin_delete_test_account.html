@@ -12,6 +12,7 @@
     <div class="stat-list">
         <div class="stat"><strong>{% if analysis.safe_to_delete %}Safe to delete test account{% else %}Manual review required{% endif %}</strong><p>Total linked records counted: {{ analysis.total_records }}<br>The email will become available for a brand-new TIS Account registration.</p></div>
         <div class="stat"><strong>Preserved records</strong><p>Remote Paddle records, payment webhooks, global plans and prices, reference data, platform accounts, unrelated accounts, and unrelated tenants remain untouched.</p></div>
+        <div class="stat"><strong>Demo-domain clean-room check</strong><p>Domain: {{ analysis.workspace_analysis.demo_domain_cleanup.resolved_domain or "Not resolved" }}<br>Linked reservations: {{ analysis.workspace_analysis.demo_domain_cleanup.linked_eligibility_count }}<br>Detached same-domain reservations: {{ analysis.workspace_analysis.demo_domain_cleanup.orphaned_same_domain_eligibility_count }}<br>Historically ambiguous reservations: {{ analysis.workspace_analysis.demo_domain_cleanup.ambiguous_orphaned_eligibility_count }}<br>Conflicting records: {{ analysis.workspace_analysis.demo_domain_cleanup.conflicting_record_count }}<br>Automatic cleanup: {% if analysis.workspace_analysis.demo_domain_cleanup.automatic_cleanup_safe %}Safe{% else %}Manual review required{% endif %}</p></div>
         {% if analysis.warnings %}<div class="stat"><strong>Warnings</strong><ul>{% for warning in analysis.warnings %}<li>{{ warning }}</li>{% endfor %}</ul></div>{% endif %}
     </div>
 </div>

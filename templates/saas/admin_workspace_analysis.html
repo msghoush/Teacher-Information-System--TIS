@@ -44,6 +44,17 @@
             <p>No unresolved relationships were detected by this analyzer.</p>
             {% endif %}
         </div>
+        <div class="stat">
+            <strong>Demo-domain clean-room check</strong>
+            <p>
+                Domain: {{ analysis.demo_domain_cleanup.resolved_domain or "Not resolved" }}<br>
+                Linked reservations: {{ analysis.demo_domain_cleanup.linked_eligibility_count }}<br>
+                Detached same-domain reservations: {{ analysis.demo_domain_cleanup.orphaned_same_domain_eligibility_count }}<br>
+                Historically ambiguous reservations: {{ analysis.demo_domain_cleanup.ambiguous_orphaned_eligibility_count }}<br>
+                Conflicting records: {{ analysis.demo_domain_cleanup.conflicting_record_count }}<br>
+                Automatic cleanup: {% if analysis.demo_domain_cleanup.automatic_cleanup_safe %}Safe{% else %}Manual review required{% endif %}
+            </p>
+        </div>
     </div>
 </div>
 

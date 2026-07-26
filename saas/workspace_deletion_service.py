@@ -158,6 +158,7 @@ def deletion_diagnostic_scope(analysis: dict) -> dict[str, object]:
     return {
         "tables_touched": tuple(model.__tablename__ for model in _WORKSPACE_DELETION_MODELS),
         "record_counts": record_counts,
+        "demo_domain_cleanup": dict(analysis.get("demo_domain_cleanup") or {}),
         "dependency_counts": {
             table_name: int(record_counts.get(table_name, 0))
             for table_name in dependency_tables
@@ -258,6 +259,31 @@ def delete_test_workspace(
     demo_conversion_ids = [row[0] for row in db.query(models.SaaSDemoToPaidConversion.id).filter(
         models.SaaSDemoToPaidConversion.pending_organization_id == pending_id
     ).all()]
+    demo_domain_cleanup = dict(analysis.get("demo_domain_cleanup") or {})
+    orphaned_eligibility_ids = [
+        int(value)
+        for value in demo_domain_cleanup.get("orphaned_eligibility_ids", ())
+        if value is not None
+    ]
+    if orphaned_eligibility_ids and not bool(
+        demo_domain_cleanup.get("automatic_cleanup_safe")
+    ):
+        logger.info(
+            "test_workspace_deletion validation_blocked validation=orphaned_demo_domain_cleanup "
+            "reason=ambiguous_domain_ownership values_checked=%s",
+            demo_domain_cleanup,
+        )
+        raise WorkspaceDeletionBlocked(
+            "Detached Customer Demo domain eligibility requires manual review. No data was changed."
+        )
+    orphaned_eligibilities = (
+        db.query(models.SaaSDemoDomainEligibility).filter(
+            models.SaaSDemoDomainEligibility.id.in_(orphaned_eligibility_ids),
+            models.SaaSDemoDomainEligibility.demo_request_id.is_(None),
+        ).all()
+        if orphaned_eligibility_ids
+        else []
+    )
 
     deleted = 0
     if provisioning_job_ids:
@@ -294,6 +320,22 @@ def delete_test_workspace(
         ))
         deleted += _delete(db.query(models.SaaSDemoDomainEligibility).filter(
             models.SaaSDemoDomainEligibility.demo_request_id.in_(demo_request_ids)
+        ))
+    if orphaned_eligibilities:
+        for eligibility in orphaned_eligibilities:
+            logger.info(
+                "test_workspace_deletion orphaned_demo_domain_cleanup model=SaaSDemoDomainEligibility "
+                "domain=%s status=%s row_id=%s attribution_reason=%s",
+                demo_domain_cleanup.get("resolved_domain", ""),
+                str(getattr(eligibility, "status", "") or ""),
+                int(eligibility.id),
+                "selected_test_reset_domain_without_conflicting_owner",
+            )
+        deleted += _delete(db.query(models.SaaSDemoDomainEligibility).filter(
+            models.SaaSDemoDomainEligibility.id.in_(
+                [int(eligibility.id) for eligibility in orphaned_eligibilities]
+            ),
+            models.SaaSDemoDomainEligibility.demo_request_id.is_(None),
         ))
     deleted += _delete(db.query(models.SaaSDemoRequest).filter(
         models.SaaSDemoRequest.pending_organization_id == pending_id
