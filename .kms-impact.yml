@@ -1,10 +1,19 @@
-knowledge_impact: no
-summary: Add backend-only Customer Demo domain diagnostics that distinguish existing reservations from eligibility or request insert failures without changing eligibility, cleanup, or customer behavior.
+knowledge_impact: yes
+summary: Make the Platform Owner clean-room reset delete the exact safe detached demo-domain eligibility IDs produced by analysis, flush and verify their removal in the same transaction, while retaining diagnostic-only request tracing.
 affected_areas:
+  - test-workspace-reset
+  - test-account-reset
   - customer-demo-domain-eligibility
   - reset-domain-conflict-analysis
+  - safe-orphan-id-handoff
+  - deletion-transaction-integrity
   - demo-request-diagnostics
   - demo-domain-state-diagnostic
 kms_files_updated:
-no_impact_reason: This adds structured backend logs, focused tests, and a read-only report script only. It does not change demo eligibility, clean-room deletion criteria or order, database schema, transaction behavior, customer messaging, or production policy.
-major_change_override: yes
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/PROJECT_STATE.md
+  - docs/CHANGE_HISTORY.md
+  - docs/history/saas-onboarding/README.md
+no_impact_reason:
+major_change_override: no

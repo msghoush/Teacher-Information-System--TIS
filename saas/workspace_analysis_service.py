@@ -388,11 +388,16 @@ def analyze_orphaned_demo_domain_cleanup(db: Session, organization) -> dict[str,
                 "same normalized domain."
             )
 
+    orphaned_eligibility_ids = [int(row.id) for row in orphaned_rows]
+    safe_orphaned_eligibility_ids = (
+        orphaned_eligibility_ids if automatic_cleanup_safe else []
+    )
     return {
         "resolved_domain": resolved_domain,
         "resolution_error": resolution_error,
         "linked_eligibility_count": linked_eligibility_count,
-        "orphaned_eligibility_ids": [int(row.id) for row in orphaned_rows],
+        "orphaned_eligibility_ids": orphaned_eligibility_ids,
+        "safe_orphaned_eligibility_ids": safe_orphaned_eligibility_ids,
         "orphaned_same_domain_eligibility_count": len(orphaned_rows),
         "ambiguous_orphaned_eligibility_count": len(ambiguous_orphaned_rows),
         "conflicting_organization_count": len(conflict_organization_ids),

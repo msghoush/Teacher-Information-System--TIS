@@ -30,6 +30,7 @@ from saas import (
     demo_request_service,
     provisioning_service,
     service as saas_service,
+    workspace_analysis_service,
     workspace_deletion_service,
 )
 from saas.router import admin_router as saas_admin_router, router as saas_router
@@ -2012,6 +2013,99 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             )
             db.commit()
             self.assertEqual(repeated_demo.organization_domain_normalized, domain)
+        finally:
+            db.close()
+
+    def test_internal_sandbox_reset_deletes_exact_safe_detached_domain_reservation(self):
+        domain = "his.edu.lb"
+        email = "qa-reset@his.edu.lb"
+        result = self._complete_paid_provisioning(
+            email=email,
+            organization_name="Internal QA Sandbox",
+            primary_domain=domain,
+        )
+        db = self._db()
+        try:
+            organization = db.get(
+                saas.models.PendingOrganization, result["organization_id"]
+            )
+            account = db.get(
+                saas.models.SaaSAccount, organization.owner_saas_account_id
+            )
+            school_group = db.get(models.SchoolGroup, result["school_group_id"])
+            account.account_purpose = "internal_test"
+            organization.workspace_intent = "internal_sandbox"
+            school_group.workspace_classification = "internal_sandbox"
+            orphaned_eligibility_id = self._add_orphaned_demo_domain_eligibility(
+                db, domain=domain
+            )
+            unrelated_eligibility_id = self._add_orphaned_demo_domain_eligibility(
+                db, domain="unrelated-qa.example.edu"
+            )
+            self.assertEqual(orphaned_eligibility_id, 1)
+            organization_uuid = organization.organization_uuid
+            db.commit()
+
+            analysis = workspace_analysis_service.analyze_test_workspace(
+                db, organization
+            )
+            self.assertEqual(
+                analysis["demo_domain_cleanup"]["orphaned_eligibility_ids"],
+                [orphaned_eligibility_id],
+            )
+            self.assertEqual(
+                analysis["demo_domain_cleanup"]["safe_orphaned_eligibility_ids"],
+                [orphaned_eligibility_id],
+            )
+            self.assertTrue(
+                analysis["demo_domain_cleanup"]["automatic_cleanup_safe"]
+            )
+            self.assertEqual(
+                analysis["demo_domain_cleanup"]["conflicting_record_count"], 0
+            )
+            self.assertEqual(
+                analysis["demo_domain_cleanup"][
+                    "ambiguous_orphaned_eligibility_count"
+                ],
+                0,
+            )
+        finally:
+            db.close()
+
+        with self.assertLogs("saas", level="INFO") as deletion_logs:
+            with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}):
+                response = self._platform_client(user_id="9029").post(
+                    f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-account",
+                    data={
+                        "confirmation_name": "Internal QA Sandbox",
+                        "confirmation_email": email,
+                        "reason": "Verify exact detached eligibility cleanup",
+                    },
+                    follow_redirects=False,
+                )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("email+can+be+registered+again", response.headers["location"])
+        log_output = "\n".join(deletion_logs.output)
+        self.assertIn("safe_orphan_ids_received ids=[1]", log_output)
+        self.assertIn(
+            "deletion_query_scope=saas_demo_domain_eligibilities.id.in_ ids=[1]",
+            log_output,
+        )
+        self.assertIn("affected_rows=1 ids=[1]", log_output)
+        self.assertIn("verification_remaining_count=0 ids=[1]", log_output)
+        self.assertIn("transaction=COMMIT", log_output)
+        db = self._db()
+        try:
+            self.assertIsNone(db.get(
+                saas.models.SaaSDemoDomainEligibility, orphaned_eligibility_id
+            ))
+            self.assertIsNotNone(db.get(
+                saas.models.SaaSDemoDomainEligibility, unrelated_eligibility_id
+            ))
+            replacement = demo_request_service._reserve_customer_demo_domain(db, domain)
+            db.commit()
+            self.assertEqual(replacement.normalized_domain, domain)
         finally:
             db.close()
 
