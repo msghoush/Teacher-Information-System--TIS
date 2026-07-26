@@ -11,6 +11,35 @@ This file is the chronological summary of meaningful TIS changes. It does not re
 
 Newest entries should be added first.
 
+## 2026-07-26 - Platform Owner Historical Demo Eligibility Maintenance
+
+Area/module:
+Platform Owner SaaS Admin and Customer Demo domain eligibility
+
+Previous state:
+The organization-scoped clean-room reset safely removed current test data, but a historical detached eligibility reservation could no longer be reached after its organization and account had already been deleted.
+
+New state:
+Platform Owners have a separate maintenance page that scans demo-domain eligibility reservations and shows exact blockers. A row is removable only when no matching organization, account, demo request, tenant-profile workspace, provisioning record, subscription evidence, conversion, or manual-review evidence exists. Confirmed deletion rechecks and locks one exact ID, deletes only that ID, flushes, verifies absence, commits atomically, and writes a durable owner audit event.
+
+Reason:
+Repair verified historical orphaned reservations without weakening production one-demo-per-domain enforcement or changing the existing clean-room reset.
+
+Files changed:
+New demo eligibility maintenance service and templates, SaaS Admin routes/navigation, focused Phase 5 tests, KMS source documents, and regenerated KMS artifacts.
+
+Documentation updated:
+AI/master context, project state, change history, SaaS onboarding history, module map, system flows, and database architecture overview.
+
+PDF regenerated:
+Yes, through `python scripts/kms.py sync`.
+
+AI project context updated:
+Yes.
+
+Reviewer/approval notes:
+No schema, foreign-key, migration, demo-request, clean-room reset, customer workflow, commit, or push change.
+
 ## 2026-07-26 - Verified Safe Demo-Domain Reservation Deletion
 
 Area/module:

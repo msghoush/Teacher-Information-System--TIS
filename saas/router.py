@@ -14,7 +14,7 @@ from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import billing_history_service, billing_service, commercial_state_service, demo_conversion_service, demo_lifecycle_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import billing_history_service, billing_service, commercial_state_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_lifecycle_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 
 logger = logging.getLogger(__name__)
@@ -3065,6 +3065,177 @@ def cancel_demo_request(
     _demo_review_audit(current_user, row, action="cancel", result="success")
     return RedirectResponse(
         f"/saas-admin/demo-requests/{request_uuid}?notice=" + quote_plus("Demo request cancelled."),
+        status_code=302,
+    )
+
+
+@admin_router.get("/demo-eligibility-maintenance", response_class=HTMLResponse)
+def demo_eligibility_maintenance(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    analyses = demo_eligibility_maintenance_service.list_eligibility_analyses(db)
+    safe_count = sum(1 for analysis in analyses if analysis.safe_to_remove)
+    return _render(
+        request,
+        "saas/admin_demo_eligibility_maintenance.html",
+        {
+            "current_user": current_user,
+            "analyses": analyses,
+            "safe_count": safe_count,
+            "protected_count": len(analyses) - safe_count,
+            "notice": request.query_params.get("notice", ""),
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@admin_router.get(
+    "/demo-eligibility-maintenance/{eligibility_id}/delete",
+    response_class=HTMLResponse,
+)
+def confirm_delete_demo_eligibility(
+    eligibility_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    try:
+        analysis = demo_eligibility_maintenance_service.analyze_eligibility(
+            db,
+            eligibility_id,
+        )
+    except demo_eligibility_maintenance_service.DemoEligibilityMaintenanceBlocked as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return _render(
+        request,
+        "saas/admin_delete_demo_eligibility.html",
+        {
+            "current_user": current_user,
+            "analysis": analysis,
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@admin_router.post("/demo-eligibility-maintenance/{eligibility_id}/delete")
+def delete_demo_eligibility(
+    eligibility_id: int,
+    request: Request,
+    confirmation_id: str = Form(""),
+    confirm_delete: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_platform_owner(request, db)
+    if str(confirmation_id or "").strip() != str(eligibility_id):
+        db.rollback()
+        return RedirectResponse(
+            f"/saas-admin/demo-eligibility-maintenance/{eligibility_id}/delete?error="
+            + quote_plus("Type the exact eligibility ID to confirm deletion."),
+            status_code=302,
+        )
+    if str(confirm_delete or "").strip().lower() not in {"1", "true", "yes", "on"}:
+        db.rollback()
+        return RedirectResponse(
+            f"/saas-admin/demo-eligibility-maintenance/{eligibility_id}/delete?error="
+            + quote_plus("Explicit deletion confirmation is required."),
+            status_code=302,
+        )
+
+    try:
+        result = demo_eligibility_maintenance_service.delete_safe_orphan(
+            db,
+            eligibility_id,
+        )
+        db.commit()
+    except demo_eligibility_maintenance_service.DemoEligibilityMaintenanceBlocked as exc:
+        db.rollback()
+        audit.write_audit_event(
+            {
+                "event_type": "historical_demo_eligibility_cleanup",
+                "result": "blocked",
+                "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+                "actor_username": str(getattr(current_user, "username", "") or ""),
+                "actor_role": "Platform Owner",
+                "eligibility_id": int(eligibility_id),
+                "reason": str(exc),
+            }
+        )
+        return RedirectResponse(
+            "/saas-admin/demo-eligibility-maintenance?error="
+            + quote_plus(str(exc)),
+            status_code=302,
+        )
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception(
+            "demo_eligibility_maintenance database_failure eligibility_id=%s "
+            "actor_user_id=%s exception=%s",
+            eligibility_id,
+            str(getattr(current_user, "user_id", "") or ""),
+            exc,
+        )
+        audit.write_audit_event(
+            {
+                "event_type": "historical_demo_eligibility_cleanup",
+                "result": "failed_rolled_back",
+                "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+                "actor_username": str(getattr(current_user, "username", "") or ""),
+                "actor_role": "Platform Owner",
+                "eligibility_id": int(eligibility_id),
+                "reason": demo_eligibility_maintenance_service.MAINTENANCE_REASON,
+            }
+        )
+        return RedirectResponse(
+            "/saas-admin/demo-eligibility-maintenance?error="
+            + quote_plus("The reservation could not be deleted. All data was preserved."),
+            status_code=302,
+        )
+    except Exception as exc:
+        db.rollback()
+        logger.exception(
+            "demo_eligibility_maintenance unexpected_failure eligibility_id=%s "
+            "actor_user_id=%s exception=%s",
+            eligibility_id,
+            str(getattr(current_user, "user_id", "") or ""),
+            exc,
+        )
+        audit.write_audit_event(
+            {
+                "event_type": "historical_demo_eligibility_cleanup",
+                "result": "failed_rolled_back",
+                "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+                "actor_username": str(getattr(current_user, "username", "") or ""),
+                "actor_role": "Platform Owner",
+                "eligibility_id": int(eligibility_id),
+                "reason": demo_eligibility_maintenance_service.MAINTENANCE_REASON,
+            }
+        )
+        return RedirectResponse(
+            "/saas-admin/demo-eligibility-maintenance?error="
+            + quote_plus("The reservation could not be deleted. All data was preserved."),
+            status_code=302,
+        )
+
+    audit.write_audit_event(
+        {
+            "event_type": "historical_demo_eligibility_cleanup",
+            "result": "success",
+            "actor_user_id": str(getattr(current_user, "user_id", "") or ""),
+            "actor_username": str(getattr(current_user, "username", "") or ""),
+            "actor_role": "Platform Owner",
+            "eligibility_id": result.eligibility_id,
+            "normalized_domain": result.normalized_domain,
+            "previous_status": result.previous_status,
+            "reason": demo_eligibility_maintenance_service.MAINTENANCE_REASON,
+        }
+    )
+    return RedirectResponse(
+        "/saas-admin/demo-eligibility-maintenance?notice="
+        + quote_plus(
+            f"Eligibility ID {result.eligibility_id} was safely removed."
+        ),
         status_code=302,
     )
 

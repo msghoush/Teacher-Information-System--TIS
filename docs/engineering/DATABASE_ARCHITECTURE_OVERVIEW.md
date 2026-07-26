@@ -187,6 +187,8 @@ A partial unique index permits only one Pending Review request per pending organ
 
 Migration `20260725_001_demo_domain_eligibility_policy` adds customer journey-intent fields, a nullable normalized domain snapshot, and the eligibility table with a database unique invariant. It backfills unambiguous Customer Demo records, reserves ambiguous duplicate domains for manual review, and never merges, deletes, reprovisions, or replaces customer workspaces. `scripts/diagnose_demo_domain_eligibility.py` is dry-run by default and can apply the same safe reservation backfill after review.
 
+Historical detached eligibility rows are handled without schema changes through a Platform Owner-only maintenance service. It treats the eligibility primary key as the only deletion scope and checks domain-bearing organization, account, request, tenant-profile workspace, provisioning, subscription, and conversion relationships plus manual-review evidence before removal. The row is locked and re-analyzed, then deleted by exact ID, flushed, verified absent, and committed atomically with a durable external audit record. Normal customer eligibility rows remain durable.
+
 ### Demo Workspace Provisioning Records
 
 M8B-4 adds:
