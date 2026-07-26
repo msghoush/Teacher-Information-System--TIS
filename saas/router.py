@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 import json
 import logging
 import os
@@ -14,7 +14,7 @@ from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import billing_history_service, billing_service, commercial_state_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_lifecycle_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import billing_history_service, billing_service, commercial_state_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_lifecycle_service, demo_notification_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 
 logger = logging.getLogger(__name__)
@@ -22,6 +22,20 @@ logger = logging.getLogger(__name__)
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(prefix="/saas", tags=["saas"])
 admin_router = APIRouter(prefix="/saas-admin", tags=["saas-admin"])
+
+
+def _dispatch_demo_email_best_effort(db: Session, demo_request_id: int) -> None:
+    try:
+        factory = sessionmaker(bind=db.get_bind(), autocommit=False, autoflush=False)
+        demo_email_service.dispatch_pending(
+            factory, limit=10, demo_request_id=demo_request_id
+        )
+    except Exception:
+        logger.warning(
+            "Demo email dispatch deferred demo_request_id=%s",
+            demo_request_id,
+            exc_info=True,
+        )
 
 
 CUSTOMER_STATUS_LABELS = {
@@ -2265,6 +2279,7 @@ def request_demo_step(
             source="demo_request_submitted",
         )
         db.commit()
+        _dispatch_demo_email_best_effort(db, row.id)
     except demo_request_service.DemoRequestError as exc:
         db.rollback()
         audit.write_audit_event({
@@ -2949,9 +2964,17 @@ def provision_approved_demo_request(
     if not row:
         raise HTTPException(status_code=404, detail="Demo request not found.")
     try:
-        provisioning = demo_provisioning_service.provision_demo_workspace(
-            db, row, current_user
-        )
+        provisioning = demo_provisioning_service.get_provisioning_for_request(db, row)
+        if provisioning and provisioning.provisioning_status == "active":
+            if row.workspace_classification_snapshot != "customer_demo":
+                raise demo_provisioning_service.DemoProvisioningError(
+                    "The active demo request classification is inconsistent.",
+                    reason_code="active_demo_classification_mismatch",
+                )
+        else:
+            provisioning = demo_provisioning_service.provision_demo_workspace(
+                db, row, current_user
+            )
         db.commit()
     except demo_provisioning_service.DemoProvisioningError as exc:
         db.rollback()
@@ -2998,8 +3021,25 @@ def approve_demo_request(
         raise HTTPException(status_code=404, detail="Demo request not found.")
     try:
         demo_request_service.approve_request(db, row, current_user)
+        db.flush()
+        provisioning = demo_provisioning_service.provision_demo_workspace(db, row, current_user)
+        if provisioning.provisioning_status != "active":
+            db.commit()
+            _demo_review_audit(current_user, row, action="approve", result="provisioning_failed")
+            return RedirectResponse(
+                f"/saas-admin/demo-requests/{request_uuid}?error="
+                + quote_plus("Demo approved, but workspace activation failed. Use the retry action."),
+                status_code=302,
+            )
+        demo_notification_service.notify_platform_owners(
+            db, row, "approved", provisioning=provisioning
+        )
+        demo_email_service.create_intent(
+            db, row, "demo_approved", provisioning=provisioning
+        )
         db.commit()
-    except demo_request_service.DemoRequestError as exc:
+        _dispatch_demo_email_best_effort(db, row.id)
+    except (demo_request_service.DemoRequestError, demo_provisioning_service.DemoProvisioningError) as exc:
         db.rollback()
         _demo_review_audit(current_user, row, action="approve", result="blocked")
         return RedirectResponse(
@@ -3009,7 +3049,7 @@ def approve_demo_request(
     _demo_review_audit(current_user, row, action="approve", result="success")
     return RedirectResponse(
         f"/saas-admin/demo-requests/{request_uuid}?notice="
-        + quote_plus("Demo request approved. No workspace was provisioned."),
+        + quote_plus("Demo request approved and workspace activated."),
         status_code=302,
     )
 
@@ -3028,6 +3068,7 @@ def reject_demo_request(
     try:
         demo_request_service.reject_request(db, row, current_user, reason=reason)
         db.commit()
+        _dispatch_demo_email_best_effort(db, row.id)
     except demo_request_service.DemoRequestError as exc:
         db.rollback()
         _demo_review_audit(current_user, row, action="reject", result="blocked")

@@ -109,8 +109,8 @@
     <div class="demo-review-actions">
         <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/approve">
             <h3>Approve Request</h3>
-            <p class="muted">Record approval only. Approval does not automatically provision or activate a workspace.</p>
-            <button class="btn" type="submit">Approve</button>
+            <p class="muted">Approve, provision, and activate the seven-day Customer Demo workspace. A failed activation remains safely retryable.</p>
+            <button class="btn" type="submit">Approve and Activate</button>
         </form>
         <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/reject">
             <h3>Reject Request</h3>

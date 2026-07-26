@@ -1,8 +1,34 @@
-knowledge_impact: no
-summary: Expose the existing owner-only Demo Eligibility Maintenance page from the Platform Console SaaS Admin action group without changing permissions, routes, or maintenance behavior.
+knowledge_impact: yes
+summary: Implement M8B7 Demo Customer Journey and make root pytest collection deterministic by bounding it to the tracked tests directory and excluding the inaccessible orphan scope-test directory.
 affected_areas:
-  - platform-console-navigation
-  - saas-admin-owner-actions
+  - saas-demo-request-workflow
+  - demo-workspace-provisioning
+  - demo-lifecycle-processing
+  - demo-to-paid-conversion
+  - transactional-email
+  - notification-center
+  - authenticated-application-shell
+  - access-control
+  - paddle-payment-continuation
+  - database-architecture
+  - audit
+  - deployment-scheduling
+  - test-infrastructure
 kms_files_updated:
-no_impact_reason: Navigation-only UI integration for an already documented owner maintenance capability; the existing Platform Owner guard and destination route are reused, with no architecture, workflow, permission, route, schema, or business-rule change.
-major_change_override: yes
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/PROJECT_STATE.md
+  - docs/CHANGE_HISTORY.md
+  - docs/engineering/PRODUCT_ROADMAP.md
+  - docs/engineering/TIS_MODULE_MAP.md
+  - docs/engineering/REPOSITORY_ARCHITECTURE.md
+  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
+  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
+  - docs/history/saas-onboarding/README.md
+  - docs/adr/0010-review-only-saas-demo-requests.md
+  - docs/adr/0011-demo-workspace-provisioning-and-commercial-source-links.md
+  - docs/adr/0012-seven-day-demo-lifecycle-and-access-enforcement.md
+  - docs/adr/0013-demo-to-paid-workspace-conversion.md
+  - docs/adr/0014-demo-customer-communications-and-approval-orchestration.md
+no_impact_reason:
+major_change_override: no

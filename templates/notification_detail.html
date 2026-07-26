@@ -216,6 +216,11 @@
                 <div class="notification-note-content">{{ notification.message | safe }}</div>
             </div>
             {% endif %}
+            {% if notification.destination_url %}
+            <div class="notification-actions">
+                <a class="btn" href="{{ notification.destination_url }}">Open Related Item</a>
+            </div>
+            {% endif %}
             {% if notification.details %}
             <div class="notification-note">
                 <p class="notification-note-label">Details</p>

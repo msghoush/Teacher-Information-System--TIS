@@ -1,11 +1,15 @@
 ---
 title: TIS Database Architecture Overview
 documentation_version: 3.1
-last_updated: 2026-07-23
+last_updated: 2026-07-27
 source_of_truth: true
 ---
 
 # TIS Database Architecture Overview
+
+## M8B7 Demo Communication Persistence
+
+`saas_demo_email_deliveries` is the durable email outbox. It links each logical message to a demo request and optionally its provisioning aggregate, constrains email type and delivery state, and uniquely deduplicates delivery. `system_notifications` carries destination, deduplication, category, and severity metadata for owner demo events. Existing request, provisioning, lifecycle, entitlement, and conversion rows remain authoritative.
 
 This document explains the conceptual TIS data model. It is intentionally high level and does not list every field. Use `models.py`, `saas/models.py`, and tests for exact implementation details.
 

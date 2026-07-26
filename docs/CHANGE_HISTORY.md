@@ -1,11 +1,15 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-07-26
+last_updated: 2026-07-27
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-07-27 - M8B7 Demo Customer Journey
+
+Platform Owner approval now orchestrates the existing independently retryable provisioning service. Durable branded email intents cover request receipt, activation approval, decline, Day 6, expiry, and same-workspace subscription continuation. Demo events reuse the Platform Owner Notification Center, and active tenant workspaces show a responsive demo indicator through the shared shell. Coherent expired demos may convert after authoritative confirmed payment by reactivating and converting the same SchoolGroup and tenant relationship. M8B8, M8B9, pricing redesign, second-workspace provisioning, and sandbox conversion remain out of scope.
 
 This file is the chronological summary of meaningful TIS changes. It does not replace module history under `docs/history/`; it gives reviewers, developers, Codex, and ChatGPT a fast timeline of what changed and why.
 

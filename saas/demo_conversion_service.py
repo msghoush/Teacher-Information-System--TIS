@@ -176,7 +176,7 @@ def _load_demo_context(db: Session, organization, *, for_update: bool = False):
     return demo_request, provisioning, group, tenant_link, demo_entitlement
 
 
-def _validate_active_demo_context(
+def _validate_convertible_demo_context(
     db: Session,
     *,
     organization,
@@ -200,11 +200,11 @@ def _validate_active_demo_context(
         group.workspace_classification
         != WorkspaceClassification.CUSTOMER_DEMO.value
         or group.workspace_lifecycle_status
-        != WorkspaceLifecycleStatus.ACTIVE.value
+        not in {WorkspaceLifecycleStatus.ACTIVE.value, WorkspaceLifecycleStatus.SUSPENDED.value}
     ):
         raise DemoConversionError(
-            "Only an active Customer Demo workspace can be converted.",
-            reason_code="workspace_not_active_customer_demo",
+            "Only a coherent Customer Demo workspace can be converted.",
+            reason_code="workspace_not_convertible_customer_demo",
         )
     if (
         int(demo_request.school_group_id or 0) != int(group.id)
@@ -213,7 +213,7 @@ def _validate_active_demo_context(
         or int(tenant_link.school_group_id) != int(group.id)
         or int(tenant_link.demo_request_id or 0) != int(demo_request.id)
         or tenant_link.subscription_contract_id is not None
-        or _clean(tenant_link.tenant_status).lower() != "tenant_active"
+        or _clean(tenant_link.tenant_status).lower() not in {"tenant_active", "demo_expired"}
     ):
         raise DemoConversionError(
             "The demo tenant linkage is inconsistent.",
@@ -222,11 +222,14 @@ def _validate_active_demo_context(
     if (
         int(demo_entitlement.school_group_id) != int(group.id)
         or demo_entitlement.entitlement_type != WorkspaceEntitlementType.DEMO.value
-        or demo_entitlement.status != WorkspaceEntitlementStatus.ACTIVE.value
+        or demo_entitlement.status not in {
+            WorkspaceEntitlementStatus.ACTIVE.value,
+            WorkspaceEntitlementStatus.ENDED.value,
+        }
         or demo_entitlement.payment_subscription_id is not None
     ):
         raise DemoConversionError(
-            "The active demo entitlement could not be verified.",
+            "The demo entitlement could not be verified.",
             reason_code="invalid_demo_entitlement",
         )
     lifecycle = demo_lifecycle_service.resolve_demo_lifecycle(
@@ -239,10 +242,11 @@ def _validate_active_demo_context(
         not in {
             DemoLifecycleState.ACTIVE.value,
             DemoLifecycleState.REMINDER_DUE.value,
+            DemoLifecycleState.EXPIRED.value,
         }
     ):
         raise DemoConversionError(
-            "Expired or unresolved demo workspaces cannot be converted.",
+            "The demo lifecycle is not eligible for conversion.",
             reason_code="demo_lifecycle_not_convertible",
         )
 
@@ -251,7 +255,7 @@ def request_demo_conversion(db: Session, account, organization):
     demo_request, provisioning, group, tenant_link, demo_entitlement = (
         _load_demo_context(db, organization, for_update=True)
     )
-    _validate_active_demo_context(
+    _validate_convertible_demo_context(
         db,
         organization=organization,
         account=account,
@@ -301,7 +305,7 @@ def demo_conversion_checkout_available(db: Session, organization) -> bool:
         account = db.get(models.SaaSAccount, demo_request.requester_saas_account_id)
         if account is None:
             return False
-        _validate_active_demo_context(
+        _validate_convertible_demo_context(
             db,
             organization=organization,
             account=account,
@@ -439,7 +443,7 @@ def convert_confirmed_demo_subscription(
                 conversion_id=conversion.id,
                 school_group_id=group.id,
             )
-        _validate_active_demo_context(
+        _validate_convertible_demo_context(
             db,
             organization=organization,
             account=account,

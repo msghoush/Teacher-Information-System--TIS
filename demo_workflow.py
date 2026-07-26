@@ -73,6 +73,7 @@ class DemoLifecycleEventType(str, Enum):
 
 class DemoLifecycleNotificationType(str, Enum):
     EXPIRATION_REMINDER = "expiration_reminder"
+    DEMO_EXPIRED = "demo_expired"
 
 
 class DemoLifecycleNotificationRecipient(str, Enum):

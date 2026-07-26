@@ -1,11 +1,15 @@
 ---
 title: TIS User And System Flows
 documentation_version: 3.1
-last_updated: 2026-07-23
+last_updated: 2026-07-27
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## M8B7 Demo Customer Journey
+
+Submission creates pending status, a request-received email intent, and owner Notification Center events. Normal approval records review evidence then invokes the retryable provisioning service; activation communication exists only after success. Day 6 and expiry create lifecycle events, customer notices, owner notifications, and email intents atomically. Provider delivery occurs outside locks. A coherent expired demo may subscribe and, after authoritative confirmed payment, reactivate and convert the same workspace.
 
 This document describes the major end-to-end flows a developer must understand before changing TIS.
 

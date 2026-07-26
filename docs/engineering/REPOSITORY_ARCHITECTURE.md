@@ -1,11 +1,15 @@
 ---
 title: TIS Repository Architecture
 documentation_version: 3.1
-last_updated: 2026-07-22
+last_updated: 2026-07-27
 source_of_truth: true
 ---
 
 # TIS Repository Architecture
+
+## M8B7 Communication Boundaries
+
+Demo email intent creation and dispatch belong to `saas/demo_email_service.py`; Platform Owner Notification Center creation belongs to `saas/demo_notification_service.py`. Routes orchestrate existing services but do not own lifecycle calculations. Provider calls occur outside lifecycle locks. The shared shell consumes the read-only lifecycle resolver and never becomes lifecycle authority.
 
 This document explains the main repository areas, what each owns, and what must not be changed casually.
 

@@ -24,3 +24,7 @@ Approval is review evidence only. It must not create a `SchoolGroup`, workspace 
 - M8B-4 can consume an approved request without redefining review history.
 - Approval does not imply activation, entitlement, or operational access.
 - Email delivery, expiration, schedulers, conversion, and provisioning remain future work.
+
+## M8B7 Amendment
+
+M8B7 preserves approval as durable review evidence but makes the normal owner approval route orchestrate the separately callable provisioning service. Failed activation leaves the request Approved and retryable. Request-received, approval, and decline communications are now durable; approval communication is created only after activation succeeds. ADR 0014 owns the orchestration and communication decision.

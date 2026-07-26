@@ -4440,6 +4440,76 @@ def _demo_to_paid_conversion(engine, connection):
         )
 
 
+def _m8b7_demo_customer_journey(engine, connection):
+    datetime_type = "TIMESTAMPTZ" if engine.dialect.name == "postgresql" else "DATETIME"
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    for name, column_sql in (
+        ("destination_url", "destination_url VARCHAR(500)"),
+        ("deduplication_key", "deduplication_key VARCHAR(180)"),
+        ("category", "category VARCHAR(40)"),
+        ("severity", "severity VARCHAR(20)"),
+    ):
+        _add_column_if_missing(engine, connection, "system_notifications", name, column_sql)
+    _create_unique_index_if_missing(
+        engine, connection, "system_notifications",
+        "uq_system_notifications_deduplication_key", "deduplication_key",
+    )
+    if engine.dialect.name == "postgresql":
+        _execute(connection, "ALTER TABLE system_notifications ALTER COLUMN school_group_id DROP NOT NULL")
+        _execute(
+            connection,
+            "ALTER TABLE saas_demo_lifecycle_notifications "
+            "DROP CONSTRAINT IF EXISTS ck_saas_demo_lifecycle_notifications_type",
+        )
+        _execute(
+            connection,
+            "ALTER TABLE saas_demo_lifecycle_notifications ADD CONSTRAINT "
+            "ck_saas_demo_lifecycle_notifications_type CHECK "
+            "(notification_type IN ('expiration_reminder','demo_expired'))",
+        )
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS saas_demo_email_deliveries (
+            id {id_sql},
+            delivery_uuid VARCHAR(36) NOT NULL UNIQUE,
+            demo_request_id INTEGER NOT NULL,
+            demo_provisioning_id INTEGER,
+            email_type VARCHAR(40) NOT NULL,
+            recipient_email VARCHAR(320) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            deduplication_key VARCHAR(180) NOT NULL UNIQUE,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            last_attempt_at {datetime_type},
+            sent_at {datetime_type},
+            provider_message_id VARCHAR(180),
+            failure_code VARCHAR(80),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_saas_demo_email_deliveries_type CHECK (
+                email_type IN ('request_received','demo_approved','demo_declined',
+                'day_six_reminder','demo_expired','subscription_invitation')
+            ),
+            CONSTRAINT ck_saas_demo_email_deliveries_status CHECK (
+                status IN ('pending','processing','sent','failed')
+            ),
+            FOREIGN KEY (demo_request_id) REFERENCES saas_demo_requests(id) ON DELETE CASCADE,
+            FOREIGN KEY (demo_provisioning_id)
+                REFERENCES saas_demo_workspace_provisioning(id) ON DELETE CASCADE
+        )
+        """,
+    )
+    for index_name, columns, unique in (
+        ("uq_saas_demo_email_deliveries_uuid", "delivery_uuid", True),
+        ("uq_saas_demo_email_deliveries_dedup", "deduplication_key", True),
+        ("ix_saas_demo_email_deliveries_request", "demo_request_id", False),
+        ("ix_saas_demo_email_deliveries_provisioning", "demo_provisioning_id", False),
+        ("ix_saas_demo_email_deliveries_status_created", "status, created_at", False),
+    ):
+        creator = _create_unique_index_if_missing if unique else _create_index_if_missing
+        creator(engine, connection, "saas_demo_email_deliveries", index_name, columns)
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -4605,6 +4675,11 @@ MIGRATIONS = (
         migration_id="20260725_001_demo_domain_eligibility_policy",
         description="Preserve landing journey intent and enforce one customer demo opportunity per organization domain",
         apply=_demo_domain_eligibility_policy,
+    ),
+    Migration(
+        migration_id="20260727_001_m8b7_demo_customer_journey",
+        description="Add M8B7 demo communications, Notification Center metadata, and durable email delivery",
+        apply=_m8b7_demo_customer_journey,
     ),
 )
 

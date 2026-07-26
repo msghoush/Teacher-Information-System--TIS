@@ -4,7 +4,7 @@ import json
 import models  # noqa: F401 - register operational metadata
 import saas.models  # noqa: F401 - register SaaS metadata
 from database import SessionLocal
-from saas import demo_lifecycle_service
+from saas import demo_email_service, demo_lifecycle_service
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -43,6 +43,8 @@ def main() -> int:
         batch_size=args.batch_size,
         request_uuid=args.request_uuid,
     )
+    if args.apply:
+        demo_email_service.dispatch_pending(SessionLocal, limit=args.batch_size)
     print(json.dumps(result.to_dict(), sort_keys=True))
     return 1 if result.failed else 0
 

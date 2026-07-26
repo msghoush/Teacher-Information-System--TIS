@@ -4,6 +4,23 @@ import email_templates
 
 
 class TransactionalEmailTemplateTests(unittest.TestCase):
+    def test_demo_lifecycle_emails_preserve_workspace_continuity(self):
+        approved = email_templates.build_demo_approved_email(
+            organization_name="Demo Academy", start_date="July 27, 2026",
+            expiry_date="August 3, 2026", login_url="https://app.tisplatform.com/login",
+            registered_email="owner@example.edu",
+            logo_url="https://app.tisplatform.com/static/logo.png",
+        )
+        invitation = email_templates.build_demo_subscription_invitation_email(
+            organization_name="Demo Academy",
+            subscribe_url="https://app.tisplatform.com/saas/login",
+            logo_url="https://app.tisplatform.com/static/logo.png",
+        )
+        self.assertIn("seven-day", approved.text)
+        self.assertIn("owner@example.edu", approved.text)
+        self.assertIn("same TIS workspace", invitation.text)
+        self.assertIn("Payment has not yet occurred", invitation.text)
+
     def test_verification_email_is_branded_and_has_plain_text_fallback(self):
         verification_url = "https://app.tisplatform.com/platform/account/verify-email?token=abc123"
         logo_url = "https://app.tisplatform.com/static/branding/tis/logos/TIS%20Wordmark.png"

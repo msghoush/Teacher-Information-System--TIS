@@ -513,6 +513,40 @@ def build_shell_context(
     school_group = db.query(models.SchoolGroup).filter(
         models.SchoolGroup.id == scoped_school_group_id
     ).first() if scoped_school_group_id else None
+    demo_workspace = None
+    if (
+        school_group
+        and not auth.is_platform_user(current_user)
+        and school_group.workspace_classification == "customer_demo"
+    ):
+        try:
+            from saas import demo_lifecycle_service, models as saas_models
+
+            lifecycle = demo_lifecycle_service.resolve_demo_lifecycle(
+                db, school_group_id=school_group.id
+            )
+            provisioning = db.query(saas_models.SaaSDemoWorkspaceProvisioning).filter_by(
+                school_group_id=school_group.id
+            ).one_or_none()
+            demo_request = (
+                db.get(saas_models.SaaSDemoRequest, provisioning.demo_request_id)
+                if provisioning else None
+            )
+            if lifecycle.resolved and lifecycle.lifecycle_state in {"active", "reminder_due"}:
+                demo_workspace = {
+                    "state": "active",
+                    "label": "Demo Workspace",
+                    "remaining_label": (
+                        f"Expires in {lifecycle.days_remaining} "
+                        f"{'day' if lifecycle.days_remaining == 1 else 'days'}"
+                    ),
+                    "subscribe_url": (
+                        f"/saas/login?next_path=/saas/demo-requests/{demo_request.request_uuid}"
+                        if demo_request else "/saas/login"
+                    ),
+                }
+        except Exception:
+            demo_workspace = None
     academic_year = db.query(models.AcademicYear).filter(
         models.AcademicYear.id == scoped_academic_year_id
     ).first()
@@ -682,6 +716,7 @@ def build_shell_context(
             "notice": resolved_notice,
             "new_notification_count": new_notification_count,
             "new_demo_request_count": new_demo_request_count,
+            "demo_workspace": demo_workspace,
             "school_logos": get_school_logo_slots(request, db, getattr(branch, "id", scoped_branch_id)),
             "design_css": design_css,
             "visual_design_css": visual_design_css,

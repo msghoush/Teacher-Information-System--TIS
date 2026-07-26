@@ -288,6 +288,12 @@
             {% if shell.notice %}
             <div class="shell-notice">{{ icon("info", "shell-icon") }} {{ shell.notice }}</div>
             {% endif %}
+            {% if shell.demo_workspace %}
+            <aside class="demo-workspace-banner" aria-label="Demo workspace status">
+                <div><strong>{{ shell.demo_workspace.label }}</strong><span>{{ shell.demo_workspace.remaining_label }}</span></div>
+                <a href="{{ shell.demo_workspace.subscribe_url }}">Subscribe Now</a>
+            </aside>
+            {% endif %}
 
             <main class="page-stage" data-design-component="shell.page_stage" data-design-type="section">
                 {% block content %}{% endblock %}

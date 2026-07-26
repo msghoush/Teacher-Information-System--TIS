@@ -1,11 +1,15 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-07-26
+last_updated: 2026-07-27
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M8B7 Demo Customer Journey
+
+Completed: approval-orchestrated activation with safe retry; durable request, approval, decline, reminder, expiry, and continuation email intents; existing Notification Center integration; shared-shell active-demo indicator; lifecycle communication processing; and authoritative-payment conversion of coherent expired demos using the same workspace. M8B8 and M8B9 remain unimplemented.
 
 ## Last Updated
 
@@ -306,7 +310,10 @@ Known issues and watch points:
 - Public static storage is not sufficient access control for sensitive docs; Phase 2C should serve docs through protected owner-only routes.
 - Render deployment constraints should continue to guide dependency choices.
 - Production memory must be treated as a hard constraint. The 2026-06-27 Render restart/502 investigation found two avoidable memory risks: observation diagnostics doing extra production template renders and global location lookup parsing a 47 MB dataset into a complete in-memory index for simple picker requests. Local stabilization changes now gate observation diagnostics and use scoped location loading; future work must follow the Production Memory and Render Stability standards.
-- Broad filesystem scans may warn about `tis_scope_test_5i3yf0h5/` access denial.
+- The untracked repository-root directory `tis_scope_test_5i3yf0h5/` has a Windows
+  security descriptor that denies enumeration and ACL inspection to the normal
+  development process. Repository pytest collection is bounded to `tests/` and
+  explicitly excludes that orphan directory, so root `pytest` runs do not scan it.
 - Google/Microsoft login is still future work; password-based accounts must remain email-verified before school workspace setup.
 - GitHub repository settings must mark `KMS Enforcement / kms-check` as required on protected branches; this cannot be configured by repository file changes alone.
 

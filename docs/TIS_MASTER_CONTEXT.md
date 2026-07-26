@@ -1,11 +1,15 @@
 ---
 title: TIS Master Context
 documentation_version: 3.1
-last_updated: 2026-07-26
+last_updated: 2026-07-27
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## M8B7 Demo Customer Journey
+
+M8B7 projects customer Pending, Active, Expired, and Declined presentation from the existing request, provisioning, and lifecycle sources. Approval invokes the separate retryable provisioning service and creates activation communications only after success. Six email types use the existing branded provider through a durable deduplicated outbox; demo events reuse the Platform Owner Notification Center. The shared tenant shell shows active demo status. A coherent expired demo may convert after authoritative confirmed payment by reactivating and relinking the same SchoolGroup and preserving its UUID and all tenant data. Sandbox, checkout-return, and unverified evidence remain non-authoritative.
 
 Documentation version: 3.0
 

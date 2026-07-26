@@ -47,6 +47,7 @@ def send_email(
     subject: str,
     text: str,
     html: str | None = None,
+    idempotency_key: str | None = None,
 ) -> str:
     api_key = str(os.getenv("RESEND_API_KEY") or "").strip()
     if not api_key:
@@ -69,14 +70,17 @@ def send_email(
     if html:
         payload["html"] = str(html)
 
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "User-Agent": "TIS-Platform/1.0",
+    }
+    if str(idempotency_key or "").strip():
+        headers["Idempotency-Key"] = str(idempotency_key).strip()[:256]
     request = Request(
         RESEND_EMAILS_URL,
         data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": "TIS-Platform/1.0",
-        },
+        headers=headers,
         method="POST",
     )
     timeout_seconds = _positive_int_env("RESEND_TIMEOUT_SECONDS", 12)

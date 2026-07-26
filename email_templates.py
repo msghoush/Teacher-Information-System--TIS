@@ -183,6 +183,84 @@ def build_tenant_activation_email(
     )
 
 
+def build_demo_request_received_email(*, organization_name: str, status_url: str, logo_url: str) -> TransactionalEmail:
+    return render_transactional_email(
+        subject="We received your TIS demo request",
+        title="Your demo request is pending review",
+        message="TIS received your demo request. A Platform Owner will review it and we will email you after approval or decline.",
+        logo_url=logo_url,
+        action_label="View Demo Status",
+        action_url=status_url,
+        fallback_label="Open your demo status here:",
+        details=(f"Organization: {organization_name}", "Continue using the same registered TIS Account."),
+    )
+
+
+def build_demo_approved_email(*, organization_name: str, start_date: str, expiry_date: str, login_url: str, registered_email: str, logo_url: str) -> TransactionalEmail:
+    return render_transactional_email(
+        subject="Your TIS demo is ready",
+        title="Your seven-day TIS demo is active",
+        message="Your demo request was approved and the same school workspace is ready to use.",
+        logo_url=logo_url,
+        action_label="Open TIS Login",
+        action_url=login_url,
+        fallback_label="Open the TIS login here:",
+        details=(f"Organization: {organization_name}", f"Starts: {start_date}", f"Expires: {expiry_date}", f"Sign in using: {registered_email}"),
+    )
+
+
+def build_demo_declined_email(*, organization_name: str, status_url: str, logo_url: str) -> TransactionalEmail:
+    return render_transactional_email(
+        subject="Update on your TIS demo request",
+        title="Your demo request was not approved",
+        message="Thank you for your interest in TIS Platform. We are unable to approve this demo request at this time.",
+        logo_url=logo_url,
+        action_label="View Request Status",
+        action_url=status_url,
+        fallback_label="Open your request status here:",
+        details=(f"Organization: {organization_name}", "Your submitted setup and request history remain available in your TIS Account."),
+    )
+
+
+def build_demo_day_six_reminder_email(*, organization_name: str, expiry_date: str, subscribe_url: str, logo_url: str) -> TransactionalEmail:
+    return render_transactional_email(
+        subject="Your TIS demo expires soon",
+        title="Your demo expires soon",
+        message="Your TIS demo is nearing its expiry. Your workspace data will remain preserved.",
+        logo_url=logo_url,
+        action_label="Subscribe Now",
+        action_url=subscribe_url,
+        fallback_label="Continue with TIS Platform here:",
+        details=(f"Organization: {organization_name}", f"Expires: {expiry_date}"),
+    )
+
+
+def build_demo_expired_email(*, organization_name: str, subscribe_url: str, logo_url: str) -> TransactionalEmail:
+    return render_transactional_email(
+        subject="Your TIS demo has ended",
+        title="Your demo has expired",
+        message="The demo period has ended. Your workspace, users, branches, and data remain preserved.",
+        logo_url=logo_url,
+        action_label="Subscribe Now",
+        action_url=subscribe_url,
+        fallback_label="Continue with TIS Platform here:",
+        details=(f"Organization: {organization_name}", "A verified subscription restores the same workspace."),
+    )
+
+
+def build_demo_subscription_invitation_email(*, organization_name: str, subscribe_url: str, logo_url: str) -> TransactionalEmail:
+    return render_transactional_email(
+        subject="Continue with TIS Platform",
+        title="Continue with the same TIS workspace",
+        message="Subscribe when you are ready to continue using the same preserved school workspace. No new workspace will be created.",
+        logo_url=logo_url,
+        action_label="Continue to Subscription",
+        action_url=subscribe_url,
+        fallback_label="Open the subscription path here:",
+        details=(f"Organization: {organization_name}", "Payment has not yet occurred. Paid access begins only after secure payment confirmation."),
+    )
+
+
 def _draft_reminder_details(
     *,
     organization_name: str,

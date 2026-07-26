@@ -241,7 +241,7 @@ class SystemNotification(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=True, index=True)
     branch_id = Column(Integer, ForeignKey("branches.id"), index=True)
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"), index=True)
     recipient_user_id = Column(String(10), index=True, nullable=False)
@@ -260,6 +260,10 @@ class SystemNotification(Base):
     recipient_archived_by_user_id = Column(String(10))
     requester_archived_at = Column(DateTime)
     requester_archived_by_user_id = Column(String(10))
+    destination_url = Column(String(500))
+    deduplication_key = Column(String(180), unique=True, index=True)
+    category = Column(String(40))
+    severity = Column(String(20))
 
 
 class DemoRequest(Base):
