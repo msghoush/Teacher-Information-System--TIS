@@ -1,20 +1,8 @@
-knowledge_impact: yes
-summary: Add a Platform Owner-only maintenance workflow that discovers and removes only verified historical orphaned demo-domain eligibility reservations by exact ID, without changing customer eligibility or clean-room reset behavior.
+knowledge_impact: no
+summary: Expose the existing owner-only Demo Eligibility Maintenance page from the Platform Console SaaS Admin action group without changing permissions, routes, or maintenance behavior.
 affected_areas:
-  - platform-owner-maintenance
-  - saas-admin
-  - customer-demo-domain-eligibility
-  - historical-data-maintenance
-  - owner-audit
-  - deletion-transaction-safety
+  - platform-console-navigation
+  - saas-admin-owner-actions
 kms_files_updated:
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/PROJECT_STATE.md
-  - docs/CHANGE_HISTORY.md
-  - docs/history/saas-onboarding/README.md
-  - docs/engineering/TIS_MODULE_MAP.md
-  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
-  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
-no_impact_reason:
-major_change_override: no
+no_impact_reason: Navigation-only UI integration for an already documented owner maintenance capability; the existing Platform Owner guard and destination route are reused, with no architecture, workflow, permission, route, schema, or business-rule change.
+major_change_override: yes

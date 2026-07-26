@@ -1,11 +1,13 @@
 import hashlib
 import hmac
+from html.parser import HTMLParser
 import json
 import os
 import re
 import time
 import unittest
 from unittest.mock import patch
+from urllib.parse import urlencode
 
 os.environ["TIS_SESSION_SECRET"] = "unit-test-session-secret-that-is-long-enough"
 os.environ["PADDLE_API_KEY"] = "pdl_test_phase5_api_key"
@@ -2409,6 +2411,75 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             )
             self.assertIsNotNone(
                 db.get(saas.models.SaaSDemoDomainEligibility, unrelated_id)
+            )
+        finally:
+            db.close()
+
+    def test_demo_eligibility_maintenance_browser_form_payload_succeeds(self):
+        class InputCollector(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.inputs = []
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "input":
+                    self.inputs.append(dict(attrs))
+
+        db = self._db()
+        try:
+            eligibility_id = self._add_orphaned_demo_domain_eligibility(
+                db,
+                domain="browser-form-maintenance.example.edu",
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        owner = self._platform_client(user_id="9066")
+        confirmation_page = owner.get(
+            f"/saas-admin/demo-eligibility-maintenance/{eligibility_id}/delete"
+        )
+        self.assertEqual(confirmation_page.status_code, 200)
+
+        parser = InputCollector()
+        parser.feed(confirmation_page.text)
+        inputs_by_name = {
+            attributes.get("name"): attributes
+            for attributes in parser.inputs
+            if attributes.get("name")
+        }
+        confirmation_input = inputs_by_name["confirmation_id"]
+        checkbox_input = inputs_by_name["confirm_delete"]
+        self.assertEqual(confirmation_input["id"], "confirmation_id")
+        self.assertNotIn("value", confirmation_input)
+        self.assertIn("required", confirmation_input)
+        self.assertEqual(checkbox_input["type"], "checkbox")
+        self.assertEqual(checkbox_input["value"], "1")
+        self.assertIn("required", checkbox_input)
+
+        browser_payload = urlencode(
+            {
+                "confirmation_id": str(eligibility_id),
+                "confirm_delete": checkbox_input["value"],
+            }
+        )
+        with patch("saas.router.audit.write_audit_event"):
+            response = owner.post(
+                f"/saas-admin/demo-eligibility-maintenance/{eligibility_id}/delete",
+                content=browser_payload,
+                headers={"content-type": "application/x-www-form-urlencoded"},
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            f"Eligibility+ID+{eligibility_id}+was+safely+removed",
+            response.headers["location"],
+        )
+        db = self._db()
+        try:
+            self.assertIsNone(
+                db.get(saas.models.SaaSDemoDomainEligibility, eligibility_id)
             )
         finally:
             db.close()
