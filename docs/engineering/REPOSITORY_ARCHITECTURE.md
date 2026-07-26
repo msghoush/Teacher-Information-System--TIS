@@ -20,6 +20,15 @@ This document explains the main repository areas, what each owns, and what must 
 Responsibility:
 Primary FastAPI app, route registration, many app-level workflows, middleware, startup checks, platform console routes, dashboards, exports, system configuration, scope switching, and operational pages.
 
+Render boot boundary:
+Render must construct the ASGI app and complete FastAPI startup before
+SQLAlchemy table creation or pending migrations can wait on PostgreSQL DDL
+locks. Render therefore performs schema initialization once in a daemon worker
+after startup returns. The outermost HTTP middleware checks a process-local
+threading event and returns a database-free `503` until initialization commits
+successfully; no inner middleware or route executes before readiness.
+Non-Render environments preserve synchronous schema initialization.
+
 Do not change casually:
 - authentication/session flow,
 - platform owner access checks,

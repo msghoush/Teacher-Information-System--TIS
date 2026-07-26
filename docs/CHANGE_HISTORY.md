@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-07-27 - Render Port-Bind Startup Boundary
+
+Render previously executed SQLAlchemy table creation and every pending
+migration while importing `main:app`. The M8B7 PostgreSQL migration includes
+table-locking DDL, so a lock wait occurred before FastAPI constructed the app
+and before Uvicorn could bind Render's port. Render startup now constructs the
+app without schema DDL and starts that work once in a daemon worker after the
+existing FastAPI startup handler returns. An outermost HTTP readiness gate
+returns a database-free `503` until that worker succeeds, eliminating the
+partial-schema request race. Local and test schema initialization remains
+synchronous.
+
 ## 2026-07-27 - M8B7 Demo Customer Journey
 
 Platform Owner approval now orchestrates the existing independently retryable provisioning service. Durable branded email intents cover request receipt, activation approval, decline, Day 6, expiry, and same-workspace subscription continuation. Demo events reuse the Platform Owner Notification Center, and active tenant workspaces show a responsive demo indicator through the shared shell. Coherent expired demos may convert after authoritative confirmed payment by reactivating and converting the same SchoolGroup and tenant relationship. M8B8, M8B9, pricing redesign, second-workspace provisioning, and sandbox conversion remain out of scope.

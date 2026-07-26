@@ -20,6 +20,7 @@ import re
 import secrets
 import smtplib
 import ssl
+import threading
 import time
 from typing import Optional, Any
 from urllib.parse import quote, quote_plus, urlencode
@@ -111,11 +112,32 @@ from timetable_logic import (
     validate_non_teaching_block_overlap,
 )
 
-# ---------------------------------------
-# Create Tables
-# ---------------------------------------
-models.Base.metadata.create_all(bind=engine)
-db_migrations.run_pending_migrations(engine)
+def _initialize_database_schema() -> None:
+    models.Base.metadata.create_all(bind=engine)
+    db_migrations.run_pending_migrations(engine)
+
+
+_defer_schema_initialization = bool(os.getenv("RENDER"))
+_schema_initialization_ready = threading.Event()
+_schema_initialization_failure: Exception | None = None
+
+
+def _run_deferred_schema_initialization() -> None:
+    global _schema_initialization_failure
+    try:
+        _initialize_database_schema()
+    except Exception as exc:
+        _schema_initialization_failure = exc
+        logging.getLogger("uvicorn.error").exception(
+            "Deferred database schema initialization failed."
+        )
+    else:
+        _schema_initialization_ready.set()
+
+
+if not _defer_schema_initialization:
+    _initialize_database_schema()
+    _schema_initialization_ready.set()
 
 # ---------------------------------------
 # App Initialization
@@ -8511,6 +8533,17 @@ async def audit_logging_middleware(request: Request, call_next):
         )
 
 
+@app.middleware("http")
+async def database_schema_readiness_middleware(request: Request, call_next):
+    if not _schema_initialization_ready.is_set():
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Service initialization is in progress."},
+            headers={"Retry-After": "5"},
+        )
+    return await call_next(request)
+
+
 def _build_login_context(
     db: Session,
     username: str = "",
@@ -15813,3 +15846,10 @@ def setup_initial_data():
             db.commit()
 
     db.close()
+
+    if _defer_schema_initialization:
+        threading.Thread(
+            target=_run_deferred_schema_initialization,
+            name="tis-database-schema-initialization",
+            daemon=True,
+        ).start()

@@ -11,6 +11,14 @@ source_of_truth: true
 
 Completed: approval-orchestrated activation with safe retry; durable request, approval, decline, reminder, expiry, and continuation email intents; existing Notification Center integration; shared-shell active-demo indicator; lifecycle communication processing; and authoritative-payment conversion of coherent expired demos using the same workspace. M8B8 and M8B9 remain unimplemented.
 
+Render startup no longer executes SQLAlchemy table creation and pending
+migrations while importing `main:app`. Render defers that schema work until
+after FastAPI startup returns, preventing PostgreSQL DDL lock waits from
+blocking Uvicorn's port bind. An outermost readiness middleware returns a
+database-free `503` with `Retry-After` until schema initialization succeeds;
+application middleware and routes cannot run against a partial schema. Local
+and test startup keeps synchronous schema initialization.
+
 ## Last Updated
 
 Last updated: 2026-07-26
