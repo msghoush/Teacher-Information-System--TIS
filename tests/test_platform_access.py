@@ -816,6 +816,14 @@ class PlatformAccessTests(unittest.TestCase):
         self.assertIn('action="/platform/account/request-email-verification"', body)
         self.assertIn('href="/saas-admin/accounts"', body)
         self.assertIn("Manage SaaS Accounts", body)
+        self.assertIn(
+            '<a class="button secondary" href="/saas-admin/demo-eligibility-maintenance">'
+            "Eligibility Maintenance</a>",
+            body,
+        )
+        self.assertIn("View Organization Records", body)
+        self.assertIn("Review Demo Requests", body)
+        self.assertIn("Provisioning Queue", body)
         self.assertNotIn('action="/forgot-password"', body)
         verification_button = re.search(
             r'<button[^>]*>Request Verification</button>',
@@ -1300,6 +1308,11 @@ class PlatformAccessTests(unittest.TestCase):
         self.assertNotIn("Commercial State", console_body)
         self.assertNotIn("Workspace Entitlement", console_body)
         self.assertNotIn("Branch Entitlement Summary", console_body)
+        self.assertNotIn("Eligibility Maintenance", console_body)
+        self.assertNotIn(
+            'href="/saas-admin/demo-eligibility-maintenance"',
+            console_body,
+        )
 
         denied = main.create_platform_co_owner(
             request=self._request(
