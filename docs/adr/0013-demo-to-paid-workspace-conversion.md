@@ -25,5 +25,9 @@ The transaction validates its result through the existing M7 subscription entitl
 - Demo request, provisioning, lifecycle, reminder, and expiration history remains available.
 - Completed conversions are excluded from demo reminder and expiration processing.
 - Existing paid provisioning remains unchanged for organizations without a demo tenant link.
-- Expired, suspended, ambiguous, cross-tenant, internal-sandbox, or already-paid workspaces fail closed.
+- Ambiguous, cross-tenant, internal-sandbox, or already-paid workspaces fail closed.
 - Manual conversion overrides, demo extensions, workspace deletion, and unrelated billing changes remain out of scope.
+
+## M8B7 Amendment
+
+A coherent expired/suspended Customer Demo may now convert after authoritative confirmed payment. Conversion reactivates the same SchoolGroup, replaces the ended demo entitlement with the paid entitlement, and relinks the same tenant relationship. Checkout return, sandbox evidence, and unverified payment remain non-authoritative.

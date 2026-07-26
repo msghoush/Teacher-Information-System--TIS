@@ -23,6 +23,7 @@ import authorization
 import db_migrations
 import models
 import saas.models
+import ui_shell
 from dependencies import get_db
 from saas import (
     commercial_state_service,
@@ -269,11 +270,6 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         organization_uuid = self._complete_onboarding(email)
         request_uuid = self._submit_demo(organization_uuid)
         owner = self._approve_demo(request_uuid, user_id=owner_user_id)
-        response = owner.post(
-            f"/saas-admin/demo-requests/{request_uuid}/provision",
-            follow_redirects=False,
-        )
-        self.assertIn("notice=", response.headers["location"])
         db = self._db()
         try:
             request_row = db.query(saas.models.SaaSDemoRequest).filter_by(
@@ -487,6 +483,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             db.close()
 
     def test_submission_is_snapshotted_audited_notified_and_duplicate_safe(self):
+        self._platform_client(user_id="SUBMIT9100")
         organization_uuid = self._complete_onboarding()
         with patch("saas.router.audit.write_audit_event") as write_audit:
             request_uuid = self._submit_demo(organization_uuid)
@@ -509,6 +506,12 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             self.assertEqual(organization.workspace_intent, "customer_demo")
             self.assertEqual(account.account_purpose, "customer")
             self.assertEqual(db.query(saas.models.SaaSDemoRequestEvent).count(), 2)
+            self.assertEqual(db.query(saas.models.SaaSDemoEmailDelivery).filter_by(
+                demo_request_id=row.id, email_type="request_received"
+            ).count(), 1)
+            self.assertEqual(db.query(models.SystemNotification).filter_by(
+                request_type="saas_demo_submitted"
+            ).count(), 1)
             self.assertEqual(db.query(saas.models.TenantProvisioningLink).count(), 0)
             self.assertEqual(db.query(saas.models.ProvisioningJob).count(), 0)
         finally:
@@ -564,7 +567,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         )
         self.assertIn("error=", repeated.headers["location"])
 
-    def test_platform_owner_approval_records_decision_only_and_is_terminal(self):
+    def test_platform_owner_approval_orchestrates_activation_and_is_terminal(self):
         organization_uuid = self._complete_onboarding()
         request_uuid = self._submit_demo(organization_uuid)
         owner = self._platform_client()
@@ -575,7 +578,6 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         detail = owner.get(f"/saas-admin/demo-requests/{request_uuid}")
         self.assertEqual(detail.status_code, 200)
         self.assertIn("Approve Request", detail.text)
-        self.assertIn("does not automatically provision or activate a workspace", detail.text)
 
         with patch("saas.router.audit.write_audit_event") as write_audit:
             approved = owner.post(
@@ -592,8 +594,11 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             ).one()
             self.assertEqual(row.status, "approved")
             self.assertEqual(review.decision, "approved")
-            self.assertEqual(db.query(saas.models.TenantProvisioningLink).count(), 0)
+            self.assertEqual(db.query(saas.models.TenantProvisioningLink).count(), 1)
             self.assertEqual(db.query(saas.models.ProvisioningJob).count(), 0)
+            self.assertEqual(db.query(saas.models.SaaSDemoEmailDelivery).filter_by(
+                demo_request_id=row.id, email_type="demo_approved"
+            ).count(), 1)
         finally:
             db.close()
         blocked = owner.post(
@@ -955,7 +960,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         finally:
             db.close()
 
-    def test_demo_workspace_provisioning_activates_without_billing_or_email(self):
+    def test_demo_workspace_approval_activates_without_billing_or_email(self):
         organization_uuid = self._complete_onboarding()
         request_uuid = self._submit_demo(organization_uuid)
         owner = self._approve_demo(request_uuid, user_id="9191")
@@ -1049,7 +1054,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
     def test_demo_provisioning_rolls_back_and_retry_is_safe(self):
         organization_uuid = self._complete_onboarding("rollback.demo@academy.edu")
         request_uuid = self._submit_demo(organization_uuid)
-        owner = self._approve_demo(request_uuid, user_id="9192")
+        owner = self._platform_client(user_id="9192")
         db = self._db()
         try:
             initial_group_count = db.query(models.SchoolGroup).count()
@@ -1071,7 +1076,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             side_effect=ValueError("forced branch provisioning failure"),
         ):
             failed = owner.post(
-                f"/saas-admin/demo-requests/{request_uuid}/provision",
+                f"/saas-admin/demo-requests/{request_uuid}/approve",
                 follow_redirects=False,
             )
         self.assertIn("error=", failed.headers["location"])
@@ -1194,7 +1199,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             f"/saas-admin/demo-requests/{request_uuid}/provision",
             follow_redirects=False,
         )
-        self.assertIn("error=", duplicate.headers["location"])
+        self.assertIn("notice=", duplicate.headers["location"])
         db = self._db()
         try:
             self.assertEqual(
@@ -1222,7 +1227,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         )
         developer = self._platform_client(
             role=auth.PLATFORM_ROLE_DEVELOPER,
-            user_id="9195",
+            user_id="DEV9195",
         )
         self.assertEqual(
             developer.post(
@@ -1552,6 +1557,11 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
                     current_user=user,
                 )
             )
+            shell = ui_shell.build_shell_context(
+                self._request("/dashboard"), db, user, page_key="dashboard"
+            )["shell"]
+            self.assertEqual(shell["demo_workspace"]["label"], "Demo Workspace")
+            self.assertIn("Expires in", shell["demo_workspace"]["remaining_label"])
         finally:
             db.close()
         observed = demo_lifecycle_service.utc_now()
@@ -1970,7 +1980,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         retried = self._convert_demo(fixture, commercial)
         self.assertTrue(retried.completed)
 
-    def test_conversion_rejects_expired_demo_and_unconfirmed_subscription(self):
+    def test_conversion_accepts_expired_demo_and_rejects_unconfirmed_subscription(self):
         expired = self._activate_demo(
             email="conversion.expired@academy.edu",
             owner_user_id="9191",
@@ -1984,11 +1994,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             observed_at=observed,
         )
         expired_outcome = self._convert_demo(expired, expired_commercial)
-        self.assertEqual(expired_outcome.status, "failed")
-        self.assertIn(
-            expired_outcome.reason_code,
-            {"workspace_not_active_customer_demo", "demo_lifecycle_not_convertible"},
-        )
+        self.assertEqual(expired_outcome.status, "completed")
 
         pending = self._activate_demo(
             email="conversion.pending@academy.edu",

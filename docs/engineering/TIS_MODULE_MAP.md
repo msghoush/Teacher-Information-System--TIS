@@ -1,11 +1,19 @@
 ---
 title: TIS Module Map
 documentation_version: 3.1
-last_updated: 2026-07-23
+last_updated: 2026-07-27
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## M8B7 Demo Customer Journey Components
+
+- `saas/demo_email_service.py`: durable demo email intents, branded rendering inputs, provider dispatch, and retries.
+- `saas/demo_notification_service.py`: deduplicated Platform Owner Notification Center events.
+- Existing demo request, provisioning, lifecycle, and conversion services remain authoritative.
+- `ui_shell.py` and `templates/base.html` own the active tenant demo indicator.
+- `scripts/process_demo_lifecycle.py` remains dry-run by default and is the production apply/dispatch entry point.
 
 This map describes the known TIS modules, where they live, their maturity, related docs/ADRs, and the guardrails developers must respect.
 

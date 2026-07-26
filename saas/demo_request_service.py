@@ -16,7 +16,13 @@ from demo_workflow import (
     DemoRequestStatus,
     DemoReviewDecision,
 )
-from saas import models, service, workspace_classification_service
+from saas import (
+    demo_email_service,
+    demo_notification_service,
+    models,
+    service,
+    workspace_classification_service,
+)
 from workspace_classification import AccountPurpose, WorkspaceIntent
 
 
@@ -456,6 +462,8 @@ def submit_demo_request(db: Session, account, organization):
             "organization_domain": organization_domain,
         },
     )
+    demo_email_service.create_intent(db, row, "request_received")
+    demo_notification_service.notify_platform_owners(db, row, "submitted")
     logger.info(
         "demo_request_submission stage=success model=SaaSDemoRequest table=saas_demo_requests "
         "demo_request_id=%s context=%s",
@@ -584,6 +592,8 @@ def reject_request(db: Session, row, reviewer, *, reason: str) -> object:
         from_status=previous,
         to_status=row.status,
     )
+    demo_email_service.create_intent(db, row, "demo_declined")
+    demo_notification_service.notify_platform_owners(db, row, "declined")
     return review
 
 

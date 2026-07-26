@@ -19,7 +19,12 @@ from demo_workflow import (
     DemoLifecycleProcessingStatus,
     DemoLifecycleState,
 )
-from saas import commercial_state_service, models
+from saas import (
+    commercial_state_service,
+    demo_email_service,
+    demo_notification_service,
+    models,
+)
 from workspace_classification import WorkspaceClassification, WorkspaceLifecycleStatus
 
 
@@ -459,6 +464,12 @@ def _process_reminder(db: Session, provisioning, resolution, now: datetime) -> i
             details={"demo_expires_at": resolution.demo_expires_at.isoformat()},
         )
         created = _create_reminder_notifications(db, provisioning, demo_request)
+        demo_notification_service.notify_platform_owners(
+            db, demo_request, "day_six_reminder", provisioning=provisioning
+        )
+        demo_email_service.create_intent(
+            db, demo_request, "day_six_reminder", provisioning=provisioning
+        )
         provisioning.reminder_sent_at = storage_datetime(now)
         provisioning.lifecycle_processing_status = DemoLifecycleProcessingStatus.PENDING.value
         provisioning.lifecycle_last_processed_at = storage_datetime(now)
@@ -558,6 +569,28 @@ def _process_expiration(db: Session, provisioning, resolution, now: datetime) ->
                 DemoLifecycleEventType.DEMO_EXPIRED,
                 deduplication_key=f"demo:{provisioning.id}:expired",
                 details={"expired_at": resolution.demo_expires_at.isoformat()},
+            )
+            account_key = f"demo:{provisioning.id}:expired:saas:{demo_request.requester_saas_account_id}"
+            if not db.query(models.SaaSDemoLifecycleNotification).filter_by(
+                deduplication_key=account_key
+            ).first():
+                db.add(models.SaaSDemoLifecycleNotification(
+                    demo_provisioning_id=provisioning.id,
+                    notification_type=DemoLifecycleNotificationType.DEMO_EXPIRED.value,
+                    recipient_type=DemoLifecycleNotificationRecipient.SAAS_ACCOUNT.value,
+                    recipient_saas_account_id=demo_request.requester_saas_account_id,
+                    title="Your TIS demo has expired",
+                    message="Your workspace data remains preserved. Subscribe to continue with the same workspace.",
+                    deduplication_key=account_key,
+                ))
+            demo_notification_service.notify_platform_owners(
+                db, demo_request, "expired", provisioning=provisioning
+            )
+            demo_email_service.create_intent(
+                db, demo_request, "demo_expired", provisioning=provisioning
+            )
+            demo_email_service.create_intent(
+                db, demo_request, "subscription_invitation", provisioning=provisioning
             )
             _add_event(
                 db,

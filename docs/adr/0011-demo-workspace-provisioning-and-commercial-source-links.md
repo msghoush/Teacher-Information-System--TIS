@@ -29,3 +29,7 @@ Extract the workspace-record creation sequence from the paid provisioning servic
 - Customers see safe lifecycle states; Platform Owners retain actionable failure details and audit history.
 - Logo filesystem writes remain governed by the existing provisioning engine; database provisioning is atomic.
 - Expiration, reminders, schedulers, login restrictions, conversion, email delivery, and billing changes remain future work.
+
+## M8B7 Amendment
+
+The provisioning service remains independently callable, but the normal approval route now invokes it after recording approval. Provisioning failure preserves the Approved request and retry surface; successful activation creates the approval communication intent. No second workspace is created.

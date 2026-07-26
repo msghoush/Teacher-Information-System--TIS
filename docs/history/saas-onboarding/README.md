@@ -1,10 +1,14 @@
 ---
 title: SaaS Onboarding History
 module: saas-onboarding
-last_updated: 2026-07-26
+last_updated: 2026-07-27
 ---
 
 # SaaS Onboarding History
+
+## 2026-07-27 - M8B7 Demo Customer Journey
+
+Normal approval now invokes the existing independently retryable provisioning service. Six branded lifecycle email types use a durable outbox, and Platform Owner events reuse the existing Notification Center. The shared tenant shell displays active Customer Demo status. Day 6 and expiry create communication intents atomically, and coherent expired demos may convert after authoritative confirmed payment by reactivating the same workspace. M8B8 and M8B9 are not included.
 
 This folder tracks meaningful changes to signup, login, account, organization onboarding, contacts, branches, academic setup, review, and account self-service.
 

@@ -1,11 +1,15 @@
 ---
 title: TIS Product Roadmap
 documentation_version: 3.1
-last_updated: 2026-07-23
+last_updated: 2026-07-27
 source_of_truth: true
 ---
 
 # TIS Product Roadmap
+
+## M8B7 Demo Customer Journey
+
+Completed approval-orchestrated activation, durable lifecycle communications, Notification Center integration, shared-shell demo status, data-preserving expiry communication, and verified-payment continuation of the same active or expired workspace. M8B8 AI usage limits and M8B9 owner testing controls remain separate future work.
 
 This roadmap summarizes completed, current, next, and future product directions. It is not a release commitment; it is the current planning map for developers, owners, and reviewers.
 

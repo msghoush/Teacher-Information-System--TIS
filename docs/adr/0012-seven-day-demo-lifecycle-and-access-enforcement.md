@@ -26,3 +26,7 @@ Enforce the same resolver in the existing operational authentication middleware.
 - Expiration is reversible by a future approved commercial transition because no tenant data is deleted.
 - Processing failure rolls back expiration changes and remains safely retryable.
 - External email, conversion, extension, archive/delete, and read-only expired access remain out of scope.
+
+## M8B7 Amendment
+
+Day 6 now atomically records the customer notice, Platform Owner Notification Center events, and reminder email intent. Expiry atomically records customer/owner notifications plus expiry and subscription-continuation email intents. Provider delivery occurs outside lifecycle row locks through the durable outbox. The CLI remains dry-run by default and is the Render Cron entry point.

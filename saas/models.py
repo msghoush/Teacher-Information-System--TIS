@@ -678,7 +678,7 @@ class SaaSDemoLifecycleNotification(Base):
             "recipient_user_id",
         ),
         CheckConstraint(
-            "notification_type IN ('expiration_reminder')",
+            "notification_type IN ('expiration_reminder','demo_expired')",
             name="ck_saas_demo_lifecycle_notifications_type",
         ),
         CheckConstraint(
@@ -718,6 +718,46 @@ class SaaSDemoLifecycleNotification(Base):
     deduplication_key = Column(String(180), nullable=False, unique=True)
     read_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class SaaSDemoEmailDelivery(Base):
+    __tablename__ = "saas_demo_email_deliveries"
+    __table_args__ = (
+        Index("uq_saas_demo_email_deliveries_uuid", "delivery_uuid", unique=True),
+        Index("uq_saas_demo_email_deliveries_dedup", "deduplication_key", unique=True),
+        Index("ix_saas_demo_email_deliveries_request", "demo_request_id"),
+        Index("ix_saas_demo_email_deliveries_provisioning", "demo_provisioning_id"),
+        Index("ix_saas_demo_email_deliveries_status_created", "status", "created_at"),
+        CheckConstraint(
+            "email_type IN ('request_received','demo_approved','demo_declined',"
+            "'day_six_reminder','demo_expired','subscription_invitation')",
+            name="ck_saas_demo_email_deliveries_type",
+        ),
+        CheckConstraint(
+            "status IN ('pending','processing','sent','failed')",
+            name="ck_saas_demo_email_deliveries_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    delivery_uuid = Column(String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4()))
+    demo_request_id = Column(
+        Integer, ForeignKey("saas_demo_requests.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    demo_provisioning_id = Column(
+        Integer, ForeignKey("saas_demo_workspace_provisioning.id", ondelete="CASCADE"), index=True
+    )
+    email_type = Column(String(40), nullable=False)
+    recipient_email = Column(String(320), nullable=False)
+    status = Column(String(20), nullable=False, default="pending")
+    deduplication_key = Column(String(180), nullable=False, unique=True)
+    attempt_count = Column(Integer, nullable=False, default=0)
+    last_attempt_at = Column(DateTime(timezone=True))
+    sent_at = Column(DateTime(timezone=True))
+    provider_message_id = Column(String(180))
+    failure_code = Column(String(80))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class SaaSDemoToPaidConversion(Base):
