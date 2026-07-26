@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Extend the Platform Owner-only test workspace/account reset so it atomically clears the selected organization's linked demo-commercial history and domain reservation, allowing a clean internal M8 journey retest while preserving the production one-demo-per-domain policy.
+summary: Extend the Platform Owner-only test workspace/account reset to safely remove a selected organization's detached demo-domain reservation only after shared domain resolution and conflict analysis confirm that no other organization, request, workspace, or customer account owns the domain.
 affected_areas:
   - test-workspace-reset
   - test-account-reset
@@ -8,6 +8,8 @@ affected_areas:
   - entitlement-dependency-integrity
   - customer-demo-domain-eligibility
   - demo-commercial-test-reset
+  - orphaned-demo-domain-reservations
+  - reset-domain-conflict-analysis
   - deletion-transaction-integrity
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md

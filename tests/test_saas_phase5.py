@@ -130,6 +130,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         organization_name: str = "Andalus Academy",
         legal_name: str = "Andalus Academy LLC",
         branch_names: list[str] | None = None,
+        primary_domain: str = "andalus.example.com",
     ) -> str:
         self._signup_verify_and_login(sent_messages, email)
         branch_names = branch_names or ["Main Campus", "Girls Campus"]
@@ -151,8 +152,8 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             data={
                 "organization_name": organization_name,
                 "legal_name": legal_name,
-                "website": "https://andalus.example.com",
-                "primary_domain": "andalus.example.com",
+                "website": f"https://{primary_domain}",
+                "primary_domain": primary_domain,
                 "phone": "+9665000000",
                 "educational_program": "BOTH",
                 "country_code": "SA",
@@ -375,6 +376,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         organization_name: str,
         legal_name: str = "",
         branch_names: list[str] | None = None,
+        primary_domain: str = "andalus.example.com",
     ):
         self._configure_paddle_prices()
         sent_messages = []
@@ -384,6 +386,7 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             organization_name=organization_name,
             legal_name=legal_name,
             branch_names=branch_names,
+            primary_domain=primary_domain,
         )
         organization_id, attempt_uuid, contract_id = self._prepare_checkout(org_uuid)
         with patch(
@@ -633,6 +636,23 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             "conversion_id": conversion.id,
             "conversion_event_id": conversion_event.id,
         }
+
+    def _add_orphaned_demo_domain_eligibility(
+        self,
+        db,
+        *,
+        domain: str,
+        status: str = "reserved",
+        manual_review_reason: str | None = None,
+    ) -> int:
+        row = saas.models.SaaSDemoDomainEligibility(
+            normalized_domain=domain,
+            status=status,
+            manual_review_reason=manual_review_reason,
+        )
+        db.add(row)
+        db.flush()
+        return int(row.id)
 
     def _platform_client(self, *, user_id: str = "9005", platform_role: str = auth.PLATFORM_ROLE_OWNER):
         db = self._db()
@@ -1924,11 +1944,181 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         finally:
             db.close()
 
+    def test_delete_test_account_removes_safe_orphaned_domain_reservation(self):
+        email = "orphan-clean-room@academy.edu"
+        domain = "orphan-clean-room.example.com"
+        result = self._complete_paid_provisioning(
+            email=email,
+            organization_name="Orphan Clean Room Academy",
+            primary_domain=domain,
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                id=result["organization_id"]
+            ).one()
+            organization_uuid = organization.organization_uuid
+            orphaned_eligibility_id = self._add_orphaned_demo_domain_eligibility(
+                db,
+                domain=domain,
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        with self.assertLogs("saas", level="INFO") as deletion_logs:
+            with patch.dict(os.environ, {"PADDLE_ENVIRONMENT": "sandbox"}):
+                response = self._platform_client(user_id="9026").post(
+                    f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-account",
+                    data={
+                        "confirmation_name": "Orphan Clean Room Academy",
+                        "confirmation_email": email,
+                        "reason": "Repeat clean-room M8 test",
+                    },
+                    follow_redirects=False,
+                )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("email+can+be+registered+again", response.headers["location"])
+        log_output = "\n".join(deletion_logs.output)
+        self.assertIn("orphaned_demo_domain_cleanup", log_output)
+        self.assertIn("SaaSDemoDomainEligibility", log_output)
+        db = self._db()
+        try:
+            self.assertIsNone(db.query(saas.models.SaaSDemoDomainEligibility).filter_by(
+                id=orphaned_eligibility_id
+            ).first())
+        finally:
+            db.close()
+
+        repeated_org_uuid = self._complete_pending_org(
+            email,
+            [],
+            organization_name="Orphan Clean Room Academy",
+            primary_domain=domain,
+        )
+        db = self._db()
+        try:
+            repeated_organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=repeated_org_uuid
+            ).one()
+            repeated_account = db.query(saas.models.SaaSAccount).filter_by(
+                id=repeated_organization.owner_saas_account_id
+            ).one()
+            repeated_demo = demo_request_service.submit_demo_request(
+                db,
+                repeated_account,
+                repeated_organization,
+            )
+            db.commit()
+            self.assertEqual(repeated_demo.organization_domain_normalized, domain)
+        finally:
+            db.close()
+
+    def test_orphaned_domain_reservation_with_other_organization_requires_manual_review(self):
+        domain = "conflicting-clean-room.example.com"
+        target = self._complete_paid_provisioning(
+            email="conflicting-clean-room-target@academy.edu",
+            organization_name="Conflicting Clean Room Target",
+            primary_domain=domain,
+        )
+        other = self._complete_paid_provisioning(
+            email="conflicting-clean-room-other@academy.edu",
+            organization_name="Conflicting Clean Room Other",
+            primary_domain=domain,
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                id=target["organization_id"]
+            ).one()
+            organization_uuid = organization.organization_uuid
+            orphaned_eligibility_id = self._add_orphaned_demo_domain_eligibility(
+                db,
+                domain=domain,
+            )
+            db.commit()
+            analysis = workspace_deletion_service.validate_preflight(db, organization)
+        except workspace_deletion_service.WorkspaceDeletionBlocked:
+            analysis = None
+        finally:
+            db.close()
+
+        self.assertIsNone(analysis)
+        response = self._platform_client(user_id="9027").post(
+            f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-workspace",
+            data={
+                "confirmation_name": "Conflicting Clean Room Target",
+                "reason": "Must not remove another organization reservation",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("requires+manual+review", response.headers["location"])
+        db = self._db()
+        try:
+            self.assertIsNotNone(db.query(saas.models.PendingOrganization).filter_by(
+                id=target["organization_id"]
+            ).first())
+            self.assertIsNotNone(db.query(saas.models.PendingOrganization).filter_by(
+                id=other["organization_id"]
+            ).first())
+            self.assertIsNotNone(db.query(saas.models.SaaSDemoDomainEligibility).filter_by(
+                id=orphaned_eligibility_id
+            ).first())
+        finally:
+            db.close()
+
+    def test_historically_ambiguous_orphaned_reservation_requires_manual_review(self):
+        domain = "ambiguous-clean-room.example.com"
+        target = self._complete_paid_provisioning(
+            email="ambiguous-clean-room@academy.edu",
+            organization_name="Ambiguous Clean Room Academy",
+            primary_domain=domain,
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                id=target["organization_id"]
+            ).one()
+            organization_uuid = organization.organization_uuid
+            orphaned_eligibility_id = self._add_orphaned_demo_domain_eligibility(
+                db,
+                domain=domain,
+                status="manual_review",
+                manual_review_reason="Historical ownership requires review.",
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        response = self._platform_client(user_id="9028").post(
+            f"/saas-admin/pending-organizations/{organization_uuid}/delete-test-workspace",
+            data={
+                "confirmation_name": "Ambiguous Clean Room Academy",
+                "reason": "Preserve ambiguous historical reservation",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("requires+manual+review", response.headers["location"])
+        db = self._db()
+        try:
+            self.assertIsNotNone(db.query(saas.models.PendingOrganization).filter_by(
+                id=target["organization_id"]
+            ).first())
+            self.assertIsNotNone(db.query(saas.models.SaaSDemoDomainEligibility).filter_by(
+                id=orphaned_eligibility_id
+            ).first())
+        finally:
+            db.close()
+
     def test_delete_test_account_failure_rolls_back_identity_and_workspace(self):
         email = "full-reset-rollback@academy.edu"
         result = self._complete_paid_provisioning(
             email=email,
             organization_name="Full Reset Rollback Academy",
+            primary_domain="full-reset-rollback.example.com",
         )
         owner_client = self._platform_client(user_id="9025")
         db = self._db()
@@ -1939,6 +2129,10 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             demo_fixture = self._add_demo_commercial_reset_fixture(
                 db,
                 result,
+                domain="full-reset-rollback-linked.example.com",
+            )
+            orphaned_eligibility_id = self._add_orphaned_demo_domain_eligibility(
+                db,
                 domain="full-reset-rollback.example.com",
             )
             db.commit()
@@ -1989,6 +2183,9 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             ).first())
             self.assertIsNotNone(db.query(saas.models.SaaSDemoDomainEligibility).filter_by(
                 id=demo_fixture["eligibility_id"]
+            ).first())
+            self.assertIsNotNone(db.query(saas.models.SaaSDemoDomainEligibility).filter_by(
+                id=orphaned_eligibility_id
             ).first())
         finally:
             db.close()

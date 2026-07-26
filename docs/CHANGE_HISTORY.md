@@ -11,6 +11,35 @@ This file is the chronological summary of meaningful TIS changes. It does not re
 
 Newest entries should be added first.
 
+## 2026-07-26 - Safe Orphaned Demo-Domain Reservation Cleanup
+
+Area/module:
+Platform Owner test workspace/account reset and Customer Demo domain eligibility
+
+Previous state:
+The clean-room reset removed eligibility rows only while they still referenced a selected demo request. A prior request deletion could leave a detached same-domain row through `ON DELETE SET NULL`, and that row continued to block a later internal demo request.
+
+New state:
+The owner-only reset resolves the selected organization's domain through the same Customer Demo domain resolver, counts linked and detached reservations, and checks for another organization, request, workspace, or customer account using that domain. It removes a detached reservation only when that conflict analysis is empty and the row has no historical manual-review evidence; otherwise, reset preflight blocks for manual review and preserves all data. Owner analysis views show the domain-cleanup result.
+
+Reason:
+Allow repeatable internal M8 testing without broadly deleting domain reservations or weakening the production one-demo-per-domain policy.
+
+Files changed:
+Workspace analysis/deletion services, owner reset-analysis templates, focused Phase 5 regression tests, and KMS sources.
+
+Documentation updated:
+AI/master context, project state, change history, and SaaS onboarding history.
+
+PDF regenerated:
+Yes, through `python scripts/kms.py sync`.
+
+AI project context updated:
+Yes.
+
+Reviewer/approval notes:
+No schema, foreign-key, cascade, customer demo-policy, payment, Paddle, commit, or push change.
+
 ## 2026-07-26 - Internal Test Workspace Commercial Clean-Room Reset
 
 Area/module:

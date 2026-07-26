@@ -7,7 +7,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 import models as operational_models
-from saas import models
+from saas import demo_request_service, models, service
 
 
 @dataclass(frozen=True)
@@ -85,6 +85,144 @@ def _payment_webhook_count(db: Session, organization, attempts, subscription_row
     return matched
 
 
+def analyze_orphaned_demo_domain_cleanup(db: Session, organization) -> dict[str, object]:
+    """Resolve whether a detached demo-domain reservation is safe to clear for one test reset."""
+    pending_organization_id = int(getattr(organization, "id", 0) or 0)
+    owner_account_id = int(getattr(organization, "owner_saas_account_id", 0) or 0)
+    account = db.query(models.SaaSAccount).filter(
+        models.SaaSAccount.id == owner_account_id
+    ).first()
+    resolved_domain = ""
+    resolution_error = ""
+    if not account:
+        resolution_error = "The owning TIS Account could not be resolved for demo-domain cleanup."
+    else:
+        try:
+            resolved_domain = demo_request_service.resolve_customer_demo_domain(
+                db, account, organization
+            )
+        except demo_request_service.DemoRequestError as exc:
+            resolution_error = str(exc)
+
+    demo_request_ids = _ids(
+        db.query(models.SaaSDemoRequest).filter(
+            models.SaaSDemoRequest.pending_organization_id == pending_organization_id
+        ),
+        models.SaaSDemoRequest.id,
+    )
+    linked_eligibility_count = _count(
+        db.query(models.SaaSDemoDomainEligibility).filter(
+            models.SaaSDemoDomainEligibility.demo_request_id.in_(demo_request_ids)
+        )
+    ) if demo_request_ids else 0
+    orphaned_rows = (
+        db.query(models.SaaSDemoDomainEligibility).filter(
+            models.SaaSDemoDomainEligibility.normalized_domain == resolved_domain,
+            models.SaaSDemoDomainEligibility.demo_request_id.is_(None),
+        ).all()
+        if resolved_domain
+        else []
+    )
+    ambiguous_orphaned_rows = [
+        row
+        for row in orphaned_rows
+        if str(getattr(row, "status", "") or "").strip() == "manual_review"
+        or str(getattr(row, "manual_review_reason", "") or "").strip()
+    ]
+
+    conflict_organization_ids: list[int] = []
+    conflict_request_ids: list[int] = []
+    conflict_workspace_count = 0
+    conflict_customer_account_ids: list[int] = []
+    if orphaned_rows and resolved_domain:
+        for candidate in db.query(models.PendingOrganization).filter(
+            models.PendingOrganization.id != pending_organization_id
+        ).all():
+            candidate_account = db.query(models.SaaSAccount).filter(
+                models.SaaSAccount.id == candidate.owner_saas_account_id
+            ).first()
+            if not candidate_account:
+                continue
+            try:
+                candidate_domain = demo_request_service.resolve_customer_demo_domain(
+                    db, candidate_account, candidate
+                )
+            except demo_request_service.DemoRequestError:
+                continue
+            if candidate_domain == resolved_domain:
+                conflict_organization_ids.append(int(candidate.id))
+
+        conflict_request_ids = _ids(
+            db.query(models.SaaSDemoRequest).filter(
+                models.SaaSDemoRequest.organization_domain_normalized == resolved_domain,
+                models.SaaSDemoRequest.pending_organization_id != pending_organization_id,
+            ),
+            models.SaaSDemoRequest.id,
+        )
+        if conflict_organization_ids:
+            conflict_workspace_count = _count(
+                db.query(models.TenantProvisioningLink).filter(
+                    models.TenantProvisioningLink.pending_organization_id.in_(
+                        conflict_organization_ids
+                    )
+                )
+            )
+        conflict_customer_account_ids = [
+            int(candidate.id)
+            for candidate in db.query(models.SaaSAccount).filter(
+                models.SaaSAccount.id != owner_account_id,
+                models.SaaSAccount.account_purpose == "customer",
+            ).all()
+            if service.normalize_organization_domain(candidate.email) == resolved_domain
+        ]
+
+    conflict_count = (
+        len(conflict_organization_ids)
+        + len(conflict_request_ids)
+        + conflict_workspace_count
+        + len(conflict_customer_account_ids)
+    )
+    automatic_cleanup_safe = bool(
+        not orphaned_rows
+        or (
+            resolved_domain
+            and not resolution_error
+            and conflict_count == 0
+            and not ambiguous_orphaned_rows
+        )
+    )
+    manual_review_reason = ""
+    if orphaned_rows and not automatic_cleanup_safe:
+        if resolution_error:
+            manual_review_reason = resolution_error
+        elif ambiguous_orphaned_rows:
+            manual_review_reason = (
+                "The detached reservation already has historical manual-review "
+                "evidence, so its ownership cannot be attributed safely."
+            )
+        else:
+            manual_review_reason = (
+                "Another organization, demo request, workspace, or customer account uses the "
+                "same normalized domain."
+            )
+
+    return {
+        "resolved_domain": resolved_domain,
+        "resolution_error": resolution_error,
+        "linked_eligibility_count": linked_eligibility_count,
+        "orphaned_eligibility_ids": [int(row.id) for row in orphaned_rows],
+        "orphaned_same_domain_eligibility_count": len(orphaned_rows),
+        "ambiguous_orphaned_eligibility_count": len(ambiguous_orphaned_rows),
+        "conflicting_organization_count": len(conflict_organization_ids),
+        "conflicting_request_count": len(conflict_request_ids),
+        "conflicting_workspace_count": conflict_workspace_count,
+        "conflicting_customer_account_count": len(conflict_customer_account_ids),
+        "conflicting_record_count": conflict_count,
+        "automatic_cleanup_safe": automatic_cleanup_safe,
+        "manual_review_reason": manual_review_reason,
+    }
+
+
 def analyze_test_workspace(db: Session, organization) -> dict:
     counts: list[AnalysisCount] = []
     warnings: list[str] = []
@@ -141,6 +279,15 @@ def analyze_test_workspace(db: Session, organization) -> dict:
         ),
         models.SaaSDemoToPaidConversion.id,
     )
+    demo_domain_cleanup = analyze_orphaned_demo_domain_cleanup(db, organization)
+    if (
+        demo_domain_cleanup["orphaned_same_domain_eligibility_count"]
+        and not demo_domain_cleanup["automatic_cleanup_safe"]
+    ):
+        warnings.append(
+            "Detached Customer Demo domain eligibility requires manual review: "
+            + str(demo_domain_cleanup["manual_review_reason"])
+        )
 
     _add_count(counts, category="SaaS / onboarding", table="pending_organizations", count=1, disposition="tenant-owned")
     _add_count(counts, category="SaaS / onboarding", table="pending_organization_branches", count=_count(db.query(models.PendingOrganizationBranch).filter(models.PendingOrganizationBranch.pending_organization_id == pending_organization_id)), disposition="tenant-owned")
@@ -162,6 +309,8 @@ def analyze_test_workspace(db: Session, organization) -> dict:
     _add_count(counts, category="SaaS / onboarding", table="tenant_provisioning_links", count=1 if tenant_link else 0, disposition="tenant-owned")
     _add_count(counts, category="SaaS / commercial testing", table="saas_demo_requests", count=len(demo_request_ids), disposition="test-reset-only")
     _add_count(counts, category="SaaS / commercial testing", table="saas_demo_domain_eligibilities", count=_count(db.query(models.SaaSDemoDomainEligibility).filter(models.SaaSDemoDomainEligibility.demo_request_id.in_(demo_request_ids))) if demo_request_ids else 0, disposition="test-reset-only")
+    _add_count(counts, category="SaaS / commercial testing", table="saas_demo_domain_eligibilities_orphaned_same_domain", count=int(demo_domain_cleanup["orphaned_same_domain_eligibility_count"]), disposition="test-reset-only")
+    _add_count(counts, category="SaaS / commercial testing", table="demo_domain_cleanup_conflicts", count=int(demo_domain_cleanup["conflicting_record_count"]), disposition="manual-review-if-present")
     _add_count(counts, category="SaaS / commercial testing", table="saas_demo_request_reviews", count=_count(db.query(models.SaaSDemoRequestReview).filter(models.SaaSDemoRequestReview.demo_request_id.in_(demo_request_ids))) if demo_request_ids else 0, disposition="test-reset-only")
     _add_count(counts, category="SaaS / commercial testing", table="saas_demo_request_events", count=_count(db.query(models.SaaSDemoRequestEvent).filter(models.SaaSDemoRequestEvent.demo_request_id.in_(demo_request_ids))) if demo_request_ids else 0, disposition="test-reset-only")
     _add_count(counts, category="SaaS / commercial testing", table="saas_demo_workspace_provisioning", count=len(demo_provisioning_ids), disposition="test-reset-only")
@@ -336,6 +485,7 @@ def analyze_test_workspace(db: Session, organization) -> dict:
         "workspace_name": str(getattr(school_group, "name", "") or "") if school_group else "",
         "counts": counts,
         "warnings": warnings,
+        "demo_domain_cleanup": demo_domain_cleanup,
         "safe_for_future_reset": safe_for_future_reset,
         "status_label": "Safe to prepare for deletion" if safe_for_future_reset else "Manual review required",
         "total_linked_records": total_linked_records,
