@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-07-25
+last_updated: 2026-07-26
 recommended_first_read: true
 ---
 
@@ -175,6 +175,8 @@ Conversion Requested, Processing, Completed, and Failed states are durable and r
 ## Test Workspace Reset Dependency Rule
 
 The Platform Owner-only test workspace reset keeps its existing preflight and single-transaction rollback behavior. Before it deletes scoped operational `User` records, it deletes `SubscriptionChangeRequest` rows scoped by the selected workspace's authoritative `school_group_id`. It also deletes selected workspace-entitlement values and branch-entitlement children before the selected `WorkspaceEntitlement`, which is removed before the final `SchoolGroup`. This prevents user, account, contract, subscription, and entitlement foreign-key references from blocking removal while preserving records belonging to every other workspace. Pre-analysis and structured deletion diagnostics report the same scoped record set.
+
+The same Platform Owner-only test reset is a clean-room exception for internal M8 testing only. Within its existing single transaction, it deletes the selected pending organization's linked demo request, domain-eligibility reservation, review and audit history, demo provisioning/lifecycle records, and demo-to-paid conversion history before removing their parents. This allows the same test email and organization domain to complete a new internal journey after a reset. The normal customer one-demo-per-domain reservation policy is unchanged; global plans, prices, Paddle records, platform configuration, and records from other organizations remain preserved.
 
 ## Current SaaS Account Verification State
 

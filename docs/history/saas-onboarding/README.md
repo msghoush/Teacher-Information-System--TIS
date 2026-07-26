@@ -1,12 +1,18 @@
 ---
 title: SaaS Onboarding History
 module: saas-onboarding
-last_updated: 2026-07-23
+last_updated: 2026-07-26
 ---
 
 # SaaS Onboarding History
 
 This folder tracks meaningful changes to signup, login, account, organization onboarding, contacts, branches, academic setup, review, and account self-service.
+
+## 2026-07-26 - Internal Test Workspace Commercial Clean-Room Reset
+
+The guarded Platform Owner test workspace/account reset now clears only the selected organization's linked demo request, domain-eligibility reservation, review and event history, demo provisioning and lifecycle records, and demo-to-paid conversion history before deleting parent commercial and workspace records. The same email and organization domain can then complete a new internal M8 journey.
+
+This narrow exception does not alter the production Customer Demo policy: normal customer domain reservations remain durable after pending, approved, active, expired, rejected, cancelled, or converted history. Global plans, prices, Paddle records, platform configuration, and other organizations' records remain outside the reset scope. Customer-facing demo wording now identifies the TIS team rather than an internal role.
 
 ## 2026-07-25 - Landing Intent Continuity And One Customer Demo Per Organization Domain
 

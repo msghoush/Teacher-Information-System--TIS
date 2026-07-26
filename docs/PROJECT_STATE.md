@@ -1,7 +1,7 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-07-25
+last_updated: 2026-07-26
 source_of_truth: true
 ---
 
@@ -9,7 +9,7 @@ source_of_truth: true
 
 ## Last Updated
 
-Last updated: 2026-07-25
+Last updated: 2026-07-26
 
 Update this file after every meaningful milestone, active development change, roadmap shift, known issue change, or documentation/KMS change.
 
@@ -197,6 +197,7 @@ Test workspace reset dependency correction:
 
 - The Platform Owner-only test workspace/account reset now removes `subscription_change_requests` by the selected `school_group_id` before deleting that workspace's operational users.
 - It removes selected entitlement values and branch-entitlement children before the selected workspace entitlement and final SchoolGroup, without changing global entitlement definitions, plans, or prices.
+- The same guarded reset now clears only the selected organization's linked demo request, domain reservation, review/event history, provisioning/lifecycle history, and demo-to-paid conversion history. This permits a clean internal retest with the same email and organization domain while the production one-demo-per-domain policy remains unchanged.
 - The scoped pre-analysis count, deletion diagnostics, affected-row total, transaction rollback, and preservation of other workspaces remain in place.
 
 ## Current Priority

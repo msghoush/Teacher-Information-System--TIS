@@ -694,7 +694,7 @@ def apply_customer_setup_context(
         "title": f"Demo request: {label}",
         "subtitle": f"TIS has your demo request for {updated.get('workspace_name', 'your school workspace')}.",
         "status_banner": (
-            "Your request is waiting for Platform Owner review."
+            "Your request is waiting for review by the TIS team."
             if row.status == DemoRequestStatus.PENDING_REVIEW.value
             else (
                 "Your demo request is approved and ready for workspace provisioning."
