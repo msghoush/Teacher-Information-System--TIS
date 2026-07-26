@@ -68,6 +68,25 @@ Guardrails:
 - Duplicate, rejected, cancelled, incoherent, or already provisioned requests fail closed.
 - M8B-4 sends no email and does not implement expiration, scheduling, login blocking, or conversion.
 
+## Historical Demo Eligibility Maintenance Flow
+
+1. A Platform Owner opens `/saas-admin/demo-eligibility-maintenance`.
+2. TIS scans the demo-domain eligibility ledger and resolves matching organization, account, request, tenant-profile workspace, provisioning, subscription, conversion, and manual-review evidence.
+3. Linked or ambiguous reservations remain protected and display their exact blockers.
+4. A safely detached row exposes a review action for its exact eligibility ID.
+5. The owner types the same ID and confirms permanent removal.
+6. TIS locks and re-analyzes that exact row before deletion.
+7. Any new blocker aborts and rolls back the action.
+8. TIS deletes only the selected primary key, flushes, verifies no row remains for that ID, and commits.
+9. A durable audit event records the Platform Owner, eligibility ID, normalized domain, previous status, timestamp, and historical-cleanup reason.
+
+Guardrails:
+
+- Never delete by normalized domain.
+- Never expose the workflow to customers, tenant users, or Platform Developers.
+- Never use this workflow to override a linked, historical, converted, subscribed, provisioned, or manual-review Customer Demo reservation.
+- Do not change the normal one-demo-per-domain rule or the organization-scoped clean-room reset.
+
 ## Customer Demo Lifecycle Flow
 
 1. Successful M8B-4 activation records the authoritative demo start.

@@ -1,0 +1,46 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<div class="page-header">
+    <span class="page-eyebrow">Platform Owner Maintenance</span>
+    <h1>Delete Historical Demo Reservation</h1>
+    <p class="page-subtitle">
+        This action removes only eligibility ID {{ analysis.eligibility_id }}.
+        It does not delete by domain and does not change customer demo policy.
+    </p>
+</div>
+
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<div class="summary-grid">
+    <div class="stat"><strong>Eligibility ID</strong>{{ analysis.eligibility_id }}</div>
+    <div class="stat"><strong>Normalized domain</strong>{{ analysis.normalized_domain }}</div>
+    <div class="stat"><strong>Status</strong>{{ analysis.status }}</div>
+</div>
+
+{% if analysis.safe_to_remove %}
+<div class="warning" style="margin-top:20px;">
+    No linked organization, account, request, workspace, provisioning, subscription,
+    conversion, or manual-review evidence was found. Safety checks will run again when
+    you submit this form.
+</div>
+<form method="post" action="/saas-admin/demo-eligibility-maintenance/{{ analysis.eligibility_id }}/delete" style="max-width:720px;">
+    <label for="confirmation_id">Type eligibility ID {{ analysis.eligibility_id }} to confirm</label>
+    <input id="confirmation_id" name="confirmation_id" inputmode="numeric" required autocomplete="off">
+    <label>
+        <input type="checkbox" name="confirm_delete" value="1" required>
+        I understand this permanently removes only this verified historical reservation.
+    </label>
+    <div class="actions">
+        <button class="btn danger" type="submit">Delete Eligibility ID {{ analysis.eligibility_id }}</button>
+        <a class="btn secondary" href="/saas-admin/demo-eligibility-maintenance">Cancel</a>
+    </div>
+</form>
+{% else %}
+<div class="error" style="margin-top:20px;">
+    Deletion is blocked: {{ analysis.blocker_summary }}
+</div>
+<div class="actions">
+    <a class="btn secondary" href="/saas-admin/demo-eligibility-maintenance">Back to maintenance</a>
+</div>
+{% endif %}
+{% endblock %}

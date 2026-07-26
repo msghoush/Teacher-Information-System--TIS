@@ -27,6 +27,7 @@ import permission_registry
 import saas.models  # noqa: F401
 from dependencies import get_db
 from saas import (
+    demo_eligibility_maintenance_service,
     demo_request_service,
     provisioning_service,
     service as saas_service,
@@ -2284,6 +2285,389 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         finally:
             db.close()
         self.assertEqual(before, after)
+
+    def test_demo_eligibility_maintenance_discovers_safe_orphan(self):
+        db = self._db()
+        try:
+            safe_id = self._add_orphaned_demo_domain_eligibility(
+                db,
+                domain="historical-orphan.example.edu",
+            )
+            manual_review_id = self._add_orphaned_demo_domain_eligibility(
+                db,
+                domain="historical-review.example.edu",
+                status="manual_review",
+                manual_review_reason="Historical ownership is ambiguous.",
+            )
+            db.commit()
+            safe_analysis = demo_eligibility_maintenance_service.analyze_eligibility(
+                db,
+                safe_id,
+            )
+            manual_analysis = demo_eligibility_maintenance_service.analyze_eligibility(
+                db,
+                manual_review_id,
+            )
+        finally:
+            db.close()
+
+        self.assertTrue(safe_analysis.safe_to_remove)
+        self.assertEqual(safe_analysis.blocker_summary, "No linked records")
+        self.assertFalse(manual_analysis.safe_to_remove)
+        self.assertIn("manual-review evidence", manual_analysis.blocker_summary)
+
+        response = self._platform_client(user_id="9060").get(
+            "/saas-admin/demo-eligibility-maintenance"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Demo Eligibility Maintenance", response.text)
+        self.assertIn("historical-orphan.example.edu", response.text)
+        self.assertIn("historical-review.example.edu", response.text)
+        self.assertIn("No linked records", response.text)
+
+    def test_demo_eligibility_maintenance_deletes_exact_safe_id_and_audits(self):
+        db = self._db()
+        try:
+            target_id = self._add_orphaned_demo_domain_eligibility(
+                db,
+                domain="delete-historical.example.edu",
+            )
+            unrelated_id = self._add_orphaned_demo_domain_eligibility(
+                db,
+                domain="preserve-historical.example.edu",
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        owner = self._platform_client(user_id="9061")
+        confirmation = owner.get(
+            f"/saas-admin/demo-eligibility-maintenance/{target_id}/delete"
+        )
+        self.assertEqual(confirmation.status_code, 200)
+        self.assertIn(f"eligibility ID {target_id}", confirmation.text)
+
+        missing_confirmation = owner.post(
+            f"/saas-admin/demo-eligibility-maintenance/{target_id}/delete",
+            data={"confirmation_id": str(target_id)},
+            follow_redirects=False,
+        )
+        wrong_id = owner.post(
+            f"/saas-admin/demo-eligibility-maintenance/{target_id}/delete",
+            data={"confirmation_id": "999", "confirm_delete": "1"},
+            follow_redirects=False,
+        )
+        self.assertIn(
+            "Explicit+deletion+confirmation+is+required",
+            missing_confirmation.headers["location"],
+        )
+        self.assertIn(
+            "exact+eligibility+ID",
+            wrong_id.headers["location"],
+        )
+        db = self._db()
+        try:
+            self.assertIsNotNone(
+                db.get(saas.models.SaaSDemoDomainEligibility, target_id)
+            )
+        finally:
+            db.close()
+
+        with patch("saas.router.audit.write_audit_event") as write_audit:
+            response = owner.post(
+                f"/saas-admin/demo-eligibility-maintenance/{target_id}/delete",
+                data={
+                    "confirmation_id": str(target_id),
+                    "confirm_delete": "1",
+                },
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            f"Eligibility+ID+{target_id}+was+safely+removed",
+            response.headers["location"],
+        )
+        audit_payload = write_audit.call_args.args[0]
+        self.assertEqual(audit_payload["result"], "success")
+        self.assertEqual(audit_payload["eligibility_id"], target_id)
+        self.assertEqual(audit_payload["actor_role"], "Platform Owner")
+        self.assertEqual(
+            audit_payload["normalized_domain"],
+            "delete-historical.example.edu",
+        )
+        self.assertEqual(audit_payload["previous_status"], "reserved")
+        self.assertEqual(
+            audit_payload["reason"],
+            demo_eligibility_maintenance_service.MAINTENANCE_REASON,
+        )
+
+        db = self._db()
+        try:
+            self.assertIsNone(
+                db.get(saas.models.SaaSDemoDomainEligibility, target_id)
+            )
+            self.assertIsNotNone(
+                db.get(saas.models.SaaSDemoDomainEligibility, unrelated_id)
+            )
+        finally:
+            db.close()
+
+    def test_demo_eligibility_maintenance_blocks_linked_and_manual_review_rows(self):
+        organization_uuid = self._complete_pending_org(
+            "linked-maintenance@linked-maintenance.example.edu",
+            [],
+            organization_name="Linked Maintenance Academy",
+            primary_domain="linked-maintenance.example.edu",
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=organization_uuid
+            ).one()
+            account = db.get(
+                saas.models.SaaSAccount,
+                organization.owner_saas_account_id,
+            )
+            demo_request = demo_request_service.submit_demo_request(
+                db,
+                account,
+                organization,
+            )
+            manual_review_id = self._add_orphaned_demo_domain_eligibility(
+                db,
+                domain="protected-manual-review.example.edu",
+                status="manual_review",
+                manual_review_reason="Migration requires manual review.",
+            )
+            db.commit()
+            linked_eligibility = db.query(
+                saas.models.SaaSDemoDomainEligibility
+            ).filter_by(demo_request_id=demo_request.id).one()
+            linked_id = int(linked_eligibility.id)
+        finally:
+            db.close()
+
+        owner = self._platform_client(user_id="9062")
+        linked_response = owner.post(
+            f"/saas-admin/demo-eligibility-maintenance/{linked_id}/delete",
+            data={"confirmation_id": str(linked_id), "confirm_delete": "1"},
+            follow_redirects=False,
+        )
+        manual_response = owner.post(
+            f"/saas-admin/demo-eligibility-maintenance/{manual_review_id}/delete",
+            data={
+                "confirmation_id": str(manual_review_id),
+                "confirm_delete": "1",
+            },
+            follow_redirects=False,
+        )
+
+        self.assertIn("Demo+Request", linked_response.headers["location"])
+        self.assertIn("manual-review+evidence", manual_response.headers["location"])
+        db = self._db()
+        try:
+            self.assertIsNotNone(
+                db.get(saas.models.SaaSDemoDomainEligibility, linked_id)
+            )
+            self.assertIsNotNone(
+                db.get(saas.models.SaaSDemoDomainEligibility, manual_review_id)
+            )
+        finally:
+            db.close()
+
+    def test_demo_eligibility_maintenance_blocks_conflicting_organization_and_account(self):
+        db = self._db()
+        try:
+            organization_conflict_id = self._add_orphaned_demo_domain_eligibility(
+                db,
+                domain="organization-conflict.example.edu",
+            )
+            account_conflict_id = self._add_orphaned_demo_domain_eligibility(
+                db,
+                domain="account-conflict.example.edu",
+            )
+            workspace_conflict_id = self._add_orphaned_demo_domain_eligibility(
+                db,
+                domain="workspace-conflict.example.edu",
+            )
+            organization_account = saas.models.SaaSAccount(
+                account_uuid="11111111-1111-1111-1111-111111119061",
+                email="owner@different-domain.example.edu",
+                email_normalized="owner@different-domain.example.edu",
+                status="active",
+                onboarding_status="in_progress",
+                account_purpose="customer",
+            )
+            account_conflict = saas.models.SaaSAccount(
+                account_uuid="22222222-2222-2222-2222-222222229061",
+                email="owner@account-conflict.example.edu",
+                email_normalized="owner@account-conflict.example.edu",
+                status="active",
+                onboarding_status="not_started",
+                account_purpose="customer",
+            )
+            db.add_all((organization_account, account_conflict))
+            db.flush()
+            db.add(
+                saas.models.PendingOrganization(
+                    organization_uuid="33333333-3333-3333-3333-333333339061",
+                    owner_saas_account_id=organization_account.id,
+                    organization_name="Organization Conflict Academy",
+                    primary_domain="organization-conflict.example.edu",
+                    workspace_intent="customer_demo",
+                )
+            )
+            workspace = models.SchoolGroup(
+                name="Eligibility Maintenance Workspace Conflict",
+                workspace_classification="customer_demo",
+                workspace_lifecycle_status="active",
+                status=True,
+            )
+            db.add(workspace)
+            db.flush()
+            db.add(
+                models.TenantProfile(
+                    school_group_id=workspace.id,
+                    website="https://workspace-conflict.example.edu",
+                )
+            )
+            db.commit()
+            organization_analysis = (
+                demo_eligibility_maintenance_service.analyze_eligibility(
+                    db,
+                    organization_conflict_id,
+                )
+            )
+            account_analysis = (
+                demo_eligibility_maintenance_service.analyze_eligibility(
+                    db,
+                    account_conflict_id,
+                )
+            )
+            workspace_analysis = (
+                demo_eligibility_maintenance_service.analyze_eligibility(
+                    db,
+                    workspace_conflict_id,
+                )
+            )
+        finally:
+            db.close()
+
+        self.assertFalse(organization_analysis.safe_to_remove)
+        self.assertIn(
+            "Pending organization exists",
+            organization_analysis.blocker_summary,
+        )
+        self.assertFalse(account_analysis.safe_to_remove)
+        self.assertIn("TIS Account exists", account_analysis.blocker_summary)
+        self.assertFalse(workspace_analysis.safe_to_remove)
+        self.assertIn(
+            "Operational workspace exists",
+            workspace_analysis.blocker_summary,
+        )
+
+        owner = self._platform_client(user_id="9063")
+        for eligibility_id in (
+            organization_conflict_id,
+            account_conflict_id,
+            workspace_conflict_id,
+        ):
+            response = owner.post(
+                f"/saas-admin/demo-eligibility-maintenance/{eligibility_id}/delete",
+                data={
+                    "confirmation_id": str(eligibility_id),
+                    "confirm_delete": "1",
+                },
+                follow_redirects=False,
+            )
+            self.assertEqual(response.status_code, 302)
+            db = self._db()
+            try:
+                self.assertIsNotNone(
+                    db.get(
+                        saas.models.SaaSDemoDomainEligibility,
+                        eligibility_id,
+                    )
+                )
+            finally:
+                db.close()
+
+    def test_demo_eligibility_maintenance_rolls_back_after_delete_failure(self):
+        db = self._db()
+        try:
+            eligibility_id = self._add_orphaned_demo_domain_eligibility(
+                db,
+                domain="rollback-maintenance.example.edu",
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        owner = self._platform_client(user_id="9064")
+        with (
+            patch(
+                "saas.demo_eligibility_maintenance_service.Session.flush",
+                side_effect=RuntimeError("forced maintenance flush failure"),
+            ),
+            patch("saas.router.audit.write_audit_event") as write_audit,
+        ):
+            response = owner.post(
+                f"/saas-admin/demo-eligibility-maintenance/{eligibility_id}/delete",
+                data={
+                    "confirmation_id": str(eligibility_id),
+                    "confirm_delete": "1",
+                },
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("All+data+was+preserved", response.headers["location"])
+        self.assertEqual(write_audit.call_args.args[0]["result"], "failed_rolled_back")
+        db = self._db()
+        try:
+            self.assertIsNotNone(
+                db.get(saas.models.SaaSDemoDomainEligibility, eligibility_id)
+            )
+        finally:
+            db.close()
+
+    def test_demo_eligibility_maintenance_is_platform_owner_only(self):
+        db = self._db()
+        try:
+            eligibility_id = self._add_orphaned_demo_domain_eligibility(
+                db,
+                domain="owner-only-maintenance.example.edu",
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        developer = self._platform_client(
+            user_id="9065",
+            platform_role=auth.PLATFORM_ROLE_DEVELOPER,
+        )
+        tenant = self._tenant_client(user_id="7100009065")
+        self.assertEqual(
+            developer.get("/saas-admin/demo-eligibility-maintenance").status_code,
+            403,
+        )
+        self.assertEqual(
+            tenant.get("/saas-admin/demo-eligibility-maintenance").status_code,
+            403,
+        )
+        denied_delete = developer.post(
+            f"/saas-admin/demo-eligibility-maintenance/{eligibility_id}/delete",
+            data={"confirmation_id": str(eligibility_id), "confirm_delete": "1"},
+        )
+        self.assertEqual(denied_delete.status_code, 403)
+        db = self._db()
+        try:
+            self.assertIsNotNone(
+                db.get(saas.models.SaaSDemoDomainEligibility, eligibility_id)
+            )
+        finally:
+            db.close()
 
     def test_orphaned_account_management_owner_access_classification_and_environment_gate(self):
         orphan = self._create_orphaned_test_account(

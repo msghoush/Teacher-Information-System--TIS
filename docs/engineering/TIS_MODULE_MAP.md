@@ -130,6 +130,7 @@ Offer verified customers a post-onboarding choice between the unchanged subscrip
 Main files/folders:
 - `demo_workflow.py`
 - `saas/demo_request_service.py`
+- `saas/demo_eligibility_maintenance_service.py`
 - `saas/demo_provisioning_service.py`
 - `saas/demo_conversion_service.py`
 - `saas/provisioning_service.py`
@@ -138,6 +139,8 @@ Main files/folders:
 - `templates/saas/demo_request_status.html`
 - `templates/saas/admin_demo_requests.html`
 - `templates/saas/admin_demo_request_detail.html`
+- `templates/saas/admin_demo_eligibility_maintenance.html`
+- `templates/saas/admin_delete_demo_eligibility.html`
 
 Maturity/status:
 M8B-6 implemented. Submission, review, atomic provisioning, activation, seven-day lifecycle resolution, Day 6 internal reminders, Day 7 expiration, server-side expired-access enforcement, and provider-confirmed conversion of the existing demo tenant to Customer Paid are available. Manual extension, internal-sandbox conversion, archive/delete, and email delivery are not implemented.
@@ -155,6 +158,8 @@ Risks/guardrails:
 - Conversion preserves the SchoolGroup and tenant link row; it must never invoke operational reprovisioning.
 - A failed workspace conversion preserves confirmed payment evidence, rolls back workspace mutations, records failure, and remains retryable.
 - Completed conversions must not re-enter demo reminder or expiration processing.
+- Historical eligibility maintenance is Platform Owner-only, deletes by exact eligibility ID only, and must fail closed on any organization, account, request, workspace, provisioning, subscription, conversion, or manual-review evidence.
+- Eligibility maintenance must not replace, bypass, or weaken customer demo eligibility or organization-scoped clean-room reset.
 
 Main M8B-5 and M8B-6 files:
 - `saas/demo_lifecycle_service.py`

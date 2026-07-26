@@ -8,6 +8,14 @@ last_updated: 2026-07-26
 
 This folder tracks meaningful changes to signup, login, account, organization onboarding, contacts, branches, academic setup, review, and account self-service.
 
+## 2026-07-26 - Platform Owner Historical Demo Eligibility Maintenance
+
+Historical detached `SaaSDemoDomainEligibility` rows can outlive the organization/account records that once made them reachable through clean-room reset. Platform Owners now have a separate `/saas-admin/demo-eligibility-maintenance` page that scans the eligibility ledger and explains whether each reservation is safe or protected.
+
+The maintenance analyzer uses authoritative domain normalization and checks for matching pending organizations, SaaS accounts, demo requests, tenant-profile workspaces, paid or demo provisioning, subscription contracts/subscriptions, Demo-to-Paid conversions, and manual-review evidence. Only an exact eligibility ID with no blockers may be deleted. The POST action locks and re-analyzes the row, requires typed-ID and checkbox confirmation, bulk-deletes by primary key only, flushes, verifies absence, and commits or rolls back as one transaction. Successful cleanup is owner-audited.
+
+This administrative repair capability does not modify the customer demo request workflow, the durable one-demo-per-domain rule, the existing test workspace/account reset, schema, foreign keys, or customer-facing behavior.
+
 ## 2026-07-26 - Internal Test Workspace Commercial Clean-Room Reset
 
 The guarded Platform Owner test workspace/account reset now clears only the selected organization's linked demo request, domain-eligibility reservation, review and event history, demo provisioning and lifecycle records, and demo-to-paid conversion history before deleting parent commercial and workspace records. The same email and organization domain can then complete a new internal M8 journey.

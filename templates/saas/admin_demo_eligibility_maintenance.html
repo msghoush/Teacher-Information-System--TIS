@@ -1,0 +1,70 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<div class="page-header">
+    <span class="page-eyebrow">Platform Owner Maintenance</span>
+    <h1>Demo Eligibility Maintenance</h1>
+    <p class="page-subtitle">
+        Review historical demo-domain reservations. Only detached reservations with no
+        organization, account, request, workspace, provisioning, subscription, conversion,
+        or manual-review evidence can be removed.
+    </p>
+</div>
+
+{% if notice %}<div class="success">{{ notice }}</div>{% endif %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+<div class="summary-grid" style="margin-bottom:18px;">
+    <div class="stat"><strong>Total reservations</strong><span class="metric-badge">{{ analyses|length }}</span></div>
+    <div class="stat"><strong>Safe historical orphans</strong><span class="metric-badge">{{ safe_count }}</span></div>
+    <div class="stat"><strong>Protected reservations</strong><span class="metric-badge">{{ protected_count }}</span></div>
+</div>
+
+<div style="overflow-x:auto;">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Domain</th>
+                <th>Status</th>
+                <th>Demo Request</th>
+                <th>Created</th>
+                <th>Updated</th>
+                <th>Manual review</th>
+                <th>Safe</th>
+                <th>Reason</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for analysis in analyses %}
+            <tr>
+                <td>{{ analysis.eligibility_id }}</td>
+                <td><strong>{{ analysis.normalized_domain }}</strong></td>
+                <td>{{ analysis.status }}</td>
+                <td>{{ analysis.demo_request_id or "Detached" }}</td>
+                <td>{{ analysis.created_at or "-" }}</td>
+                <td>{{ analysis.updated_at or "-" }}</td>
+                <td>{{ analysis.manual_review_reason or "None" }}</td>
+                <td>
+                    {% if analysis.safe_to_remove %}
+                    <span class="metric-badge" style="background:var(--ok-bg);color:var(--ok);">Yes</span>
+                    {% else %}
+                    <span class="metric-badge" style="background:var(--error-bg);color:var(--error);">No</span>
+                    {% endif %}
+                </td>
+                <td class="muted">{{ analysis.blocker_summary }}</td>
+                <td>
+                    {% if analysis.safe_to_remove %}
+                    <a class="btn danger" href="/saas-admin/demo-eligibility-maintenance/{{ analysis.eligibility_id }}/delete">Review deletion</a>
+                    {% else %}
+                    <span class="muted">Protected</span>
+                    {% endif %}
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="10">No demo eligibility reservations were found.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
