@@ -60,7 +60,7 @@ Upgrades, downgrades, proration, refunds, Paddle subscription changes, branch-sp
 
 ## 2026-07-26 - Test Workspace Reset Subscription-Change Dependency
 
-The Platform Owner-only test workspace/account reset now deletes `subscription_change_requests` scoped by the selected operational `school_group_id` before deleting that workspace's users. The request model can reference the workspace user, SaaS account, subscription contract, and payment subscription, so this narrow ordering rule prevents foreign-key deletion failures without changing lifecycle rules, customer behavior, or the preservation of records from other workspaces. The reset remains one transaction with the existing validation blocks, rollback behavior, pre-analysis counts, and structured diagnostics.
+The Platform Owner-only test workspace/account reset now deletes `subscription_change_requests` scoped by the selected operational `school_group_id` before deleting that workspace's users. It deletes selected entitlement values and branch-entitlement children before the selected workspace entitlement and final SchoolGroup. These narrow ordering rules prevent foreign-key deletion failures without changing lifecycle rules, customer behavior, or the preservation of records from other workspaces. The reset remains one transaction with the existing validation blocks, rollback behavior, pre-analysis counts, and structured diagnostics.
 
 ## 2026-07-14 - M6 Phase 3 Abandoned Draft Cleanup
 

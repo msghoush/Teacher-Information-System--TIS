@@ -133,6 +133,7 @@ _WORKSPACE_DELETION_MODELS = (
     operational_models.RolePermission, operational_models.SchoolGroupLogo,
     operational_models.VisualDesignSetting, operational_models.TenantProfile,
     operational_models.Branch, operational_models.AcademicYear,
+    models.WorkspaceEntitlementValue, models.BranchEntitlement, models.WorkspaceEntitlement,
     models.SubscriptionChangeRequest, models.PaymentSubscription, models.PaymentAttempt,
     models.CheckoutSession, models.SubscriptionContract, models.PaymentCustomer,
     models.PendingOrganizationPlanSelection, models.PendingOrganizationBranch,
@@ -239,6 +240,9 @@ def delete_test_workspace(
         or_(operational_models.TimetableSetting.branch_id.in_(branch_ids) if branch_ids else False,
             operational_models.TimetableSetting.academic_year_id.in_(year_ids) if year_ids else False)
     ).all()]
+    workspace_entitlement_ids = [row[0] for row in db.query(models.WorkspaceEntitlement.id).filter(
+        models.WorkspaceEntitlement.school_group_id == school_group_id
+    ).all()]
     provisioning_job_ids = [row[0] for row in db.query(models.ProvisioningJob.id).filter_by(pending_organization_id=pending_id).all()]
 
     deleted = 0
@@ -249,6 +253,17 @@ def delete_test_workspace(
     deleted += _delete(db.query(models.TenantProvisioningLink).filter_by(pending_organization_id=pending_id))
     deleted += _delete(db.query(models.SubscriptionChangeRequest).filter(
         models.SubscriptionChangeRequest.school_group_id == school_group_id
+    ))
+    if workspace_entitlement_ids:
+        deleted += _delete(db.query(models.WorkspaceEntitlementValue).filter(
+            models.WorkspaceEntitlementValue.workspace_entitlement_id.in_(workspace_entitlement_ids)
+        ))
+    deleted += _delete(db.query(models.BranchEntitlement).filter(or_(
+        models.BranchEntitlement.school_group_id == school_group_id,
+        models.BranchEntitlement.workspace_entitlement_id.in_(workspace_entitlement_ids) if workspace_entitlement_ids else False,
+    )))
+    deleted += _delete(db.query(models.WorkspaceEntitlement).filter(
+        models.WorkspaceEntitlement.school_group_id == school_group_id
     ))
 
     assignment_ids = [row[0] for row in db.query(operational_models.CalendarEventAssignment.id).filter(or_(

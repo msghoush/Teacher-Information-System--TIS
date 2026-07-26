@@ -174,7 +174,7 @@ Conversion Requested, Processing, Completed, and Failed states are durable and r
 
 ## Test Workspace Reset Dependency Rule
 
-The Platform Owner-only test workspace reset keeps its existing preflight and single-transaction rollback behavior. Before it deletes scoped operational `User` records, it deletes `SubscriptionChangeRequest` rows scoped by the selected workspace's authoritative `school_group_id`. This prevents user, account, contract, and subscription foreign-key references from blocking removal while preserving subscription-change records belonging to every other workspace. Pre-analysis and structured deletion diagnostics report the same scoped record set.
+The Platform Owner-only test workspace reset keeps its existing preflight and single-transaction rollback behavior. Before it deletes scoped operational `User` records, it deletes `SubscriptionChangeRequest` rows scoped by the selected workspace's authoritative `school_group_id`. It also deletes selected workspace-entitlement values and branch-entitlement children before the selected `WorkspaceEntitlement`, which is removed before the final `SchoolGroup`. This prevents user, account, contract, subscription, and entitlement foreign-key references from blocking removal while preserving records belonging to every other workspace. Pre-analysis and structured deletion diagnostics report the same scoped record set.
 
 ## Current SaaS Account Verification State
 

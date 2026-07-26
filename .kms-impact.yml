@@ -1,9 +1,11 @@
 knowledge_impact: yes
-summary: Correct the scoped test workspace/account deletion dependency order so subscription change requests are removed before their referenced workspace users, while preserving all existing reset guards and transaction behavior.
+summary: Correct the scoped test workspace/account deletion dependency order so selected entitlement children and workspace entitlements are removed before the selected SchoolGroup, while preserving all existing reset guards and transaction behavior.
 affected_areas:
   - test-workspace-reset
   - test-account-reset
   - subscription-change-requests
+  - workspace-entitlements
+  - entitlement-dependency-integrity
   - deletion-transaction-integrity
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
