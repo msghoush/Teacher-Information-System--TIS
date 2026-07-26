@@ -11,6 +11,35 @@ This file is the chronological summary of meaningful TIS changes. It does not re
 
 Newest entries should be added first.
 
+## 2026-07-26 - Verified Safe Demo-Domain Reservation Deletion
+
+Area/module:
+Platform Owner test workspace/account reset and Customer Demo domain eligibility
+
+Previous state:
+Reset analysis identified safe detached eligibility rows, but deletion depended on a second ORM lookup and reconstructed ID list and did not immediately verify removal before continuing with parent deletion.
+
+New state:
+Analysis publishes an explicit safe detached-reservation ID list. The owner-only deletion transaction consumes only that list, deletes by primary key before demo requests and parent records, flushes immediately, and verifies that no selected row remains. Structured logs record received IDs, query scope, affected rows, verification count, and the existing transaction commit or rollback.
+
+Reason:
+Make clean-room reset completion provable and fail closed while preserving conflict/manual-review protections and the production one-demo-per-domain policy.
+
+Files changed:
+Workspace analysis/deletion services, focused Phase 5 and domain diagnostics tests, read-only diagnostic tooling, and KMS sources.
+
+Documentation updated:
+AI/master context, project state, change history, and SaaS onboarding history.
+
+PDF regenerated:
+Yes, through `python scripts/kms.py sync`.
+
+AI project context updated:
+Yes.
+
+Reviewer/approval notes:
+No schema, foreign-key, unique-constraint, production eligibility, customer-message, commit, or push change.
+
 ## 2026-07-26 - Safe Orphaned Demo-Domain Reservation Cleanup
 
 Area/module:

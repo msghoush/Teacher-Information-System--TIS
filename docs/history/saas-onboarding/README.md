@@ -14,6 +14,8 @@ The guarded Platform Owner test workspace/account reset now clears only the sele
 
 Detached same-domain reservations left by the `ON DELETE SET NULL` relationship are also eligible for removal, but only after the same domain resolver used by Customer Demo submission confirms there is no other organization, request, workspace, or customer account using that domain and the reservation has no historical manual-review evidence. Any conflicting or ambiguous evidence blocks the reset for manual review. This narrow exception does not alter the production Customer Demo policy: normal customer domain reservations remain durable after pending, approved, active, expired, rejected, cancelled, or converted history. Global plans, prices, Paddle records, platform configuration, and other organizations' records remain outside the reset scope. Customer-facing demo wording now identifies the TIS team rather than an internal role.
 
+Reset analysis now publishes the exact detached eligibility IDs that passed those safety checks. The deletion service consumes only that safe list, deletes it before demo-request and parent records, flushes immediately, and verifies that no selected ID remains. Any handoff mismatch or failed verification stops the transaction so the owner route can roll back all changes.
+
 ## 2026-07-25 - Landing Intent Continuity And One Customer Demo Per Organization Domain
 
 The public landing conversion paths now enter TIS Account signup with a validated `demo` or `subscribe` intent. The intent is persisted on the SaaS account and copied to School Workspace Setup so the final commercial-choice page can emphasize the customer's original path while still allowing either Request Demo or Subscribe Now.
