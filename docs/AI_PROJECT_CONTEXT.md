@@ -35,6 +35,14 @@ Important routes:
 
 The operational app is a FastAPI application at the repository root.
 
+On Render, `main:app` construction must not wait for PostgreSQL schema DDL.
+Render sets `RENDER`; under that environment, table creation and pending
+migrations run once in a daemon worker after FastAPI startup returns. This lets
+Uvicorn bind its service port before a migration waits for a PostgreSQL table
+lock. An outermost HTTP readiness gate returns database-free `503` responses
+until the worker completes successfully, so no application middleware or route
+can observe a partial schema. Local and test initialization remains synchronous.
+
 Key files and folders:
 
 - `main.py`: primary FastAPI app and many route handlers.
