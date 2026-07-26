@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from datetime import datetime
 import json
+import logging
 import uuid
 
 from sqlalchemy import or_
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from commercial_entitlements import CommercialState
@@ -17,6 +18,9 @@ from demo_workflow import (
 )
 from saas import models, service, workspace_classification_service
 from workspace_classification import AccountPurpose, WorkspaceIntent
+
+
+logger = logging.getLogger(__name__)
 
 
 class DemoRequestError(ValueError):
@@ -155,15 +159,72 @@ def _validate_no_commercial_activity(db: Session, organization) -> None:
         )
 
 
-def resolve_customer_demo_domain(db: Session, account, organization) -> str:
-    """Prefer the organization identity; use a work email only when no identity was supplied."""
+def _constraint_name(exc: SQLAlchemyError) -> str:
+    original = getattr(exc, "orig", None)
+    diagnostic = getattr(original, "diag", None)
+    return str(
+        getattr(diagnostic, "constraint_name", None)
+        or getattr(original, "constraint_name", None)
+        or "unavailable"
+    )
+
+
+def describe_customer_demo_domain_resolution(account, organization) -> dict[str, str]:
+    """Expose the exact source candidates used by the authoritative domain resolver."""
     primary_domain = service.normalize_organization_domain(
         getattr(organization, "primary_domain", "")
     )
     website_domain = service.normalize_organization_domain(
         getattr(organization, "website", "")
     )
-    organization_domain = primary_domain or website_domain
+    email_domain = service.normalize_organization_domain(getattr(account, "email", ""))
+    if primary_domain:
+        return {
+            "primary_domain": primary_domain,
+            "website_domain": website_domain,
+            "email_domain": email_domain,
+            "resolved_domain": primary_domain,
+            "resolution_source": "pending_organizations.primary_domain",
+        }
+    if website_domain:
+        return {
+            "primary_domain": primary_domain,
+            "website_domain": website_domain,
+            "email_domain": email_domain,
+            "resolved_domain": website_domain,
+            "resolution_source": "pending_organizations.website",
+        }
+    return {
+        "primary_domain": primary_domain,
+        "website_domain": website_domain,
+        "email_domain": email_domain,
+        "resolved_domain": email_domain,
+        "resolution_source": "saas_accounts.email",
+    }
+
+
+def _eligibility_log_rows(db: Session, domain: str) -> list[dict[str, object]]:
+    rows = db.query(models.SaaSDemoDomainEligibility).filter(
+        models.SaaSDemoDomainEligibility.normalized_domain == domain
+    ).all()
+    return [
+        {
+            "id": int(row.id),
+            "status": str(row.status or ""),
+            "demo_request_id": int(row.demo_request_id) if row.demo_request_id else None,
+            "created_at": str(row.created_at or ""),
+            "updated_at": str(row.updated_at or ""),
+            "manual_review_reason": str(row.manual_review_reason or ""),
+            "link_state": "linked" if row.demo_request_id else "detached",
+        }
+        for row in rows
+    ]
+
+
+def resolve_customer_demo_domain(db: Session, account, organization) -> str:
+    """Prefer the organization identity; use a work email only when no identity was supplied."""
+    resolution = describe_customer_demo_domain_resolution(account, organization)
+    organization_domain = resolution["primary_domain"] or resolution["website_domain"]
     if organization_domain:
         if service.is_public_email_domain(db, organization_domain):
             raise DemoRequestError(
@@ -171,7 +232,7 @@ def resolve_customer_demo_domain(db: Session, account, organization) -> str:
             )
         return organization_domain
 
-    email_domain = service.normalize_organization_domain(getattr(account, "email", ""))
+    email_domain = resolution["email_domain"]
     if not email_domain or service.is_public_email_domain(db, email_domain):
         raise DemoRequestError(
             "Add your organization's official website or primary domain before requesting a demo."
@@ -180,10 +241,21 @@ def resolve_customer_demo_domain(db: Session, account, organization) -> str:
 
 
 def _reserve_customer_demo_domain(db: Session, domain: str):
-    existing = db.query(models.SaaSDemoDomainEligibility).filter(
-        models.SaaSDemoDomainEligibility.normalized_domain == domain
-    ).first()
+    matching_rows = _eligibility_log_rows(db, domain)
+    logger.info(
+        "demo_domain_reservation stage=existing_eligibility_lookup normalized_domain=%s matching_rows=%s",
+        domain,
+        matching_rows,
+    )
+    existing = bool(matching_rows)
     if existing:
+        logger.warning(
+            "demo_domain_reservation failure_stage=existing_eligibility_lookup "
+            "model=SaaSDemoDomainEligibility table=saas_demo_domain_eligibilities "
+            "normalized_domain=%s matching_rows=%s",
+            domain,
+            matching_rows,
+        )
         raise DemoRequestError(DEMO_DOMAIN_ALREADY_USED_MESSAGE)
     eligibility = models.SaaSDemoDomainEligibility(
         normalized_domain=domain,
@@ -193,7 +265,22 @@ def _reserve_customer_demo_domain(db: Session, domain: str):
     try:
         db.flush()
     except IntegrityError as exc:
+        logger.exception(
+            "demo_domain_reservation failure_stage=eligibility_reservation_insert_flush "
+            "model=SaaSDemoDomainEligibility table=saas_demo_domain_eligibilities "
+            "constraint=%s normalized_domain=%s exception=%s",
+            _constraint_name(exc),
+            domain,
+            exc,
+        )
         raise DemoRequestError(DEMO_DOMAIN_ALREADY_USED_MESSAGE) from exc
+    logger.info(
+        "demo_domain_reservation stage=eligibility_reservation_insert_flush success=true "
+        "model=SaaSDemoDomainEligibility table=saas_demo_domain_eligibilities "
+        "normalized_domain=%s eligibility_id=%s",
+        domain,
+        int(eligibility.id),
+    )
     return eligibility
 
 
@@ -277,12 +364,40 @@ def _record_action_and_notification(
 
 
 def submit_demo_request(db: Session, account, organization):
-    _validate_completed_onboarding(db, account, organization)
-    _validate_no_commercial_activity(db, organization)
-    if _pending_or_approved_request(db, organization):
-        raise DemoRequestError("A demo request already exists for this school workspace.")
-    organization_domain = resolve_customer_demo_domain(db, account, organization)
-    eligibility = _reserve_customer_demo_domain(db, organization_domain)
+    resolution = describe_customer_demo_domain_resolution(account, organization)
+    context = {
+        "pending_organization_id": int(getattr(organization, "id", 0) or 0),
+        "organization_uuid": str(getattr(organization, "organization_uuid", "") or ""),
+        "owner_saas_account_id": int(getattr(organization, "owner_saas_account_id", 0) or 0),
+        "organization_primary_domain": resolution["primary_domain"],
+        "organization_website_domain": resolution["website_domain"],
+        "account_email_domain": resolution["email_domain"],
+        "resolved_normalized_domain": resolution["resolved_domain"],
+        "resolution_source": resolution["resolution_source"],
+    }
+    logger.info("demo_request_submission stage=begin context=%s", context)
+    try:
+        _validate_completed_onboarding(db, account, organization)
+        _validate_no_commercial_activity(db, organization)
+        if _pending_or_approved_request(db, organization):
+            logger.warning(
+                "demo_request_submission failure_stage=existing_organization_request context=%s",
+                context,
+            )
+            raise DemoRequestError("A demo request already exists for this school workspace.")
+        organization_domain = resolve_customer_demo_domain(db, account, organization)
+        context["resolved_normalized_domain"] = organization_domain
+        logger.info("demo_request_submission stage=resolved_domain context=%s", context)
+        eligibility = _reserve_customer_demo_domain(db, organization_domain)
+    except SQLAlchemyError as exc:
+        logger.exception(
+            "demo_request_submission failure_stage=other_database_operation model=unknown "
+            "table=unknown constraint=%s context=%s exception=%s",
+            _constraint_name(exc),
+            context,
+            exc,
+        )
+        raise
 
     organization.workspace_intent = workspace_classification_service.validate_workspace_intent(
         WorkspaceIntent.CUSTOMER_DEMO.value
@@ -310,6 +425,14 @@ def submit_demo_request(db: Session, account, organization):
     try:
         db.flush()
     except IntegrityError as exc:
+        logger.exception(
+            "demo_request_submission failure_stage=demo_request_insert_flush "
+            "model=SaaSDemoRequest table=saas_demo_requests constraint=%s context=%s "
+            "exception=%s",
+            _constraint_name(exc),
+            context,
+            exc,
+        )
         raise DemoRequestError(DEMO_DOMAIN_ALREADY_USED_MESSAGE) from exc
     eligibility.demo_request_id = row.id
     _record_action_and_notification(
@@ -332,6 +455,12 @@ def submit_demo_request(db: Session, account, organization):
             "status": row.status,
             "organization_domain": organization_domain,
         },
+    )
+    logger.info(
+        "demo_request_submission stage=success model=SaaSDemoRequest table=saas_demo_requests "
+        "demo_request_id=%s context=%s",
+        int(row.id),
+        context,
     )
     return row
 

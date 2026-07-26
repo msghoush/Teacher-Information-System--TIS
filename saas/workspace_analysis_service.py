@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 
 from sqlalchemy import or_
@@ -8,6 +9,9 @@ from sqlalchemy.orm import Session
 
 import models as operational_models
 from saas import demo_request_service, models, service
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -135,6 +139,21 @@ def analyze_orphaned_demo_domain_cleanup(db: Session, organization) -> dict[str,
     conflict_workspace_count = 0
     conflict_customer_account_ids: list[int] = []
     if orphaned_rows and resolved_domain:
+        logger.info(
+            "test_workspace_deletion demo_domain_cleanup_resolution organization_id=%s "
+            "normalized_domain=%s orphaned_eligibility_rows=%s",
+            pending_organization_id,
+            resolved_domain,
+            [
+                {
+                    "id": int(row.id),
+                    "status": str(row.status or ""),
+                    "demo_request_id": row.demo_request_id,
+                    "manual_review_reason": str(row.manual_review_reason or ""),
+                }
+                for row in orphaned_rows
+            ],
+        )
         for candidate in db.query(models.PendingOrganization).filter(
             models.PendingOrganization.id != pending_organization_id
         ).all():
@@ -151,6 +170,15 @@ def analyze_orphaned_demo_domain_cleanup(db: Session, organization) -> dict[str,
                 continue
             if candidate_domain == resolved_domain:
                 conflict_organization_ids.append(int(candidate.id))
+                logger.info(
+                    "test_workspace_deletion demo_domain_conflict type=pending_organization "
+                    "record_id=%s status=%s owner_saas_account_id=%s normalized_domain=%s "
+                    "reason=authoritative_domain_resolution_matches_selected_reset_domain",
+                    int(candidate.id),
+                    str(candidate.status or ""),
+                    int(candidate.owner_saas_account_id or 0),
+                    resolved_domain,
+                )
 
         conflict_request_ids = _ids(
             db.query(models.SaaSDemoRequest).filter(
@@ -175,6 +203,160 @@ def analyze_orphaned_demo_domain_cleanup(db: Session, organization) -> dict[str,
             ).all()
             if service.normalize_organization_domain(candidate.email) == resolved_domain
         ]
+
+        for request_id in conflict_request_ids:
+            request_row = db.query(models.SaaSDemoRequest).filter(
+                models.SaaSDemoRequest.id == request_id
+            ).first()
+            if request_row:
+                logger.info(
+                    "test_workspace_deletion demo_domain_conflict type=demo_request record_id=%s "
+                    "status=%s pending_organization_id=%s school_group_id=%s normalized_domain=%s "
+                    "reason=stored_demo_request_domain_matches_selected_reset_domain",
+                    request_id,
+                    str(request_row.status or ""),
+                    int(request_row.pending_organization_id or 0),
+                    int(request_row.school_group_id or 0),
+                    resolved_domain,
+                )
+        for account_id in conflict_customer_account_ids:
+            account_row = db.query(models.SaaSAccount).filter(
+                models.SaaSAccount.id == account_id
+            ).first()
+            if account_row:
+                logger.info(
+                    "test_workspace_deletion demo_domain_conflict type=saas_account record_id=%s "
+                    "status=%s account_purpose=%s normalized_domain=%s "
+                    "reason=customer_account_email_domain_matches_selected_reset_domain",
+                    account_id,
+                    str(account_row.status or ""),
+                    str(account_row.account_purpose or ""),
+                    resolved_domain,
+                )
+
+        related_request_ids = sorted(set(conflict_request_ids))
+        related_organization_ids = sorted(set(conflict_organization_ids))
+        related_links = (
+            db.query(models.TenantProvisioningLink).filter(
+                or_(
+                    models.TenantProvisioningLink.pending_organization_id.in_(related_organization_ids)
+                    if related_organization_ids else False,
+                    models.TenantProvisioningLink.demo_request_id.in_(related_request_ids)
+                    if related_request_ids else False,
+                )
+            ).all()
+            if related_organization_ids or related_request_ids
+            else []
+        )
+        for link in related_links:
+            logger.info(
+                "test_workspace_deletion demo_domain_conflict type=provisioning_link record_id=%s "
+                "tenant_status=%s pending_organization_id=%s demo_request_id=%s school_group_id=%s "
+                "reason=linked_to_same_domain_conflict",
+                int(link.id),
+                str(link.tenant_status or ""),
+                int(link.pending_organization_id or 0),
+                int(link.demo_request_id or 0),
+                int(link.school_group_id or 0),
+            )
+        related_group_ids = [int(link.school_group_id) for link in related_links if link.school_group_id]
+        for school_group in (
+            db.query(operational_models.SchoolGroup).filter(
+                operational_models.SchoolGroup.id.in_(related_group_ids)
+            ).all()
+            if related_group_ids
+            else []
+        ):
+            logger.info(
+                "test_workspace_deletion demo_domain_conflict type=school_group record_id=%s "
+                "workspace_classification=%s workspace_lifecycle_status=%s "
+                "reason=linked_to_same_domain_conflict_provisioning_record",
+                int(school_group.id),
+                str(school_group.workspace_classification or ""),
+                str(school_group.workspace_lifecycle_status or ""),
+            )
+        for provisioning in (
+            db.query(models.SaaSDemoWorkspaceProvisioning).filter(
+                models.SaaSDemoWorkspaceProvisioning.demo_request_id.in_(related_request_ids)
+            ).all()
+            if related_request_ids
+            else []
+        ):
+            logger.info(
+                "test_workspace_deletion demo_domain_conflict type=demo_provisioning record_id=%s "
+                "provisioning_status=%s demo_request_id=%s school_group_id=%s "
+                "reason=linked_to_same_domain_demo_request",
+                int(provisioning.id),
+                str(provisioning.provisioning_status or ""),
+                int(provisioning.demo_request_id or 0),
+                int(provisioning.school_group_id or 0),
+            )
+        for contract in (
+            db.query(models.SubscriptionContract).filter(
+                models.SubscriptionContract.pending_organization_id.in_(related_organization_ids)
+            ).all()
+            if related_organization_ids
+            else []
+        ):
+            logger.info(
+                "test_workspace_deletion demo_domain_conflict type=subscription_contract record_id=%s "
+                "contract_status=%s payment_status=%s pending_organization_id=%s school_group_id=%s "
+                "reason=linked_to_same_domain_conflict_organization",
+                int(contract.id),
+                str(contract.contract_status or ""),
+                str(contract.payment_status or ""),
+                int(contract.pending_organization_id or 0),
+                int(contract.school_group_id or 0),
+            )
+        for subscription in (
+            db.query(models.PaymentSubscription).filter(
+                models.PaymentSubscription.pending_organization_id.in_(related_organization_ids)
+            ).all()
+            if related_organization_ids
+            else []
+        ):
+            logger.info(
+                "test_workspace_deletion demo_domain_conflict type=payment_subscription record_id=%s "
+                "status=%s pending_organization_id=%s subscription_contract_id=%s "
+                "reason=linked_to_same_domain_conflict_organization",
+                int(subscription.id),
+                str(subscription.status or ""),
+                int(subscription.pending_organization_id or 0),
+                int(subscription.subscription_contract_id or 0),
+            )
+        for conversion in (
+            db.query(models.SaaSDemoToPaidConversion).filter(
+                or_(
+                    models.SaaSDemoToPaidConversion.pending_organization_id.in_(related_organization_ids)
+                    if related_organization_ids else False,
+                    models.SaaSDemoToPaidConversion.demo_request_id.in_(related_request_ids)
+                    if related_request_ids else False,
+                )
+            ).all()
+            if related_organization_ids or related_request_ids
+            else []
+        ):
+            logger.info(
+                "test_workspace_deletion demo_domain_conflict type=demo_to_paid_conversion "
+                "record_id=%s status=%s pending_organization_id=%s demo_request_id=%s school_group_id=%s "
+                "reason=linked_to_same_domain_conflict",
+                int(conversion.id),
+                str(conversion.status or ""),
+                int(conversion.pending_organization_id or 0),
+                int(conversion.demo_request_id or 0),
+                int(conversion.school_group_id or 0),
+            )
+        logger.info(
+            "test_workspace_deletion demo_domain_conflict_summary normalized_domain=%s "
+            "pending_organizations=%s demo_requests=%s provisioning_links=%s school_groups=%s "
+            "customer_accounts=%s",
+            resolved_domain,
+            len(conflict_organization_ids),
+            len(conflict_request_ids),
+            len(related_links),
+            len(related_group_ids),
+            len(conflict_customer_account_ids),
+        )
 
     conflict_count = (
         len(conflict_organization_ids)

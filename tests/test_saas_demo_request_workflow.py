@@ -718,6 +718,97 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         self.assertEqual(choice.text.count("Selected from your TIS journey."), 1)
         self.assertIn("Subscribe Now", choice.text)
 
+    def test_demo_diagnostics_identify_existing_domain_reservation_lookup(self):
+        organization_uuid = self._complete_onboarding(
+            email="diagnostic.lookup@academy.edu",
+            domain="diagnostic-lookup.example.edu",
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=organization_uuid
+            ).one()
+            account = db.get(saas.models.SaaSAccount, organization.owner_saas_account_id)
+            db.add(saas.models.SaaSDemoDomainEligibility(
+                normalized_domain="diagnostic-lookup.example.edu",
+                status="reserved",
+            ))
+            db.commit()
+            with self.assertLogs("saas", level="INFO") as logs:
+                with self.assertRaisesRegex(
+                    demo_request_service.DemoRequestError,
+                    "demo opportunity has already been used",
+                ):
+                    demo_request_service.submit_demo_request(db, account, organization)
+            output = "\n".join(logs.output)
+            self.assertIn("failure_stage=existing_eligibility_lookup", output)
+            self.assertIn("matching_rows=", output)
+            self.assertIn("link_state': 'detached'", output)
+        finally:
+            db.rollback()
+            db.close()
+
+    def test_demo_diagnostics_identify_eligibility_reservation_race(self):
+        db = self._db()
+        try:
+            with self.assertLogs("saas", level="ERROR") as logs:
+                with patch.object(
+                    db,
+                    "flush",
+                    side_effect=IntegrityError(
+                        "INSERT saas_demo_domain_eligibilities", {}, Exception("unique")
+                    ),
+                ):
+                    with self.assertRaisesRegex(
+                        demo_request_service.DemoRequestError,
+                        "demo opportunity has already been used",
+                    ):
+                        demo_request_service._reserve_customer_demo_domain(
+                            db, "diagnostic-race.example.edu"
+                        )
+            self.assertIn(
+                "failure_stage=eligibility_reservation_insert_flush",
+                "\n".join(logs.output),
+            )
+        finally:
+            db.rollback()
+            db.close()
+
+    def test_demo_diagnostics_identify_demo_request_insert_failure(self):
+        organization_uuid = self._complete_onboarding(
+            email="diagnostic.request@academy.edu",
+            domain="diagnostic-request.example.edu",
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=organization_uuid
+            ).one()
+            account = db.get(saas.models.SaaSAccount, organization.owner_saas_account_id)
+            with self.assertLogs("saas", level="ERROR") as logs:
+                with patch(
+                    "saas.demo_request_service._reserve_customer_demo_domain",
+                    return_value=SimpleNamespace(demo_request_id=None),
+                ), patch.object(
+                    db,
+                    "flush",
+                    side_effect=IntegrityError(
+                        "INSERT saas_demo_requests", {}, Exception("unique")
+                    ),
+                ):
+                    with self.assertRaisesRegex(
+                        demo_request_service.DemoRequestError,
+                        "demo opportunity has already been used",
+                    ):
+                        demo_request_service.submit_demo_request(db, account, organization)
+            self.assertIn(
+                "failure_stage=demo_request_insert_flush",
+                "\n".join(logs.output),
+            )
+        finally:
+            db.rollback()
+            db.close()
+
     def test_one_customer_demo_is_reserved_per_normalized_organization_domain(self):
         first_organization_uuid = self._complete_onboarding(
             email="principal@academy.edu",
