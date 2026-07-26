@@ -26,7 +26,12 @@ import models
 import permission_registry
 import saas.models  # noqa: F401
 from dependencies import get_db
-from saas import provisioning_service, service as saas_service, workspace_deletion_service
+from saas import (
+    demo_request_service,
+    provisioning_service,
+    service as saas_service,
+    workspace_deletion_service,
+)
 from saas.router import admin_router as saas_admin_router, router as saas_router
 
 
@@ -511,6 +516,122 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             "entitlement_id": entitlement.id,
             "value_id": value_id,
             "branch_entitlement_id": branch_entitlement_id,
+        }
+
+    def _add_demo_commercial_reset_fixture(self, db, result: dict, *, domain: str) -> dict[str, int]:
+        organization = db.query(saas.models.PendingOrganization).filter_by(
+            id=result["organization_id"]
+        ).one()
+        account = db.query(saas.models.SaaSAccount).filter_by(
+            id=organization.owner_saas_account_id
+        ).one()
+        user = db.query(models.User).filter_by(
+            school_group_id=result["school_group_id"]
+        ).first()
+        contract = db.query(saas.models.SubscriptionContract).filter_by(
+            pending_organization_id=organization.id
+        ).one()
+        subscription = db.query(saas.models.PaymentSubscription).filter_by(
+            pending_organization_id=organization.id
+        ).one()
+        entitlement = self._add_workspace_entitlement_fixture(db, result)
+        request_row = saas.models.SaaSDemoRequest(
+            requester_saas_account_id=account.id,
+            pending_organization_id=organization.id,
+            school_group_id=result["school_group_id"],
+            workspace_classification_snapshot="customer_demo",
+            commercial_state_snapshot="customer_demo_active",
+            entitlement_snapshot_json="{}",
+            organization_domain_normalized=domain,
+            status="approved",
+        )
+        db.add(request_row)
+        db.flush()
+        eligibility = saas.models.SaaSDemoDomainEligibility(
+            normalized_domain=domain,
+            demo_request_id=request_row.id,
+            status="reserved",
+        )
+        review = saas.models.SaaSDemoRequestReview(
+            demo_request_id=request_row.id,
+            reviewer_user_id=user.id,
+            decision="approved",
+        )
+        request_event = saas.models.SaaSDemoRequestEvent(
+            demo_request_id=request_row.id,
+            event_category="audit",
+            event_type="request_approved",
+            actor_type="platform_owner",
+            actor_user_id=user.id,
+        )
+        db.add_all((eligibility, review, request_event))
+        db.flush()
+        provisioning = saas.models.SaaSDemoWorkspaceProvisioning(
+            demo_request_id=request_row.id,
+            school_group_id=result["school_group_id"],
+            workspace_entitlement_id=entitlement["entitlement_id"],
+            triggered_by_user_id=user.id,
+            provisioning_status="active",
+            lifecycle_processing_status="pending",
+        )
+        db.add(provisioning)
+        db.flush()
+        provisioning_event = saas.models.SaaSDemoProvisioningEvent(
+            demo_provisioning_id=provisioning.id,
+            event_category="audit",
+            event_type="activation_completed",
+            actor_type="system",
+        )
+        lifecycle_event = saas.models.SaaSDemoLifecycleEvent(
+            demo_provisioning_id=provisioning.id,
+            event_type="reminder_became_due",
+            actor_type="system",
+            deduplication_key=f"reset-lifecycle-{time.time_ns()}",
+        )
+        lifecycle_notification = saas.models.SaaSDemoLifecycleNotification(
+            demo_provisioning_id=provisioning.id,
+            notification_type="expiration_reminder",
+            recipient_type="saas_account",
+            recipient_saas_account_id=account.id,
+            title="Test reminder",
+            message="Test reminder message",
+            deduplication_key=f"reset-notification-{time.time_ns()}",
+        )
+        db.add_all((provisioning_event, lifecycle_event, lifecycle_notification))
+        db.flush()
+        conversion = saas.models.SaaSDemoToPaidConversion(
+            demo_request_id=request_row.id,
+            demo_provisioning_id=provisioning.id,
+            school_group_id=result["school_group_id"],
+            pending_organization_id=organization.id,
+            requested_by_saas_account_id=account.id,
+            subscription_contract_id=contract.id,
+            payment_subscription_id=subscription.id,
+            previous_demo_entitlement_id=entitlement["entitlement_id"],
+            paid_workspace_entitlement_id=entitlement["entitlement_id"],
+            status="completed",
+        )
+        db.add(conversion)
+        db.flush()
+        conversion_event = saas.models.SaaSDemoConversionEvent(
+            demo_conversion_id=conversion.id,
+            event_category="audit",
+            event_type="conversion_completed",
+            actor_type="system",
+        )
+        db.add(conversion_event)
+        db.flush()
+        return {
+            "request_id": request_row.id,
+            "eligibility_id": eligibility.id,
+            "review_id": review.id,
+            "request_event_id": request_event.id,
+            "provisioning_id": provisioning.id,
+            "provisioning_event_id": provisioning_event.id,
+            "lifecycle_event_id": lifecycle_event.id,
+            "lifecycle_notification_id": lifecycle_notification.id,
+            "conversion_id": conversion.id,
+            "conversion_event_id": conversion_event.id,
         }
 
     def _platform_client(self, *, user_id: str = "9005", platform_role: str = auth.PLATFORM_ROLE_OWNER):
@@ -1263,6 +1384,11 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
                 payload_json="{}",
             )
             db.add(webhook)
+            demo_fixture = self._add_demo_commercial_reset_fixture(
+                db,
+                result,
+                domain="delete-success.example.com",
+            )
             db.commit()
             unrelated_group_id = unrelated_group.id
             plan_count = db.query(saas.models.SubscriptionPlan).count()
@@ -1302,6 +1428,27 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             self.assertEqual(db.query(saas.models.SubscriptionPlanPrice).count(), price_count)
             self.assertIsNotNone(db.query(saas.models.PaymentWebhook).filter_by(provider_event_id="evt_preserved_delete_test").first())
             self.assertIsNotNone(db.query(models.User).filter_by(user_id="9014").first())
+            self.assertIsNone(db.query(saas.models.SaaSDemoRequest).filter_by(
+                id=demo_fixture["request_id"]
+            ).first())
+            self.assertIsNone(db.query(saas.models.SaaSDemoDomainEligibility).filter_by(
+                id=demo_fixture["eligibility_id"]
+            ).first())
+            self.assertIsNone(db.query(saas.models.SaaSDemoRequestReview).filter_by(
+                id=demo_fixture["review_id"]
+            ).first())
+            self.assertIsNone(db.query(saas.models.SaaSDemoRequestEvent).filter_by(
+                id=demo_fixture["request_event_id"]
+            ).first())
+            self.assertIsNone(db.query(saas.models.SaaSDemoProvisioningEvent).filter_by(
+                id=demo_fixture["provisioning_event_id"]
+            ).first())
+            self.assertIsNone(db.query(saas.models.SaaSDemoLifecycleEvent).filter_by(
+                id=demo_fixture["lifecycle_event_id"]
+            ).first())
+            self.assertIsNone(db.query(saas.models.SaaSDemoLifecycleNotification).filter_by(
+                id=demo_fixture["lifecycle_notification_id"]
+            ).first())
         finally:
             db.close()
 
@@ -1656,6 +1803,16 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             account_id = account.id
             change_request_id = self._add_subscription_change_request(db, result)
             entitlement_ids = self._add_workspace_entitlement_fixture(db, result)
+            demo_fixture = self._add_demo_commercial_reset_fixture(
+                db,
+                result,
+                domain="andalus.example.com",
+            )
+            unrelated_demo_fixture = self._add_demo_commercial_reset_fixture(
+                db,
+                unrelated,
+                domain="unrelated-reset.example.com",
+            )
             db.commit()
             plan_count = db.query(saas.models.SubscriptionPlan).count()
             price_count = db.query(saas.models.SubscriptionPlanPrice).count()
@@ -1691,8 +1848,29 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             self.assertIsNone(db.query(saas.models.WorkspaceEntitlement).filter_by(
                 id=entitlement_ids["entitlement_id"]
             ).first())
+            self.assertIsNone(db.query(saas.models.SaaSDemoRequest).filter_by(
+                id=demo_fixture["request_id"]
+            ).first())
+            self.assertIsNone(db.query(saas.models.SaaSDemoDomainEligibility).filter_by(
+                id=demo_fixture["eligibility_id"]
+            ).first())
+            self.assertIsNone(db.query(saas.models.SaaSDemoWorkspaceProvisioning).filter_by(
+                id=demo_fixture["provisioning_id"]
+            ).first())
+            self.assertIsNone(db.query(saas.models.SaaSDemoToPaidConversion).filter_by(
+                id=demo_fixture["conversion_id"]
+            ).first())
+            self.assertIsNone(db.query(saas.models.SaaSDemoConversionEvent).filter_by(
+                id=demo_fixture["conversion_event_id"]
+            ).first())
             self.assertIsNotNone(db.query(saas.models.PendingOrganization).filter_by(id=unrelated["organization_id"]).first())
             self.assertIsNotNone(db.query(models.SchoolGroup).filter_by(id=unrelated["school_group_id"]).first())
+            self.assertIsNotNone(db.query(saas.models.SaaSDemoRequest).filter_by(
+                id=unrelated_demo_fixture["request_id"]
+            ).first())
+            self.assertIsNotNone(db.query(saas.models.SaaSDemoDomainEligibility).filter_by(
+                id=unrelated_demo_fixture["eligibility_id"]
+            ).first())
             self.assertEqual(db.query(saas.models.SubscriptionPlan).count(), plan_count)
             self.assertEqual(db.query(saas.models.SubscriptionPlanPrice).count(), price_count)
             self.assertIsNone(saas_service.authenticate_account(db, email, original_password))
@@ -1719,17 +1897,32 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
         self.assertEqual(repeated.status_code, 404)
         self.assertEqual(repeated_audit.call_args.args[0]["result"], "blocked_not_found")
 
-        sent_messages = []
-        with patch("email_service.send_email", side_effect=lambda **kwargs: sent_messages.append(kwargs) or "email_new"):
-            signup = self.client.post("/saas/auth/signup", data={
-                "first_name": "New",
-                "last_name": "Tester",
-                "email": email,
-                "password": "new-strong-password-123",
-                "confirm_password": "new-strong-password-123",
-            }, follow_redirects=False)
-        self.assertEqual(signup.status_code, 302)
-        self.assertTrue(sent_messages)
+        repeated_org_uuid = self._complete_pending_org(
+            email,
+            [],
+            organization_name="Full Reset Success Academy",
+        )
+        db = self._db()
+        try:
+            repeated_organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=repeated_org_uuid
+            ).one()
+            repeated_account = db.query(saas.models.SaaSAccount).filter_by(
+                id=repeated_organization.owner_saas_account_id
+            ).one()
+            repeated_demo = demo_request_service.submit_demo_request(
+                db,
+                repeated_account,
+                repeated_organization,
+            )
+            db.commit()
+            self.assertEqual(repeated_demo.organization_domain_normalized, "andalus.example.com")
+            self.assertIsNotNone(db.query(saas.models.SaaSDemoDomainEligibility).filter_by(
+                normalized_domain="andalus.example.com",
+                demo_request_id=repeated_demo.id,
+            ).first())
+        finally:
+            db.close()
 
     def test_delete_test_account_failure_rolls_back_identity_and_workspace(self):
         email = "full-reset-rollback@academy.edu"
@@ -1743,11 +1936,19 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
             organization_uuid = db.query(saas.models.PendingOrganization).filter_by(
                 id=result["organization_id"]
             ).first().organization_uuid
+            demo_fixture = self._add_demo_commercial_reset_fixture(
+                db,
+                result,
+                domain="full-reset-rollback.example.com",
+            )
+            db.commit()
             before = {
                 "accounts": db.query(saas.models.SaaSAccount).count(),
                 "pending": db.query(saas.models.PendingOrganization).count(),
                 "groups": db.query(models.SchoolGroup).count(),
                 "users": db.query(models.User).count(),
+                "demo_requests": db.query(saas.models.SaaSDemoRequest).count(),
+                "demo_eligibilities": db.query(saas.models.SaaSDemoDomainEligibility).count(),
             }
         finally:
             db.close()
@@ -1780,7 +1981,15 @@ class SaaSPhase5ProvisioningTests(unittest.TestCase):
                 "pending": db.query(saas.models.PendingOrganization).count(),
                 "groups": db.query(models.SchoolGroup).count(),
                 "users": db.query(models.User).count(),
+                "demo_requests": db.query(saas.models.SaaSDemoRequest).count(),
+                "demo_eligibilities": db.query(saas.models.SaaSDemoDomainEligibility).count(),
             }
+            self.assertIsNotNone(db.query(saas.models.SaaSDemoRequest).filter_by(
+                id=demo_fixture["request_id"]
+            ).first())
+            self.assertIsNotNone(db.query(saas.models.SaaSDemoDomainEligibility).filter_by(
+                id=demo_fixture["eligibility_id"]
+            ).first())
         finally:
             db.close()
         self.assertEqual(before, after)

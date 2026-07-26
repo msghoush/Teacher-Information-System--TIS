@@ -118,7 +118,12 @@ def _analysis_counts(analysis: dict) -> dict[str, int]:
 
 _WORKSPACE_DELETION_MODELS = (
     models.ProvisioningJobEvent, models.ProvisioningJob, models.SaaSAccountUserLink,
-    models.TenantProvisioningLink, operational_models.CalendarEventNotification,
+    models.TenantProvisioningLink, models.SaaSDemoConversionEvent,
+    models.SaaSDemoToPaidConversion, models.SaaSDemoLifecycleNotification,
+    models.SaaSDemoLifecycleEvent, models.SaaSDemoProvisioningEvent,
+    models.SaaSDemoWorkspaceProvisioning, models.SaaSDemoRequestReview,
+    models.SaaSDemoRequestEvent, models.SaaSDemoDomainEligibility,
+    models.SaaSDemoRequest, operational_models.CalendarEventNotification,
     operational_models.CalendarEventGradeTarget, operational_models.CalendarEventSectionTarget,
     operational_models.CalendarEventAssignment, operational_models.CalendarEvent,
     operational_models.ObservationSelfEvaluationScore, operational_models.ObservationScore,
@@ -244,6 +249,15 @@ def delete_test_workspace(
         models.WorkspaceEntitlement.school_group_id == school_group_id
     ).all()]
     provisioning_job_ids = [row[0] for row in db.query(models.ProvisioningJob.id).filter_by(pending_organization_id=pending_id).all()]
+    demo_request_ids = [row[0] for row in db.query(models.SaaSDemoRequest.id).filter(
+        models.SaaSDemoRequest.pending_organization_id == pending_id
+    ).all()]
+    demo_provisioning_ids = [row[0] for row in db.query(models.SaaSDemoWorkspaceProvisioning.id).filter(
+        models.SaaSDemoWorkspaceProvisioning.demo_request_id.in_(demo_request_ids)
+    ).all()] if demo_request_ids else []
+    demo_conversion_ids = [row[0] for row in db.query(models.SaaSDemoToPaidConversion.id).filter(
+        models.SaaSDemoToPaidConversion.pending_organization_id == pending_id
+    ).all()]
 
     deleted = 0
     if provisioning_job_ids:
@@ -251,6 +265,39 @@ def delete_test_workspace(
     deleted += _delete(db.query(models.ProvisioningJob).filter_by(pending_organization_id=pending_id))
     deleted += _delete(db.query(models.SaaSAccountUserLink).filter_by(pending_organization_id=pending_id))
     deleted += _delete(db.query(models.TenantProvisioningLink).filter_by(pending_organization_id=pending_id))
+    if demo_conversion_ids:
+        deleted += _delete(db.query(models.SaaSDemoConversionEvent).filter(
+            models.SaaSDemoConversionEvent.demo_conversion_id.in_(demo_conversion_ids)
+        ))
+    deleted += _delete(db.query(models.SaaSDemoToPaidConversion).filter(
+        models.SaaSDemoToPaidConversion.pending_organization_id == pending_id
+    ))
+    if demo_provisioning_ids:
+        deleted += _delete(db.query(models.SaaSDemoLifecycleNotification).filter(
+            models.SaaSDemoLifecycleNotification.demo_provisioning_id.in_(demo_provisioning_ids)
+        ))
+        deleted += _delete(db.query(models.SaaSDemoLifecycleEvent).filter(
+            models.SaaSDemoLifecycleEvent.demo_provisioning_id.in_(demo_provisioning_ids)
+        ))
+        deleted += _delete(db.query(models.SaaSDemoProvisioningEvent).filter(
+            models.SaaSDemoProvisioningEvent.demo_provisioning_id.in_(demo_provisioning_ids)
+        ))
+    if demo_request_ids:
+        deleted += _delete(db.query(models.SaaSDemoWorkspaceProvisioning).filter(
+            models.SaaSDemoWorkspaceProvisioning.demo_request_id.in_(demo_request_ids)
+        ))
+        deleted += _delete(db.query(models.SaaSDemoRequestReview).filter(
+            models.SaaSDemoRequestReview.demo_request_id.in_(demo_request_ids)
+        ))
+        deleted += _delete(db.query(models.SaaSDemoRequestEvent).filter(
+            models.SaaSDemoRequestEvent.demo_request_id.in_(demo_request_ids)
+        ))
+        deleted += _delete(db.query(models.SaaSDemoDomainEligibility).filter(
+            models.SaaSDemoDomainEligibility.demo_request_id.in_(demo_request_ids)
+        ))
+    deleted += _delete(db.query(models.SaaSDemoRequest).filter(
+        models.SaaSDemoRequest.pending_organization_id == pending_id
+    ))
     deleted += _delete(db.query(models.SubscriptionChangeRequest).filter(
         models.SubscriptionChangeRequest.school_group_id == school_group_id
     ))

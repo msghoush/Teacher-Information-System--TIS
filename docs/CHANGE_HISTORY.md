@@ -1,7 +1,7 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-07-25
+last_updated: 2026-07-26
 source_of_truth: true
 ---
 
@@ -10,6 +10,35 @@ source_of_truth: true
 This file is the chronological summary of meaningful TIS changes. It does not replace module history under `docs/history/`; it gives reviewers, developers, Codex, and ChatGPT a fast timeline of what changed and why.
 
 Newest entries should be added first.
+
+## 2026-07-26 - Internal Test Workspace Commercial Clean-Room Reset
+
+Area/module:
+Platform Owner test workspace/account reset, M8 demo-commercial history, and customer-facing demo wording
+
+Previous state:
+The guarded reset removed the selected workspace/account data but retained the selected organization's demo request and normalized-domain reservation. A later internal registration for the same organization domain was therefore blocked by the production one-demo policy.
+
+New state:
+Within the existing owner-only reset transaction, TIS deletes only the selected pending organization's linked demo request, domain reservation, review/event history, demo provisioning/lifecycle records, and demo-to-paid conversion history before their parent records. The same internal test email and organization domain can complete a new M8 journey. Customer-facing demo review language now refers to the TIS team.
+
+Reason:
+Support repeatable internal end-to-end M8 testing without weakening the production Customer Demo one-domain restriction.
+
+Files changed:
+Workspace analysis/deletion services, customer demo wording, focused Phase 5 regression tests, and KMS sources.
+
+Documentation updated:
+AI/master context, project state, change history, and SaaS onboarding history.
+
+PDF regenerated:
+Yes, through `python scripts/kms.py sync`.
+
+AI project context updated:
+Yes.
+
+Reviewer/approval notes:
+Owner-only test reset exception. No schema, foreign-key, cascade, payment, Paddle, normal customer demo-policy, lifecycle, commit, or push change.
 
 ## 2026-07-26 - Test Workspace Reset Entitlement Dependency Fix
 

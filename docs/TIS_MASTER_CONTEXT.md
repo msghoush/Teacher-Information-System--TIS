@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
 documentation_version: 3.1
-last_updated: 2026-07-25
+last_updated: 2026-07-26
 source_of_truth: true
 ---
 
@@ -169,7 +169,7 @@ Paid workspace resolution delegates plan capabilities and paid branch quantity t
 
 M8B-3 introduces a separate SaaS demo-request aggregate after onboarding review. The public landing website enters signup with either a Request a Demo or Subscribe Now intent; the valid intent persists through account and School Workspace Setup and is emphasized, but never locked, at the commercial-choice page. Subscribe Now preserves the existing plan-selection and Paddle path. Request Demo captures immutable commercial/classification/entitlement context and starts in Pending Review without creating an operational workspace.
 
-Customer Demo eligibility is keyed by a normalized organization domain. TIS prefers the pending organization's authoritative domain, uses a work email domain only when no organization identity exists, and requires an official website/domain for public email providers. A unique domain-eligibility reservation prevents concurrent or historical duplicate Customer Demo opportunities. The reservation remains after request review, activation, expiry, cancellation, rejection, or Demo-to-Paid conversion; Internal Sandbox history is excluded.
+Customer Demo eligibility is keyed by a normalized organization domain. TIS prefers the pending organization's authoritative domain, uses a work email domain only when no organization identity exists, and requires an official website/domain for public email providers. A unique domain-eligibility reservation prevents concurrent or historical duplicate Customer Demo opportunities. The reservation remains after request review, activation, expiry, cancellation, rejection, or Demo-to-Paid conversion; Internal Sandbox history is excluded. The only exception is the separately guarded Platform Owner test workspace/account clean-room reset, which atomically deletes the selected test organization's linked demo-commercial records and reservation so internal M8 testing can begin again; it never changes customer reset or demo rules.
 
 Only Platform Owners can approve, reject, or cancel requests. Approval creates a review record but does not provision or activate a demo. Rejection requires a reason, and customers may withdraw only while review is pending. Durable request events serve both audit and internal-notification purposes; email delivery remains out of scope.
 
@@ -185,7 +185,7 @@ M8B-6 permits one commercial classification transition: an active, valid Custome
 
 The dedicated conversion service locks and validates the demo request, provisioning record, SchoolGroup, demo entitlement, tenant link, contract, and payment subscription. One atomic transaction ends the demo entitlement, creates the subscription-backed paid entitlement, relinks branch entitlement rows, switches the tenant link from the preserved demo reference to the confirmed contract, and changes the existing SchoolGroup classification. The same workspace UUID, tenant row, organization, branches, users, permissions, academic data, and audit history remain in place.
 
-The Platform Owner-only internal test-workspace reset is a separate controlled cleanup flow. Its dependency order removes `subscription_change_requests` scoped to the selected `SchoolGroup` before scoped operational `User` rows, then removes selected `WorkspaceEntitlementValue` and `BranchEntitlement` children before the selected `WorkspaceEntitlement` and final `SchoolGroup`. This preserves the user, account, contract, subscription, and entitlement foreign-key constraints without touching global plan, price, or entitlement-definition records. The existing validation gates, owner access, one-transaction commit/rollback behavior, and scoped preservation of other workspaces remain unchanged.
+The Platform Owner-only internal test-workspace reset is a separate controlled cleanup flow. Its dependency order removes the selected pending organization's linked demo request, domain eligibility reservation, review/event history, provisioning/lifecycle records, and conversion records before their commercial and workspace parents. It also removes `subscription_change_requests` scoped to the selected `SchoolGroup` before scoped operational `User` rows, then removes selected `WorkspaceEntitlementValue` and `BranchEntitlement` children before the selected `WorkspaceEntitlement` and final `SchoolGroup`. This permits a clean internal M8 retest using the same email and organization domain without touching global plan, price, entitlement-definition, Paddle, platform, or other-organization records. The existing validation gates, owner access, one-transaction commit/rollback behavior, and production one-demo-per-domain customer policy remain unchanged.
 
 The existing M7 subscription resolver, workspace-entitlement resolver, and commercial-state resolver verify the post-conversion result before commit. Failure rolls back every workspace mutation while preserving provider-confirmed subscription records and a retryable failure history. Completed conversions are excluded from demo reminder/expiration processing. Expired, suspended, ambiguous, cross-tenant, internal-sandbox, paid, or already-converted workspaces fail closed.
 

@@ -38,7 +38,7 @@
 </section>
 
 {% if demo_request.status == 'pending_review' %}
-<div class="notice" style="margin-top:18px;">Your request is pending Platform Owner review. No workspace or subscription has been created.</div>
+<div class="notice" style="margin-top:18px;">Your request is pending review by the TIS team. No workspace or subscription has been created.</div>
 {% elif demo_request.status == 'approved' %}
     {% if demo_conversion and demo_conversion.status == 'completed' %}
     <div class="success" style="margin-top:18px;"><strong>Subscription Active</strong><br>Your existing workspace is now covered by your TIS subscription. No workspace or data was recreated.</div>

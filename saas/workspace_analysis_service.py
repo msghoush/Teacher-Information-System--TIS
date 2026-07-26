@@ -123,6 +123,24 @@ def analyze_test_workspace(db: Session, organization) -> dict:
         models.ProvisioningJob.pending_organization_id == pending_organization_id
     )
     provisioning_job_ids = _ids(provisioning_jobs, models.ProvisioningJob.id)
+    demo_request_ids = _ids(
+        db.query(models.SaaSDemoRequest).filter(
+            models.SaaSDemoRequest.pending_organization_id == pending_organization_id
+        ),
+        models.SaaSDemoRequest.id,
+    )
+    demo_provisioning_ids = _ids(
+        db.query(models.SaaSDemoWorkspaceProvisioning).filter(
+            models.SaaSDemoWorkspaceProvisioning.demo_request_id.in_(demo_request_ids)
+        ) if demo_request_ids else db.query(models.SaaSDemoWorkspaceProvisioning).filter(False),
+        models.SaaSDemoWorkspaceProvisioning.id,
+    )
+    demo_conversion_ids = _ids(
+        db.query(models.SaaSDemoToPaidConversion).filter(
+            models.SaaSDemoToPaidConversion.pending_organization_id == pending_organization_id
+        ),
+        models.SaaSDemoToPaidConversion.id,
+    )
 
     _add_count(counts, category="SaaS / onboarding", table="pending_organizations", count=1, disposition="tenant-owned")
     _add_count(counts, category="SaaS / onboarding", table="pending_organization_branches", count=_count(db.query(models.PendingOrganizationBranch).filter(models.PendingOrganizationBranch.pending_organization_id == pending_organization_id)), disposition="tenant-owned")
@@ -142,6 +160,16 @@ def analyze_test_workspace(db: Session, organization) -> dict:
     _add_count(counts, category="SaaS / onboarding", table="provisioning_jobs", count=len(provisioning_job_ids), disposition="tenant-owned")
     _add_count(counts, category="SaaS / onboarding", table="provisioning_job_events", count=_count(db.query(models.ProvisioningJobEvent).filter(models.ProvisioningJobEvent.provisioning_job_id.in_(provisioning_job_ids))) if provisioning_job_ids else 0, disposition="tenant-owned")
     _add_count(counts, category="SaaS / onboarding", table="tenant_provisioning_links", count=1 if tenant_link else 0, disposition="tenant-owned")
+    _add_count(counts, category="SaaS / commercial testing", table="saas_demo_requests", count=len(demo_request_ids), disposition="test-reset-only")
+    _add_count(counts, category="SaaS / commercial testing", table="saas_demo_domain_eligibilities", count=_count(db.query(models.SaaSDemoDomainEligibility).filter(models.SaaSDemoDomainEligibility.demo_request_id.in_(demo_request_ids))) if demo_request_ids else 0, disposition="test-reset-only")
+    _add_count(counts, category="SaaS / commercial testing", table="saas_demo_request_reviews", count=_count(db.query(models.SaaSDemoRequestReview).filter(models.SaaSDemoRequestReview.demo_request_id.in_(demo_request_ids))) if demo_request_ids else 0, disposition="test-reset-only")
+    _add_count(counts, category="SaaS / commercial testing", table="saas_demo_request_events", count=_count(db.query(models.SaaSDemoRequestEvent).filter(models.SaaSDemoRequestEvent.demo_request_id.in_(demo_request_ids))) if demo_request_ids else 0, disposition="test-reset-only")
+    _add_count(counts, category="SaaS / commercial testing", table="saas_demo_workspace_provisioning", count=len(demo_provisioning_ids), disposition="test-reset-only")
+    _add_count(counts, category="SaaS / commercial testing", table="saas_demo_provisioning_events", count=_count(db.query(models.SaaSDemoProvisioningEvent).filter(models.SaaSDemoProvisioningEvent.demo_provisioning_id.in_(demo_provisioning_ids))) if demo_provisioning_ids else 0, disposition="test-reset-only")
+    _add_count(counts, category="SaaS / commercial testing", table="saas_demo_lifecycle_events", count=_count(db.query(models.SaaSDemoLifecycleEvent).filter(models.SaaSDemoLifecycleEvent.demo_provisioning_id.in_(demo_provisioning_ids))) if demo_provisioning_ids else 0, disposition="test-reset-only")
+    _add_count(counts, category="SaaS / commercial testing", table="saas_demo_lifecycle_notifications", count=_count(db.query(models.SaaSDemoLifecycleNotification).filter(models.SaaSDemoLifecycleNotification.demo_provisioning_id.in_(demo_provisioning_ids))) if demo_provisioning_ids else 0, disposition="test-reset-only")
+    _add_count(counts, category="SaaS / commercial testing", table="saas_demo_to_paid_conversions", count=len(demo_conversion_ids), disposition="test-reset-only")
+    _add_count(counts, category="SaaS / commercial testing", table="saas_demo_conversion_events", count=_count(db.query(models.SaaSDemoConversionEvent).filter(models.SaaSDemoConversionEvent.demo_conversion_id.in_(demo_conversion_ids))) if demo_conversion_ids else 0, disposition="test-reset-only")
     _add_count(counts, category="SaaS / onboarding", table="saas_account_user_links", count=_count(db.query(models.SaaSAccountUserLink).filter(models.SaaSAccountUserLink.pending_organization_id == pending_organization_id)), disposition="tenant-owned")
     _add_count(counts, category="SaaS account", table="saas_accounts", count=1 if owner_account_id else 0, disposition="preserved global/reference")
     _add_count(counts, category="SaaS account", table="saas_auth_identities", count=_count(db.query(models.SaaSAuthIdentity).filter(models.SaaSAuthIdentity.saas_account_id == owner_account_id)) if owner_account_id else 0, disposition="preserved global/reference")

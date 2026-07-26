@@ -1,11 +1,13 @@
 knowledge_impact: yes
-summary: Correct the scoped test workspace/account deletion dependency order so selected entitlement children and workspace entitlements are removed before the selected SchoolGroup, while preserving all existing reset guards and transaction behavior.
+summary: Extend the Platform Owner-only test workspace/account reset so it atomically clears the selected organization's linked demo-commercial history and domain reservation, allowing a clean internal M8 journey retest while preserving the production one-demo-per-domain policy.
 affected_areas:
   - test-workspace-reset
   - test-account-reset
   - subscription-change-requests
   - workspace-entitlements
   - entitlement-dependency-integrity
+  - customer-demo-domain-eligibility
+  - demo-commercial-test-reset
   - deletion-transaction-integrity
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
