@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Project State
 
+## M8B8 AI Entitlements And Commercial Foundation
+
+Completed: centralized AI entitlement decisions, stable feature registry,
+assignable AI permission, two-successful-use demo allowances per feature,
+Enterprise AI paid mapping, tenant-safe durable counters and operation ledger,
+idempotent/concurrency-safe consumption, consistent subscription guidance, and
+Render-safe migration. No real AI execution route exists yet, and M8B9
+inspection/reset/override/lifecycle controls remain unimplemented.
+
 ## M8B7 Demo Customer Journey
 
 Completed: approval-orchestrated activation with safe retry; durable request, approval, decline, reminder, expiry, and continuation email intents; existing Notification Center integration; shared-shell active-demo indicator; lifecycle communication processing; and authoritative-payment conversion of coherent expired demos using the same workspace. M8B8 and M8B9 remain unimplemented.

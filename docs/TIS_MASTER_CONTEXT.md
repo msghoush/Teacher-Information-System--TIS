@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Master Context
 
+## M8B8 AI Entitlements And Commercial Foundation
+
+AI access resolves centrally after tenant scope and `ai.use` permission.
+Commercial state remains authoritative: active Internal Sandbox is unlimited,
+active Customer Demo receives two successful uses independently per registered
+feature, expired/restricted demos fail closed, and Customer Paid requires both
+an eligible plan and the existing `module.ai` entitlement. The controlled
+foundation maps AI to Enterprise AI only; it changes no pricing. Usage is
+durable, auditable, idempotent by operation key, concurrency-safe, and
+separated into internal, demo, and paid metric contexts. No executable AI tool
+or M8B9 owner override/reset operation exists.
+
 ## M8B7 Demo Customer Journey
 
 M8B7 projects customer Pending, Active, Expired, and Declined presentation from the existing request, provisioning, and lifecycle sources. Approval invokes the separate retryable provisioning service and creates activation communications only after success. Six email types use the existing branded provider through a durable deduplicated outbox; demo events reuse the Platform Owner Notification Center. The shared tenant shell shows active demo status. A coherent expired demo may convert after authoritative confirmed payment by reactivating and relinking the same SchoolGroup and preserving its UUID and all tenant data. Sandbox, checkout-return, and unverified evidence remain non-authoritative.

@@ -31,6 +31,7 @@ ADR_MODULES = {
     "0005": "provisioning",
     "0006": "platform-knowledge",
     "0007": "landing-page",
+    "0015": "ai-entitlements",
 }
 ENGINEERING_MODULES = {
     "README": "engineering-handbook",
@@ -56,6 +57,7 @@ ENGINEERING_MODULES = {
 MODULE_LABELS = {
     "academic-calendar": "Academic Calendar",
     "ai-workflow": "AI Workflow",
+    "ai-entitlements": "AI Entitlements",
     "architecture": "Architecture",
     "database": "Database",
     "design": "Design",

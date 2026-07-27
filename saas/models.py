@@ -1067,6 +1067,88 @@ class WorkspaceEntitlementValue(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class AIFeatureUsageCounter(Base):
+    __tablename__ = "ai_feature_usage_counters"
+    __table_args__ = (
+        Index(
+            "uq_ai_feature_usage_counter_scope",
+            "school_group_id",
+            "feature_key",
+            "metric_context",
+            unique=True,
+        ),
+        Index("ix_ai_feature_usage_counters_group", "school_group_id"),
+        Index("ix_ai_feature_usage_counters_feature", "feature_key"),
+        CheckConstraint(
+            "metric_context IN ('internal_sandbox','demo','paid')",
+            name="ck_ai_feature_usage_counters_context",
+        ),
+        CheckConstraint(
+            "workspace_classification IN ('internal_sandbox','customer_demo','customer_paid')",
+            name="ck_ai_feature_usage_counters_classification",
+        ),
+        CheckConstraint(
+            "successful_uses >= 0",
+            name="ck_ai_feature_usage_counters_nonnegative",
+        ),
+        CheckConstraint(
+            "reserved_uses >= 0",
+            name="ck_ai_feature_usage_counters_reserved_nonnegative",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    feature_key = Column(String(80), nullable=False)
+    metric_context = Column(String(24), nullable=False)
+    workspace_classification = Column(String(32), nullable=False)
+    plan_code = Column(String(40))
+    successful_uses = Column(Integer, nullable=False, default=0)
+    reserved_uses = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AIFeatureUsageEvent(Base):
+    __tablename__ = "ai_feature_usage_events"
+    __table_args__ = (
+        Index(
+            "uq_ai_feature_usage_event_operation",
+            "school_group_id",
+            "feature_key",
+            "metric_context",
+            "operation_key",
+            unique=True,
+        ),
+        Index("ix_ai_feature_usage_events_group_feature", "school_group_id", "feature_key"),
+        Index("ix_ai_feature_usage_events_created", "created_at"),
+        CheckConstraint(
+            "metric_context IN ('internal_sandbox','demo','paid')",
+            name="ck_ai_feature_usage_events_context",
+        ),
+        CheckConstraint(
+            "workspace_classification IN ('internal_sandbox','customer_demo','customer_paid')",
+            name="ck_ai_feature_usage_events_classification",
+        ),
+        CheckConstraint(
+            "result_status IN ('pending','successful','failed')",
+            name="ck_ai_feature_usage_events_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    feature_key = Column(String(80), nullable=False)
+    metric_context = Column(String(24), nullable=False)
+    workspace_classification = Column(String(32), nullable=False)
+    plan_code = Column(String(40))
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    operation_key = Column(String(120), nullable=False)
+    result_status = Column(String(20), nullable=False, default="pending")
+    completed_at = Column(DateTime)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class BranchEntitlement(Base):
     __tablename__ = "branch_entitlements"
     __table_args__ = (

@@ -7,6 +7,13 @@ source_of_truth: true
 
 # TIS Product Roadmap
 
+## M8B8 AI Entitlements And Commercial Foundation
+
+Completed the commercial and usage boundary required before executable AI
+features: controlled registry, central decisions, two-use-per-feature Customer
+Demo allowance, Enterprise AI mapping, durable tenant-safe accounting, and
+upgrade guidance. Actual AI tools and M8B9 owner operations remain future work.
+
 ## M8B7 Demo Customer Journey
 
 Completed approval-orchestrated activation, durable lifecycle communications, Notification Center integration, shared-shell demo status, data-preserving expiry communication, and verified-payment continuation of the same active or expired workspace. M8B8 AI usage limits and M8B9 owner testing controls remain separate future work.
@@ -78,6 +85,12 @@ Added the activation-based seven-day demo clock, Day 6 internal reminders, Day 7
 ### M8B-6 Demo-To-Paid Workspace Conversion
 
 Added provider-confirmed conversion of an eligible active Customer Demo into Customer Paid on the same SchoolGroup and tenant link. The flow preserves operational identity and data, replaces the demo entitlement with the confirmed subscription-backed entitlement atomically, records durable conversion history, supports safe retry after failure, and removes completed conversions from demo lifecycle processing.
+
+### M8B8 AI Entitlements And Commercial Foundation
+
+Added the centralized AI feature registry, permission/commercial/plan decision
+service, per-feature Customer Demo allowance, and separated durable usage
+accounting. No AI business feature or M8B9 operational control is included.
 
 ## Current
 
