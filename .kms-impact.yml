@@ -1,15 +1,12 @@
 knowledge_impact: yes
-summary: Complete M8B8 with a permanent deployment boundary that runs schema creation and authoritative migrations only in a Render pre-deploy command, never in the FastAPI web process.
+summary: Bound every PostgreSQL pre-deploy connection and DDL phase with fail-fast timeouts and flushed per-phase/per-migration progress logging.
 affected_areas:
   - database-architecture
   - deployment-startup
   - deployment-migrations
   - kms-taxonomy
 kms_files_updated:
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
-  - docs/engineering/REPOSITORY_ARCHITECTURE.md
   - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/adr/0016-pre-deploy-database-migration-boundary.md
 no_impact_reason:

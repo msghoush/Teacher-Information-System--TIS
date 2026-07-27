@@ -18,6 +18,13 @@ Pre-Deploy Command. A failed migration exits nonzero and prevents activation of
 the new web version; a successful or already-current run exits zero and logs
 the applied migration identifiers.
 
+The migration process now configures PostgreSQL `connect_timeout=10s`,
+`lock_timeout=5s`, and `statement_timeout=30s` at connection creation, before
+`metadata.create_all()` or any migration-ledger DDL. Flushed progress records
+bracket connection, metadata, ledger, migration apply, marker, and commit
+phases. Lock or statement timeout failures therefore identify their boundary
+and exit nonzero instead of waiting for the deployment timeout.
+
 ## 2026-07-27 - M8B8 AI Entitlements And Commercial Foundation
 
 Added one authoritative AI feature registry and entitlement service. Decisions
