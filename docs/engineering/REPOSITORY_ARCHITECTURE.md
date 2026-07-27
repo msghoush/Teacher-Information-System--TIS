@@ -30,13 +30,13 @@ Responsibility:
 Primary FastAPI app, route registration, many app-level workflows, middleware, startup checks, platform console routes, dashboards, exports, system configuration, scope switching, and operational pages.
 
 Render boot boundary:
-Render must construct the ASGI app and complete FastAPI startup before
-SQLAlchemy table creation or pending migrations can wait on PostgreSQL DDL
-locks. Render therefore performs schema initialization once in a daemon worker
-after startup returns. The outermost HTTP middleware checks a process-local
-threading event and returns a database-free `503` until initialization commits
-successfully; no inner middleware or route executes before readiness.
-Non-Render environments preserve synchronous schema initialization.
+The ASGI web process never performs SQLAlchemy metadata creation or pending
+migrations. `scripts/run_migrations.py` is the sole deployment command for
+baseline schema creation plus `db_migrations.run_pending_migrations`; Render
+runs it as the Pre-Deploy Command and activates the new version only after exit
+code zero. `main:app` startup retains only security configuration validation
+and process-local upload-directory creation, so Uvicorn binds without
+PostgreSQL DDL. There is no migration daemon or schema-readiness middleware.
 
 Do not change casually:
 - authentication/session flow,

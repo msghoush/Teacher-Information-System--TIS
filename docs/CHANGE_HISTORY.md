@@ -7,6 +7,17 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-07-27 - Pre-Deploy Database Migration Boundary
+
+Replaced the temporary Render daemon migration worker and HTTP readiness gate
+with a strict deployment boundary. The FastAPI web process no longer creates
+tables or runs migrations during import, startup, middleware, or background
+execution. `python scripts/run_migrations.py` now owns baseline metadata
+creation and the authoritative ordered migration ledger as Render's required
+Pre-Deploy Command. A failed migration exits nonzero and prevents activation of
+the new web version; a successful or already-current run exits zero and logs
+the applied migration identifiers.
+
 ## 2026-07-27 - M8B8 AI Entitlements And Commercial Foundation
 
 Added one authoritative AI feature registry and entitlement service. Decisions
@@ -20,14 +31,9 @@ pricing change, notification expansion, or M8B9 operational control was added.
 ## 2026-07-27 - Render Port-Bind Startup Boundary
 
 Render previously executed SQLAlchemy table creation and every pending
-migration while importing `main:app`. The M8B7 PostgreSQL migration includes
-table-locking DDL, so a lock wait occurred before FastAPI constructed the app
-and before Uvicorn could bind Render's port. Render startup now constructs the
-app without schema DDL and starts that work once in a daemon worker after the
-existing FastAPI startup handler returns. An outermost HTTP readiness gate
-returns a database-free `503` until that worker succeeds, eliminating the
-partial-schema request race. Local and test schema initialization remains
-synchronous.
+migration while importing `main:app`. The initial mitigation moved that work
+to a daemon worker behind an HTTP readiness gate. That temporary boundary has
+been superseded by the Pre-Deploy Database Migration Boundary above.
 
 ## 2026-07-27 - M8B7 Demo Customer Journey
 
