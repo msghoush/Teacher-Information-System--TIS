@@ -36,6 +36,9 @@ partially migrated schema or delaying Uvicorn's bind.
 - Migration failure blocks deployment with a nonzero exit code.
 - Repeated execution is safe because metadata creation is check-first and the
   ordered migration ledger is idempotent.
-- PostgreSQL lock and statement timeout clauses owned by individual migrations
-  remain effective.
+- PostgreSQL connections use a 10-second connection timeout, 5-second lock
+  timeout, and 30-second statement timeout before baseline metadata or ledger
+  DDL begins. Migration-local protections remain effective.
+- Flushed logs identify connection, metadata, ledger, per-migration apply,
+  marker, and commit progress. Timeout failures exit nonzero.
 - The former daemon migration worker and readiness middleware are removed.

@@ -17,7 +17,11 @@ newly-applied identifier, is idempotent when the ledger is current, and exits
 nonzero on any schema or migration failure. Render must use it as a Pre-Deploy
 Command so a failed migration prevents the new web version from becoming
 active. Migration-owned PostgreSQL lock and statement timeout protections
-remain in force.
+remain in force. The migration process additionally applies a 10-second
+connection timeout, 5-second lock timeout, and 30-second statement timeout at
+PostgreSQL connection creation so baseline `metadata.create_all()`,
+`schema_migrations` initialization, every ordered migration, and commit are
+bounded. Flushed progress logging brackets each phase and migration identifier.
 
 ## M8B8 AI Usage Persistence
 

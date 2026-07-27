@@ -17,6 +17,12 @@ class Migration:
     apply: Callable
 
 
+def _progress(message: str, *args) -> None:
+    logger.info(message, *args)
+    for handler in logging.getLogger().handlers:
+        handler.flush()
+
+
 def _table_exists(bind, table_name: str) -> bool:
     return table_name in inspect(bind).get_table_names()
 
@@ -69,6 +75,7 @@ def _check_constraint_exists(bind, table_name: str, constraint_name: str) -> boo
 
 
 def _ensure_schema_migrations_table(engine):
+    _progress("Phase schema_migrations.ensure_table: starting.")
     with engine.begin() as connection:
         _execute(
             connection,
@@ -80,13 +87,17 @@ def _ensure_schema_migrations_table(engine):
             )
             """,
         )
+    _progress("Phase schema_migrations.ensure_table: complete.")
 
 
 def _get_applied_migration_ids(engine) -> set[str]:
     _ensure_schema_migrations_table(engine)
+    _progress("Phase schema_migrations.read_applied: starting.")
     with engine.begin() as connection:
         rows = connection.execute(text("SELECT migration_id FROM schema_migrations")).all()
-    return {str(row[0]) for row in rows}
+    applied = {str(row[0]) for row in rows}
+    _progress("Phase schema_migrations.read_applied: complete (%s applied).", len(applied))
+    return applied
 
 
 def _mark_migration_applied(connection, migration: Migration):
@@ -4796,14 +4807,33 @@ MIGRATIONS = (
 
 
 def run_pending_migrations(engine) -> list[str]:
+    _progress("Migration runner: starting.")
     applied_ids = _get_applied_migration_ids(engine)
     newly_applied = []
     for migration in MIGRATIONS:
         if migration.migration_id in applied_ids:
+            _progress("Migration %s: already applied; skipping.", migration.migration_id)
             continue
-        with engine.begin() as connection:
-            migration.apply(engine, connection)
-            _mark_migration_applied(connection, migration)
+        _progress("Migration %s: acquiring connection.", migration.migration_id)
+        with engine.connect() as connection:
+            _progress("Migration %s: beginning transaction.", migration.migration_id)
+            transaction = connection.begin()
+            try:
+                _progress("Migration %s: apply starting.", migration.migration_id)
+                migration.apply(engine, connection)
+                _progress("Migration %s: apply complete.", migration.migration_id)
+                _progress("Migration %s: recording migration marker.", migration.migration_id)
+                _mark_migration_applied(connection, migration)
+                _progress("Migration %s: marker recorded.", migration.migration_id)
+                _progress("Migration %s: commit starting.", migration.migration_id)
+                transaction.commit()
+                _progress("Migration %s: commit complete.", migration.migration_id)
+            except Exception:
+                if transaction.is_active:
+                    transaction.rollback()
+                _progress("Migration %s: failed; transaction rolled back.", migration.migration_id)
+                raise
         newly_applied.append(migration.migration_id)
-        logger.info("Applied database migration %s", migration.migration_id)
+        _progress("Migration %s: applied successfully.", migration.migration_id)
+    _progress("Migration runner: complete (%s newly applied).", len(newly_applied))
     return newly_applied
