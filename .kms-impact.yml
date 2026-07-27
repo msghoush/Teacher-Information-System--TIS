@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Bound every PostgreSQL pre-deploy connection and DDL phase with fail-fast timeouts and flushed per-phase/per-migration progress logging.
+summary: Prevent PostgreSQL migration self-deadlocks by keeping transactional schema inspection on the active DDL connection while retaining bounded pre-deploy execution.
 affected_areas:
   - database-architecture
   - deployment-startup

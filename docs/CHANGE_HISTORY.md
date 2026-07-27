@@ -24,6 +24,10 @@ The migration process now configures PostgreSQL `connect_timeout=10s`,
 bracket connection, metadata, ledger, migration apply, marker, and commit
 phases. Lock or statement timeout failures therefore identify their boundary
 and exit nonzero instead of waiting for the deployment timeout.
+Transactional migration helpers now inspect tables, columns, indexes, and
+constraints through the active migration connection. They never check out a
+second engine connection while the first connection owns uncommitted DDL
+locks, preventing the M8B7 `system_notifications` inspection self-deadlock.
 
 ## 2026-07-27 - M8B8 AI Entitlements And Commercial Foundation
 
