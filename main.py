@@ -20,7 +20,6 @@ import re
 import secrets
 import smtplib
 import ssl
-import threading
 import time
 from typing import Optional, Any
 from urllib.parse import quote, quote_plus, urlencode
@@ -36,7 +35,6 @@ import models
 import auth
 import authorization
 import branding_storage
-import db_migrations
 import email_service
 import email_templates
 import location_service
@@ -111,33 +109,6 @@ from timetable_logic import (
     normalize_timetable_settings_values,
     validate_non_teaching_block_overlap,
 )
-
-def _initialize_database_schema() -> None:
-    models.Base.metadata.create_all(bind=engine)
-    db_migrations.run_pending_migrations(engine)
-
-
-_defer_schema_initialization = bool(os.getenv("RENDER"))
-_schema_initialization_ready = threading.Event()
-_schema_initialization_failure: Exception | None = None
-
-
-def _run_deferred_schema_initialization() -> None:
-    global _schema_initialization_failure
-    try:
-        _initialize_database_schema()
-    except Exception as exc:
-        _schema_initialization_failure = exc
-        logging.getLogger("uvicorn.error").exception(
-            "Deferred database schema initialization failed."
-        )
-    else:
-        _schema_initialization_ready.set()
-
-
-if not _defer_schema_initialization:
-    _initialize_database_schema()
-    _schema_initialization_ready.set()
 
 # ---------------------------------------
 # App Initialization
@@ -8533,17 +8504,6 @@ async def audit_logging_middleware(request: Request, call_next):
         )
 
 
-@app.middleware("http")
-async def database_schema_readiness_middleware(request: Request, call_next):
-    if not _schema_initialization_ready.is_set():
-        return JSONResponse(
-            status_code=503,
-            content={"detail": "Service initialization is in progress."},
-            headers={"Retry-After": "5"},
-        )
-    return await call_next(request)
-
-
 def _build_login_context(
     db: Session,
     username: str = "",
@@ -15669,9 +15629,7 @@ def _ensure_gender_branches(db: Session):
 # ---------------------------------------
 # Startup Initialization
 # ---------------------------------------
-@app.on_event("startup")
-def setup_initial_data():
-
+def _legacy_initialize_application_data():
     auth.validate_security_configuration()
     _ensure_school_group_schema()
     _ensure_users_table_columns()
@@ -15847,9 +15805,7 @@ def setup_initial_data():
 
     db.close()
 
-    if _defer_schema_initialization:
-        threading.Thread(
-            target=_run_deferred_schema_initialization,
-            name="tis-database-schema-initialization",
-            daemon=True,
-        ).start()
+@app.on_event("startup")
+def setup_application_process():
+    auth.validate_security_configuration()
+    _ensure_profile_photo_upload_dir()

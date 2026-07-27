@@ -1,30 +1,16 @@
 knowledge_impact: yes
-summary: Implement M8B8 centralized tenant-safe AI feature entitlements, per-feature Customer Demo limits, paid-tier evaluation, and durable idempotent usage accounting without M8B9 operations.
+summary: Complete M8B8 with a permanent deployment boundary that runs schema creation and authoritative migrations only in a Render pre-deploy command, never in the FastAPI web process.
 affected_areas:
-  - ai-entitlements
-  - ai-feature-registry
-  - commercial-access
-  - subscription-entitlements
-  - demo-usage-accounting
-  - permissions
-  - tenant-isolation
   - database-architecture
   - deployment-startup
-  - internal-test-workspace-reset
+  - deployment-migrations
   - kms-taxonomy
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
-  - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
-  - docs/KMS_NAVIGATION.md
-  - docs/engineering/PRODUCT_ROADMAP.md
-  - docs/engineering/TIS_MODULE_MAP.md
   - docs/engineering/REPOSITORY_ARCHITECTURE.md
   - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
-  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
-  - docs/history/README.md
-  - docs/history/ai-entitlements/README.md
-  - docs/adr/0015-centralized-ai-entitlements-and-usage-accounting.md
+  - docs/adr/0016-pre-deploy-database-migration-boundary.md
 no_impact_reason:
 major_change_override: no

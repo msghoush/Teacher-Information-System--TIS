@@ -1,15 +1,17 @@
 import os
+import socket
 import subprocess
 import sys
+import time
 
-import pytest
-from fastapi import Request
+from fastapi.testclient import TestClient
 
+import db_migrations
 import main
+from scripts import run_migrations
 
 
-def test_render_import_defers_database_schema_initialization(tmp_path):
-    database_path = tmp_path / "render-startup.db"
+def _deployment_environment(database_path):
     environment = os.environ.copy()
     environment.update(
         {
@@ -18,19 +20,25 @@ def test_render_import_defers_database_schema_initialization(tmp_path):
             "TIS_SESSION_SECRET": "render-startup-test-secret-at-least-32-chars",
         }
     )
+    return environment
 
+
+def test_importing_main_does_not_run_migrations(tmp_path):
+    database_path = tmp_path / "import.db"
     result = subprocess.run(
         [
             sys.executable,
             "-c",
             (
-                "import main; "
-                "assert main._defer_schema_initialization is True; "
-                "assert main.app is not None"
+                "import db_migrations; "
+                "db_migrations.run_pending_migrations = "
+                "lambda *_args, **_kwargs: (_ for _ in ()).throw("
+                "AssertionError('web import ran migrations')); "
+                "import main; assert main.app is not None"
             ),
         ],
         cwd=os.getcwd(),
-        env=environment,
+        env=_deployment_environment(database_path),
         capture_output=True,
         text=True,
         timeout=30,
@@ -40,58 +48,106 @@ def test_render_import_defers_database_schema_initialization(tmp_path):
     assert not database_path.exists()
 
 
-@pytest.mark.anyio
-async def test_schema_readiness_gate_does_not_call_application_while_migration_is_pending():
-    request = Request({"type": "http", "method": "GET", "path": "/login", "headers": []})
-    application_called = False
+def test_fastapi_startup_does_not_run_migrations(monkeypatch):
+    monkeypatch.setenv(
+        "TIS_SESSION_SECRET",
+        "render-startup-test-secret-at-least-32-chars",
+    )
 
-    async def call_application(_request):
-        nonlocal application_called
-        application_called = True
-        raise AssertionError("Application handler must remain gated.")
+    def fail_if_called(*_args, **_kwargs):
+        raise AssertionError("FastAPI startup ran migrations")
 
-    main._schema_initialization_ready.clear()
+    monkeypatch.setattr(db_migrations, "run_pending_migrations", fail_if_called)
+    with TestClient(main.app):
+        pass
+
+
+def test_uvicorn_binds_without_in_process_migration(tmp_path):
+    database_path = tmp_path / "uvicorn.db"
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "main:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+        ],
+        cwd=os.getcwd(),
+        env=_deployment_environment(database_path),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
     try:
-        response = await main.database_schema_readiness_middleware(request, call_application)
+        deadline = time.monotonic() + 20
+        bound = False
+        while time.monotonic() < deadline and process.poll() is None:
+            with socket.socket() as client:
+                client.settimeout(0.2)
+                if client.connect_ex(("127.0.0.1", port)) == 0:
+                    bound = True
+                    break
+            time.sleep(0.1)
+        assert bound, process.communicate(timeout=2)
+        assert not database_path.exists()
     finally:
-        main._schema_initialization_ready.set()
-
-    assert response.status_code == 503
-    assert response.headers["retry-after"] == "5"
-    assert application_called is False
-
-
-def test_schema_becomes_ready_only_after_deferred_initialization_succeeds(monkeypatch):
-    observed_ready_state = None
-
-    def initialize_schema():
-        nonlocal observed_ready_state
-        observed_ready_state = main._schema_initialization_ready.is_set()
-
-    monkeypatch.setattr(main, "_initialize_database_schema", initialize_schema)
-    main._schema_initialization_ready.clear()
-    main._schema_initialization_failure = None
-
-    main._run_deferred_schema_initialization()
-
-    assert observed_ready_state is False
-    assert main._schema_initialization_ready.is_set()
-    assert main._schema_initialization_failure is None
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
 
 
-def test_failed_deferred_initialization_keeps_application_gated(monkeypatch):
-    failure = RuntimeError("migration failed")
+def test_dedicated_migration_command_applies_pending_migrations(tmp_path):
+    database_path = tmp_path / "migrations.db"
+    environment = os.environ.copy()
+    environment["DATABASE_URL"] = f"sqlite:///{database_path.as_posix()}"
 
-    def initialize_schema():
-        raise failure
+    first = subprocess.run(
+        [sys.executable, "scripts/run_migrations.py"],
+        cwd=os.getcwd(),
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    second = subprocess.run(
+        [sys.executable, "scripts/run_migrations.py"],
+        cwd=os.getcwd(),
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
 
-    monkeypatch.setattr(main, "_initialize_database_schema", initialize_schema)
-    main._schema_initialization_ready.clear()
-    main._schema_initialization_failure = None
+    assert first.returncode == 0, first.stderr
+    assert "Applied migration:" in first.stderr
+    assert second.returncode == 0, second.stderr
+    assert "No pending migrations." in second.stderr
 
-    main._run_deferred_schema_initialization()
 
-    assert not main._schema_initialization_ready.is_set()
-    assert main._schema_initialization_failure is failure
+def test_dedicated_migration_command_returns_nonzero_on_failure(monkeypatch):
+    monkeypatch.setattr(
+        run_migrations.models.Base.metadata,
+        "create_all",
+        lambda **_kwargs: None,
+    )
 
-    main._schema_initialization_ready.set()
+    def fail_migration(_engine):
+        raise RuntimeError("migration failed")
+
+    monkeypatch.setattr(
+        run_migrations.db_migrations,
+        "run_pending_migrations",
+        fail_migration,
+    )
+
+    assert run_migrations.run() == 1

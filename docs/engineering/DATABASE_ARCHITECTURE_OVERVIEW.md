@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Deployment Migration Boundary
+
+Database schema work belongs to `python scripts/run_migrations.py`, never the
+FastAPI web process. The command registers core and SaaS metadata, creates the
+repository's baseline metadata schema, and then calls the ordered,
+authoritative `db_migrations.run_pending_migrations` ledger. It logs each
+newly-applied identifier, is idempotent when the ledger is current, and exits
+nonzero on any schema or migration failure. Render must use it as a Pre-Deploy
+Command so a failed migration prevents the new web version from becoming
+active. Migration-owned PostgreSQL lock and statement timeout protections
+remain in force.
+
 ## M8B8 AI Usage Persistence
 
 `ai_feature_usage_counters` is unique by SchoolGroup, registered feature key,
