@@ -11,12 +11,19 @@ from sqlalchemy import inspect, text
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import auth
-import main
+import db_migrations
 import models
 import saas.models as saas_models
-from teacher_qualifications import ensure_qualification_options_seeded
 from database import SessionLocal, engine
+
+# This subprocess owns a fresh isolated database. Mirror production's
+# pre-deploy boundary explicitly before importing the web application.
+models.Base.metadata.create_all(bind=engine)
+db_migrations.run_pending_migrations(engine)
+
+import auth
+import main
+from teacher_qualifications import ensure_qualification_options_seeded
 
 
 def _assert(condition, message):

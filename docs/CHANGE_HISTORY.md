@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-07-27 - M8B9 Demo Operations, Notifications, And Testing
+
+Added owner-only immediate expiry, same-workspace reactivation, unbounded future
+custom expiry, rotating final-day reminders, and manual single/global lifecycle
+execution through existing production rules. Added Standard, Full, and Custom
+controlled access policies with workspace defaults and isolated branch
+overrides, durable audits, and customer communications without usage resets,
+classification changes, or customer-specific rules.
+
 ## 2026-07-27 - Pre-Deploy Database Migration Boundary
 
 Replaced the temporary Render daemon migration worker and HTTP readiness gate

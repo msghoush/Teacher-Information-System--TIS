@@ -1,7 +1,7 @@
 ---
 title: TIS Architecture Decision Records
 documentation_version: 3.1
-last_updated: 2026-07-23
+last_updated: 2026-07-27
 ---
 
 # Architecture Decision Records
@@ -37,3 +37,7 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0011-demo-workspace-provisioning-and-commercial-source-links.md`
 - `0012-seven-day-demo-lifecycle-and-access-enforcement.md`
 - `0013-demo-to-paid-workspace-conversion.md`
+- `0014-demo-customer-communications-and-approval-orchestration.md`
+- `0015-centralized-ai-entitlements-and-usage-accounting.md`
+- `0016-pre-deploy-database-migration-boundary.md`
+- `0017-platform-owner-demo-operations-and-access-profiles.md`

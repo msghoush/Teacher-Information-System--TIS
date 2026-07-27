@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
@@ -18,13 +19,26 @@ EMAIL_TYPES = {
     "day_six_reminder",
     "demo_expired",
     "subscription_invitation",
+    "demo_reactivated",
+    "demo_expiry_changed",
+    "manual_final_day_reminder",
+    "demo_access_profile_changed",
 }
 
 
-def create_intent(db: Session, demo_request, email_type: str, *, provisioning=None):
+def create_intent(
+    db: Session,
+    demo_request,
+    email_type: str,
+    *,
+    provisioning=None,
+    operation_key: str | None = None,
+    payload: dict | None = None,
+):
     if email_type not in EMAIL_TYPES:
         raise ValueError("Unsupported demo email type.")
-    key = f"demo:{demo_request.id}:email:{email_type}"
+    suffix = f":{str(operation_key).strip()}" if operation_key else ""
+    key = f"demo:{demo_request.id}:email:{email_type}{suffix}"
     existing = db.query(models.SaaSDemoEmailDelivery).filter_by(deduplication_key=key).one_or_none()
     if existing:
         return existing
@@ -37,6 +51,7 @@ def create_intent(db: Session, demo_request, email_type: str, *, provisioning=No
         email_type=email_type,
         recipient_email=str(account.email or "").strip(),
         deduplication_key=key,
+        payload_json=json.dumps(payload or {}, sort_keys=True, separators=(",", ":")),
     )
     db.add(row)
     db.flush()
@@ -54,6 +69,10 @@ def _content(db: Session, row):
     status_url = f"{base}/saas/demo-requests/{request.request_uuid}"
     subscribe_url = f"{base}/saas/login?next_path=/saas/demo-requests/{request.request_uuid}"
     name = str(organization.organization_name or "Your organization")
+    try:
+        payload = json.loads(row.payload_json or "{}")
+    except (TypeError, ValueError):
+        payload = {}
     builders = {
         "request_received": lambda: email_templates.build_demo_request_received_email(
             organization_name=name, status_url=status_url, logo_url=logo
@@ -78,6 +97,20 @@ def _content(db: Session, row):
         )
         builders["day_six_reminder"] = lambda: email_templates.build_demo_day_six_reminder_email(
             organization_name=name, expiry_date=expiry, subscribe_url=subscribe_url, logo_url=logo
+        )
+        builders["demo_reactivated"] = lambda: email_templates.build_demo_reactivated_email(
+            organization_name=name, expiry_date=expiry, login_url=f"{base}/login", logo_url=logo
+        )
+        builders["demo_expiry_changed"] = lambda: email_templates.build_demo_expiry_changed_email(
+            organization_name=name, expiry_date=expiry, login_url=f"{base}/login", logo_url=logo
+        )
+        builders["manual_final_day_reminder"] = lambda: email_templates.build_demo_manual_reminder_email(
+            organization_name=name, expiry_date=expiry, subscribe_url=subscribe_url,
+            logo_url=logo, variant=int(payload.get("variant", 0)),
+        )
+        builders["demo_access_profile_changed"] = lambda: email_templates.build_demo_access_profile_changed_email(
+            organization_name=name, profile_name=str(payload.get("profile_name", "Updated")),
+            login_url=f"{base}/login", logo_url=logo,
         )
     return builders[row.email_type]()
 

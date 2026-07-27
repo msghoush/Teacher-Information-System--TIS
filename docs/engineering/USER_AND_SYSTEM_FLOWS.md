@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Platform Owner Demo Operations
+
+1. A Platform Owner opens an existing Customer Demo operational detail.
+2. The owner supplies required reason/date/configuration and an operation key.
+3. The service validates and locks the same workspace and tenant scope.
+4. Lifecycle work reuses M8B7 rules; feature policy uses controlled registries.
+5. Material changes create durable customer email/Notification Center records,
+   and every attempt records before/after/result references.
+6. Profile changes retain usage and never convert the Customer Demo to paid.
+
 ## M8B8 AI Entitlement And Consumption Flow
 
 1. Resolve the operational SchoolGroup and reject cross-tenant scope.

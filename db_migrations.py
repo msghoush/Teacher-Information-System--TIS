@@ -3624,7 +3624,7 @@ def _saas_demo_request_workflow(engine, connection):
         ("saas_demo_request_events", "ix_saas_demo_request_events_type", "event_type"),
         ("saas_demo_request_events", "ix_saas_demo_request_events_created", "created_at"),
     ):
-        _create_index_if_missing(engine, connection, table_name, index_name, column_name)
+        _create_index_if_missing(connection, connection, table_name, index_name, column_name)
     _execute(
         connection,
         """
@@ -4463,9 +4463,9 @@ def _m8b7_demo_customer_journey(engine, connection):
         ("category", "category VARCHAR(40)"),
         ("severity", "severity VARCHAR(20)"),
     ):
-        _add_column_if_missing(engine, connection, "system_notifications", name, column_sql)
+        _add_column_if_missing(connection, connection, "system_notifications", name, column_sql)
     _create_unique_index_if_missing(
-        engine, connection, "system_notifications",
+        connection, connection, "system_notifications",
         "uq_system_notifications_deduplication_key", "deduplication_key",
     )
     if engine.dialect.name == "postgresql":
@@ -4628,6 +4628,140 @@ def _m8b8_ai_entitlement_foundation(engine, connection):
     ):
         creator = _create_unique_index_if_missing if unique else _create_index_if_missing
         creator(engine, connection, table_name, index_name, columns)
+
+
+def _m8b9_demo_operations(engine, connection):
+    datetime_type = "TIMESTAMPTZ" if engine.dialect.name == "postgresql" else "DATETIME"
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    _add_column_if_missing(
+        connection, connection, "saas_demo_workspace_provisioning",
+        "expiry_policy", "expiry_policy VARCHAR(20) NOT NULL DEFAULT 'standard'",
+    )
+    _add_column_if_missing(
+        connection, connection, "saas_demo_email_deliveries",
+        "payload_json", "payload_json TEXT",
+    )
+    if engine.dialect.name == "postgresql":
+        for table_name, constraint_name in (
+            ("saas_demo_email_deliveries", "ck_saas_demo_email_deliveries_type"),
+            ("saas_demo_lifecycle_notifications", "ck_saas_demo_lifecycle_notifications_type"),
+        ):
+            _execute(
+                connection,
+                f"ALTER TABLE {table_name} DROP CONSTRAINT IF EXISTS {constraint_name}",
+            )
+        _execute(
+            connection,
+            """
+            ALTER TABLE saas_demo_email_deliveries
+            ADD CONSTRAINT ck_saas_demo_email_deliveries_type CHECK (
+                email_type IN (
+                    'request_received','demo_approved','demo_declined',
+                    'day_six_reminder','demo_expired','subscription_invitation',
+                    'demo_reactivated','demo_expiry_changed',
+                    'manual_final_day_reminder','demo_access_profile_changed'
+                )
+            )
+            """,
+        )
+        _execute(
+            connection,
+            """
+            ALTER TABLE saas_demo_lifecycle_notifications
+            ADD CONSTRAINT ck_saas_demo_lifecycle_notifications_type CHECK (
+                notification_type IN (
+                    'expiration_reminder','demo_expired','demo_reactivated',
+                    'demo_expiry_changed','manual_final_day_reminder',
+                    'demo_access_profile_changed'
+                )
+            )
+            """,
+        )
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS demo_access_policies (
+            id {id_sql},
+            school_group_id INTEGER NOT NULL,
+            branch_id INTEGER,
+            access_profile VARCHAR(20) NOT NULL DEFAULT 'standard',
+            product_features_json TEXT NOT NULL DEFAULT '[]',
+            ai_features_json TEXT NOT NULL DEFAULT '[]',
+            ai_allowances_json TEXT NOT NULL DEFAULT '{{}}',
+            unrestricted_ai_features_json TEXT NOT NULL DEFAULT '[]',
+            reason TEXT NOT NULL,
+            updated_by_user_id INTEGER,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_demo_access_policies_profile
+                CHECK (access_profile IN ('standard','full','custom')),
+            FOREIGN KEY (school_group_id) REFERENCES school_groups(id),
+            FOREIGN KEY (branch_id) REFERENCES branches(id),
+            FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+        """,
+    )
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS demo_operation_audits (
+            id {id_sql},
+            school_group_id INTEGER NOT NULL,
+            demo_request_id INTEGER NOT NULL,
+            demo_provisioning_id INTEGER NOT NULL,
+            branch_id INTEGER,
+            actor_user_id INTEGER,
+            action_type VARCHAR(60) NOT NULL,
+            reason TEXT,
+            previous_values_json TEXT NOT NULL DEFAULT '{{}}',
+            new_values_json TEXT NOT NULL DEFAULT '{{}}',
+            result_status VARCHAR(20) NOT NULL,
+            email_delivery_ids_json TEXT NOT NULL DEFAULT '[]',
+            notification_ids_json TEXT NOT NULL DEFAULT '[]',
+            operation_key VARCHAR(120) NOT NULL,
+            failure_code VARCHAR(80),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_demo_operation_audits_result
+                CHECK (result_status IN ('success','failed','blocked','deduplicated')),
+            FOREIGN KEY (school_group_id) REFERENCES school_groups(id),
+            FOREIGN KEY (demo_request_id) REFERENCES saas_demo_requests(id),
+            FOREIGN KEY (demo_provisioning_id) REFERENCES saas_demo_workspace_provisioning(id),
+            FOREIGN KEY (branch_id) REFERENCES branches(id),
+            FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+        """,
+    )
+    for table_name, index_name, columns, unique, where in (
+        ("demo_access_policies", "uq_demo_access_policies_workspace_default",
+         "school_group_id", True, "branch_id IS NULL"),
+        ("demo_access_policies", "uq_demo_access_policies_branch",
+         "school_group_id, branch_id", True, "branch_id IS NOT NULL"),
+        ("demo_access_policies", "ix_demo_access_policies_group",
+         "school_group_id", False, None),
+        ("demo_access_policies", "ix_demo_access_policies_branch",
+         "branch_id", False, None),
+        ("demo_operation_audits", "uq_demo_operation_audits_operation",
+         "school_group_id, action_type, operation_key", True, None),
+        ("demo_operation_audits", "ix_demo_operation_audits_group",
+         "school_group_id", False, None),
+        ("demo_operation_audits", "ix_demo_operation_audits_provisioning",
+         "demo_provisioning_id", False, None),
+        ("demo_operation_audits", "ix_demo_operation_audits_actor",
+         "actor_user_id", False, None),
+        ("demo_operation_audits", "ix_demo_operation_audits_created",
+         "created_at", False, None),
+    ):
+        if where:
+            if not _index_exists(connection, table_name, index_name):
+                unique_sql = "UNIQUE " if unique else ""
+                _execute(
+                    connection,
+                    f"CREATE {unique_sql}INDEX IF NOT EXISTS {index_name} "
+                    f"ON {table_name} ({columns}) WHERE {where}",
+                )
+        else:
+            creator = _create_unique_index_if_missing if unique else _create_index_if_missing
+            creator(connection, connection, table_name, index_name, columns)
 
 
 MIGRATIONS = (
@@ -4805,6 +4939,11 @@ MIGRATIONS = (
         migration_id="20260727_002_m8b8_ai_entitlement_foundation",
         description="Add centralized tenant-safe AI feature usage accounting",
         apply=_m8b8_ai_entitlement_foundation,
+    ),
+    Migration(
+        migration_id="20260727_003_m8b9_demo_operations",
+        description="Add owner demo operations, access profiles, and durable audit",
+        apply=_m8b9_demo_operations,
     ),
 )
 

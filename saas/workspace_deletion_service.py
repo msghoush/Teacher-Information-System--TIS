@@ -357,6 +357,9 @@ def delete_test_workspace(
         models.SaaSDemoToPaidConversion.pending_organization_id == pending_id
     ))
     if demo_provisioning_ids:
+        deleted += _delete(db.query(models.DemoOperationAudit).filter(
+            models.DemoOperationAudit.demo_provisioning_id.in_(demo_provisioning_ids)
+        ))
         deleted += _delete(db.query(models.SaaSDemoLifecycleNotification).filter(
             models.SaaSDemoLifecycleNotification.demo_provisioning_id.in_(demo_provisioning_ids)
         ))
@@ -390,6 +393,9 @@ def delete_test_workspace(
     ))
     deleted += _delete(db.query(models.AIFeatureUsageCounter).filter(
         models.AIFeatureUsageCounter.school_group_id == school_group_id
+    ))
+    deleted += _delete(db.query(models.DemoAccessPolicy).filter(
+        models.DemoAccessPolicy.school_group_id == school_group_id
     ))
     if workspace_entitlement_ids:
         deleted += _delete(db.query(models.WorkspaceEntitlementValue).filter(

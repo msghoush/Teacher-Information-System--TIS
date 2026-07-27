@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Project State
 
+## M8B9 Demo Operations, Notifications, And Testing
+
+Implemented Platform Owner-only demo lifecycle controls, synchronous
+single/global lifecycle summaries, Standard/Full/Custom access profiles,
+workspace and tenant-safe branch scope, durable success/failure audits, and
+M8B7-based customer communications. Migration
+`20260727_003_m8b9_demo_operations` remains in the pre-deploy boundary and M8B8
+usage history is retained across profile transitions.
+
 ## M8B8 AI Entitlements And Commercial Foundation
 
 Completed: centralized AI entitlement decisions, stable feature registry,

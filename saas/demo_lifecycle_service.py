@@ -229,12 +229,24 @@ def resolve_demo_lifecycle(
     expires_at = as_utc(provisioning.demo_expires_at)
     if not all((started_at, reminder_due_at, expires_at)):
         return _manual_review("missing_demo_lifecycle_timestamps", provisioning=provisioning)
+    expiry_policy = str(getattr(provisioning, "expiry_policy", "standard") or "standard")
     expected_reminder, expected_expiration = calculate_lifecycle_dates(started_at)
-    if (
-        abs((reminder_due_at - expected_reminder).total_seconds()) > 1
-        or abs((expires_at - expected_expiration).total_seconds()) > 1
-        or reminder_due_at >= expires_at
-    ):
+    timestamps_invalid = (
+        reminder_due_at >= expires_at
+        or (
+            expiry_policy == "standard"
+            and (
+                abs((reminder_due_at - expected_reminder).total_seconds()) > 1
+                or abs((expires_at - expected_expiration).total_seconds()) > 1
+            )
+        )
+        or (
+            expiry_policy == "custom"
+            and abs((reminder_due_at - (expires_at - timedelta(days=1))).total_seconds()) > 1
+        )
+        or expiry_policy not in {"standard", "custom"}
+    )
+    if timestamps_invalid:
         return _manual_review("inconsistent_demo_lifecycle_timestamps", provisioning=provisioning)
 
     timezone_name = str(organization.timezone or "UTC").strip() or "UTC"
@@ -513,6 +525,7 @@ def _record_processing_failure(
 
 def _process_expiration(db: Session, provisioning, resolution, now: datetime) -> bool:
     attempt_key = f"{int(now.timestamp())}-{uuid.uuid4().hex[:8]}"
+    cycle_key = str(int(resolution.demo_expires_at.timestamp()))
     provisioning.lifecycle_processing_status = DemoLifecycleProcessingStatus.PROCESSING.value
     provisioning.lifecycle_last_processed_at = storage_datetime(now)
     _add_event(
@@ -567,10 +580,13 @@ def _process_expiration(db: Session, provisioning, resolution, now: datetime) ->
                 db,
                 provisioning,
                 DemoLifecycleEventType.DEMO_EXPIRED,
-                deduplication_key=f"demo:{provisioning.id}:expired",
+                deduplication_key=f"demo:{provisioning.id}:expired:{cycle_key}",
                 details={"expired_at": resolution.demo_expires_at.isoformat()},
             )
-            account_key = f"demo:{provisioning.id}:expired:saas:{demo_request.requester_saas_account_id}"
+            account_key = (
+                f"demo:{provisioning.id}:expired:{cycle_key}:"
+                f"saas:{demo_request.requester_saas_account_id}"
+            )
             if not db.query(models.SaaSDemoLifecycleNotification).filter_by(
                 deduplication_key=account_key
             ).first():
@@ -584,19 +600,22 @@ def _process_expiration(db: Session, provisioning, resolution, now: datetime) ->
                     deduplication_key=account_key,
                 ))
             demo_notification_service.notify_platform_owners(
-                db, demo_request, "expired", provisioning=provisioning
+                db, demo_request, "expired", provisioning=provisioning,
+                operation_key=cycle_key,
             )
             demo_email_service.create_intent(
-                db, demo_request, "demo_expired", provisioning=provisioning
+                db, demo_request, "demo_expired", provisioning=provisioning,
+                operation_key=cycle_key,
             )
             demo_email_service.create_intent(
-                db, demo_request, "subscription_invitation", provisioning=provisioning
+                db, demo_request, "subscription_invitation", provisioning=provisioning,
+                operation_key=cycle_key,
             )
             _add_event(
                 db,
                 provisioning,
                 DemoLifecycleEventType.WORKSPACE_SUSPENDED,
-                deduplication_key=f"demo:{provisioning.id}:workspace-suspended",
+                deduplication_key=f"demo:{provisioning.id}:workspace-suspended:{cycle_key}",
             )
             db.flush()
             commercial = commercial_state_service.resolve_commercial_state(db, group.id)

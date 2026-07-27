@@ -60,6 +60,11 @@
     </div>
     <button class="btn secondary" type="submit">Apply</button>
 </form>
+<form method="post" action="/saas-admin/demo-operations/run-lifecycle" style="margin:12px 0;" onsubmit="return confirm('Run lifecycle processing for all demos?');">
+    <input type="hidden" name="operation_key" value="global-{{ current_user.user_id }}-{{ request.state.request_id if request.state.request_id else 'manual' }}">
+    <input name="reason" maxlength="2000" placeholder="Optional run reason">
+    <button class="btn secondary" type="submit">Run Global Demo Lifecycle</button>
+</form>
 
 {% if cards %}
 <div class="demo-queue-table-wrap">

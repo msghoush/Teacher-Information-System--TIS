@@ -570,6 +570,7 @@ class SaaSDemoWorkspaceProvisioning(Base):
     activated_at = Column(DateTime)
     failed_at = Column(DateTime)
     demo_expires_at = Column(DateTime(timezone=True))
+    expiry_policy = Column(String(20), nullable=False, default="standard")
     reminder_due_at = Column(DateTime(timezone=True))
     reminder_sent_at = Column(DateTime(timezone=True))
     expired_at = Column(DateTime(timezone=True))
@@ -678,7 +679,8 @@ class SaaSDemoLifecycleNotification(Base):
             "recipient_user_id",
         ),
         CheckConstraint(
-            "notification_type IN ('expiration_reminder','demo_expired')",
+            "notification_type IN ('expiration_reminder','demo_expired','demo_reactivated',"
+            "'demo_expiry_changed','manual_final_day_reminder','demo_access_profile_changed')",
             name="ck_saas_demo_lifecycle_notifications_type",
         ),
         CheckConstraint(
@@ -730,7 +732,9 @@ class SaaSDemoEmailDelivery(Base):
         Index("ix_saas_demo_email_deliveries_status_created", "status", "created_at"),
         CheckConstraint(
             "email_type IN ('request_received','demo_approved','demo_declined',"
-            "'day_six_reminder','demo_expired','subscription_invitation')",
+            "'day_six_reminder','demo_expired','subscription_invitation',"
+            "'demo_reactivated','demo_expiry_changed','manual_final_day_reminder',"
+            "'demo_access_profile_changed')",
             name="ck_saas_demo_email_deliveries_type",
         ),
         CheckConstraint(
@@ -756,8 +760,89 @@ class SaaSDemoEmailDelivery(Base):
     sent_at = Column(DateTime(timezone=True))
     provider_message_id = Column(String(180))
     failure_code = Column(String(80))
+    payload_json = Column(Text)
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class DemoAccessPolicy(Base):
+    __tablename__ = "demo_access_policies"
+    __table_args__ = (
+        Index(
+            "uq_demo_access_policies_workspace_default",
+            "school_group_id",
+            unique=True,
+            sqlite_where=text("branch_id IS NULL"),
+            postgresql_where=text("branch_id IS NULL"),
+        ),
+        Index(
+            "uq_demo_access_policies_branch",
+            "school_group_id",
+            "branch_id",
+            unique=True,
+            sqlite_where=text("branch_id IS NOT NULL"),
+            postgresql_where=text("branch_id IS NOT NULL"),
+        ),
+        Index("ix_demo_access_policies_group", "school_group_id"),
+        Index("ix_demo_access_policies_branch", "branch_id"),
+        CheckConstraint(
+            "access_profile IN ('standard','full','custom')",
+            name="ck_demo_access_policies_profile",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), index=True)
+    access_profile = Column(String(20), nullable=False, default="standard")
+    product_features_json = Column(Text, nullable=False, default="[]")
+    ai_features_json = Column(Text, nullable=False, default="[]")
+    ai_allowances_json = Column(Text, nullable=False, default="{}")
+    unrestricted_ai_features_json = Column(Text, nullable=False, default="[]")
+    reason = Column(Text, nullable=False)
+    updated_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class DemoOperationAudit(Base):
+    __tablename__ = "demo_operation_audits"
+    __table_args__ = (
+        Index(
+            "uq_demo_operation_audits_operation",
+            "school_group_id",
+            "action_type",
+            "operation_key",
+            unique=True,
+        ),
+        Index("ix_demo_operation_audits_group", "school_group_id"),
+        Index("ix_demo_operation_audits_provisioning", "demo_provisioning_id"),
+        Index("ix_demo_operation_audits_actor", "actor_user_id"),
+        Index("ix_demo_operation_audits_created", "created_at"),
+        CheckConstraint(
+            "result_status IN ('success','failed','blocked','deduplicated')",
+            name="ck_demo_operation_audits_result",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    demo_request_id = Column(Integer, ForeignKey("saas_demo_requests.id"), nullable=False, index=True)
+    demo_provisioning_id = Column(
+        Integer, ForeignKey("saas_demo_workspace_provisioning.id"), nullable=False, index=True
+    )
+    branch_id = Column(Integer, ForeignKey("branches.id"), index=True)
+    actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    action_type = Column(String(60), nullable=False)
+    reason = Column(Text)
+    previous_values_json = Column(Text, nullable=False, default="{}")
+    new_values_json = Column(Text, nullable=False, default="{}")
+    result_status = Column(String(20), nullable=False)
+    email_delivery_ids_json = Column(Text, nullable=False, default="[]")
+    notification_ids_json = Column(Text, nullable=False, default="[]")
+    operation_key = Column(String(120), nullable=False)
+    failure_code = Column(String(80))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
 
 class SaaSDemoToPaidConversion(Base):

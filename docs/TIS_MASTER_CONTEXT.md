@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Master Context
 
+## M8B9 Demo Operations, Notifications, And Testing
+
+Customer Demo operations are generic and Platform Owner-only. Immediate expiry
+is reversible; reactivation and custom expiry reuse the same workspace and
+require a future date with no maximum. Manual reminders are limited to the
+final organization-calendar day, and manual lifecycle runs call the production
+M8B7 processor. Standard preserves M8B8 usage, Full remains permission/expiry
+bound, and Custom supports registry-controlled workspace and branch policy.
+
 ## M8B8 AI Entitlements And Commercial Foundation
 
 AI access resolves centrally after tenant scope and `ai.use` permission.

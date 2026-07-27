@@ -7,6 +7,17 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## M8B9 Demo Operations And Access Profiles
+
+M8B9 adds Platform Owner-only orchestration in `saas/demo_operations_service.py`
+and policy resolution in `saas/demo_access_service.py`. Owners can expire,
+reactivate, set an unbounded future expiry, send final-day reminders, invoke
+the existing lifecycle processor, and choose Standard, Full, or Custom access
+at workspace or tenant-validated branch scope. M8B8 usage history is never
+reset; permissions, commercial lifecycle, and feature entitlement remain
+separate fail-closed checks. Material changes reuse M8B7 communications and
+every attempt is durably audited.
+
 ## M8B8 AI Entitlement Foundation
 
 M8B8 centralizes AI access in `saas.ai_entitlement_service`. A controlled
