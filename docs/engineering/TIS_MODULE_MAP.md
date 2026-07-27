@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Module Map
 
+## M8B9 Demo Operations Components
+
+- `saas/demo_operations_service.py`: owner authorization, lifecycle
+  orchestration, communication references, summaries, and durable audits.
+- `saas/demo_access_service.py` and `saas/demo_feature_registry.py`: Standard,
+  Full, and Custom resolution with workspace defaults and branch overrides.
+- `DemoAccessPolicy` and `DemoOperationAudit`: policy and attempt history;
+  M8B8 usage counters/events remain unchanged.
+- Existing owner demo detail and queue surfaces host the controls.
+
 ## M8B8 AI Entitlement Components
 
 - `saas/ai_feature_registry.py`: stable feature identifiers, display labels,

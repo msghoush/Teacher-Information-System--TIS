@@ -261,6 +261,63 @@ def build_demo_subscription_invitation_email(*, organization_name: str, subscrib
     )
 
 
+def build_demo_reactivated_email(*, organization_name: str, expiry_date: str, login_url: str, logo_url: str) -> TransactionalEmail:
+    return render_transactional_email(
+        subject="Your TIS demo has been reactivated",
+        title="Your demo access is active again",
+        message="Your existing TIS workspace has been reactivated. Your users, branches, and data remain unchanged.",
+        logo_url=logo_url,
+        action_label="Open TIS Login",
+        action_url=login_url,
+        fallback_label="Open the TIS login here:",
+        details=(f"Organization: {organization_name}", f"New expiry: {expiry_date}"),
+    )
+
+
+def build_demo_expiry_changed_email(*, organization_name: str, expiry_date: str, login_url: str, logo_url: str) -> TransactionalEmail:
+    return render_transactional_email(
+        subject="Your TIS demo expiry has been updated",
+        title="Your demo schedule has been updated",
+        message="Your TIS demo remains available in the same workspace through the updated expiry date.",
+        logo_url=logo_url,
+        action_label="Open TIS Login",
+        action_url=login_url,
+        fallback_label="Open the TIS login here:",
+        details=(f"Organization: {organization_name}", f"New expiry: {expiry_date}"),
+    )
+
+
+def build_demo_manual_reminder_email(*, organization_name: str, expiry_date: str, subscribe_url: str, logo_url: str, variant: int) -> TransactionalEmail:
+    messages = (
+        "A friendly reminder that your TIS demo is in its final day. Your workspace data will remain preserved.",
+        "Your TIS demo period is almost complete. You can subscribe to continue with the same workspace.",
+        "There is still time to review TIS today. Your existing setup remains ready if you choose to continue.",
+    )
+    return render_transactional_email(
+        subject="A reminder about your TIS demo",
+        title="Your demo is in its final day",
+        message=messages[int(variant) % len(messages)],
+        logo_url=logo_url,
+        action_label="Subscribe Now",
+        action_url=subscribe_url,
+        fallback_label="Continue with TIS Platform here:",
+        details=(f"Organization: {organization_name}", f"Expires: {expiry_date}"),
+    )
+
+
+def build_demo_access_profile_changed_email(*, organization_name: str, profile_name: str, login_url: str, logo_url: str) -> TransactionalEmail:
+    return render_transactional_email(
+        subject="Your TIS demo access has been updated",
+        title="Your demo feature access changed",
+        message="The features available in your active TIS demo have been updated.",
+        logo_url=logo_url,
+        action_label="Open TIS Login",
+        action_url=login_url,
+        fallback_label="Open the TIS login here:",
+        details=(f"Organization: {organization_name}", f"Access profile: {profile_name}"),
+    )
+
+
 def _draft_reminder_details(
     *,
     organization_name: str,

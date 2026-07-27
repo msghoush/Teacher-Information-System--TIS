@@ -12,6 +12,7 @@ import models as operational_models
 from saas import (
     ai_feature_registry,
     commercial_state_service,
+    demo_access_service,
     models,
 )
 from workspace_classification import WorkspaceClassification
@@ -97,6 +98,7 @@ def evaluate_ai_entitlement(
     user,
     school_group_id: int,
     feature_key: str,
+    branch_id: int | None = None,
 ) -> AIEntitlementDecision:
     cleaned_key = str(feature_key or "").strip().lower()
     group = _authorized_workspace(db, user, school_group_id)
@@ -170,7 +172,32 @@ def evaluate_ai_entitlement(
         )
     if state == "customer_demo_active":
         usage = _usage_count(db, group.id, cleaned_key, "demo")
-        remaining = max(feature.demo_allowance - usage, 0)
+        access = demo_access_service.resolve_access(
+            db, group.id, branch_id=branch_id
+        )
+        if cleaned_key not in access.ai_features:
+            return _decision(
+                cleaned_key,
+                allowed=False,
+                reason_code="demo_ai_feature_not_selected",
+                feature=feature,
+                current_usage=usage,
+                workspace_classification=classification,
+                message="This AI feature is not included in the current demo access configuration.",
+            )
+        if cleaned_key in access.unrestricted_ai_features:
+            return _decision(
+                cleaned_key,
+                allowed=True,
+                reason_code="demo_full_access_allowed",
+                feature=feature,
+                current_usage=usage,
+                usage_limit=None,
+                remaining_usage=None,
+                workspace_classification=classification,
+            )
+        allowance = int(access.ai_allowances.get(cleaned_key, feature.demo_allowance))
+        remaining = max(allowance - usage, 0)
         allowed = remaining > 0
         return _decision(
             cleaned_key,
@@ -178,7 +205,7 @@ def evaluate_ai_entitlement(
             reason_code="demo_allowed" if allowed else "demo_feature_limit_exhausted",
             feature=feature,
             current_usage=usage,
-            usage_limit=feature.demo_allowance,
+            usage_limit=allowance,
             remaining_usage=remaining,
             workspace_classification=classification,
             message="" if allowed else DEMO_LIMIT_MESSAGE,
@@ -279,12 +306,14 @@ def reserve_ai_use(
     school_group_id: int,
     feature_key: str,
     operation_key: str,
+    branch_id: int | None = None,
 ) -> AIEntitlementDecision:
     decision = evaluate_ai_entitlement(
         db,
         user=user,
         school_group_id=school_group_id,
         feature_key=feature_key,
+        branch_id=branch_id,
     )
     if not decision.allowed:
         return decision
@@ -315,7 +344,7 @@ def reserve_ai_use(
                 **decision.__dict__,
                 "current_usage": int(counter.successful_uses or 0),
                 "remaining_usage": (
-                    max(int(feature.demo_allowance) - int(counter.successful_uses or 0), 0)
+                    max(int(decision.usage_limit) - int(counter.successful_uses or 0), 0)
                     if decision.usage_limit is not None
                     else None
                 ),
@@ -331,14 +360,18 @@ def reserve_ai_use(
 
     current = int(counter.successful_uses or 0)
     reserved = int(counter.reserved_uses or 0)
-    if metric_context == "demo" and current + reserved >= feature.demo_allowance:
+    if (
+        metric_context == "demo"
+        and decision.usage_limit is not None
+        and current + reserved >= decision.usage_limit
+    ):
         return _decision(
             decision.feature_key,
             allowed=False,
             reason_code="demo_feature_limit_exhausted",
             feature=feature,
             current_usage=current,
-            usage_limit=feature.demo_allowance,
+            usage_limit=decision.usage_limit,
             remaining_usage=0,
             workspace_classification=decision.workspace_classification,
             message=DEMO_LIMIT_MESSAGE,
@@ -366,7 +399,7 @@ def reserve_ai_use(
             "reason_code": "ai_operation_reserved",
             "current_usage": current,
             "remaining_usage": (
-                max(feature.demo_allowance - current - reserved - 1, 0)
+                max(int(decision.usage_limit) - current - reserved - 1, 0)
                 if decision.usage_limit is not None
                 else None
             ),
@@ -382,6 +415,7 @@ def complete_ai_use(
     feature_key: str,
     operation_key: str,
     successful: bool,
+    branch_id: int | None = None,
 ) -> AIEntitlementDecision:
     cleaned_key = str(feature_key or "").strip().lower()
     feature = ai_feature_registry.get_feature(cleaned_key)
@@ -389,6 +423,18 @@ def complete_ai_use(
     if group is None or feature is None:
         return _decision(cleaned_key, allowed=False, reason_code="workspace_access_denied")
     metric_context = _metric_context(str(group.workspace_classification or ""))
+    access = (
+        demo_access_service.resolve_access(db, group.id, branch_id=branch_id)
+        if metric_context == "demo"
+        else None
+    )
+    usage_limit = (
+        None
+        if access and cleaned_key in access.unrestricted_ai_features
+        else int(access.ai_allowances.get(cleaned_key, feature.demo_allowance))
+        if access
+        else None
+    )
     counter = db.query(models.AIFeatureUsageCounter).filter_by(
         school_group_id=group.id,
         feature_key=cleaned_key,
@@ -415,10 +461,10 @@ def complete_ai_use(
             ),
             feature=feature,
             current_usage=int(counter.successful_uses or 0),
-            usage_limit=feature.demo_allowance if metric_context == "demo" else None,
+            usage_limit=usage_limit,
             remaining_usage=(
-                max(feature.demo_allowance - int(counter.successful_uses or 0), 0)
-                if metric_context == "demo"
+                max(int(usage_limit) - int(counter.successful_uses or 0), 0)
+                if usage_limit is not None
                 else None
             ),
             workspace_classification=str(group.workspace_classification or ""),
@@ -438,10 +484,10 @@ def complete_ai_use(
         reason_code="ai_operation_completed" if successful else "ai_operation_failed",
         feature=feature,
         current_usage=int(counter.successful_uses or 0),
-        usage_limit=feature.demo_allowance if metric_context == "demo" else None,
+        usage_limit=usage_limit,
         remaining_usage=(
-            max(feature.demo_allowance - int(counter.successful_uses or 0), 0)
-            if metric_context == "demo"
+            max(int(usage_limit) - int(counter.successful_uses or 0), 0)
+            if usage_limit is not None
             else None
         ),
         workspace_classification=str(group.workspace_classification or ""),
@@ -455,6 +501,7 @@ def consume_successful_ai_use(
     school_group_id: int,
     feature_key: str,
     operation_key: str | None = None,
+    branch_id: int | None = None,
 ) -> AIEntitlementDecision:
     key = str(operation_key or "").strip() or str(uuid.uuid4())
     reservation = reserve_ai_use(
@@ -463,6 +510,7 @@ def consume_successful_ai_use(
         school_group_id=school_group_id,
         feature_key=feature_key,
         operation_key=key,
+        branch_id=branch_id,
     )
     if not reservation.allowed or reservation.reason_code == "ai_operation_completed":
         return reservation
@@ -473,6 +521,7 @@ def consume_successful_ai_use(
         feature_key=feature_key,
         operation_key=key,
         successful=True,
+        branch_id=branch_id,
     )
 
 

@@ -12,10 +12,21 @@ EVENT_CONTENT = {
     "declined": ("Demo request declined", "A customer demo request was declined.", "info"),
     "day_six_reminder": ("Demo expires soon", "A customer demo reaches expiry in approximately one day.", "warning"),
     "expired": ("Demo expired", "A customer demo expired and its workspace data remains preserved.", "warning"),
+    "reactivated": ("Demo reactivated", "A customer demo was reactivated with a new expiry.", "info"),
+    "expiry_changed": ("Demo expiry updated", "A customer demo expiry date was updated.", "info"),
+    "manual_reminder": ("Demo reminder sent", "A final-day demo reminder was sent.", "info"),
+    "access_profile_changed": ("Demo access updated", "Customer-visible demo feature access was updated.", "info"),
 }
 
 
-def notify_platform_owners(db: Session, demo_request, event_type: str, *, provisioning=None) -> int:
+def notify_platform_owners(
+    db: Session,
+    demo_request,
+    event_type: str,
+    *,
+    provisioning=None,
+    operation_key: str | None = None,
+) -> int:
     title, message, severity = EVENT_CONTENT[event_type]
     owners = db.query(operational_models.User).filter(
         operational_models.User.user_type == auth.USER_TYPE_PLATFORM,
@@ -29,7 +40,8 @@ def notify_platform_owners(db: Session, demo_request, event_type: str, *, provis
             operational_models.SchoolGroup.id
         ).limit(1).scalar()
     for owner in owners:
-        key = f"demo:{demo_request.id}:notification:{event_type}:owner:{owner.id}"
+        operation_suffix = f":{str(operation_key).strip()}" if operation_key else ""
+        key = f"demo:{demo_request.id}:notification:{event_type}{operation_suffix}:owner:{owner.id}"
         if db.query(operational_models.SystemNotification).filter_by(deduplication_key=key).first():
             continue
         db.add(operational_models.SystemNotification(

@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## M8B9 Demo Operations Persistence
+
+`demo_access_policies` stores a workspace default and optional branch override
+with controlled profile/registry values. `demo_operation_audits` stores actor,
+scope, action, reason, before/after JSON, result, communication references,
+failure code, and operation key. Provisioning adds `expiry_policy`; email
+intents add variant payload JSON. Idempotent migration
+`20260727_003_m8b9_demo_operations` uses the active DDL connection and existing
+pre-deploy PostgreSQL lock and statement timeout protections.
+
 ## Deployment Migration Boundary
 
 Database schema work belongs to `python scripts/run_migrations.py`, never the

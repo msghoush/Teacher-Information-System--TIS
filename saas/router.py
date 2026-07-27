@@ -3,18 +3,22 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Red
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
+from datetime import datetime, timezone
 import json
 import logging
 import os
+import uuid
+from zoneinfo import ZoneInfo
 from urllib.parse import quote_plus
 
 import auth
 import audit
+import models as operational_models
 from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import billing_history_service, billing_service, commercial_state_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_lifecycle_service, demo_notification_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import ai_feature_registry, billing_history_service, billing_service, commercial_state_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 
 logger = logging.getLogger(__name__)
@@ -2909,6 +2913,26 @@ def demo_request_review_detail(
         entitlement_snapshot = json.loads(row.entitlement_snapshot_json or "{}")
     except (TypeError, ValueError):
         entitlement_snapshot = {"resolution_status": "manual_review"}
+    effective_demo_access = (
+        demo_access_service.resolve_access(
+            db, card.provisioning.school_group_id
+        )
+        if card.provisioning and card.provisioning.school_group_id
+        else None
+    )
+    demo_branches = (
+        db.query(operational_models.Branch)
+        .filter_by(school_group_id=card.provisioning.school_group_id)
+        .order_by(operational_models.Branch.name).all()
+        if card.provisioning and card.provisioning.school_group_id else []
+    )
+    demo_operation_audits = (
+        db.query(models.DemoOperationAudit)
+        .filter_by(demo_provisioning_id=card.provisioning.id)
+        .order_by(models.DemoOperationAudit.created_at.desc())
+        .limit(100).all()
+        if card.provisioning else []
+    )
     db.commit()
     return _render(
         request,
@@ -2934,11 +2958,194 @@ def demo_request_review_detail(
                 card.provisioning
             ),
             "entitlement_snapshot": entitlement_snapshot,
+            "effective_demo_access": effective_demo_access,
+            "demo_branches": demo_branches,
+            "demo_operation_audits": demo_operation_audits,
+            "demo_product_features": demo_feature_registry.list_features(),
+            "demo_ai_features": ai_feature_registry.list_features(),
+            "operation_key": str(uuid.uuid4()),
             "status_label": demo_request_service.status_label(row.status),
             "status_tone": demo_request_service.status_tone(row.status),
             "notice": request.query_params.get("notice", ""),
             "error": request.query_params.get("error", ""),
         },
+    )
+
+
+def _demo_operation_context(db: Session, request_uuid: str):
+    row = demo_request_service.get_request_by_uuid(db, request_uuid)
+    if not row:
+        raise HTTPException(status_code=404, detail="Demo request not found.")
+    provisioning = demo_provisioning_service.get_provisioning_for_request(db, row)
+    if not provisioning:
+        raise HTTPException(status_code=409, detail="Demo workspace is not provisioned.")
+    return row, provisioning
+
+
+def _demo_operation_redirect(request_uuid: str, *, notice: str = "", error: str = ""):
+    name, value = ("error", error) if error else ("notice", notice)
+    return RedirectResponse(
+        f"/saas-admin/demo-requests/{request_uuid}?{name}={quote_plus(value)}",
+        status_code=303,
+    )
+
+
+def _parse_demo_expiry(value: str, timezone_name: str | None):
+    try:
+        parsed = datetime.fromisoformat(str(value).strip())
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=ZoneInfo(timezone_name or "UTC"))
+        return parsed.astimezone(timezone.utc)
+    except (TypeError, ValueError, KeyError) as exc:
+        raise demo_operations_service.DemoOperationError(
+            "Enter a valid expiry date and time.", reason_code="invalid_expiry"
+        ) from exc
+
+
+def _perform_demo_operation(
+    db, request_uuid, current_user, operation, *, action, dispatch_email=True, **kwargs
+):
+    row, provisioning = _demo_operation_context(db, request_uuid)
+    try:
+        result = operation(
+            db, actor=current_user, provisioning_id=provisioning.id, **kwargs
+        )
+        db.commit()
+    except (demo_operations_service.DemoOperationError, demo_access_service.DemoAccessError) as exc:
+        db.rollback()
+        try:
+            demo_operations_service.record_failed_operation(
+                db, actor=current_user, provisioning_id=provisioning.id,
+                action=action, reason=str(kwargs.get("reason") or ""),
+                operation_key=kwargs.get("operation_key"),
+                failure_code=getattr(exc, "reason_code", "operation_failed"),
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("Failed to persist demo operation failure audit")
+        return _demo_operation_redirect(request_uuid, error=str(exc))
+    if dispatch_email:
+        _dispatch_demo_email_best_effort(db, row.id)
+    return _demo_operation_redirect(request_uuid, notice="Demo operation completed.")
+
+
+@admin_router.post("/demo-requests/{request_uuid}/operations/expire")
+def expire_demo_operation(request_uuid: str, request: Request, reason: str = Form(...),
+                          operation_key: str = Form(""), db: Session = Depends(get_db)):
+    actor = _require_platform_owner(request, db)
+    return _perform_demo_operation(
+        db, request_uuid, actor, demo_operations_service.expire_demo_now,
+        action="expire_demo", reason=reason, operation_key=operation_key,
+    )
+
+
+@admin_router.post("/demo-requests/{request_uuid}/operations/reactivate")
+def reactivate_demo_operation(request_uuid: str, request: Request,
+                              expires_at: str = Form(...), reason: str = Form(...),
+                              operation_key: str = Form(""), db: Session = Depends(get_db)):
+    actor = _require_platform_owner(request, db)
+    row, provisioning = _demo_operation_context(db, request_uuid)
+    organization = db.get(models.PendingOrganization, row.pending_organization_id)
+    expiry = _parse_demo_expiry(
+        expires_at, getattr(organization, "timezone", None)
+    )
+    return _perform_demo_operation(
+        db, request_uuid, actor, demo_operations_service.reactivate_demo,
+        action="reactivate_demo", new_expiry=expiry, reason=reason, operation_key=operation_key,
+    )
+
+
+@admin_router.post("/demo-requests/{request_uuid}/operations/expiry")
+def change_demo_expiry_operation(request_uuid: str, request: Request,
+                                 expires_at: str = Form(...), reason: str = Form(...),
+                                 operation_key: str = Form(""), db: Session = Depends(get_db)):
+    actor = _require_platform_owner(request, db)
+    row, provisioning = _demo_operation_context(db, request_uuid)
+    organization = db.get(models.PendingOrganization, row.pending_organization_id)
+    expiry = _parse_demo_expiry(
+        expires_at, getattr(organization, "timezone", None)
+    )
+    return _perform_demo_operation(
+        db, request_uuid, actor, demo_operations_service.set_custom_expiry,
+        action="set_custom_expiry", new_expiry=expiry, reason=reason, operation_key=operation_key,
+    )
+
+
+@admin_router.post("/demo-requests/{request_uuid}/operations/reminder")
+def send_demo_reminder_operation(request_uuid: str, request: Request,
+                                 reason: str = Form(""), operation_key: str = Form(""),
+                                 db: Session = Depends(get_db)):
+    actor = _require_platform_owner(request, db)
+    return _perform_demo_operation(
+        db, request_uuid, actor, demo_operations_service.send_final_day_reminder,
+        action="send_manual_reminder", reason=reason, operation_key=operation_key,
+    )
+
+
+@admin_router.post("/demo-requests/{request_uuid}/operations/lifecycle")
+def run_demo_lifecycle_operation(request_uuid: str, request: Request,
+                                 reason: str = Form(""), operation_key: str = Form(""),
+                                 db: Session = Depends(get_db)):
+    actor = _require_platform_owner(request, db)
+    return _perform_demo_operation(
+        db, request_uuid, actor, demo_operations_service.run_lifecycle_for_demo,
+        action="run_lifecycle", reason=reason, operation_key=operation_key,
+    )
+
+
+@admin_router.post("/demo-requests/{request_uuid}/operations/access")
+def change_demo_access_operation(
+    request_uuid: str, request: Request, profile: str = Form(...),
+    reason: str = Form(...), product_features: list[str] = Form([]),
+    ai_features: list[str] = Form([]), unrestricted_ai_features: list[str] = Form([]),
+    branch_id: int | None = Form(None),
+    ai_allowance_academic_assistant: int | None = Form(None),
+    ai_allowance_exam_analysis: int | None = Form(None),
+    ai_allowance_coaching_recommendations: int | None = Form(None),
+    ai_allowance_action_plan_generation: int | None = Form(None),
+    operation_key: str = Form(""), db: Session = Depends(get_db),
+):
+    actor = _require_platform_owner(request, db)
+    form = {
+        key: value for key, value in {
+            "ai.academic_assistant": ai_allowance_academic_assistant,
+            "ai.exam_analysis": ai_allowance_exam_analysis,
+            "ai.coaching_recommendations": ai_allowance_coaching_recommendations,
+            "ai.action_plan_generation": ai_allowance_action_plan_generation,
+        }.items() if value is not None
+    }
+    return _perform_demo_operation(
+        db, request_uuid, actor, demo_operations_service.change_access_profile,
+        action="change_access_profile", branch_id=branch_id,
+        profile=profile, reason=reason, product_features=product_features,
+        ai_features=ai_features, unrestricted_ai_features=unrestricted_ai_features,
+        ai_allowances=form, operation_key=operation_key,
+    )
+
+
+@admin_router.post("/demo-operations/run-lifecycle")
+def run_all_demo_lifecycles(request: Request, reason: str = Form(""),
+                            operation_key: str = Form(""),
+                            db: Session = Depends(get_db)):
+    actor = _require_platform_owner(request, db)
+    factory = sessionmaker(bind=db.get_bind(), autocommit=False, autoflush=False)
+    try:
+        summary = demo_operations_service.run_lifecycle_for_all(
+            factory, actor=actor, reason=reason, operation_key=operation_key
+        )
+    except demo_operations_service.DemoOperationError as exc:
+        return RedirectResponse(
+            f"/saas-admin/demo-requests?error={quote_plus(str(exc))}", status_code=303
+        )
+    message = (
+        f"Lifecycle run: {summary.demos_checked} checked, "
+        f"{summary.reminders_created} reminders, {summary.demos_expired} expired, "
+        f"{summary.no_action_count} no action, {summary.failures} failures, "
+        f"{summary.skipped_or_deduplicated} skipped."
+    )
+    return RedirectResponse(
+        f"/saas-admin/demo-requests?notice={quote_plus(message)}", status_code=303
     )
 
 

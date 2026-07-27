@@ -7,6 +7,13 @@ source_of_truth: true
 
 # TIS Product Roadmap
 
+## M8B9 Demo Operations, Notifications, And Testing
+
+Completed generic Platform Owner lifecycle operations, manual production
+lifecycle execution, Standard/Full/Custom policies, isolated branch overrides,
+durable audit, and M8B7-based customer communications while preserving M8B8
+usage history and Customer Demo classification.
+
 ## M8B8 AI Entitlements And Commercial Foundation
 
 Completed the commercial and usage boundary required before executable AI

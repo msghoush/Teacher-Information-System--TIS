@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Repository Architecture
 
+## M8B9 Demo Operations Boundary
+
+The owner HTTP surface delegates mutations to `saas/demo_operations_service.py`,
+which validates and locks the Customer Demo context, calls existing lifecycle
+and communication services, and writes audit state. Access decisions resolve
+through `saas/demo_access_service.py` before the M8B8 counter. Workspace policy
+is the default; branch policy requires same-tenant validation. M8B9 DDL runs
+only through `python scripts/run_migrations.py` during pre-deploy.
+
 ## M8B8 AI Entitlement Boundary
 
 AI route code must never inspect classifications, plans, or usage rows

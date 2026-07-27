@@ -138,6 +138,82 @@
  </section>
 {% endif %}
 
+{% if demo_provisioning %}
+<section class="demo-review-section" aria-label="Demo operations">
+    <h2>Demo Operations</h2>
+    <p class="muted">Platform Owner actions preserve the existing workspace and record a durable audit entry. Expiry times are entered in the organization timezone.</p>
+    <div class="demo-review-actions">
+        <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/operations/expire" onsubmit="return confirm('Expire this demo now?');">
+            <h3>Expire Now</h3>
+            <input type="hidden" name="operation_key" value="{{ operation_key }}">
+            <label>Reason</label><textarea name="reason" required maxlength="2000"></textarea>
+            <button class="btn danger" type="submit">Expire Demo</button>
+        </form>
+        <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/operations/reactivate" onsubmit="return confirm('Reactivate this demo with the selected expiry?');">
+            <h3>Reactivate Expired Demo</h3>
+            <input type="hidden" name="operation_key" value="{{ operation_key }}-reactivate">
+            <label>New future expiry</label><input type="datetime-local" name="expires_at" required>
+            <label>Reason</label><textarea name="reason" required maxlength="2000"></textarea>
+            <button class="btn" type="submit">Reactivate</button>
+        </form>
+        <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/operations/expiry">
+            <h3>Change Expiry</h3>
+            <input type="hidden" name="operation_key" value="{{ operation_key }}-expiry">
+            <label>New future expiry</label><input type="datetime-local" name="expires_at" required>
+            <label>Reason</label><textarea name="reason" required maxlength="2000"></textarea>
+            <button class="btn" type="submit">Save Expiry</button>
+        </form>
+        <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/operations/reminder">
+            <h3>Final-Day Reminder</h3>
+            <input type="hidden" name="operation_key" value="{{ operation_key }}-reminder">
+            <p class="muted">Available only on the final calendar day before expiry. Repeated sends rotate approved copy and remain independently traceable.</p>
+            <label>Optional reason</label><textarea name="reason" maxlength="2000"></textarea>
+            <button class="btn secondary" type="submit">Send Reminder</button>
+        </form>
+        <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/operations/lifecycle">
+            <h3>Run Lifecycle</h3>
+            <input type="hidden" name="operation_key" value="{{ operation_key }}-lifecycle">
+            <label>Optional reason</label><textarea name="reason" maxlength="2000"></textarea>
+            <button class="btn secondary" type="submit">Process This Demo</button>
+        </form>
+    </div>
+</section>
+
+<section class="demo-review-section" aria-label="Demo access profile">
+    <h2>Demo Access Profile</h2>
+    <p>Effective profile: <strong>{{ effective_demo_access.profile|title if effective_demo_access else 'Standard' }}</strong></p>
+    <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/operations/access">
+        <input type="hidden" name="operation_key" value="{{ operation_key }}-access">
+        <label>Profile</label>
+        <select name="profile" required>
+            <option value="standard">Standard</option>
+            <option value="full">Full</option>
+            <option value="custom">Custom</option>
+        </select>
+        <label>Scope</label>
+        <select name="branch_id">
+            <option value="">Workspace default</option>
+            {% for branch in demo_branches %}<option value="{{ branch.id }}">Branch: {{ branch.name }}</option>{% endfor %}
+        </select>
+        <h3>Custom Product Features</h3>
+        {% for feature in demo_product_features %}
+        <label><input type="checkbox" name="product_features" value="{{ feature.key }}"> {{ feature.display_name }}</label>
+        {% endfor %}
+        <h3>Custom AI Features</h3>
+        {% for feature in demo_ai_features if feature.enabled %}
+        <label><input type="checkbox" name="ai_features" value="{{ feature.key }}"> {{ feature.display_name }}</label>
+        <label><input type="checkbox" name="unrestricted_ai_features" value="{{ feature.key }}"> Unlimited {{ feature.display_name }}</label>
+        <label>{{ feature.display_name }} allowance
+            <input type="number" min="0" name="ai_allowance_{{ feature.key|replace('ai.', '') }}" placeholder="{{ feature.demo_allowance }}">
+        </label>
+        {% endfor %}
+        <p class="muted">Allowances apply only to selected AI features. Choose Unlimited to bypass the demo counter while the demo remains active.</p>
+        <label>Reason</label><textarea name="reason" required maxlength="2000"></textarea>
+        <button class="btn" type="submit">Apply Access Profile</button>
+    </form>
+</section>
+{% endif %}
+
 <section class="demo-review-section">
     <h2>Request History</h2>
     <div class="demo-event-list">
@@ -186,6 +262,17 @@
     <div class="demo-event-list">
         {% for notification in lifecycle_notifications %}
         <div class="demo-event"><span>{{ notification.title }} <span class="muted">({{ notification.recipient_type|replace('_', ' ') }})</span></span><time>{{ notification.created_at.strftime('%b %d, %Y %H:%M UTC') if notification.created_at else '' }}</time></div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if demo_operation_audits %}
+<section class="demo-review-section">
+    <h2>Demo Operations Audit</h2>
+    <div class="demo-event-list">
+        {% for entry in demo_operation_audits %}
+        <div class="demo-event"><span>{{ entry.action_type|replace('_', ' ')|title }} · {{ entry.result_status|title }}{% if entry.reason %} <span class="muted">({{ entry.reason }})</span>{% endif %}</span><time>{{ entry.created_at.strftime('%b %d, %Y %H:%M UTC') if entry.created_at else '' }}</time></div>
         {% endfor %}
     </div>
 </section>
