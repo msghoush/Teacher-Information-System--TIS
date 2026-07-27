@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-07-27T20:31:04.945879+03:00",
+  "generated_at": "2026-07-27T21:26:40.356064+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "06300a7",
+  "commit_sha": "775d784",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "c7aa87b031d100d9778e314a38726abaef362140ea0977e8ebee972e0749bc47",
-  "pdf_size_bytes": 647682,
+  "pdf_sha256": "58f540d4512d3811a44d4ed0dd99f6ccfd0cf17397d2797894b149617465e883",
+  "pdf_size_bytes": 648112,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -53,9 +53,9 @@
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-07-27T20:30:34.650708+03:00",
-      "size_bytes": 67529,
-      "sha256": "e20cee9c2c033801fd371f150cfd371682bf0fef0adfe22b5aa17af6077ac23b",
+      "modified_at": "2026-07-27T21:25:34.894798+03:00",
+      "size_bytes": 67828,
+      "sha256": "5d1a6df8c59faa6127952c6f56229897d0d109d78f0c12319144a900f56c587f",
       "pdf_page": 54
     },
     {
@@ -95,9 +95,9 @@
     },
     {
       "path": "docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md",
-      "modified_at": "2026-07-27T20:30:34.657526+03:00",
-      "size_bytes": 22512,
-      "sha256": "23acdb8099f378a8e0a08e0d9c385154a1a9bc4d44b7b2e89ded3540e102e645",
+      "modified_at": "2026-07-27T21:25:34.899220+03:00",
+      "size_bytes": 22794,
+      "sha256": "4d1f61ac32d8ab1c7b270be9b99b80acd38877fac4b2c6f998338a5467464eb9",
       "pdf_page": 115
     },
     {
@@ -305,9 +305,9 @@
     },
     {
       "path": "docs/adr/0016-pre-deploy-database-migration-boundary.md",
-      "modified_at": "2026-07-27T20:30:34.672458+03:00",
-      "size_bytes": 1939,
-      "sha256": "17903760480ce498581c65f9d83a41372bb3f0902963d41c0c483c798d867d90",
+      "modified_at": "2026-07-27T21:25:34.902485+03:00",
+      "size_bytes": 2123,
+      "sha256": "de94d298054f1a0a5cd06e648e9668b425e611efac5a91b762afb6f9c5559153",
       "pdf_page": 196
     },
     {

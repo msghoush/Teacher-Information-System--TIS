@@ -48,19 +48,22 @@ def _execute(connection, sql: str, params: dict | None = None):
 
 
 def _add_column_if_missing(bind, connection, table_name: str, column_name: str, column_sql: str):
-    if not _table_exists(bind, table_name) or _column_exists(bind, table_name, column_name):
+    # Transactional DDL and its catalog inspection must share one PostgreSQL
+    # session. Inspecting ``bind`` when it is an Engine can check out a second
+    # connection that waits on locks owned by ``connection``.
+    if not _table_exists(connection, table_name) or _column_exists(connection, table_name, column_name):
         return
     _execute(connection, f"ALTER TABLE {table_name} ADD COLUMN {column_sql}")
 
 
 def _create_index_if_missing(bind, connection, table_name: str, index_name: str, columns_sql: str):
-    if not _table_exists(bind, table_name) or _index_exists(bind, table_name, index_name):
+    if not _table_exists(connection, table_name) or _index_exists(connection, table_name, index_name):
         return
     _execute(connection, f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({columns_sql})")
 
 
 def _create_unique_index_if_missing(bind, connection, table_name: str, index_name: str, columns_sql: str):
-    if not _table_exists(bind, table_name) or _index_exists(bind, table_name, index_name):
+    if not _table_exists(connection, table_name) or _index_exists(connection, table_name, index_name):
         return
     _execute(connection, f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} ON {table_name} ({columns_sql})")
 

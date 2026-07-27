@@ -22,6 +22,10 @@ connection timeout, 5-second lock timeout, and 30-second statement timeout at
 PostgreSQL connection creation so baseline `metadata.create_all()`,
 `schema_migrations` initialization, every ordered migration, and commit are
 bounded. Flushed progress logging brackets each phase and migration identifier.
+Within a migration transaction, catalog inspection and DDL must use the same
+SQLAlchemy `Connection`; helper code must not inspect the `Engine`, because a
+second PostgreSQL session can wait on uncommitted DDL locks held by the first
+session and self-deadlock the migration process.
 
 ## M8B8 AI Usage Persistence
 

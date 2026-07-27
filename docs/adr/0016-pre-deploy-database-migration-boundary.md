@@ -41,4 +41,7 @@ partially migrated schema or delaying Uvicorn's bind.
   DDL begins. Migration-local protections remain effective.
 - Flushed logs identify connection, metadata, ledger, per-migration apply,
   marker, and commit progress. Timeout failures exit nonzero.
+- Schema inspection performed during a migration transaction uses that
+  transaction's active SQLAlchemy `Connection`, never a secondary connection
+  checked out through the `Engine`.
 - The former daemon migration worker and readiness middleware are removed.
