@@ -149,6 +149,13 @@ PERMISSION_GROUPS = (
         ),
     },
     {
+        "key": "ai",
+        "label": "AI",
+        "permissions": (
+            ("ai.use", "Use entitled AI features"),
+        ),
+    },
+    {
         "key": "notifications",
         "label": "Notifications",
         "permissions": (

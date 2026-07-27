@@ -12,6 +12,7 @@ Use module history when a meaningful area changes and the previous documented st
 
 ## Module Areas
 
+- `ai-entitlements/`
 - `subscriptions/`
 - `landing-page/`
 - `academic-calendar/`

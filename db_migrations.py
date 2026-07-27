@@ -4510,6 +4510,112 @@ def _m8b7_demo_customer_journey(engine, connection):
         creator(engine, connection, "saas_demo_email_deliveries", index_name, columns)
 
 
+def _m8b8_ai_entitlement_foundation(engine, connection):
+    if engine.dialect.name == "postgresql":
+        _execute(connection, "SET LOCAL lock_timeout = '5s'")
+        _execute(connection, "SET LOCAL statement_timeout = '30s'")
+    datetime_type = "TIMESTAMPTZ" if engine.dialect.name == "postgresql" else "DATETIME"
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS ai_feature_usage_counters (
+            id {id_sql},
+            school_group_id INTEGER NOT NULL,
+            feature_key VARCHAR(80) NOT NULL,
+            metric_context VARCHAR(24) NOT NULL,
+            workspace_classification VARCHAR(32) NOT NULL,
+            plan_code VARCHAR(40),
+            successful_uses INTEGER NOT NULL DEFAULT 0,
+            reserved_uses INTEGER NOT NULL DEFAULT 0,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_ai_feature_usage_counters_context CHECK (
+                metric_context IN ('internal_sandbox','demo','paid')
+            ),
+            CONSTRAINT ck_ai_feature_usage_counters_classification CHECK (
+                workspace_classification IN ('internal_sandbox','customer_demo','customer_paid')
+            ),
+            CONSTRAINT ck_ai_feature_usage_counters_nonnegative CHECK (successful_uses >= 0),
+            CONSTRAINT ck_ai_feature_usage_counters_reserved_nonnegative CHECK (reserved_uses >= 0),
+            CONSTRAINT fk_ai_feature_usage_counters_group FOREIGN KEY (school_group_id)
+                REFERENCES school_groups(id)
+        )
+        """,
+    )
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS ai_feature_usage_events (
+            id {id_sql},
+            school_group_id INTEGER NOT NULL,
+            feature_key VARCHAR(80) NOT NULL,
+            metric_context VARCHAR(24) NOT NULL,
+            workspace_classification VARCHAR(32) NOT NULL,
+            plan_code VARCHAR(40),
+            user_id INTEGER,
+            operation_key VARCHAR(120) NOT NULL,
+            result_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            completed_at {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_ai_feature_usage_events_context CHECK (
+                metric_context IN ('internal_sandbox','demo','paid')
+            ),
+            CONSTRAINT ck_ai_feature_usage_events_classification CHECK (
+                workspace_classification IN ('internal_sandbox','customer_demo','customer_paid')
+            ),
+            CONSTRAINT ck_ai_feature_usage_events_status CHECK (
+                result_status IN ('pending','successful','failed')
+            ),
+            CONSTRAINT fk_ai_feature_usage_events_group FOREIGN KEY (school_group_id)
+                REFERENCES school_groups(id),
+            CONSTRAINT fk_ai_feature_usage_events_user FOREIGN KEY (user_id)
+                REFERENCES users(id)
+        )
+        """,
+    )
+    for table_name, index_name, columns, unique in (
+        (
+            "ai_feature_usage_counters",
+            "uq_ai_feature_usage_counter_scope",
+            "school_group_id, feature_key, metric_context",
+            True,
+        ),
+        (
+            "ai_feature_usage_counters",
+            "ix_ai_feature_usage_counters_group",
+            "school_group_id",
+            False,
+        ),
+        (
+            "ai_feature_usage_counters",
+            "ix_ai_feature_usage_counters_feature",
+            "feature_key",
+            False,
+        ),
+        (
+            "ai_feature_usage_events",
+            "uq_ai_feature_usage_event_operation",
+            "school_group_id, feature_key, metric_context, operation_key",
+            True,
+        ),
+        (
+            "ai_feature_usage_events",
+            "ix_ai_feature_usage_events_group_feature",
+            "school_group_id, feature_key",
+            False,
+        ),
+        (
+            "ai_feature_usage_events",
+            "ix_ai_feature_usage_events_created",
+            "created_at",
+            False,
+        ),
+    ):
+        creator = _create_unique_index_if_missing if unique else _create_index_if_missing
+        creator(engine, connection, table_name, index_name, columns)
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -4680,6 +4786,11 @@ MIGRATIONS = (
         migration_id="20260727_001_m8b7_demo_customer_journey",
         description="Add M8B7 demo communications, Notification Center metadata, and durable email delivery",
         apply=_m8b7_demo_customer_journey,
+    ),
+    Migration(
+        migration_id="20260727_002_m8b8_ai_entitlement_foundation",
+        description="Add centralized tenant-safe AI feature usage accounting",
+        apply=_m8b8_ai_entitlement_foundation,
     ),
 )
 

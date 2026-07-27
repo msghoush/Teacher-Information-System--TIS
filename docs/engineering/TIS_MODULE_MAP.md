@@ -7,6 +7,17 @@ source_of_truth: true
 
 # TIS Module Map
 
+## M8B8 AI Entitlement Components
+
+- `saas/ai_feature_registry.py`: stable feature identifiers, display labels,
+  required permission/entitlement, eligible plans, demo allowance, and enabled
+  state.
+- `saas/ai_entitlement_service.py`: tenant-safe decisions, consistent denial
+  metadata, and the only reservation/finalization/consumption API.
+- `AIFeatureUsageCounter` and `AIFeatureUsageEvent`: separated durable
+  internal/demo/paid accounting.
+- `permission_registry.py`: assignable `ai.use` authorization boundary.
+
 ## M8B7 Demo Customer Journey Components
 
 - `saas/demo_email_service.py`: durable demo email intents, branded rendering inputs, provider dispatch, and retries.

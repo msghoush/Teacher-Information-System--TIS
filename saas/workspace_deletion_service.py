@@ -138,6 +138,7 @@ _WORKSPACE_DELETION_MODELS = (
     operational_models.RolePermission, operational_models.SchoolGroupLogo,
     operational_models.VisualDesignSetting, operational_models.TenantProfile,
     operational_models.Branch, operational_models.AcademicYear,
+    models.AIFeatureUsageEvent, models.AIFeatureUsageCounter,
     models.WorkspaceEntitlementValue, models.BranchEntitlement, models.WorkspaceEntitlement,
     models.SubscriptionChangeRequest, models.PaymentSubscription, models.PaymentAttempt,
     models.CheckoutSession, models.SubscriptionContract, models.PaymentCustomer,
@@ -383,6 +384,12 @@ def delete_test_workspace(
     ))
     deleted += _delete(db.query(models.SubscriptionChangeRequest).filter(
         models.SubscriptionChangeRequest.school_group_id == school_group_id
+    ))
+    deleted += _delete(db.query(models.AIFeatureUsageEvent).filter(
+        models.AIFeatureUsageEvent.school_group_id == school_group_id
+    ))
+    deleted += _delete(db.query(models.AIFeatureUsageCounter).filter(
+        models.AIFeatureUsageCounter.school_group_id == school_group_id
     ))
     if workspace_entitlement_ids:
         deleted += _delete(db.query(models.WorkspaceEntitlementValue).filter(

@@ -598,6 +598,8 @@ def analyze_test_workspace(db: Session, organization) -> dict:
         _add_count(counts, category="Operational tenant", table="workspace_entitlements", count=len(workspace_entitlement_ids), disposition="tenant-owned")
         _add_count(counts, category="Operational tenant", table="workspace_entitlement_values", count=_count(db.query(models.WorkspaceEntitlementValue).filter(models.WorkspaceEntitlementValue.workspace_entitlement_id.in_(workspace_entitlement_ids))) if workspace_entitlement_ids else 0, disposition="tenant-owned")
         _add_count(counts, category="Operational tenant", table="branch_entitlements", count=_count(db.query(models.BranchEntitlement).filter(or_(models.BranchEntitlement.school_group_id == school_group_id, models.BranchEntitlement.workspace_entitlement_id.in_(workspace_entitlement_ids) if workspace_entitlement_ids else False))), disposition="tenant-owned")
+        _add_count(counts, category="Operational tenant", table="ai_feature_usage_counters", count=_count(db.query(models.AIFeatureUsageCounter).filter(models.AIFeatureUsageCounter.school_group_id == school_group_id)), disposition="tenant-owned")
+        _add_count(counts, category="Operational tenant", table="ai_feature_usage_events", count=_count(db.query(models.AIFeatureUsageEvent).filter(models.AIFeatureUsageEvent.school_group_id == school_group_id)), disposition="tenant-owned")
         _add_count(counts, category="Operational tenant", table="branches", count=len(branch_ids), disposition="tenant-owned")
         _add_count(counts, category="Operational tenant", table="academic_years", count=len(academic_year_ids), disposition="tenant-owned")
         _add_count(counts, category="Operational tenant", table="users", count=len(user_pks), disposition="tenant-owned")

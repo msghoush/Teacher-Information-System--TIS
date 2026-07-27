@@ -7,6 +7,22 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## M8B8 AI Entitlement And Consumption Flow
+
+1. Resolve the operational SchoolGroup and reject cross-tenant scope.
+2. Require the registered feature's underlying `ai.use` permission.
+3. Resolve existing commercial state; demo expiry/restriction takes precedence.
+4. Resolve the controlled feature definition.
+5. Internal Sandbox is unlimited; Customer Demo checks two successful uses per
+   feature; Customer Paid checks eligible plan plus `module.ai`.
+6. Reserve an operation key under the locked successful-plus-reserved limit.
+7. If reserved, execute the real AI operation outside the entitlement service.
+8. Finalize a usable result as successful consumption; finalize failure without
+   consumption and release the reservation.
+
+There are currently no executable AI routes, so steps 6-8 are a reusable
+contract rather than a fabricated customer feature.
+
 ## M8B7 Demo Customer Journey
 
 Submission creates pending status, a request-received email intent, and owner Notification Center events. Normal approval records review evidence then invokes the retryable provisioning service; activation communication exists only after success. Day 6 and expiry create lifecycle events, customer notices, owner notifications, and email intents atomically. Provider delivery occurs outside locks. A coherent expired demo may subscribe and, after authoritative confirmed payment, reactivate and convert the same workspace.

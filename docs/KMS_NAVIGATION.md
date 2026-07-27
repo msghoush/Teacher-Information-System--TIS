@@ -73,6 +73,18 @@ Read:
 
 Guardrail: provider-confirmed state remains authoritative for paid entitlements, payment completion, proration, invoices, and lifecycle reconciliation.
 
+## AI Entitlements
+
+Read:
+
+- [ADR 0015: Centralized AI Entitlements And Usage Accounting](adr/0015-centralized-ai-entitlements-and-usage-accounting.md)
+- [AI Entitlements History](history/ai-entitlements/README.md)
+- [TIS Module Map](engineering/TIS_MODULE_MAP.md)
+- [Database Architecture Overview](engineering/DATABASE_ARCHITECTURE_OVERVIEW.md)
+
+Guardrail: routes never manipulate AI usage directly; permissions, commercial
+state, registry policy, and successful-use consumption remain separate.
+
 ## Operational Academic Modules
 
 For teachers, subjects, sections, workforce planning, timetables, calendars, observations, and reports, read:

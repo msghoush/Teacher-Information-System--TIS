@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Repository Architecture
 
+## M8B8 AI Entitlement Boundary
+
+AI route code must never inspect classifications, plans, or usage rows
+directly. It requests a decision from `saas.ai_entitlement_service`, performs
+the real AI operation only when allowed, and records consumption only after a
+usable result. The registry is code-controlled configuration. Commercial state
+and permissions remain upstream authorities; accounting is downstream and
+tenant-scoped.
+
 ## M8B7 Communication Boundaries
 
 Demo email intent creation and dispatch belong to `saas/demo_email_service.py`; Platform Owner Notification Center creation belongs to `saas/demo_notification_service.py`. Routes orchestrate existing services but do not own lifecycle calculations. Provider calls occur outside lifecycle locks. The shared shell consumes the read-only lifecycle resolver and never becomes lifecycle authority.

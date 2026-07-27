@@ -7,6 +7,18 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## M8B8 AI Entitlement Foundation
+
+M8B8 centralizes AI access in `saas.ai_entitlement_service`. A controlled
+registry owns stable feature identifiers and temporary reviewed plan mapping.
+Customer Demo receives two successful uses per feature; pre-execution
+reservations block concurrent excess attempts, while failed/no-result work
+releases capacity without consuming. Durable counters and operation events are scoped by
+SchoolGroup, feature, and separate internal/demo/paid metric context. Existing
+tenant resolution, `ai.use` permission, commercial state, demo expiry, and
+paid `module.ai` entitlement remain distinct authorities. No AI business tool
+or M8B9 operational control is included.
+
 ## M8B7 Demo Customer Journey
 
 M8B7 makes normal Platform Owner approval orchestrate the existing independently retryable provisioning service. It adds a durable branded demo email outbox, deduplicated Platform Owner Notification Center events, a shared-shell active-demo indicator, atomic Day 6/expiry communication intents, and coherent expired-demo conversion after authoritative confirmed payment. The same PendingOrganization and then exactly one SchoolGroup are preserved. Production must schedule `python scripts/process_demo_lifecycle.py --apply`; dry-run remains the default. M8B8 and M8B9 are not included.

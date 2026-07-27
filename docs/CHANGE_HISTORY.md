@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-07-27 - M8B8 AI Entitlements And Commercial Foundation
+
+Added one authoritative AI feature registry and entitlement service. Decisions
+compose tenant scope, role permission, commercial state, feature policy, plan
+entitlement, and usage without replacing any existing authority. Customer Demo
+gets two successful uses per feature; internal, demo, and paid usage is
+persisted separately through locked successful/reserved counters and
+idempotent operation events. Enterprise AI is the only temporarily mapped paid tier. No AI tool,
+pricing change, notification expansion, or M8B9 operational control was added.
+
 ## 2026-07-27 - Render Port-Bind Startup Boundary
 
 Render previously executed SQLAlchemy table creation and every pending

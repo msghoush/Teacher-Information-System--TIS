@@ -7,6 +7,17 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## M8B8 AI Usage Persistence
+
+`ai_feature_usage_counters` is unique by SchoolGroup, registered feature key,
+and metric context (`internal_sandbox`, `demo`, or `paid`). Its locked
+successful and reserved counts provide the concurrency-safe allowance boundary.
+`ai_feature_usage_events` is the durable operation ledger and uniquely
+deduplicates an operation within the same scope. Pending reservations become
+successful or failed; failure releases capacity and does not increment usage. Classification and plan
+snapshots preserve historical metric separation without changing workspace
+classification authority.
+
 ## M8B7 Demo Communication Persistence
 
 `saas_demo_email_deliveries` is the durable email outbox. It links each logical message to a demo request and optionally its provisioning aggregate, constrains email type and delivery state, and uniquely deduplicates delivery. `system_notifications` carries destination, deduplication, category, and severity metadata for owner demo events. Existing request, provisioning, lifecycle, entitlement, and conversion rows remain authoritative.
