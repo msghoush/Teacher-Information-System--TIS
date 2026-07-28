@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-07-28T23:35:56.799908+03:00",
+  "generated_at": "2026-07-29T00:24:17.100392+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "e57be46",
+  "commit_sha": "f3998c6",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "bd0083a7f92e35929e08e81c3e5bc44401756c41bf0844896b04a9e307569b73",
-  "pdf_size_bytes": 681873,
+  "pdf_sha256": "45d53fac891b633e69eaa68fd2b84ed29a9bdfbb26538274f3cfe8542df781ba",
+  "pdf_size_bytes": 686475,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -53,9 +53,9 @@
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-07-28T23:29:31.001848+03:00",
-      "size_bytes": 72853,
-      "sha256": "e0b61aec3b8327b904ed294b2adcfcb05c21b7713b5454080294bd737c3a290f",
+      "modified_at": "2026-07-29T00:20:49.813271+03:00",
+      "size_bytes": 73850,
+      "sha256": "cbf455a026501b1a6509cbb613ce91dd81131c94bf350b0f2726292e53aea9ef",
       "pdf_page": 54
     },
     {
@@ -81,16 +81,16 @@
     },
     {
       "path": "docs/engineering/REPOSITORY_ARCHITECTURE.md",
-      "modified_at": "2026-07-28T23:29:31.002852+03:00",
-      "size_bytes": 14376,
-      "sha256": "bbb48821853f598ec0af5ca776f9cde0575188b713d0d97bd7d7a87138d4f77f",
+      "modified_at": "2026-07-29T00:20:49.861175+03:00",
+      "size_bytes": 15750,
+      "sha256": "71ffcc4a2f6e3093c488aded0d0b5203ff33d8d43494dfbe9d5e12fc55f1bac9",
       "pdf_page": 102
     },
     {
       "path": "docs/engineering/USER_AND_SYSTEM_FLOWS.md",
-      "modified_at": "2026-07-28T23:29:31.003860+03:00",
-      "size_bytes": 22991,
-      "sha256": "3e41cc0a89ea1308ee8a98a7f51ac7360748267a2966fb5840971dd6faf9c752",
+      "modified_at": "2026-07-29T00:20:49.869153+03:00",
+      "size_bytes": 24608,
+      "sha256": "17c531c0fb4da653737a9a6246b23712f0c1e77071a6f026fec0b27571f389c7",
       "pdf_page": 110
     },
     {
@@ -480,9 +480,9 @@
     },
     {
       "path": "docs/history/subscriptions/README.md",
-      "modified_at": "2026-07-28T23:29:31.006372+03:00",
-      "size_bytes": 10555,
-      "sha256": "a254253731437997916367645a0be2e9adb3e01adef229d400c1280804e70de0",
+      "modified_at": "2026-07-29T00:20:49.879127+03:00",
+      "size_bytes": 11513,
+      "sha256": "2eb0e21f565bc369b3cfcd4725e584e5f4194557246c3fa45c364a157d229418",
       "pdf_page": 247
     },
     {
@@ -490,35 +490,35 @@
       "modified_at": "2026-06-26T12:01:39.593100+03:00",
       "size_bytes": 423,
       "sha256": "f0f9ddbf7d501b12ea7aa0d02114a6926fe0560a70b7d97bf212c0bdb2622d06",
-      "pdf_page": 250
+      "pdf_page": 251
     },
     {
       "path": "docs/history/workspace-classification/README.md",
       "modified_at": "2026-07-22T23:24:03.479214+03:00",
       "size_bytes": 1585,
       "sha256": "c9580e0b0340d48b5e93fc3601f7b9fdcddd65c3facc54ab2906b9386642197e",
-      "pdf_page": 251
+      "pdf_page": 252
     },
     {
       "path": "docs/marketing/landing_page_source_of_truth.md",
       "modified_at": "2026-07-28T12:24:11.500927+03:00",
       "size_bytes": 1240,
       "sha256": "7e6ae753ef488472d02d41e29d0fb1dbca0ef0008210ab5618a44b6648053a73",
-      "pdf_page": 252
+      "pdf_page": 253
     },
     {
       "path": "docs/marketing/tis_landing_page_master_content.md",
       "modified_at": "2026-07-21T23:26:44.178809+03:00",
       "size_bytes": 23062,
       "sha256": "c9391ef50f5bcedaa51e1788288458cb149e76bac0ead49ece31f795986ac455",
-      "pdf_page": 253
+      "pdf_page": 254
     },
     {
       "path": "docs/location-data-roadmap.md",
       "modified_at": "2026-07-21T23:26:44.176139+03:00",
       "size_bytes": 3311,
       "sha256": "584398a00da21c44cbb0c6c93e7aa54ea4031fa52d72bd2429b132b296fa6020",
-      "pdf_page": 261
+      "pdf_page": 262
     }
   ]
 }

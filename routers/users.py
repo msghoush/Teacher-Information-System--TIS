@@ -15,6 +15,7 @@ import models
 import permission_registry
 from dependencies import get_db
 from auth import get_current_user, get_password_hash
+from saas import branch_pricing_quote_service
 from ui_shell import build_shell_context
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -482,6 +483,19 @@ def create_user(
     allowed_branch_ids = {branch.id for branch in available_branches if branch}
     if branch_id not in allowed_branch_ids:
         errors.append("You are not allowed to assign this branch.")
+    selected_school_group_id = (
+        auth.get_branch_school_group_id(db, branch_id)
+        if branch_id in allowed_branch_ids
+        else None
+    )
+    if not errors and selected_school_group_id:
+        try:
+            branch_pricing_quote_service.require_active_subscription_staff_slot(
+                db,
+                school_group_id=selected_school_group_id,
+            )
+        except ValueError as exc:
+            errors.append(str(exc))
 
     duplicate_user_id = db.query(models.User).filter(
         or_(
@@ -515,7 +529,6 @@ def create_user(
             },
         )
 
-    selected_school_group_id = auth.get_branch_school_group_id(db, branch_id)
     selected_academic_year = auth.get_academic_year_for_school_group(
         db,
         getattr(current_user, "scope_academic_year_id", None) or getattr(current_user, "academic_year_id", None),
@@ -673,6 +686,24 @@ def update_user(
 
     if parsed_is_active is None:
         errors.append("Invalid status selected.")
+    selected_school_group_id = (
+        auth.get_branch_school_group_id(db, branch_id)
+        if branch_id in allowed_branch_ids
+        else None
+    )
+    if (
+        not errors
+        and parsed_is_active is True
+        and not bool(user_row.is_active)
+        and selected_school_group_id
+    ):
+        try:
+            branch_pricing_quote_service.require_active_subscription_staff_slot(
+                db,
+                school_group_id=selected_school_group_id,
+            )
+        except ValueError as exc:
+            errors.append(str(exc))
 
     if password and len(password) < 8:
         errors.append("Password must be at least 8 characters.")
@@ -735,7 +766,6 @@ def update_user(
     user_row.user_type = auth.USER_TYPE_TENANT
     user_row.platform_role = None
     user_row.access_scope = access_scope
-    selected_school_group_id = auth.get_branch_school_group_id(db, branch_id)
     selected_academic_year = auth.get_academic_year_for_school_group(
         db,
         getattr(user_row, "academic_year_id", None),
@@ -815,6 +845,19 @@ def update_user_status(
             current_user=current_user,
             error="Invalid status selected.",
         )
+    if parsed_is_active and not bool(user_row.is_active):
+        try:
+            branch_pricing_quote_service.require_active_subscription_staff_slot(
+                db,
+                school_group_id=int(user_row.school_group_id),
+            )
+        except ValueError as exc:
+            return _render_users_page(
+                request=request,
+                db=db,
+                current_user=current_user,
+                error=str(exc),
+            )
 
     user_row.is_active = parsed_is_active
     db.commit()

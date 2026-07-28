@@ -537,14 +537,19 @@ def _plan_context(db: Session, account, organization):
     payment_customer = payment_service.get_payment_customer(db, organization)
     payment_subscription = payment_service.get_payment_subscription(db, organization)
     branch_count = service.count_billable_pending_branches(db, organization)
+    staff_count = branch_pricing_quote_service.authoritative_staff_count(
+        db, organization
+    )
     plan_catalog = pricing_service.build_plan_catalog(
         db,
         country_code=str(getattr(organization, "country_code", "") or ""),
     )
     plan_options = []
     for plan_view in plan_catalog:
-        capacity = branch_pricing_quote_service.evaluate_plan_branch_capacity(
-            plan_view.plan, branch_count
+        capacity = branch_pricing_quote_service.evaluate_plan_capacity(
+            plan_view.plan,
+            active_branch_count=branch_count,
+            active_staff_count=staff_count,
         )
         plan_options.append({
             "plan_view": plan_view,
@@ -552,6 +557,11 @@ def _plan_context(db: Session, account, organization):
             "ineligible_reason": capacity.reason,
             "branch_capacity": capacity.branch_capacity,
             "active_branch_count": capacity.active_branch_count,
+            "staff_capacity": capacity.max_staff_users,
+            "active_staff_count": capacity.active_staff_count,
+            "branch_eligible": capacity.branch_eligible,
+            "staff_eligible": capacity.staff_eligible,
+            "required_plan_or_custom_state": capacity.required_plan_or_custom_state,
         })
     return {
         "account": account,
@@ -563,6 +573,7 @@ def _plan_context(db: Session, account, organization):
             option["eligible"] for option in plan_options
         ),
         "billable_branch_count": branch_count,
+        "active_staff_count": staff_count,
         "current_plan_selection": checkout_summary["selection"] if checkout_summary else None,
         "checkout_summary": checkout_summary,
         "current_payment_attempt": payment_attempt,

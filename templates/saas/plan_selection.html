@@ -5,7 +5,7 @@
     <section class="wizard-section">
         <div class="wizard-section-header">
             <strong>Subscription Selection</strong>
-            <p>Prices are per branch. Choose one plan and billing interval for all {{ billable_branch_count }} active billable branch{% if billable_branch_count != 1 %}es{% endif %}.</p>
+            <p>Prices are per branch. Choose one plan and billing interval for all {{ billable_branch_count }} active billable branch{% if billable_branch_count != 1 %}es{% endif %} and capacity for {{ active_staff_count }} staff user{% if active_staff_count != 1 %}s{% endif %}.</p>
         </div>
         <div class="wizard-grid">
             <div>
@@ -30,15 +30,6 @@
         </div>
     </section>
 
-    {% if self_service_checkout_blocked %}
-    <section class="wizard-section">
-        <div class="wizard-section-header">
-            <strong>Contact the TIS Team</strong>
-            <p>Your organization requires a custom plan. Please contact the TIS team.</p>
-        </div>
-    </section>
-    {% endif %}
-
     <section class="wizard-section">
         <div class="wizard-section-header">
             <strong>Available plans</strong>
@@ -54,10 +45,20 @@
                 {% if plan_view.annual.annual_savings_percent %}
                 <p>Save {{ plan_view.annual.annual_savings_percent }}% annually</p>
                 {% endif %}
-                <p>Supports up to {{ option.branch_capacity }} branch{% if option.branch_capacity != 1 %}es{% endif %}<br>Supports up to {{ plan_view.plan.max_staff_users }} staff users</p>
+                <p>Supports up to {{ option.branch_capacity }} branch{% if option.branch_capacity != 1 %}es{% endif %}<br>Supports up to {{ option.staff_capacity }} staff users</p>
                 {% if not option.eligible %}<p class="error">{{ option.ineligible_reason }}</p>{% endif %}
             </div>
             {% endfor %}
+            <div class="review-card{% if self_service_checkout_blocked %} is-emphasized{% endif %}" data-plan-kind="custom" data-custom-emphasized="{{ 'true' if self_service_checkout_blocked else 'false' }}">
+                <strong>Custom</strong>
+                <p>For large school groups and education networks</p>
+                <p>More than 25 branches or 500 staff users</p>
+                <p>Custom pricing<br>Flexible capacity</p>
+                {% if self_service_checkout_blocked %}
+                <p>Your organization requires a custom plan. Please contact the TIS team.</p>
+                {% endif %}
+                <p><a class="btn secondary" href="mailto:info@tisplatform.com">Contact the TIS Team</a></p>
+            </div>
         </div>
     </section>
 

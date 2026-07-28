@@ -20,7 +20,8 @@ import email_templates
 import public_url
 from saas import draft_lifecycle_service, models
 from saas.branch_pricing_quote_service import (
-    evaluate_plan_branch_capacity,
+    authoritative_staff_count,
+    evaluate_plan_capacity,
     normalize_branch_name,
 )
 
@@ -1112,15 +1113,91 @@ def save_organization_profile(
         organization.expected_branch_count = sum(1 for row in existing_branch_rows if bool(row.status))
     else:
         organization.expected_branch_count = _safe_int(expected_branch_count)
+    previous_staff_count = int(
+        getattr(organization, "estimated_staff_users", 0) or 0
+    )
     organization.expected_student_count = _safe_int(expected_student_count)
     organization.expected_teacher_count = _safe_int(expected_teacher_count)
     organization.estimated_staff_users = _safe_int(estimated_staff_users)
+    if int(organization.estimated_staff_users or 0) != previous_staff_count:
+        _invalidate_pre_payment_capacity_selection(db, organization)
     organization.timezone = _clean_timezone(timezone)
     if logo_file is not None and str(getattr(logo_file, "filename", "") or "").strip():
         organization.organization_logo_path = save_pending_logo(logo_file)
     organization.onboarding_step = "branches"
     organization.status = "in_progress"
     organization.draft_saved_at = _utcnow()
+
+
+def _invalidate_pre_payment_capacity_selection(db: Session, organization) -> None:
+    if str(getattr(organization, "payment_status", "") or "").lower() == "paid":
+        return
+    selection = db.query(models.PendingOrganizationPlanSelection).filter(
+        models.PendingOrganizationPlanSelection.pending_organization_id
+        == organization.id,
+        models.PendingOrganizationPlanSelection.selection_status == "selected",
+    ).order_by(
+        models.PendingOrganizationPlanSelection.selected_at.desc(),
+        models.PendingOrganizationPlanSelection.id.desc(),
+    ).first()
+    if not selection:
+        return
+    branch_count = count_billable_pending_branches(db, organization)
+    staff_count = authoritative_staff_count(db, organization)
+    plan = db.get(models.SubscriptionPlan, selection.plan_id)
+    remains_eligible = bool(
+        plan
+        and evaluate_plan_capacity(
+            plan,
+            active_branch_count=branch_count,
+            active_staff_count=staff_count,
+        ).eligible
+    )
+    now = _utcnow()
+    stale_sessions = db.query(models.CheckoutSession).filter(
+        models.CheckoutSession.pending_organization_id == organization.id,
+        models.CheckoutSession.status.in_(("ready", "started")),
+    ).all()
+    stale_ids = []
+    for checkout in stale_sessions:
+        checkout.status = "stale"
+        checkout.abandoned_at = now
+        stale_ids.append(checkout.id)
+    if stale_ids:
+        for attempt in db.query(models.PaymentAttempt).filter(
+            models.PaymentAttempt.pending_organization_id == organization.id,
+            models.PaymentAttempt.checkout_session_id.in_(stale_ids),
+            models.PaymentAttempt.status.in_(
+                ("checkout_started", "payment_processing")
+            ),
+        ).all():
+            attempt.status = "superseded"
+            attempt.failure_reason = (
+                "Checkout superseded after authoritative capacity changed."
+            )
+    selection.billable_branch_count = branch_count
+    selection.quoted_base_amount_minor = None
+    selection.quoted_display_amount_minor = None
+    selection.quote_fingerprint = None
+    contract = db.query(models.SubscriptionContract).filter(
+        models.SubscriptionContract.pending_organization_id == organization.id
+    ).order_by(
+        models.SubscriptionContract.updated_at.desc(),
+        models.SubscriptionContract.id.desc(),
+    ).first()
+    if contract and str(contract.payment_status or "").lower() != "paid":
+        contract.billable_branch_count = branch_count
+        contract.quoted_base_amount_minor = None
+        contract.quoted_display_amount_minor = None
+        contract.quote_fingerprint = None
+        contract.selected_checkout_session_id = None
+    if remains_eligible:
+        organization.billing_status = "plan_selected"
+    else:
+        selection.selection_status = "superseded"
+        organization.selected_plan_id = None
+        organization.selected_billing_interval = None
+        organization.billing_status = "not_started"
 
 
 def replace_branches(db: Session, organization, branch_rows: list[dict]):
@@ -1262,8 +1339,12 @@ def replace_branches(db: Session, organization, branch_rows: list[dict]):
             selected_plan = db.get(models.SubscriptionPlan, selection.plan_id)
             selected_plan_remains_eligible = bool(
                 selected_plan
-                and evaluate_plan_branch_capacity(
-                    selected_plan, len(cleaned_rows)
+                and evaluate_plan_capacity(
+                    selected_plan,
+                    active_branch_count=len(cleaned_rows),
+                    active_staff_count=authoritative_staff_count(
+                        db, organization
+                    ),
                 ).eligible
             )
             selection.billable_branch_count = len(cleaned_rows)

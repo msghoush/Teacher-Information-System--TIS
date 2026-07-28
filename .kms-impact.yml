@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Enforce each subscription plan's authoritative active-branch capacity during selection, quoting, checkout, payment validation, and pre-payment branch changes while retaining per-branch pricing.
+summary: Enforce combined active-branch and active-staff capacity for self-service plans, add the informational Custom contact path, and protect staff creation and plan downgrades.
 affected_areas:
   - subscriptions
   - subscription-checkout
@@ -8,6 +8,10 @@ affected_areas:
   - pre-payment-branch-editing
   - checkout-supersession
   - plan-capacity-enforcement
+  - staff-capacity-enforcement
+  - custom-plan-contact
+  - user-management
+  - plan-downgrades
 kms_files_updated:
   - docs/CHANGE_HISTORY.md
   - docs/engineering/REPOSITORY_ARCHITECTURE.md

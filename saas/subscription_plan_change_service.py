@@ -7,7 +7,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import audit
-from saas import models, paddle_client, subscription_change_service as changes
+from saas import (
+    branch_pricing_quote_service,
+    models,
+    paddle_client,
+    subscription_change_service as changes,
+)
 
 
 UPGRADE = "plan_upgrade"
@@ -45,6 +50,29 @@ def _impact(db: Session, context, target_plan):
         usage = detector(db, context)
         if usage is not None and usage > target_value.value:
             conflicts.append({"key": key, "name": target_value.display_name, "usage": usage, "limit": target_value.value})
+    active_branches = int(context.resolution.active_branch_count or 0)
+    active_staff = branch_pricing_quote_service.count_active_staff_users(
+        db, context.resolution.school_group_id
+    )
+    capacity = branch_pricing_quote_service.evaluate_plan_capacity(
+        target_plan,
+        active_branch_count=active_branches,
+        active_staff_count=active_staff,
+    )
+    if not capacity.branch_eligible:
+        conflicts.append({
+            "key": "capacity.active_branches",
+            "name": "Active branches",
+            "usage": active_branches,
+            "limit": capacity.max_branches,
+        })
+    if not capacity.staff_eligible:
+        conflicts.append({
+            "key": "capacity.active_staff_users",
+            "name": "Active staff users",
+            "usage": active_staff,
+            "limit": capacity.max_staff_users,
+        })
     return {"feature_losses": losses, "blocking_conflicts": conflicts, "historical_data_preserved": True}
 
 
