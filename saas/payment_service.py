@@ -860,6 +860,67 @@ def _validate_created_transaction_quote(transaction: dict, quote) -> None:
             )
 
 
+def validate_payment_launcher_transaction(db: Session, transaction_id: str) -> str:
+    cleaned_transaction_id = _clean_text(transaction_id)
+    if not cleaned_transaction_id.startswith("txn_"):
+        raise ValueError("Secure Payment could not be opened.")
+    attempts = db.query(models.PaymentAttempt).filter(
+        models.PaymentAttempt.provider == PROVIDER,
+        models.PaymentAttempt.provider_transaction_id == cleaned_transaction_id,
+    ).all()
+    if len(attempts) != 1:
+        raise ValueError("Secure Payment could not be opened.")
+    attempt = attempts[0]
+    checkout_session = db.get(models.CheckoutSession, attempt.checkout_session_id)
+    organization = db.get(models.PendingOrganization, attempt.pending_organization_id)
+    payment_customer = db.get(models.PaymentCustomer, attempt.payment_customer_id)
+    if not checkout_session or not organization or not payment_customer:
+        raise ValueError("Secure Payment could not be opened.")
+    checkout_url = _clean_text(getattr(checkout_session, "checkout_url", ""))
+    local_context_matches = (
+        int(getattr(checkout_session, "pending_organization_id", 0) or 0)
+        == int(organization.id)
+        and int(getattr(checkout_session, "last_payment_attempt_id", 0) or 0)
+        == int(attempt.id)
+        and _clean_text(getattr(checkout_session, "status", "")).lower()
+        == CHECKOUT_SESSION_STARTED
+        and f"_ptxn={cleaned_transaction_id}" in checkout_url
+        and _clean_text(getattr(attempt, "status", "")).lower()
+        in {ATTEMPT_STATUS_CHECKOUT_STARTED, ATTEMPT_STATUS_PAYMENT_PROCESSING}
+    )
+    if not local_context_matches:
+        raise ValueError("Secure Payment could not be opened.")
+    quote = branch_pricing_quote_service.require_ready_quote(
+        branch_pricing_quote_service.build_quote(db, organization)
+    )
+    attempt_matches_quote = (
+        _clean_text(getattr(attempt, "provider_price_id", ""))
+        == _clean_text(quote.provider_price_id)
+        and int(getattr(attempt, "quantity", 0) or 0) == int(quote.quantity)
+        and int(getattr(attempt, "unit_amount_minor", 0) or 0)
+        == int(quote.unit_amount_minor)
+        and int(getattr(attempt, "amount_minor", 0) or 0)
+        == int(quote.total_amount_minor)
+        and _clean_text(getattr(attempt, "quote_fingerprint", ""))
+        == _clean_text(quote.fingerprint)
+    )
+    if not attempt_matches_quote:
+        raise ValueError("Secure Payment could not be opened.")
+    transaction = paddle_client.get_transaction(transaction_id=cleaned_transaction_id)
+    remote_context_matches = (
+        _clean_text(transaction.get("status")).lower() == "billed"
+        and _clean_text(transaction.get("collection_mode")).lower() == "automatic"
+        and _clean_text(transaction.get("customer_id"))
+        == _clean_text(getattr(payment_customer, "provider_customer_id", ""))
+        and _clean_text((transaction.get("custom_data") or {}).get("quote_fingerprint"))
+        == _clean_text(quote.fingerprint)
+    )
+    if not remote_context_matches:
+        raise ValueError("Secure Payment could not be opened.")
+    _validate_created_transaction_quote(transaction, quote)
+    return cleaned_transaction_id
+
+
 def launch_checkout(db: Session, organization, account, request: Request):
     checkout_session, selection, contract, plan_price, quote = build_checkout_launch_context(db, organization)
     existing_checkout_url = _clean_text(getattr(checkout_session, "checkout_url", ""))

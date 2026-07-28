@@ -4,12 +4,12 @@
     <div class="wizard-section-header">
         <strong>Secure Payment</strong>
         {% if paddle_client_token %}
-        <p id="paymentLauncherStatus">Loading secure payment.</p>
+        <p id="paymentLauncherStatus">{% if launcher_error %}{{ launcher_error }}{% else %}Loading secure payment.{% endif %}</p>
         {% else %}
         <p id="paymentLauncherStatus">Unable to open secure payment. Please return to your TIS Account and try again.</p>
         {% endif %}
     </div>
-    <div class="review-card" id="paymentLauncherSafeState" {% if paddle_client_token %}hidden{% endif %}>
+    <div class="review-card" id="paymentLauncherSafeState" {% if paddle_client_token and not launcher_error %}hidden{% endif %}>
         <strong id="paymentLauncherSafeTitle">{% if paddle_client_token %}Payment link unavailable{% else %}Secure Payment unavailable{% endif %}</strong>
         <p id="paymentLauncherSafeMessage">
             {% if paddle_client_token %}
@@ -31,6 +31,7 @@
 (() => {
     const paddleClientToken = {{ paddle_client_token|tojson }};
     const paddleEnvironment = {{ paddle_environment|tojson }};
+    const launcherError = {{ launcher_error|tojson }};
     const statusEl = document.getElementById("paymentLauncherStatus");
     const safeStateEl = document.getElementById("paymentLauncherSafeState");
     const safeTitleEl = document.getElementById("paymentLauncherSafeTitle");
@@ -51,11 +52,11 @@
         }
     };
 
-    const transactionId = new URLSearchParams(window.location.search).get("_ptxn") || "";
+    const transactionId = {{ paddle_transaction_id|tojson }};
     if (!transactionId || !transactionId.startsWith("txn_")) {
         showSafeState(
             "Payment link unavailable",
-            "Missing or invalid payment link. Please return to your TIS Account and open Secure Payment again."
+            launcherError || "Missing or invalid payment link. Please return to your TIS Account and open Secure Payment again."
         );
         return;
     }

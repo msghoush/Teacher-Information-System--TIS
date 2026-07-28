@@ -18,7 +18,10 @@ source_of_truth: true
    ready. Returned item quantity, price, subtotal, and quote fingerprint must
    agree with TIS before the transaction is marked billed.
 5. The payment launcher passes only the billed transaction ID to Paddle inline
-   checkout. Billed transaction items and quantities are immutable.
+   checkout after verifying the local attempt, organization, customer, quote,
+   and remote billed status. Billed transaction items and quantities are
+   immutable; draft, ready, canceled, past-due, unrelated, or mismatched
+   transactions are not launched.
 6. Paddle completion remains the recurring-subscription authority. Later branch
    changes use the established TIS subscription-quantity workflow.
 

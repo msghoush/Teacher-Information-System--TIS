@@ -239,7 +239,24 @@ def _redirect_error(path: str, message: str):
 
 
 @router.get("/payment", response_class=HTMLResponse)
-def paddle_payment_page(request: Request):
+def paddle_payment_page(request: Request, db: Session = Depends(get_db)):
+    transaction_id = str(request.query_params.get("_ptxn") or "").strip()
+    launcher_error = ""
+    try:
+        transaction_id = payment_service.validate_payment_launcher_transaction(
+            db, transaction_id
+        )
+    except (ValueError, paddle_client.PaddleAPIError):
+        logger.warning(
+            "paddle_checkout_launcher_rejected transaction_id_present=%s",
+            bool(transaction_id),
+            exc_info=True,
+        )
+        transaction_id = ""
+        launcher_error = (
+            "We couldn’t open secure payment right now. "
+            "Please try again or contact the TIS team."
+        )
     return _render(
         request,
         "saas/payment.html",
@@ -247,6 +264,8 @@ def paddle_payment_page(request: Request):
             "title": "Secure Payment | TIS Platform",
             "paddle_client_token": str(os.environ.get("PADDLE_CLIENT_TOKEN") or "").strip(),
             "paddle_environment": _paddle_client_environment(),
+            "paddle_transaction_id": transaction_id,
+            "launcher_error": launcher_error,
         },
     )
 

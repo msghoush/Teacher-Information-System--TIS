@@ -1818,7 +1818,10 @@ class SaaSPhase1Tests(unittest.TestCase):
                 return_value={
                     "id": "txn_repeat_click_123",
                     "currency_code": "USD",
-                    "checkout": {"id": "chk_repeat_click_123", "url": "https://pay.paddle.test/repeat-click"},
+                    "checkout": {
+                        "id": "chk_repeat_click_123",
+                        "url": "https://app.tisplatform.com/saas/payment?_ptxn=txn_repeat_click_123",
+                    },
                 },
             ) as create_transaction,
         ):
@@ -1827,19 +1830,72 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         self.assertEqual(first_response.status_code, 302)
         self.assertEqual(second_response.status_code, 302)
-        self.assertEqual(second_response.headers["location"], "https://pay.paddle.test/repeat-click")
+        self.assertEqual(
+            second_response.headers["location"],
+            "https://app.tisplatform.com/saas/payment?_ptxn=txn_repeat_click_123",
+        )
         create_customer.assert_called_once()
         create_transaction.assert_called_once()
 
         db = self._db()
         try:
             organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
+            attempt = db.query(saas.models.PaymentAttempt).filter_by(
+                pending_organization_id=organization.id
+            ).one()
+            customer = db.get(saas.models.PaymentCustomer, attempt.payment_customer_id)
             self.assertEqual(
                 db.query(saas.models.PaymentAttempt).filter_by(pending_organization_id=organization.id).count(),
                 1,
             )
+            remote_transaction = {
+                "id": attempt.provider_transaction_id,
+                "status": "billed",
+                "collection_mode": "automatic",
+                "customer_id": customer.provider_customer_id,
+                "custom_data": {"quote_fingerprint": attempt.quote_fingerprint},
+                "items": [{
+                    "price": {"id": attempt.provider_price_id},
+                    "quantity": attempt.quantity,
+                }],
+                "details": {"totals": {"subtotal": str(attempt.amount_minor)}},
+            }
         finally:
             db.close()
+        with (
+            patch.dict(
+                os.environ,
+                {"PADDLE_CLIENT_TOKEN": "test_publicpaymenttoken123456789"},
+                clear=False,
+            ),
+            patch("saas.paddle_client.get_transaction", return_value=remote_transaction),
+        ):
+            payment_page = self.client.get(
+                "/saas/payment?_ptxn=txn_repeat_click_123"
+            )
+        self.assertEqual(payment_page.status_code, 200)
+        self.assertIn('const transactionId = "txn_repeat_click_123";', payment_page.text)
+        self.assertIn("transactionId: transactionId", payment_page.text)
+        self.assertNotIn("Checkout is not ready for launch yet", payment_page.text)
+        for invalid_status in ("draft", "canceled", "past_due", "ready"):
+            with (
+                self.subTest(invalid_status=invalid_status),
+                patch.dict(
+                    os.environ,
+                    {"PADDLE_CLIENT_TOKEN": "test_publicpaymenttoken123456789"},
+                    clear=False,
+                ),
+                patch(
+                    "saas.paddle_client.get_transaction",
+                    return_value={**remote_transaction, "status": invalid_status},
+                ),
+            ):
+                invalid_page = self.client.get(
+                    "/saas/payment?_ptxn=txn_repeat_click_123"
+                )
+                self.assertEqual(invalid_page.status_code, 200)
+                self.assertIn("We couldn’t open secure payment right now", invalid_page.text)
+                self.assertIn('const transactionId = "";', invalid_page.text)
 
     def test_phase4_checkout_launch_without_plan_fails_safely(self):
         self._configure_paddle_prices()
@@ -1894,14 +1950,20 @@ class SaaSPhase1Tests(unittest.TestCase):
         create_transaction.assert_not_called()
 
     def test_public_paddle_payment_launcher_is_accessible_without_login(self):
-        with patch.dict(
-            os.environ,
-            {
-                "PADDLE_CLIENT_TOKEN": "test_publicpaymenttoken123456789",
-                "PADDLE_ENVIRONMENT": "sandbox",
-                "PADDLE_API_KEY": "pdl_secret_api_key_must_not_render",
-            },
-            clear=False,
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PADDLE_CLIENT_TOKEN": "test_publicpaymenttoken123456789",
+                    "PADDLE_ENVIRONMENT": "sandbox",
+                    "PADDLE_API_KEY": "pdl_secret_api_key_must_not_render",
+                },
+                clear=False,
+            ),
+            patch(
+                "saas.payment_service.validate_payment_launcher_transaction",
+                return_value="txn_01kxpaymentlauncher",
+            ),
         ):
             response = self.client.get("/saas/payment?_ptxn=txn_01kxpaymentlauncher", follow_redirects=False)
 
@@ -1911,19 +1973,25 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("test_publicpaymenttoken123456789", response.text)
         self.assertNotIn("pdl_secret_api_key_must_not_render", response.text)
         self.assertIn('window.Paddle.Environment.set("sandbox")', response.text)
-        self.assertIn('.get("_ptxn")', response.text)
         self.assertIn("transactionId: transactionId", response.text)
+        self.assertIn('const transactionId = "txn_01kxpaymentlauncher";', response.text)
         self.assertNotIn("checkout_session_id", response.text)
         self.assertNotIn("payment_attempt_uuid", response.text)
 
     def test_payment_launcher_uses_supported_inline_fixed_item_checkout(self):
-        with patch.dict(
-            os.environ,
-            {
-                "PADDLE_CLIENT_TOKEN": "test_publicpaymenttoken123456789",
-                "PADDLE_ENVIRONMENT": "sandbox",
-            },
-            clear=False,
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PADDLE_CLIENT_TOKEN": "test_publicpaymenttoken123456789",
+                    "PADDLE_ENVIRONMENT": "sandbox",
+                },
+                clear=False,
+            ),
+            patch(
+                "saas.payment_service.validate_payment_launcher_transaction",
+                return_value="txn_01kxfixedquantity",
+            ),
         ):
             response = self.client.get(
                 "/saas/payment?_ptxn=txn_01kxfixedquantity"
@@ -2049,7 +2117,13 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertNotIn("txn_01kxpaymentlauncher", response.text)
 
     def test_public_paddle_payment_launcher_handles_missing_client_token_safely(self):
-        with patch.dict(os.environ, {"PADDLE_CLIENT_TOKEN": "", "PADDLE_ENVIRONMENT": "sandbox"}, clear=False):
+        with (
+            patch.dict(os.environ, {"PADDLE_CLIENT_TOKEN": "", "PADDLE_ENVIRONMENT": "sandbox"}, clear=False),
+            patch(
+                "saas.payment_service.validate_payment_launcher_transaction",
+                return_value="txn_01kxpaymentlauncher",
+            ),
+        ):
             response = self.client.get("/saas/payment?_ptxn=txn_01kxpaymentlauncher", follow_redirects=False)
 
         self.assertEqual(response.status_code, 200)
