@@ -24,6 +24,15 @@ item and quantity changes are rejected by Paddle. Automatic
 `transaction.completed` webhook evidence remains the recurring-subscription and
 conversion authority.
 
+Pre-payment Branch Setup remains authoritative even when an unpaid demo
+workspace or tenant link already exists. Only confirmed payment evidence or an
+active paid subscription closes onboarding mutation. A branch identity or count
+change marks ready/started checkout sessions stale, marks their incomplete
+payment attempts superseded, clears quote snapshots, and returns the
+organization to plan selection. Late events for superseded transactions are
+retained for manual review but cannot change the current organization,
+subscription, provisioning, or workspace state.
+
 Before rendering Paddle.js, the launcher requires exactly one local payment
 attempt and matching checkout session, organization, customer, quote, and
 provider transaction. Remote status must be `billed` with automatic collection;

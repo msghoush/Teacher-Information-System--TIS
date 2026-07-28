@@ -1,6 +1,7 @@
 {% extends "saas/base.html" %}
 {% block content %}
 {% set fd = form_data or {} %}
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 <form id="academic-setup-form" class="wizard-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/academic_setup">
     <section class="wizard-section">

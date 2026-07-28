@@ -1951,6 +1951,10 @@ def branches_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    closed_redirect = _closed_initial_checkout_redirect(db, organization)
+    if closed_redirect:
+        db.commit()
+        return closed_redirect
     locked_redirect = _locked_onboarding_step_redirect(db, organization, "branches")
     if locked_redirect:
         db.commit()
@@ -1993,6 +1997,10 @@ def save_branches_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    closed_redirect = _closed_initial_checkout_redirect(db, organization)
+    if closed_redirect:
+        db.commit()
+        return closed_redirect
     locked_redirect = _locked_onboarding_step_redirect(db, organization, "branches")
     if locked_redirect:
         db.commit()
@@ -2057,7 +2065,13 @@ def save_branches_step(
         )
     if str(save_action or "").strip().lower() == "save_exit":
         return RedirectResponse("/saas/account?notice=Draft+saved.", status_code=302)
-    return RedirectResponse(f"/saas/onboarding/{organization_uuid}/academic_setup", status_code=302)
+    return RedirectResponse(
+        f"/saas/onboarding/{organization_uuid}/academic_setup?notice="
+        + quote_plus(
+            "Your branch count was updated. Your subscription total will be recalculated before payment."
+        ),
+        status_code=302,
+    )
 
 
 @router.get("/onboarding/{organization_uuid}/academic_setup", response_class=HTMLResponse)
@@ -2065,6 +2079,7 @@ def academic_setup_step(
     organization_uuid: str,
     request: Request,
     error: str = Query(""),
+    notice: str = Query(""),
     db: Session = Depends(get_db),
 ):
     account, _session_row, redirect = _require_verified_account(request, db)
@@ -2083,6 +2098,7 @@ def academic_setup_step(
     context.update({
         "account": account,
         "error": error,
+        "notice": notice,
         "step_key": "academic_setup",
         "setup_console": _onboarding_setup_console(db, account, "academic_setup", organization),
     })

@@ -343,6 +343,62 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
             db.close()
         return started
 
+    def test_unpaid_demo_tenant_link_does_not_freeze_onboarding_branches(self):
+        fixture = self._activate_demo(
+            email="editable.demo.branches@academy.edu",
+            owner_user_id="9189",
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=fixture["organization_uuid"]
+            ).one()
+            rows = service.list_billable_pending_branches(db, organization)
+            existing_tenant_link_id = fixture["tenant_link_id"]
+            existing_school_group_id = fixture["school_group_id"]
+            submitted = [
+                {
+                    "branch_uuid": row.branch_uuid,
+                    "branch_name": row.branch_name,
+                    "location": row.location,
+                    "country_code": row.country_code,
+                }
+                for row in rows
+            ]
+            submitted.append(
+                {
+                    "branch_name": "Future Paid Branch",
+                    "location": "Beirut",
+                    "country_code": "LB",
+                }
+            )
+            service.replace_branches(db, organization, submitted)
+            db.flush()
+            self.assertEqual(
+                service.count_billable_pending_branches(db, organization), 3
+            )
+            self.assertEqual(
+                db.query(saas.models.TenantProvisioningLink).filter_by(
+                    pending_organization_id=organization.id
+                ).one().id,
+                existing_tenant_link_id,
+            )
+            self.assertEqual(
+                db.query(models.Branch).filter_by(
+                    school_group_id=existing_school_group_id,
+                    status=True,
+                ).count(),
+                3,
+            )
+            self.assertEqual(
+                db.query(saas.models.TenantProvisioningLink).filter_by(
+                    id=existing_tenant_link_id
+                ).one().school_group_id,
+                existing_school_group_id,
+            )
+        finally:
+            db.close()
+
     def _confirmed_subscription_for_demo(
         self,
         fixture: dict,

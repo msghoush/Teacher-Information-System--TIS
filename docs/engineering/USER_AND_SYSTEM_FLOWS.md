@@ -9,20 +9,27 @@ source_of_truth: true
 
 ## Fixed-Quantity Initial Checkout
 
-1. TIS resolves the selected plan, billing interval, active billable branches,
+1. Before confirmed payment, customers may add, edit, remove, reorder, or
+   reprioritize onboarding branches while keeping at least one active branch.
+   A demo SchoolGroup, tenant link, customer, or prepared checkout does not
+   close editing.
+2. If branches change after checkout preparation, TIS supersedes the local
+   checkout and attempt, clears the old quote lineage, and recalculates from the
+   new active count. A late old transaction event cannot activate that quote.
+3. TIS resolves the selected plan, billing interval, active billable branches,
    unit price, and total for the current organization.
-2. The customer reviews those values in TIS.
-3. TIS creates one Paddle transaction item using the mapped provider price and
+4. The customer reviews those values in TIS.
+5. TIS creates one Paddle transaction item using the mapped provider price and
    the exact authoritative branch quantity; quantity is never defaulted to one.
-4. The resolved customer address makes the automatically collected transaction
+6. The resolved customer address makes the automatically collected transaction
    ready. Returned item quantity, price, subtotal, and quote fingerprint must
    agree with TIS before the transaction is marked billed.
-5. The payment launcher passes only the billed transaction ID to Paddle inline
+7. The payment launcher passes only the billed transaction ID to Paddle inline
    checkout after verifying the local attempt, organization, customer, quote,
    and remote billed status. Billed transaction items and quantities are
    immutable; draft, ready, canceled, past-due, unrelated, or mismatched
    transactions are not launched.
-6. Paddle completion remains the recurring-subscription authority. Later branch
+8. Paddle completion remains the recurring-subscription authority. Later branch
    changes use the established TIS subscription-quantity workflow.
 
 ## Returning Customer Login And Expired Demo Subscription
