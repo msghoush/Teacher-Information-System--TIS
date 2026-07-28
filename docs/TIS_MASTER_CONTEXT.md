@@ -7,6 +7,17 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Customer Journey Continuity
+
+TIS treats demo or subscription expiry as an expected commercial state.
+Returning routing is derived from SaaS onboarding, request, durable workspace
+link, lifecycle, and subscription records. Expired access is intercepted before
+protected workspace services and shown with plan, renewal, support, and
+sign-out actions. Expired-demo checkout quotes the preserved workspace's active
+branches and must never create another organization or SchoolGroup.
+Customer-visible language uses “TIS team” or “TIS support team”; Platform Owner
+remains an internal role.
+
 ## M8B9 Demo Operations, Notifications, And Testing
 
 Customer Demo operations are generic and Platform Owner-only. Immediate expiry

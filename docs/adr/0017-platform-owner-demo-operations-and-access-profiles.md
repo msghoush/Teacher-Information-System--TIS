@@ -52,3 +52,7 @@ Customer Paid, cannot bypass normal permissions, and cannot bypass expiry.
   checked/reminder/expiry/no-action/failure/skipped counts.
 - M8B9 adds no usage reset, pricing change, paid-conversion redesign, or
   customer-specific exception.
+- The owner detail page uses progressive disclosure: the initial view is a
+  seven-field demo summary plus common operations; lifecycle processing,
+  branch/feature configuration, audit evidence, and technical history remain
+  present but collapsed until explicitly opened.

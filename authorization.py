@@ -260,7 +260,7 @@ def enforce_workspace_commercial_access(
         current_user is None
         or auth.is_platform_user(current_user)
         or is_public_path(path)
-        or path == "/demo-expired"
+        or path in {"/demo-expired", "/commercial-access-ended", "/logout"}
         or path.startswith("/static/")
         or path.startswith("/landing-public/")
         or path == "/saas"
@@ -277,31 +277,27 @@ def enforce_workspace_commercial_access(
     if not school_group_id:
         return None
     from models import SchoolGroup
-    from saas import demo_lifecycle_service
-    from workspace_classification import WorkspaceClassification
+    from saas import commercial_access_service, demo_lifecycle_service
 
     school_group = db.query(SchoolGroup).filter(
         SchoolGroup.id == school_group_id
     ).one_or_none()
-    if (
-        school_group is None
-        or school_group.workspace_classification
-        != WorkspaceClassification.CUSTOMER_DEMO.value
-    ):
+    if school_group is None:
         return None
-
-    lifecycle = demo_lifecycle_service.resolve_demo_lifecycle(
-        db,
-        school_group_id=school_group_id,
+    commercial = commercial_access_service.resolve_workspace_access(
+        db, school_group_id
     )
-    if lifecycle.can_access:
+    if not commercial.blocked:
         return None
     try:
+        lifecycle = demo_lifecycle_service.resolve_demo_lifecycle(
+            db, school_group_id=school_group_id
+        ) if commercial.kind == "demo" else None
         if demo_lifecycle_service.record_access_blocked(
             db,
             school_group_id,
             current_user,
-        ):
+        ) if commercial.kind == "demo" else False:
             db.commit()
     except Exception:
         db.rollback()
@@ -314,7 +310,9 @@ def enforce_workspace_commercial_access(
     detail = (
         "This demo has expired. Operational access is unavailable, but workspace "
         "data remains preserved."
-        if lifecycle.lifecycle_state == "expired"
+        if commercial.reason_code == "demo_expired"
+        else "Subscription access has expired."
+        if commercial.kind == "subscription"
         else "Demo access is currently unavailable. Please contact TIS Support."
     )
     if _is_api_or_download_request(request):
@@ -322,18 +320,18 @@ def enforce_workspace_commercial_access(
             {
                 "detail": detail,
                 "code": (
-                    "demo_expired"
-                    if lifecycle.lifecycle_state == "expired"
-                    else "demo_access_unavailable"
+                    commercial.reason_code
+                    if commercial.kind == "demo"
+                    else "subscription_expired"
                 ),
             },
             status_code=403,
         )
     return RedirectResponse(
         url=(
-            "/demo-expired?state=expired"
-            if lifecycle.lifecycle_state == "expired"
-            else "/demo-expired?state=unavailable"
+            "/demo-expired"
+            if commercial.kind == "demo"
+            else "/commercial-access-ended?kind=subscription"
         ),
         status_code=302,
     )

@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-07-28 - Returning Customer Journey And Expired Access
+
+Expired demos previously entered the paid subscription portal, whose model
+requires paid entitlement evidence, so normal demo values rendered unavailable
+and no conversion action existed. Some returning sessions could also reach
+workspace setup before expired paid state was intercepted.
+
+TIS now builds demo subscription choice from the existing organization,
+workspace, active operational branches, public plans, and intervals, then hands
+selection to existing Paddle checkout and same-workspace conversion. SaaS and
+operational login route from authoritative state; a shared commercial guard
+blocks expected demo or paid expiry before protected page work. Customer
+communications use TIS-team terminology. Landing navigation adds Sign In and
+Open TIS App. All M8B9 owner controls remain available under progressive
+disclosure. No schema, migration, pricing, payment-confirmation, AI-entitlement,
+workspace replacement, commit, or push change was made.
+
 ## 2026-07-27 - M8B9 Demo Operations, Notifications, And Testing
 
 Added owner-only immediate expiry, same-workspace reactivation, unbounded future

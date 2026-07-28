@@ -13,10 +13,11 @@
     <label for="password">Password</label>
     <input id="password" name="password" type="password" autocomplete="current-password" required>
     <p class="muted" style="margin-top:8px;"><a href="/saas/auth/forgot-password?email={{ email | urlencode }}">Forgot password?</a></p>
-    <input type="hidden" name="next_path" value="/saas/account">
+    <input type="hidden" name="next_path" value="{{ next_path or '' }}">
     <div class="actions">
         <button class="btn" type="submit">Sign In</button>
-        <a class="btn secondary" href="/saas/signup">Create account</a>
+        <a class="btn secondary" href="/saas/signup">Create an Account</a>
+        <a class="btn secondary" href="https://tisplatform.com">Return to TIS Website</a>
     </div>
 </form>
 <div class="actions" style="margin-top:18px;">

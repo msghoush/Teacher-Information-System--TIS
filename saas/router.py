@@ -18,7 +18,7 @@ from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import ai_feature_registry, billing_history_service, billing_service, commercial_state_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import ai_feature_registry, billing_history_service, billing_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 
 logger = logging.getLogger(__name__)
@@ -620,10 +620,18 @@ def login_page(
     error: str = Query(""),
     notice: str = Query(""),
     email: str = Query(""),
+    next_path: str = Query(""),
     db: Session = Depends(get_db),
 ):
     if _current_account(request, db):
-        return RedirectResponse("/saas/account", status_code=302)
+        return RedirectResponse(
+            _safe_next(next_path)
+            if str(next_path or "").strip()
+            else customer_journey_service.login_destination(
+                db, _current_account(request, db)
+            ),
+            status_code=302,
+        )
     return _render(
         request,
         "saas/login.html",
@@ -631,6 +639,7 @@ def login_page(
             "error": error,
             "notice": notice,
             "email": email,
+            "next_path": _safe_next(next_path) if next_path else "",
             "google_enabled": oauth.is_provider_configured("google"),
             "microsoft_enabled": oauth.is_provider_configured("microsoft"),
         },
@@ -641,6 +650,7 @@ def login_page(
 def forgot_password_page(
     request: Request,
     email: str = Query(""),
+    next_path: str = Query(""),
     notice: str = Query(""),
     error: str = Query(""),
 ):
@@ -781,6 +791,7 @@ def signup_page(
             "error": error,
             "warning": warning,
             "email": email,
+            "next_path": _safe_next(next_path) if next_path else "",
             "first_name": first_name,
             "last_name": last_name,
             "intent": service.normalize_commercial_intent(intent),
@@ -868,7 +879,7 @@ def login(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
-    next_path: str = Form("/saas/account"),
+    next_path: str = Form(""),
     db: Session = Depends(get_db),
 ):
     if service.is_rate_limited(
@@ -911,7 +922,12 @@ def login(
         db, account, source="successful_login"
     )
     db.commit()
-    response = RedirectResponse(url=_safe_next(next_path), status_code=302)
+    destination = (
+        _safe_next(next_path)
+        if str(next_path or "").strip()
+        else customer_journey_service.login_destination(db, account)
+    )
+    response = RedirectResponse(url=destination, status_code=302)
     return service.set_session_cookies(
         response,
         session_token=session_token,
@@ -1199,6 +1215,33 @@ def subscription_portal(request: Request, db: Session = Depends(get_db)):
     account, _session_row, redirect = _require_verified_account(request, db)
     if redirect:
         return redirect
+    demo_journey = customer_journey_service.resolve_demo_subscription_journey(
+        db, account
+    )
+    if demo_journey:
+        if demo_journey.configuration_error:
+            logger.warning(
+                "Demo subscription configuration unavailable account_id=%s "
+                "organization_id=%s school_group_id=%s reason=%s",
+                account.id,
+                demo_journey.organization.id,
+                demo_journey.school_group.id,
+                demo_journey.configuration_error,
+            )
+        return _render(
+            request,
+            "saas/demo_subscription.html",
+            {
+                "account": account,
+                "journey": demo_journey,
+                "support_email": str(
+                    os.environ.get("TIS_SUPPORT_EMAIL")
+                    or os.environ.get("EMAIL_REPLY_TO")
+                    or "info@tisplatform.com"
+                ).strip(),
+                "error": request.query_params.get("error", ""),
+            },
+        )
     portal = subscription_portal_service.build_subscription_portal(db, account)
     billing_history = None
     try:
@@ -1221,6 +1264,79 @@ def subscription_portal(request: Request, db: Session = Depends(get_db)):
                 or "info@tisplatform.com"
             ).strip(),
         },
+    )
+
+
+@router.post("/subscription/demo/select")
+def select_demo_conversion_plan(
+    request: Request,
+    plan_id: int = Form(...),
+    billing_interval: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    journey = customer_journey_service.resolve_demo_subscription_journey(db, account)
+    if journey is None:
+        db.rollback()
+        return RedirectResponse(
+            "/saas/subscription?error="
+            + quote_plus("This subscription path is not available."),
+            status_code=302,
+        )
+    try:
+        demo_conversion_service.request_demo_conversion(
+            db, account, journey.organization
+        )
+        journey.organization.status = service.READY_FOR_CHECKOUT_STATUS
+        billing_service.select_plan(
+            db,
+            journey.organization,
+            plan_id=plan_id,
+            billing_interval=billing_interval,
+        )
+        db.commit()
+    except (ValueError, demo_conversion_service.DemoConversionError) as exc:
+        db.rollback()
+        logger.warning(
+            "Demo subscription selection failed account_id=%s organization_id=%s",
+            account.id,
+            journey.organization.id,
+            exc_info=True,
+        )
+        return RedirectResponse(
+            "/saas/subscription?error=" + quote_plus(str(exc)), status_code=302
+        )
+    return RedirectResponse(
+        f"/saas/onboarding/{journey.organization.organization_uuid}/checkout",
+        status_code=302,
+    )
+
+
+@router.get("/expired-access", response_class=HTMLResponse)
+def saas_expired_access(
+    request: Request,
+    kind: str = Query("demo"),
+    db: Session = Depends(get_db),
+):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    normalized = "subscription" if kind == "subscription" else "demo"
+    return _render(
+        request,
+        "saas/expired_access.html",
+        {
+            "account": account,
+            "kind": normalized,
+            "support_email": str(
+                os.environ.get("TIS_SUPPORT_EMAIL")
+                or os.environ.get("EMAIL_REPLY_TO")
+                or "info@tisplatform.com"
+            ).strip(),
+        },
+        status_code=403,
     )
 
 

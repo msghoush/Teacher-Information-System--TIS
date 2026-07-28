@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+import models as operational_models
 from saas import currency_service, models
 
 
@@ -76,24 +77,63 @@ def build_quote(
     errors: list[str] = []
     warnings: list[str] = []
 
-    active_rows = db.query(models.PendingOrganizationBranch).filter(
-        models.PendingOrganizationBranch.pending_organization_id == organization.id,
-        models.PendingOrganizationBranch.status == True,
-    ).order_by(
-        models.PendingOrganizationBranch.sort_order.asc(),
-        models.PendingOrganizationBranch.id.asc(),
-    ).all()
-    incomplete = [row for row in active_rows if not _clean_branch_name(getattr(row, "branch_name", ""))]
+    demo_provisioning = (
+        db.query(models.SaaSDemoWorkspaceProvisioning)
+        .join(
+            models.SaaSDemoRequest,
+            models.SaaSDemoRequest.id
+            == models.SaaSDemoWorkspaceProvisioning.demo_request_id,
+        )
+        .filter(
+            models.SaaSDemoRequest.pending_organization_id == organization.id,
+            models.SaaSDemoRequest.status == "approved",
+            models.SaaSDemoWorkspaceProvisioning.provisioning_status == "active",
+        )
+        .one_or_none()
+    )
+    operational_rows = (
+        db.query(operational_models.Branch)
+        .filter(
+            operational_models.Branch.school_group_id
+            == demo_provisioning.school_group_id,
+            operational_models.Branch.status == True,
+        )
+        .order_by(operational_models.Branch.id.asc())
+        .all()
+        if demo_provisioning and demo_provisioning.school_group_id
+        else []
+    )
+    if operational_rows:
+        active_rows = operational_rows
+        name_attribute = "name"
+        uuid_value = lambda row: f"operational-branch-{row.id}"
+    else:
+        active_rows = db.query(models.PendingOrganizationBranch).filter(
+            models.PendingOrganizationBranch.pending_organization_id == organization.id,
+            models.PendingOrganizationBranch.status == True,
+        ).order_by(
+            models.PendingOrganizationBranch.sort_order.asc(),
+            models.PendingOrganizationBranch.id.asc(),
+        ).all()
+        name_attribute = "branch_name"
+        uuid_value = lambda row: str(row.branch_uuid or "").strip()
+    incomplete = [
+        row for row in active_rows
+        if not _clean_branch_name(getattr(row, name_attribute, ""))
+    ]
     billable_rows = [row for row in active_rows if row not in incomplete]
     if incomplete:
         errors.append("Complete every active branch before continuing.")
     if not billable_rows:
         errors.append("Add at least one active branch before choosing a subscription.")
 
-    branch_names = [normalize_branch_name(row.branch_name) for row in billable_rows]
+    branch_names = [
+        normalize_branch_name(getattr(row, name_attribute, ""))
+        for row in billable_rows
+    ]
     if len(branch_names) != len(set(branch_names)):
         errors.append("Active branch names must be unique within the organization.")
-    if any(not str(getattr(row, "branch_uuid", "") or "").strip() for row in billable_rows):
+    if any(not uuid_value(row) for row in billable_rows):
         errors.append("Branch setup could not be validated. Save Branch Setup and try again.")
 
     plan = None
@@ -127,10 +167,10 @@ def build_quote(
 
     branches = tuple(
         BillableBranch(
-            branch_uuid=str(row.branch_uuid or "").strip(),
-            branch_name=_clean_branch_name(row.branch_name),
+            branch_uuid=uuid_value(row),
+            branch_name=_clean_branch_name(getattr(row, name_attribute, "")),
         )
-        for row in sorted(billable_rows, key=lambda item: str(item.branch_uuid or ""))
+        for row in sorted(billable_rows, key=uuid_value)
     )
     quantity = len(branches)
     unit_amount_minor = int(getattr(price_row, "amount_minor", 0) or 0)

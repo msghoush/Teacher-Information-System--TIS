@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Project State
 
+## Customer Journey And Expired-Access Correction
+
+Implemented returning-account state routing, direct expired-demo subscription
+selection, operational and SaaS expiry pages, and a pre-workspace commercial
+guard for both demo and paid subscriptions. Demo checkout uses the existing
+organization, SchoolGroup, and active operational branch quantity and continues
+into the existing Paddle conversion workflow. The Next.js landing exposes
+Request a Demo, Subscribe, Sign In, and Open TIS App through
+`NEXT_PUBLIC_TIS_APP_BASE_URL`. The owner demo page retains all M8B9 operations
+behind progressive disclosure, and customer communications identify the TIS
+team. No schema, pricing, Paddle-authority, AI-entitlement, migration, or
+deployment change is included.
+
 ## M8B9 Demo Operations, Notifications, And Testing
 
 Implemented Platform Owner-only demo lifecycle controls, synchronous

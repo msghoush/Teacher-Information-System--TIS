@@ -1,0 +1,34 @@
+{% from "_tis_logo.html" import tis_logo, tis_logo_path with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Workspace Access | TIS</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', path=tis_logo_path(theme='light', compact=true)) }}">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/branding.css') }}">
+    <style>
+        body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:#f4f7fb;color:#17324d;font-family:Arial,sans-serif}
+        main{width:min(680px,100%);padding:32px;border:1px solid #d4dfec;border-radius:10px;background:#fff;box-shadow:0 16px 38px rgba(25,51,77,.08)}
+        .brand{width:190px;margin-bottom:26px} h1{font-size:32px} p{color:#52677d;line-height:1.65}
+        .notice{margin:22px 0;padding:16px;border-left:4px solid #d08a32;background:#fff8e8}
+        .actions{display:flex;flex-wrap:wrap;gap:10px}.btn{display:inline-flex;align-items:center;min-height:42px;padding:10px 16px;border:1px solid #174f86;border-radius:6px;background:#174f86;color:#fff;font-weight:700;text-decoration:none}.btn.secondary{background:#fff;color:#174f86}
+    </style>
+</head>
+<body><main>
+    <div class="brand">{{ tis_logo(theme="light", compact=false, alt="TIS") }}</div>
+    {% if kind == "subscription" %}
+    <h1>Your TIS subscription has expired.</h1>
+    <p>Renew your subscription to restore access to your workspace.</p>
+    {% else %}
+    <h1>Your TIS demo has ended.</h1>
+    <p>Your organization and data are safely preserved. Subscribe to a TIS plan to continue accessing your workspace.</p>
+    {% endif %}
+    <div class="notice">Your workspace and organization data remain safely preserved.</div>
+    <div class="actions">
+        <a class="btn secondary" href="/saas/plans">View Plans</a>
+        <a class="btn" href="/saas/login?next_path=/saas/subscription">{% if kind == "subscription" %}Renew Subscription{% else %}Subscribe Now{% endif %}</a>
+        <a class="btn secondary" href="mailto:{{ support_email }}">Contact the TIS Team</a>
+        <a class="btn secondary" href="/logout">Sign Out</a>
+    </div>
+</main></body></html>

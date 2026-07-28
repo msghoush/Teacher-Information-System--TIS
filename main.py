@@ -9353,6 +9353,21 @@ def login(
         )
         return _clear_auth_session_cookies(response)
 
+    if not auth.is_platform_user(user):
+        from saas import commercial_access_service
+
+        login_group_id = auth.get_user_school_group_id(db, user)
+        commercial = commercial_access_service.resolve_workspace_access(
+            db, login_group_id
+        )
+        if commercial.blocked:
+            response = RedirectResponse(
+                url=f"/commercial-access-ended?kind={commercial.kind}",
+                status_code=302,
+            )
+            auth.set_auth_session_cookie(response, user, request)
+            return response
+
     can_all_branch_scope = auth.can_access_all_branches(user, db)
     active_branches = auth.get_accessible_branch_query(db, user).order_by(
         models.Branch.name.asc()
@@ -9450,41 +9465,51 @@ def demo_access_blocked(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    return RedirectResponse(
+        url="/commercial-access-ended?kind=demo",
+        status_code=302,
+    )
+
+
+@app.get("/commercial-access-ended", response_class=HTMLResponse)
+def commercial_access_ended(
+    request: Request,
+    kind: str = "demo",
+    db: Session = Depends(get_db),
+):
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
     if auth.is_platform_user(current_user):
         return RedirectResponse(url="/platform", status_code=302)
-
-    from saas import demo_lifecycle_service
+    from saas import commercial_access_service
 
     school_group_id = (
         getattr(current_user, "scope_school_group_id", None)
         or auth.get_user_school_group_id(db, current_user)
     )
-    lifecycle = demo_lifecycle_service.resolve_demo_lifecycle(
-        db,
-        school_group_id=school_group_id,
+    commercial = commercial_access_service.resolve_workspace_access(
+        db, school_group_id
     )
-    if lifecycle.can_access:
+    if not commercial.blocked:
         return RedirectResponse(url="/dashboard", status_code=302)
-    school_group = db.query(models.SchoolGroup).filter(
-        models.SchoolGroup.id == school_group_id
-    ).one_or_none()
-    is_expired = lifecycle.lifecycle_state == "expired"
+    school_group = db.get(models.SchoolGroup, school_group_id)
     return templates.TemplateResponse(
         request,
-        "demo_access_blocked.html",
+        "commercial_access_ended.html",
         {
             "request": request,
             "current_user": current_user,
             "school_group": school_group,
-            "is_expired": is_expired,
+            "kind": commercial.kind,
+            "support_email": str(
+                os.environ.get("TIS_SUPPORT_EMAIL")
+                or os.environ.get("EMAIL_REPLY_TO")
+                or "info@tisplatform.com"
+            ).strip(),
         },
         status_code=403,
     )
-
-
 @app.get("/platform", response_class=HTMLResponse)
 def platform_console(
     request: Request,

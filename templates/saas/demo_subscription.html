@@ -1,0 +1,40 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<header class="page-header">
+    <span class="page-eyebrow">Continue with TIS</span>
+    <h1>Choose your subscription</h1>
+    <p class="page-subtitle">Your demo has ended. Choose a plan to continue using TIS without losing your data.</p>
+</header>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<section class="card">
+    <h2>{{ journey.organization.organization_name }}</h2>
+    <p><strong>Existing workspace:</strong> {{ journey.school_group.name }}</p>
+    <p><strong>Active branches:</strong> {{ journey.branch_count }}</p>
+    <p>Your existing workspace, users, branches, permissions, and data will be preserved.</p>
+</section>
+{% if journey.configuration_error %}
+<div class="error">
+    <strong>Subscription setup needs assistance.</strong>
+    <p>{{ journey.configuration_error }}</p>
+    <a class="btn secondary" href="mailto:{{ support_email }}">Contact the TIS Team</a>
+</div>
+{% else %}
+<div class="grid cards">
+{% for plan_view in journey.plans %}
+    <article class="card">
+        <h2>{{ plan_view.plan.plan_name }}</h2>
+        {% if plan_view.plan.description %}<p>{{ plan_view.plan.description }}</p>{% endif %}
+        <form method="post" action="/saas/subscription/demo/select">
+            <input type="hidden" name="plan_id" value="{{ plan_view.plan.id }}">
+            <label for="interval-{{ plan_view.plan.id }}">Billing interval</label>
+            <select id="interval-{{ plan_view.plan.id }}" name="billing_interval">
+                <option value="monthly">Monthly — {{ plan_view.monthly.display_formatted }} per branch</option>
+                <option value="annual">Annual — {{ plan_view.annual.display_formatted }} per branch</option>
+            </select>
+            <button class="btn" type="submit">Continue to Checkout</button>
+        </form>
+    </article>
+{% endfor %}
+</div>
+{% endif %}
+{% endblock %}

@@ -21,6 +21,12 @@ The transaction validates its result through the existing M7 subscription entitl
 
 ## Consequences
 
+Expired-demo plan selection resolves the existing operational workspace and its
+authoritative active branch quantity. It enters the existing checkout and
+conversion ledger, never onboarding or a second workspace. Missing plan or
+branch configuration fails safely with support guidance while preserving all
+tenant data.
+
 - No tenant, workspace, organization, user, branch, permission, or academic record is recreated.
 - Demo request, provisioning, lifecycle, reminder, and expiration history remains available.
 - Completed conversions are excluded from demo reminder and expiration processing.
