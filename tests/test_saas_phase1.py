@@ -87,7 +87,15 @@ class SaaSPhase1Tests(unittest.TestCase):
         finally:
             db.close()
 
-    def _set_authoritative_pending_branch_count(self, db, organization, count: int):
+    def _set_authoritative_pending_branch_count(
+        self,
+        db,
+        organization,
+        count: int,
+        *,
+        system_users: int = 0,
+        teachers: int = 0,
+    ):
         rows = service.list_pending_branches(db, organization, include_inactive=True)
         for index in range(count):
             if index < len(rows):
@@ -95,6 +103,8 @@ class SaaSPhase1Tests(unittest.TestCase):
                 row.branch_name = f"Capacity Campus {index + 1}"
                 row.sort_order = index
                 row.status = True
+                row.estimated_system_users = system_users if index == 0 else 0
+                row.estimated_teachers = teachers if index == 0 else 0
             else:
                 db.add(saas.models.PendingOrganizationBranch(
                     branch_uuid=f"90000000-0000-0000-0000-{organization.id:04d}{index:08d}",
@@ -102,35 +112,13 @@ class SaaSPhase1Tests(unittest.TestCase):
                     branch_name=f"Capacity Campus {index + 1}",
                     status=True,
                     sort_order=index,
+                    estimated_system_users=system_users if index == 0 else 0,
+                    estimated_teachers=teachers if index == 0 else 0,
                 ))
         for row in rows[count:]:
             row.status = False
         organization.expected_branch_count = count
         db.flush()
-
-    def _update_estimated_staff_users(self, db, organization, count: int):
-        service.save_organization_profile(
-            db,
-            organization,
-            organization_name=organization.organization_name,
-            legal_name=organization.legal_name or "",
-            website=organization.website or "",
-            primary_domain=organization.primary_domain or "",
-            phone=organization.phone or "",
-            educational_program=organization.educational_program,
-            country_code=organization.country_code or "",
-            country_name=organization.country_name or "",
-            region_name=organization.region_name or "",
-            city_name=organization.city_name or "",
-            district_name=organization.district_name or "",
-            neighborhood_name=organization.neighborhood_name or "",
-            school_type=organization.school_type or "",
-            expected_branch_count=organization.expected_branch_count,
-            expected_student_count=organization.expected_student_count,
-            expected_teacher_count=organization.expected_teacher_count,
-            estimated_staff_users=count,
-            timezone=organization.timezone or "UTC",
-        )
 
     def _sign_paddle_payload(self, payload: dict) -> tuple[str, bytes]:
         raw_body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
@@ -3559,20 +3547,27 @@ class SaaSPhase1Tests(unittest.TestCase):
                 for row in db.query(saas.models.SubscriptionPlan).all()
             }
             expected = (
-                (1, 25, {"starter", "professional", "enterprise_ai"}),
-                (1, 26, {"professional", "enterprise_ai"}),
-                (5, 100, {"professional", "enterprise_ai"}),
-                (5, 101, {"enterprise_ai"}),
-                (6, 80, {"enterprise_ai"}),
-                (25, 500, {"enterprise_ai"}),
-                (25, 501, set()),
-                (26, 100, set()),
+                (1, 5, 25, {"starter", "professional", "enterprise_ai"}),
+                (1, 6, 25, {"professional", "enterprise_ai"}),
+                (1, 5, 26, {"professional", "enterprise_ai"}),
+                (1, 10, 120, {"enterprise_ai"}),
+                (5, 20, 100, {"professional", "enterprise_ai"}),
+                (5, 21, 100, {"enterprise_ai"}),
+                (5, 20, 101, {"enterprise_ai"}),
+                (6, 20, 80, {"enterprise_ai"}),
+                (25, 100, 500, {"enterprise_ai"}),
+                (26, 100, 100, set()),
+                (25, 101, 100, set()),
+                (25, 100, 501, set()),
             )
-            for count, staff_count, eligible_codes in expected:
+            for count, system_users, teachers, eligible_codes in expected:
                 self._set_authoritative_pending_branch_count(
-                    db, organization, count
+                    db,
+                    organization,
+                    count,
+                    system_users=system_users,
+                    teachers=teachers,
                 )
-                organization.estimated_staff_users = staff_count
                 for plan_code, plan in plans.items():
                     quote = branch_pricing_quote_service.build_quote(
                         db,
@@ -3583,7 +3578,7 @@ class SaaSPhase1Tests(unittest.TestCase):
                     self.assertEqual(
                         quote.is_ready,
                         plan_code in eligible_codes,
-                        (count, staff_count, plan_code, quote.errors),
+                        (count, system_users, teachers, plan_code, quote.errors),
                     )
                     if plan_code not in eligible_codes:
                         with self.assertRaisesRegex(
@@ -3597,16 +3592,18 @@ class SaaSPhase1Tests(unittest.TestCase):
                                 billing_interval="monthly",
                             )
 
-            self._set_authoritative_pending_branch_count(db, organization, 25)
-            organization.estimated_staff_users = 500
+            self._set_authoritative_pending_branch_count(
+                db, organization, 25, system_users=100, teachers=500
+            )
             billing_service.select_plan(
                 db,
                 organization,
                 plan_id=plans["enterprise_ai"].id,
                 billing_interval="monthly",
             )
-            self._set_authoritative_pending_branch_count(db, organization, 26)
-            organization.estimated_staff_users = 100
+            self._set_authoritative_pending_branch_count(
+                db, organization, 26, system_users=100, teachers=100
+            )
             with self.assertRaisesRegex(ValueError, "custom plan"):
                 billing_service.create_or_update_checkout_session(db, organization)
             db.commit()
@@ -3633,13 +3630,19 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Supports up to 1 branch", plan_page.text)
         self.assertIn("Supports up to 5 branches", plan_page.text)
         self.assertIn("Supports up to 25 branches", plan_page.text)
-        self.assertIn("Supports up to 25 staff users", plan_page.text)
-        self.assertIn("Supports up to 100 staff users", plan_page.text)
-        self.assertIn("Supports up to 500 staff users", plan_page.text)
+        self.assertIn("Supports up to 5 system users", plan_page.text)
+        self.assertIn("Supports up to 20 system users", plan_page.text)
+        self.assertIn("Supports up to 100 system users", plan_page.text)
+        self.assertIn("Supports up to 25 teachers", plan_page.text)
+        self.assertIn("Supports up to 100 teachers", plan_page.text)
+        self.assertIn("Supports up to 500 teachers", plan_page.text)
         self.assertIn("per branch", plan_page.text)
         self.assertIn('data-plan-kind="custom"', plan_page.text)
         self.assertIn('data-custom-emphasized="true"', plan_page.text)
-        self.assertIn("More than 25 branches or 500 staff users", plan_page.text)
+        self.assertIn(
+            "More than 25 branches, 100 system users, or 500 teachers",
+            plan_page.text,
+        )
         self.assertIn('href="mailto:info@tisplatform.com"', plan_page.text)
 
     def test_branch_expansion_clears_only_an_undersized_selected_plan(self):
@@ -3763,10 +3766,141 @@ class SaaSPhase1Tests(unittest.TestCase):
             self.assertIn('data-plan-kind="custom"', response.text)
             self.assertIn('data-custom-emphasized="false"', response.text)
 
-    def test_staff_estimate_increase_clears_only_an_undersized_selected_plan(self):
+    def test_branch_estimates_are_organization_wide_and_recommend_the_minimum_plan(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout(
+            "branch-estimate-totals@academy.edu"
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            service.replace_branches(db, organization, [
+                {
+                    "branch_name": "North Campus",
+                    "estimated_system_users": "4",
+                    "estimated_teachers": "50",
+                },
+                {
+                    "branch_name": "South Campus",
+                    "estimated_system_users": "6",
+                    "estimated_teachers": "70",
+                },
+            ])
+            db.flush()
+            plans = {
+                row.plan_code: row
+                for row in db.query(saas.models.SubscriptionPlan).all()
+            }
+            quotes = {
+                plan_code: branch_pricing_quote_service.build_quote(
+                    db,
+                    organization,
+                    plan_id=plan.id,
+                    billing_interval="monthly",
+                )
+                for plan_code, plan in plans.items()
+            }
+            self.assertEqual(quotes["starter"].active_system_user_count, 10)
+            self.assertEqual(quotes["starter"].active_teacher_count, 120)
+            self.assertFalse(quotes["starter"].is_ready)
+            self.assertFalse(quotes["professional"].is_ready)
+            self.assertTrue(quotes["enterprise_ai"].is_ready)
+            organization.status = "ready_for_checkout"
+            db.commit()
+        finally:
+            db.close()
+
+        branch_page = self.client.get(
+            f"/saas/onboarding/{org_uuid}/branches"
+        )
+        self.assertGreaterEqual(
+            branch_page.text.count('name="estimated_system_users"'), 3
+        )
+        self.assertGreaterEqual(
+            branch_page.text.count('name="estimated_teachers"'), 3
+        )
+        self.assertIn("Organization capacity", branch_page.text)
+        self.assertIn(
+            "Capacity totals are calculated across all branches in your organization.",
+            branch_page.text,
+        )
+        self.assertIn('data-capacity-system-users>10<', branch_page.text)
+        self.assertIn('data-capacity-teachers>120<', branch_page.text)
+
+        plan_page = self.client.get(f"/saas/onboarding/{org_uuid}/plan")
+        self.assertIn(
+            "Based on your organization setup, Enterprise AI is the minimum eligible plan.",
+            plan_page.text,
+        )
+        self.assertIn(
+            "Professional supports up to 100 teachers. Your organization requires 120.",
+            plan_page.text,
+        )
+        self.assertIn('data-plan-recommended="true"', plan_page.text)
+
+    def test_capacity_dimension_migration_backfills_primary_branch_and_is_idempotent(self):
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout(
+            "capacity-migration@academy.edu"
+        )
+        with self.engine.begin() as connection:
+            organization_id = connection.execute(text(
+                "SELECT id FROM pending_organizations "
+                "WHERE organization_uuid = :organization_uuid"
+            ), {"organization_uuid": org_uuid}).scalar_one()
+            connection.execute(text(
+                "UPDATE pending_organizations "
+                "SET estimated_staff_users = 13, expected_teacher_count = 130 "
+                "WHERE id = :organization_id"
+            ), {"organization_id": organization_id})
+            connection.execute(text(
+                "UPDATE pending_organization_branches "
+                "SET estimated_system_users = 0, estimated_teachers = 0 "
+                "WHERE pending_organization_id = :organization_id"
+            ), {"organization_id": organization_id})
+            db_migrations._subscription_capacity_dimensions(
+                self.engine, connection
+            )
+            first_run = connection.execute(text(
+                "SELECT estimated_system_users, estimated_teachers "
+                "FROM pending_organization_branches "
+                "WHERE pending_organization_id = :organization_id AND status = 1 "
+                "ORDER BY sort_order, id"
+            ), {"organization_id": organization_id}).all()
+            db_migrations._subscription_capacity_dimensions(
+                self.engine, connection
+            )
+            second_run = connection.execute(text(
+                "SELECT estimated_system_users, estimated_teachers "
+                "FROM pending_organization_branches "
+                "WHERE pending_organization_id = :organization_id AND status = 1 "
+                "ORDER BY sort_order, id"
+            ), {"organization_id": organization_id}).all()
+            plan_limits = dict(connection.execute(text(
+                "SELECT plan_code, max_system_users || ':' || max_teachers "
+                "FROM subscription_plans"
+            )).all())
+        self.assertEqual(first_run[0], (13, 130))
+        self.assertTrue(all(row == (0, 0) for row in first_run[1:]))
+        self.assertEqual(second_run, first_run)
+        self.assertEqual(plan_limits["starter"], "5:25")
+        self.assertEqual(plan_limits["professional"], "20:100")
+        self.assertEqual(plan_limits["enterprise_ai"], "100:500")
+        columns = {
+            column["name"]: column
+            for column in inspect(self.engine).get_columns(
+                "pending_organization_branches"
+            )
+        }
+        self.assertFalse(columns["estimated_system_users"]["nullable"])
+        self.assertFalse(columns["estimated_teachers"]["nullable"])
+
+    def test_branch_capacity_estimate_change_clears_only_an_undersized_selected_plan(self):
         self._configure_paddle_prices()
         for index, (plan_code, remains_selected) in enumerate(
-            (("starter", False), ("professional", True)), start=1
+            (("starter", False), ("professional", False), ("enterprise_ai", True)),
+            start=1,
         ):
             with self.subTest(plan_code=plan_code):
                 org_uuid = self._complete_pending_organization_to_ready_for_checkout(
@@ -3778,9 +3912,12 @@ class SaaSPhase1Tests(unittest.TestCase):
                         saas.models.PendingOrganization
                     ).filter_by(organization_uuid=org_uuid).one()
                     self._set_authoritative_pending_branch_count(
-                        db, organization, 1
+                        db,
+                        organization,
+                        1,
+                        system_users=5,
+                        teachers=25 if plan_code == "starter" else 100,
                     )
-                    organization.estimated_staff_users = 25
                     plan = db.query(saas.models.SubscriptionPlan).filter_by(
                         plan_code=plan_code
                     ).one()
@@ -3810,9 +3947,16 @@ class SaaSPhase1Tests(unittest.TestCase):
                     )
                     db.add(attempt)
                     db.flush()
-                    self._update_estimated_staff_users(
-                        db, organization, 26
-                    )
+                    branch = service.list_billable_pending_branches(
+                        db, organization
+                    )[0]
+                    service.replace_branches(db, organization, [{
+                        "branch_uuid": branch.branch_uuid,
+                        "branch_name": branch.branch_name,
+                        "location": branch.location,
+                        "estimated_system_users": "6",
+                        "estimated_teachers": "120",
+                    }])
                     self.assertEqual(checkout.status, "stale")
                     self.assertEqual(attempt.status, "superseded")
                     self.assertEqual(

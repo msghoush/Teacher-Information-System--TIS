@@ -14,6 +14,7 @@ import authorization
 import models
 from dependencies import get_db
 from auth import get_current_user
+from saas import branch_pricing_quote_service
 from homeroom_defaults import (
     get_homeroom_bundle_subject_labels,
     is_default_homeroom_subject,
@@ -1834,6 +1835,28 @@ def copy_teachers_from_year(
         for teacher in target_teachers
         if teacher.teacher_id
     }
+    new_teacher_ids = {
+        _normalize_teacher_id(teacher.teacher_id or "")
+        for teacher in source_teachers
+        if _normalize_teacher_id(teacher.teacher_id or "")
+        and _normalize_teacher_id(teacher.teacher_id or "")
+        not in target_teachers_by_teacher_id
+    }
+    if new_teacher_ids:
+        school_group_id = auth.get_branch_school_group_id(db, branch_id)
+        try:
+            branch_pricing_quote_service.require_active_subscription_capacity_slot(
+                db,
+                school_group_id=school_group_id,
+                additional_teachers=len(new_teacher_ids),
+            )
+        except ValueError as exc:
+            return _render_teachers_page(
+                request=request,
+                db=db,
+                current_user=current_user,
+                error=str(exc),
+            )
 
     target_teacher_ids = [
         teacher.id for teacher in target_teachers if getattr(teacher, "id", None)
@@ -2293,6 +2316,16 @@ def create_teacher(
     ).first()
     if duplicate_teacher:
         errors.append("Teacher ID already exists in the current branch and academic year.")
+    if not errors:
+        school_group_id = auth.get_branch_school_group_id(db, branch_id)
+        try:
+            branch_pricing_quote_service.require_active_subscription_capacity_slot(
+                db,
+                school_group_id=school_group_id,
+                additional_teachers=1,
+            )
+        except ValueError as exc:
+            errors.append(str(exc))
 
     if errors:
         return _render_teachers_page(

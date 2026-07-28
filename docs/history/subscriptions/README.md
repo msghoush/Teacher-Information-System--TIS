@@ -6,22 +6,32 @@ last_updated: 2026-07-21
 
 # Subscription History
 
-## 2026-07-29 - Combined Branch/Staff Capacity And Custom Card
+## 2026-07-29 - Per-Branch System-User And Teacher Capacity
 
-Plan eligibility now combines persisted `max_branches` and `max_staff_users`.
-Starter supports 1/25, Professional 5/100, and Enterprise AI 25/500. The
-pre-payment staff requirement uses the greater of declared expected staff and
-actual active tenant accounts; paid operations use active tenant accounts.
-Inactive, deleted, platform, internal-test, and non-account student records do
-not consume active staff capacity.
+Plan eligibility combines persisted `max_branches`, `max_system_users`, and
+`max_teachers`. Starter supports 1/5/25, Professional 5/20/100, and Enterprise
+AI 25/100/500. Required non-negative estimates are stored per onboarding branch
+and summed organization-wide. Legacy organization totals are assigned to the
+primary branch when no branch estimates exist.
 
-The shared decision protects plan selection through payment reconciliation.
-Branch or staff changes clear only an undersized plan and supersede stale
-checkout lineage. Paid staff creation/reactivation and downgrades fail before
-mutation when capacity would be exceeded. The always-visible Custom card uses a
-simple Contact the TIS Team mail action and never creates Paddle checkout.
-Organizations exceeding twenty-five branches or 500 staff users are directed
-to that path.
+Before payment, system-user and teacher authority separately uses the greater
+of estimated and actual same-workspace counts; paid operations use actual
+counts. Teacher-position login accounts do not consume system-user capacity,
+while active teacher records count even without logins. Inactive, platform,
+internal-test, student, inactive-branch, and inactive-year data is excluded.
+
+The lowest eligible plan is recommended. The shared decision protects
+selection through payment reconciliation and includes both people counts in
+quote fingerprints. Estimate changes clear only an undersized plan and
+supersede stale checkout lineage. Paid system-user and teacher growth plus
+downgrades fail before mutation when capacity would be exceeded. The
+always-visible Custom card never creates Paddle checkout and is emphasized
+above any Enterprise AI maximum.
+
+The current Teacher model has no inactive/reactivation state and no teacher
+import endpoint exists. Current post-activation enforcement covers individual
+teacher creation and preflights academic-year copying atomically; future import
+or reactivation workflows must adopt the same capacity boundary.
 
 ## 2026-07-28 - Authoritative Plan Branch-Capacity Enforcement
 

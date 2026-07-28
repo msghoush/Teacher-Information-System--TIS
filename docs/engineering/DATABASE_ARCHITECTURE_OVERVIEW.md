@@ -130,6 +130,16 @@ Payment, billing, checkout, and provider-confirmed subscription state.
 Ownership boundary:
 Payment state belongs to SaaS billing/subscription logic and should not be embedded directly into academic modules.
 
+Subscription capacity uses three separate persisted dimensions.
+`pending_organization_branches.estimated_system_users` and
+`estimated_teachers` store required non-negative onboarding estimates.
+`subscription_plans.max_branches`, `max_system_users`, and `max_teachers`
+store plan limits. Migration
+`20260729_001_subscription_capacity_dimensions` adds the new columns and
+assigns legacy organization-level system-user and teacher totals to the primary
+active branch only when all branch estimates are zero. Subsequent organization
+totals are derived compatibility summaries.
+
 Must never be mixed:
 - Checkout return navigation must not be treated as verified payment.
 - Payment/provider details must not leak into operational teacher/planning/calendar logic.

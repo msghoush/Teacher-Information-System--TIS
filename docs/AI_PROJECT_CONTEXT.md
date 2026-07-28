@@ -7,6 +7,24 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Three-Dimension Subscription Capacity
+
+Self-service subscription eligibility is organization-wide across three
+independent persisted limits: branches, non-teacher system users, and teacher
+records. Branch Setup stores required non-negative system-user and teacher
+estimates on each active onboarding branch; legacy organization totals are
+assigned to the primary branch only when no branch estimates exist, after
+which organization totals are derived summaries.
+
+Before confirmed payment, capacity authority is the active onboarding branch
+count plus the greater of each branch-estimate total and the same workspace's
+actual active count. After activation, actual active tenant system users and
+active teacher records are authoritative. Teacher login accounts do not consume
+system-user capacity, but their teacher records consume teacher capacity.
+Starter is 1/5/25, Professional 5/20/100, and Enterprise AI 25/100/500.
+Exceeding any Enterprise AI limit requires the contact-only Custom path and
+cannot create Paddle checkout.
+
 ## Returning Customer Journey And Commercial Expiry
 
 Returning SaaS-account login resolves authoritative onboarding, demo request,

@@ -19,6 +19,13 @@
             <span>At least one branch is required.</span>
             <span>Subscription quantity updates automatically based on active branches.</span>
         </div>
+        <div class="review-card" aria-live="polite">
+            <strong>Organization capacity</strong>
+            <p><span id="capacity-branch-total">{{ rows|length }}</span> branches</p>
+            <p><span id="capacity-system-user-total" data-capacity-system-users>{{ rows|sum(attribute="estimated_system_users") }}</span> estimated system users</p>
+            <p><span id="capacity-teacher-total" data-capacity-teachers>{{ rows|sum(attribute="estimated_teachers") }}</span> estimated teachers</p>
+            <p>Capacity totals are calculated across all branches in your organization.</p>
+        </div>
         <div id="branch-list" class="branch-list">
             {% for branch in rows %}
             <div class="branch-panel" data-branch-panel>
@@ -70,6 +77,16 @@
                         <label>Neighborhood</label>
                         <input name="neighborhood_name" value="{{ branch.neighborhood_name if branch and branch.neighborhood_name is defined else organization.neighborhood_name or '' }}">
                     </div>
+                    <div>
+                        <label>Estimated system users</label>
+                        <input name="estimated_system_users" type="number" min="0" step="1" required value="{{ branch.estimated_system_users if branch and branch.estimated_system_users is defined else organization.estimated_staff_users if loop.first else 0 }}">
+                        <small>Include non-teacher staff who will sign in to TIS.</small>
+                    </div>
+                    <div>
+                        <label>Estimated teachers</label>
+                        <input name="estimated_teachers" type="number" min="0" step="1" required value="{{ branch.estimated_teachers if branch and branch.estimated_teachers is defined else organization.expected_teacher_count if loop.first else 0 }}">
+                        <small>Include teachers across this branch, with or without login accounts.</small>
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -108,6 +125,8 @@
             <div><label>City</label><input name="city_name" value="{{ organization.city_name or '' }}"></div>
             <div><label>District</label><input name="district_name" value="{{ organization.district_name or '' }}"></div>
             <div><label>Neighborhood</label><input name="neighborhood_name" value="{{ organization.neighborhood_name or '' }}"></div>
+            <div><label>Estimated system users</label><input name="estimated_system_users" type="number" min="0" step="1" required value="0"><small>Include non-teacher staff who will sign in to TIS.</small></div>
+            <div><label>Estimated teachers</label><input name="estimated_teachers" type="number" min="0" step="1" required value="0"><small>Include teachers with or without login accounts.</small></div>
         </div>
     </div>
 </template>
@@ -120,6 +139,9 @@
     const list = document.getElementById("branch-list");
     const template = document.getElementById("branch-row-template");
     const count = document.getElementById("active-branch-count");
+    const capacityBranchTotal = document.getElementById("capacity-branch-total");
+    const capacitySystemUserTotal = document.getElementById("capacity-system-user-total");
+    const capacityTeacherTotal = document.getElementById("capacity-teacher-total");
     const panels = () => Array.from(list.querySelectorAll("[data-branch-panel]"));
 
     function synchronizeRows() {
@@ -135,6 +157,15 @@
             rows[0]?.querySelector('input[name="primary_branch_index"]').click();
         }
         count.textContent = String(rows.length);
+        capacityBranchTotal.textContent = String(rows.length);
+        capacitySystemUserTotal.textContent = String(rows.reduce(
+            (total, panel) => total + Math.max(0, Number.parseInt(panel.querySelector('input[name="estimated_system_users"]').value || "0", 10) || 0),
+            0
+        ));
+        capacityTeacherTotal.textContent = String(rows.reduce(
+            (total, panel) => total + Math.max(0, Number.parseInt(panel.querySelector('input[name="estimated_teachers"]').value || "0", 10) || 0),
+            0
+        ));
     }
 
     list.addEventListener("click", (event) => {
@@ -165,6 +196,11 @@
         list.appendChild(row);
         synchronizeRows();
         row.querySelector('input[name="branch_name"]').focus();
+    });
+    list.addEventListener("input", (event) => {
+        if (event.target.matches('input[name="estimated_system_users"], input[name="estimated_teachers"]')) {
+            synchronizeRows();
+        }
     });
 
     form.addEventListener("submit", (event) => {

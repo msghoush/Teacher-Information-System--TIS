@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Enforce combined active-branch and active-staff capacity for self-service plans, add the informational Custom contact path, and protect staff creation and plan downgrades.
+summary: Replace combined staff capacity with organization-wide branch, system-user, and teacher authority derived from per-branch estimates before payment and actual tenant data after activation.
 affected_areas:
   - subscriptions
   - subscription-checkout
@@ -8,13 +8,20 @@ affected_areas:
   - pre-payment-branch-editing
   - checkout-supersession
   - plan-capacity-enforcement
-  - staff-capacity-enforcement
+  - system-user-capacity-enforcement
+  - teacher-capacity-enforcement
+  - branch-level-capacity-estimates
+  - minimum-plan-recommendation
   - custom-plan-contact
   - user-management
+  - teacher-management
   - plan-downgrades
 kms_files_updated:
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
   - docs/engineering/REPOSITORY_ARCHITECTURE.md
+  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
   - docs/history/subscriptions/README.md
 no_impact_reason:

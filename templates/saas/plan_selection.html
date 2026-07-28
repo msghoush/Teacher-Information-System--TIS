@@ -4,8 +4,17 @@
 <form id="plan-selection-form" class="wizard-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/plan">
     <section class="wizard-section">
         <div class="wizard-section-header">
-            <strong>Subscription Selection</strong>
-            <p>Prices are per branch. Choose one plan and billing interval for all {{ billable_branch_count }} active billable branch{% if billable_branch_count != 1 %}es{% endif %} and capacity for {{ active_staff_count }} staff user{% if active_staff_count != 1 %}s{% endif %}.</p>
+            <strong>Your organization setup</strong>
+            <p>{{ billable_branch_count }} branch{% if billable_branch_count != 1 %}es{% endif %}</p>
+            <p>{{ active_system_user_count }} estimated system users</p>
+            <p>{{ active_teacher_count }} estimated teachers</p>
+            {% if minimum_eligible_plan %}
+            <p>Based on your organization setup, {{ minimum_eligible_plan_name }} is the minimum eligible plan.</p>
+            {% else %}
+            <p>Your organization requires a custom plan. Please contact the TIS team.</p>
+            {% endif %}
+            <p>Capacity limits apply across your entire organization, not separately to each branch.</p>
+            <p>Prices remain per branch.</p>
         </div>
         <div class="wizard-grid">
             <div>
@@ -15,7 +24,7 @@
                     {% for option in plan_options %}
                     {% set plan_view = option.plan_view %}
                     <option value="{{ plan_view.plan.id }}" {% if current_plan_selection and current_plan_selection.plan_id == plan_view.plan.id %}selected{% endif %}{% if not option.eligible %} disabled{% endif %}>
-                        {{ plan_view.plan.plan_name }}{% if plan_view.plan.is_most_popular %} - Most Popular{% endif %}{% if not option.eligible %} - Unavailable for {{ option.active_branch_count }} branches{% endif %}
+                        {{ plan_view.plan.plan_name }}{% if option.recommended %} - Minimum eligible{% elif plan_view.plan.is_most_popular %} - Most Popular{% endif %}{% if not option.eligible %} - Unavailable{% endif %}
                     </option>
                     {% endfor %}
                 </select>
@@ -38,21 +47,21 @@
         <div class="review-grid">
             {% for option in plan_options %}
             {% set plan_view = option.plan_view %}
-            <div class="review-card{% if not option.eligible %} is-disabled{% endif %}" data-plan-eligible="{{ 'true' if option.eligible else 'false' }}">
+            <div class="review-card{% if not option.eligible %} is-disabled{% endif %}{% if option.recommended %} is-emphasized{% endif %}" data-plan-eligible="{{ 'true' if option.eligible else 'false' }}" data-plan-recommended="{{ 'true' if option.recommended else 'false' }}">
                 <strong>{{ plan_view.plan.plan_name }}</strong>
                 {% if plan_view.plan.badge_text %}<p>{{ plan_view.plan.badge_text }}</p>{% endif %}
                 <p>USD {{ "%.2f"|format(plan_view.monthly.base_amount_minor / 100) }} per branch / month<br>USD {{ "%.2f"|format(plan_view.annual.base_amount_minor / 100) }} per branch / year</p>
                 {% if plan_view.annual.annual_savings_percent %}
                 <p>Save {{ plan_view.annual.annual_savings_percent }}% annually</p>
                 {% endif %}
-                <p>Supports up to {{ option.branch_capacity }} branch{% if option.branch_capacity != 1 %}es{% endif %}<br>Supports up to {{ option.staff_capacity }} staff users</p>
+                <p>Supports up to {{ option.branch_capacity }} branch{% if option.branch_capacity != 1 %}es{% endif %}<br>Supports up to {{ option.system_user_capacity }} system users<br>Supports up to {{ option.teacher_capacity }} teachers</p>
                 {% if not option.eligible %}<p class="error">{{ option.ineligible_reason }}</p>{% endif %}
             </div>
             {% endfor %}
             <div class="review-card{% if self_service_checkout_blocked %} is-emphasized{% endif %}" data-plan-kind="custom" data-custom-emphasized="{{ 'true' if self_service_checkout_blocked else 'false' }}">
                 <strong>Custom</strong>
                 <p>For large school groups and education networks</p>
-                <p>More than 25 branches or 500 staff users</p>
+                <p>More than 25 branches, 100 system users, or 500 teachers</p>
                 <p>Custom pricing<br>Flexible capacity</p>
                 {% if self_service_checkout_blocked %}
                 <p>Your organization requires a custom plan. Please contact the TIS team.</p>

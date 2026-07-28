@@ -48,7 +48,7 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         self.client.close()
         self.engine.dispose()
 
-    def _fixture(self, *, quantity=3, active_branches=3, active_staff=1, role=auth.ROLE_ADMINISTRATOR, email=None, plan_code="professional"):
+    def _fixture(self, *, quantity=3, active_branches=3, active_staff=1, active_teachers=0, role=auth.ROLE_ADMINISTRATOR, email=None, plan_code="professional"):
         db = self.Session()
         unique = uuid.uuid4().hex[:10]
         try:
@@ -72,6 +72,22 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
             for index in range(active_branches):
                 branch = models.Branch(school_group_id=group.id, name=f"Campus {index + 1} {unique}", status=True)
                 db.add(branch); branches.append(branch)
+            db.flush()
+            academic_year = models.AcademicYear(
+                school_group_id=group.id,
+                year_name="2026-2027",
+                is_active=True,
+            )
+            db.add(academic_year)
+            db.flush()
+            for index in range(active_teachers):
+                db.add(models.Teacher(
+                    teacher_id=f"{index + 1:010d}",
+                    first_name="Teacher",
+                    last_name=str(index + 1),
+                    branch_id=branches[index % len(branches)].id if branches else None,
+                    academic_year_id=academic_year.id,
+                ))
             db.flush()
             user = models.User(
                 user_id=unique, username=f"billing.{unique}", email=email, email_normalized=email,
@@ -1371,15 +1387,17 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
 
     def test_downgrade_is_blocked_by_branch_or_staff_capacity(self):
         scenarios = (
-            ("professional", "starter", 2, 20, "capacity.active_branches"),
-            ("enterprise_ai", "professional", 4, 101, "capacity.active_staff_users"),
+            ("professional", "starter", 2, 20, 0, "capacity.active_branches"),
+            ("enterprise_ai", "professional", 4, 21, 0, "capacity.active_system_users"),
+            ("enterprise_ai", "professional", 4, 20, 101, "capacity.active_teachers"),
         )
-        for current, target, branches, staff, conflict_key in scenarios:
+        for current, target, branches, staff, teachers, conflict_key in scenarios:
             with self.subTest(conflict=conflict_key):
                 fixture = self._fixture(
                     quantity=branches,
                     active_branches=branches,
                     active_staff=staff,
+                    active_teachers=teachers,
                     plan_code=current,
                 )
                 row_id, *_ = self._plan_preview(fixture, target)

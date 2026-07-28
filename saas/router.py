@@ -537,19 +537,46 @@ def _plan_context(db: Session, account, organization):
     payment_customer = payment_service.get_payment_customer(db, organization)
     payment_subscription = payment_service.get_payment_subscription(db, organization)
     branch_count = service.count_billable_pending_branches(db, organization)
-    staff_count = branch_pricing_quote_service.authoritative_staff_count(
+    (
+        _capacity_branch_count,
+        system_user_count,
+        teacher_count,
+    ) = branch_pricing_quote_service.authoritative_capacity_counts(
         db, organization
     )
     plan_catalog = pricing_service.build_plan_catalog(
         db,
         country_code=str(getattr(organization, "country_code", "") or ""),
     )
+    minimum_eligible_plan = next(
+        (
+            plan_view.plan.plan_code
+            for plan_view in plan_catalog
+            if branch_pricing_quote_service.evaluate_plan_capacity(
+                plan_view.plan,
+                active_branch_count=branch_count,
+                active_system_user_count=system_user_count,
+                active_teacher_count=teacher_count,
+            ).eligible
+        ),
+        None,
+    )
+    minimum_eligible_plan_name = next(
+        (
+            plan_view.plan.plan_name
+            for plan_view in plan_catalog
+            if plan_view.plan.plan_code == minimum_eligible_plan
+        ),
+        None,
+    )
     plan_options = []
     for plan_view in plan_catalog:
         capacity = branch_pricing_quote_service.evaluate_plan_capacity(
             plan_view.plan,
             active_branch_count=branch_count,
-            active_staff_count=staff_count,
+            active_system_user_count=system_user_count,
+            active_teacher_count=teacher_count,
+            minimum_eligible_plan=minimum_eligible_plan,
         )
         plan_options.append({
             "plan_view": plan_view,
@@ -557,11 +584,18 @@ def _plan_context(db: Session, account, organization):
             "ineligible_reason": capacity.reason,
             "branch_capacity": capacity.branch_capacity,
             "active_branch_count": capacity.active_branch_count,
-            "staff_capacity": capacity.max_staff_users,
-            "active_staff_count": capacity.active_staff_count,
+            "system_user_capacity": capacity.max_system_users,
+            "teacher_capacity": capacity.max_teachers,
+            "active_system_user_count": capacity.active_system_user_count,
+            "active_teacher_count": capacity.active_teacher_count,
             "branch_eligible": capacity.branch_eligible,
-            "staff_eligible": capacity.staff_eligible,
+            "system_user_eligible": capacity.system_user_eligible,
+            "teacher_eligible": capacity.teacher_eligible,
             "required_plan_or_custom_state": capacity.required_plan_or_custom_state,
+            "recommended": (
+                capacity.eligible
+                and plan_view.plan.plan_code == minimum_eligible_plan
+            ),
         })
     return {
         "account": account,
@@ -572,8 +606,11 @@ def _plan_context(db: Session, account, organization):
         "self_service_checkout_blocked": bool(plan_options) and not any(
             option["eligible"] for option in plan_options
         ),
+        "minimum_eligible_plan": minimum_eligible_plan,
+        "minimum_eligible_plan_name": minimum_eligible_plan_name,
         "billable_branch_count": branch_count,
-        "active_staff_count": staff_count,
+        "active_system_user_count": system_user_count,
+        "active_teacher_count": teacher_count,
         "current_plan_selection": checkout_summary["selection"] if checkout_summary else None,
         "checkout_summary": checkout_summary,
         "current_payment_attempt": payment_attempt,
@@ -2015,6 +2052,8 @@ def save_branches_step(
     city_name: list[str] = Form([]),
     district_name: list[str] = Form([]),
     neighborhood_name: list[str] = Form([]),
+    estimated_system_users: list[str] = Form([]),
+    estimated_teachers: list[str] = Form([]),
     primary_branch_index: str = Form("0"),
     save_action: str = Form("continue"),
     db: Session = Depends(get_db),
@@ -2045,6 +2084,8 @@ def save_branches_step(
         len(city_name),
         len(district_name),
         len(neighborhood_name),
+        len(estimated_system_users),
+        len(estimated_teachers),
         0,
     )
     for index in range(max_rows):
@@ -2059,6 +2100,8 @@ def save_branches_step(
                 "city_name": city_name[index] if index < len(city_name) else "",
                 "district_name": district_name[index] if index < len(district_name) else "",
                 "neighborhood_name": neighborhood_name[index] if index < len(neighborhood_name) else "",
+                "estimated_system_users": estimated_system_users[index] if index < len(estimated_system_users) else None,
+                "estimated_teachers": estimated_teachers[index] if index < len(estimated_teachers) else None,
             }
         )
     try:

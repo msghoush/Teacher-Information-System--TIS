@@ -269,6 +269,12 @@ class PendingOrganizationBranch(Base):
     city_name = Column(String(160))
     district_name = Column(String(160))
     neighborhood_name = Column(String(160))
+    estimated_system_users = Column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    estimated_teachers = Column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     status = Column(Boolean, nullable=False, default=True)
     sort_order = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -1025,6 +1031,8 @@ class SubscriptionPlan(Base):
     sort_order = Column(Integer, nullable=False, default=0)
     max_branches = Column(Integer)
     max_staff_users = Column(Integer)
+    max_system_users = Column(Integer)
+    max_teachers = Column(Integer)
     ai_enabled = Column(Boolean, nullable=False, default=False)
     multi_branch_enabled = Column(Boolean, nullable=False, default=False)
     advanced_reporting_enabled = Column(Boolean, nullable=False, default=False)

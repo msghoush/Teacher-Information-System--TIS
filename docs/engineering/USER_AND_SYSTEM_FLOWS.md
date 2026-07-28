@@ -9,26 +9,29 @@ source_of_truth: true
 
 ## Combined Subscription Capacity And Custom Contact
 
-1. TIS resolves active billable branches and the authoritative staff
-   requirement for the current organization. Before payment, staff is the
-   greater of declared expected staff and actual active tenant accounts; after
-   activation, active tenant accounts are authoritative.
-2. A self-service plan is eligible only when both counts fit: Starter is 1
-   branch/25 staff, Professional 5/100, and Enterprise AI 25/500.
-3. Ineligible cards are disabled and explain each failed dimension. Exceeding
-   twenty-five branches or 500 staff users emphasizes the always-visible Custom
-   card and its Contact the TIS Team action. The rule is “branches or staff,”
-   not “branches and staff.”
-4. Selection and every quote, checkout, Paddle, and payment-validation boundary
+1. Each active onboarding branch supplies required non-negative system-user and
+   teacher estimates; TIS sums them across the organization.
+2. Before payment, system-user and teacher authority is independently the
+   greater of the estimate total and actual same-workspace active data. After
+   activation, actual active data is authoritative. Teacher login accounts are
+   excluded from system users while their teacher records still count.
+3. A self-service plan is eligible only when all three counts fit: Starter is
+   1 branch/5 system users/25 teachers, Professional 5/20/100, and Enterprise AI
+   25/100/500.
+4. The lowest eligible plan is recommended; higher eligible plans remain
+   selectable. Ineligible cards explain every failed dimension. Exceeding
+   twenty-five branches, 100 system users, or 500 teachers emphasizes the
+   always-visible Custom contact action.
+5. Selection and every quote, checkout, Paddle, and payment-validation boundary
    repeats the same server-side decision.
-5. A pre-payment branch or staff-estimate change retains an eligible higher
+6. A pre-payment branch estimate change retains an eligible higher
    plan, but clears an undersized selection and supersedes its checkout and
    attempt so stale payment cannot activate the workspace.
-6. On a paid workspace, an active staff account can be created or reactivated
-   only when the resulting count fits the active plan. A blocked request creates
-   no user and changes no status.
-7. A downgrade is blocked when current active branches or staff exceed the
-   target plan. Existing data is preserved.
+7. On a paid workspace, non-teacher system-user creation/reactivation and
+   teacher creation/year-copy preflight require remaining capacity. Blocked
+   operations create no partial user or teacher data.
+8. A downgrade is blocked separately by current branches, system users, or
+   teachers. Existing data is preserved.
 
 Landing follow-up: the separate Next.js project must later update
 `tis-landing-website/src/app/page.tsx` in a focused task to show Starter,

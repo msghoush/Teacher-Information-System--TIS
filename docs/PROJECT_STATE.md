@@ -7,6 +7,22 @@ source_of_truth: true
 
 # TIS Project State
 
+## Per-Branch Subscription Capacity
+
+Implemented required system-user and teacher estimates on each onboarding
+branch, organization-wide live totals, and one three-dimension capacity
+decision covering branches, non-teacher system users, and teachers. The lowest
+eligible self-service plan is recommended while higher eligible plans remain
+selectable. Starter limits are 1/5/25, Professional 5/20/100, and Enterprise AI
+25/100/500; exceeding any Enterprise limit routes to contact-only Custom.
+
+Before payment, estimates are compared with actual same-workspace counts and
+the greater value is authoritative. After activation, actual active counts are
+authoritative. Capacity changes invalidate quote/checkout lineage and clear
+only an undersized plan. Paid system-user creation/reactivation, teacher
+creation/year-copy preflight, and downgrades fail before mutation when the
+result would exceed capacity.
+
 ## Customer Journey And Expired-Access Correction
 
 Implemented returning-account state routing, direct expired-demo subscription
