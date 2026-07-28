@@ -6,6 +6,23 @@ last_updated: 2026-07-21
 
 # Subscription History
 
+## 2026-07-29 - Combined Branch/Staff Capacity And Custom Card
+
+Plan eligibility now combines persisted `max_branches` and `max_staff_users`.
+Starter supports 1/25, Professional 5/100, and Enterprise AI 25/500. The
+pre-payment staff requirement uses the greater of declared expected staff and
+actual active tenant accounts; paid operations use active tenant accounts.
+Inactive, deleted, platform, internal-test, and non-account student records do
+not consume active staff capacity.
+
+The shared decision protects plan selection through payment reconciliation.
+Branch or staff changes clear only an undersized plan and supersede stale
+checkout lineage. Paid staff creation/reactivation and downgrades fail before
+mutation when capacity would be exceeded. The always-visible Custom card uses a
+simple Contact the TIS Team mail action and never creates Paddle checkout.
+Organizations exceeding twenty-five branches or 500 staff users are directed
+to that path.
+
 ## 2026-07-28 - Authoritative Plan Branch-Capacity Enforcement
 
 Initial self-service selection now enforces the persisted plan limits: Starter

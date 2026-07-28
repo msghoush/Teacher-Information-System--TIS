@@ -48,7 +48,7 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         self.client.close()
         self.engine.dispose()
 
-    def _fixture(self, *, quantity=3, active_branches=3, role=auth.ROLE_ADMINISTRATOR, email=None, plan_code="professional"):
+    def _fixture(self, *, quantity=3, active_branches=3, active_staff=1, role=auth.ROLE_ADMINISTRATOR, email=None, plan_code="professional"):
         db = self.Session()
         unique = uuid.uuid4().hex[:10]
         try:
@@ -80,6 +80,19 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
                 access_scope=auth.ACCESS_SCOPE_ORGANIZATION, is_active=True,
             )
             db.add(user); db.flush()
+            for index in range(1, active_staff):
+                db.add(models.User(
+                    user_id=f"{unique[:6]}{index:04d}",
+                    username=f"staff.{unique}.{index}",
+                    email=f"staff-{index}-{unique}@example.com",
+                    first_name="Staff", last_name=str(index),
+                    password="unused", role=auth.ROLE_USER,
+                    user_type=auth.USER_TYPE_TENANT,
+                    school_group_id=group.id,
+                    branch_id=branches[index % len(branches)].id if branches else None,
+                    access_scope=auth.ACCESS_SCOPE_BRANCH, is_active=True,
+                ))
+            db.flush()
             organization = saas.models.PendingOrganization(
                 organization_uuid=str(uuid.uuid4()), owner_saas_account_id=account.id,
                 organization_name=f"Billing Organization {unique}", status="tenant_active",
@@ -1353,6 +1366,43 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
                     self.assertEqual(next(item for item in kwargs["items"] if item["price_id"] == target_provider_price)["quantity"], 4)
                     self.assertEqual(len(kwargs["items"]), 2)
                     self.assertNotEqual(target_plan_id, fixture["plan_id"])
+                finally:
+                    db.close()
+
+    def test_downgrade_is_blocked_by_branch_or_staff_capacity(self):
+        scenarios = (
+            ("professional", "starter", 2, 20, "capacity.active_branches"),
+            ("enterprise_ai", "professional", 4, 101, "capacity.active_staff_users"),
+        )
+        for current, target, branches, staff, conflict_key in scenarios:
+            with self.subTest(conflict=conflict_key):
+                fixture = self._fixture(
+                    quantity=branches,
+                    active_branches=branches,
+                    active_staff=staff,
+                    plan_code=current,
+                )
+                row_id, *_ = self._plan_preview(fixture, target)
+                db = self.Session()
+                try:
+                    row = db.get(saas.models.SubscriptionChangeRequest, row_id)
+                    _row, _plan, impact = (
+                        subscription_plan_change_service.get_confirmation_preview(
+                            db, self._account(db, fixture), row.request_uuid
+                        )
+                    )
+                    self.assertIn(
+                        conflict_key,
+                        {item["key"] for item in impact["blocking_conflicts"]},
+                    )
+                    with self.assertRaisesRegex(
+                        subscription_change_service.SubscriptionChangeError,
+                        "compatibility issues",
+                    ) as blocked:
+                        subscription_plan_change_service.submit_plan_change(
+                            db, self._account(db, fixture), row.request_uuid
+                        )
+                    self.assertEqual(blocked.exception.code, "downgrade_conflict")
                 finally:
                     db.close()
 

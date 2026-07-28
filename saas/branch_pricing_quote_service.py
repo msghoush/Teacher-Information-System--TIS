@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+import auth
 import models as operational_models
 from saas import currency_service, models
 
@@ -16,11 +17,20 @@ class BillableBranch:
 
 
 @dataclass(frozen=True)
-class PlanBranchCapacity:
+class PlanCapacityEligibility:
     eligible: bool
+    branch_eligible: bool
+    staff_eligible: bool
     reason: str
-    branch_capacity: int | None
+    max_branches: int | None
+    max_staff_users: int | None
     active_branch_count: int
+    active_staff_count: int
+    required_plan_or_custom_state: str
+
+    @property
+    def branch_capacity(self) -> int | None:
+        return self.max_branches
 
 
 @dataclass(frozen=True)
@@ -34,6 +44,7 @@ class BranchPricingQuote:
     provider_price_id: str
     unit_amount_minor: int
     billable_branch_count: int
+    active_staff_count: int
     branches: tuple[BillableBranch, ...]
     quantity: int
     total_amount_minor: int
@@ -59,43 +70,161 @@ def _clean_branch_name(value: str) -> str:
     return " ".join(str(value or "").strip().split())
 
 
-def evaluate_plan_branch_capacity(plan, active_branch_count: int) -> PlanBranchCapacity:
-    quantity = max(int(active_branch_count or 0), 0)
-    raw_capacity = getattr(plan, "max_branches", None)
-    capacity = int(raw_capacity) if raw_capacity is not None else None
-    if capacity is None or capacity < 1:
-        return PlanBranchCapacity(
-            eligible=False,
-            reason="This subscription plan is not available for self-service checkout.",
-            branch_capacity=capacity,
-            active_branch_count=quantity,
+def evaluate_plan_capacity(
+    plan,
+    *,
+    active_branch_count: int,
+    active_staff_count: int,
+) -> PlanCapacityEligibility:
+    branches = max(int(active_branch_count or 0), 0)
+    staff = max(int(active_staff_count or 0), 0)
+    raw_branch_capacity = getattr(plan, "max_branches", None)
+    raw_staff_capacity = getattr(plan, "max_staff_users", None)
+    max_branches = (
+        int(raw_branch_capacity) if raw_branch_capacity is not None else None
+    )
+    max_staff_users = (
+        int(raw_staff_capacity) if raw_staff_capacity is not None else None
+    )
+    branch_eligible = bool(max_branches and max_branches > 0 and branches <= max_branches)
+    staff_eligible = bool(
+        max_staff_users and max_staff_users > 0 and staff <= max_staff_users
+    )
+    reasons = []
+    if max_branches is None or max_branches < 1:
+        reasons.append("Branch capacity is unavailable for this plan.")
+    elif not branch_eligible:
+        reasons.append(
+            f"Your organization has {branches} branch"
+            f"{'' if branches == 1 else 'es'}. "
+            f"{plan.plan_name} supports up to {max_branches}."
         )
-    if quantity > capacity:
-        reason = (
+    if max_staff_users is None or max_staff_users < 1:
+        reasons.append("Staff-user capacity is unavailable for this plan.")
+    elif not staff_eligible:
+        reasons.append(
+            f"Your organization requires capacity for {staff} staff user"
+            f"{'' if staff == 1 else 's'}. "
+            f"{plan.plan_name} supports up to {max_staff_users}."
+        )
+    plan_code = str(getattr(plan, "plan_code", "") or "")
+    custom_required = plan_code == "enterprise_ai" and (
+        not branch_eligible or not staff_eligible
+    )
+    if custom_required:
+        reasons.append(
             "Your organization requires a custom plan. Please contact the TIS team."
-            if str(getattr(plan, "plan_code", "") or "") == "enterprise_ai"
-            else f"This plan supports up to {capacity} active billable branch"
-            f"{'' if capacity == 1 else 'es'}."
         )
-        return PlanBranchCapacity(
-            eligible=False,
-            reason=reason,
-            branch_capacity=capacity,
-            active_branch_count=quantity,
-        )
-    return PlanBranchCapacity(
-        eligible=True,
-        reason="",
-        branch_capacity=capacity,
-        active_branch_count=quantity,
+    return PlanCapacityEligibility(
+        eligible=branch_eligible and staff_eligible,
+        branch_eligible=branch_eligible,
+        staff_eligible=staff_eligible,
+        reason=(
+            " ".join(reasons)
+            if reasons
+            else ""
+        ),
+        max_branches=max_branches,
+        max_staff_users=max_staff_users,
+        active_branch_count=branches,
+        active_staff_count=staff,
+        required_plan_or_custom_state=(
+            "eligible"
+            if branch_eligible and staff_eligible
+            else "custom"
+            if custom_required
+            else "higher_plan"
+        ),
     )
 
 
-def require_plan_branch_capacity(plan, active_branch_count: int) -> PlanBranchCapacity:
-    capacity = evaluate_plan_branch_capacity(plan, active_branch_count)
+def require_plan_capacity(
+    plan,
+    *,
+    active_branch_count: int,
+    active_staff_count: int,
+) -> PlanCapacityEligibility:
+    capacity = evaluate_plan_capacity(
+        plan,
+        active_branch_count=active_branch_count,
+        active_staff_count=active_staff_count,
+    )
     if not capacity.eligible:
         raise ValueError(capacity.reason)
     return capacity
+
+
+def count_active_staff_users(db: Session, school_group_id: int) -> int:
+    return db.query(operational_models.User).filter(
+        operational_models.User.school_group_id == int(school_group_id),
+        operational_models.User.user_type == auth.USER_TYPE_TENANT,
+        operational_models.User.is_active.is_(True),
+        operational_models.User.is_internal_test_identity.is_(False),
+    ).count()
+
+
+def require_active_subscription_staff_slot(
+    db: Session,
+    *,
+    school_group_id: int,
+    additional_active_staff: int = 1,
+) -> PlanCapacityEligibility | None:
+    subscriptions = db.query(models.PaymentSubscription).join(
+        models.SubscriptionContract,
+        models.SubscriptionContract.id
+        == models.PaymentSubscription.subscription_contract_id,
+    ).filter(
+        models.SubscriptionContract.school_group_id == int(school_group_id),
+        models.PaymentSubscription.status.in_(("active", "trialing")),
+    ).all()
+    if not subscriptions:
+        return None
+    if len(subscriptions) != 1:
+        raise ValueError(
+            "Staff-user capacity is temporarily unavailable. Please contact the TIS team."
+        )
+    plan = db.get(models.SubscriptionPlan, subscriptions[0].plan_id)
+    if plan is None:
+        raise ValueError(
+            "Staff-user capacity is temporarily unavailable. Please contact the TIS team."
+        )
+    branch_count = db.query(operational_models.Branch).filter(
+        operational_models.Branch.school_group_id == int(school_group_id),
+        operational_models.Branch.status.is_(True),
+    ).count()
+    desired_staff_count = count_active_staff_users(
+        db, school_group_id
+    ) + max(int(additional_active_staff or 0), 0)
+    decision = evaluate_plan_capacity(
+        plan,
+        active_branch_count=branch_count,
+        active_staff_count=desired_staff_count,
+    )
+    if not decision.staff_eligible:
+        raise ValueError(
+            f"{decision.reason} Upgrade your subscription before adding another staff user."
+        )
+    return decision
+
+
+def authoritative_staff_count(db: Session, organization) -> int:
+    declared = max(int(getattr(organization, "estimated_staff_users", 0) or 0), 0)
+    links = db.query(models.TenantProvisioningLink).filter(
+        models.TenantProvisioningLink.pending_organization_id == organization.id
+    ).all()
+    school_group_ids = {
+        int(link.school_group_id) for link in links if link.school_group_id
+    }
+    if len(school_group_ids) > 1:
+        raise ValueError(
+            "Staff-user capacity could not be resolved for this organization."
+        )
+    actual = (
+        count_active_staff_users(db, next(iter(school_group_ids)))
+        if school_group_ids
+        else 0
+    )
+    return max(declared, actual)
 
 
 def list_billable_branches(db: Session, organization) -> list:
@@ -220,8 +349,17 @@ def build_quote(
         for row in sorted(billable_rows, key=uuid_value)
     )
     quantity = len(branches)
+    try:
+        active_staff_count = authoritative_staff_count(db, organization)
+    except ValueError as exc:
+        active_staff_count = 0
+        errors.append(str(exc))
     if plan:
-        capacity = evaluate_plan_branch_capacity(plan, quantity)
+        capacity = evaluate_plan_capacity(
+            plan,
+            active_branch_count=quantity,
+            active_staff_count=active_staff_count,
+        )
         if not capacity.eligible:
             errors.append(capacity.reason)
     unit_amount_minor = int(getattr(price_row, "amount_minor", 0) or 0)
@@ -244,6 +382,7 @@ def build_quote(
             "provider_price_id": provider_price_id,
             "unit_amount_minor": unit_amount_minor,
             "quantity": quantity,
+            "active_staff_count": active_staff_count,
             "branches": [
                 {"branch_uuid": branch.branch_uuid, "branch_name": normalize_branch_name(branch.branch_name)}
                 for branch in branches
@@ -262,6 +401,7 @@ def build_quote(
         provider_price_id=provider_price_id,
         unit_amount_minor=unit_amount_minor,
         billable_branch_count=quantity,
+        active_staff_count=active_staff_count,
         branches=branches,
         quantity=quantity,
         total_amount_minor=total_amount_minor,

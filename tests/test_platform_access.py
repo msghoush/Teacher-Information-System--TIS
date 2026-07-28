@@ -25,6 +25,7 @@ import main
 import models
 import permission_registry
 import saas.models as saas_models
+from saas import branch_pricing_quote_service
 import tenant_integrity
 from routers import observations, subjects, teachers, users
 from ui_shell import build_shell_context
@@ -188,6 +189,62 @@ class PlatformAccessTests(unittest.TestCase):
             observation_date="2026-09-02",
         )
         self.db.add_all([self.observation_a, self.observation_b])
+        self.db.commit()
+
+    def _activate_paid_plan_for_group(self, plan_code: str, max_staff_users: int):
+        account = saas_models.SaaSAccount(
+            account_uuid=str(uuid.uuid4()),
+            email=f"{plan_code}@capacity.example",
+            email_normalized=f"{plan_code}@capacity.example",
+            password_hash="unused",
+            first_name="Capacity",
+            last_name="Owner",
+            status="active",
+        )
+        plan = saas_models.SubscriptionPlan(
+            plan_code=plan_code,
+            plan_name=plan_code.replace("_", " ").title(),
+            max_branches=25,
+            max_staff_users=max_staff_users,
+            is_active=True,
+            is_public=True,
+        )
+        self.db.add_all([account, plan])
+        self.db.flush()
+        organization = saas_models.PendingOrganization(
+            organization_uuid=str(uuid.uuid4()),
+            owner_saas_account_id=account.id,
+            organization_name="Capacity Organization",
+            status="tenant_active",
+            payment_status="paid",
+        )
+        self.db.add(organization)
+        self.db.flush()
+        contract = saas_models.SubscriptionContract(
+            pending_organization_id=organization.id,
+            school_group_id=self.group_a.id,
+            plan_id=plan.id,
+            billing_interval="monthly",
+            contract_status="tenant_active",
+            base_currency_code="USD",
+            base_amount_minor=100,
+            display_currency_code="USD",
+            display_amount_minor=100,
+            billable_branch_count=2,
+            payment_status="paid",
+        )
+        self.db.add(contract)
+        self.db.flush()
+        self.db.add(saas_models.PaymentSubscription(
+            pending_organization_id=organization.id,
+            subscription_contract_id=contract.id,
+            provider="paddle",
+            provider_subscription_id=f"sub_{uuid.uuid4().hex}",
+            plan_id=plan.id,
+            billing_interval="monthly",
+            quantity=2,
+            status="active",
+        ))
         self.db.commit()
 
     def _request(self, path, user, branch=None, year=None, method="GET", organization=None):
@@ -780,6 +837,135 @@ class PlatformAccessTests(unittest.TestCase):
                 {row.id for row in auth.get_accessible_branch_query(self.db, created).all()},
                 {self.branch_a1.id, self.branch_a2.id},
             )
+
+    def test_paid_staff_capacity_blocks_creation_without_orphaning_user(self):
+        self._activate_paid_plan_for_group("starter", 25)
+        existing = self.db.query(models.User).filter(
+            models.User.school_group_id == self.group_a.id,
+            models.User.user_type == auth.USER_TYPE_TENANT,
+            models.User.is_active.is_(True),
+        ).count()
+        for index in range(existing, 25):
+            self.db.add(models.User(
+                user_id=f"8{index:03d}",
+                username=f"capacity.{index}",
+                first_name="Capacity",
+                last_name=f"User {index}",
+                position="Teacher",
+                role=auth.ROLE_USER,
+                user_type=auth.USER_TYPE_TENANT,
+                access_scope=auth.ACCESS_SCOPE_BRANCH,
+                school_group_id=self.group_a.id,
+                branch_id=self.branch_a1.id,
+                academic_year_id=self.year_a.id,
+                password="unused",
+                is_active=True,
+            ))
+        self.db.commit()
+        request = self._request(
+            "/users",
+            self.branch_user,
+            self.branch_a1,
+            self.year_a,
+            method="POST",
+        )
+        response = users.create_user(
+            request=request,
+            user_id="7999",
+            email="blocked.capacity@example.com",
+            first_name="Blocked",
+            last_name="Capacity",
+            position="Teacher",
+            role=auth.ROLE_USER,
+            access_scope=auth.ACCESS_SCOPE_BRANCH,
+            password="password123",
+            branch_id=self.branch_a1.id,
+            db=self.db,
+        )
+        self.assertIn(
+            "Upgrade your subscription before adding another staff user",
+            response.body.decode(),
+        )
+        self.assertIsNone(
+            self.db.query(models.User).filter_by(user_id="7999").one_or_none()
+        )
+
+        removable = self.db.query(models.User).filter(
+            models.User.username.like("capacity.%")
+        ).first()
+        removable.is_active = False
+        self.db.commit()
+        users.create_user(
+            request=request,
+            user_id="7999",
+            email="allowed.capacity@example.com",
+            first_name="Allowed",
+            last_name="Capacity",
+            position="Teacher",
+            role=auth.ROLE_USER,
+            access_scope=auth.ACCESS_SCOPE_BRANCH,
+            password="password123",
+            branch_id=self.branch_a1.id,
+            db=self.db,
+        )
+        self.assertIsNotNone(
+            self.db.query(models.User).filter_by(user_id="7999").one_or_none()
+        )
+        self.assertEqual(
+            self.db.query(models.User).filter(
+                models.User.school_group_id == self.group_a.id,
+                models.User.user_type == auth.USER_TYPE_TENANT,
+                models.User.is_active.is_(True),
+            ).count(),
+            25,
+        )
+        reactivation = users.update_user_status(
+            request=request,
+            user_pk=removable.id,
+            is_active="active",
+            db=self.db,
+        )
+        self.assertIn(
+            "Upgrade your subscription before adding another staff user",
+            reactivation.body.decode(),
+        )
+        self.db.refresh(removable)
+        self.assertFalse(removable.is_active)
+
+    def test_active_staff_count_is_tenant_scoped_and_excludes_inactive_and_platform_users(self):
+        self.assertEqual(
+            branch_pricing_quote_service.count_active_staff_users(
+                self.db, self.group_a.id
+            ),
+            2,
+        )
+        self.assertEqual(
+            branch_pricing_quote_service.count_active_staff_users(
+                self.db, self.group_b.id
+            ),
+            1,
+        )
+        self.excellence_user.is_active = False
+        self.db.add(models.User(
+            user_id="8888",
+            username="internal.capacity",
+            first_name="Internal",
+            last_name="Test",
+            user_type=auth.USER_TYPE_TENANT,
+            role=auth.ROLE_USER,
+            school_group_id=self.group_a.id,
+            branch_id=self.branch_a1.id,
+            access_scope=auth.ACCESS_SCOPE_BRANCH,
+            is_active=True,
+            is_internal_test_identity=True,
+        ))
+        self.db.flush()
+        self.assertEqual(
+            branch_pricing_quote_service.count_active_staff_users(
+                self.db, self.group_a.id
+            ),
+            1,
+        )
 
     def test_branch_user_cannot_switch_within_or_across_organization(self):
         current_user = auth.get_current_user(

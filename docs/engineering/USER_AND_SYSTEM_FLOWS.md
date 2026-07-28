@@ -7,6 +7,33 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Combined Subscription Capacity And Custom Contact
+
+1. TIS resolves active billable branches and the authoritative staff
+   requirement for the current organization. Before payment, staff is the
+   greater of declared expected staff and actual active tenant accounts; after
+   activation, active tenant accounts are authoritative.
+2. A self-service plan is eligible only when both counts fit: Starter is 1
+   branch/25 staff, Professional 5/100, and Enterprise AI 25/500.
+3. Ineligible cards are disabled and explain each failed dimension. Exceeding
+   twenty-five branches or 500 staff users emphasizes the always-visible Custom
+   card and its Contact the TIS Team action. The rule is “branches or staff,”
+   not “branches and staff.”
+4. Selection and every quote, checkout, Paddle, and payment-validation boundary
+   repeats the same server-side decision.
+5. A pre-payment branch or staff-estimate change retains an eligible higher
+   plan, but clears an undersized selection and supersedes its checkout and
+   attempt so stale payment cannot activate the workspace.
+6. On a paid workspace, an active staff account can be created or reactivated
+   only when the resulting count fits the active plan. A blocked request creates
+   no user and changes no status.
+7. A downgrade is blocked when current active branches or staff exceed the
+   target plan. Existing data is preserved.
+
+Landing follow-up: the separate Next.js project must later update
+`tis-landing-website/src/app/page.tsx` in a focused task to show Starter,
+Professional, Enterprise AI, and Custom with the same limits and “or” wording.
+
 ## Initial Subscription Plan Capacity
 
 1. TIS counts the current organization's authoritative active billable

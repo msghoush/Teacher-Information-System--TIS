@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-07-29 - Combined Branch And Staff Subscription Capacity
+
+Self-service eligibility now requires both authoritative dimensions to fit the
+selected plan: Starter allows one active billable branch and 25 active staff
+users, Professional allows five and 100, and Enterprise AI allows twenty-five
+and 500. Before activation, staff authority is the greater of the declared
+onboarding estimate and actual active tenant staff in an existing workspace;
+after activation it is the actual active tenant staff count. Pricing remains
+per actual active branch.
+
+Selection, quotes, checkout, Paddle release, and payment validation fail closed
+on either exceeded limit. Capacity changes supersede stale checkout lineage and
+clear only an undersized plan. Paid staff creation/reactivation and plan
+downgrades are blocked before mutation when active usage exceeds the target
+limit. The in-app Custom card is always visible and becomes the contact path
+when branches exceed twenty-five or staff exceeds 500.
+
 ## 2026-07-28 - Authoritative Subscription Plan Branch Capacity
 
 Self-service plan eligibility now uses each active plan's persisted

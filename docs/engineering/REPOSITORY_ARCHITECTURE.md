@@ -7,6 +7,30 @@ source_of_truth: true
 
 # TIS Repository Architecture
 
+## Combined Subscription Capacity Authority
+
+`saas/branch_pricing_quote_service.py` owns one structured plan-capacity
+decision across active billable branches and active staff users. Active staff
+means active, non-test tenant `User` rows across the entire SchoolGroup;
+platform identities, inactive users, deleted users, and non-account student
+records do not count. TIS has no pending-invitation entity, so invitations do
+not reserve capacity. During onboarding, the authoritative staff requirement
+is the greater of `PendingOrganization.estimated_staff_users` and the actual
+active tenant count when a workspace already exists. Paid workspaces use the
+actual active tenant count.
+
+The decision is consumed by selection, quote construction, checkout
+preparation/launch, Paddle creation, and payment reconciliation. Staff count is
+part of quote fingerprint authority. Organization-profile or branch changes
+supersede stale checkout lineage and clear an undersized plan. Paid user
+creation/reactivation checks the active subscription before inserting or
+activating a user, while plan-change impact blocks a downgrade whose branch or
+staff limit is below current use. No capacity failure silently deletes or
+deactivates operational data.
+
+The in-app Custom card is informational and mail-based; it creates no catalog
+plan, Paddle transaction, or enterprise-request workflow.
+
 ## Subscription Plan Branch-Capacity Authority
 
 `saas/branch_pricing_quote_service.py` evaluates the authoritative active
