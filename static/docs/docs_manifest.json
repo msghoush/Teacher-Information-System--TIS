@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-07-28T12:27:50.918088+03:00",
+  "generated_at": "2026-07-28T15:56:43.447622+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "20acf12",
+  "commit_sha": "bb50170",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "4056bfacfd63e0beb5c505cf34fd860277e2d2315b262d0adf96dd93ccaea411",
-  "pdf_size_bytes": 669060,
+  "pdf_sha256": "efe012d537992985686d868e16f7e725fff25da85db49ffee89812f5a2966808",
+  "pdf_size_bytes": 671594,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -53,9 +53,9 @@
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-07-28T12:23:44.528586+03:00",
-      "size_bytes": 69353,
-      "sha256": "2bebb081d20c398dca48b6d3f0716bcee3684ae1181b1203c8d8d7473dc26ef2",
+      "modified_at": "2026-07-28T15:56:32.280872+03:00",
+      "size_bytes": 70287,
+      "sha256": "c2fd84c9842f82f09db2a65188075a1a64473ef0f771d97cc985af2296e684b7",
       "pdf_page": 54
     },
     {
@@ -81,9 +81,9 @@
     },
     {
       "path": "docs/engineering/REPOSITORY_ARCHITECTURE.md",
-      "modified_at": "2026-07-28T12:24:11.496593+03:00",
-      "size_bytes": 10742,
-      "sha256": "a2858b7759509ba4e2405052430e8fa05a7f8b0fa21583a740be92680fd9ba9e",
+      "modified_at": "2026-07-28T15:56:32.284634+03:00",
+      "size_bytes": 11618,
+      "sha256": "ebb1c0733bb6620b5fbd7b48e53c9da33c4ecc5ee190ec6175ec4dbf3da0e8d0",
       "pdf_page": 101
     },
     {
@@ -480,9 +480,9 @@
     },
     {
       "path": "docs/history/subscriptions/README.md",
-      "modified_at": "2026-07-28T12:24:11.517155+03:00",
-      "size_bytes": 7382,
-      "sha256": "85368f2c2f51bf9f81c822db1d972dc0610c716effc8f884d4fb137805419481",
+      "modified_at": "2026-07-28T15:56:32.288752+03:00",
+      "size_bytes": 8049,
+      "sha256": "b324dc985ab82cba43a3a6a8a46d19a40ca46b34aad72aa778b16967055ee799",
       "pdf_page": 244
     },
     {

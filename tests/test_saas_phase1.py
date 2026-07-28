@@ -2245,7 +2245,9 @@ class SaaSPhase1Tests(unittest.TestCase):
             response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
 
         self.assertEqual(response.status_code, 302)
-        self.assertIn("Secure+payment+is+temporarily+unavailable+for+this+account", response.headers["location"])
+        self.assertIn("error=", response.headers["location"])
+        self.assertNotIn("exact+matches", response.headers["location"])
+        self.assertNotIn("context+matches", response.headers["location"])
         create_customer.assert_not_called()
         create_transaction.assert_not_called()
 
@@ -2392,7 +2394,7 @@ class SaaSPhase1Tests(unittest.TestCase):
             response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
 
         self.assertEqual(response.status_code, 302)
-        self.assertIn("Secure+payment+is+temporarily+unavailable+for+this+account", response.headers["location"])
+        self.assertIn("error=", response.headers["location"])
         self.assertNotIn("Diagnostic", response.headers["location"])
         update_customer.assert_not_called()
         create_customer.assert_not_called()
@@ -2437,7 +2439,9 @@ class SaaSPhase1Tests(unittest.TestCase):
             response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
 
         self.assertEqual(response.status_code, 302)
-        self.assertIn("ambiguous_exact_email_matches", response.headers["location"])
+        self.assertIn("error=", response.headers["location"])
+        self.assertNotIn("ambiguous_exact_email_matches", response.headers["location"])
+        self.assertNotIn("exact+matches", response.headers["location"])
         update_customer.assert_not_called()
         create_customer.assert_not_called()
         create_transaction.assert_not_called()
@@ -2488,7 +2492,11 @@ class SaaSPhase1Tests(unittest.TestCase):
             response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
 
         self.assertEqual(response.status_code, 302)
-        self.assertIn("remote_customer_account_context_still_exists", response.headers["location"])
+        self.assertIn("error=", response.headers["location"])
+        self.assertNotIn(
+            "remote_customer_account_context_still_exists",
+            response.headers["location"],
+        )
         update_customer.assert_not_called()
         create_customer.assert_not_called()
         create_transaction.assert_not_called()

@@ -7,6 +7,22 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-07-28 - Expired-Demo Checkout Identity Resolution
+
+Expired-demo Paddle checkout could find one active customer by email but reject
+it when provider custom data retained a deleted SaaS account context and the
+existing operational tenant owner was treated as an unrelated identity. The
+checkout guard now accepts or repairs a stale SaaS account-user relationship
+only when the authenticated account, owned organization, demo source,
+tenant-provisioning link, SchoolGroup, and sole active operational owner form
+one coherent relationship. Active previous accounts, unrelated tenants,
+multiple identities, and live-mode email-only recovery remain blocked.
+
+Customer responses no longer expose identity match counts or internal reason
+codes, and a failed preparation displays retry/support guidance rather than a
+ready-payment state. No workspace, branch, tenant, payment authority, pricing,
+or provider-environment rule changed.
+
 ## 2026-07-28 - Returning Customer Journey And Expired Access
 
 Expired demos previously entered the paid subscription portal, whose model

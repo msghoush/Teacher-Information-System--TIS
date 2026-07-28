@@ -6,6 +6,17 @@ last_updated: 2026-07-21
 
 # Subscription History
 
+## 2026-07-28 - Expired-Demo Checkout Identity Repair
+
+Paddle sandbox recovery now recognizes the existing active tenant owner as
+authoritative when the authenticated account, owned organization, demo source,
+tenant link, SchoolGroup, operational user, and email resolve uniquely. A stale
+account-user link from a deleted or inactive account is safely reassigned to
+that account/workspace relationship. Unrelated tenants, active former accounts,
+multiple identities, and live email-only recovery remain blocked. Failed
+checkout preparation exposes no internal diagnostics and shows a retry state;
+the same workspace UUID, SchoolGroup, and branches remain unchanged.
+
 ## 2026-07-28 - Expired Demo Subscription Continuity
 
 Expired demo subscription selection now reads the preserved SchoolGroup and its
