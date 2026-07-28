@@ -51,13 +51,17 @@ def _impact(db: Session, context, target_plan):
         if usage is not None and usage > target_value.value:
             conflicts.append({"key": key, "name": target_value.display_name, "usage": usage, "limit": target_value.value})
     active_branches = int(context.resolution.active_branch_count or 0)
-    active_staff = branch_pricing_quote_service.count_active_staff_users(
+    active_system_users = branch_pricing_quote_service.count_active_system_users(
+        db, context.resolution.school_group_id
+    )
+    active_teachers = branch_pricing_quote_service.count_active_teachers(
         db, context.resolution.school_group_id
     )
     capacity = branch_pricing_quote_service.evaluate_plan_capacity(
         target_plan,
         active_branch_count=active_branches,
-        active_staff_count=active_staff,
+        active_system_user_count=active_system_users,
+        active_teacher_count=active_teachers,
     )
     if not capacity.branch_eligible:
         conflicts.append({
@@ -66,12 +70,19 @@ def _impact(db: Session, context, target_plan):
             "usage": active_branches,
             "limit": capacity.max_branches,
         })
-    if not capacity.staff_eligible:
+    if not capacity.system_user_eligible:
         conflicts.append({
-            "key": "capacity.active_staff_users",
-            "name": "Active staff users",
-            "usage": active_staff,
-            "limit": capacity.max_staff_users,
+            "key": "capacity.active_system_users",
+            "name": "Active system users",
+            "usage": active_system_users,
+            "limit": capacity.max_system_users,
+        })
+    if not capacity.teacher_eligible:
+        conflicts.append({
+            "key": "capacity.active_teachers",
+            "name": "Active teachers",
+            "usage": active_teachers,
+            "limit": capacity.max_teachers,
         })
     return {"feature_losses": losses, "blocking_conflicts": conflicts, "historical_data_preserved": True}
 

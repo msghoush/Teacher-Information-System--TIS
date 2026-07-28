@@ -7,29 +7,45 @@ source_of_truth: true
 
 # TIS Repository Architecture
 
-## Combined Subscription Capacity Authority
+## Three-Dimension Subscription Capacity Authority
 
 `saas/branch_pricing_quote_service.py` owns one structured plan-capacity
-decision across active billable branches and active staff users. Active staff
-means active, non-test tenant `User` rows across the entire SchoolGroup;
-platform identities, inactive users, deleted users, and non-account student
-records do not count. TIS has no pending-invitation entity, so invitations do
-not reserve capacity. During onboarding, the authoritative staff requirement
-is the greater of `PendingOrganization.estimated_staff_users` and the actual
-active tenant count when a workspace already exists. Paid workspaces use the
-actual active tenant count.
+decision across active billable branches, active non-teacher system users, and
+active teacher records. `PendingOrganizationBranch` owns onboarding
+`estimated_system_users` and `estimated_teachers`; organization-level legacy
+values are migration inputs and derived compatibility summaries, not an
+independent source of truth.
+
+Before payment, each people count is the greater of the sum across active
+onboarding branches and actual active data in the uniquely linked SchoolGroup.
+After activation, actual counts are authoritative. System users are active,
+non-test tenant `User` rows excluding the Teacher position. Teachers are
+`Teacher` records in active branches and active academic years, whether or not
+they have login accounts. Platform/internal identities, inactive users,
+students, inactive branches, and inactive academic years do not count.
 
 The decision is consumed by selection, quote construction, checkout
-preparation/launch, Paddle creation, and payment reconciliation. Staff count is
-part of quote fingerprint authority. Organization-profile or branch changes
-supersede stale checkout lineage and clear an undersized plan. Paid user
-creation/reactivation checks the active subscription before inserting or
-activating a user, while plan-change impact blocks a downgrade whose branch or
-staff limit is below current use. No capacity failure silently deletes or
-deactivates operational data.
+preparation/launch, Paddle creation, payment reconciliation, and plan changes.
+Both people counts are part of quote fingerprint authority. Branch estimate
+changes clear an undersized selected plan, invalidate its quote, mark ready or
+started checkout sessions stale, and supersede incomplete payment attempts.
+Paid system-user creation/reactivation and teacher creation/year-copy preflight
+check the active subscription before mutation; downgrade impact reports branch,
+system-user, and teacher conflicts independently. No capacity failure silently
+deletes or deactivates operational data.
 
-The in-app Custom card is informational and mail-based; it creates no catalog
-plan, Paddle transaction, or enterprise-request workflow.
+The current `Teacher` model has no inactive/reactivation lifecycle, and the
+repository has no teacher import endpoint. Capacity enforcement therefore
+covers the supported teacher-growth paths: individual creation and atomic
+academic-year copying. Adding teacher deactivation/reactivation or import
+workflows remains a separate lifecycle design task.
+
+Starter persists 1 branch/5 system users/25 teachers, Professional 5/20/100,
+and Enterprise AI 25/100/500. The lowest plan passing all dimensions is
+recommended while any higher eligible plan remains selectable. The in-app
+Custom card is informational and mail-based; exceeding any Enterprise limit
+emphasizes it, but it creates no catalog plan, Paddle transaction, or
+enterprise-request workflow.
 
 ## Subscription Plan Branch-Capacity Authority
 

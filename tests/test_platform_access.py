@@ -191,7 +191,12 @@ class PlatformAccessTests(unittest.TestCase):
         self.db.add_all([self.observation_a, self.observation_b])
         self.db.commit()
 
-    def _activate_paid_plan_for_group(self, plan_code: str, max_staff_users: int):
+    def _activate_paid_plan_for_group(
+        self,
+        plan_code: str,
+        max_system_users: int,
+        max_teachers: int = 500,
+    ):
         account = saas_models.SaaSAccount(
             account_uuid=str(uuid.uuid4()),
             email=f"{plan_code}@capacity.example",
@@ -205,7 +210,9 @@ class PlatformAccessTests(unittest.TestCase):
             plan_code=plan_code,
             plan_name=plan_code.replace("_", " ").title(),
             max_branches=25,
-            max_staff_users=max_staff_users,
+            max_staff_users=max_system_users,
+            max_system_users=max_system_users,
+            max_teachers=max_teachers,
             is_active=True,
             is_public=True,
         )
@@ -838,20 +845,20 @@ class PlatformAccessTests(unittest.TestCase):
                 {self.branch_a1.id, self.branch_a2.id},
             )
 
-    def test_paid_staff_capacity_blocks_creation_without_orphaning_user(self):
-        self._activate_paid_plan_for_group("starter", 25)
+    def test_paid_system_user_capacity_blocks_creation_without_orphaning_user(self):
+        self._activate_paid_plan_for_group("starter", 5)
         existing = self.db.query(models.User).filter(
             models.User.school_group_id == self.group_a.id,
             models.User.user_type == auth.USER_TYPE_TENANT,
             models.User.is_active.is_(True),
         ).count()
-        for index in range(existing, 25):
+        for index in range(existing, 5):
             self.db.add(models.User(
                 user_id=f"8{index:03d}",
                 username=f"capacity.{index}",
                 first_name="Capacity",
                 last_name=f"User {index}",
-                position="Teacher",
+                position="Principal",
                 role=auth.ROLE_USER,
                 user_type=auth.USER_TYPE_TENANT,
                 access_scope=auth.ACCESS_SCOPE_BRANCH,
@@ -875,7 +882,7 @@ class PlatformAccessTests(unittest.TestCase):
             email="blocked.capacity@example.com",
             first_name="Blocked",
             last_name="Capacity",
-            position="Teacher",
+            position="Principal",
             role=auth.ROLE_USER,
             access_scope=auth.ACCESS_SCOPE_BRANCH,
             password="password123",
@@ -883,7 +890,7 @@ class PlatformAccessTests(unittest.TestCase):
             db=self.db,
         )
         self.assertIn(
-            "Upgrade your subscription before adding another staff user",
+            "Upgrade your subscription before adding another system user",
             response.body.decode(),
         )
         self.assertIsNone(
@@ -901,7 +908,7 @@ class PlatformAccessTests(unittest.TestCase):
             email="allowed.capacity@example.com",
             first_name="Allowed",
             last_name="Capacity",
-            position="Teacher",
+            position="Principal",
             role=auth.ROLE_USER,
             access_scope=auth.ACCESS_SCOPE_BRANCH,
             password="password123",
@@ -917,7 +924,7 @@ class PlatformAccessTests(unittest.TestCase):
                 models.User.user_type == auth.USER_TYPE_TENANT,
                 models.User.is_active.is_(True),
             ).count(),
-            25,
+            5,
         )
         reactivation = users.update_user_status(
             request=request,
@@ -926,21 +933,47 @@ class PlatformAccessTests(unittest.TestCase):
             db=self.db,
         )
         self.assertIn(
-            "Upgrade your subscription before adding another staff user",
+            "Upgrade your subscription before adding another system user",
             reactivation.body.decode(),
         )
         self.db.refresh(removable)
         self.assertFalse(removable.is_active)
 
-    def test_active_staff_count_is_tenant_scoped_and_excludes_inactive_and_platform_users(self):
+    def test_paid_teacher_capacity_preflight_blocks_bulk_growth_atomically(self):
+        self._activate_paid_plan_for_group(
+            "starter",
+            max_system_users=5,
+            max_teachers=1,
+        )
+        before = branch_pricing_quote_service.count_active_teachers(
+            self.db, self.group_a.id
+        )
+        self.assertEqual(before, 1)
+        with self.assertRaisesRegex(
+            ValueError,
+            "Upgrade your subscription before adding another teacher",
+        ):
+            branch_pricing_quote_service.require_active_subscription_capacity_slot(
+                self.db,
+                school_group_id=self.group_a.id,
+                additional_teachers=2,
+            )
         self.assertEqual(
-            branch_pricing_quote_service.count_active_staff_users(
+            branch_pricing_quote_service.count_active_teachers(
+                self.db, self.group_a.id
+            ),
+            before,
+        )
+
+    def test_active_system_user_count_is_tenant_scoped_and_excludes_inactive_platform_and_teacher_users(self):
+        self.assertEqual(
+            branch_pricing_quote_service.count_active_system_users(
                 self.db, self.group_a.id
             ),
             2,
         )
         self.assertEqual(
-            branch_pricing_quote_service.count_active_staff_users(
+            branch_pricing_quote_service.count_active_system_users(
                 self.db, self.group_b.id
             ),
             1,
@@ -959,9 +992,51 @@ class PlatformAccessTests(unittest.TestCase):
             is_active=True,
             is_internal_test_identity=True,
         ))
+        self.db.add(models.User(
+            user_id="8887",
+            username="teacher.login.capacity",
+            first_name="Teacher",
+            last_name="Login",
+            position="Teacher",
+            user_type=auth.USER_TYPE_TENANT,
+            role=auth.ROLE_USER,
+            school_group_id=self.group_a.id,
+            branch_id=self.branch_a1.id,
+            academic_year_id=self.year_a.id,
+            access_scope=auth.ACCESS_SCOPE_BRANCH,
+            is_active=True,
+            is_internal_test_identity=False,
+        ))
         self.db.flush()
         self.assertEqual(
-            branch_pricing_quote_service.count_active_staff_users(
+            branch_pricing_quote_service.count_active_system_users(
+                self.db, self.group_a.id
+            ),
+            1,
+        )
+        self.assertEqual(
+            branch_pricing_quote_service.count_active_teachers(
+                self.db, self.group_a.id
+            ),
+            1,
+        )
+        inactive_year = models.AcademicYear(
+            school_group_id=self.group_a.id,
+            year_name="Inactive Capacity Year",
+            is_active=False,
+        )
+        self.db.add(inactive_year)
+        self.db.flush()
+        self.db.add(models.Teacher(
+            teacher_id="5899",
+            first_name="Inactive",
+            last_name="Teacher",
+            branch_id=self.branch_a1.id,
+            academic_year_id=inactive_year.id,
+        ))
+        self.db.flush()
+        self.assertEqual(
+            branch_pricing_quote_service.count_active_teachers(
                 self.db, self.group_a.id
             ),
             1,

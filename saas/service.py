@@ -20,7 +20,7 @@ import email_templates
 import public_url
 from saas import draft_lifecycle_service, models
 from saas.branch_pricing_quote_service import (
-    authoritative_staff_count,
+    authoritative_capacity_counts,
     evaluate_plan_capacity,
     normalize_branch_name,
 )
@@ -1116,10 +1116,26 @@ def save_organization_profile(
     previous_staff_count = int(
         getattr(organization, "estimated_staff_users", 0) or 0
     )
+    previous_teacher_count = int(
+        getattr(organization, "expected_teacher_count", 0) or 0
+    )
     organization.expected_student_count = _safe_int(expected_student_count)
-    organization.expected_teacher_count = _safe_int(expected_teacher_count)
-    organization.estimated_staff_users = _safe_int(estimated_staff_users)
-    if int(organization.estimated_staff_users or 0) != previous_staff_count:
+    if existing_branch_rows:
+        active_branch_rows = [row for row in existing_branch_rows if bool(row.status)]
+        organization.estimated_staff_users = sum(
+            int(row.estimated_system_users or 0) for row in active_branch_rows
+        )
+        organization.expected_teacher_count = sum(
+            int(row.estimated_teachers or 0) for row in active_branch_rows
+        )
+    else:
+        organization.expected_teacher_count = _safe_int(expected_teacher_count)
+        organization.estimated_staff_users = _safe_int(estimated_staff_users)
+    if (
+        int(organization.estimated_staff_users or 0) != previous_staff_count
+        or int(organization.expected_teacher_count or 0)
+        != previous_teacher_count
+    ):
         _invalidate_pre_payment_capacity_selection(db, organization)
     organization.timezone = _clean_timezone(timezone)
     if logo_file is not None and str(getattr(logo_file, "filename", "") or "").strip():
@@ -1143,14 +1159,17 @@ def _invalidate_pre_payment_capacity_selection(db: Session, organization) -> Non
     if not selection:
         return
     branch_count = count_billable_pending_branches(db, organization)
-    staff_count = authoritative_staff_count(db, organization)
+    _branches, system_user_count, teacher_count = (
+        authoritative_capacity_counts(db, organization)
+    )
     plan = db.get(models.SubscriptionPlan, selection.plan_id)
     remains_eligible = bool(
         plan
         and evaluate_plan_capacity(
             plan,
             active_branch_count=branch_count,
-            active_staff_count=staff_count,
+            active_system_user_count=system_user_count,
+            active_teacher_count=teacher_count,
         ).eligible
     )
     now = _utcnow()
@@ -1287,6 +1306,28 @@ def replace_branches(db: Session, organization, branch_rows: list[dict]):
         values = {field: _clean_text(submitted.get(field), max_length) for field, max_length in editable_fields}
         values["branch_name"] = branch_name
         values["country_code"] = _clean_text(submitted.get("country_code"), 2).upper()
+        for capacity_field, label in (
+            ("estimated_system_users", "Estimated system users"),
+            ("estimated_teachers", "Estimated teachers"),
+        ):
+            raw_value = submitted.get(capacity_field)
+            if raw_value is None:
+                parsed_value = int(getattr(target, capacity_field, 0) or 0)
+            else:
+                cleaned_value = str(raw_value).strip()
+                if not cleaned_value:
+                    raise ValueError(f"{label} is required for every branch.")
+                try:
+                    parsed_value = int(cleaned_value)
+                except ValueError:
+                    raise ValueError(
+                        f"{label} must be a non-negative whole number."
+                    ) from None
+                if parsed_value < 0:
+                    raise ValueError(
+                        f"{label} must be a non-negative whole number."
+                    )
+            values[capacity_field] = parsed_value
         values["sort_order"] = index
         values["status"] = True
         for field, value in values.items():
@@ -1302,6 +1343,14 @@ def replace_branches(db: Session, organization, branch_rows: list[dict]):
             changed = True
 
     organization.expected_branch_count = len(cleaned_rows)
+    db.flush()
+    active_capacity_rows = list_billable_pending_branches(db, organization)
+    organization.estimated_staff_users = sum(
+        int(row.estimated_system_users or 0) for row in active_capacity_rows
+    )
+    organization.expected_teacher_count = sum(
+        int(row.estimated_teachers or 0) for row in active_capacity_rows
+    )
 
     if changed:
         db.flush()
@@ -1337,14 +1386,18 @@ def replace_branches(db: Session, organization, branch_rows: list[dict]):
         selected_plan_remains_eligible = True
         if selection:
             selected_plan = db.get(models.SubscriptionPlan, selection.plan_id)
+            (
+                _authoritative_branch_count,
+                authoritative_system_users,
+                authoritative_teachers,
+            ) = authoritative_capacity_counts(db, organization)
             selected_plan_remains_eligible = bool(
                 selected_plan
                 and evaluate_plan_capacity(
                     selected_plan,
                     active_branch_count=len(cleaned_rows),
-                    active_staff_count=authoritative_staff_count(
-                        db, organization
-                    ),
+                    active_system_user_count=authoritative_system_users,
+                    active_teacher_count=authoritative_teachers,
                 ).eligible
             )
             selection.billable_branch_count = len(cleaned_rows)

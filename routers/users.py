@@ -490,9 +490,10 @@ def create_user(
     )
     if not errors and selected_school_group_id:
         try:
-            branch_pricing_quote_service.require_active_subscription_staff_slot(
+            branch_pricing_quote_service.require_active_subscription_capacity_slot(
                 db,
                 school_group_id=selected_school_group_id,
+                additional_system_users=0 if position == "Teacher" else 1,
             )
         except ValueError as exc:
             errors.append(str(exc))
@@ -698,9 +699,10 @@ def update_user(
         and selected_school_group_id
     ):
         try:
-            branch_pricing_quote_service.require_active_subscription_staff_slot(
+            branch_pricing_quote_service.require_active_subscription_capacity_slot(
                 db,
                 school_group_id=selected_school_group_id,
+                additional_system_users=0 if position == "Teacher" else 1,
             )
         except ValueError as exc:
             errors.append(str(exc))
@@ -847,9 +849,13 @@ def update_user_status(
         )
     if parsed_is_active and not bool(user_row.is_active):
         try:
-            branch_pricing_quote_service.require_active_subscription_staff_slot(
+            branch_pricing_quote_service.require_active_subscription_capacity_slot(
                 db,
                 school_group_id=int(user_row.school_group_id),
+                additional_system_users=(
+                    0 if str(user_row.position or "").strip().lower() == "teacher"
+                    else 1
+                ),
             )
         except ValueError as exc:
             return _render_users_page(

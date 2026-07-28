@@ -4764,6 +4764,100 @@ def _m8b9_demo_operations(engine, connection):
             creator(connection, connection, table_name, index_name, columns)
 
 
+def _subscription_capacity_dimensions(engine, connection):
+    _add_column_if_missing(
+        connection, connection, "pending_organization_branches",
+        "estimated_system_users",
+        "estimated_system_users INTEGER NOT NULL DEFAULT 0",
+    )
+    _add_column_if_missing(
+        connection, connection, "pending_organization_branches",
+        "estimated_teachers",
+        "estimated_teachers INTEGER NOT NULL DEFAULT 0",
+    )
+    _add_column_if_missing(
+        connection, connection, "subscription_plans",
+        "max_system_users", "max_system_users INTEGER",
+    )
+    _add_column_if_missing(
+        connection, connection, "subscription_plans",
+        "max_teachers", "max_teachers INTEGER",
+    )
+    _execute(
+        connection,
+        """
+        UPDATE pending_organization_branches
+        SET estimated_system_users = CASE
+                WHEN id = (
+                    SELECT primary_branch.id
+                    FROM pending_organization_branches AS primary_branch
+                    WHERE primary_branch.pending_organization_id =
+                          pending_organization_branches.pending_organization_id
+                      AND primary_branch.status = TRUE
+                    ORDER BY primary_branch.sort_order, primary_branch.id
+                    LIMIT 1
+                )
+                THEN COALESCE((
+                    SELECT pending_organizations.estimated_staff_users
+                    FROM pending_organizations
+                    WHERE pending_organizations.id =
+                          pending_organization_branches.pending_organization_id
+                ), 0)
+                ELSE 0
+            END,
+            estimated_teachers = CASE
+                WHEN id = (
+                    SELECT primary_branch.id
+                    FROM pending_organization_branches AS primary_branch
+                    WHERE primary_branch.pending_organization_id =
+                          pending_organization_branches.pending_organization_id
+                      AND primary_branch.status = TRUE
+                    ORDER BY primary_branch.sort_order, primary_branch.id
+                    LIMIT 1
+                )
+                THEN COALESCE((
+                    SELECT pending_organizations.expected_teacher_count
+                    FROM pending_organizations
+                    WHERE pending_organizations.id =
+                          pending_organization_branches.pending_organization_id
+                ), 0)
+                ELSE 0
+            END
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM pending_organization_branches AS estimates
+            WHERE estimates.pending_organization_id =
+                  pending_organization_branches.pending_organization_id
+              AND (
+                  estimates.estimated_system_users <> 0
+                  OR estimates.estimated_teachers <> 0
+              )
+        )
+        """,
+    )
+    for plan_code, max_system_users, max_teachers in (
+        ("starter", 5, 25),
+        ("professional", 20, 100),
+        ("enterprise_ai", 100, 500),
+    ):
+        _execute(
+            connection,
+            """
+            UPDATE subscription_plans
+            SET max_system_users = :max_system_users,
+                max_teachers = :max_teachers,
+                max_staff_users = :max_system_users,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE plan_code = :plan_code
+            """,
+            {
+                "plan_code": plan_code,
+                "max_system_users": max_system_users,
+                "max_teachers": max_teachers,
+            },
+        )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -4944,6 +5038,11 @@ MIGRATIONS = (
         migration_id="20260727_003_m8b9_demo_operations",
         description="Add owner demo operations, access profiles, and durable audit",
         apply=_m8b9_demo_operations,
+    ),
+    Migration(
+        migration_id="20260729_001_subscription_capacity_dimensions",
+        description="Add per-branch system-user and teacher estimates with separate plan limits",
+        apply=_subscription_capacity_dimensions,
     ),
 )
 

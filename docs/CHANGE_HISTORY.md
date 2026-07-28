@@ -7,22 +7,28 @@ source_of_truth: true
 
 # TIS Change History
 
-## 2026-07-29 - Combined Branch And Staff Subscription Capacity
+## 2026-07-29 - Per-Branch System-User And Teacher Subscription Capacity
 
-Self-service eligibility now requires both authoritative dimensions to fit the
-selected plan: Starter allows one active billable branch and 25 active staff
-users, Professional allows five and 100, and Enterprise AI allows twenty-five
-and 500. Before activation, staff authority is the greater of the declared
-onboarding estimate and actual active tenant staff in an existing workspace;
-after activation it is the actual active tenant staff count. Pricing remains
-per actual active branch.
+Branch Setup now stores required non-negative estimates for system users and
+teachers on every active branch and presents live organization-wide totals.
+Migration `20260729_001_subscription_capacity_dimensions` preserves legacy
+organization estimates by assigning them to the primary active branch only
+when no branch estimates exist. Derived organization totals remain compatibility
+summaries rather than competing authority.
 
-Selection, quotes, checkout, Paddle release, and payment validation fail closed
-on either exceeded limit. Capacity changes supersede stale checkout lineage and
-clear only an undersized plan. Paid staff creation/reactivation and plan
-downgrades are blocked before mutation when active usage exceeds the target
-limit. The in-app Custom card is always visible and becomes the contact path
-when branches exceed twenty-five or staff exceeds 500.
+Eligibility checks branches, non-teacher system users, and teacher records
+independently. Starter supports 1/5/25, Professional 5/20/100, and Enterprise AI
+25/100/500. Before payment, each people dimension uses the greater of branch
+estimates and actual same-workspace active data; after activation actual data
+is authoritative. The minimum eligible plan is recommended, higher eligible
+plans remain available, and exceeding any Enterprise limit selects the
+contact-only Custom path.
+
+All quote and checkout fingerprints include both people counts. Capacity
+changes supersede stale checkout lineage and clear only an undersized plan.
+Paid non-teacher user creation/reactivation, teacher creation and year-copy
+preflight, and plan downgrades fail before mutation when capacity would be
+exceeded.
 
 ## 2026-07-28 - Authoritative Subscription Plan Branch Capacity
 
