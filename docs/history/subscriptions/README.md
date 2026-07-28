@@ -6,6 +6,18 @@ last_updated: 2026-07-21
 
 # Subscription History
 
+## 2026-07-28 - Pre-Payment Branch Editing And Quote Supersession
+
+Onboarding branches remain editable until confirmed payment. The existence of
+an unpaid demo SchoolGroup, tenant link, Paddle customer, checkout session, or
+billed-but-unpaid attempt is not paid provisioning evidence. Once payment is
+confirmed, branch changes move to Subscription Management.
+
+Pre-payment branch changes invalidate the old quote and checkout lineage,
+supersede incomplete attempts, and force a new immutable transaction using the
+new active branch count. Late events for the old transaction cannot activate,
+convert, or reprovision the workspace.
+
 ## 2026-07-28 - Authoritative Fixed Branch Quantity In Paddle Checkout
 
 Initial checkout now keeps the TIS-calculated billable branch quantity fixed

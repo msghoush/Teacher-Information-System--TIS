@@ -1396,6 +1396,22 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
         webhook_row.processing_status = "ignored"
         webhook_row.processed_at = _utcnow()
         return {"status": "ignored", "event_type": event_type}
+    if _clean_text(getattr(attempt, "status", "")).lower() == "superseded":
+        webhook_row.processing_status = "manual_review"
+        webhook_row.processing_error = (
+            "Superseded checkout received a provider lifecycle event."
+        )
+        webhook_row.processed_at = _utcnow()
+        logger.error(
+            "Superseded Paddle checkout event blocked event_type=%s transaction_id=%s",
+            event_type,
+            _clean_text(getattr(attempt, "provider_transaction_id", "")),
+        )
+        return {
+            "status": "manual_review",
+            "event_type": event_type,
+            "reason_code": "superseded_checkout",
+        }
 
     organization = db.query(models.PendingOrganization).filter(
         models.PendingOrganization.id == attempt.pending_organization_id

@@ -3373,7 +3373,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         try:
             organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
             organization.payment_status = "paid"
-            with self.assertRaisesRegex(ValueError, "cannot be changed after payment"):
+            with self.assertRaisesRegex(ValueError, "Subscription Management"):
                 service.replace_branches(db, organization, [{
                     "branch_uuid": second_uuid, "branch_name": "Girls Campus",
                 }])
@@ -3390,8 +3390,29 @@ class SaaSPhase1Tests(unittest.TestCase):
             billing_service.select_plan(db, organization, plan_id=starter.id, billing_interval="monthly")
             old_checkout = billing_service.create_or_update_checkout_session(db, organization)
             old_checkout.status = "started"
-            old_checkout.checkout_url = "https://pay.paddle.test/old-two-branches"
+            old_checkout.checkout_url = (
+                "https://app.tisplatform.com/saas/payment?_ptxn=txn_old_branch_quote"
+            )
             old_checkout_id = old_checkout.id
+            old_attempt = saas.models.PaymentAttempt(
+                pending_organization_id=organization.id,
+                checkout_session_id=old_checkout.id,
+                plan_selection_id=old_checkout.plan_selection_id,
+                provider="paddle",
+                attempt_uuid="11111111-2222-3333-4444-555555555555",
+                provider_transaction_id="txn_old_branch_quote",
+                status="checkout_started",
+                provider_price_id=old_checkout.provider_price_id,
+                currency_code="USD",
+                quantity=2,
+                unit_amount_minor=2900,
+                amount_minor=5800,
+                billing_interval="monthly",
+                quote_fingerprint=old_checkout.quote_fingerprint,
+            )
+            db.add(old_attempt)
+            db.flush()
+            old_checkout.last_payment_attempt_id = old_attempt.id
             rows = service.list_billable_pending_branches(db, organization)
             kept_uuid, removed_uuid = rows[0].branch_uuid, rows[1].branch_uuid
             service.replace_branches(db, organization, [{
@@ -3399,6 +3420,33 @@ class SaaSPhase1Tests(unittest.TestCase):
             }])
             db.flush()
             self.assertEqual(old_checkout.status, "stale")
+            self.assertEqual(old_attempt.status, "superseded")
+            self.assertIsNone(
+                billing_service.get_current_subscription_contract(
+                    db, organization
+                ).quote_fingerprint
+            )
+            old_event = {
+                "event_id": "evt_superseded_branch_quote",
+                "event_type": "transaction.completed",
+                "data": {
+                    "id": "txn_old_branch_quote",
+                    "custom_data": {
+                        "payment_attempt_uuid": old_attempt.attempt_uuid,
+                    },
+                },
+            }
+            with patch(
+                "saas.payment_service.verify_webhook_signature",
+                return_value=None,
+            ):
+                stale_result = payment_service.process_webhook(
+                    db,
+                    raw_body=json.dumps(old_event).encode(),
+                    headers={"Paddle-Signature": "test"},
+                )
+            self.assertEqual(stale_result["reason_code"], "superseded_checkout")
+            self.assertEqual(organization.payment_status, "pending")
             organization.status = service.READY_FOR_CHECKOUT_STATUS
             db.commit()
         finally:
@@ -3931,9 +3979,19 @@ class SaaSPhase1Tests(unittest.TestCase):
                     organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
                     attempt = db.query(saas.models.PaymentAttempt).filter_by(pending_organization_id=organization.id).first()
                     webhook = db.query(saas.models.PaymentWebhook).filter_by(provider_event_id=payload["event_id"]).first()
-                    self.assertEqual(organization.billing_status, "payment_reconciliation_required")
+                    self.assertEqual(
+                        organization.billing_status,
+                        "plan_selected"
+                        if mismatch == "stale_quote"
+                        else "payment_reconciliation_required",
+                    )
                     self.assertNotEqual(organization.payment_status, "paid")
-                    self.assertEqual(attempt.status, "manual_reconciliation")
+                    self.assertEqual(
+                        attempt.status,
+                        "superseded"
+                        if mismatch == "stale_quote"
+                        else "manual_reconciliation",
+                    )
                     self.assertIsNotNone(attempt.provider_transaction_id)
                     self.assertEqual(webhook.processing_status, "manual_review")
                     self.assertEqual(

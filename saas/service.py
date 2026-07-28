@@ -1121,12 +1121,31 @@ def save_organization_profile(
 
 
 def replace_branches(db: Session, organization, branch_rows: list[dict]):
-    if str(getattr(organization, "payment_status", "") or "").strip().lower() == "paid":
-        raise ValueError("Branches cannot be changed after payment is confirmed.")
-    if db.query(models.TenantProvisioningLink).filter(
-        models.TenantProvisioningLink.pending_organization_id == organization.id
-    ).first():
-        raise ValueError("Provisioned branches cannot be changed from onboarding.")
+    payment_confirmed = bool(
+        str(getattr(organization, "payment_status", "") or "").strip().lower()
+        == "paid"
+        or getattr(organization, "payment_confirmed_at", None) is not None
+        or db.query(models.PaymentAttempt.id).filter(
+            models.PaymentAttempt.pending_organization_id == organization.id,
+            models.PaymentAttempt.status == "payment_confirmed",
+        ).first()
+        is not None
+        or db.query(models.PaymentSubscription.id).filter(
+            models.PaymentSubscription.pending_organization_id == organization.id,
+            models.PaymentSubscription.status.in_(("active", "trialing")),
+        ).first()
+        is not None
+        or db.query(models.SubscriptionContract.id).filter(
+            models.SubscriptionContract.pending_organization_id == organization.id,
+            models.SubscriptionContract.payment_status == "paid",
+            models.SubscriptionContract.paid_at.is_not(None),
+        ).first()
+        is not None
+    )
+    if payment_confirmed:
+        raise ValueError(
+            "Branches are managed through Subscription Management after payment."
+        )
     existing_rows = db.query(models.PendingOrganizationBranch).filter(
         models.PendingOrganizationBranch.pending_organization_id == organization.id
     ).order_by(
@@ -1205,18 +1224,130 @@ def replace_branches(db: Session, organization, branch_rows: list[dict]):
     organization.expected_branch_count = len(cleaned_rows)
 
     if changed:
+        db.flush()
+        _reconcile_unpaid_demo_operational_branches(db, organization)
         now = _utcnow()
-        for checkout_session in db.query(models.CheckoutSession).filter(
+        stale_checkout_sessions = db.query(models.CheckoutSession).filter(
             models.CheckoutSession.pending_organization_id == organization.id,
             models.CheckoutSession.status.in_(("ready", "started")),
-        ).all():
+        ).all()
+        stale_checkout_ids = []
+        for checkout_session in stale_checkout_sessions:
             checkout_session.status = "stale"
             checkout_session.abandoned_at = now
+            stale_checkout_ids.append(checkout_session.id)
+        if stale_checkout_ids:
+            for attempt in db.query(models.PaymentAttempt).filter(
+                models.PaymentAttempt.pending_organization_id == organization.id,
+                models.PaymentAttempt.checkout_session_id.in_(stale_checkout_ids),
+                models.PaymentAttempt.status.in_(("checkout_started", "payment_processing")),
+            ).all():
+                attempt.status = "superseded"
+                attempt.failure_reason = (
+                    "Checkout superseded after authoritative branch setup changed."
+                )
+        selection = db.query(models.PendingOrganizationPlanSelection).filter(
+            models.PendingOrganizationPlanSelection.pending_organization_id
+            == organization.id,
+            models.PendingOrganizationPlanSelection.selection_status == "selected",
+        ).order_by(
+            models.PendingOrganizationPlanSelection.selected_at.desc(),
+            models.PendingOrganizationPlanSelection.id.desc(),
+        ).first()
+        if selection:
+            selection.billable_branch_count = len(cleaned_rows)
+            selection.quoted_base_amount_minor = None
+            selection.quoted_display_amount_minor = None
+            selection.quote_fingerprint = None
+        contract = db.query(models.SubscriptionContract).filter(
+            models.SubscriptionContract.pending_organization_id == organization.id
+        ).order_by(
+            models.SubscriptionContract.updated_at.desc(),
+            models.SubscriptionContract.id.desc(),
+        ).first()
+        if contract and str(getattr(contract, "payment_status", "") or "").lower() != "paid":
+            contract.billable_branch_count = len(cleaned_rows)
+            contract.quoted_base_amount_minor = None
+            contract.quoted_display_amount_minor = None
+            contract.quote_fingerprint = None
+            contract.selected_checkout_session_id = None
         if getattr(organization, "selected_plan_id", None) and str(getattr(organization, "payment_status", "") or "").lower() != "paid":
             organization.billing_status = "plan_selected"
     organization.onboarding_step = "academic_setup"
     organization.status = "in_progress"
     organization.draft_saved_at = _utcnow()
+
+
+def _reconcile_unpaid_demo_operational_branches(db: Session, organization) -> None:
+    import models as operational_models
+
+    tenant_link = db.query(models.TenantProvisioningLink).filter(
+        models.TenantProvisioningLink.pending_organization_id == organization.id,
+        models.TenantProvisioningLink.demo_request_id.is_not(None),
+        models.TenantProvisioningLink.subscription_contract_id.is_(None),
+    ).one_or_none()
+    if not tenant_link:
+        return
+    pending_rows = list_billable_pending_branches(db, organization)
+    operational_rows = db.query(operational_models.Branch).filter(
+        operational_models.Branch.school_group_id == tenant_link.school_group_id,
+        operational_models.Branch.status == True,
+    ).order_by(operational_models.Branch.id.asc()).all()
+    unmatched_operational = list(operational_rows)
+    matched: dict[int, object] = {}
+    by_name: dict[str, list] = {}
+    for branch in operational_rows:
+        by_name.setdefault(normalize_branch_name(branch.name), []).append(branch)
+    for pending in pending_rows:
+        candidates = by_name.get(normalize_branch_name(pending.branch_name), [])
+        if len(candidates) == 1 and candidates[0] in unmatched_operational:
+            matched[pending.id] = candidates[0]
+            unmatched_operational.remove(candidates[0])
+    unmatched_pending = [row for row in pending_rows if row.id not in matched]
+    if len(unmatched_pending) == len(unmatched_operational):
+        for pending, branch in zip(unmatched_pending, unmatched_operational):
+            matched[pending.id] = branch
+        unmatched_operational = []
+        unmatched_pending = []
+    elif unmatched_operational and unmatched_pending:
+        raise ValueError(
+            "Save branch renames separately before adding or removing branches."
+        )
+    for pending in unmatched_pending:
+        branch = operational_models.Branch(
+            school_group_id=tenant_link.school_group_id,
+            name=pending.branch_name,
+            location=pending.location,
+            country_code=pending.country_code,
+            country_name=pending.country_name,
+            region_name=pending.region_name,
+            city_name=pending.city_name,
+            district_name=pending.district_name,
+            neighborhood_name=pending.neighborhood_name,
+            status=True,
+        )
+        db.add(branch)
+        db.flush()
+        matched[pending.id] = branch
+    editable_fields = (
+        ("name", "branch_name"),
+        ("location", "location"),
+        ("country_code", "country_code"),
+        ("country_name", "country_name"),
+        ("region_name", "region_name"),
+        ("city_name", "city_name"),
+        ("district_name", "district_name"),
+        ("neighborhood_name", "neighborhood_name"),
+    )
+    for pending in pending_rows:
+        branch = matched[pending.id]
+        for target_field, source_field in editable_fields:
+            setattr(branch, target_field, getattr(pending, source_field, None))
+        branch.status = True
+    for branch in unmatched_operational:
+        branch.status = False
+    if pending_rows:
+        tenant_link.primary_branch_id = matched[pending_rows[0].id].id
 
 
 def save_academic_setup(db: Session, organization, *, first_academic_year_name: str, create_default_branch: str, notes: str):

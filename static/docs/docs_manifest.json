@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-07-28T17:34:46.873487+03:00",
+  "generated_at": "2026-07-28T22:52:17.972146+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "3a48b30",
+  "commit_sha": "d531af8",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "91c514f5f0445ffc5a0b1e542ef6240d0c6c122fe5e2abe75f3d69237797e9b4",
-  "pdf_size_bytes": 675211,
+  "pdf_sha256": "50fe08304eef14511531a0d97f7e3aec5aa1e8a337641b2badbaa00ae5083ece",
+  "pdf_size_bytes": 677348,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -53,9 +53,9 @@
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-07-28T17:27:12.333086+03:00",
-      "size_bytes": 71339,
-      "sha256": "813dded988f699c8aa19ba5e21657e950934dfe629411aff6f5e91a6fd3d7fa0",
+      "modified_at": "2026-07-28T21:53:21.055077+03:00",
+      "size_bytes": 72126,
+      "sha256": "c715cf943b5f1e3a9095cf7f6f272aa50d5d11cf390e6e1edacc9c8197e037ed",
       "pdf_page": 54
     },
     {
@@ -81,16 +81,16 @@
     },
     {
       "path": "docs/engineering/REPOSITORY_ARCHITECTURE.md",
-      "modified_at": "2026-07-28T17:27:12.324701+03:00",
-      "size_bytes": 12921,
-      "sha256": "76a036347584409a512ecb1e9034583700b835f833c87545d4676dc445ddd6db",
+      "modified_at": "2026-07-28T21:53:21.051453+03:00",
+      "size_bytes": 13492,
+      "sha256": "a4f9c5ff610b4fbf11719328d3186b09819e2951d89be9d683aa7a6f4b9d5275",
       "pdf_page": 102
     },
     {
       "path": "docs/engineering/USER_AND_SYSTEM_FLOWS.md",
-      "modified_at": "2026-07-28T17:27:12.329096+03:00",
-      "size_bytes": 21557,
-      "sha256": "18ed0206f53f90eb94ce815613b5844db7c9f5b82d662714a8e85ef14a95ee4f",
+      "modified_at": "2026-07-28T21:53:21.052783+03:00",
+      "size_bytes": 22037,
+      "sha256": "2c4de7e47e002c24772edcdd5d7e58349e7b617ab02fc1db2512a96bbb0d0c19",
       "pdf_page": 109
     },
     {
@@ -480,9 +480,9 @@
     },
     {
       "path": "docs/history/subscriptions/README.md",
-      "modified_at": "2026-07-28T17:27:12.337775+03:00",
-      "size_bytes": 9124,
-      "sha256": "edece7674a47825f9fd34d54b80f4302b49a5e925b7f7541b630490633347520",
+      "modified_at": "2026-07-28T21:53:21.056074+03:00",
+      "size_bytes": 9756,
+      "sha256": "8425d3e75f5ffa11d4bc899de33cd4c9577b3d453b254f551068f5189e43942c",
       "pdf_page": 245
     },
     {

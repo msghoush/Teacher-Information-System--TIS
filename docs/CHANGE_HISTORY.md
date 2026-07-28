@@ -7,6 +7,20 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-07-28 - Pre-Payment Branch Editing And Checkout Supersession
+
+Branch Setup previously rejected any organization with a
+`TenantProvisioningLink`, incorrectly treating an unpaid demo or prepared
+workspace as paid provisioning. Editing now closes only on authoritative
+confirmed-payment or active-paid-subscription evidence. Before that boundary,
+customers may add, edit, remove, reorder, and reprioritize branches.
+
+Changing branch count or identity stales the prepared checkout, supersedes its
+incomplete payment attempt, clears quote snapshots, and recalculates the next
+checkout from the final active count. Late provider events from a superseded
+transaction are recorded for manual review without activating or converting the
+workspace or disrupting the replacement checkout.
+
 ## 2026-07-28 - Fixed Paddle Checkout Branch Quantity
 
 Paddle checkout exposed quantity controls even when the server-created
