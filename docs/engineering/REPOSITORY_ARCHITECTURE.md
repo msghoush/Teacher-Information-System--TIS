@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Repository Architecture
 
+## Paddle Checkout Quantity Authority
+
+`saas/branch_pricing_quote_service.py` supplies the authoritative billable
+branch quantity and total to `saas/payment_service.py`. The payment service
+sends that exact quantity with the selected catalog price when creating the
+Paddle transaction and validates returned item quantity, provider price, and
+subtotal evidence when Paddle supplies it. Any mismatch fails closed before
+checkout is presented.
+
+The public `/saas/payment` launcher opens the pre-created transaction with
+Paddle’s inline one-page checkout settings. Inline payment capture does not
+present overlay item-management controls; plan, interval, unit price, billable
+branches, and calculated total remain reviewed in TIS. Branch quantity changes
+belong only to the existing TIS branch/subscription quantity workflow. No CSS
+control hiding, fixed quantity of one, provider-environment change, or webhook
+authority change is used.
+
 ## Checkout Tenant-Identity Recovery Boundary
 
 `saas/payment_service.py` owns Paddle customer identity resolution. For an

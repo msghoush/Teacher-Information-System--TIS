@@ -22,6 +22,7 @@
             <a class="btn secondary" href="/saas/account">Back to TIS Account</a>
         </div>
     </div>
+    <div class="checkout-container" aria-label="Secure payment form"></div>
 </section>
 {% endblock %}
 {% block page_scripts %}
@@ -92,7 +93,14 @@
             }
         });
         window.Paddle.Checkout.open({
-            transactionId: transactionId
+            transactionId: transactionId,
+            settings: {
+                displayMode: "inline",
+                variant: "one-page",
+                frameTarget: "checkout-container",
+                frameInitialHeight: 450,
+                frameStyle: "width: 100%; min-width: 312px; background-color: transparent; border: none;"
+            }
         });
     } catch (_error) {
         showSafeState(

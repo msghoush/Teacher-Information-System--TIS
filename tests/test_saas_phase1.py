@@ -6,6 +6,7 @@ import hmac
 import time
 import unittest
 from datetime import timedelta
+from types import SimpleNamespace
 from unittest.mock import patch
 
 os.environ["TIS_SESSION_SECRET"] = "unit-test-session-secret-that-is-long-enough"
@@ -1914,6 +1915,91 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("transactionId: transactionId", response.text)
         self.assertNotIn("checkout_session_id", response.text)
         self.assertNotIn("payment_attempt_uuid", response.text)
+
+    def test_payment_launcher_uses_supported_inline_fixed_item_checkout(self):
+        with patch.dict(
+            os.environ,
+            {
+                "PADDLE_CLIENT_TOKEN": "test_publicpaymenttoken123456789",
+                "PADDLE_ENVIRONMENT": "sandbox",
+            },
+            clear=False,
+        ):
+            response = self.client.get(
+                "/saas/payment?_ptxn=txn_01kxfixedquantity"
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('displayMode: "inline"', response.text)
+        self.assertIn('variant: "one-page"', response.text)
+        self.assertIn('frameTarget: "checkout-container"', response.text)
+        self.assertIn('class="checkout-container"', response.text)
+        self.assertNotIn('displayMode: "overlay"', response.text)
+
+    def test_paddle_transaction_preserves_each_authoritative_organization_quantity(self):
+        captured_quantities = []
+        for quantity in (1, 2, 7):
+            with self.subTest(quantity=quantity):
+                with patch(
+                    "saas.paddle_client._request",
+                    return_value={"id": f"txn_quantity_{quantity}"},
+                ) as request_call:
+                    paddle_client.create_transaction(
+                        customer_id=f"ctm_org_{quantity}",
+                        price_id="pri_quantity",
+                        quantity=quantity,
+                        custom_data={"organization": f"org-{quantity}"},
+                    )
+                payload = request_call.call_args.args[2]
+                self.assertEqual(
+                    payload["items"],
+                    [{"price_id": "pri_quantity", "quantity": quantity}],
+                )
+                captured_quantities.append(
+                    (
+                        payload["custom_data"]["organization"],
+                        payload["items"][0]["quantity"],
+                    )
+                )
+        self.assertEqual(
+            captured_quantities,
+            [("org-1", 1), ("org-2", 2), ("org-7", 7)],
+        )
+
+    def test_created_paddle_transaction_must_match_tis_quantity_and_subtotal(self):
+        quote = SimpleNamespace(
+            provider_price_id="pri_authoritative",
+            quantity=3,
+            total_amount_minor=237000,
+        )
+        payment_service._validate_created_transaction_quote(
+            {
+                "items": [
+                    {
+                        "price": {"id": "pri_authoritative"},
+                        "quantity": 3,
+                    }
+                ],
+                "details": {"totals": {"subtotal": "237000"}},
+            },
+            quote,
+        )
+        with self.assertRaisesRegex(ValueError, "quantity"):
+            payment_service._validate_created_transaction_quote(
+                {
+                    "items": [
+                        {
+                            "price": {"id": "pri_authoritative"},
+                            "quantity": 2,
+                        }
+                    ]
+                },
+                quote,
+            )
+        with self.assertRaisesRegex(ValueError, "subtotal"):
+            payment_service._validate_created_transaction_quote(
+                {"details": {"totals": {"subtotal": "158000"}}},
+                quote,
+            )
 
     def test_public_paddle_payment_launcher_handles_missing_transaction_safely(self):
         with patch.dict(

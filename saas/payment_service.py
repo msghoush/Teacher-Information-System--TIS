@@ -830,6 +830,36 @@ def build_checkout_launch_context(db: Session, organization):
     return checkout_session, selection, contract, plan_price, quote
 
 
+def _validate_created_transaction_quote(transaction: dict, quote) -> None:
+    items = transaction.get("items")
+    if isinstance(items, list) and items:
+        matching_items = [
+            item
+            for item in items
+            if isinstance(item, dict)
+            and _clean_text((item.get("price") or {}).get("id"))
+            == _clean_text(quote.provider_price_id)
+        ]
+        if (
+            len(matching_items) != 1
+            or int(matching_items[0].get("quantity") or 0)
+            != int(quote.quantity)
+        ):
+            raise ValueError(
+                "Paddle transaction quantity does not match the authoritative TIS branch quote."
+            )
+    details = transaction.get("details")
+    totals = details.get("totals") if isinstance(details, dict) else None
+    if isinstance(totals, dict):
+        provider_subtotal = totals.get("subtotal")
+        if provider_subtotal not in (None, "") and int(
+            provider_subtotal
+        ) != int(quote.total_amount_minor):
+            raise ValueError(
+                "Paddle transaction subtotal does not match the authoritative TIS quote."
+            )
+
+
 def launch_checkout(db: Session, organization, account, request: Request):
     checkout_session, selection, contract, plan_price, quote = build_checkout_launch_context(db, organization)
     existing_checkout_url = _clean_text(getattr(checkout_session, "checkout_url", ""))
@@ -891,6 +921,7 @@ def launch_checkout(db: Session, organization, account, request: Request):
         },
         checkout_url=_payment_link_base_url(request),
     )
+    _validate_created_transaction_quote(transaction, quote)
 
     checkout_data = transaction.get("checkout") or {}
     attempt.provider_checkout_id = str((checkout_data.get("id") or transaction.get("id") or "")).strip() or None
