@@ -7,6 +7,22 @@ source_of_truth: true
 
 # TIS Repository Architecture
 
+## Subscription Plan Branch-Capacity Authority
+
+`saas/branch_pricing_quote_service.py` evaluates the authoritative active
+billable branch count against `SubscriptionPlan.max_branches`. Starter,
+Professional, and Enterprise AI retain persisted capacities of one, five, and
+twenty-five. The evaluator supplies both server-side rejection and plan-page
+eligibility metadata; pricing remains the unit price multiplied by the actual
+active count.
+
+Plan selection and every checkout/payment phase consume a fail-closed quote, so
+an undersized plan cannot produce a checkout or Paddle transaction. A
+pre-payment branch change clears an undersized selection while preserving an
+eligible higher plan, and the existing checkout-supersession boundary rejects
+stale transaction completion. Counts are resolved only inside the current
+pending organization or its same-workspace demo provisioning.
+
 ## Paddle Checkout Quantity Authority
 
 `saas/branch_pricing_quote_service.py` supplies the authoritative billable

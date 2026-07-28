@@ -61,11 +61,13 @@ def select_plan(
     if not plan_view:
         raise ValueError("Selected subscription plan is not available.")
     interval_view = plan_view.monthly if cleaned_interval == "monthly" else plan_view.annual
-    quote = branch_pricing_quote_service.build_quote(
-        db,
-        organization,
-        plan_id=plan_view.plan.id,
-        billing_interval=cleaned_interval,
+    quote = branch_pricing_quote_service.require_ready_quote(
+        branch_pricing_quote_service.build_quote(
+            db,
+            organization,
+            plan_id=plan_view.plan.id,
+            billing_interval=cleaned_interval,
+        )
     )
 
     db.query(models.PendingOrganizationPlanSelection).filter(

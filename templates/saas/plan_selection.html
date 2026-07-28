@@ -12,9 +12,10 @@
                 <label for="plan_id">Plan</label>
                 <select id="plan_id" name="plan_id" required>
                     <option value="">Choose a plan</option>
-                    {% for plan_view in plan_catalog %}
-                    <option value="{{ plan_view.plan.id }}" {% if current_plan_selection and current_plan_selection.plan_id == plan_view.plan.id %}selected{% endif %}>
-                        {{ plan_view.plan.plan_name }}{% if plan_view.plan.is_most_popular %} - Most Popular{% endif %}
+                    {% for option in plan_options %}
+                    {% set plan_view = option.plan_view %}
+                    <option value="{{ plan_view.plan.id }}" {% if current_plan_selection and current_plan_selection.plan_id == plan_view.plan.id %}selected{% endif %}{% if not option.eligible %} disabled{% endif %}>
+                        {{ plan_view.plan.plan_name }}{% if plan_view.plan.is_most_popular %} - Most Popular{% endif %}{% if not option.eligible %} - Unavailable for {{ option.active_branch_count }} branches{% endif %}
                     </option>
                     {% endfor %}
                 </select>
@@ -29,21 +30,32 @@
         </div>
     </section>
 
+    {% if self_service_checkout_blocked %}
+    <section class="wizard-section">
+        <div class="wizard-section-header">
+            <strong>Contact the TIS Team</strong>
+            <p>Your organization requires a custom plan. Please contact the TIS team.</p>
+        </div>
+    </section>
+    {% endif %}
+
     <section class="wizard-section">
         <div class="wizard-section-header">
             <strong>Available plans</strong>
             <p>Review the options below, then use the selectors above to save your choice.</p>
         </div>
         <div class="review-grid">
-            {% for plan_view in plan_catalog %}
-            <div class="review-card">
+            {% for option in plan_options %}
+            {% set plan_view = option.plan_view %}
+            <div class="review-card{% if not option.eligible %} is-disabled{% endif %}" data-plan-eligible="{{ 'true' if option.eligible else 'false' }}">
                 <strong>{{ plan_view.plan.plan_name }}</strong>
                 {% if plan_view.plan.badge_text %}<p>{{ plan_view.plan.badge_text }}</p>{% endif %}
                 <p>USD {{ "%.2f"|format(plan_view.monthly.base_amount_minor / 100) }} per branch / month<br>USD {{ "%.2f"|format(plan_view.annual.base_amount_minor / 100) }} per branch / year</p>
                 {% if plan_view.annual.annual_savings_percent %}
                 <p>Save {{ plan_view.annual.annual_savings_percent }}% annually</p>
                 {% endif %}
-                <p>Branches: {{ plan_view.plan.max_branches or "Custom" }}<br>Staff users: {{ plan_view.plan.max_staff_users or "Custom" }}</p>
+                <p>Supports up to {{ option.branch_capacity }} branch{% if option.branch_capacity != 1 %}es{% endif %}<br>Supports up to {{ plan_view.plan.max_staff_users }} staff users</p>
+                {% if not option.eligible %}<p class="error">{{ option.ineligible_reason }}</p>{% endif %}
             </div>
             {% endfor %}
         </div>

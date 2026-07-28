@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-07-28 - Authoritative Subscription Plan Branch Capacity
+
+Self-service plan eligibility now uses each active plan's persisted
+`max_branches`: Starter supports one active billable branch, Professional five,
+and Enterprise AI twenty-five. Pricing remains the selected plan's per-branch
+price multiplied by the actual authoritative active count.
+
+Plan selection, quote construction, checkout preparation and launch, and
+payment validation fail closed when capacity is exceeded. Pre-payment branch
+expansion clears an undersized selection and supersedes its quote and checkout
+lineage; an eligible higher plan remains selected. Organizations above the
+Enterprise AI limit receive a customer-safe custom-plan contact state.
+
 ## 2026-07-28 - Pre-Payment Branch Editing And Checkout Supersession
 
 Branch Setup previously rejected any organization with a

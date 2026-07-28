@@ -6,6 +6,20 @@ last_updated: 2026-07-21
 
 # Subscription History
 
+## 2026-07-28 - Authoritative Plan Branch-Capacity Enforcement
+
+Initial self-service selection now enforces the persisted plan limits: Starter
+one active billable branch, Professional five, and Enterprise AI twenty-five.
+All higher plans remain eligible below their capacity, while organizations
+above twenty-five receive the custom-plan contact path. Actual active branches
+still determine the per-branch total.
+
+The same fail-closed capacity decision protects selection, quote generation,
+checkout preparation and launch, and payment validation. If branch editing
+makes the selected plan undersized before payment, its selection and checkout
+lineage are superseded; an eligible higher plan remains selected. Tenant-scoped
+branch counting prevents another organization from affecting eligibility.
+
 ## 2026-07-28 - Pre-Payment Branch Editing And Quote Supersession
 
 Onboarding branches remain editable until confirmed payment. The existence of
