@@ -187,7 +187,7 @@ def build_demo_request_received_email(*, organization_name: str, status_url: str
     return render_transactional_email(
         subject="We received your TIS demo request",
         title="Your demo request is pending review",
-        message="TIS received your demo request. A Platform Owner will review it and we will email you after approval or decline.",
+        message="TIS received your demo request. The TIS team will review your request. We will email you after approval or decline.",
         logo_url=logo_url,
         action_label="View Demo Status",
         action_url=status_url,

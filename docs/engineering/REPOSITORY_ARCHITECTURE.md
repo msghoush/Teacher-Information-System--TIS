@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Repository Architecture
 
+## Returning Customer And Commercial-Access Boundary
+
+`saas/customer_journey_service.py` owns customer login destinations and the
+expired-demo subscription projection. It reads onboarding/request records, the
+durable SaaS-account operational link, demo lifecycle, SchoolGroup
+classification, actual active Branch rows, public plans, and subscription
+evidence. `saas/commercial_access_service.py` is the operational access decision
+used after credential validation and by request authorization. It performs no
+DDL and does not replace payment, entitlement, or demo-lifecycle authorities.
+
+`/saas/subscription/demo/select` records conversion intent and reuses existing
+plan selection and checkout routes; it never provisions or copies a second
+workspace. Public navigation remains in `tis-landing-website/` and builds app
+routes exclusively from `NEXT_PUBLIC_TIS_APP_BASE_URL`.
+
 ## M8B9 Demo Operations Boundary
 
 The owner HTTP surface delegates mutations to `saas/demo_operations_service.py`,

@@ -7,6 +7,24 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Returning Customer Login And Expired Demo Subscription
+
+1. SaaS login authenticates and resolves authoritative onboarding, demo,
+   workspace-link, lifecycle, and subscription state.
+2. Incomplete setup resumes; pending demos open request status; unpaid completed
+   setup opens subscription selection; active demo or paid customers continue
+   to operational login.
+3. Expired demos or paid subscriptions open branded recovery guidance.
+4. Operational login runs the commercial guard before branch and academic-year
+   setup. Protected requests run it before page services. Authentication,
+   sign-out, SaaS account, subscription/checkout/payment-return, support, and
+   expiry routes remain safe and cannot recursively redirect.
+5. Expired-demo Subscribe Now resolves the existing organization, SchoolGroup,
+   and active operational branches, offers public plans and monthly/annual
+   intervals, then launches existing Paddle checkout.
+6. Only confirmed provider payment converts the same workspace UUID, tenant
+   link, users, permissions, branches, and data.
+
 ## Platform Owner Demo Operations
 
 1. A Platform Owner opens an existing Customer Demo operational detail.

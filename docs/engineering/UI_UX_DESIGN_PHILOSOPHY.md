@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS UI/UX Design Philosophy
 
+## Progressive Disclosure And Commercial States
+
+Expected commercial states use branded, actionable pages rather than generic
+errors or internal state labels. Expired customers see data-preservation, plan
+or renewal, support, and sign-out guidance. Dense Platform Owner pages show
+only the decision summary and common actions initially; lifecycle processing,
+branch/feature overrides, audit evidence, and technical metadata belong under
+More Actions, Advanced Settings, and Activity History. Presentation
+simplification must not remove operational controls.
+
 TIS should feel like a clean, premium academic SaaS platform. It should not feel like a generic admin dashboard, spreadsheet wrapper, or decorative marketing shell disconnected from real product value.
 
 ## Overall Product Identity

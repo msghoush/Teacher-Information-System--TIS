@@ -6,6 +6,14 @@ last_updated: 2026-07-21
 
 # Subscription History
 
+## 2026-07-28 - Expired Demo Subscription Continuity
+
+Expired demo subscription selection now reads the preserved SchoolGroup and its
+active operational branches, presents real public plans and billing intervals,
+and continues through existing Paddle checkout. Confirmed payment still converts
+the same workspace; missing configuration produces safe support guidance rather
+than unavailable placeholders.
+
 ## 2026-07-20 - M7 Phase 5 Lifecycle Policy, Cancellation, And Reversal
 
 The Subscription Management portal now resolves customer-visible state and allowed actions through `saas.subscription_lifecycle_service`. Upgrade, downgrade, branch increase/reduction, cancellation, and cancellation reversal controls are exposed only when authorization, provider subscription state, pending requests, effective dates, and local relationships permit them.

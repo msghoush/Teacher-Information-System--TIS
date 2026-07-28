@@ -7,6 +7,25 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Returning Customer Journey And Commercial Expiry
+
+Returning SaaS-account login resolves authoritative onboarding, demo request,
+account-to-workspace, workspace classification, lifecycle, and subscription
+evidence. Incomplete onboarding resumes, pending demos open request status,
+active demo or paid tenants enter operational login, unpaid customers reach
+subscription setup, and expired customers receive branded expiry guidance.
+Operational login and protected requests run the commercial guard before
+branch, academic-year, or workspace page work; expected expiry never becomes a
+500.
+
+Expired demos select real public plans and intervals against the existing
+organization and actual active operational branches. Checkout and confirmed
+payment reuse the existing Paddle and conversion authorities, preserving the
+SchoolGroup, workspace UUID, tenant link, users, branches, permissions, and
+data. The Next.js landing derives Request Demo, Subscribe, Sign In, and Open TIS
+App from `NEXT_PUBLIC_TIS_APP_BASE_URL`. Customer communications name the TIS
+team; internal role names and audit evidence remain unchanged.
+
 ## M8B9 Demo Operations And Access Profiles
 
 M8B9 adds Platform Owner-only orchestration in `saas/demo_operations_service.py`

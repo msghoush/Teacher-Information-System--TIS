@@ -6,6 +6,12 @@ last_updated: 2026-07-25
 
 # Landing Page History
 
+## 2026-07-28 - Returning-Customer Navigation
+
+The Next.js landing now exposes Sign In and Open TIS App beside Request a Demo
+and Subscribe. Every app link derives from `NEXT_PUBLIC_TIS_APP_BASE_URL`;
+authentication and state routing remain in FastAPI.
+
 This folder tracks meaningful changes to the public landing page, marketing positioning, visual system strategy, and source-of-truth boundaries.
 
 Related docs:

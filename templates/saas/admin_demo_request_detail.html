@@ -15,6 +15,8 @@
     .demo-review-action textarea { min-height: 110px; }
     .demo-event-list { display: grid; gap: 8px; }
     .demo-event { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 9px 0; font-size: 13px; }
+    .demo-disclosure { margin-top: 22px; border: 1px solid var(--line); border-radius: 14px; background: #fff; padding: 0 18px 18px; }
+    .demo-disclosure > summary { cursor: pointer; padding: 18px 0; color: var(--ink); font-size: 18px; font-weight: 850; }
     @media (max-width: 800px) { .demo-review-head { flex-direction: column; } .demo-review-grid, .demo-review-actions { grid-template-columns: 1fr; } .demo-review-action.full { grid-column: auto; } }
 </style>
 
@@ -31,18 +33,20 @@
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
 <section class="demo-review-section">
-    <h2>Organization Summary</h2>
+    <h2>Demo Summary</h2>
     <div class="demo-review-grid">
-        <div class="stat"><strong>Requester</strong><p>{{ card.requester.first_name }} {{ card.requester.last_name }}<br>{{ card.requester.email }}</p></div>
-        <div class="stat"><strong>Submitted</strong><p>{{ demo_request.submitted_at.strftime('%B %d, %Y at %H:%M UTC') if demo_request.submitted_at else 'Not available' }}</p></div>
-        <div class="stat"><strong>Configured Branches</strong><p>{{ card.branch_count }}</p></div>
-        <div class="stat"><strong>Organization Domain</strong><p>{{ demo_request.organization_domain_normalized or 'Manual review needed' }}</p></div>
-        <div class="stat"><strong>Educational Program</strong><p>{{ card.organization.educational_program or 'Not available' }}</p></div>
-        <div class="stat"><strong>Location</strong><p>{{ card.organization.city_name or 'Not available' }}{% if card.organization.country_name %}, {{ card.organization.country_name }}{% endif %}</p></div>
-        <div class="stat"><strong>Primary Contact</strong><p>{% if card.primary_contact %}{{ card.primary_contact.first_name }} {{ card.primary_contact.last_name }}<br>{{ card.primary_contact.email }}{% else %}Not available{% endif %}</p></div>
+        <div class="stat"><strong>Organization</strong><p>{{ card.organization.organization_name }}</p></div>
+        <div class="stat"><strong>Demo Status</strong><p>{{ status_label }}</p></div>
+        <div class="stat"><strong>Start Date</strong><p>{{ format_lifecycle_datetime(demo_lifecycle.display_started_at) if demo_lifecycle else 'Not started' }}</p></div>
+        <div class="stat"><strong>Expiry Date</strong><p>{{ format_lifecycle_datetime(demo_lifecycle.display_expires_at) if demo_lifecycle else 'Not available' }}</p></div>
+        <div class="stat"><strong>Days Remaining</strong><p>{{ demo_lifecycle.time_remaining_label if demo_lifecycle else 'Not available' }}</p></div>
+        <div class="stat"><strong>Current Access Profile</strong><p>{{ effective_demo_access.profile|title if effective_demo_access else 'Standard' }}</p></div>
+        <div class="stat"><strong>Main Contact</strong><p>{% if card.primary_contact %}{{ card.primary_contact.first_name }} {{ card.primary_contact.last_name }}<br>{{ card.primary_contact.email }}{% else %}Not available{% endif %}</p></div>
     </div>
 </section>
 
+<details class="demo-disclosure">
+<summary>Advanced Settings</summary>
 <section class="demo-review-section">
     <h2>Commercial Snapshot</h2>
     <div class="demo-review-grid">
@@ -102,6 +106,7 @@
     {% endif %}
 </section>
 {% endif %}
+</details>
 
 {% if demo_request.status == 'pending_review' %}
 <section class="demo-review-section" aria-label="Review actions">
@@ -141,7 +146,7 @@
 {% if demo_provisioning %}
 <section class="demo-review-section" aria-label="Demo operations">
     <h2>Demo Operations</h2>
-    <p class="muted">Platform Owner actions preserve the existing workspace and record a durable audit entry. Expiry times are entered in the organization timezone.</p>
+    <p class="muted">These actions preserve the existing workspace and record a durable audit entry. Expiry times use the organization timezone.</p>
     <div class="demo-review-actions">
         <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/operations/expire" onsubmit="return confirm('Expire this demo now?');">
             <h3>Expire Now</h3>
@@ -170,17 +175,20 @@
             <label>Optional reason</label><textarea name="reason" maxlength="2000"></textarea>
             <button class="btn secondary" type="submit">Send Reminder</button>
         </form>
-        <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/operations/lifecycle">
+        <details class="demo-review-action">
+        <summary><strong>More Actions</strong></summary>
+        <form method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/operations/lifecycle">
             <h3>Run Lifecycle</h3>
             <input type="hidden" name="operation_key" value="{{ operation_key }}-lifecycle">
             <label>Optional reason</label><textarea name="reason" maxlength="2000"></textarea>
             <button class="btn secondary" type="submit">Process This Demo</button>
         </form>
+        </details>
     </div>
 </section>
 
-<section class="demo-review-section" aria-label="Demo access profile">
-    <h2>Demo Access Profile</h2>
+<details class="demo-disclosure" aria-label="Demo access profile">
+    <summary>Change Feature Access</summary>
     <p>Effective profile: <strong>{{ effective_demo_access.profile|title if effective_demo_access else 'Standard' }}</strong></p>
     <form class="demo-review-action" method="post" action="/saas-admin/demo-requests/{{ demo_request.request_uuid }}/operations/access">
         <input type="hidden" name="operation_key" value="{{ operation_key }}-access">
@@ -211,9 +219,11 @@
         <label>Reason</label><textarea name="reason" required maxlength="2000"></textarea>
         <button class="btn" type="submit">Apply Access Profile</button>
     </form>
-</section>
+</details>
 {% endif %}
 
+<details class="demo-disclosure">
+<summary>Activity History</summary>
 <section class="demo-review-section">
     <h2>Request History</h2>
     <div class="demo-event-list">
@@ -277,6 +287,7 @@
     </div>
 </section>
 {% endif %}
+</details>
 
 <div class="actions" style="margin-top:22px;"><a class="btn secondary" href="/saas-admin/demo-requests">Back to Review Queue</a></div>
 {% endblock %}

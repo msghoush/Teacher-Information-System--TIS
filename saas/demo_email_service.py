@@ -67,7 +67,7 @@ def _content(db: Session, row):
         branding_storage.tis_logo_relative_path(theme="light", compact=True)
     )
     status_url = f"{base}/saas/demo-requests/{request.request_uuid}"
-    subscribe_url = f"{base}/saas/login?next_path=/saas/demo-requests/{request.request_uuid}"
+    subscribe_url = f"{base}/saas/login?next_path=/saas/subscription"
     name = str(organization.organization_name or "Your organization")
     try:
         payload = json.loads(row.payload_json or "{}")

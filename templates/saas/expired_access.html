@@ -1,0 +1,19 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<header class="page-header">
+    <span class="page-eyebrow">TIS Access</span>
+    {% if kind == "subscription" %}
+    <h1>Your TIS subscription has expired.</h1>
+    <p class="page-subtitle">Renew your subscription to restore access to your workspace.</p>
+    {% else %}
+    <h1>Your TIS demo has ended.</h1>
+    <p class="page-subtitle">Your organization and data are safely preserved. Subscribe to a TIS plan to continue accessing your workspace.</p>
+    {% endif %}
+</header>
+<div class="actions">
+    <a class="btn secondary" href="/saas/plans">View Plans</a>
+    <a class="btn" href="/saas/subscription">{% if kind == "subscription" %}Renew Subscription{% else %}Subscribe Now{% endif %}</a>
+    <a class="btn secondary" href="mailto:{{ support_email }}">Contact the TIS Team</a>
+    <form method="post" action="/saas/auth/logout"><button class="btn secondary" type="submit">Sign Out</button></form>
+</div>
+{% endblock %}

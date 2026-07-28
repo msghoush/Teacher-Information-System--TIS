@@ -35,7 +35,8 @@ import type { CSSProperties, ElementType, PointerEvent as ReactPointerEvent, Rea
 import type { LucideIcon } from "lucide-react";
 
 const tisAppBaseUrl = normalizeConfiguredUrl(process.env.NEXT_PUBLIC_TIS_APP_BASE_URL);
-const appPortalUrl = tisAppBaseUrl;
+const signInUrl = buildTisAppUrl("/saas/login");
+const openTisAppUrl = buildTisAppUrl("/login");
 const requestDemoUrl = buildTisAppUrl("/saas/signup?intent=demo");
 const subscribeNowUrl = buildTisAppUrl("/saas/signup?intent=subscribe");
 
@@ -461,10 +462,10 @@ function Header({
 
           <div className="flex items-center gap-2 md:hidden">
             <a
-              href={appPortalUrl}
+              href={signInUrl}
               className="focus-ring button-secondary inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-ocean"
             >
-              Login
+              Sign In
             </a>
             <button
               type="button"
@@ -516,13 +517,16 @@ function Header({
           <a className="nav-link focus-ring rounded-md px-2 py-2 md:px-0 md:py-0" href={requestDemoUrl} onClick={() => setMenuOpen(false)}>
             Request a Demo
           </a>
+          <a className="nav-link focus-ring rounded-md px-2 py-2 md:px-0 md:py-0" href={openTisAppUrl} onClick={() => setMenuOpen(false)}>
+            Open TIS App
+          </a>
         </nav>
 
         <a
-          href={appPortalUrl}
+          href={signInUrl}
           className="focus-ring button-secondary hidden h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-ocean md:inline-flex"
         >
-          Login
+          Sign In
         </a>
       </div>
     </header>
@@ -1251,8 +1255,11 @@ function Footer() {
         </div>
 
         <div className="flex flex-col gap-3 text-sm text-slate-300 md:items-end">
-          <a className="footer-link" href={appPortalUrl}>
-            Login: TIS Application Portal
+          <a className="footer-link" href={signInUrl}>
+            Sign In
+          </a>
+          <a className="footer-link" href={openTisAppUrl}>
+            Open TIS App
           </a>
           <p className="text-slate-400">
             Copyright {new Date().getFullYear()} TIS Platform. All rights reserved.

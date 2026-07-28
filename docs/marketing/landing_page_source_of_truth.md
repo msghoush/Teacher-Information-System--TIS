@@ -7,6 +7,12 @@ source_of_truth: true
 
 # Landing Page Source of Truth
 
+The public header and relevant conversion areas expose Request a Demo,
+Subscribe, Sign In, and Open TIS App. All app links are constructed here from
+`NEXT_PUBLIC_TIS_APP_BASE_URL`; Sign In targets `/saas/login`, Open TIS App
+targets `/login`, and the landing site does not duplicate authentication or
+customer-state routing.
+
 The official source of truth for the public TIS landing website is:
 
 ```text
