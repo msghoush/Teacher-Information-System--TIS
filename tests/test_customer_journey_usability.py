@@ -14,6 +14,9 @@ from saas import (
     customer_journey_service,
     demo_email_service,
     demo_lifecycle_service,
+    payment_service,
+    paddle_client,
+    service,
 )
 
 
@@ -51,6 +54,41 @@ class TestCustomerJourneyUsability:
             db.commit()
         finally:
             db.close()
+
+    def _configure_checkout_price(self):
+        db = self.workflow._db()
+        try:
+            plan = (
+                db.query(saas.models.SubscriptionPlan)
+                .filter_by(plan_code="professional")
+                .one()
+            )
+            price = (
+                db.query(saas.models.SubscriptionPlanPrice)
+                .filter_by(
+                    plan_id=plan.id,
+                    billing_interval="monthly",
+                    currency_code="USD",
+                    is_active=True,
+                )
+                .one()
+            )
+            price.provider_price_id = "pri_expired_demo_identity"
+            db.commit()
+            return plan.id
+        finally:
+            db.close()
+
+    def _select_expired_demo_plan(self, fixture, client=None):
+        client = client or self.workflow.client
+        plan_id = self._configure_checkout_price()
+        response = client.post(
+            "/saas/subscription/demo/select",
+            data={"plan_id": str(plan_id), "billing_interval": "monthly"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        return response.headers["location"]
 
     def test_expiry_email_subscribe_now_targets_subscription(self):
         fixture = self._active_demo()
@@ -125,6 +163,254 @@ class TestCustomerJourneyUsability:
         assert response.status_code == 200
         assert "Subscription setup needs assistance" in response.text
         assert "temporarily unavailable" in response.text
+
+    def test_expired_demo_checkout_reuses_authoritative_tenant_identity(self):
+        fixture = self._active_demo()
+        self._expire(fixture)
+        checkout_path = self._select_expired_demo_plan(fixture)
+        db = self.workflow._db()
+        try:
+            account = db.get(
+                saas.models.SaaSAccount, fixture["saas_account_id"]
+            )
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=fixture["organization_uuid"]
+            ).one()
+            group = db.get(models.SchoolGroup, fixture["school_group_id"])
+            account_uuid = account.account_uuid
+            organization_uuid = organization.organization_uuid
+            workspace_uuid = group.workspace_uuid
+            branch_ids = {
+                row[0]
+                for row in db.query(models.Branch.id).filter_by(
+                    school_group_id=group.id
+                ).all()
+            }
+        finally:
+            db.close()
+        remote = {
+            "id": "ctm_expired_demo_owner",
+            "email": account.email,
+            "status": "active",
+            "custom_data": {
+                "saas_account_uuid": "deleted-account",
+                "pending_organization_uuid": "deleted-organization",
+            },
+        }
+        updated = {
+            **remote,
+            "custom_data": {
+                "saas_account_uuid": account_uuid,
+                "pending_organization_uuid": organization_uuid,
+            },
+        }
+        with (
+            patch.dict(
+                "os.environ",
+                {"PADDLE_ENVIRONMENT": "sandbox", "PADDLE_API_BASE_URL": ""},
+                clear=False,
+            ),
+            patch(
+                "saas.paddle_client.list_customers_by_email",
+                return_value=[remote],
+            ),
+            patch(
+                "saas.paddle_client.update_customer", return_value=updated
+            ),
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_expired_demo_owner",
+                    "currency_code": "USD",
+                    "checkout": {
+                        "url": "https://pay.paddle.test/expired-demo"
+                    },
+                },
+            ),
+        ):
+            launched = self.workflow.client.post(
+                checkout_path + "/launch",
+                follow_redirects=False,
+            )
+        assert launched.status_code == 302
+        assert launched.headers["location"] == (
+            "https://pay.paddle.test/expired-demo"
+        )
+        db = self.workflow._db()
+        try:
+            group = db.get(models.SchoolGroup, fixture["school_group_id"])
+            assert group.workspace_uuid == workspace_uuid
+            assert {
+                row[0]
+                for row in db.query(models.Branch.id).filter_by(
+                    school_group_id=group.id
+                ).all()
+            } == branch_ids
+            assert db.query(models.TenantProfile).filter_by(
+                school_group_id=group.id
+            ).count() == 1
+        finally:
+            db.close()
+
+    def test_reregistered_account_safely_supersedes_stale_workspace_link(self):
+        fixture = self._active_demo()
+        self._expire(fixture)
+        password = "Reregistered123!"
+        db = self.workflow._db()
+        try:
+            old_account = db.get(
+                saas.models.SaaSAccount, fixture["saas_account_id"]
+            )
+            original_email = old_account.email
+            old_account.status = "superseded"
+            old_account.email = f"superseded-{old_account.id}@invalid.test"
+            old_account.email_normalized = old_account.email
+            new_account = saas.models.SaaSAccount(
+                account_uuid=str(uuid.uuid4()),
+                email=original_email,
+                email_normalized=original_email,
+                password_hash=auth.get_password_hash(password),
+                first_name="Re",
+                last_name="Registered",
+                status="active",
+                onboarding_status="active",
+                account_purpose="customer",
+                email_verified_at=datetime.now(UTC).replace(tzinfo=None),
+            )
+            db.add(new_account)
+            db.flush()
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=fixture["organization_uuid"]
+            ).one()
+            organization.owner_saas_account_id = new_account.id
+            request_row = db.get(
+                saas.models.SaaSDemoRequest, fixture["request_id"]
+            )
+            request_row.requester_saas_account_id = new_account.id
+            new_account_id = new_account.id
+            new_account_uuid = new_account.account_uuid
+            db.commit()
+        finally:
+            db.close()
+        client = TestClient(self.workflow.app)
+        self.workflow.extra_clients.append(client)
+        login = client.post(
+            "/saas/auth/login",
+            data={"email": original_email, "password": password},
+            follow_redirects=False,
+        )
+        assert login.status_code == 302
+        checkout_path = self._select_expired_demo_plan(fixture, client)
+        remote = {
+            "id": "ctm_reregistered_demo",
+            "email": original_email,
+            "status": "active",
+            "custom_data": {
+                "saas_account_uuid": "deleted-account-uuid",
+                "pending_organization_uuid": "deleted-org-uuid",
+            },
+        }
+        updated = {
+            **remote,
+            "custom_data": {
+                "saas_account_uuid": new_account_uuid,
+                "pending_organization_uuid": fixture["organization_uuid"],
+            },
+        }
+        with (
+            patch.dict(
+                "os.environ",
+                {"PADDLE_ENVIRONMENT": "sandbox", "PADDLE_API_BASE_URL": ""},
+                clear=False,
+            ),
+            patch(
+                "saas.paddle_client.list_customers_by_email",
+                return_value=[remote],
+            ),
+            patch(
+                "saas.paddle_client.update_customer", return_value=updated
+            ),
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_reregistered_demo",
+                    "currency_code": "USD",
+                    "checkout": {
+                        "url": "https://pay.paddle.test/reregistered"
+                    },
+                },
+            ),
+        ):
+            launched = client.post(
+                checkout_path + "/launch", follow_redirects=False
+            )
+        assert launched.headers["location"] == (
+            "https://pay.paddle.test/reregistered"
+        )
+        db = self.workflow._db()
+        try:
+            links = db.query(saas.models.SaaSAccountUserLink).filter_by(
+                school_group_id=fixture["school_group_id"]
+            ).all()
+            assert len(links) == 1
+            assert links[0].saas_account_id == new_account_id
+            assert db.query(models.SchoolGroup).filter_by(
+                id=fixture["school_group_id"]
+            ).count() == 1
+        finally:
+            db.close()
+
+    def test_checkout_identity_failure_is_friendly_and_not_ready(self):
+        fixture = self._active_demo()
+        self._expire(fixture)
+        checkout_path = self._select_expired_demo_plan(fixture)
+        db = self.workflow._db()
+        try:
+            account = db.get(
+                saas.models.SaaSAccount, fixture["saas_account_id"]
+            )
+            email = account.email
+        finally:
+            db.close()
+        remote = [
+            {
+                "id": f"ctm_ambiguous_{index}",
+                "email": email,
+                "status": "active",
+                "custom_data": {
+                    "saas_account_uuid": f"other-{index}",
+                    "pending_organization_uuid": f"other-org-{index}",
+                },
+            }
+            for index in (1, 2)
+        ]
+        with (
+            patch.dict(
+                "os.environ",
+                {"PADDLE_ENVIRONMENT": "sandbox", "PADDLE_API_BASE_URL": ""},
+                clear=False,
+            ),
+            patch(
+                "saas.paddle_client.list_customers_by_email",
+                return_value=remote,
+            ),
+            patch("saas.paddle_client.update_customer") as update_customer,
+            patch("saas.paddle_client.create_transaction") as transaction,
+        ):
+            failed = self.workflow.client.post(
+                checkout_path + "/launch", follow_redirects=False
+            )
+        assert failed.status_code == 302
+        assert "exact+matches" not in failed.headers["location"]
+        assert "context+matches" not in failed.headers["location"]
+        assert "Diagnostic" not in failed.headers["location"]
+        update_customer.assert_not_called()
+        transaction.assert_not_called()
+        page = self.workflow.client.get(failed.headers["location"])
+        assert page.status_code == 200
+        assert payment_service.CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE in page.text
+        assert "Secure Payment is ready to open" not in page.text
+        assert "Retry Secure Payment" in page.text
 
     def test_state_routing_and_commercial_guard_handle_expected_expiry(self):
         fixture = self._active_demo()

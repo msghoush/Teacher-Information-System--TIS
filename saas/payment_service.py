@@ -51,7 +51,7 @@ CUSTOMER_SAFE_PAYMENT_CONFIG_MESSAGE = (
     "Secure payment is temporarily unavailable for this subscription option. Please contact TIS support."
 )
 CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE = (
-    "Secure payment is temporarily unavailable for this account. Please contact TIS support."
+    "We couldn’t prepare secure payment right now. Please try again or contact the TIS team."
 )
 
 logger = logging.getLogger(__name__)
@@ -75,15 +75,7 @@ class PaymentCustomerResolutionError(ValueError):
         self.reason_code = _clean_text(reason_code) or "customer_resolution_failed"
         self.exact_match_count = int(exact_match_count or 0)
         self.context_match_count = int(context_match_count or 0)
-        if _detailed_customer_resolution_errors_enabled():
-            message = (
-                f"{CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE} "
-                f"Diagnostic: {self.reason_code} "
-                f"(exact matches: {self.exact_match_count}, context matches: {self.context_match_count})."
-            )
-        else:
-            message = CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE
-        super().__init__(message)
+        super().__init__(CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE)
 
 
 def _utcnow():
@@ -277,6 +269,135 @@ def _persist_payment_customer_link(db: Session, *, organization, account, remote
     return row
 
 
+def _authoritative_existing_tenant_identity(
+    db: Session,
+    *,
+    organization,
+    account,
+    normalized_email: str,
+):
+    if int(getattr(organization, "owner_saas_account_id", 0) or 0) != int(
+        getattr(account, "id", 0) or 0
+    ):
+        return None
+    tenant_links = db.query(models.TenantProvisioningLink).filter(
+        models.TenantProvisioningLink.pending_organization_id == organization.id
+    ).all()
+    if len(tenant_links) != 1:
+        return None
+    tenant_link = tenant_links[0]
+    group = db.get(operational_models.SchoolGroup, tenant_link.school_group_id)
+    if group is None:
+        return None
+    if tenant_link.demo_request_id:
+        demo_request = db.get(
+            models.SaaSDemoRequest, tenant_link.demo_request_id
+        )
+        provisioning = db.query(
+            models.SaaSDemoWorkspaceProvisioning
+        ).filter(
+            models.SaaSDemoWorkspaceProvisioning.demo_request_id
+            == tenant_link.demo_request_id
+        ).one_or_none()
+        if (
+            demo_request is None
+            or provisioning is None
+            or int(demo_request.pending_organization_id)
+            != int(organization.id)
+            or int(demo_request.requester_saas_account_id)
+            != int(account.id)
+            or int(provisioning.school_group_id or 0) != int(group.id)
+            or int(provisioning.tenant_provisioning_link_id or 0)
+            != int(tenant_link.id)
+        ):
+            return None
+    identities = db.query(operational_models.User).filter(
+        or_(
+            func.lower(operational_models.User.email_normalized)
+            == normalized_email,
+            func.lower(operational_models.User.email) == normalized_email,
+        ),
+        operational_models.User.school_group_id == group.id,
+        operational_models.User.is_active.is_(True),
+    ).all()
+    if (
+        len(identities) != 1
+        or int(identities[0].id)
+        != int(tenant_link.owner_operational_user_id)
+    ):
+        return None
+    identity = identities[0]
+    account_links = db.query(models.SaaSAccountUserLink).filter(
+        models.SaaSAccountUserLink.saas_account_id == account.id
+    ).all()
+    if any(
+        int(link.school_group_id) != int(group.id)
+        or int(link.pending_organization_id or 0) != int(organization.id)
+        or int(link.operational_user_id) != int(identity.id)
+        for link in account_links
+    ):
+        return None
+    matching_link = next(
+        (
+            link
+            for link in account_links
+            if int(link.school_group_id) == int(group.id)
+            and int(link.pending_organization_id or 0) == int(organization.id)
+            and int(link.operational_user_id) == int(identity.id)
+        ),
+        None,
+    )
+    repaired = False
+    if matching_link is None:
+        stale_links = db.query(models.SaaSAccountUserLink).filter(
+            models.SaaSAccountUserLink.operational_user_id == identity.id
+        ).all()
+        if any(
+            int(link.school_group_id) != int(group.id)
+            or int(link.pending_organization_id or 0) != int(organization.id)
+            for link in stale_links
+        ):
+            return None
+        if len(stale_links) > 1:
+            return None
+        if stale_links:
+            stale_link = stale_links[0]
+            previous_account = db.get(
+                models.SaaSAccount, stale_link.saas_account_id
+            )
+            if previous_account is not None and _clean_text(
+                previous_account.status
+            ).lower() == "active":
+                return None
+            stale_link.saas_account_id = account.id
+            stale_link.updated_at = _utcnow()
+            matching_link = stale_link
+        else:
+            matching_link = models.SaaSAccountUserLink(
+                saas_account_id=account.id,
+                operational_user_id=identity.id,
+                pending_organization_id=organization.id,
+                school_group_id=group.id,
+                link_type="tenant_owner",
+                linked_at=_utcnow(),
+            )
+            db.add(matching_link)
+        db.flush()
+        repaired = True
+    context = {
+        "saas_account_id": int(account.id),
+        "pending_organization_id": int(organization.id),
+        "school_group_id": int(group.id),
+        "workspace_uuid": _clean_text(getattr(group, "workspace_uuid", "")),
+        "tenant_provisioning_link_id": int(tenant_link.id),
+        "operational_user_id": int(identity.id),
+        "saas_account_user_link_id": int(matching_link.id),
+        "relationship_repaired": repaired,
+    }
+    logger.info("authoritative_checkout_tenant_identity %s", _json(context))
+    return context
+
+
 def _sandbox_recovery_block_reason(db: Session, *, organization, account, remote_customer: dict) -> str | None:
     if not _sandbox_customer_recovery_enabled():
         return "sandbox_customer_recovery_disabled"
@@ -295,6 +416,7 @@ def _sandbox_recovery_block_reason(db: Session, *, organization, account, remote
     other_accounts = db.query(models.SaaSAccount.id).filter(
         models.SaaSAccount.id != account.id,
         func.lower(models.SaaSAccount.email_normalized) == normalized_email,
+        func.lower(models.SaaSAccount.status) == "active",
     ).count()
     if other_accounts:
         return "account_email_ownership_ambiguous"
@@ -309,16 +431,40 @@ def _sandbox_recovery_block_reason(db: Session, *, organization, account, remote
     if platform_identity:
         return "protected_platform_identity"
 
-    active_tenant_identity = db.query(operational_models.User.id).filter(
+    active_tenant_identities = db.query(operational_models.User).filter(
         or_(
             func.lower(operational_models.User.email_normalized) == normalized_email,
             func.lower(operational_models.User.email) == normalized_email,
         ),
         operational_models.User.school_group_id.is_not(None),
         operational_models.User.is_active.is_(True),
-    ).first()
-    if active_tenant_identity:
-        return "active_tenant_identity_exists"
+    ).all()
+    if active_tenant_identities:
+        authoritative_identity = _authoritative_existing_tenant_identity(
+            db,
+            organization=organization,
+            account=account,
+            normalized_email=normalized_email,
+        )
+        if authoritative_identity is None:
+            logger.warning(
+                "checkout_tenant_identity_mismatch %s",
+                _json(
+                    {
+                        "saas_account_id": int(account.id),
+                        "pending_organization_id": int(organization.id),
+                        "active_identity_count": len(active_tenant_identities),
+                        "active_identity_school_group_ids": sorted(
+                            {
+                                int(user.school_group_id)
+                                for user in active_tenant_identities
+                                if user.school_group_id
+                            }
+                        ),
+                    }
+                ),
+            )
+            return "active_tenant_identity_exists"
 
     provider_customer_id = _clean_text(remote_customer.get("id"))
     if db.query(models.PaymentCustomer.id).filter(
@@ -335,7 +481,8 @@ def _sandbox_recovery_block_reason(db: Session, *, organization, account, remote
     if not previous_account_uuid or not previous_organization_uuid:
         return "remote_customer_context_missing"
     if db.query(models.SaaSAccount.id).filter(
-        models.SaaSAccount.account_uuid == previous_account_uuid
+        models.SaaSAccount.account_uuid == previous_account_uuid,
+        func.lower(models.SaaSAccount.status) == "active",
     ).first():
         return "remote_customer_account_context_still_exists"
     if db.query(models.PendingOrganization.id).filter(

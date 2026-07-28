@@ -2706,8 +2706,20 @@ def checkout_summary_step(
     draft_lifecycle_service.record_meaningful_activity(
         db, account, organization=organization, source="checkout_summary_opened"
     )
+    safe_error = str(error or "")
+    if any(
+        marker in safe_error.lower()
+        for marker in ("diagnostic:", "exact matches", "context matches")
+    ):
+        logger.warning(
+            "Suppressed internal checkout diagnostic from customer response "
+            "account_id=%s organization_id=%s",
+            account.id,
+            organization.id,
+        )
+        safe_error = payment_service.CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE
     context.update({
-        "error": error,
+        "error": safe_error,
         "notice": notice,
         "setup_console": _payment_setup_console(
             db,
@@ -2718,6 +2730,17 @@ def checkout_summary_step(
             onboarding_summary=context.get("journey_card"),
         ),
     })
+    if safe_error:
+        context["notice"] = ""
+        context["setup_console"]["status_banner"] = (
+            payment_service.CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE
+        )
+        context["setup_console"]["primary_action"] = {
+            "label": "Retry Secure Payment",
+            "url": "",
+            "kind": "form",
+            "form_id": "checkout-launch-form",
+        }
     db.commit()
     return _render(request, "saas/checkout_summary.html", context)
 
@@ -2801,6 +2824,12 @@ def launch_checkout_step(
         return _redirect_error(
             f"/saas/onboarding/{organization_uuid}/checkout",
             payment_service.CUSTOMER_SAFE_PAYMENT_CONFIG_MESSAGE,
+        )
+    except payment_service.PaymentCustomerResolutionError:
+        db.rollback()
+        return _redirect_error(
+            f"/saas/onboarding/{organization_uuid}/checkout",
+            payment_service.CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE,
         )
     except (ValueError, paddle_client.PaddleAPIError) as exc:
         db.rollback()
