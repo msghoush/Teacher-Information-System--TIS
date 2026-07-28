@@ -18,7 +18,7 @@ from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import ai_feature_registry, billing_history_service, billing_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import ai_feature_registry, billing_history_service, billing_service, branch_pricing_quote_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 
 logger = logging.getLogger(__name__)
@@ -536,15 +536,33 @@ def _plan_context(db: Session, account, organization):
     payment_attempt = payment_service.get_current_payment_attempt(db, organization)
     payment_customer = payment_service.get_payment_customer(db, organization)
     payment_subscription = payment_service.get_payment_subscription(db, organization)
+    branch_count = service.count_billable_pending_branches(db, organization)
+    plan_catalog = pricing_service.build_plan_catalog(
+        db,
+        country_code=str(getattr(organization, "country_code", "") or ""),
+    )
+    plan_options = []
+    for plan_view in plan_catalog:
+        capacity = branch_pricing_quote_service.evaluate_plan_branch_capacity(
+            plan_view.plan, branch_count
+        )
+        plan_options.append({
+            "plan_view": plan_view,
+            "eligible": capacity.eligible,
+            "ineligible_reason": capacity.reason,
+            "branch_capacity": capacity.branch_capacity,
+            "active_branch_count": capacity.active_branch_count,
+        })
     return {
         "account": account,
         "organization": organization,
         "journey_card": summary,
-        "plan_catalog": pricing_service.build_plan_catalog(
-            db,
-            country_code=str(getattr(organization, "country_code", "") or ""),
+        "plan_catalog": plan_catalog,
+        "plan_options": plan_options,
+        "self_service_checkout_blocked": bool(plan_options) and not any(
+            option["eligible"] for option in plan_options
         ),
-        "billable_branch_count": service.count_billable_pending_branches(db, organization),
+        "billable_branch_count": branch_count,
         "current_plan_selection": checkout_summary["selection"] if checkout_summary else None,
         "checkout_summary": checkout_summary,
         "current_payment_attempt": payment_attempt,

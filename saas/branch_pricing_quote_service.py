@@ -16,6 +16,14 @@ class BillableBranch:
 
 
 @dataclass(frozen=True)
+class PlanBranchCapacity:
+    eligible: bool
+    reason: str
+    branch_capacity: int | None
+    active_branch_count: int
+
+
+@dataclass(frozen=True)
 class BranchPricingQuote:
     billing_interval: str
     currency_code: str
@@ -49,6 +57,45 @@ def normalize_branch_name(value: str) -> str:
 
 def _clean_branch_name(value: str) -> str:
     return " ".join(str(value or "").strip().split())
+
+
+def evaluate_plan_branch_capacity(plan, active_branch_count: int) -> PlanBranchCapacity:
+    quantity = max(int(active_branch_count or 0), 0)
+    raw_capacity = getattr(plan, "max_branches", None)
+    capacity = int(raw_capacity) if raw_capacity is not None else None
+    if capacity is None or capacity < 1:
+        return PlanBranchCapacity(
+            eligible=False,
+            reason="This subscription plan is not available for self-service checkout.",
+            branch_capacity=capacity,
+            active_branch_count=quantity,
+        )
+    if quantity > capacity:
+        reason = (
+            "Your organization requires a custom plan. Please contact the TIS team."
+            if str(getattr(plan, "plan_code", "") or "") == "enterprise_ai"
+            else f"This plan supports up to {capacity} active billable branch"
+            f"{'' if capacity == 1 else 'es'}."
+        )
+        return PlanBranchCapacity(
+            eligible=False,
+            reason=reason,
+            branch_capacity=capacity,
+            active_branch_count=quantity,
+        )
+    return PlanBranchCapacity(
+        eligible=True,
+        reason="",
+        branch_capacity=capacity,
+        active_branch_count=quantity,
+    )
+
+
+def require_plan_branch_capacity(plan, active_branch_count: int) -> PlanBranchCapacity:
+    capacity = evaluate_plan_branch_capacity(plan, active_branch_count)
+    if not capacity.eligible:
+        raise ValueError(capacity.reason)
+    return capacity
 
 
 def list_billable_branches(db: Session, organization) -> list:
@@ -173,6 +220,10 @@ def build_quote(
         for row in sorted(billable_rows, key=uuid_value)
     )
     quantity = len(branches)
+    if plan:
+        capacity = evaluate_plan_branch_capacity(plan, quantity)
+        if not capacity.eligible:
+            errors.append(capacity.reason)
     unit_amount_minor = int(getattr(price_row, "amount_minor", 0) or 0)
     total_amount_minor = unit_amount_minor * quantity
     display_currency = currency_service.resolve_display_currency(

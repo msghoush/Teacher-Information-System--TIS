@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Keep onboarding branch setup editable until authoritative payment, supersede prepared checkout lineage when branches change, and block stale provider events from activating an outdated quantity.
+summary: Enforce each subscription plan's authoritative active-branch capacity during selection, quoting, checkout, payment validation, and pre-payment branch changes while retaining per-branch pricing.
 affected_areas:
   - subscriptions
   - subscription-checkout
@@ -7,6 +7,7 @@ affected_areas:
   - billing-integrity
   - pre-payment-branch-editing
   - checkout-supersession
+  - plan-capacity-enforcement
 kms_files_updated:
   - docs/CHANGE_HISTORY.md
   - docs/engineering/REPOSITORY_ARCHITECTURE.md

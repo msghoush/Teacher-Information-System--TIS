@@ -19,7 +19,10 @@ import email_service
 import email_templates
 import public_url
 from saas import draft_lifecycle_service, models
-from saas.branch_pricing_quote_service import normalize_branch_name
+from saas.branch_pricing_quote_service import (
+    evaluate_plan_branch_capacity,
+    normalize_branch_name,
+)
 
 SAAS_SESSION_COOKIE = "tis_saas_session"
 SAAS_CSRF_COOKIE = "tis_saas_csrf"
@@ -1254,11 +1257,23 @@ def replace_branches(db: Session, organization, branch_rows: list[dict]):
             models.PendingOrganizationPlanSelection.selected_at.desc(),
             models.PendingOrganizationPlanSelection.id.desc(),
         ).first()
+        selected_plan_remains_eligible = True
         if selection:
+            selected_plan = db.get(models.SubscriptionPlan, selection.plan_id)
+            selected_plan_remains_eligible = bool(
+                selected_plan
+                and evaluate_plan_branch_capacity(
+                    selected_plan, len(cleaned_rows)
+                ).eligible
+            )
             selection.billable_branch_count = len(cleaned_rows)
             selection.quoted_base_amount_minor = None
             selection.quoted_display_amount_minor = None
             selection.quote_fingerprint = None
+            if not selected_plan_remains_eligible:
+                selection.selection_status = "superseded"
+                organization.selected_plan_id = None
+                organization.selected_billing_interval = None
         contract = db.query(models.SubscriptionContract).filter(
             models.SubscriptionContract.pending_organization_id == organization.id
         ).order_by(
@@ -1271,8 +1286,13 @@ def replace_branches(db: Session, organization, branch_rows: list[dict]):
             contract.quoted_display_amount_minor = None
             contract.quote_fingerprint = None
             contract.selected_checkout_session_id = None
-        if getattr(organization, "selected_plan_id", None) and str(getattr(organization, "payment_status", "") or "").lower() != "paid":
-            organization.billing_status = "plan_selected"
+        if str(getattr(organization, "payment_status", "") or "").lower() != "paid":
+            organization.billing_status = (
+                "plan_selected"
+                if getattr(organization, "selected_plan_id", None)
+                and selected_plan_remains_eligible
+                else "not_started"
+            )
     organization.onboarding_step = "academic_setup"
     organization.status = "in_progress"
     organization.draft_saved_at = _utcnow()

@@ -7,6 +7,24 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Initial Subscription Plan Capacity
+
+1. TIS counts the current organization's authoritative active billable
+   branches.
+2. Starter is eligible for one branch, Professional for up to five, and
+   Enterprise AI for up to twenty-five. Higher-capacity plans remain available
+   below their limits.
+3. Plan cards retain per-branch pricing and explain their branch and staff
+   limits. Ineligible plans are disabled; above twenty-five branches the
+   customer is directed to contact the TIS team for a custom plan.
+4. The server repeats the capacity decision during selection, quote creation,
+   checkout preparation and launch, and payment validation.
+5. If pre-payment editing makes the selected plan too small, TIS clears that
+   selection, supersedes its quote and checkout lineage, and requires a new
+   eligible plan. An eligible higher plan remains selected.
+6. After activation, branch-capacity changes continue through Subscription
+   Management.
+
 ## Fixed-Quantity Initial Checkout
 
 1. Before confirmed payment, customers may add, edit, remove, reorder, or

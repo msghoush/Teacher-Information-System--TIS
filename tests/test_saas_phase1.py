@@ -87,6 +87,27 @@ class SaaSPhase1Tests(unittest.TestCase):
         finally:
             db.close()
 
+    def _set_authoritative_pending_branch_count(self, db, organization, count: int):
+        rows = service.list_pending_branches(db, organization, include_inactive=True)
+        for index in range(count):
+            if index < len(rows):
+                row = rows[index]
+                row.branch_name = f"Capacity Campus {index + 1}"
+                row.sort_order = index
+                row.status = True
+            else:
+                db.add(saas.models.PendingOrganizationBranch(
+                    branch_uuid=f"90000000-0000-0000-0000-{organization.id:04d}{index:08d}",
+                    pending_organization_id=organization.id,
+                    branch_name=f"Capacity Campus {index + 1}",
+                    status=True,
+                    sort_order=index,
+                ))
+        for row in rows[count:]:
+            row.status = False
+        organization.expected_branch_count = count
+        db.flush()
+
     def _sign_paddle_payload(self, payload: dict) -> tuple[str, bytes]:
         raw_body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         timestamp = str(int(time.time()))
@@ -3272,8 +3293,8 @@ class SaaSPhase1Tests(unittest.TestCase):
                     initial_active = service.list_billable_pending_branches(db, organization)
                     initial_uuids = {row.branch_uuid for row in initial_active}
                     initial_fingerprint = None
-                    starter = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="starter").first()
-                    organization.selected_plan_id = starter.id
+                    enterprise = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="enterprise_ai").first()
+                    organization.selected_plan_id = enterprise.id
                     organization.selected_billing_interval = "monthly"
                     initial_fingerprint = branch_pricing_quote_service.build_quote(db, organization).fingerprint
 
@@ -3386,8 +3407,8 @@ class SaaSPhase1Tests(unittest.TestCase):
         db = self._db()
         try:
             organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
-            starter = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="starter").first()
-            billing_service.select_plan(db, organization, plan_id=starter.id, billing_interval="monthly")
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            billing_service.select_plan(db, organization, plan_id=professional.id, billing_interval="monthly")
             old_checkout = billing_service.create_or_update_checkout_session(db, organization)
             old_checkout.status = "started"
             old_checkout.checkout_url = (
@@ -3405,8 +3426,8 @@ class SaaSPhase1Tests(unittest.TestCase):
                 provider_price_id=old_checkout.provider_price_id,
                 currency_code="USD",
                 quantity=2,
-                unit_amount_minor=2900,
-                amount_minor=5800,
+                unit_amount_minor=7900,
+                amount_minor=15800,
                 billing_interval="monthly",
                 quote_fingerprint=old_checkout.quote_fingerprint,
             )
@@ -3496,6 +3517,241 @@ class SaaSPhase1Tests(unittest.TestCase):
             self.assertFalse(quote.is_ready)
             self.assertEqual(quote.quantity, 0)
             self.assertIn("Add at least one active branch", quote.errors[0])
+        finally:
+            db.close()
+
+    def test_plan_branch_capacity_matrix_blocks_selection_quote_checkout_and_paddle(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout(
+            "plan-capacity@academy.edu"
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            plans = {
+                row.plan_code: row
+                for row in db.query(saas.models.SubscriptionPlan).all()
+            }
+            expected = {
+                1: {"starter", "professional", "enterprise_ai"},
+                2: {"professional", "enterprise_ai"},
+                5: {"professional", "enterprise_ai"},
+                6: {"enterprise_ai"},
+                25: {"enterprise_ai"},
+                26: set(),
+            }
+            for count, eligible_codes in expected.items():
+                self._set_authoritative_pending_branch_count(
+                    db, organization, count
+                )
+                for plan_code, plan in plans.items():
+                    quote = branch_pricing_quote_service.build_quote(
+                        db,
+                        organization,
+                        plan_id=plan.id,
+                        billing_interval="monthly",
+                    )
+                    self.assertEqual(
+                        quote.is_ready,
+                        plan_code in eligible_codes,
+                        (count, plan_code, quote.errors),
+                    )
+                    if plan_code not in eligible_codes:
+                        with self.assertRaisesRegex(
+                            ValueError,
+                            "supports up to|custom plan",
+                        ):
+                            billing_service.select_plan(
+                                db,
+                                organization,
+                                plan_id=plan.id,
+                                billing_interval="monthly",
+                            )
+
+            self._set_authoritative_pending_branch_count(db, organization, 25)
+            billing_service.select_plan(
+                db,
+                organization,
+                plan_id=plans["enterprise_ai"].id,
+                billing_interval="monthly",
+            )
+            self._set_authoritative_pending_branch_count(db, organization, 26)
+            with self.assertRaisesRegex(ValueError, "custom plan"):
+                billing_service.create_or_update_checkout_session(db, organization)
+            db.commit()
+        finally:
+            db.close()
+
+        with patch("saas.paddle_client.create_transaction") as create_transaction:
+            response = self.client.post(
+                f"/saas/onboarding/{org_uuid}/checkout/launch",
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("custom+plan", response.headers["location"])
+        create_transaction.assert_not_called()
+
+        plan_page = self.client.get(
+            f"/saas/onboarding/{org_uuid}/plan"
+        )
+        self.assertIn(
+            "Your organization requires a custom plan. Please contact the TIS team.",
+            plan_page.text,
+        )
+        self.assertEqual(plan_page.text.count('data-plan-eligible="false"'), 3)
+        self.assertIn("Supports up to 1 branch", plan_page.text)
+        self.assertIn("Supports up to 5 branches", plan_page.text)
+        self.assertIn("Supports up to 25 branches", plan_page.text)
+        self.assertIn("Supports up to 25 staff users", plan_page.text)
+        self.assertIn("Supports up to 100 staff users", plan_page.text)
+        self.assertIn("Supports up to 500 staff users", plan_page.text)
+        self.assertIn("per branch", plan_page.text)
+
+    def test_branch_expansion_clears_only_an_undersized_selected_plan(self):
+        self._configure_paddle_prices()
+        scenarios = (
+            ("starter", 1, 2, False),
+            ("professional", 5, 6, False),
+            ("enterprise_ai", 1, 2, True),
+        )
+        for index, (plan_code, initial_count, final_count, remains_selected) in enumerate(
+            scenarios, start=1
+        ):
+            with self.subTest(plan_code=plan_code):
+                org_uuid = self._complete_pending_organization_to_ready_for_checkout(
+                    f"branch-capacity-change-{index}@academy.edu"
+                )
+                db = self._db()
+                try:
+                    organization = db.query(
+                        saas.models.PendingOrganization
+                    ).filter_by(organization_uuid=org_uuid).one()
+                    self._set_authoritative_pending_branch_count(
+                        db, organization, initial_count
+                    )
+                    plan = db.query(saas.models.SubscriptionPlan).filter_by(
+                        plan_code=plan_code
+                    ).one()
+                    selection = billing_service.select_plan(
+                        db,
+                        organization,
+                        plan_id=plan.id,
+                        billing_interval="monthly",
+                    )
+                    checkout = billing_service.create_or_update_checkout_session(
+                        db, organization
+                    )
+                    checkout.status = "started"
+                    attempt = saas.models.PaymentAttempt(
+                        pending_organization_id=organization.id,
+                        checkout_session_id=checkout.id,
+                        plan_selection_id=selection.id,
+                        provider="paddle",
+                        attempt_uuid=f"91000000-0000-0000-0000-{index:012d}",
+                        status="checkout_started",
+                        quantity=initial_count,
+                        amount_minor=int(selection.quoted_base_amount_minor or 0),
+                        unit_amount_minor=int(selection.base_amount_minor or 0),
+                        currency_code="USD",
+                        billing_interval="monthly",
+                        quote_fingerprint=selection.quote_fingerprint,
+                    )
+                    db.add(attempt)
+                    db.flush()
+                    rows = service.list_billable_pending_branches(db, organization)
+                    submitted = [
+                        {
+                            "branch_uuid": row.branch_uuid,
+                            "branch_name": row.branch_name,
+                            "location": row.location,
+                        }
+                        for row in rows
+                    ]
+                    submitted.extend(
+                        {
+                            "branch_name": f"Expanded Capacity Campus {position + 1}",
+                            "location": "Expansion",
+                        }
+                        for position in range(len(submitted), final_count)
+                    )
+                    service.replace_branches(db, organization, submitted)
+                    self.assertEqual(checkout.status, "stale")
+                    self.assertEqual(attempt.status, "superseded")
+                    self.assertEqual(
+                        organization.selected_plan_id == plan.id,
+                        remains_selected,
+                    )
+                    self.assertEqual(
+                        selection.selection_status == "selected",
+                        remains_selected,
+                    )
+                    if not remains_selected:
+                        self.assertIsNone(organization.selected_plan_id)
+                        self.assertEqual(organization.billing_status, "not_started")
+                finally:
+                    db.close()
+
+    def test_plan_cards_disable_only_plans_below_current_branch_count(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout(
+            "plan-capacity-ui@academy.edu"
+        )
+        for count, expected_eligible_count in ((2, 2), (6, 1)):
+            db = self._db()
+            try:
+                organization = db.query(
+                    saas.models.PendingOrganization
+                ).filter_by(organization_uuid=org_uuid).one()
+                self._set_authoritative_pending_branch_count(
+                    db, organization, count
+                )
+                db.commit()
+            finally:
+                db.close()
+            response = self.client.get(
+                f"/saas/onboarding/{org_uuid}/plan"
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                response.text.count('data-plan-eligible="true"'),
+                expected_eligible_count,
+            )
+            self.assertEqual(
+                response.text.count('data-plan-eligible="false"'),
+                3 - expected_eligible_count,
+            )
+
+    def test_unrelated_tenant_branch_count_does_not_affect_plan_eligibility(self):
+        self._configure_paddle_prices()
+        first_uuid = self._complete_pending_organization_to_ready_for_checkout(
+            "capacity-tenant-one@academy.edu"
+        )
+        second_uuid = self._complete_pending_organization_to_ready_for_checkout(
+            "capacity-tenant-two@academy.edu"
+        )
+        db = self._db()
+        try:
+            first = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=first_uuid
+            ).one()
+            second = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=second_uuid
+            ).one()
+            self._set_authoritative_pending_branch_count(db, first, 1)
+            self._set_authoritative_pending_branch_count(db, second, 26)
+            starter = db.query(saas.models.SubscriptionPlan).filter_by(
+                plan_code="starter"
+            ).one()
+            quote = branch_pricing_quote_service.build_quote(
+                db,
+                first,
+                plan_id=starter.id,
+                billing_interval="monthly",
+            )
+            self.assertTrue(quote.is_ready)
+            self.assertEqual(quote.quantity, 1)
         finally:
             db.close()
 
@@ -3618,8 +3874,8 @@ class SaaSPhase1Tests(unittest.TestCase):
         db = self._db()
         try:
             organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
-            starter = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="starter").first()
-            billing_service.select_plan(db, organization, plan_id=starter.id, billing_interval="monthly")
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+            billing_service.select_plan(db, organization, plan_id=professional.id, billing_interval="monthly")
             checkout = billing_service.create_or_update_checkout_session(db, organization)
             checkout.status = "started"
             checkout.checkout_url = "https://checkout.example.test/remove-stale"
@@ -3661,7 +3917,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         self._configure_paddle_prices()
         scenarios = (
             ("starter", "monthly", 1, 2900),
-            ("starter", "monthly", 3, 8700),
+            ("professional", "monthly", 3, 23700),
             ("enterprise_ai", "monthly", 3, 44700),
             ("enterprise_ai", "annual", 3, 447000),
         )
@@ -3891,8 +4147,8 @@ class SaaSPhase1Tests(unittest.TestCase):
                 db = self._db()
                 try:
                     organization = db.query(saas.models.PendingOrganization).filter_by(organization_uuid=org_uuid).first()
-                    starter = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="starter").first()
-                    billing_service.select_plan(db, organization, plan_id=starter.id, billing_interval="monthly")
+                    professional = db.query(saas.models.SubscriptionPlan).filter_by(plan_code="professional").first()
+                    billing_service.select_plan(db, organization, plan_id=professional.id, billing_interval="monthly")
                     db.commit()
                 finally:
                     db.close()
@@ -3935,7 +4191,7 @@ class SaaSPhase1Tests(unittest.TestCase):
 
                 actual_price = "pri_unexpected_price" if mismatch == "price" else expected_price
                 actual_quantity = expected_quantity + 1 if mismatch == "quantity" else expected_quantity
-                subtotal = 2900 * actual_quantity
+                subtotal = 7900 * actual_quantity
                 payload = {
                     "event_id": f"evt_reconcile_{index:02d}_123456789012345678901",
                     "event_type": "transaction.completed",
