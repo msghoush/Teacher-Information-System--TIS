@@ -7,6 +7,22 @@ source_of_truth: true
 
 # TIS Repository Architecture
 
+## Checkout Tenant-Identity Recovery Boundary
+
+`saas/payment_service.py` owns Paddle customer identity resolution. For an
+existing demo workspace, a stale `SaaSAccountUserLink` may be reassigned to the
+authenticated account only when organization ownership, demo request and
+provisioning source, the unique `TenantProvisioningLink`, SchoolGroup, exact
+operational owner, and email identity all agree. The current account must have
+no conflicting workspace link, and any previous linked account must be absent
+or inactive. Missing, unrelated, active-previous-owner, cross-workspace, or
+multiple identity evidence fails closed.
+
+This recovery does not select a Paddle customer by email in live mode, bypass
+provider confirmation, provision a tenant, or create another SchoolGroup.
+Internal match diagnostics are logged; customer routes receive only retry and
+support guidance.
+
 ## Returning Customer And Commercial-Access Boundary
 
 `saas/customer_journey_service.py` owns customer login destinations and the
