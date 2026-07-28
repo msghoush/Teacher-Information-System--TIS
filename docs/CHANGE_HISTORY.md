@@ -7,6 +7,20 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-07-28 - Fixed Paddle Checkout Branch Quantity
+
+Paddle’s default overlay checkout exposed quantity controls even though TIS had
+already calculated and confirmed the billable branch count. The payment
+transaction continues to receive the exact TIS quote quantity; the public
+launcher now uses Paddle’s supported inline one-page checkout so item-management
+controls are not presented. TIS remains the only branch-quantity mutation path.
+
+Created Paddle transaction evidence is checked against the authoritative
+provider price, branch quantity, and quoted subtotal before the customer may
+continue. A mismatch fails closed. The change does not hard-code quantity,
+alter pricing, change sandbox/live selection, replace webhook payment authority,
+or permit one organization to affect another organization’s quote.
+
 ## 2026-07-28 - Expired-Demo Checkout Identity Resolution
 
 Expired-demo Paddle checkout could find one active customer by email but reject

@@ -1,13 +1,15 @@
 knowledge_impact: yes
-summary: Correct expired-demo Paddle checkout identity resolution so one uniquely authoritative account, organization, tenant owner, and existing workspace can safely repair a stale account-user link while ambiguous or unrelated identities remain fail-closed.
+summary: Make the TIS-calculated billable branch quantity authoritative in Paddle checkout by sending the exact transaction quantity, validating the returned item/subtotal, and using supported inline checkout so customers cannot modify items.
 affected_areas:
   - subscriptions
-  - tenant-isolation
-  - payment-identity
-  - demo-to-paid-conversion
+  - subscription-checkout
+  - branch-quantity-authority
+  - billing-integrity
+  - paddle-inline-checkout
 kms_files_updated:
   - docs/CHANGE_HISTORY.md
   - docs/engineering/REPOSITORY_ARCHITECTURE.md
+  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
   - docs/history/subscriptions/README.md
 no_impact_reason:
 major_change_override: no

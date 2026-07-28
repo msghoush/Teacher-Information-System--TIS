@@ -7,6 +7,20 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Fixed-Quantity Initial Checkout
+
+1. TIS resolves the selected plan, billing interval, active billable branches,
+   unit price, and total for the current organization.
+2. The customer reviews those values in TIS.
+3. TIS creates one Paddle transaction item using the mapped provider price and
+   the exact authoritative branch quantity; quantity is never defaulted to one.
+4. Returned Paddle item quantity, price, and subtotal evidence must agree with
+   the TIS quote or checkout fails closed.
+5. The payment launcher opens that transaction using Paddle inline checkout,
+   which captures payment without presenting customer item/quantity controls.
+6. Later branch changes use the established TIS subscription-quantity workflow;
+   Paddle webhook confirmation remains payment authority.
+
 ## Returning Customer Login And Expired Demo Subscription
 
 1. SaaS login authenticates and resolves authoritative onboarding, demo,

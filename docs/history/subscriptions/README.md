@@ -6,6 +6,20 @@ last_updated: 2026-07-21
 
 # Subscription History
 
+## 2026-07-28 - Authoritative Fixed Branch Quantity In Paddle Checkout
+
+Initial checkout now keeps the TIS-calculated billable branch quantity fixed
+through payment. The server sends the exact organization quote quantity to the
+Paddle transaction and verifies returned item/subtotal evidence. The launcher
+uses Paddle inline one-page checkout rather than the editable overlay, so the
+customer reviews plan, interval, per-branch price, branch count, and total in
+TIS but cannot change transaction items in Paddle.
+
+Quantities of one, two, or more remain data-driven. Branch changes continue
+only through TIS branch and subscription-quantity workflows. Catalog price
+mapping, live/sandbox selection, provider confirmation, webhook handling,
+tenant isolation, and pricing authority are unchanged.
+
 ## 2026-07-28 - Expired-Demo Checkout Identity Repair
 
 Paddle sandbox recovery now recognizes the existing active tenant owner as
