@@ -124,6 +124,13 @@ def bill_transaction(*, transaction_id: str) -> dict:
     )
 
 
+def get_transaction(*, transaction_id: str) -> dict:
+    cleaned_transaction_id = str(transaction_id or "").strip()
+    if not cleaned_transaction_id.startswith("txn_"):
+        raise ValueError("Paddle transaction ID is required.")
+    return _request("GET", f"/transactions/{cleaned_transaction_id}")
+
+
 def _validate_ready_transaction(
     transaction: dict,
     *,

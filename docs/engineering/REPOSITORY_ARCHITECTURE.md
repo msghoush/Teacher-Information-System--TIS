@@ -24,6 +24,12 @@ item and quantity changes are rejected by Paddle. Automatic
 `transaction.completed` webhook evidence remains the recurring-subscription and
 conversion authority.
 
+Before rendering Paddle.js, the launcher requires exactly one local payment
+attempt and matching checkout session, organization, customer, quote, and
+provider transaction. Remote status must be `billed` with automatic collection;
+draft, ready, canceled, past-due, unrelated, or mismatched transactions fail
+closed with a customer-safe message.
+
 ## Checkout Tenant-Identity Recovery Boundary
 
 `saas/payment_service.py` owns Paddle customer identity resolution. For an

@@ -20,6 +20,10 @@ Billed transaction items cannot be changed. The same catalog price remains
 usable with organization-specific quantities; no price mutation or
 quantity-specific price is created. Automatically collected payment completion
 remains the recurring-subscription, webhook, and demo-conversion authority.
+The public payment launcher now explicitly treats `billed` as the only valid
+remote launch state and verifies the local attempt, checkout, customer, and
+quote context before supplying `transactionId` to Paddle.js. Invalid states
+fail closed without exposing provider diagnostics.
 
 ## 2026-07-28 - Expired-Demo Checkout Identity Resolution
 

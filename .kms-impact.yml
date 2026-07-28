@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Lock the server-created Paddle transaction before checkout so the TIS-calculated branch quantity remains immutable while automatic payment and recurring subscription confirmation retain their existing authority.
+summary: Lock the server-created Paddle transaction before checkout and require the public launcher to accept only the uniquely attributable billed transaction while rejecting draft, invalid, or mismatched provider state.
 affected_areas:
   - subscriptions
   - subscription-checkout

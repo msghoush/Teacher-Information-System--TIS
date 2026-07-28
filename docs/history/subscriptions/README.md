@@ -20,6 +20,12 @@ price is mutated and no quantity-specific price is created. Automatic payment
 completion remains the recurring-subscription, webhook, and conversion
 authority.
 
+The public launcher accepts only the unique locally attributable transaction
+after Paddle confirms `billed` and automatic collection. It rejects draft,
+ready, canceled, past-due, unrelated, and mismatched transactions, while retry
+clicks reuse the existing started checkout rather than creating another
+transaction.
+
 ## 2026-07-28 - Expired-Demo Checkout Identity Repair
 
 Paddle sandbox recovery now recognizes the existing active tenant owner as
