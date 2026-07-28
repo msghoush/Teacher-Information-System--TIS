@@ -912,6 +912,9 @@ def launch_checkout(db: Session, organization, account, request: Request):
         customer_id=payment_customer.provider_customer_id,
         price_id=quote.provider_price_id,
         quantity=quote.quantity,
+        country_code=_clean_text(getattr(organization, "country_code", "")).upper(),
+        expected_subtotal=quote.total_amount_minor,
+        quote_fingerprint=quote.fingerprint,
         custom_data={
             "pending_organization_uuid": organization.organization_uuid,
             "payment_attempt_uuid": attempt.attempt_uuid,

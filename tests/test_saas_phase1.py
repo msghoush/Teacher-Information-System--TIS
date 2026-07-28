@@ -1941,18 +1941,50 @@ class SaaSPhase1Tests(unittest.TestCase):
             with self.subTest(quantity=quantity):
                 with patch(
                     "saas.paddle_client._request",
-                    return_value={"id": f"txn_quantity_{quantity}"},
+                    side_effect=[
+                        {"id": f"add_quantity_{quantity}"},
+                        {
+                            "id": f"txn_quantity_{quantity}",
+                            "status": "ready",
+                            "items": [{
+                                "price": {"id": "pri_quantity"},
+                                "quantity": quantity,
+                            }],
+                            "details": {"totals": {"subtotal": str(quantity * 100)}},
+                            "custom_data": {"quote_fingerprint": f"quote-{quantity}"},
+                        },
+                        {
+                            "id": f"txn_quantity_{quantity}",
+                            "status": "billed",
+                            "items": [{
+                                "price": {"id": "pri_quantity"},
+                                "quantity": quantity,
+                            }],
+                        },
+                    ],
                 ) as request_call:
                     paddle_client.create_transaction(
                         customer_id=f"ctm_org_{quantity}",
                         price_id="pri_quantity",
                         quantity=quantity,
+                        country_code="SA",
+                        expected_subtotal=quantity * 100,
+                        quote_fingerprint=f"quote-{quantity}",
                         custom_data={"organization": f"org-{quantity}"},
                     )
-                payload = request_call.call_args.args[2]
+                payload = request_call.call_args_list[1].args[2]
                 self.assertEqual(
                     payload["items"],
                     [{"price_id": "pri_quantity", "quantity": quantity}],
+                )
+                self.assertEqual(payload["address_id"], f"add_quantity_{quantity}")
+                self.assertEqual(
+                    request_call.call_args_list[2].args,
+                    (
+                        "PATCH",
+                        f"/transactions/txn_quantity_{quantity}",
+                        {"status": "billed"},
+                    ),
                 )
                 captured_quantities.append(
                     (
@@ -3579,10 +3611,101 @@ class SaaSPhase1Tests(unittest.TestCase):
         with self.assertRaises(TypeError):
             paddle_client.create_transaction(customer_id="ctm_test", price_id="pri_test")
         with self.assertRaisesRegex(ValueError, "positive integer"):
-            paddle_client.create_transaction(customer_id="ctm_test", price_id="pri_test", quantity=0)
-        with patch("saas.paddle_client._request", return_value={"id": "txn_test"}) as request_call:
-            paddle_client.create_transaction(customer_id="ctm_test", price_id="pri_test", quantity=3)
-        self.assertEqual(request_call.call_args.args[2]["items"], [{"price_id": "pri_test", "quantity": 3}])
+            paddle_client.create_transaction(
+                customer_id="ctm_test",
+                price_id="pri_test",
+                quantity=0,
+                country_code="SA",
+                expected_subtotal=0,
+                quote_fingerprint="quote-test",
+            )
+        with patch("saas.paddle_client._request", side_effect=[
+            {"id": "add_test"},
+            {
+                "id": "txn_test",
+                "status": "ready",
+                "items": [{"price": {"id": "pri_test"}, "quantity": 3}],
+                "details": {"totals": {"subtotal": "300"}},
+                "custom_data": {"quote_fingerprint": "quote-test"},
+            },
+            {
+                "id": "txn_test",
+                "status": "billed",
+                "items": [{
+                    "price": {"id": "pri_test"},
+                    "quantity": 3,
+                }],
+            },
+        ]) as request_call:
+            paddle_client.create_transaction(
+                customer_id="ctm_test",
+                price_id="pri_test",
+                quantity=3,
+                country_code="SA",
+                expected_subtotal=300,
+                quote_fingerprint="quote-test",
+            )
+        self.assertEqual(
+            request_call.call_args_list[1].args[2]["items"],
+            [{"price_id": "pri_test", "quantity": 3}],
+        )
+
+    def test_paddle_transaction_fails_closed_before_billing_when_not_ready(self):
+        with patch("saas.paddle_client._request", side_effect=[
+            {"id": "add_test"},
+            {"id": "txn_not_ready", "status": "draft"},
+        ]) as request_call:
+            with self.assertRaisesRegex(
+                paddle_client.PaddleAPIError,
+                "did not reach ready state",
+            ):
+                paddle_client.create_transaction(
+                    customer_id="ctm_test",
+                    price_id="pri_test",
+                    quantity=3,
+                    country_code="SA",
+                    expected_subtotal=300,
+                    quote_fingerprint="quote-test",
+                )
+        self.assertEqual(request_call.call_count, 2)
+
+    def test_paddle_transaction_fails_closed_when_quote_validation_or_billing_fails(self):
+        ready_transaction = {
+            "id": "txn_lock_test",
+            "status": "ready",
+            "items": [{"price": {"id": "pri_test"}, "quantity": 3}],
+            "details": {"totals": {"subtotal": "300"}},
+            "custom_data": {"quote_fingerprint": "quote-test"},
+        }
+        with patch("saas.paddle_client._request", side_effect=[
+            {"id": "add_test"},
+            {**ready_transaction, "details": {"totals": {"subtotal": "299"}}},
+        ]) as request_call:
+            with self.assertRaisesRegex(paddle_client.PaddleAPIError, "subtotal"):
+                paddle_client.create_transaction(
+                    customer_id="ctm_test",
+                    price_id="pri_test",
+                    quantity=3,
+                    country_code="SA",
+                    expected_subtotal=300,
+                    quote_fingerprint="quote-test",
+                )
+        self.assertEqual(request_call.call_count, 2)
+
+        with patch("saas.paddle_client._request", side_effect=[
+            {"id": "add_test"},
+            ready_transaction,
+            {"id": "txn_lock_test", "status": "ready"},
+        ]):
+            with self.assertRaisesRegex(paddle_client.PaddleAPIError, "not locked"):
+                paddle_client.create_transaction(
+                    customer_id="ctm_test",
+                    price_id="pri_test",
+                    quantity=3,
+                    country_code="SA",
+                    expected_subtotal=300,
+                    quote_fingerprint="quote-test",
+                )
 
     def test_paddle_customer_update_uses_documented_patch_endpoint(self):
         custom_data = {

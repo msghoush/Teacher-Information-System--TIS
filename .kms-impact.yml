@@ -1,11 +1,11 @@
 knowledge_impact: yes
-summary: Make the TIS-calculated billable branch quantity authoritative in Paddle checkout by sending the exact transaction quantity, validating the returned item/subtotal, and using supported inline checkout so customers cannot modify items.
+summary: Lock the server-created Paddle transaction before checkout so the TIS-calculated branch quantity remains immutable while automatic payment and recurring subscription confirmation retain their existing authority.
 affected_areas:
   - subscriptions
   - subscription-checkout
   - branch-quantity-authority
   - billing-integrity
-  - paddle-inline-checkout
+  - paddle-immutable-transaction-checkout
 kms_files_updated:
   - docs/CHANGE_HISTORY.md
   - docs/engineering/REPOSITORY_ARCHITECTURE.md

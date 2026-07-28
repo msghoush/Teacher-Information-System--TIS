@@ -99,11 +99,71 @@ def update_customer(*, customer_id: str, custom_data: dict) -> dict:
     )
 
 
+def create_customer_address(*, customer_id: str, country_code: str) -> dict:
+    cleaned_customer_id = str(customer_id or "").strip()
+    cleaned_country_code = str(country_code or "").strip().upper()
+    if not cleaned_customer_id.startswith("ctm_"):
+        raise ValueError("Paddle customer ID is required.")
+    if len(cleaned_country_code) != 2 or not cleaned_country_code.isalpha():
+        raise ValueError("A two-letter country code is required for Paddle checkout.")
+    return _request(
+        "POST",
+        f"/customers/{cleaned_customer_id}/addresses",
+        {"country_code": cleaned_country_code},
+    )
+
+
+def bill_transaction(*, transaction_id: str) -> dict:
+    cleaned_transaction_id = str(transaction_id or "").strip()
+    if not cleaned_transaction_id.startswith("txn_"):
+        raise ValueError("Paddle transaction ID is required.")
+    return _request(
+        "PATCH",
+        f"/transactions/{cleaned_transaction_id}",
+        {"status": "billed"},
+    )
+
+
+def _validate_ready_transaction(
+    transaction: dict,
+    *,
+    price_id: str,
+    quantity: int,
+    expected_subtotal: int,
+    quote_fingerprint: str,
+) -> None:
+    items = transaction.get("items")
+    matching_items = [
+        item
+        for item in items
+        if isinstance(item, dict)
+        and str((item.get("price") or {}).get("id") or "").strip() == str(price_id or "").strip()
+    ] if isinstance(items, list) else []
+    if (
+        len(matching_items) != 1
+        or int(matching_items[0].get("quantity") or 0) != quantity
+    ):
+        raise PaddleAPIError("Paddle transaction items do not match the authoritative TIS quote.")
+    totals = (transaction.get("details") or {}).get("totals") or {}
+    try:
+        subtotal = int(totals.get("subtotal"))
+    except (TypeError, ValueError) as exc:
+        raise PaddleAPIError("Paddle did not return a transaction subtotal.") from exc
+    if subtotal != expected_subtotal:
+        raise PaddleAPIError("Paddle transaction subtotal does not match the authoritative TIS quote.")
+    custom_data = transaction.get("custom_data") or {}
+    if str(custom_data.get("quote_fingerprint") or "").strip() != quote_fingerprint:
+        raise PaddleAPIError("Paddle transaction quote fingerprint does not match TIS.")
+
+
 def create_transaction(
     *,
     customer_id: str,
     price_id: str,
     quantity: int,
+    country_code: str,
+    expected_subtotal: int,
+    quote_fingerprint: str,
     custom_data: dict | None = None,
     checkout_url: str | None = None,
 ) -> dict:
@@ -113,14 +173,41 @@ def create_transaction(
         raise ValueError("Paddle transaction quantity must be a positive integer.") from exc
     if validated_quantity < 1:
         raise ValueError("Paddle transaction quantity must be a positive integer.")
+    address = create_customer_address(
+        customer_id=customer_id,
+        country_code=country_code,
+    )
+    address_id = str(address.get("id") or "").strip()
+    if not address_id.startswith("add_"):
+        raise PaddleAPIError("Paddle did not create the checkout address.")
+    normalized_custom_data = dict(custom_data or {})
+    normalized_custom_data["quote_fingerprint"] = str(quote_fingerprint or "").strip()
     payload = {
         "customer_id": customer_id,
+        "address_id": address_id,
         "items": [{"price_id": price_id, "quantity": validated_quantity}],
         "collection_mode": "automatic",
-        "custom_data": custom_data or {},
+        "custom_data": normalized_custom_data,
         "checkout": {"url": checkout_url or None},
     }
-    return _request("POST", "/transactions", payload)
+    transaction = _request("POST", "/transactions", payload)
+    transaction_id = str(transaction.get("id") or "").strip()
+    if not transaction_id.startswith("txn_") or str(transaction.get("status") or "").strip() != "ready":
+        raise PaddleAPIError("Paddle transaction did not reach ready state.")
+    _validate_ready_transaction(
+        transaction,
+        price_id=price_id,
+        quantity=validated_quantity,
+        expected_subtotal=int(expected_subtotal),
+        quote_fingerprint=str(quote_fingerprint or "").strip(),
+    )
+    billed_transaction = bill_transaction(transaction_id=transaction_id)
+    if (
+        str(billed_transaction.get("id") or "").strip() != transaction_id
+        or str(billed_transaction.get("status") or "").strip() != "billed"
+    ):
+        raise PaddleAPIError("Paddle transaction was not locked before checkout.")
+    return billed_transaction
 
 
 def list_transactions(*, subscription_id: str) -> list[dict]:

@@ -11,18 +11,18 @@ source_of_truth: true
 
 `saas/branch_pricing_quote_service.py` supplies the authoritative billable
 branch quantity and total to `saas/payment_service.py`. The payment service
-sends that exact quantity with the selected catalog price when creating the
-Paddle transaction and validates returned item quantity, provider price, and
-subtotal evidence when Paddle supplies it. Any mismatch fails closed before
-checkout is presented.
+sends that exact quantity with the selected catalog price and resolved customer
+address when creating an automatically collected Paddle transaction. The
+transaction must reach `ready`; returned item quantity, provider price,
+subtotal, and quote fingerprint are validated before TIS marks it `billed`.
+Only the resulting immutable transaction is released to checkout.
 
 The public `/saas/payment` launcher opens the pre-created transaction with
-Paddle’s inline one-page checkout settings. Inline payment capture does not
-present overlay item-management controls; plan, interval, unit price, billable
-branches, and calculated total remain reviewed in TIS. Branch quantity changes
-belong only to the existing TIS branch/subscription quantity workflow. No CSS
-control hiding, fixed quantity of one, provider-environment change, or webhook
-authority change is used.
+Paddle’s inline one-page checkout settings and `transactionId`; it never passes
+an editable items array. The billed transaction is a fixed financial record, so
+item and quantity changes are rejected by Paddle. Automatic
+`transaction.completed` webhook evidence remains the recurring-subscription and
+conversion authority.
 
 ## Checkout Tenant-Identity Recovery Boundary
 
