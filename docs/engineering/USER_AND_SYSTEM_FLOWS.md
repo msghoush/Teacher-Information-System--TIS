@@ -147,9 +147,13 @@ Flow:
 3. Visitor reaches SaaS signup at `/saas/signup?intent=demo` or `/saas/signup?intent=subscribe`.
 4. SaaS account is created.
 5. Email verification is completed when required.
-6. User signs into SaaS account through `/saas/login`.
-7. User enters `/saas/account`.
-8. User completes organization onboarding:
+6. Email verification redirects by HTTP 302 to the GET `/saas/login` page.
+   Its form submits credentials by POST to `/saas/auth/login`.
+7. A fresh verified account with no organization enters the GET
+   `/saas/account` dashboard. A supplied continuation is used only when it is a
+   known customer GET destination; POST-only, malformed, traversal, and
+   external values fall back to Account Setup.
+8. The user invokes the existing POST start action and completes organization onboarding:
    - organization details,
    - contacts,
    - branches,

@@ -7,9 +7,10 @@ from datetime import datetime, timezone
 import json
 import logging
 import os
+import re
 import uuid
 from zoneinfo import ZoneInfo
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlsplit
 
 import auth
 import audit
@@ -110,9 +111,50 @@ templates.env.globals["customer_status_label"] = _display_label
 templates.env.globals["sign_in_method_label"] = _sign_in_method_label
 
 
+SAFE_LOGIN_CONTINUATION_PATHS = {
+    "/saas/account",
+    "/saas/account/billing",
+    "/saas/account/profile",
+    "/saas/account/security",
+    "/saas/account/sessions",
+    "/saas/expired-access",
+    "/saas/onboarding",
+    "/saas/plans",
+    "/saas/subscription",
+    "/saas/subscription/branches",
+    "/saas/subscription/cancel",
+}
+SAFE_LOGIN_CONTINUATION_PATTERNS = (
+    re.compile(r"^/saas/demo-requests/[^/]+$"),
+    re.compile(
+        r"^/saas/onboarding/[^/]+/"
+        r"(resume|organization|branches|academic_setup|contacts|review|"
+        r"commercial-choice|plan|checkout|billing-status)$"
+    ),
+)
+
+
 def _safe_next(next_path: str | None) -> str:
     cleaned = str(next_path or "").strip()
-    return cleaned if cleaned.startswith("/saas") else "/saas/account"
+    if not cleaned or "\\" in cleaned:
+        return "/saas/account"
+    parsed = urlsplit(cleaned)
+    path = parsed.path
+    if (
+        parsed.scheme
+        or parsed.netloc
+        or parsed.fragment
+        or not path.startswith("/saas")
+        or "//" in path
+        or ".." in path.split("/")
+    ):
+        return "/saas/account"
+    if path in SAFE_LOGIN_CONTINUATION_PATHS or any(
+        pattern.fullmatch(path)
+        for pattern in SAFE_LOGIN_CONTINUATION_PATTERNS
+    ):
+        return cleaned
+    return "/saas/account"
 
 
 def _test_deletion_log_context(current_user, organization, *, deletion_mode: str) -> dict[str, object]:
@@ -729,6 +771,20 @@ def login_page(
             "microsoft_enabled": oauth.is_provider_configured("microsoft"),
         },
     )
+
+
+@router.get("/auth/login")
+def login_get_redirect(
+    email: str = Query(""),
+    next_path: str = Query(""),
+):
+    query_parts = []
+    if email:
+        query_parts.append("email=" + quote_plus(str(email or "")))
+    if next_path:
+        query_parts.append("next_path=" + quote_plus(_safe_next(next_path)))
+    suffix = "?" + "&".join(query_parts) if query_parts else ""
+    return RedirectResponse("/saas/login" + suffix, status_code=302)
 
 
 @router.get("/auth/forgot-password", response_class=HTMLResponse)

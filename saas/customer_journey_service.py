@@ -128,7 +128,7 @@ def login_destination(db: Session, account) -> str:
             ):
                 return "/login"
             return "/saas/expired-access?kind=subscription"
-        return "/saas/onboarding/start"
+        return "/saas/account"
     demo_request = demo_request_service.get_latest_for_organization(db, organization)
     provisioning = demo_provisioning_service.get_provisioning_for_request(
         db, demo_request

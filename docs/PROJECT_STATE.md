@@ -7,6 +7,17 @@ source_of_truth: true
 
 # TIS Project State
 
+## Post-Verification Login Correction
+
+Fixed the fresh-account login destination that previously redirected a
+successful POST login to the POST-only `/saas/onboarding/start` action. The
+browser followed that 302 with GET and received raw HTTP 405 JSON. Fresh
+verified accounts now open `/saas/account`; onboarding creation remains behind
+the existing explicit POST action. Continuations are restricted to known GET
+destinations, and accidental GET navigation to `/saas/auth/login` redirects to
+the normal sign-in page. Verification, password authentication, subscription
+intent, preferred-plan behavior, and onboarding business rules are unchanged.
+
 ## Public Subscription Journey
 
 The Next.js hero Subscribe Now CTA now scrolls to the stable pricing section.

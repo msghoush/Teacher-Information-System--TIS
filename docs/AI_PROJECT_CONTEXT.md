@@ -7,6 +7,17 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Post-Verification Sign-In Safety
+
+Successful email verification redirects by HTTP 302 to the GET
+`/saas/login` page. The form submits by POST to `/saas/auth/login`. A newly
+verified account with no School Workspace Setup record continues to the GET
+`/saas/account` dashboard, where the existing explicit start action may create
+the setup record by POST. Login continuations accept only known customer GET
+destinations; POST-only, malformed, traversal, and external targets fall back
+to Account Setup. A defensive GET request to `/saas/auth/login` redirects to
+the normal sign-in page instead of exposing FastAPI's raw 405 response.
+
 ## Public Subscription Entry
 
 The landing hero Subscribe Now action scrolls to the public pricing section.
