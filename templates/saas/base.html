@@ -784,6 +784,563 @@
             .organization-logo-preview { align-items: flex-start; }
             .organization-logo-preview-frame { width: 112px; height: 72px; }
         }
+
+        /* Shared TIS Account and onboarding presentation */
+        h1 {
+            font-size: clamp(28px, 2.35vw, 36px);
+            line-height: 1.16;
+            letter-spacing: 0;
+        }
+        h2, h3 { letter-spacing: 0; }
+        .shell {
+            width: min(1320px, calc(100% - 40px));
+            padding: 18px 0 44px;
+        }
+        .hero {
+            min-height: 64px;
+            margin-bottom: 16px;
+            border-radius: 16px;
+            padding: 9px 13px;
+        }
+        .brand-symbol {
+            width: clamp(126px, 13vw, 170px);
+            max-height: 46px;
+        }
+        .brand-symbol-compact {
+            width: clamp(118px, 11vw, 148px);
+        }
+        .hero .actions {
+            gap: 7px;
+            margin: 0;
+        }
+        .hero .btn {
+            min-height: 38px;
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 13px;
+            box-shadow: none;
+        }
+        .card {
+            border-radius: 18px;
+            padding: clamp(18px, 2.2vw, 28px);
+            box-shadow: 0 18px 48px rgba(16, 35, 63, .08);
+        }
+        .page-header {
+            margin-bottom: 16px;
+            padding-bottom: 14px;
+        }
+        .page-eyebrow {
+            margin-bottom: 7px;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 10px;
+        }
+        .page-subtitle {
+            max-width: 720px;
+            line-height: 1.5;
+        }
+        .btn {
+            min-height: 42px;
+            border-radius: 10px;
+            padding: 10px 16px;
+        }
+        .btn:focus-visible,
+        a:focus-visible,
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 3px solid rgba(56, 189, 248, .35);
+            outline-offset: 2px;
+        }
+        .btn:disabled {
+            cursor: not-allowed;
+            opacity: .55;
+            transform: none;
+            box-shadow: none;
+        }
+        .notice, .warning, .error, .success, .alert {
+            border-radius: 12px;
+            padding: 12px 14px;
+        }
+        .alert-title {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 14px;
+            font-weight: 900;
+        }
+        .validation-list {
+            display: grid;
+            gap: 7px;
+            margin: 9px 0 0;
+            padding-left: 19px;
+        }
+        .validation-list li {
+            padding-left: 2px;
+            font-weight: 750;
+        }
+        .setup-console {
+            gap: 12px;
+        }
+        .setup-console-head {
+            display: block;
+            margin-bottom: 12px;
+        }
+        .setup-title-panel {
+            border-radius: 16px;
+            padding: 17px 20px;
+            box-shadow: 0 10px 28px rgba(16, 35, 63, .045);
+        }
+        .setup-title-panel h1 {
+            max-width: 760px;
+            margin-bottom: 6px;
+            font-size: clamp(27px, 2.2vw, 34px);
+        }
+        .setup-console.is-compact-start .setup-title-panel {
+            padding: 20px 22px;
+        }
+        .setup-status {
+            display: inline-flex;
+            margin-top: 11px;
+            margin-bottom: 0;
+            border-radius: 9px;
+            padding: 8px 11px;
+            font-size: 12px;
+        }
+        .setup-workspace-brand {
+            max-width: 520px;
+            margin-top: 12px;
+            padding-top: 12px;
+        }
+        .setup-workspace-logo {
+            width: 76px;
+            height: 48px;
+        }
+        .setup-journey {
+            border-radius: 16px;
+            padding: 11px 13px;
+            box-shadow: 0 10px 28px rgba(16, 35, 63, .045);
+        }
+        .setup-edit-nav {
+            margin-top: 11px;
+            padding-top: 10px;
+        }
+        .setup-edit-step {
+            min-height: 38px;
+            border-radius: 9px;
+            padding: 7px 8px;
+            font-size: 11px;
+        }
+        .wizard-form {
+            gap: 14px;
+        }
+        .wizard-section {
+            border-radius: 15px;
+            padding: 18px 20px;
+            box-shadow: 0 8px 24px rgba(16, 35, 63, .04);
+        }
+        .wizard-section-header {
+            margin-bottom: 13px;
+        }
+        .wizard-section-header strong {
+            font-size: 17px;
+        }
+        .wizard-section-header p {
+            max-width: 760px;
+            line-height: 1.5;
+        }
+        .wizard-grid {
+            gap: 11px 14px;
+        }
+        .logo-upload-panel {
+            display: grid;
+            grid-template-columns: minmax(280px, .85fr) minmax(320px, 1.15fr);
+            align-items: center;
+            gap: 18px;
+            border-radius: 14px;
+            padding: 16px;
+        }
+        .organization-logo-preview {
+            margin: 0;
+        }
+        .logo-upload-control {
+            min-width: 0;
+            border-left: 1px solid var(--line);
+            padding-left: 18px;
+        }
+        .logo-upload-control p:last-child {
+            margin-bottom: 0;
+        }
+        label {
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        input:not([type="checkbox"]):not([type="radio"]),
+        select,
+        textarea {
+            min-height: 43px;
+            margin-bottom: 11px;
+            border-radius: 10px;
+            padding: 10px 12px;
+        }
+        small, .field-help {
+            display: block;
+            color: var(--muted);
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        .onboarding-action-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            border: 1px solid rgba(184, 203, 224, .8);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, .94);
+            padding: 12px 14px;
+            box-shadow: 0 12px 30px rgba(16, 35, 63, .06);
+        }
+        .onboarding-action-group {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 9px;
+        }
+        .onboarding-action-bar .btn {
+            margin: 0;
+        }
+        .onboarding-action-bar.is-primary-only {
+            justify-content: flex-end;
+        }
+        .capacity-summary,
+        .setup-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .capacity-summary {
+            margin-bottom: 14px;
+        }
+        .summary-metric {
+            min-width: 0;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: linear-gradient(180deg, #fff, #f7fbff);
+            padding: 13px 14px;
+        }
+        .summary-metric span,
+        .summary-metric strong {
+            display: block;
+        }
+        .summary-metric span {
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 850;
+        }
+        .summary-metric strong {
+            margin-top: 4px;
+            color: var(--brand-dark);
+            font-size: 24px;
+            line-height: 1.15;
+        }
+        .branch-panel {
+            border-radius: 14px;
+            padding: 15px 16px;
+            box-shadow: 0 7px 20px rgba(16, 35, 63, .035);
+        }
+        .branch-panel-header {
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .branch-panel-section {
+            border-top: 1px solid #e6edf5;
+            padding-top: 12px;
+        }
+        .branch-panel-section + .branch-panel-section {
+            margin-top: 2px;
+        }
+        .branch-panel-section-title {
+            display: block;
+            margin-bottom: 9px;
+            color: #31506f;
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+        .branch-identity-grid {
+            display: grid;
+            grid-template-columns: minmax(220px, 1.3fr) minmax(200px, 1fr);
+            gap: 12px;
+        }
+        .branch-location-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px 12px;
+        }
+        .branch-capacity-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .branch-move,
+        .branch-remove {
+            min-height: 34px;
+            padding: 7px 9px;
+            font-size: 11px;
+        }
+        .review-grid {
+            gap: 12px;
+        }
+        .review-card {
+            border-radius: 13px;
+            padding: 15px;
+        }
+        .review-card p {
+            line-height: 1.5;
+        }
+        .review-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 9px;
+        }
+        .review-card-header strong {
+            margin: 0;
+        }
+        .review-edit-link {
+            font-size: 12px;
+            font-weight: 900;
+            text-decoration: none;
+        }
+        .plan-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .plan-card {
+            position: relative;
+            display: flex;
+            min-width: 0;
+            flex-direction: column;
+            border: 1px solid var(--line);
+            border-radius: 15px;
+            background: #fff;
+            padding: 18px;
+            transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+        }
+        .plan-card:hover {
+            border-color: #9fc2e6;
+            box-shadow: 0 16px 34px rgba(16, 35, 63, .09);
+            transform: translateY(-2px);
+        }
+        .plan-card.is-recommended {
+            border-color: rgba(10, 78, 163, .48);
+            box-shadow: inset 0 4px 0 var(--brand), 0 13px 32px rgba(10, 78, 163, .1);
+        }
+        .plan-card.is-unavailable {
+            background: #f8fafc;
+        }
+        .plan-card-badge {
+            align-self: flex-start;
+            margin-bottom: 9px;
+            border-radius: 999px;
+            background: #eaf3ff;
+            color: var(--brand-dark);
+            padding: 5px 8px;
+            font-size: 10px;
+            font-weight: 900;
+        }
+        .plan-card h3 {
+            margin-bottom: 11px;
+            color: var(--ink);
+            font-size: 19px;
+        }
+        .plan-price {
+            margin-bottom: 4px;
+            color: var(--brand-dark);
+            font-size: 25px;
+            font-weight: 900;
+            line-height: 1.15;
+        }
+        .plan-price-note,
+        .plan-annual-price {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+        .plan-capacity-list {
+            display: grid;
+            gap: 7px;
+            margin: 15px 0;
+            padding: 14px 0 0;
+            border-top: 1px solid var(--line);
+            list-style: none;
+        }
+        .plan-capacity-list li {
+            position: relative;
+            padding-left: 18px;
+            color: #40556f;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        .plan-capacity-list li::before {
+            position: absolute;
+            left: 0;
+            color: var(--teal);
+            content: "\2713";
+            font-weight: 900;
+        }
+        .plan-eligibility {
+            margin-top: auto;
+            border-top: 1px solid var(--line);
+            padding-top: 12px;
+        }
+        .plan-eligibility .error {
+            margin: 0;
+            font-weight: 700;
+        }
+        .plan-contact-action {
+            margin-top: auto;
+            padding-top: 12px;
+        }
+        .plan-contact-action .btn {
+            width: 100%;
+        }
+        .plan-select-action {
+            width: 100%;
+        }
+        .payment-summary {
+            display: grid;
+            grid-template-columns: minmax(0, 1.4fr) minmax(280px, .6fr);
+            gap: 14px;
+        }
+        .payment-summary-main,
+        .payment-summary-total {
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: #fff;
+            padding: 18px;
+        }
+        .payment-summary-list {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px 18px;
+            margin: 0;
+        }
+        .payment-summary-list dt {
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 850;
+        }
+        .payment-summary-list dd {
+            margin: 4px 0 0;
+            color: var(--ink);
+            font-size: 15px;
+            font-weight: 900;
+        }
+        .payment-summary-total {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: linear-gradient(145deg, #edf6ff, #f3fffd);
+        }
+        .payment-summary-total span,
+        .payment-summary-total strong {
+            display: block;
+        }
+        .payment-summary-total span {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 850;
+        }
+        .payment-summary-total strong {
+            margin-top: 7px;
+            color: var(--brand-dark);
+            font-size: 28px;
+            line-height: 1.18;
+        }
+        @media (max-width: 1100px) {
+            .plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .branch-location-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (max-width: 800px) {
+            .shell {
+                width: min(100% - 22px, 1320px);
+                padding-top: 11px;
+            }
+            .hero {
+                min-height: 0;
+                align-items: stretch;
+                padding: 10px;
+            }
+            .brand-symbol,
+            .brand-symbol-compact {
+                width: 132px;
+            }
+            .hero .actions {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .hero .btn { width: 100%; }
+            .setup-title-panel,
+            .setup-console.is-compact-start .setup-title-panel,
+            .wizard-section {
+                padding: 16px;
+            }
+            .setup-journey-track {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 10px 4px;
+            }
+            .setup-edit-track {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            .capacity-summary,
+            .setup-summary-grid,
+            .branch-location-grid,
+            .branch-identity-grid,
+            .branch-capacity-grid,
+            .logo-upload-panel,
+            .payment-summary,
+            .payment-summary-list {
+                grid-template-columns: 1fr;
+            }
+            .logo-upload-control {
+                border-top: 1px solid var(--line);
+                border-left: 0;
+                padding-top: 14px;
+                padding-left: 0;
+            }
+            .branch-panel-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            .branch-row-actions {
+                justify-content: flex-start;
+            }
+            .onboarding-action-bar {
+                align-items: stretch;
+                flex-direction: column-reverse;
+            }
+            .onboarding-action-group {
+                display: grid;
+                grid-template-columns: 1fr;
+            }
+            .onboarding-action-bar .btn {
+                width: 100%;
+            }
+            .plan-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .btn, .plan-card, .setup-edit-step {
+                transition: none;
+            }
+            .btn:hover, .plan-card:hover, a.setup-edit-step:hover {
+                transform: none;
+            }
+        }
     </style>
 </head>
 <body>
@@ -852,25 +1409,11 @@
                     <div class="setup-status">{{ setup_console.status_banner }}</div>
                     {% endif %}
                 </div>
-                {% if not setup_console.compact_start %}
-                <aside class="setup-primary-panel" aria-label="Primary next action">
-                    <strong>Next action</strong>
-                    {% if setup_console.primary_action.get("form_id") %}
-                    <button class="btn" data-primary-cta="true" type="submit" form="{{ setup_console.primary_action['form_id'] }}"{% if setup_console.primary_action.get("name") %} name="{{ setup_console.primary_action['name'] }}"{% endif %}{% if setup_console.primary_action.get("value") %} value="{{ setup_console.primary_action['value'] }}"{% endif %}>{{ setup_console.primary_action['label'] }}</button>
-                    {% elif setup_console.primary_action["method"] == "post" %}
-                    <form method="post" action="{{ setup_console.primary_action['url'] }}">
-                        <button class="btn" data-primary-cta="true" type="submit">{{ setup_console.primary_action['label'] }}</button>
-                    </form>
-                    {% else %}
-                    <a class="btn" data-primary-cta="true" href="{{ setup_console.primary_action['url'] }}">{{ setup_console.primary_action['label'] }}</a>
-                    {% endif %}
-                </aside>
-                {% endif %}
             </div>
             <section class="setup-journey" aria-label="Setup progress">
                 <div class="setup-journey-track">
                     {% for step in setup_console.steps %}
-                    <div class="setup-timeline-step is-{{ step.state }}" data-setup-step="{{ step.key }}" data-setup-state="{{ step.state }}">
+                    <div class="setup-timeline-step is-{{ step.state }}" data-setup-step="{{ step.key }}" data-setup-state="{{ step.state }}"{% if step.state in ["current", "attention"] %} aria-current="step"{% endif %}>
                         <span class="setup-timeline-number">{{ loop.index }}</span>
                         <span class="setup-timeline-label">{{ step.label }}</span>
                         <span class="setup-timeline-state">{{ step.state }}</span>
@@ -912,13 +1455,6 @@
         <main class="card {% if setup_console is defined and setup_console %}setup-card{% endif %}">
             {% block content %}{% endblock %}
         </main>
-        {% endif %}
-        {% if setup_console is defined and setup_console and not setup_console.compact_start %}
-        <aside class="setup-help-panel" aria-label="Setup guidance">
-            <strong>{{ setup_console.help_title }}</strong>
-            <p>{{ setup_console.help_text }}</p>
-            <p>{{ setup_console.portal_access_message }}</p>
-        </aside>
         {% endif %}
     </div>
     <script src="/static/js/location-selects.js"></script>

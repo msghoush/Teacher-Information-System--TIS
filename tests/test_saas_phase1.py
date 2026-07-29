@@ -225,6 +225,8 @@ class SaaSPhase1Tests(unittest.TestCase):
                 "city_name": ["Jeddah", "Jeddah"],
                 "district_name": ["Al Zahra", "Al Nahda"],
                 "neighborhood_name": ["North", "East"],
+                "estimated_system_users": ["10", "10"],
+                "estimated_teachers": ["50", "40"],
                 "save_action": "continue",
             },
             follow_redirects=False,
@@ -700,7 +702,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertNotIn("School Workspace</strong>", dashboard_response.text)
         self.assertIn("TIS Logo", dashboard_response.text)
         self.assertIn('class="brand-symbol brand-symbol-compact"', dashboard_response.text)
-        self.assertIn("width: clamp(128px, 14vw, 168px);", dashboard_response.text)
+        self.assertIn("width: clamp(118px, 11vw, 148px);", dashboard_response.text)
         self.assertIn('class="setup-console is-compact-start"', dashboard_response.text)
         self.assertEqual(dashboard_response.text.count('data-primary-cta="true"'), 1)
         self.assertIn(
@@ -710,6 +712,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn(">Start School Workspace Setup</button>", dashboard_response.text)
         self.assertNotIn('class="setup-status"', dashboard_response.text)
         self.assertNotIn('class="setup-primary-panel"', dashboard_response.text)
+        self.assertNotIn('class="setup-help-panel"', dashboard_response.text)
         expected_steps = [
             "TIS Account",
             "Email Verification",
@@ -725,8 +728,12 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn('data-setup-step="tis_account" data-setup-state="complete"', dashboard_response.text)
         self.assertIn('data-setup-step="email_verification" data-setup-state="complete"', dashboard_response.text)
         self.assertIn('data-setup-step="school_workspace_setup" data-setup-state="current"', dashboard_response.text)
+        self.assertIn('aria-current="step"', dashboard_response.text)
         self.assertIn('data-setup-step="subscription_selection" data-setup-state="locked"', dashboard_response.text)
         self.assertEqual(dashboard_response.text.count('data-setup-step="'), 8)
+        self.assertIn("@media (max-width: 800px)", dashboard_response.text)
+        self.assertIn("@media (prefers-reduced-motion: reduce)", dashboard_response.text)
+        self.assertIn(".btn:focus-visible", dashboard_response.text)
         self.assertNotIn("TIS Platform access becomes available after Workspace Activation.", dashboard_response.text)
         self.assertNotIn("Last seen:", dashboard_response.text)
         self.assertNotIn("active session", dashboard_response.text)
@@ -735,6 +742,16 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertNotIn("tenant_active", dashboard_response.text)
         self.assertNotIn("ready_for_provisioning", dashboard_response.text)
         self.assertNotIn(">SaaS<", dashboard_response.text)
+
+        profile_response = self.client.get("/saas/account/profile")
+        self.assertEqual(profile_response.status_code, 200)
+        self.assertIn('class="brand-symbol brand-symbol-compact"', profile_response.text)
+        self.assertIn('class="onboarding-action-bar"', profile_response.text)
+
+        sessions_response = self.client.get("/saas/account/sessions")
+        self.assertEqual(sessions_response.status_code, 200)
+        self.assertIn('aria-label="Account setup navigation"', sessions_response.text)
+        self.assertIn('class="table"', sessions_response.text)
 
         logout_response = self.client.post("/saas/auth/logout", follow_redirects=False)
         self.assertEqual(logout_response.status_code, 302)
@@ -1502,6 +1519,8 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("TIS Logo", organization_get.text)
         self.assertEqual(organization_get.text.count('data-primary-cta="true"'), 1)
         self.assertIn('form="organization-form"', organization_get.text)
+        self.assertIn('class="onboarding-action-bar"', organization_get.text)
+        self.assertNotIn('class="setup-primary-panel"', organization_get.text)
         self.assertNotIn('href="/saas/account/profile"', organization_get.text)
 
         organization_response = self.client.post(
@@ -1538,6 +1557,9 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Branches and campuses", branches_get.text)
         self.assertEqual(branches_get.text.count('data-primary-cta="true"'), 1)
         self.assertIn('form="branches-form"', branches_get.text)
+        self.assertIn('aria-label="Organization-wide capacity totals"', branches_get.text)
+        self.assertIn("Workforce estimates", branches_get.text)
+        self.assertIn('class="onboarding-action-bar"', branches_get.text)
         rendered_branch_list = branches_get.text.split('<div id="branch-list"', 1)[1].split("</div>\n        <button id=\"add-branch\"", 1)[0]
         self.assertEqual(rendered_branch_list.count("data-branch-panel"), 2)
         self.assertIn('<strong id="active-branch-count">2</strong>', branches_get.text)
@@ -1571,6 +1593,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Initial academic structure", academic_get.text)
         self.assertEqual(academic_get.text.count('data-primary-cta="true"'), 1)
         self.assertIn('form="academic-setup-form"', academic_get.text)
+        self.assertIn('class="onboarding-action-bar"', academic_get.text)
 
         academic_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/academic_setup",
@@ -1591,6 +1614,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Primary setup contact", contacts_get.text)
         self.assertEqual(contacts_get.text.count('data-primary-cta="true"'), 1)
         self.assertIn('form="contacts-form"', contacts_get.text)
+        self.assertIn('class="onboarding-action-bar"', contacts_get.text)
 
         contacts_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/contacts",
@@ -1613,6 +1637,9 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Ready to continue", review_response.text)
         self.assertEqual(review_response.text.count('data-primary-cta="true"'), 1)
         self.assertIn('form="review-submit-form"', review_response.text)
+        self.assertIn("Continue to Subscription Selection", review_response.text)
+        self.assertEqual(review_response.text.count('class="review-edit-link"'), 4)
+        self.assertIn('class="onboarding-action-bar"', review_response.text)
         self.assertNotIn("ready_for_checkout", review_response.text)
 
         submit_response = self.client.post(
@@ -2196,6 +2223,16 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn(f'href="/saas/onboarding/{org_uuid}/plan"', plan_page.text)
         self.assertIn('form="plan-selection-form"', plan_page.text)
         self.assertEqual(plan_page.text.count('data-primary-cta="true"'), 1)
+        self.assertIn('class="plan-grid"', plan_page.text)
+        self.assertEqual(
+            plan_page.text.count('class="btn secondary plan-select-action"'),
+            3,
+        )
+        self.assertIn("Starter is unavailable because:", plan_page.text)
+        self.assertIn('class="validation-list"', plan_page.text)
+        self.assertIn('data-plan-kind="custom"', plan_page.text)
+        self.assertIn('href="mailto:info@tisplatform.com"', plan_page.text)
+        self.assertIn('class="onboarding-action-bar"', plan_page.text)
         self.assertNotIn("Plan ID", plan_page.text)
 
         plan_response = self.client.post(
@@ -2213,6 +2250,9 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn('form="checkout-launch-form"', checkout_page.text)
         self.assertIn("Continue to Secure Payment", checkout_page.text)
         self.assertEqual(checkout_page.text.count('data-primary-cta="true"'), 1)
+        self.assertIn('class="payment-summary"', checkout_page.text)
+        self.assertIn("Calculated total", checkout_page.text)
+        self.assertIn('class="onboarding-action-bar"', checkout_page.text)
         self.assertIn("School Workspace Setup", checkout_page.text)
         self.assertNotIn("Need to adjust setup details?", checkout_page.text)
         self.assertIn(f'href="/saas/onboarding/{org_uuid}/organization"', checkout_page.text)
@@ -2261,6 +2301,8 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Subscription and activation overview", billing_page.text)
         self.assertIn("TIS Platform access", billing_page.text)
         self.assertEqual(billing_page.text.count('data-primary-cta="true"'), 1)
+        self.assertIn('class="onboarding-action-bar"', billing_page.text)
+        self.assertNotIn("What happens next?", billing_page.text)
         self.assertNotIn("checkout_ready", billing_page.text)
         self.assertNotIn("provider", billing_page.text.lower())
 
@@ -2269,6 +2311,8 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Subscription and Workspace Activation status", status_page.text)
         self.assertIn("Browser redirects do not activate the workspace by themselves.", status_page.text)
         self.assertEqual(status_page.text.count('data-primary-cta="true"'), 1)
+        self.assertIn('class="onboarding-action-bar"', status_page.text)
+        self.assertNotIn("What happens next?", status_page.text)
         self.assertIn("School Workspace Setup", status_page.text)
         self.assertIn(f'href="/saas/onboarding/{org_uuid}/review"', status_page.text)
         self.assertIn(f'href="/saas/onboarding/{org_uuid}/plan"', status_page.text)

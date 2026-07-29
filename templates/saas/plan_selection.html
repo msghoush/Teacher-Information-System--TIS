@@ -1,36 +1,50 @@
 {% extends "saas/base.html" %}
 {% block content %}
-{% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% if error %}<div class="error" role="alert"><strong class="alert-title">Subscription Selection needs attention</strong>{{ error }}</div>{% endif %}
 {% if preferred_plan_adjusted %}
-<div class="notice">
-    Your initial plan preference was updated because your organization setup requires
-    a different capacity level. Review the eligible plans below.
+<div class="notice" role="status">
+    Your initial plan preference was updated because your organization setup
+    requires a different capacity level. Review the eligible plans below.
 </div>
 {% endif %}
 <form id="plan-selection-form" class="wizard-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/plan">
     <section class="wizard-section">
         <div class="wizard-section-header">
-            <strong>Your organization setup</strong>
-            <p>{{ billable_branch_count }} branch{% if billable_branch_count != 1 %}es{% endif %}</p>
-            <p>{{ active_system_user_count }} estimated system users</p>
-            <p>{{ active_teacher_count }} estimated teachers</p>
-            {% if minimum_eligible_plan %}
-            <p>Based on your organization setup, {{ minimum_eligible_plan_name }} is the minimum eligible plan.</p>
-            {% else %}
-            <p>Your organization requires a custom plan. Please contact the TIS team.</p>
-            {% endif %}
-            <p>Capacity limits apply across your entire organization, not separately to each branch.</p>
-            <p>Prices remain per branch.</p>
+            <strong>Your organization capacity</strong>
+            <p>Capacity is measured across your complete organization. Subscription prices remain per active branch.</p>
         </div>
+        <div class="capacity-summary" aria-label="Organization capacity">
+            <div class="summary-metric">
+                <span>Branches</span>
+                <strong>{{ billable_branch_count }}</strong>
+            </div>
+            <div class="summary-metric">
+                <span>Estimated system users</span>
+                <strong>{{ active_system_user_count }}</strong>
+            </div>
+            <div class="summary-metric">
+                <span>Estimated teachers</span>
+                <strong>{{ active_teacher_count }}</strong>
+            </div>
+        </div>
+        {% if minimum_eligible_plan %}
+        <div class="notice">
+            <strong>{{ minimum_eligible_plan_name }}</strong> is the minimum plan that supports this setup.
+        </div>
+        {% else %}
+        <div class="warning">
+            Your organization requires a custom plan. Contact the TIS team for a tailored capacity review.
+        </div>
+        {% endif %}
         <div class="wizard-grid">
             <div>
-                <label for="plan_id">Plan</label>
+                <label for="plan_id">Selected plan</label>
                 <select id="plan_id" name="plan_id" required>
                     <option value="">Choose a plan</option>
                     {% for option in plan_options %}
                     {% set plan_view = option.plan_view %}
                     <option value="{{ plan_view.plan.id }}" {% if (current_plan_selection and current_plan_selection.plan_id == plan_view.plan.id) or (not current_plan_selection and preferred_plan_code == plan_view.plan.plan_code and option.eligible) %}selected{% endif %}{% if not option.eligible %} disabled{% endif %}>
-                        {{ plan_view.plan.plan_name }}{% if option.recommended %} - Minimum eligible{% elif plan_view.plan.is_most_popular %} - Most Popular{% endif %}{% if not option.eligible %} - Unavailable{% endif %}
+                        {{ plan_view.plan.plan_name }}{% if option.recommended %} - Recommended{% elif plan_view.plan.is_most_popular %} - Most Popular{% endif %}{% if not option.eligible %} - Unavailable{% endif %}
                     </option>
                     {% endfor %}
                 </select>
@@ -47,33 +61,67 @@
 
     <section class="wizard-section">
         <div class="wizard-section-header">
-            <strong>Available plans</strong>
-            <p>Review the options below, then use the selectors above to save your choice.</p>
+            <strong>Subscription plans</strong>
+            <p>Compare capacity and pricing, then save your selection to continue.</p>
         </div>
-        <div class="review-grid">
+        <div class="plan-grid">
             {% for option in plan_options %}
             {% set plan_view = option.plan_view %}
-            <div class="review-card{% if not option.eligible %} is-disabled{% endif %}{% if option.recommended %} is-emphasized{% endif %}" data-plan-eligible="{{ 'true' if option.eligible else 'false' }}" data-plan-recommended="{{ 'true' if option.recommended else 'false' }}">
-                <strong>{{ plan_view.plan.plan_name }}</strong>
-                {% if plan_view.plan.badge_text %}<p>{{ plan_view.plan.badge_text }}</p>{% endif %}
-                <p>USD {{ "%.2f"|format(plan_view.monthly.base_amount_minor / 100) }} per branch / month<br>USD {{ "%.2f"|format(plan_view.annual.base_amount_minor / 100) }} per branch / year</p>
-                {% if plan_view.annual.annual_savings_percent %}
-                <p>Save {{ plan_view.annual.annual_savings_percent }}% annually</p>
+            <article class="plan-card{% if not option.eligible %} is-unavailable{% endif %}{% if option.recommended %} is-recommended{% endif %}" data-plan-eligible="{{ 'true' if option.eligible else 'false' }}" data-plan-recommended="{{ 'true' if option.recommended else 'false' }}">
+                {% if option.recommended %}
+                <span class="plan-card-badge">Recommended for your setup</span>
+                {% elif plan_view.plan.badge_text %}
+                <span class="plan-card-badge">{{ plan_view.plan.badge_text }}</span>
                 {% endif %}
-                <p>Supports up to {{ option.branch_capacity }} branch{% if option.branch_capacity != 1 %}es{% endif %}<br>Supports up to {{ option.system_user_capacity }} system users<br>Supports up to {{ option.teacher_capacity }} teachers</p>
-                {% if not option.eligible %}<p class="error">{{ option.ineligible_reason }}</p>{% endif %}
-            </div>
+                <h3>{{ plan_view.plan.plan_name }}</h3>
+                <div class="plan-price">USD {{ "%.2f"|format(plan_view.monthly.base_amount_minor / 100) }}</div>
+                <div class="plan-price-note">per active branch / month</div>
+                <div class="plan-annual-price">
+                    USD {{ "%.2f"|format(plan_view.annual.base_amount_minor / 100) }} per active branch / year
+                    {% if plan_view.annual.annual_savings_percent %} · Save {{ plan_view.annual.annual_savings_percent }}%{% endif %}
+                </div>
+                <ul class="plan-capacity-list" aria-label="{{ plan_view.plan.plan_name }} capacity">
+                    <li>Up to {{ option.branch_capacity }} branch{% if option.branch_capacity != 1 %}es{% endif %}</li>
+                    <li>Up to {{ option.system_user_capacity }} system users</li>
+                    <li>Up to {{ option.teacher_capacity }} teachers</li>
+                </ul>
+                <div class="plan-eligibility">
+                    {% if option.eligible %}
+                    <button class="btn secondary plan-select-action" type="button" data-plan-select="{{ plan_view.plan.id }}" aria-pressed="false">Select {{ plan_view.plan.plan_name }}</button>
+                    {% else %}
+                    <div class="error">
+                        <strong>{{ plan_view.plan.plan_name }} is unavailable because:</strong>
+                        <ul class="validation-list">
+                            {% if not option.branch_eligible %}
+                            <li>Your organization has {{ option.active_branch_count }} branch{% if option.active_branch_count != 1 %}es{% endif %}; this plan supports {{ option.branch_capacity }}.</li>
+                            {% endif %}
+                            {% if not option.system_user_eligible %}
+                            <li>Your organization requires {{ option.active_system_user_count }} system users; this plan supports {{ option.system_user_capacity }}.</li>
+                            {% endif %}
+                            {% if not option.teacher_eligible %}
+                            <li>Your organization requires {{ option.active_teacher_count }} teachers; this plan supports {{ option.teacher_capacity }}.</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                    <button class="btn secondary plan-select-action" type="button" disabled>Select {{ plan_view.plan.plan_name }}</button>
+                    {% endif %}
+                </div>
+            </article>
             {% endfor %}
-            <div class="review-card{% if self_service_checkout_blocked %} is-emphasized{% endif %}" data-plan-kind="custom" data-custom-emphasized="{{ 'true' if self_service_checkout_blocked else 'false' }}">
-                <strong>Custom</strong>
-                <p>For large school groups and education networks</p>
-                <p>More than 25 branches, 100 system users, or 500 teachers</p>
-                <p>Custom pricing<br>Flexible capacity</p>
-                {% if self_service_checkout_blocked %}
-                <p>Your organization requires a custom plan. Please contact the TIS team.</p>
-                {% endif %}
-                <p><a class="btn secondary" href="mailto:info@tisplatform.com">Contact the TIS Team</a></p>
-            </div>
+            <article class="plan-card{% if self_service_checkout_blocked %} is-recommended{% endif %}" data-plan-kind="custom" data-custom-emphasized="{{ 'true' if self_service_checkout_blocked else 'false' }}">
+                {% if self_service_checkout_blocked %}<span class="plan-card-badge">Recommended for your capacity</span>{% endif %}
+                <h3>Custom</h3>
+                <div class="plan-price">Tailored pricing</div>
+                <div class="plan-price-note">for larger school groups and education networks</div>
+                <ul class="plan-capacity-list" aria-label="Custom plan capacity">
+                    <li>More than 25 branches</li>
+                    <li>More than 100 system users</li>
+                    <li>More than 500 teachers</li>
+                </ul>
+                <div class="plan-contact-action">
+                    <a class="btn secondary" href="mailto:info@tisplatform.com">Contact the TIS Team</a>
+                </div>
+            </article>
         </div>
     </section>
 
@@ -81,9 +129,9 @@
     {% set quote = checkout_summary.quote %}
     <section class="wizard-section">
         <div class="wizard-section-header">
-            <strong>Current branch-based total</strong>
+            <strong>Current subscription estimate</strong>
             {% if quote.is_ready %}
-            <p>{{ checkout_summary.plan.plan_name }}: {{ quote.formatted_unit_amount }} per branch x {{ quote.quantity }} branch{% if quote.quantity != 1 %}es{% endif %}. Total: {{ quote.formatted_total }} per {% if quote.billing_interval == 'annual' %}year{% else %}month{% endif %}.</p>
+            <p><strong>{{ quote.formatted_total }}</strong> per {% if quote.billing_interval == 'annual' %}year{% else %}month{% endif %}: {{ checkout_summary.plan.plan_name }} at {{ quote.formatted_unit_amount }} per branch for {{ quote.quantity }} active branch{% if quote.quantity != 1 %}es{% endif %}.</p>
             {% else %}
             <p>Complete the subscription requirements before Secure Payment can be prepared.</p>
             {% endif %}
@@ -91,8 +139,41 @@
     </section>
     {% endif %}
 
-    <div class="wizard-actions">
-        <a class="btn secondary" href="/saas/account">Back to Account Setup</a>
+    <div class="onboarding-action-bar">
+        <div class="onboarding-action-group">
+            <a class="btn secondary" href="/saas/account">Back to Account Setup</a>
+        </div>
+        <button class="btn" data-primary-cta="true" type="submit" form="plan-selection-form">Save plan and continue</button>
     </div>
 </form>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(() => {
+    const planSelect = document.getElementById("plan_id");
+    const planButtons = Array.from(document.querySelectorAll("[data-plan-select]"));
+    if (!planSelect || !planButtons.length) return;
+
+    function synchronizePlanButtons() {
+        planButtons.forEach((button) => {
+            const isSelected = button.dataset.planSelect === planSelect.value;
+            button.setAttribute("aria-pressed", String(isSelected));
+            button.textContent = isSelected
+                ? "Selected"
+                : `Select ${button.closest(".plan-card").querySelector("h3").textContent}`;
+        });
+    }
+
+    planButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            planSelect.value = button.dataset.planSelect;
+            synchronizePlanButtons();
+            planSelect.focus();
+        });
+    });
+    planSelect.addEventListener("change", synchronizePlanButtons);
+    synchronizePlanButtons();
+})();
+</script>
 {% endblock %}

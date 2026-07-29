@@ -1,90 +1,90 @@
 {% extends "saas/base.html" %}
 {% block content %}
-{% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% if error %}<div class="error" role="alert"><strong class="alert-title">Setup is not ready yet</strong>{{ error }}</div>{% endif %}
 {% if missing_requirements %}
-<div class="error">
+<div class="error" role="alert">
     <strong>Complete these items before submitting:</strong>
-    <div class="review-grid">
+    <ul class="validation-list">
     {% for item in missing_requirements %}
-        <div class="review-card">
-            <strong>{{ item.step }}</strong>
-            <p>Missing: {{ item.field }}</p>
+        <li>
+            <strong>{{ item.step }}:</strong> {{ item.field }}
             {% if item.step == "Organization Profile" %}
-            <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/organization">Go to Organization Profile</a>
+            <a href="/saas/onboarding/{{ organization.organization_uuid }}/organization">Edit Organization Profile</a>
             {% elif item.step == "Branch Setup" %}
-            <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/branches">Go to Branch Setup</a>
+            <a href="/saas/onboarding/{{ organization.organization_uuid }}/branches">Edit Branch Setup</a>
             {% elif item.step == "Academic Setup" %}
-            <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/academic_setup">Go to Academic Setup</a>
+            <a href="/saas/onboarding/{{ organization.organization_uuid }}/academic_setup">Edit Academic Setup</a>
             {% elif item.step == "Primary Contact" %}
-            <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/contacts">Go to Primary Contact</a>
+            <a href="/saas/onboarding/{{ organization.organization_uuid }}/contacts">Edit Primary Contact</a>
             {% endif %}
-        </div>
+        </li>
     {% endfor %}
-    </div>
+    </ul>
 </div>
 {% endif %}
 <section class="wizard-section">
     <div class="wizard-section-header">
-        <strong>Ready to continue</strong>
-        <p>Confirm the saved setup details before moving to Subscription Selection.</p>
+        <strong>{% if missing_requirements %}Review your saved setup{% else %}Ready to continue{% endif %}</strong>
+        <p>Confirm each section below before moving to Subscription Selection.</p>
     </div>
     <div class="review-grid">
         <div class="review-card">
-            <strong>Organization Profile</strong>
+            <div class="review-card-header">
+                <strong>Organization Profile</strong>
+                <a class="review-edit-link" href="/saas/onboarding/{{ organization.organization_uuid }}/organization">Edit</a>
+            </div>
             <p>
-                Organization Name: {{ organization.organization_name or "Not provided" }}<br>
-                Educational Program: {{ organization.educational_program or "Not selected" }}<br>
-                Country / City: {% if organization.country_name or organization.city_name %}{{ organization.country_name or "Not specified" }}{% if organization.city_name %}, {{ organization.city_name }}{% endif %}{% else %}Not specified{% endif %}<br>
-                Time Zone: {{ organization.timezone or "Not selected" }}
+                {{ organization.organization_name or "Organization name not provided" }}<br>
+                {{ organization.educational_program or "Educational program not selected" }}<br>
+                {% if organization.country_name or organization.city_name %}{{ organization.country_name or "Location not specified" }}{% if organization.city_name %}, {{ organization.city_name }}{% endif %}{% else %}Location not specified{% endif %}<br>
+                {{ organization.expected_teacher_count or 0 }} teachers · {{ organization.estimated_staff_users or 0 }} system users
             </p>
         </div>
         <div class="review-card">
-            <strong>Branch Setup</strong>
+            <div class="review-card-header">
+                <strong>Branch Setup</strong>
+                <a class="review-edit-link" href="/saas/onboarding/{{ organization.organization_uuid }}/branches">Edit</a>
+            </div>
             <p>
-                Saved Branches: {% if branches|length %}{{ branches|length }} branch{% if branches|length != 1 %}es{% endif %}{% else %}Not added{% endif %}<br>
-                Estimated Branches: {{ organization.expected_branch_count or "Not specified" }}
+                {% if branches|length %}{{ branches|length }} saved branch{% if branches|length != 1 %}es{% endif %}{% else %}No branches added{% endif %}<br>
+                Organization estimate: {{ organization.expected_branch_count or "Not specified" }}
             </p>
         </div>
         <div class="review-card">
-            <strong>Academic Setup</strong>
+            <div class="review-card-header">
+                <strong>Academic Setup</strong>
+                <a class="review-edit-link" href="/saas/onboarding/{{ organization.organization_uuid }}/academic_setup">Edit</a>
+            </div>
             <p>
-                First Academic Year: {{ academic_setup.first_academic_year_name or "Not provided" }}{% if academic_setup.create_default_branch %}<br>
+                First academic year: {{ academic_setup.first_academic_year_name or "Not provided" }}{% if academic_setup.create_default_branch %}<br>
                 Single default branch allowed{% endif %}
             </p>
         </div>
         <div class="review-card">
-            <strong>Primary Contact</strong>
+            <div class="review-card-header">
+                <strong>Primary Contact</strong>
+                <a class="review-edit-link" href="/saas/onboarding/{{ organization.organization_uuid }}/contacts">Edit</a>
+            </div>
             {% if primary_contact %}
             <p>
-                First Name: {{ primary_contact.first_name or "Not provided" }}<br>
-                Last Name: {{ primary_contact.last_name or "Not provided" }}<br>
-                Email: {{ primary_contact.email or "Not provided" }}{% if primary_contact.job_title %}<br>
-                Job Title: {{ primary_contact.job_title }}{% endif %}
+                {{ primary_contact.first_name or "" }} {{ primary_contact.last_name or "" }}{% if primary_contact.job_title %} · {{ primary_contact.job_title }}{% endif %}<br>
+                {{ primary_contact.email or "Email not provided" }}
             </p>
             {% else %}
-            <p>
-                First Name: Not provided<br>
-                Last Name: Not provided<br>
-                Email: Not provided
-            </p>
+            <p>Primary contact not provided.</p>
             {% endif %}
-        </div>
-        <div class="review-card">
-            <strong>Estimated Scale</strong>
-            <p>Teachers: {{ organization.expected_teacher_count or "Not specified" }}<br>Students: {{ organization.expected_student_count or "Not specified" }}<br>Staff users: {{ organization.estimated_staff_users or "Not specified" }}</p>
-        </div>
-        <div class="review-card">
-            <strong>Next Stage</strong>
-            <p>After submission, you will choose a subscription and continue toward Secure Payment.</p>
         </div>
     </div>
 </section>
-<div class="wizard-actions">
-    <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/contacts">Back</a>
-    <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/save-draft">
-        <input type="hidden" name="current_step" value="review">
-        <button class="btn secondary" type="submit">Save draft</button>
-    </form>
+<div class="onboarding-action-bar">
+    <div class="onboarding-action-group">
+        <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/contacts">Back</a>
+        <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/save-draft">
+            <input type="hidden" name="current_step" value="review">
+            <button class="btn secondary" type="submit">Save draft</button>
+        </form>
+    </div>
+    <button class="btn" data-primary-cta="true" type="submit" form="review-submit-form">Continue to Subscription Selection</button>
 </div>
 <form id="review-submit-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/submit"></form>
 {% endblock %}

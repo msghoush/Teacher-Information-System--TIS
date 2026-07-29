@@ -3,7 +3,7 @@
 <section class="wizard-section">
     <div class="wizard-section-header">
         <strong>Secure Payment return received</strong>
-        <p>Your browser returned from the payment screen. This does not by itself confirm payment or activate your School Workspace.</p>
+        <p>Your browser returned from the payment screen. This does not by itself confirm payment or activate your School Workspace. Payment confirmation is finalized after secure verification is processed.</p>
     </div>
     {% if onboarding_summary %}
     <div class="review-grid">
@@ -24,13 +24,10 @@
     </div>
     {% endif %}
 </section>
-<section class="wizard-section">
-    <div class="wizard-section-header">
-        <strong>What happens next?</strong>
-        <p>Payment confirmation is finalized after secure verification is processed. Workspace Activation begins only after confirmation is received.</p>
+<div class="onboarding-action-bar">
+    <div class="onboarding-action-group">
+        <a class="btn secondary" href="/saas/account">Back to Account Setup</a>
     </div>
-</section>
-<div class="wizard-actions">
-    <a class="btn secondary" href="/saas/account">Back to Account Setup</a>
+    <a class="btn" data-primary-cta="true" href="{{ setup_console.primary_action['url'] }}">{{ setup_console.primary_action['label'] }}</a>
 </div>
 {% endblock %}
