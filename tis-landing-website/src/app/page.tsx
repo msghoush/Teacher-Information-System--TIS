@@ -39,6 +39,7 @@ const signInUrl = buildTisAppUrl("/saas/login");
 const openTisAppUrl = buildTisAppUrl("/login");
 const requestDemoUrl = buildTisAppUrl("/saas/signup?intent=demo");
 const subscribeNowUrl = buildTisAppUrl("/saas/signup?intent=subscribe");
+const contactTisTeamUrl = "mailto:info@tisplatform.com";
 
 const problems = [
   {
@@ -255,22 +256,67 @@ const curriculumJourney = [
 
 const plans = [
   {
-    name: "Core",
+    name: "Starter",
     description:
-      "For schools that need structured teacher data, academic operations, basic planning visibility, and essential workflows.",
-    highlights: ["Teacher and subject operations", "Essential planning visibility", "Core academic workflows"]
+      "For schools starting with essential academic operations and one active branch.",
+    monthlyPrice: "USD 29 / month",
+    annualPrice: "USD 290 / year",
+    priceBasis: "Per active branch",
+    highlights: [
+      "Supports 1 branch",
+      "Supports up to 5 system users",
+      "Supports up to 25 teachers"
+    ],
+    ctaLabel: "Subscribe Now",
+    ctaHref: subscribeNowUrl,
+    isCustom: false
   },
   {
     name: "Professional",
     description:
       "For schools that need stronger dashboards, shared calendars, observation workflows, and staffing visibility.",
-    highlights: ["Advanced dashboards", "Shared calendars and observations", "Staffing and team coordination"]
+    monthlyPrice: "USD 79 / month",
+    annualPrice: "USD 790 / year",
+    priceBasis: "Per active branch",
+    highlights: [
+      "Supports up to 5 branches",
+      "Supports up to 20 system users",
+      "Supports up to 100 teachers"
+    ],
+    ctaLabel: "Subscribe Now",
+    ctaHref: subscribeNowUrl,
+    isCustom: false
   },
   {
     name: "Enterprise AI",
     description:
       "For school groups that need multi-branch visibility, customization, and progressively introduced AI intelligence.",
-    highlights: ["Multi-branch intelligence", "Advanced customization", "Planned AI-assisted capabilities"]
+    monthlyPrice: "USD 149 / month",
+    annualPrice: "USD 1,490 / year",
+    priceBasis: "Per active branch",
+    highlights: [
+      "Supports up to 25 branches",
+      "Supports up to 100 system users",
+      "Supports up to 500 teachers"
+    ],
+    ctaLabel: "Subscribe Now",
+    ctaHref: subscribeNowUrl,
+    isCustom: false
+  },
+  {
+    name: "Custom",
+    description: "For large school groups and education networks.",
+    monthlyPrice: "Custom pricing",
+    annualPrice: "Flexible capacity",
+    priceBasis: "Contact-based plan",
+    highlights: [
+      "More than 25 branches, 100 system users, or 500 teachers",
+      "Capacity tailored to your organization",
+      "No fixed public price"
+    ],
+    ctaLabel: "Contact the TIS Team",
+    ctaHref: contactTisTeamUrl,
+    isCustom: true
   }
 ];
 
@@ -1108,29 +1154,43 @@ function PricingSection() {
           </div>
         </Reveal>
 
-        <div className="mt-10 grid gap-5 lg:grid-cols-3">
+        <div className="mx-auto mt-10 grid max-w-6xl gap-5 md:grid-cols-2">
           {plans.map((plan, index) => {
             const featured = plan.name === "Professional";
             const direction: RevealDirection =
-              index === 0 ? "left" : index === 1 ? "up" : "right";
+              index % 2 === 0 ? "left" : "right";
 
             return (
-              <Reveal key={plan.name} direction={direction} delay={80 + index * 80}>
+              <Reveal
+                key={plan.name}
+                className="h-full"
+                direction={direction}
+                delay={80 + index * 80}
+              >
                 <InteractiveSurface
                   as="article"
                   className={cn(
-                    "pricing-card rounded-[1.85rem] border border-slate-200/80 bg-white/95 p-6 shadow-soft",
-                    featured && "is-featured lg:-translate-y-3"
+                    "pricing-card h-full rounded-[1.85rem] border border-slate-200/80 bg-white/95 p-6 shadow-soft",
+                    featured && "is-featured md:-translate-y-2"
                   )}
-                  tone={featured ? "ai" : "ocean"}
+                  tone={featured ? "ai" : plan.isCustom ? "teal" : "ocean"}
                 >
-                  <div className="relative z-[1]">
+                  <div className="relative z-[1] flex h-full flex-col">
                     <h3 className="text-2xl font-bold tracking-[-0.03em] text-ink">
                       {plan.name}
                     </h3>
-                    <p className="mt-4 min-h-20 text-sm leading-6 text-slate-600">
+                    <p className="mt-4 text-sm leading-6 text-slate-600 sm:min-h-12">
                       {plan.description}
                     </p>
+                    <div className="mt-5 rounded-2xl border border-slate-200/80 bg-skysoft/45 px-4 py-3">
+                      <p className="text-base font-bold text-ink">{plan.monthlyPrice}</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-600">
+                        {plan.annualPrice}
+                      </p>
+                      <p className="mt-2 text-xs font-bold uppercase tracking-[0.12em] text-ocean">
+                        {plan.priceBasis}
+                      </p>
+                    </div>
                     <div className="mt-6 space-y-3">
                       {plan.highlights.map((highlight) => (
                         <div key={highlight} className="flex items-start gap-3">
@@ -1143,15 +1203,15 @@ function PricingSection() {
                       ))}
                     </div>
                     <a
-                      href={subscribeNowUrl}
+                      href={plan.ctaHref}
                       className={cn(
-                        "focus-ring pricing-button mt-8 inline-flex h-11 w-full items-center justify-center rounded-xl border text-sm font-bold transition",
+                        "focus-ring pricing-button mt-auto inline-flex h-11 w-full items-center justify-center rounded-xl border text-sm font-bold transition",
                         featured
                           ? "border-transparent bg-ocean text-white shadow-card hover:bg-teal"
                           : "border-ocean text-ocean hover:bg-ocean hover:text-white"
                       )}
                     >
-                      Subscribe Now
+                      {plan.ctaLabel}
                     </a>
                   </div>
                 </InteractiveSurface>
@@ -1159,6 +1219,13 @@ function PricingSection() {
             );
           })}
         </div>
+
+        <Reveal delay={200}>
+          <p className="mx-auto mt-8 max-w-3xl text-center text-sm font-semibold leading-6 text-ocean">
+            Capacity limits apply across your entire organization. Subscription pricing
+            for self-service plans is calculated per active branch.
+          </p>
+        </Reveal>
 
         <Reveal delay={220}>
           <p className="mx-auto mt-8 max-w-3xl text-center text-sm leading-6 text-slate-500">
