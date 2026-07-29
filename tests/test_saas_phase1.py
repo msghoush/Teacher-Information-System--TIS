@@ -701,8 +701,16 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertNotIn("Next step: start School Workspace Setup.", dashboard_response.text)
         self.assertNotIn("School Workspace</strong>", dashboard_response.text)
         self.assertIn("TIS Logo", dashboard_response.text)
+        self.assertIn('class="brand-symbol-frame"', dashboard_response.text)
         self.assertIn('class="brand-symbol brand-symbol-compact"', dashboard_response.text)
-        self.assertIn("width: clamp(118px, 11vw, 148px);", dashboard_response.text)
+        self.assertIn("width: 220px;", dashboard_response.text)
+        self.assertIn("height: 58px;", dashboard_response.text)
+        self.assertIn("height: auto;", dashboard_response.text)
+        self.assertIn("object-fit: contain;", dashboard_response.text)
+        self.assertIn("min-height: 80px;", dashboard_response.text)
+        self.assertNotIn("max-height: 46px;", dashboard_response.text)
+        self.assertIn("grid-template-columns: minmax(0, 1fr) minmax(240px, auto);", dashboard_response.text)
+        self.assertIn("padding: 14px 18px;", dashboard_response.text)
         self.assertIn('class="setup-console is-compact-start"', dashboard_response.text)
         self.assertEqual(dashboard_response.text.count('data-primary-cta="true"'), 1)
         self.assertIn(
@@ -745,11 +753,13 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         profile_response = self.client.get("/saas/account/profile")
         self.assertEqual(profile_response.status_code, 200)
+        self.assertIn('class="brand-symbol-frame"', profile_response.text)
         self.assertIn('class="brand-symbol brand-symbol-compact"', profile_response.text)
         self.assertIn('class="onboarding-action-bar"', profile_response.text)
 
         sessions_response = self.client.get("/saas/account/sessions")
         self.assertEqual(sessions_response.status_code, 200)
+        self.assertIn('class="brand-symbol-frame"', sessions_response.text)
         self.assertIn('aria-label="Account setup navigation"', sessions_response.text)
         self.assertIn('class="table"', sessions_response.text)
 
@@ -907,10 +917,16 @@ class SaaSPhase1Tests(unittest.TestCase):
                     'aria-label="School Workspace identity"',
                     account_preview.text,
                 )
+                self.assertIn('class="setup-workspace-logo"', account_preview.text)
                 self.assertIn("Profile Test Academy", account_preview.text)
+                self.assertIn('class="brand-symbol-frame"', account_preview.text)
                 self.assertIn(
                     'class="brand-symbol brand-symbol-compact"',
                     account_preview.text,
+                )
+                self.assertEqual(
+                    account_preview.text.count('class="brand-symbol-frame"'),
+                    1,
                 )
 
                 invalid_payload = self._organization_profile_data(
@@ -1517,6 +1533,8 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Organization Profile", organization_get.text)
         self.assertIn("Organization identity", organization_get.text)
         self.assertIn("TIS Logo", organization_get.text)
+        self.assertIn('class="brand-symbol-frame"', organization_get.text)
+        self.assertIn('class="setup-title-copy"', organization_get.text)
         self.assertEqual(organization_get.text.count('data-primary-cta="true"'), 1)
         self.assertIn('form="organization-form"', organization_get.text)
         self.assertIn('class="onboarding-action-bar"', organization_get.text)
@@ -1555,6 +1573,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertEqual(branches_get.status_code, 200)
         self.assertIn("Branch Setup", branches_get.text)
         self.assertIn("Branches and campuses", branches_get.text)
+        self.assertIn('class="brand-symbol-frame"', branches_get.text)
         self.assertEqual(branches_get.text.count('data-primary-cta="true"'), 1)
         self.assertIn('form="branches-form"', branches_get.text)
         self.assertIn('aria-label="Organization-wide capacity totals"', branches_get.text)
@@ -1635,6 +1654,8 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertEqual(review_response.status_code, 200)
         self.assertIn("Review School Workspace Setup", review_response.text)
         self.assertIn("Ready to continue", review_response.text)
+        self.assertIn('class="brand-symbol-frame"', review_response.text)
+        self.assertIn('class="setup-title-copy"', review_response.text)
         self.assertEqual(review_response.text.count('data-primary-cta="true"'), 1)
         self.assertIn('form="review-submit-form"', review_response.text)
         self.assertIn("Continue to Subscription Selection", review_response.text)
@@ -2218,6 +2239,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertEqual(plan_page.status_code, 200)
         self.assertIn("Choose your subscription", plan_page.text)
         self.assertIn("Subscription Selection", plan_page.text)
+        self.assertIn('class="brand-symbol-frame"', plan_page.text)
         self.assertIn("School Workspace Setup", plan_page.text)
         self.assertIn(f'href="/saas/onboarding/{org_uuid}/review"', plan_page.text)
         self.assertIn(f'href="/saas/onboarding/{org_uuid}/plan"', plan_page.text)
@@ -2246,6 +2268,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         checkout_page = self.client.get(f"/saas/onboarding/{org_uuid}/checkout")
         self.assertEqual(checkout_page.status_code, 200)
         self.assertIn("Secure Payment summary", checkout_page.text)
+        self.assertIn('class="brand-symbol-frame"', checkout_page.text)
         self.assertIn('id="checkout-start-form"', checkout_page.text)
         self.assertIn('form="checkout-launch-form"', checkout_page.text)
         self.assertIn("Continue to Secure Payment", checkout_page.text)
