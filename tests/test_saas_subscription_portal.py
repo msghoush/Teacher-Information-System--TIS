@@ -306,6 +306,7 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
                 )
                 response = self._open(fixture)
                 self.assertEqual(response.status_code, 200)
+                self.assertIn('class="brand-symbol-frame"', response.text)
                 self.assertIn(plan_name, response.text)
                 self.assertIn(expected_feature, response.text)
                 self.assertIn("Paid Branches", response.text)
