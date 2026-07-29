@@ -5,5 +5,5 @@ affected_areas:
   - onboarding-ui
   - subscription-presentation
 kms_files_updated:
-no_impact_reason: Presentation-only template, CSS, and test refinements; no business logic, workflow, architecture, or authoritative documentation changed.
-major_change_override: no
+no_impact_reason: The changed files are classified as major-change paths because they are shared customer-facing templates, but the modifications are limited to layout, typography, spacing, responsive presentation, alert formatting, and action placement. Routes, form methods, field names, onboarding state transitions, subscription eligibility, pricing, checkout, payment, provisioning, and all authoritative business behavior remain unchanged.
+major_change_override: yes
