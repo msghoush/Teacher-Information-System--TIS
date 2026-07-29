@@ -3,7 +3,7 @@
 <section class="wizard-section">
     <div class="wizard-section-header">
         <strong>Subscription and Workspace Activation status</strong>
-        <p>Use this page to understand whether Secure Payment is complete and whether the workspace is ready for TIS Platform access.</p>
+        <p>Use this page to understand whether Secure Payment is complete and whether the workspace is ready for TIS Platform access. Browser redirects do not activate the workspace by themselves.</p>
     </div>
     <div class="review-grid">
         <div class="review-card">
@@ -54,13 +54,10 @@
         </div>
     </div>
 </section>
-<section class="wizard-section">
-    <div class="wizard-section-header">
-        <strong>What happens next?</strong>
-        <p>Workspace Activation follows secure payment confirmation. Browser redirects do not activate the workspace by themselves.</p>
+<div class="onboarding-action-bar">
+    <div class="onboarding-action-group">
+        <a class="btn secondary" href="/saas/account">Back to Account Setup</a>
     </div>
-</section>
-<div class="wizard-actions">
-    <a class="btn secondary" href="/saas/account">Back to Account Setup</a>
+    <a class="btn" data-primary-cta="true" href="{{ setup_console.primary_action['url'] }}">{{ setup_console.primary_action['label'] }}</a>
 </div>
 {% endblock %}

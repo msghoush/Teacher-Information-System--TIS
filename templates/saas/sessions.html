@@ -5,7 +5,7 @@
     <h1>Sessions</h1>
     <p class="page-subtitle">Manage active sign-ins connected to your TIS Account.</p>
 </header>
-{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+{% if notice %}<div class="notice" role="status">{{ notice }}</div>{% endif %}
 <form method="post" action="/saas/account/sessions/revoke-others" style="margin-bottom:18px;">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button class="btn secondary" type="submit">Revoke other sessions</button>

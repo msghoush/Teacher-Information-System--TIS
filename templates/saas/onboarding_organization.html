@@ -1,7 +1,7 @@
 {% extends "saas/base.html" %}
 {% block content %}
 {% set fd = form_data or {} %}
-{% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% if error %}<div class="error" role="alert"><strong class="alert-title">Please review this section</strong>{{ error }}</div>{% endif %}
 <form id="organization-form" class="wizard-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/organization" enctype="multipart/form-data">
     <section class="wizard-section">
         <div class="wizard-section-header">
@@ -56,12 +56,14 @@
                     <p class="muted">{% if organization.organization_logo_path %}Choose a new file below to replace this logo after a successful save.{% else %}Your logo will appear here after it is validated and saved.{% endif %}</p>
                 </div>
             </div>
-            <label for="organization_logo">Organization logo</label>
-            <input id="organization_logo" name="organization_logo" type="file" accept=".png,.jpg,.jpeg,.webp">
-            <p class="muted">PNG, JPG, JPEG, or WEBP. Maximum 4 MB; minimum 128x48px.</p>
-            {% if organization.organization_logo_path %}
-            <p class="muted"><a href="{{ url_for('static', path=organization.organization_logo_path) }}" target="_blank" rel="noopener">Open current logo</a></p>
-            {% endif %}
+            <div class="logo-upload-control">
+                <label for="organization_logo">Upload organization logo</label>
+                <input id="organization_logo" name="organization_logo" type="file" accept=".png,.jpg,.jpeg,.webp">
+                <p class="muted">PNG, JPG, JPEG, or WEBP. Maximum 4 MB; minimum 128x48 px.</p>
+                {% if organization.organization_logo_path %}
+                <p class="muted"><a href="{{ url_for('static', path=organization.organization_logo_path) }}" target="_blank" rel="noopener">Open current logo</a></p>
+                {% endif %}
+            </div>
         </div>
     </section>
 
@@ -157,8 +159,12 @@
         </div>
     </section>
 
-    <div class="wizard-actions">
-        <button class="btn secondary" type="submit" name="save_action" value="save_exit">Save draft</button>
+    <div class="onboarding-action-bar">
+        <div class="onboarding-action-group">
+            <a class="btn secondary" href="/saas/account">Back to Account Setup</a>
+            <button class="btn secondary" type="submit" name="save_action" value="save_exit">Save draft</button>
+        </div>
+        <button class="btn" data-primary-cta="true" type="submit" form="organization-form" name="save_action" value="continue">Save and continue</button>
     </div>
 </form>
 {% endblock %}

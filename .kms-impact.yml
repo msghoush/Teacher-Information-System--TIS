@@ -1,19 +1,9 @@
-knowledge_impact: yes
-summary: Complete null-safe Branch Setup estimates and preserve customer organization branding from onboarding through workspace activation.
+knowledge_impact: no
+summary: Refine the SaaS account and onboarding presentation without changing customer workflows or business rules.
 affected_areas:
-  - school-workspace-onboarding
-  - organization-profile
-  - pending-organization-logo-upload
-  - account-setup-ui
-  - branch-capacity-estimates
-  - workspace-provisioning
-  - organization-branding
+  - saas-account-ui
+  - onboarding-ui
+  - subscription-presentation
 kms_files_updated:
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/PROJECT_STATE.md
-  - docs/CHANGE_HISTORY.md
-  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
-  - docs/history/saas-onboarding/README.md
-no_impact_reason:
-major_change_override: no
+no_impact_reason: The changed files are classified as major-change paths because they are shared customer-facing templates, but the modifications are limited to layout, typography, spacing, responsive presentation, alert formatting, and action placement. Routes, form methods, field names, onboarding state transitions, subscription eligibility, pricing, checkout, payment, provisioning, and all authoritative business behavior remain unchanged.
+major_change_override: yes

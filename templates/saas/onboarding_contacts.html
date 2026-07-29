@@ -1,7 +1,7 @@
 {% extends "saas/base.html" %}
 {% block content %}
 {% set fd = form_data or {} %}
-{% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% if error %}<div class="error" role="alert"><strong class="alert-title">Please review the primary contact</strong>{{ error }}</div>{% endif %}
 <form id="contacts-form" class="wizard-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/contacts">
     <section class="wizard-section">
         <div class="wizard-section-header">
@@ -31,9 +31,12 @@
             </div>
         </div>
     </section>
-    <div class="wizard-actions">
-        <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/academic_setup">Back</a>
-        <button class="btn secondary" type="submit" name="save_action" value="save_exit">Save draft</button>
+    <div class="onboarding-action-bar">
+        <div class="onboarding-action-group">
+            <a class="btn secondary" href="/saas/onboarding/{{ organization.organization_uuid }}/academic_setup">Back</a>
+            <button class="btn secondary" type="submit" name="save_action" value="save_exit">Save draft</button>
+        </div>
+        <button class="btn" data-primary-cta="true" type="submit" form="contacts-form" name="save_action" value="continue">Save and continue</button>
     </div>
 </form>
 {% endblock %}
