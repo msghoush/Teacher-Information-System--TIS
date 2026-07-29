@@ -33,9 +33,13 @@ source_of_truth: true
 8. A downgrade is blocked separately by current branches, system users, or
    teachers. Existing data is preserved.
 
-Landing follow-up: the separate Next.js project must later update
-`tis-landing-website/src/app/page.tsx` in a focused task to show Starter,
-Professional, Enterprise AI, and Custom with the same limits and “or” wording.
+The separate Next.js landing page presents the same four-plan structure and
+organization-wide limits. Starter, Professional, and Enterprise AI retain their
+published monthly and annual per-active-branch prices and enter the configured
+subscription signup route. Custom has no fixed public price; it states that
+more than 25 branches, 100 system users, or 500 teachers requires flexible
+capacity and uses only the public Contact the TIS Team mail action. It never
+starts self-service signup or Paddle checkout.
 
 ## Initial Subscription Plan Capacity
 
