@@ -640,6 +640,17 @@ def _plan_context(db: Session, account, organization):
                 capacity.eligible
                 and plan_view.plan.plan_code == minimum_eligible_plan
             ),
+            "monthly_amount_minor": int(plan_view.monthly.base_amount_minor or 0),
+            "monthly_formatted": (
+                f"USD {int(plan_view.monthly.base_amount_minor or 0) / 100:,.2f}"
+            ),
+            "annual_amount_minor": int(plan_view.annual.base_amount_minor or 0),
+            "annual_formatted": (
+                f"USD {int(plan_view.annual.base_amount_minor or 0) / 100:,.2f}"
+            ),
+            "annual_savings_percent": int(
+                plan_view.annual.annual_savings_percent or 0
+            ),
         })
     return {
         "account": account,
@@ -2922,6 +2933,47 @@ def plan_selection_step(
         and not current_plan_selection
         and not preferred_plan_is_eligible
     )
+    initial_plan_id = int(
+        getattr(current_plan_selection, "plan_id", 0)
+        or (
+            preferred_plan_option["plan_view"].plan.id
+            if preferred_plan_is_eligible and not current_plan_selection
+            else 0
+        )
+        or 0
+    )
+    initial_billing_interval = str(
+        getattr(current_plan_selection, "billing_interval", "") or "monthly"
+    ).strip().lower()
+    if initial_billing_interval not in {"monthly", "annual"}:
+        initial_billing_interval = "monthly"
+    initial_plan_option = next(
+        (
+            option
+            for option in context["plan_options"]
+            if int(option["plan_view"].plan.id) == initial_plan_id
+            and option["eligible"]
+        ),
+        None,
+    )
+    initial_plan_summary = None
+    if initial_plan_option:
+        unit_amount_minor = int(
+            initial_plan_option[f"{initial_billing_interval}_amount_minor"]
+        )
+        total_amount_minor = unit_amount_minor * int(
+            context["billable_branch_count"] or 0
+        )
+        initial_plan_summary = {
+            "plan_id": initial_plan_id,
+            "plan_name": initial_plan_option["plan_view"].plan.plan_name,
+            "billing_interval": initial_billing_interval,
+            "unit_formatted": f"USD {unit_amount_minor / 100:,.2f}",
+            "total_formatted": f"USD {total_amount_minor / 100:,.2f}",
+        }
+    context["initial_plan_id"] = initial_plan_id
+    context["initial_billing_interval"] = initial_billing_interval
+    context["initial_plan_summary"] = initial_plan_summary
     context.update({
         "error": error,
         "setup_console": _payment_setup_console(

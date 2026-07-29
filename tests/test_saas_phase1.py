@@ -2246,15 +2246,37 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn('form="plan-selection-form"', plan_page.text)
         self.assertEqual(plan_page.text.count('data-primary-cta="true"'), 1)
         self.assertIn('class="plan-grid"', plan_page.text)
-        self.assertEqual(
-            plan_page.text.count('class="btn secondary plan-select-action"'),
-            3,
-        )
+        self.assertNotIn('<select id="plan_id"', plan_page.text)
+        self.assertNotIn('<select id="billing_interval"', plan_page.text)
+        self.assertEqual(plan_page.text.count('class="plan-card-radio"'), 3)
+        self.assertEqual(plan_page.text.count('class="billing-interval-radio"'), 2)
+        self.assertIn('id="billing-interval-monthly"', plan_page.text)
+        self.assertIn('id="billing-interval-annual"', plan_page.text)
+        self.assertIn("Annual", plan_page.text)
+        self.assertIn("Save 17%", plan_page.text)
         self.assertIn("Starter is unavailable because:", plan_page.text)
         self.assertIn('class="validation-list"', plan_page.text)
+        self.assertIn("2 branches required; Starter supports 1.", plan_page.text)
+        self.assertIn("20 system users required; Starter supports 5.", plan_page.text)
+        self.assertIn("90 teachers required; Starter supports 25.", plan_page.text)
+        self.assertIn("Recommended for your setup", plan_page.text)
+        self.assertIn('data-monthly-formatted="USD 29.00"', plan_page.text)
+        self.assertIn('data-annual-formatted="USD 290.00"', plan_page.text)
+        self.assertIn('data-monthly-formatted="USD 79.00"', plan_page.text)
+        self.assertIn('data-annual-formatted="USD 790.00"', plan_page.text)
+        self.assertIn('data-monthly-formatted="USD 149.00"', plan_page.text)
+        self.assertIn('data-annual-formatted="USD 1,490.00"', plan_page.text)
         self.assertIn('data-plan-kind="custom"', plan_page.text)
+        self.assertIn("Tailored pricing", plan_page.text)
+        self.assertIn("No fixed public price", plan_page.text)
         self.assertIn('href="mailto:info@tisplatform.com"', plan_page.text)
-        self.assertIn('class="onboarding-action-bar"', plan_page.text)
+        self.assertIn('class="onboarding-action-bar plan-selection-actions"', plan_page.text)
+        self.assertIn(">Save and Continue</button>", plan_page.text)
+        self.assertIn("updatePlanPrices", plan_page.text)
+        self.assertIn("updateTotal", plan_page.text)
+        self.assertIn("@media (max-width: 800px)", plan_page.text)
+        self.assertIn("grid-template-columns: 1fr;", plan_page.text)
+        self.assertIn("overflow-wrap: anywhere;", plan_page.text)
         self.assertNotIn("Plan ID", plan_page.text)
 
         plan_response = self.client.post(
@@ -2353,6 +2375,117 @@ class SaaSPhase1Tests(unittest.TestCase):
             response = self.client.get(f"/saas/onboarding/{org_uuid}/{target}", follow_redirects=False)
             self.assertEqual(response.status_code, 302)
             self.assertTrue(response.headers["location"].endswith("/billing-status"))
+
+    def test_plan_selection_cards_and_billing_switch_preserve_server_authority(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout(
+            "card-selection@academy.edu"
+        )
+        db = self._db()
+        try:
+            plans = {
+                row.plan_code: row
+                for row in db.query(saas.models.SubscriptionPlan).all()
+            }
+            starter_id = plans["starter"].id
+            professional_id = plans["professional"].id
+        finally:
+            db.close()
+
+        page = self.client.get(f"/saas/onboarding/{org_uuid}/plan")
+        self.assertEqual(page.status_code, 200)
+        self.assertNotIn("<label for=\"plan_id\">Selected plan</label>", page.text)
+        self.assertNotIn("<select", page.text)
+        self.assertIn(
+            f'id="plan-{professional_id}"\n                        name="plan_id"\n                        value="{professional_id}"',
+            page.text,
+        )
+        self.assertIn('role="radiogroup"', page.text)
+        self.assertIn('aria-live="polite"', page.text)
+        self.assertIn('data-billing-interval="monthly"', page.text)
+        self.assertIn('value="monthly"\n                        checked', page.text)
+        self.assertIn('value="annual"', page.text)
+        self.assertEqual(page.text.count('class="plan-savings"'), 3)
+        custom_card = page.text.split('data-plan-kind="custom"', 1)[1]
+        self.assertNotIn("data-monthly-formatted", custom_card.split("</article>", 1)[0])
+        self.assertIn("Contact the TIS Team", custom_card)
+        self.assertIn('data-subscription-total', page.text)
+        self.assertIn('data-branch-count="2"', page.text)
+        self.assertIn("Select an eligible plan to calculate the subscription total.", page.text)
+
+        blocked = self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(starter_id), "billing_interval": "monthly"},
+            follow_redirects=False,
+        )
+        self.assertEqual(blocked.status_code, 302)
+        self.assertIn(f"/saas/onboarding/{org_uuid}/plan?error=", blocked.headers["location"])
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            self.assertIsNone(billing_service.get_current_plan_selection(db, organization))
+        finally:
+            db.close()
+
+        monthly = self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "monthly"},
+            follow_redirects=False,
+        )
+        self.assertEqual(monthly.status_code, 302)
+        self.assertIn(f"/saas/onboarding/{org_uuid}/checkout", monthly.headers["location"])
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            selection = billing_service.get_current_plan_selection(db, organization)
+            self.assertEqual(selection.plan_id, professional_id)
+            self.assertEqual(selection.billing_interval, "monthly")
+            self.assertEqual(selection.base_amount_minor, 7900)
+            self.assertEqual(selection.billable_branch_count, 2)
+            self.assertEqual(selection.quoted_base_amount_minor, 15800)
+        finally:
+            db.close()
+
+        selected_monthly_page = self.client.get(f"/saas/onboarding/{org_uuid}/plan")
+        self.assertEqual(selected_monthly_page.status_code, 200)
+        self.assertIn(
+            f'id="plan-{professional_id}"\n                        name="plan_id"\n                        value="{professional_id}"',
+            selected_monthly_page.text,
+        )
+        self.assertIn("USD 79.00 &times; 2 active branches", selected_monthly_page.text)
+        self.assertIn("USD 158.00", selected_monthly_page.text)
+        self.assertIn("per month", selected_monthly_page.text)
+
+        annual = self.client.post(
+            f"/saas/onboarding/{org_uuid}/plan",
+            data={"plan_id": str(professional_id), "billing_interval": "annual"},
+            follow_redirects=False,
+        )
+        self.assertEqual(annual.status_code, 302)
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            selection = billing_service.get_current_plan_selection(db, organization)
+            self.assertEqual(selection.plan_id, professional_id)
+            self.assertEqual(selection.billing_interval, "annual")
+            self.assertEqual(selection.base_amount_minor, 79000)
+            self.assertEqual(selection.billable_branch_count, 2)
+            self.assertEqual(selection.quoted_base_amount_minor, 158000)
+        finally:
+            db.close()
+
+        selected_annual_page = self.client.get(f"/saas/onboarding/{org_uuid}/plan")
+        self.assertEqual(selected_annual_page.status_code, 200)
+        self.assertIn('data-billing-interval="annual"', selected_annual_page.text)
+        self.assertIn("USD 790.00 &times; 2 active branches", selected_annual_page.text)
+        self.assertIn("USD 1,580.00", selected_annual_page.text)
+        self.assertIn("per year", selected_annual_page.text)
 
     def test_missing_paddle_price_id_blocks_launch_with_customer_safe_message(self):
         org_uuid = self._complete_pending_organization_to_ready_for_checkout("missing-price@academy.edu")
@@ -4388,26 +4521,33 @@ class SaaSPhase1Tests(unittest.TestCase):
             f"/saas/onboarding/{org_uuid}/plan"
         )
         self.assertIn(
-            "Your organization requires a custom plan. Please contact the TIS team.",
+            "Your organization requires a custom plan. Contact the TIS team for a tailored capacity review.",
             plan_page.text,
         )
-        self.assertEqual(plan_page.text.count('data-plan-eligible="false"'), 3)
-        self.assertIn("Supports up to 1 branch", plan_page.text)
-        self.assertIn("Supports up to 5 branches", plan_page.text)
-        self.assertIn("Supports up to 25 branches", plan_page.text)
-        self.assertIn("Supports up to 5 system users", plan_page.text)
-        self.assertIn("Supports up to 20 system users", plan_page.text)
-        self.assertIn("Supports up to 100 system users", plan_page.text)
-        self.assertIn("Supports up to 25 teachers", plan_page.text)
-        self.assertIn("Supports up to 100 teachers", plan_page.text)
-        self.assertIn("Supports up to 500 teachers", plan_page.text)
-        self.assertIn("per branch", plan_page.text)
+        self.assertEqual(
+            len(
+                re.findall(
+                    r'class="plan-card-option"\s+data-plan-eligible="false"',
+                    plan_page.text,
+                )
+            ),
+            3,
+        )
+        self.assertIn("Up to <strong>1</strong> branch", plan_page.text)
+        self.assertIn("Up to <strong>5</strong> branches", plan_page.text)
+        self.assertIn("Up to <strong>25</strong> branches", plan_page.text)
+        self.assertIn("Up to <strong>5</strong> system users", plan_page.text)
+        self.assertIn("Up to <strong>20</strong> system users", plan_page.text)
+        self.assertIn("Up to <strong>100</strong> system users", plan_page.text)
+        self.assertIn("Up to <strong>25</strong> teachers", plan_page.text)
+        self.assertIn("Up to <strong>100</strong> teachers", plan_page.text)
+        self.assertIn("Up to <strong>500</strong> teachers", plan_page.text)
+        self.assertIn("per active branch", plan_page.text)
         self.assertIn('data-plan-kind="custom"', plan_page.text)
         self.assertIn('data-custom-emphasized="true"', plan_page.text)
-        self.assertIn(
-            "More than 25 branches, 100 system users, or 500 teachers",
-            plan_page.text,
-        )
+        self.assertIn("More than <strong>25</strong> branches", plan_page.text)
+        self.assertIn("More than <strong>100</strong> system users", plan_page.text)
+        self.assertIn("More than <strong>500</strong> teachers", plan_page.text)
         self.assertIn('href="mailto:info@tisplatform.com"', plan_page.text)
 
     def test_branch_expansion_clears_only_an_undersized_selected_plan(self):
@@ -4521,11 +4661,19 @@ class SaaSPhase1Tests(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 200)
             self.assertEqual(
-                response.text.count('data-plan-eligible="true"'),
+                len(re.findall(
+                    r'<div\s+class="plan-card-option"\s+'
+                    r'data-plan-eligible="true"',
+                    response.text,
+                )),
                 expected_eligible_count,
             )
             self.assertEqual(
-                response.text.count('data-plan-eligible="false"'),
+                len(re.findall(
+                    r'<div\s+class="plan-card-option"\s+'
+                    r'data-plan-eligible="false"',
+                    response.text,
+                )),
                 3 - expected_eligible_count,
             )
             self.assertIn('data-plan-kind="custom"', response.text)
@@ -4919,12 +5067,14 @@ class SaaSPhase1Tests(unittest.TestCase):
             db.close()
         plan_page = self.client.get(f"/saas/onboarding/{org_uuid}/plan")
         checkout_page = self.client.get(f"/saas/onboarding/{org_uuid}/checkout")
-        self.assertIn("Prices are per branch.", plan_page.text)
-        self.assertIn("USD 149.00 per branch x 2 branches", plan_page.text)
-        self.assertIn("Total: USD 298.00 per month", plan_page.text)
-        self.assertIn("Price per branch", checkout_page.text)
-        self.assertIn("Billable branches", checkout_page.text)
-        self.assertIn("USD 298.00 per month", checkout_page.text)
+        self.assertIn("Subscription prices remain per active branch.", plan_page.text)
+        self.assertIn("USD 149.00 &times; 2 active branches", plan_page.text)
+        self.assertIn("USD 298.00", plan_page.text)
+        self.assertIn("per month", plan_page.text)
+        self.assertIn("Price per active branch", checkout_page.text)
+        self.assertIn("Active branches", checkout_page.text)
+        self.assertIn("USD 298.00", checkout_page.text)
+        self.assertIn("per month", checkout_page.text)
         self.assertNotIn("quote_fingerprint", checkout_page.text)
 
     def test_paddle_launch_uses_authoritative_quantity_and_aggregate_total(self):
