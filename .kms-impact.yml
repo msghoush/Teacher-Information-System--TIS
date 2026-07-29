@@ -1,9 +1,10 @@
 knowledge_impact: no
-summary: Refine the SaaS account and onboarding presentation without changing customer workflows or business rules.
+summary: Refine the shared SaaS account and onboarding presentation, including responsive layout and official TIS logo sizing, without changing behavior.
 affected_areas:
   - saas-account-ui
   - onboarding-ui
   - subscription-presentation
+  - shared-saas-header-branding
 kms_files_updated:
-no_impact_reason: The changed files are classified as major-change paths because they are shared customer-facing templates, but the modifications are limited to layout, typography, spacing, responsive presentation, alert formatting, and action placement. Routes, form methods, field names, onboarding state transitions, subscription eligibility, pricing, checkout, payment, provisioning, and all authoritative business behavior remain unchanged.
+no_impact_reason: This complete PR is presentation-only. It refines shared SaaS account and onboarding templates, responsive shell and action-bar presentation, plan-card visual hierarchy and alert formatting, and official TIS logo sizing. It changes no routes, form methods, field names, workflow transitions, business rules, payment, subscription, capacity, provisioning, or architecture.
 major_change_override: yes
