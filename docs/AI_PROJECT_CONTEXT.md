@@ -1,11 +1,22 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-07-27
+last_updated: 2026-07-29
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Public Subscription Entry
+
+The landing hero Subscribe Now action scrolls to the public pricing section.
+Starter, Professional, and Enterprise AI then enter the public TIS Account
+signup route with an allowlisted preferred-plan code. That preference is
+non-authoritative: it creates no plan selection, checkout, payment attempt, or
+Paddle object, and it is applied only after School Workspace Setup confirms the
+plan remains eligible across branches, system users, and teachers. Invalid or
+undersized preferences are ignored or cleared safely. Custom remains a
+contact-only path.
 
 ## Three-Dimension Subscription Capacity
 

@@ -1,6 +1,12 @@
 {% extends "saas/base.html" %}
 {% block content %}
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% if preferred_plan_adjusted %}
+<div class="notice">
+    Your initial plan preference was updated because your organization setup requires
+    a different capacity level. Review the eligible plans below.
+</div>
+{% endif %}
 <form id="plan-selection-form" class="wizard-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/plan">
     <section class="wizard-section">
         <div class="wizard-section-header">
@@ -23,7 +29,7 @@
                     <option value="">Choose a plan</option>
                     {% for option in plan_options %}
                     {% set plan_view = option.plan_view %}
-                    <option value="{{ plan_view.plan.id }}" {% if current_plan_selection and current_plan_selection.plan_id == plan_view.plan.id %}selected{% endif %}{% if not option.eligible %} disabled{% endif %}>
+                    <option value="{{ plan_view.plan.id }}" {% if (current_plan_selection and current_plan_selection.plan_id == plan_view.plan.id) or (not current_plan_selection and preferred_plan_code == plan_view.plan.plan_code and option.eligible) %}selected{% endif %}{% if not option.eligible %} disabled{% endif %}>
                         {{ plan_view.plan.plan_name }}{% if option.recommended %} - Minimum eligible{% elif plan_view.plan.is_most_popular %} - Most Popular{% endif %}{% if not option.eligible %} - Unavailable{% endif %}
                     </option>
                     {% endfor %}
