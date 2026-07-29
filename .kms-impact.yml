@@ -1,11 +1,9 @@
 knowledge_impact: no
-summary: Refine the customer-facing TIS Account and onboarding presentation without changing routes, workflow state, or commercial behavior.
+summary: Refine the SaaS account and onboarding presentation without changing customer workflows or business rules.
 affected_areas:
-  - account-setup-ui
-  - school-workspace-onboarding-ui
-  - subscription-selection-ui
-  - secure-payment-summary-ui
-  - customer-account-shell
-kms_files_updated: []
-no_impact_reason: Visual-only shared-template, CSS, and presentation-test refinement. Existing routes, HTTP methods, form actions and field names, validation, capacity, pricing, payment, provisioning, activation, identity, and database behavior remain unchanged.
-major_change_override: yes
+  - saas-account-ui
+  - onboarding-ui
+  - subscription-presentation
+kms_files_updated:
+no_impact_reason: Presentation-only template, CSS, and test refinements; no business logic, workflow, architecture, or authoritative documentation changed.
+major_change_override: no
