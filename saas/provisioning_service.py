@@ -5,7 +5,6 @@ import os
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -177,14 +176,17 @@ def _copy_pending_logo_to_school_group(db: Session, organization, school_group_i
     source_relative = str(getattr(organization, "organization_logo_path", "") or "").strip()
     if not source_relative:
         return None
-    source_path = (Path(__file__).resolve().parent.parent / "static" / Path(*source_relative.split("/"))).resolve()
-    static_root = (Path(__file__).resolve().parent.parent / "static").resolve()
     try:
-        source_path.relative_to(static_root)
+        source_path = service.resolve_pending_logo_file(
+            source_relative, require_file=True
+        )
+    except FileNotFoundError as exc:
+        raise ValueError(
+            "The saved organization logo is unavailable. "
+            "Upload it again before workspace activation."
+        ) from exc
     except ValueError as exc:
         raise ValueError("Pending organization logo path is invalid.") from exc
-    if not source_path.is_file():
-        return None
 
     file_bytes = source_path.read_bytes()
     upload_info = branding_storage.validate_logo_upload(
@@ -202,8 +204,13 @@ def _copy_pending_logo_to_school_group(db: Session, organization, school_group_i
         operational_models.SchoolGroupLogo.school_group_id == school_group_id,
         operational_models.SchoolGroupLogo.slot_key == "primary",
     ).first()
+    organization_name = (
+        str(getattr(organization, "organization_name", "") or "").strip()
+        or "Organization"
+    )
+    logo_label = f"{organization_name} logo"[:120]
     if existing_logo:
-        existing_logo.label = "Main organization logo"
+        existing_logo.label = logo_label
         existing_logo.image_path = relative_path
         existing_logo.content_type = upload_info.content_type
         existing_logo.updated_by_user_id = owner_user_id
@@ -212,7 +219,7 @@ def _copy_pending_logo_to_school_group(db: Session, organization, school_group_i
     logo_row = operational_models.SchoolGroupLogo(
         school_group_id=school_group_id,
         slot_key="primary",
-        label="Main organization logo",
+        label=logo_label,
         image_path=relative_path,
         content_type=upload_info.content_type,
         sort_order=1,

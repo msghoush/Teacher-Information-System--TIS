@@ -92,6 +92,13 @@ DISPOSABLE_EMAIL_BLOCK_MESSAGE = (
 )
 COMMERCIAL_INTENTS = {"demo", "subscribe"}
 SELF_SERVICE_PLAN_CODES = {"starter", "professional", "enterprise_ai"}
+PENDING_LOGO_ALLOWED_CONTENT_TYPES = {
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+}
+PENDING_LOGO_ALLOWED_EXTENSIONS = {".jpg", ".png", ".webp"}
 PUBLIC_EMAIL_DOMAINS = {
     "gmail.com",
     "outlook.com",
@@ -101,6 +108,10 @@ PUBLIC_EMAIL_DOMAINS = {
 }
 
 
+class PendingLogoStorageError(RuntimeError):
+    pass
+
+
 @dataclass(frozen=True)
 class DomainPolicyResult:
     domain: str
@@ -108,6 +119,13 @@ class DomainPolicyResult:
     warning: str = ""
     reason: str = ""
     enforcement: str = ""
+
+
+@dataclass(frozen=True)
+class PendingLogoUpload:
+    file_bytes: bytes
+    extension: str
+    content_type: str
 
 
 @dataclass(frozen=True)
@@ -720,36 +738,96 @@ def pending_logo_public_path(filename: str) -> str:
     return f"uploads/saas/pending_logos/{filename}"
 
 
-def _delete_pending_logo_file(logo_path: str | None) -> None:
+def resolve_pending_logo_file(
+    logo_path: str | None, *, require_file: bool = True
+) -> Path:
     relative = str(logo_path or "").strip()
     if not relative:
-        return
-    static_root = (_workspace_root() / "static").resolve()
-    target_path = (static_root / Path(*relative.split("/"))).resolve()
+        raise ValueError("Pending organization logo path is missing.")
+    pending_root = (
+        _workspace_root() / "static" / "uploads" / "saas" / "pending_logos"
+    ).resolve()
+    target_path = (
+        _workspace_root() / "static" / Path(*relative.split("/"))
+    ).resolve()
     try:
-        target_path.relative_to(static_root)
-    except ValueError:
-        return
-    if target_path.is_file():
-        target_path.unlink(missing_ok=True)
+        target_path.relative_to(pending_root)
+    except ValueError as exc:
+        raise ValueError("Pending organization logo path is invalid.") from exc
+    if require_file and not target_path.is_file():
+        raise FileNotFoundError(str(target_path))
+    return target_path
+
+
+def delete_pending_logo_file(logo_path: str | None) -> bool:
+    if not str(logo_path or "").strip():
+        return False
+    try:
+        target_path = resolve_pending_logo_file(logo_path, require_file=False)
+        if target_path.is_file():
+            target_path.unlink()
+            return True
+    except (OSError, ValueError):
+        return False
+    return False
+
+
+def prepare_pending_logo(upload_file) -> PendingLogoUpload | None:
+    filename = str(getattr(upload_file, "filename", "") or "").strip()
+    if not filename:
+        return None
+    content_type = str(getattr(upload_file, "content_type", "") or "").strip().lower()
+    if content_type not in PENDING_LOGO_ALLOWED_CONTENT_TYPES:
+        raise ValueError("Organization logo must be a PNG, JPG, or WEBP image.")
+    try:
+        file_bytes = upload_file.file.read(branding_storage.LOGO_MAX_BYTES + 1)
+    except OSError as exc:
+        raise PendingLogoStorageError(
+            "Organization logo could not be read."
+        ) from exc
+    if len(file_bytes) > branding_storage.LOGO_MAX_BYTES:
+        raise ValueError("Organization logo is too large. Maximum size is 4 MB.")
+    try:
+        upload_info = branding_storage.validate_logo_upload(
+            file_bytes,
+            filename,
+            slot_key="primary",
+        )
+    except branding_storage.BrandingStorageError as exc:
+        raise ValueError(str(exc)) from exc
+    if upload_info.extension not in PENDING_LOGO_ALLOWED_EXTENSIONS:
+        raise ValueError("Organization logo must be a PNG, JPG, or WEBP image.")
+    return PendingLogoUpload(
+        file_bytes=file_bytes,
+        extension=upload_info.extension,
+        content_type=upload_info.content_type,
+    )
+
+
+def write_pending_logo(upload: PendingLogoUpload) -> str:
+    stored_name = f"{uuid.uuid4().hex}{upload.extension}"
+    temporary_path = None
+    try:
+        target_dir = pending_logo_dir()
+        target_path = target_dir / stored_name
+        temporary_path = target_path.with_name(f".{target_path.name}.tmp")
+        temporary_path.write_bytes(upload.file_bytes)
+        os.replace(temporary_path, target_path)
+    except OSError as exc:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        raise PendingLogoStorageError(
+            "Organization logo storage is temporarily unavailable."
+        ) from exc
+    return pending_logo_public_path(stored_name)
 
 
 def save_pending_logo(upload_file) -> str:
-    filename = str(getattr(upload_file, "filename", "") or "").strip()
-    if not filename:
-        return ""
-    content_type = str(getattr(upload_file, "content_type", "") or "").strip().lower()
-    allowed_content_types = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
-    if content_type not in allowed_content_types:
-        raise ValueError("Organization logo must be a PNG, JPG, or WEBP image.")
-    suffix = Path(filename).suffix.lower()
-    if suffix not in {".png", ".jpg", ".jpeg", ".webp"}:
-        raise ValueError("Organization logo file extension is not supported.")
-    stored_name = f"{uuid.uuid4().hex}{suffix}"
-    target_path = pending_logo_dir() / stored_name
-    with target_path.open("wb") as output:
-        output.write(upload_file.file.read())
-    return pending_logo_public_path(stored_name)
+    upload = prepare_pending_logo(upload_file)
+    return write_pending_logo(upload) if upload else ""
 
 
 def get_pending_organization_for_account(db: Session, account):
@@ -1127,7 +1205,7 @@ def save_organization_profile(
     estimated_staff_users,
     timezone: str,
     logo_file=None,
-):
+) -> str:
     cleaned_program = _clean_text(educational_program, 20).upper()
     if cleaned_program not in {"NATIONAL", "INTERNATIONAL", "BOTH"}:
         raise ValueError("Educational Program must be National, International, or Both.")
@@ -1178,11 +1256,14 @@ def save_organization_profile(
     ):
         _invalidate_pre_payment_capacity_selection(db, organization)
     organization.timezone = _clean_timezone(timezone)
+    new_logo_path = ""
     if logo_file is not None and str(getattr(logo_file, "filename", "") or "").strip():
-        organization.organization_logo_path = save_pending_logo(logo_file)
+        new_logo_path = save_pending_logo(logo_file)
+        organization.organization_logo_path = new_logo_path
     organization.onboarding_step = "branches"
     organization.status = "in_progress"
     organization.draft_saved_at = _utcnow()
+    return new_logo_path
 
 
 def _invalidate_pre_payment_capacity_selection(db: Session, organization) -> None:
@@ -1259,7 +1340,13 @@ def _invalidate_pre_payment_capacity_selection(db: Session, organization) -> Non
         organization.billing_status = "not_started"
 
 
-def replace_branches(db: Session, organization, branch_rows: list[dict]):
+def replace_branches(
+    db: Session,
+    organization,
+    branch_rows: list[dict],
+    *,
+    require_capacity_estimates: bool = False,
+):
     payment_confirmed = bool(
         str(getattr(organization, "payment_status", "") or "").strip().lower()
         == "paid"
@@ -1337,6 +1424,8 @@ def replace_branches(db: Session, organization, branch_rows: list[dict]):
             target = models.PendingOrganizationBranch(
                 branch_uuid=str(uuid.uuid4()),
                 pending_organization_id=organization.id,
+                estimated_system_users=0,
+                estimated_teachers=0,
             )
             db.add(target)
             changed = True
@@ -1352,6 +1441,8 @@ def replace_branches(db: Session, organization, branch_rows: list[dict]):
         ):
             raw_value = submitted.get(capacity_field)
             if raw_value is None:
+                if require_capacity_estimates:
+                    raise ValueError(f"{label} is required for every branch.")
                 parsed_value = int(getattr(target, capacity_field, 0) or 0)
             else:
                 cleaned_value = str(raw_value).strip()
@@ -1639,6 +1730,26 @@ def list_pending_branches(db: Session, organization, *, include_inactive: bool =
         models.PendingOrganizationBranch.sort_order.asc(),
         models.PendingOrganizationBranch.id.asc(),
     ).all()
+
+
+def pending_branch_capacity_totals(branch_rows) -> dict[str, int]:
+    totals = {
+        "estimated_system_users": 0,
+        "estimated_teachers": 0,
+    }
+    for row in branch_rows or ():
+        for field in totals:
+            value = (
+                row.get(field)
+                if isinstance(row, dict)
+                else getattr(row, field, None)
+            )
+            try:
+                parsed = int(str(value).strip()) if value is not None else 0
+            except (TypeError, ValueError):
+                parsed = 0
+            totals[field] += max(0, parsed)
+    return totals
 
 
 def list_billable_pending_branches(db: Session, organization):
@@ -2194,7 +2305,7 @@ def build_setup_console_context(db: Session, account) -> dict:
         )
     elif not organization:
         current_key = "school_workspace_setup"
-        title = "Start your School Workspace Setup"
+        title = "Start Your School Workspace Setup"
         subtitle = "Your TIS Account is ready. Set up your school workspace to continue."
         status_banner = "Next step: start School Workspace Setup."
         primary_action = {
@@ -2323,6 +2434,7 @@ def build_setup_console_context(db: Session, account) -> dict:
         "portal_access_message": "TIS Platform access becomes available after Workspace Activation.",
         "workspace_name": workspace_name,
         "progress_percent": progress_percent,
+        "compact_start": not organization,
     }
 
 
@@ -2549,7 +2661,7 @@ def delete_pending_organization(db: Session, organization, *, actor_user_id: str
         models.PendingOrganization.id == pending_organization_id
     ).delete(synchronize_session=False)
 
-    _delete_pending_logo_file(logo_path)
+    delete_pending_logo_file(logo_path)
 
     owner_account = None
     if owner_account_id > 0:

@@ -3,9 +3,12 @@ import re
 import json
 import hashlib
 import hmac
+import io
+import tempfile
 import time
 import unittest
 from datetime import timedelta
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -20,14 +23,17 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+from PIL import Image
 
 import db_migrations
 import auth
+import branding_storage
 import location_service
 import models
 import saas.models  # noqa: F401 - register metadata
+import ui_shell
 from dependencies import get_db
-from saas import billing_service, branch_pricing_quote_service, draft_lifecycle_service, oauth, paddle_client, payment_service, service
+from saas import billing_service, branch_pricing_quote_service, draft_lifecycle_service, oauth, paddle_client, payment_service, provisioning_service, service
 from saas.router import admin_router as saas_admin_router, router as saas_router
 
 
@@ -537,6 +543,36 @@ class SaaSPhase1Tests(unittest.TestCase):
         finally:
             db.close()
 
+    def _organization_profile_data(self, *, educational_program="BOTH"):
+        return {
+            "organization_name": "Profile Test Academy",
+            "legal_name": "Profile Test Academy LLC",
+            "website": "https://profile-test.example",
+            "primary_domain": "profile-test.example",
+            "phone": "+9611000000",
+            "educational_program": educational_program,
+            "country_code": "LB",
+            "country_name": "Lebanon",
+            "region_name": "Beirut",
+            "city_name": "Beirut",
+            "school_type": "K-12",
+            "expected_branch_count": "2",
+            "expected_student_count": "500",
+            "expected_teacher_count": "45",
+            "estimated_staff_users": "20",
+            "timezone": "Asia/Beirut",
+            "save_action": "continue",
+        }
+
+    @staticmethod
+    def _logo_bytes(*, image_format="PNG", color=(14, 103, 148, 255)):
+        image = Image.new("RGBA", (160, 80), color)
+        output = io.BytesIO()
+        if image_format == "JPEG":
+            image = image.convert("RGB")
+        image.save(output, format=image_format)
+        return output.getvalue()
+
         response = self.client.get(f"/saas/auth/reset-password?token={token}")
         self.assertEqual(response.status_code, 400)
         self.assertIn("This password reset link is invalid or expired.", response.text)
@@ -655,10 +691,25 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         dashboard_response = self.client.get("/saas/account")
         self.assertEqual(dashboard_response.status_code, 200)
-        self.assertIn("Start your School Workspace Setup", dashboard_response.text)
-        self.assertIn("What should I do next?", dashboard_response.text)
+        self.assertEqual(
+            dashboard_response.text.count("Start Your School Workspace Setup"), 1
+        )
+        self.assertNotIn("What should I do next?", dashboard_response.text)
+        self.assertNotIn("What happens next?", dashboard_response.text)
+        self.assertNotIn("Next step: start School Workspace Setup.", dashboard_response.text)
+        self.assertNotIn("School Workspace</strong>", dashboard_response.text)
         self.assertIn("TIS Logo", dashboard_response.text)
+        self.assertIn('class="brand-symbol brand-symbol-compact"', dashboard_response.text)
+        self.assertIn("width: clamp(128px, 14vw, 168px);", dashboard_response.text)
+        self.assertIn('class="setup-console is-compact-start"', dashboard_response.text)
         self.assertEqual(dashboard_response.text.count('data-primary-cta="true"'), 1)
+        self.assertIn(
+            '<form method="post" action="/saas/onboarding/start">',
+            dashboard_response.text,
+        )
+        self.assertIn(">Start School Workspace Setup</button>", dashboard_response.text)
+        self.assertNotIn('class="setup-status"', dashboard_response.text)
+        self.assertNotIn('class="setup-primary-panel"', dashboard_response.text)
         expected_steps = [
             "TIS Account",
             "Email Verification",
@@ -675,7 +726,8 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn('data-setup-step="email_verification" data-setup-state="complete"', dashboard_response.text)
         self.assertIn('data-setup-step="school_workspace_setup" data-setup-state="current"', dashboard_response.text)
         self.assertIn('data-setup-step="subscription_selection" data-setup-state="locked"', dashboard_response.text)
-        self.assertIn("TIS Platform access becomes available after Workspace Activation.", dashboard_response.text)
+        self.assertEqual(dashboard_response.text.count('data-setup-step="'), 8)
+        self.assertNotIn("TIS Platform access becomes available after Workspace Activation.", dashboard_response.text)
         self.assertNotIn("Last seen:", dashboard_response.text)
         self.assertNotIn("active session", dashboard_response.text)
         self.assertNotIn("Current session", dashboard_response.text)
@@ -699,6 +751,645 @@ class SaaSPhase1Tests(unittest.TestCase):
             self.assertGreaterEqual(revoked_sessions, 1)
         finally:
             db.close()
+
+    def test_organization_profile_accepts_all_approved_program_values(self):
+        self._signup_and_verify("programs@academy.edu")
+        org_uuid = self._start_pending_organization()
+
+        for submitted, stored in (
+            ("National", "NATIONAL"),
+            ("International", "INTERNATIONAL"),
+            ("Both", "BOTH"),
+        ):
+            with self.subTest(program=submitted):
+                response = self.client.post(
+                    f"/saas/onboarding/{org_uuid}/organization",
+                    data=self._organization_profile_data(
+                        educational_program=submitted
+                    ),
+                    follow_redirects=False,
+                )
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(
+                    response.headers["location"],
+                    f"/saas/onboarding/{org_uuid}/branches",
+                )
+                db = self._db()
+                try:
+                    organization = (
+                        db.query(saas.models.PendingOrganization)
+                        .filter_by(organization_uuid=org_uuid)
+                        .one()
+                    )
+                    self.assertEqual(organization.educational_program, stored)
+                    self.assertEqual(
+                        db.query(saas.models.PendingOrganization).count(), 1
+                    )
+                finally:
+                    db.close()
+
+    def test_organization_profile_program_errors_are_inline_and_preserve_values(self):
+        self._signup_and_verify("program-errors@academy.edu")
+        org_uuid = self._start_pending_organization()
+
+        for submitted in ("", "Unsupported Program"):
+            with self.subTest(program=submitted or "missing"):
+                payload = self._organization_profile_data(
+                    educational_program=submitted
+                )
+                payload["legal_name"] = "Preserved Legal Name"
+                response = self.client.post(
+                    f"/saas/onboarding/{org_uuid}/organization",
+                    data=payload,
+                    follow_redirects=False,
+                )
+                self.assertEqual(response.status_code, 422)
+                self.assertIn(
+                    "Educational Program must be National, International, or Both.",
+                    response.text,
+                )
+                self.assertIn('value="Preserved Legal Name"', response.text)
+                self.assertNotIn("Internal Server Error", response.text)
+
+        db = self._db()
+        try:
+            organization = (
+                db.query(saas.models.PendingOrganization)
+                .filter_by(organization_uuid=org_uuid)
+                .one()
+            )
+            self.assertFalse(organization.educational_program)
+            self.assertEqual(db.query(saas.models.PendingOrganization).count(), 1)
+        finally:
+            db.close()
+
+    def test_organization_logo_upload_replacement_and_empty_upload_are_safe(self):
+        self._signup_and_verify("logo@academy.edu")
+        org_uuid = self._start_pending_organization()
+
+        with tempfile.TemporaryDirectory() as temporary_root:
+            root = Path(temporary_root)
+            with patch("saas.service._workspace_root", return_value=root):
+                empty_preview = self.client.get(
+                    f"/saas/onboarding/{org_uuid}/organization"
+                )
+                self.assertEqual(empty_preview.status_code, 200)
+                self.assertIn("No organization logo uploaded", empty_preview.text)
+                self.assertIn(
+                    'aria-label="No organization logo uploaded"',
+                    empty_preview.text,
+                )
+
+                first_response = self.client.post(
+                    f"/saas/onboarding/{org_uuid}/organization",
+                    data=self._organization_profile_data(),
+                    files={
+                        "organization_logo": (
+                            "../../unsafe-school-name.jpg",
+                            self._logo_bytes(),
+                            "image/png",
+                        )
+                    },
+                    follow_redirects=False,
+                )
+                self.assertEqual(first_response.status_code, 302)
+
+                db = self._db()
+                try:
+                    organization = (
+                        db.query(saas.models.PendingOrganization)
+                        .filter_by(organization_uuid=org_uuid)
+                        .one()
+                    )
+                    first_path = organization.organization_logo_path
+                finally:
+                    db.close()
+
+                self.assertRegex(
+                    first_path,
+                    r"^uploads/saas/pending_logos/[0-9a-f]{32}\.png$",
+                )
+                self.assertNotIn("unsafe-school-name", first_path)
+                first_file = root / "static" / Path(*first_path.split("/"))
+                self.assertTrue(first_file.is_file())
+                profile_preview = self.client.get(
+                    f"/saas/onboarding/{org_uuid}/organization"
+                )
+                self.assertEqual(profile_preview.status_code, 200)
+                self.assertIn(first_path, profile_preview.text)
+                self.assertIn(
+                    'alt="Profile Test Academy logo"', profile_preview.text
+                )
+                self.assertNotIn(str(root), profile_preview.text)
+                self.assertNotIn("C:\\", profile_preview.text)
+
+                account_preview = self.client.get("/saas/account")
+                self.assertEqual(account_preview.status_code, 200)
+                self.assertIn(first_path, account_preview.text)
+                self.assertIn(
+                    'aria-label="School Workspace identity"',
+                    account_preview.text,
+                )
+                self.assertIn("Profile Test Academy", account_preview.text)
+                self.assertIn(
+                    'class="brand-symbol brand-symbol-compact"',
+                    account_preview.text,
+                )
+
+                invalid_payload = self._organization_profile_data(
+                    educational_program=""
+                )
+                invalid_payload["legal_name"] = "Preserved After Logo"
+                invalid_response = self.client.post(
+                    f"/saas/onboarding/{org_uuid}/organization",
+                    data=invalid_payload,
+                    files={
+                        "organization_logo": (
+                            "ignored-replacement.png",
+                            self._logo_bytes(color=(50, 120, 160, 255)),
+                            "image/png",
+                        )
+                    },
+                    follow_redirects=False,
+                )
+                self.assertEqual(invalid_response.status_code, 422)
+                self.assertIn(
+                    'value="Preserved After Logo"', invalid_response.text
+                )
+                db = self._db()
+                try:
+                    organization = (
+                        db.query(saas.models.PendingOrganization)
+                        .filter_by(organization_uuid=org_uuid)
+                        .one()
+                    )
+                    self.assertEqual(
+                        organization.organization_logo_path, first_path
+                    )
+                finally:
+                    db.close()
+                self.assertTrue(first_file.is_file())
+                self.assertEqual(
+                    [path.name for path in first_file.parent.glob("*")],
+                    [first_file.name],
+                )
+
+                with patch(
+                    "saas.service.write_pending_logo",
+                    side_effect=service.PendingLogoStorageError(
+                        "simulated replacement storage failure"
+                    ),
+                ):
+                    failed_replacement = self.client.post(
+                        f"/saas/onboarding/{org_uuid}/organization",
+                        data=self._organization_profile_data(),
+                        files={
+                            "organization_logo": (
+                                "failed-replacement.png",
+                                self._logo_bytes(color=(75, 135, 175, 255)),
+                                "image/png",
+                            )
+                        },
+                        follow_redirects=False,
+                    )
+                self.assertEqual(failed_replacement.status_code, 503)
+                db = self._db()
+                try:
+                    organization = (
+                        db.query(saas.models.PendingOrganization)
+                        .filter_by(organization_uuid=org_uuid)
+                        .one()
+                    )
+                    self.assertEqual(
+                        organization.organization_logo_path, first_path
+                    )
+                finally:
+                    db.close()
+                self.assertTrue(first_file.is_file())
+
+                empty_response = self.client.post(
+                    f"/saas/onboarding/{org_uuid}/organization",
+                    data=self._organization_profile_data(),
+                    follow_redirects=False,
+                )
+                self.assertEqual(empty_response.status_code, 302)
+                db = self._db()
+                try:
+                    organization = (
+                        db.query(saas.models.PendingOrganization)
+                        .filter_by(organization_uuid=org_uuid)
+                        .one()
+                    )
+                    self.assertEqual(
+                        organization.organization_logo_path, first_path
+                    )
+                finally:
+                    db.close()
+                self.assertTrue(first_file.is_file())
+
+                replacement_response = self.client.post(
+                    f"/saas/onboarding/{org_uuid}/organization",
+                    data=self._organization_profile_data(),
+                    files={
+                        "organization_logo": (
+                            "replacement.jpg",
+                            self._logo_bytes(
+                                image_format="JPEG", color=(19, 92, 132, 255)
+                            ),
+                            "image/jpeg",
+                        )
+                    },
+                    follow_redirects=False,
+                )
+                self.assertEqual(replacement_response.status_code, 302)
+                db = self._db()
+                try:
+                    organization = (
+                        db.query(saas.models.PendingOrganization)
+                        .filter_by(organization_uuid=org_uuid)
+                        .one()
+                    )
+                    replacement_path = organization.organization_logo_path
+                    self.assertEqual(
+                        db.query(saas.models.PendingOrganization).count(), 1
+                    )
+                finally:
+                    db.close()
+                self.assertTrue(replacement_path.endswith(".jpg"))
+                self.assertFalse(first_file.exists())
+                self.assertTrue(
+                    (root / "static" / Path(*replacement_path.split("/"))).is_file()
+                )
+                replacement_preview = self.client.get(
+                    f"/saas/onboarding/{org_uuid}/organization"
+                )
+                self.assertIn(replacement_path, replacement_preview.text)
+                self.assertNotIn(first_path, replacement_preview.text)
+
+    def test_organization_logo_validation_rejects_unsafe_content(self):
+        self._signup_and_verify("logo-errors@academy.edu")
+        org_uuid = self._start_pending_organization()
+
+        invalid_uploads = (
+            ("notes.txt", b"not an image", "text/plain", "PNG, JPG, or WEBP"),
+            (
+                "disguised.png",
+                self._logo_bytes(image_format="GIF"),
+                "image/png",
+                "Upload a PNG, JPG, WEBP",
+            ),
+            (
+                "corrupt.png",
+                b"this is not png data",
+                "image/png",
+                "valid PNG, JPG, WEBP",
+            ),
+            (
+                "oversized.png",
+                b"x" * (branding_storage.LOGO_MAX_BYTES + 1),
+                "image/png",
+                "Maximum size is 4 MB",
+            ),
+        )
+        for filename, content, content_type, expected_error in invalid_uploads:
+            with self.subTest(filename=filename):
+                response = self.client.post(
+                    f"/saas/onboarding/{org_uuid}/organization",
+                    data=self._organization_profile_data(),
+                    files={
+                        "organization_logo": (
+                            filename,
+                            content,
+                            content_type,
+                        )
+                    },
+                    follow_redirects=False,
+                )
+                self.assertEqual(response.status_code, 422)
+                self.assertIn(expected_error, response.text)
+                self.assertNotIn("Internal Server Error", response.text)
+
+        db = self._db()
+        try:
+            organization = (
+                db.query(saas.models.PendingOrganization)
+                .filter_by(organization_uuid=org_uuid)
+                .one()
+            )
+            self.assertFalse(organization.organization_logo_path)
+            self.assertEqual(db.query(saas.models.PendingOrganization).count(), 1)
+        finally:
+            db.close()
+
+    def test_organization_logo_storage_and_later_failures_roll_back_safely(self):
+        self._signup_and_verify("logo-rollback@academy.edu")
+        org_uuid = self._start_pending_organization()
+        upload = {
+            "organization_logo": (
+                "school.png",
+                self._logo_bytes(),
+                "image/png",
+            )
+        }
+
+        with patch(
+            "saas.service.pending_logo_dir",
+            side_effect=OSError("simulated storage failure"),
+        ):
+            storage_response = self.client.post(
+                f"/saas/onboarding/{org_uuid}/organization",
+                data=self._organization_profile_data(),
+                files=upload,
+                follow_redirects=False,
+            )
+        self.assertEqual(storage_response.status_code, 503)
+        self.assertIn(
+            "The organization logo could not be saved right now.",
+            storage_response.text,
+        )
+        self.assertNotIn("simulated storage failure", storage_response.text)
+
+        with tempfile.TemporaryDirectory() as temporary_root:
+            root = Path(temporary_root)
+            with (
+                patch("saas.service._workspace_root", return_value=root),
+                patch(
+                    "saas.service.save_draft",
+                    side_effect=RuntimeError("simulated later failure"),
+                ),
+            ):
+                later_response = self.client.post(
+                    f"/saas/onboarding/{org_uuid}/organization",
+                    data=self._organization_profile_data(),
+                    files={
+                        "organization_logo": (
+                            "school.png",
+                            self._logo_bytes(),
+                            "image/png",
+                        )
+                    },
+                    follow_redirects=False,
+                )
+                pending_dir = (
+                    root / "static" / "uploads" / "saas" / "pending_logos"
+                )
+                self.assertEqual(
+                    list(pending_dir.glob("*")) if pending_dir.exists() else [],
+                    [],
+                )
+        self.assertEqual(later_response.status_code, 500)
+        self.assertIn(
+            "Your existing information was preserved.", later_response.text
+        )
+        self.assertNotIn("simulated later failure", later_response.text)
+
+        db = self._db()
+        try:
+            organization = (
+                db.query(saas.models.PendingOrganization)
+                .filter_by(organization_uuid=org_uuid)
+                .one()
+            )
+            self.assertFalse(organization.organization_logo_path)
+            self.assertFalse(organization.educational_program)
+            self.assertEqual(db.query(saas.models.PendingOrganization).count(), 1)
+        finally:
+            db.close()
+
+    def test_branch_setup_normalizes_null_estimates_and_requires_saved_values(self):
+        self._signup_and_verify("branch-null@academy.edu")
+        org_uuid = self._start_pending_organization()
+        organization_response = self.client.post(
+            f"/saas/onboarding/{org_uuid}/organization",
+            data=self._organization_profile_data(),
+            follow_redirects=False,
+        )
+        self.assertEqual(organization_response.status_code, 302)
+
+        first_branch_page = self.client.get(
+            f"/saas/onboarding/{org_uuid}/branches"
+        )
+        self.assertEqual(first_branch_page.status_code, 200)
+        self.assertIn(
+            'id="capacity-system-user-total" data-capacity-system-users>0</span>',
+            first_branch_page.text,
+        )
+        self.assertIn(
+            'id="capacity-teacher-total" data-capacity-teachers>0</span>',
+            first_branch_page.text,
+        )
+
+        legacy_rows = [
+            SimpleNamespace(
+                branch_uuid="legacy-null",
+                branch_name="Legacy Campus",
+                location="",
+                country_code="LB",
+                country_name="Lebanon",
+                region_name="",
+                city_name="",
+                district_name="",
+                neighborhood_name="",
+                estimated_system_users=None,
+                estimated_teachers=None,
+                status=True,
+                sort_order=0,
+            ),
+            SimpleNamespace(
+                branch_uuid="legacy-mixed",
+                branch_name="Second Campus",
+                location="",
+                country_code="LB",
+                country_name="Lebanon",
+                region_name="",
+                city_name="",
+                district_name="",
+                neighborhood_name="",
+                estimated_system_users=3,
+                estimated_teachers=9,
+                status=True,
+                sort_order=1,
+            ),
+        ]
+        self.assertEqual(
+            service.pending_branch_capacity_totals(legacy_rows),
+            {"estimated_system_users": 3, "estimated_teachers": 9},
+        )
+        with patch(
+            "saas.service.list_pending_branches", return_value=legacy_rows
+        ):
+            legacy_page = self.client.get(
+                f"/saas/onboarding/{org_uuid}/branches"
+            )
+        self.assertEqual(legacy_page.status_code, 200)
+        self.assertIn(
+            'data-capacity-system-users>3</span>', legacy_page.text
+        )
+        self.assertIn('data-capacity-teachers>9</span>', legacy_page.text)
+        self.assertGreaterEqual(legacy_page.text.count('value="0"'), 2)
+
+        missing_capacity = self.client.post(
+            f"/saas/onboarding/{org_uuid}/branches",
+            data={
+                "branch_name": ["Main Campus"],
+                "country_code": ["LB"],
+                "country_name": ["Lebanon"],
+                "save_action": "continue",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(missing_capacity.status_code, 422)
+        self.assertIn(
+            "Estimated system users is required for every branch.",
+            missing_capacity.text,
+        )
+        self.assertNotIn("Internal Server Error", missing_capacity.text)
+
+        valid_save = self.client.post(
+            f"/saas/onboarding/{org_uuid}/branches",
+            data={
+                "branch_name": ["Main Campus"],
+                "country_code": ["LB"],
+                "country_name": ["Lebanon"],
+                "estimated_system_users": ["0"],
+                "estimated_teachers": ["0"],
+                "save_action": "continue",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(valid_save.status_code, 302)
+        self.assertIn(
+            f"/saas/onboarding/{org_uuid}/academic_setup",
+            valid_save.headers["location"],
+        )
+        db = self._db()
+        try:
+            branch = db.query(saas.models.PendingOrganizationBranch).one()
+            self.assertEqual(branch.estimated_system_users, 0)
+            self.assertEqual(branch.estimated_teachers, 0)
+        finally:
+            db.close()
+
+    def test_provisioning_promotes_customer_logo_to_workspace_branding(self):
+        self._signup_and_verify("provision-logo@academy.edu")
+        org_uuid = self._start_pending_organization()
+
+        with tempfile.TemporaryDirectory() as temporary_root:
+            root = Path(temporary_root)
+            static_root = root / "static"
+            organizations_root = static_root / "branding" / "organizations"
+            with (
+                patch("saas.service._workspace_root", return_value=root),
+                patch.object(branding_storage, "STATIC_ROOT", static_root),
+                patch.object(
+                    branding_storage,
+                    "BRANDING_ROOT",
+                    static_root / "branding",
+                ),
+                patch.object(
+                    branding_storage,
+                    "ORGANIZATIONS_ROOT",
+                    organizations_root,
+                ),
+            ):
+                profile_response = self.client.post(
+                    f"/saas/onboarding/{org_uuid}/organization",
+                    data=self._organization_profile_data(),
+                    files={
+                        "organization_logo": (
+                            "school.png",
+                            self._logo_bytes(),
+                            "image/png",
+                        )
+                    },
+                    follow_redirects=False,
+                )
+                self.assertEqual(profile_response.status_code, 302)
+                branch_response = self.client.post(
+                    f"/saas/onboarding/{org_uuid}/branches",
+                    data={
+                        "branch_name": ["Main Campus"],
+                        "country_code": ["LB"],
+                        "country_name": ["Lebanon"],
+                        "estimated_system_users": ["2"],
+                        "estimated_teachers": ["12"],
+                        "save_action": "continue",
+                    },
+                    follow_redirects=False,
+                )
+                self.assertEqual(branch_response.status_code, 302)
+
+                db = self._db()
+                try:
+                    organization = (
+                        db.query(saas.models.PendingOrganization)
+                        .filter_by(organization_uuid=org_uuid)
+                        .one()
+                    )
+                    pending_logo_path = organization.organization_logo_path
+                    workspace = provisioning_service.create_workspace_records(
+                        db, organization
+                    )
+                    db.commit()
+
+                    workspace_logo = (
+                        db.query(models.SchoolGroupLogo)
+                        .filter_by(
+                            school_group_id=workspace.school_group.id,
+                            slot_key="primary",
+                        )
+                        .one()
+                    )
+                    self.assertEqual(
+                        workspace_logo.label,
+                        "Profile Test Academy logo",
+                    )
+                    self.assertNotEqual(
+                        workspace_logo.image_path, pending_logo_path
+                    )
+                    self.assertTrue(
+                        (
+                            static_root
+                            / Path(*workspace_logo.image_path.split("/"))
+                        ).is_file()
+                    )
+
+                    class LogoRequest:
+                        @staticmethod
+                        def url_for(name, **params):
+                            self.assertEqual(name, "organization_asset")
+                            return (
+                                "http://testserver/organization-assets/"
+                                f"{params['school_group_id']}/"
+                                f"{params['asset_path']}"
+                            )
+
+                    logo_payloads = ui_shell.get_school_logo_slots(
+                        LogoRequest(),
+                        db,
+                        workspace.primary_branch.id,
+                        school_group_id=workspace.school_group.id,
+                    )
+                    self.assertEqual(len(logo_payloads), 1)
+                    self.assertEqual(
+                        logo_payloads[0]["label"],
+                        "Profile Test Academy logo",
+                    )
+                    self.assertIn(
+                        "/organization-assets/",
+                        logo_payloads[0]["url"],
+                    )
+                    self.assertNotIn(str(root), logo_payloads[0]["url"])
+                finally:
+                    db.close()
+
+            operational_shell = Path("templates/base.html").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("header-platform-brand", operational_shell)
+            self.assertIn("header-tenant-brand", operational_shell)
+            self.assertIn("{{ logo.url }}", operational_shell)
+            self.assertNotIn("logo.absolute_path", operational_shell)
 
     def test_google_callback_creates_saas_identity_only(self):
         state = oauth.create_state_token("google")
@@ -862,12 +1553,17 @@ class SaaSPhase1Tests(unittest.TestCase):
                 "city_name": ["Jeddah", "Jeddah", ""],
                 "district_name": ["Al Zahra", "Al Nahda", ""],
                 "neighborhood_name": ["North", "East", ""],
+                "estimated_system_users": ["20", "15"],
+                "estimated_teachers": ["60", "50"],
                 "save_action": "continue",
             },
             follow_redirects=False,
         )
         self.assertEqual(branches_response.status_code, 302)
-        self.assertTrue(branches_response.headers["location"].endswith("/academic_setup"))
+        self.assertIn(
+            f"/saas/onboarding/{org_uuid}/academic_setup",
+            branches_response.headers["location"],
+        )
 
         academic_get = self.client.get(f"/saas/onboarding/{org_uuid}/academic_setup")
         self.assertEqual(academic_get.status_code, 200)
@@ -1249,6 +1945,8 @@ class SaaSPhase1Tests(unittest.TestCase):
                 "city_name": ["Riyadh"],
                 "district_name": ["Olaya"],
                 "neighborhood_name": ["North"],
+                "estimated_system_users": ["25"],
+                "estimated_teachers": ["70"],
                 "save_action": "continue",
             },
             follow_redirects=False,

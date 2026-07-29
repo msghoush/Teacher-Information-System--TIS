@@ -22,8 +22,8 @@
         <div class="review-card" aria-live="polite">
             <strong>Organization capacity</strong>
             <p><span id="capacity-branch-total">{{ rows|length }}</span> branches</p>
-            <p><span id="capacity-system-user-total" data-capacity-system-users>{{ rows|sum(attribute="estimated_system_users") }}</span> estimated system users</p>
-            <p><span id="capacity-teacher-total" data-capacity-teachers>{{ rows|sum(attribute="estimated_teachers") }}</span> estimated teachers</p>
+            <p><span id="capacity-system-user-total" data-capacity-system-users>{{ branch_capacity_totals.estimated_system_users }}</span> estimated system users</p>
+            <p><span id="capacity-teacher-total" data-capacity-teachers>{{ branch_capacity_totals.estimated_teachers }}</span> estimated teachers</p>
             <p>Capacity totals are calculated across all branches in your organization.</p>
         </div>
         <div id="branch-list" class="branch-list">
@@ -79,12 +79,12 @@
                     </div>
                     <div>
                         <label>Estimated system users</label>
-                        <input name="estimated_system_users" type="number" min="0" step="1" required value="{{ branch.estimated_system_users if branch and branch.estimated_system_users is defined else organization.estimated_staff_users if loop.first else 0 }}">
+                        <input name="estimated_system_users" type="number" min="0" step="1" required value="{{ (branch.estimated_system_users or 0) if branch and branch.estimated_system_users is defined else (organization.estimated_staff_users or 0) if loop.first else 0 }}">
                         <small>Include non-teacher staff who will sign in to TIS.</small>
                     </div>
                     <div>
                         <label>Estimated teachers</label>
-                        <input name="estimated_teachers" type="number" min="0" step="1" required value="{{ branch.estimated_teachers if branch and branch.estimated_teachers is defined else organization.expected_teacher_count if loop.first else 0 }}">
+                        <input name="estimated_teachers" type="number" min="0" step="1" required value="{{ (branch.estimated_teachers or 0) if branch and branch.estimated_teachers is defined else (organization.expected_teacher_count or 0) if loop.first else 0 }}">
                         <small>Include teachers across this branch, with or without login accounts.</small>
                     </div>
                 </div>

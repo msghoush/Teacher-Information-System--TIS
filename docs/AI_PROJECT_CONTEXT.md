@@ -7,6 +7,40 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Organization Profile Save And Pending Logo Safety
+
+Organization Profile accepts National, International, and Both through a
+controlled selector and normalizes those values to the existing uppercase
+codes. Missing or invalid customer input returns the same page with preserved
+form values. Pending organization logos reuse the established image decoder
+and 4 MB limit, allow PNG/JPG/WEBP only, enforce minimum dimensions, and use an
+opaque unique filename plus atomic file replacement. A database or later save
+failure rolls back organization changes and removes the newly written file;
+an empty upload retains the current logo.
+
+Pending logos currently use the application-local
+`static/uploads/saas/pending_logos` directory and store only a relative public
+path in `PendingOrganization`. This is not durable on an ephemeral production
+filesystem. Persistent disk or object storage requires a separate deployment
+and storage-architecture decision; this correction does not introduce one.
+The initial Account Setup state is compact: one setup title, one explicit POST
+start action, and the existing eight-step journey.
+
+Branch Setup never totals nullable estimates in Jinja. The service normalizes
+legacy/missing display values to zero in Python, while browser saves still
+require explicit non-negative whole numbers for every active branch. New
+pending branches receive explicit zero defaults.
+
+After a pending logo is saved, Organization Profile and the shared School
+Workspace identity area show it beside the organization name while retaining
+the official TIS logo as platform branding. Checkout keeps the pending
+reference. Paid and demo provisioning already converge on
+`create_workspace_records()`, which copies the validated pending image into
+the established primary `SchoolGroupLogo` slot. The operational shell renders
+that organization-owned asset through its protected route and keeps the TIS
+logo separate. A referenced pending file that is missing at activation now
+fails provisioning instead of silently activating without the customer logo.
+
 ## Post-Verification Sign-In Safety
 
 Successful email verification redirects by HTTP 302 to the GET

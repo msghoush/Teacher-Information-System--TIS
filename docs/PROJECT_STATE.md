@@ -7,6 +7,42 @@ source_of_truth: true
 
 # TIS Project State
 
+## Organization Profile And Initial Account Setup Correction
+
+Organization Profile now handles approved educational-program values
+consistently and maps invalid input back to the same page with preserved form
+values. Pending logos are actual-image validated, limited to 4 MB, assigned an
+opaque unique filename, written atomically, and cleaned up when a later
+database step rolls back. Empty upload retains the existing logo, successful
+replacement removes the obsolete file, and storage/unexpected errors are
+logged server-side while customers receive a safe inline response.
+
+The fresh verified-account page now presents one compact setup title, one
+explicit POST start action, and the existing eight-step progress indicator.
+Its smaller header logo and consolidated content remove the repeated status,
+action, account/workspace, and guidance panels without changing later
+onboarding states.
+
+Pending organization logos still use
+`static/uploads/saas/pending_logos`. This local path is not production-durable
+on an ephemeral Render filesystem; persistent disk or object storage remains
+an owner-approved follow-up. No schema, migration, payment, billing,
+operational-module, or Next.js landing change is included; provisioning changed
+only to validate and preserve the already-established logo promotion.
+
+The saved pending logo now appears in Organization Profile and the existing
+School Workspace identity area with the organization name and a neutral
+placeholder when absent. Existing paid/demo workspace creation promotes the
+image into the primary `SchoolGroupLogo` slot, whose protected URL is consumed
+by the operational header and branding settings. The official TIS logo remains
+separate. Provisioning no longer silently ignores a referenced pending logo
+whose local file is missing.
+
+Branch Setup totals now come from a Python normalization helper, so placeholder,
+legacy-null, and mixed-value rows render without Jinja arithmetic errors.
+Customer saves continue to require explicit non-negative system-user and
+teacher estimates, and new branches receive zero defaults.
+
 ## Post-Verification Login Correction
 
 Fixed the fresh-account login destination that previously redirected a

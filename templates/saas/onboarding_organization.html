@@ -42,12 +42,25 @@
             <p>Upload the logo your school workspace should use during setup review.</p>
         </div>
         <div class="logo-upload-panel">
+            <div class="organization-logo-preview">
+                <div class="organization-logo-preview-frame">
+                    {% if organization.organization_logo_path %}
+                    <img src="{{ url_for('static', path=organization.organization_logo_path) }}" alt="{{ fd.get('organization_name', organization.organization_name or 'Organization') }} logo" onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+                    <div class="organization-logo-placeholder" role="img" aria-label="Organization logo unavailable" hidden>Organization<br>logo</div>
+                    {% else %}
+                    <div class="organization-logo-placeholder" role="img" aria-label="No organization logo uploaded">Organization<br>logo</div>
+                    {% endif %}
+                </div>
+                <div>
+                    <strong>{% if organization.organization_logo_path %}Current organization logo{% else %}No organization logo uploaded{% endif %}</strong>
+                    <p class="muted">{% if organization.organization_logo_path %}Choose a new file below to replace this logo after a successful save.{% else %}Your logo will appear here after it is validated and saved.{% endif %}</p>
+                </div>
+            </div>
             <label for="organization_logo">Organization logo</label>
             <input id="organization_logo" name="organization_logo" type="file" accept=".png,.jpg,.jpeg,.webp">
+            <p class="muted">PNG, JPG, JPEG, or WEBP. Maximum 4 MB; minimum 128x48px.</p>
             {% if organization.organization_logo_path %}
-            <p class="muted">Current logo: <a href="{{ url_for('static', path=organization.organization_logo_path) }}" target="_blank">View uploaded logo</a></p>
-            {% else %}
-            <p class="muted">PNG, JPG, JPEG, or WEBP files are supported.</p>
+            <p class="muted"><a href="{{ url_for('static', path=organization.organization_logo_path) }}" target="_blank" rel="noopener">Open current logo</a></p>
             {% endif %}
         </div>
     </section>
@@ -60,9 +73,9 @@
         <div class="wizard-grid">
             <div>
                 <label for="educational_program">Educational program</label>
-                <select id="educational_program" name="educational_program">
+                <select id="educational_program" name="educational_program" required>
                     <option value="">Select a program</option>
-                    {% set selected_program = fd.get('educational_program', organization.educational_program or '') %}
+                    {% set selected_program = fd.get('educational_program', organization.educational_program or '')|upper %}
                     <option value="NATIONAL" {% if selected_program == "NATIONAL" %}selected{% endif %}>National</option>
                     <option value="INTERNATIONAL" {% if selected_program == "INTERNATIONAL" %}selected{% endif %}>International</option>
                     <option value="BOTH" {% if selected_program == "BOTH" %}selected{% endif %}>Both</option>
