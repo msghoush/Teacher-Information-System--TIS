@@ -1,11 +1,23 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-07-27
+last_updated: 2026-07-29
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Public Subscription Journey
+
+The Next.js hero Subscribe Now CTA now scrolls to the stable pricing section.
+Starter, Professional, and Enterprise AI share one CTA presentation and enter
+public TIS Account registration with an allowlisted preferred-plan code.
+Registration preserves that preference without creating commercial records.
+After School Workspace Setup, plan selection reuses the existing
+three-dimension capacity authority; an invalid, inactive, or undersized
+preference is cleared and the customer reviews eligible plans. Custom remains
+mail/contact-only. No plan price, capacity limit, Paddle behavior, or AI
+entitlement changed.
 
 ## Per-Branch Subscription Capacity
 
@@ -66,7 +78,7 @@ or schema-readiness middleware and binds independently of PostgreSQL DDL.
 
 ## Last Updated
 
-Last updated: 2026-07-26
+Last updated: 2026-07-29
 
 Update this file after every meaningful milestone, active development change, roadmap shift, known issue change, or documentation/KMS change.
 

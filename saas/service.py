@@ -27,7 +27,9 @@ from saas.branch_pricing_quote_service import (
 
 SAAS_SESSION_COOKIE = "tis_saas_session"
 SAAS_CSRF_COOKIE = "tis_saas_csrf"
+SAAS_PREFERRED_PLAN_COOKIE = "tis_preferred_plan"
 SAAS_SESSION_MAX_AGE_SECONDS = 8 * 60 * 60
+SAAS_PREFERRED_PLAN_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
 SAAS_EMAIL_VERIFICATION_MAX_AGE_SECONDS = 60 * 60
 SAAS_PASSWORD_RESET_MAX_AGE_SECONDS = 60 * 60
 LOGIN_RATE_LIMIT_ATTEMPTS = 10
@@ -89,6 +91,7 @@ DISPOSABLE_EMAIL_BLOCK_MESSAGE = (
     "Disposable email domains are not allowed for TIS Account registration."
 )
 COMMERCIAL_INTENTS = {"demo", "subscribe"}
+SELF_SERVICE_PLAN_CODES = {"starter", "professional", "enterprise_ai"}
 PUBLIC_EMAIL_DOMAINS = {
     "gmail.com",
     "outlook.com",
@@ -187,6 +190,43 @@ def _extract_domain(email: str | None) -> str:
 def normalize_commercial_intent(value: str | None) -> str:
     cleaned = str(value or "").strip().lower()
     return cleaned if cleaned in COMMERCIAL_INTENTS else ""
+
+
+def normalize_preferred_plan_code(value: str | None) -> str:
+    cleaned = str(value or "").strip().lower()
+    return cleaned if cleaned in SELF_SERVICE_PLAN_CODES else ""
+
+
+def preferred_plan_code_from_request(request: Request | None) -> str:
+    if request is None:
+        return ""
+    return normalize_preferred_plan_code(
+        request.cookies.get(SAAS_PREFERRED_PLAN_COOKIE)
+    )
+
+
+def set_preferred_plan_cookie(
+    response,
+    *,
+    preferred_plan_code: str,
+    request: Request,
+):
+    normalized = normalize_preferred_plan_code(preferred_plan_code)
+    if normalized:
+        response.set_cookie(
+            key=SAAS_PREFERRED_PLAN_COOKIE,
+            value=normalized,
+            **auth.secure_cookie_kwargs(
+                request,
+                max_age=SAAS_PREFERRED_PLAN_MAX_AGE_SECONDS,
+            ),
+        )
+    else:
+        response.delete_cookie(
+            SAAS_PREFERRED_PLAN_COOKIE,
+            **auth.secure_cookie_kwargs(request),
+        )
+    return response
 
 
 def normalize_organization_domain(value: str | None) -> str:

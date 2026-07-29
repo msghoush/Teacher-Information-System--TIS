@@ -39,6 +39,15 @@ const signInUrl = buildTisAppUrl("/saas/login");
 const openTisAppUrl = buildTisAppUrl("/login");
 const requestDemoUrl = buildTisAppUrl("/saas/signup?intent=demo");
 const subscribeNowUrl = buildTisAppUrl("/saas/signup?intent=subscribe");
+const starterSubscribeUrl = buildTisAppUrl(
+  "/saas/signup?intent=subscribe&preferred_plan=starter"
+);
+const professionalSubscribeUrl = buildTisAppUrl(
+  "/saas/signup?intent=subscribe&preferred_plan=professional"
+);
+const enterpriseSubscribeUrl = buildTisAppUrl(
+  "/saas/signup?intent=subscribe&preferred_plan=enterprise_ai"
+);
 const contactTisTeamUrl = "mailto:info@tisplatform.com";
 
 const problems = [
@@ -257,8 +266,6 @@ const curriculumJourney = [
 const plans = [
   {
     name: "Starter",
-    description:
-      "For schools starting with essential academic operations and one active branch.",
     monthlyPrice: "USD 29 / month",
     annualPrice: "USD 290 / year",
     priceBasis: "Per active branch",
@@ -268,13 +275,11 @@ const plans = [
       "Supports up to 25 teachers"
     ],
     ctaLabel: "Subscribe Now",
-    ctaHref: subscribeNowUrl,
+    ctaHref: starterSubscribeUrl,
     isCustom: false
   },
   {
     name: "Professional",
-    description:
-      "For schools that need stronger dashboards, shared calendars, observation workflows, and staffing visibility.",
     monthlyPrice: "USD 79 / month",
     annualPrice: "USD 790 / year",
     priceBasis: "Per active branch",
@@ -284,13 +289,11 @@ const plans = [
       "Supports up to 100 teachers"
     ],
     ctaLabel: "Subscribe Now",
-    ctaHref: subscribeNowUrl,
+    ctaHref: professionalSubscribeUrl,
     isCustom: false
   },
   {
     name: "Enterprise AI",
-    description:
-      "For school groups that need multi-branch visibility, customization, and progressively introduced AI intelligence.",
     monthlyPrice: "USD 149 / month",
     annualPrice: "USD 1,490 / year",
     priceBasis: "Per active branch",
@@ -300,12 +303,11 @@ const plans = [
       "Supports up to 500 teachers"
     ],
     ctaLabel: "Subscribe Now",
-    ctaHref: subscribeNowUrl,
+    ctaHref: enterpriseSubscribeUrl,
     isCustom: false
   },
   {
     name: "Custom",
-    description: "For large school groups and education networks.",
     monthlyPrice: "Custom pricing",
     annualPrice: "Flexible capacity",
     priceBasis: "Contact-based plan",
@@ -652,7 +654,7 @@ function Hero({ pageReady }: { pageReady: boolean }) {
               <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
             </a>
             <a
-              href={subscribeNowUrl}
+              href="#pricing"
               className="focus-ring button-secondary inline-flex h-12 items-center justify-center rounded-xl px-6 text-base font-bold text-ocean"
             >
               Subscribe Now
@@ -1179,9 +1181,6 @@ function PricingSection() {
                     <h3 className="text-2xl font-bold tracking-[-0.03em] text-ink">
                       {plan.name}
                     </h3>
-                    <p className="mt-4 text-sm leading-6 text-slate-600 sm:min-h-12">
-                      {plan.description}
-                    </p>
                     <div className="mt-5 rounded-2xl border border-slate-200/80 bg-skysoft/45 px-4 py-3">
                       <p className="text-base font-bold text-ink">{plan.monthlyPrice}</p>
                       <p className="mt-1 text-sm font-semibold text-slate-600">
@@ -1204,12 +1203,7 @@ function PricingSection() {
                     </div>
                     <a
                       href={plan.ctaHref}
-                      className={cn(
-                        "focus-ring pricing-button mt-auto inline-flex h-11 w-full items-center justify-center rounded-xl border text-sm font-bold transition",
-                        featured
-                          ? "border-transparent bg-ocean text-white shadow-card hover:bg-teal"
-                          : "border-ocean text-ocean hover:bg-ocean hover:text-white"
-                      )}
+                      className="focus-ring pricing-button mt-auto inline-flex h-11 w-full items-center justify-center rounded-xl border border-ocean text-sm font-bold text-ocean transition hover:bg-ocean hover:text-white"
                     >
                       {plan.ctaLabel}
                     </a>

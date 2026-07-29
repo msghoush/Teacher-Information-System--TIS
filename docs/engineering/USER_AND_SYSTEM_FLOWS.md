@@ -1,7 +1,7 @@
 ---
 title: TIS User And System Flows
 documentation_version: 3.1
-last_updated: 2026-07-27
+last_updated: 2026-07-29
 source_of_truth: true
 ---
 
@@ -34,12 +34,16 @@ source_of_truth: true
    teachers. Existing data is preserved.
 
 The separate Next.js landing page presents the same four-plan structure and
-organization-wide limits. Starter, Professional, and Enterprise AI retain their
-published monthly and annual per-active-branch prices and enter the configured
-subscription signup route. Custom has no fixed public price; it states that
-more than 25 branches, 100 system users, or 500 teachers requires flexible
-capacity and uses only the public Contact the TIS Team mail action. It never
-starts self-service signup or Paddle checkout.
+organization-wide limits. The hero Subscribe Now action scrolls to pricing.
+Starter, Professional, and Enterprise AI retain their published monthly and
+annual per-active-branch prices and enter the configured public signup route
+with an allowlisted preferred-plan code. That code is a presentation
+preference only: signup creates no plan selection, checkout, payment attempt,
+or Paddle object. After organization setup, TIS applies it only when the live
+plan remains active and eligible across branches, system users, and teachers;
+otherwise TIS clears it and asks the customer to review eligible plans. Custom
+has no fixed public price, uses only the Contact the TIS Team mail action, and
+never starts signup or Paddle checkout.
 
 ## Initial Subscription Plan Capacity
 

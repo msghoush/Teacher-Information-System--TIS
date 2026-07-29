@@ -865,11 +865,20 @@ def signup_page(
     first_name: str = Query(""),
     last_name: str = Query(""),
     intent: str = Query(""),
+    preferred_plan: str = Query(""),
+    next_path: str = Query(""),
     db: Session = Depends(get_db),
 ):
+    normalized_preferred_plan = service.normalize_preferred_plan_code(
+        preferred_plan
+    )
     if _current_account(request, db):
-        return RedirectResponse("/saas/account", status_code=302)
-    return _render(
+        return service.set_preferred_plan_cookie(
+            RedirectResponse("/saas/account", status_code=302),
+            preferred_plan_code=normalized_preferred_plan,
+            request=request,
+        )
+    response = _render(
         request,
         "saas/signup.html",
         {
@@ -880,9 +889,15 @@ def signup_page(
             "first_name": first_name,
             "last_name": last_name,
             "intent": service.normalize_commercial_intent(intent),
+            "preferred_plan": normalized_preferred_plan,
             "google_enabled": oauth.is_provider_configured("google"),
             "microsoft_enabled": oauth.is_provider_configured("microsoft"),
         },
+    )
+    return service.set_preferred_plan_cookie(
+        response,
+        preferred_plan_code=normalized_preferred_plan,
+        request=request,
     )
 
 
@@ -895,8 +910,19 @@ def signup(
     password: str = Form(...),
     confirm_password: str = Form(...),
     intent: str = Form(""),
+    preferred_plan: str = Form(""),
     db: Session = Depends(get_db),
 ):
+    normalized_intent = service.normalize_commercial_intent(intent)
+    normalized_preferred_plan = service.normalize_preferred_plan_code(
+        preferred_plan
+    )
+    intent_query = f"&intent={quote_plus(normalized_intent)}" if normalized_intent else ""
+    preferred_plan_query = (
+        f"&preferred_plan={quote_plus(normalized_preferred_plan)}"
+        if normalized_preferred_plan
+        else ""
+    )
     if service.is_rate_limited(
         db,
         event_type="signup",
@@ -904,22 +930,33 @@ def signup(
         max_attempts=service.SIGNUP_RATE_LIMIT_ATTEMPTS,
         window_minutes=service.SIGNUP_RATE_LIMIT_WINDOW_MINUTES,
     ):
-        return RedirectResponse(
-            url="/saas/signup?error=Too+many+signup+attempts.+Please+try+again+later.",
-            status_code=302,
-        )
-    normalized_intent = service.normalize_commercial_intent(intent)
-    intent_query = f"&intent={quote_plus(normalized_intent)}" if normalized_intent else ""
-    if str(password or "") != str(confirm_password or ""):
-        return RedirectResponse(
-            url=(
-                "/saas/signup?error=Password+confirmation+does+not+match."
-                f"&email={quote_plus(str(email or ''))}"
-                f"&first_name={quote_plus(str(first_name or ''))}"
-                f"&last_name={quote_plus(str(last_name or ''))}"
-                f"{intent_query}"
+        return service.set_preferred_plan_cookie(
+            RedirectResponse(
+                url=(
+                    "/saas/signup?error=Too+many+signup+attempts."
+                    "+Please+try+again+later."
+                    f"{intent_query}{preferred_plan_query}"
+                ),
+                status_code=302,
             ),
-            status_code=302,
+            preferred_plan_code=normalized_preferred_plan,
+            request=request,
+        )
+    if str(password or "") != str(confirm_password or ""):
+        return service.set_preferred_plan_cookie(
+            RedirectResponse(
+                url=(
+                    "/saas/signup?error=Password+confirmation+does+not+match."
+                    f"&email={quote_plus(str(email or ''))}"
+                    f"&first_name={quote_plus(str(first_name or ''))}"
+                    f"&last_name={quote_plus(str(last_name or ''))}"
+                    f"{intent_query}"
+                    f"{preferred_plan_query}"
+                ),
+                status_code=302,
+            ),
+            preferred_plan_code=normalized_preferred_plan,
+            request=request,
         )
     try:
         account, policy = service.create_account(
@@ -935,27 +972,44 @@ def signup(
         db.commit()
     except email_service.EmailDeliveryError:
         db.rollback()
-        return RedirectResponse(
-            url="/saas/signup?error=Verification+email+could+not+be+sent.+Please+try+again.",
-            status_code=302,
+        return service.set_preferred_plan_cookie(
+            RedirectResponse(
+                url=(
+                    "/saas/signup?error=Verification+email+could+not+be+sent."
+                    "+Please+try+again."
+                    f"{intent_query}{preferred_plan_query}"
+                ),
+                status_code=302,
+            ),
+            preferred_plan_code=normalized_preferred_plan,
+            request=request,
         )
     except ValueError as exc:
         db.rollback()
-        return RedirectResponse(
-            url=(
-                "/saas/signup?error="
-                + quote_plus(str(exc))
-                + f"&email={quote_plus(str(email or ''))}"
-                + f"&first_name={quote_plus(str(first_name or ''))}"
-                + f"&last_name={quote_plus(str(last_name or ''))}"
-                + intent_query
+        return service.set_preferred_plan_cookie(
+            RedirectResponse(
+                url=(
+                    "/saas/signup?error="
+                    + quote_plus(str(exc))
+                    + f"&email={quote_plus(str(email or ''))}"
+                    + f"&first_name={quote_plus(str(first_name or ''))}"
+                    + f"&last_name={quote_plus(str(last_name or ''))}"
+                    + intent_query
+                    + preferred_plan_query
+                ),
+                status_code=302,
             ),
-            status_code=302,
+            preferred_plan_code=normalized_preferred_plan,
+            request=request,
         )
-    return RedirectResponse(
-        url="/saas/auth/verification-sent?email="
-        f"{quote_plus(str(account.email or ''))}&warning={quote_plus(str(policy.warning or ''))}",
-        status_code=302,
+    return service.set_preferred_plan_cookie(
+        RedirectResponse(
+            url="/saas/auth/verification-sent?email="
+            f"{quote_plus(str(account.email or ''))}&warning={quote_plus(str(policy.warning or ''))}",
+            status_code=302,
+        ),
+        preferred_plan_code=normalized_preferred_plan,
+        request=request,
     )
 
 
@@ -2714,6 +2768,29 @@ def plan_selection_step(
         db.rollback()
         return RedirectResponse(f"/saas/account?notice={quote_plus(str(exc))}", status_code=302)
     context = _plan_context(db, account, organization)
+    preferred_plan_code = service.preferred_plan_code_from_request(request)
+    preferred_plan_option = next(
+        (
+            option
+            for option in context["plan_options"]
+            if option["plan_view"].plan.plan_code == preferred_plan_code
+        ),
+        None,
+    )
+    current_plan_selection = context.get("current_plan_selection")
+    preferred_plan_is_eligible = bool(
+        preferred_plan_option and preferred_plan_option["eligible"]
+    )
+    context["preferred_plan_code"] = (
+        preferred_plan_code
+        if preferred_plan_is_eligible and not current_plan_selection
+        else ""
+    )
+    context["preferred_plan_adjusted"] = bool(
+        preferred_plan_code
+        and not current_plan_selection
+        and not preferred_plan_is_eligible
+    )
     context.update({
         "error": error,
         "setup_console": _payment_setup_console(
@@ -2726,7 +2803,21 @@ def plan_selection_step(
         ),
     })
     db.commit()
-    return _render(request, "saas/plan_selection.html", context)
+    response = _render(request, "saas/plan_selection.html", context)
+    if (
+        request.cookies.get(service.SAAS_PREFERRED_PLAN_COOKIE)
+        and (
+            current_plan_selection
+            or not preferred_plan_code
+            or not preferred_plan_is_eligible
+        )
+    ):
+        service.set_preferred_plan_cookie(
+            response,
+            preferred_plan_code="",
+            request=request,
+        )
+    return response
 
 
 @router.post("/onboarding/{organization_uuid}/plan")
@@ -2775,9 +2866,13 @@ def select_plan_step(
     except (ValueError, TypeError) as exc:
         db.rollback()
         return _redirect_error(f"/saas/onboarding/{organization_uuid}/plan", str(exc))
-    return RedirectResponse(
-        f"/saas/onboarding/{organization_uuid}/checkout?notice={quote_plus('Subscription plan saved.')}",
-        status_code=302,
+    return service.set_preferred_plan_cookie(
+        RedirectResponse(
+            f"/saas/onboarding/{organization_uuid}/checkout?notice={quote_plus('Subscription plan saved.')}",
+            status_code=302,
+        ),
+        preferred_plan_code="",
+        request=request,
     )
 
 

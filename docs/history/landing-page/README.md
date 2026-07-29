@@ -1,10 +1,17 @@
 ---
 title: Landing Page History
 module: landing-page
-last_updated: 2026-07-25
+last_updated: 2026-07-29
 ---
 
 # Landing Page History
+
+## 2026-07-29 - Safe Pricing Subscription Entry
+
+Hero Subscribe Now now scrolls to `#pricing`. The three self-service plans use
+the same CTA treatment and link to public TIS Account registration with their
+own allowlisted preferred-plan code. Plan descriptions were removed to keep
+the cards focused on price, capacity, and action. Custom remains email-only.
 
 ## 2026-07-28 - Returning-Customer Navigation
 

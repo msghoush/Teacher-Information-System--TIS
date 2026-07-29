@@ -1,11 +1,29 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-07-27
+last_updated: 2026-07-29
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-07-29 - Safe Public Subscription Pricing Entry
+
+The landing hero Subscribe Now action now scrolls to pricing. Starter,
+Professional, and Enterprise AI use identical CTA styling and enter the public
+TIS Account signup route with distinct allowlisted preferred-plan codes.
+Pricing cards no longer show the small description beneath each plan name.
+Custom remains contact-only.
+
+The signup GET route previously referenced an undefined `next_path` local,
+causing every unauthenticated subscription pricing link to return HTTP 500
+before account or onboarding state was evaluated. The route now accepts and
+safely normalizes that optional value. A self-service plan preference is
+preserved through registration in a secure cookie, creates no plan selection or
+payment record, and is applied only when the existing organization-wide
+branch, system-user, and teacher checks confirm eligibility. Invalid,
+inactive, or undersized preferences are cleared. No price, plan limit, Paddle
+quantity, payment authority, or AI entitlement changed.
 
 ## 2026-07-29 - Per-Branch System-User And Teacher Subscription Capacity
 

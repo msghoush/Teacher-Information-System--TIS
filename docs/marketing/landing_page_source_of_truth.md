@@ -1,7 +1,7 @@
 ---
 title: TIS Landing Page Source of Truth
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-07-29
 source_of_truth: true
 ---
 
@@ -12,6 +12,14 @@ Subscribe, Sign In, and Open TIS App. All app links are constructed here from
 `NEXT_PUBLIC_TIS_APP_BASE_URL`; Sign In targets `/saas/login`, Open TIS App
 targets `/login`, and the landing site does not duplicate authentication or
 customer-state routing.
+
+The hero Subscribe Now action remains within the marketing page and scrolls to
+`#pricing`. Starter, Professional, and Enterprise AI pricing actions use the
+configured application base URL and public `/saas/signup` route with distinct
+allowlisted preferred-plan codes. The application treats those codes as
+non-authoritative preferences and revalidates capacity after organization
+setup. Custom remains an email/contact action and never enters signup or
+checkout.
 
 The official source of truth for the public TIS landing website is:
 

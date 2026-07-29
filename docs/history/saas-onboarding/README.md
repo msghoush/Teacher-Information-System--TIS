@@ -1,10 +1,19 @@
 ---
 title: SaaS Onboarding History
 module: saas-onboarding
-last_updated: 2026-07-27
+last_updated: 2026-07-29
 ---
 
 # SaaS Onboarding History
+
+## 2026-07-29 - Public Preferred-Plan Continuity
+
+Public pricing may carry an allowlisted Starter, Professional, or Enterprise AI
+preference into TIS Account registration. The preference is stored separately
+from commercial records and does not select a plan or create checkout. Once
+School Workspace Setup is complete, the existing branch, system-user, and
+teacher capacity decision either preselects the eligible preference or clears
+it with customer-safe guidance. Missing and malformed values are safe.
 
 ## 2026-07-28 - Returning Customer State Routing
 
