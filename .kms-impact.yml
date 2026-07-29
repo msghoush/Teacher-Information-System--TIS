@@ -1,10 +1,11 @@
 knowledge_impact: no
-summary: Refine the shared SaaS account and onboarding presentation, including responsive layout and official TIS logo sizing, without changing behavior.
+summary: Refine the shared SaaS onboarding presentation and Subscription Selection controls without changing authoritative commercial behavior.
 affected_areas:
   - saas-account-ui
   - onboarding-ui
   - subscription-presentation
+  - subscription-selection-ui
   - shared-saas-header-branding
 kms_files_updated:
-no_impact_reason: This complete PR is presentation-only. It refines shared SaaS account and onboarding templates, responsive shell and action-bar presentation, plan-card visual hierarchy and alert formatting, and official TIS logo sizing. It changes no routes, form methods, field names, workflow transitions, business rules, payment, subscription, capacity, provisioning, or architecture.
+no_impact_reason: This complete PR is presentation-only. It refines shared SaaS account and onboarding templates, responsive shell and action-bar presentation, plan-card visual hierarchy and alert formatting, official TIS logo sizing, card-based plan selection, billing interval presentation, and client-side price previews using server-provided display values. The route change adds view-only formatted pricing context. It changes no route paths or methods, form field names, workflow transitions, business rules, payment, subscription authority, capacity validation, pricing authority, checkout, provisioning, or architecture.
 major_change_override: yes
