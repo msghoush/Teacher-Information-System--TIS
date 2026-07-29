@@ -1,10 +1,13 @@
 knowledge_impact: yes
-summary: Prevent post-verification sign-in continuations from navigating to POST-only authentication routes and exposing raw HTTP 405 responses.
+summary: Complete null-safe Branch Setup estimates and preserve customer organization branding from onboarding through workspace activation.
 affected_areas:
-  - tis-account-registration
-  - email-verification
-  - tis-account-login
-  - continuation-routing
+  - school-workspace-onboarding
+  - organization-profile
+  - pending-organization-logo-upload
+  - account-setup-ui
+  - branch-capacity-estimates
+  - workspace-provisioning
+  - organization-branding
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/TIS_MASTER_CONTEXT.md

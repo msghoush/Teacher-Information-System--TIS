@@ -7,6 +7,52 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-07-29 - Organization Profile Save And Account Setup Correction
+
+The Organization Profile POST accepted its program values correctly but used
+MIME/extension-only logo checks and wrote directly to the application
+filesystem. Its route caught only `ValueError`; an `OSError` while creating or
+writing `static/uploads/saas/pending_logos` escaped as raw HTTP 500. Corrupt
+and oversized files could also be accepted. The fresh Account Setup page
+repeated the same next-step guidance across the status, side action, content,
+and help panels.
+
+Pending logos now reuse actual-image decoding, the established 4 MB and
+minimum-dimension checks, UUID filenames, pending-directory confinement, and
+atomic temporary-file promotion. Empty uploads retain the current reference.
+Rollback removes a newly written file; successful replacement removes the old
+file after commit. Validation, storage, and unexpected failures all render a
+safe page response with preserved entered values, while technical failures
+receive traceback logging.
+
+The initial account state now shows a smaller official logo, one "Start Your
+School Workspace Setup" title and sentence, the existing eight-step progress
+track, and one POST start action. Later setup-console states remain unchanged.
+No schema, migration, billing, payment, provisioning lifecycle,
+operational-module, or landing-site behavior changed. Provisioning's existing
+logo-copy step was hardened without changing activation authority.
+
+The current storage location remains application-local
+`static/uploads/saas/pending_logos`. Render durability requires a separately
+approved persistent-disk or object-storage decision.
+
+Organization branding now appears in the Organization Profile preview and
+shared School Workspace setup identity without replacing the official TIS
+logo. Existing paid/demo provisioning continues to promote the pending image
+into the primary `SchoolGroupLogo` slot; source resolution is now confined to
+the pending directory, a missing referenced file blocks activation rather than
+silently losing branding, and the final accessible label includes the
+organization name. The existing protected organization-asset route and
+operational shell remain the final display path.
+
+Branch Setup previously asked Jinja to sum `estimated_system_users` and
+`estimated_teachers` directly. Placeholder and incomplete rows supplied
+undefined or `None`, producing `TypeError: unsupported operand type(s) for +:
+'int' and 'NoneType'`. Totals now come from a Python helper that normalizes
+display-only missing values to zero. Required server validation remains active
+for customer saves, and newly created pending branches receive explicit zero
+defaults.
+
 ## 2026-07-29 - Post-Verification Sign-In 405 Correction
 
 A fresh verified account had no pending organization or operational account

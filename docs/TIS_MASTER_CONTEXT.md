@@ -284,6 +284,14 @@ The shared customer account shell includes the official full-color horizontal TI
 
 The accepted Phase 3A implementation introduces the shared customer setup framework for the TIS Account dashboard only. The account page now behaves like a guided onboarding console rather than a dense admin dashboard.
 
+For a verified account that has not created a pending organization, the
+initial Account Setup view uses a compact variant: a smaller official logo,
+one "Start Your School Workspace Setup" title, one supporting sentence, one
+POST action to `/saas/onboarding/start`, and the existing eight-step journey.
+Duplicate status, next-action, account/workspace, and guidance panels are
+omitted in this initial state. Later setup states retain their existing
+contextual console.
+
 The shared framework provides:
 
 - Official TIS logo/header.
@@ -299,6 +307,44 @@ The journey steps are TIS Account, Email Verification, School Workspace Setup, R
 Phase 3B applies this shared framework to the five School Workspace Setup onboarding pages: Organization Profile, Branch Setup, Academic Setup, Primary Contact, and Review School Workspace Setup. These pages now use a consistent guided wizard structure with grouped sections, one shared-shell primary CTA, secondary Back/Save Draft actions, concise guidance, and reduced visual clutter.
 
 The Phase 3B onboarding redesign preserves existing form actions, field names, validation behavior, draft behavior, route names, and onboarding state transitions. Subscription/payment/status pages remain future Phase 3 work.
+
+Organization Profile program input is a required controlled selector whose
+National, International, and Both labels normalize to the existing uppercase
+stored codes. Invalid values render inline without creating another pending
+organization. Pending logo uploads are decoded as PNG/JPG/WEBP, limited to
+4 MB, checked for minimum dimensions, written under an opaque UUID filename,
+and promoted atomically. Empty upload retains the current logo. Replacement
+commits the new relative path before safely removing the obsolete pending
+file; rollback removes the newly written file and retains the old database
+reference. Storage failures are logged with traceback and rendered as
+customer-safe page errors.
+
+Pending logo storage remains
+`static/uploads/saas/pending_logos` on the application filesystem. Only the
+relative path is persisted. An ephemeral Render filesystem is unsuitable for
+durable customer branding across restarts or deploys unless a persistent disk
+is explicitly mounted. Object storage or persistent disk adoption is a
+separate owner-approved architecture and deployment decision.
+
+Organization Profile and the shared School Workspace setup header render the
+saved pending logo with contain sizing, organization-name alt text, and a
+neutral no-logo/unavailable placeholder. The official TIS logo remains the
+separate platform identity. The pending relative path remains authoritative
+through checkout. Both paid and demo activation use
+`provisioning_service.create_workspace_records()`, which validates the pending
+file again and copies it to the primary `SchoolGroupLogo` slot under the
+established organization-owned branding directory. `SchoolGroup` has no logo
+column; `SchoolGroupLogo` is the final branding authority. The operational
+shell and branding settings already consume that record through the protected
+organization-asset route. Missing source files now block activation rather
+than silently dropping the logo.
+
+Branch Setup capacity summaries are computed in Python with nullable or
+incomplete estimate values normalized to zero for display. HTML and server
+save validation still require explicit non-negative whole numbers for system
+users and teachers on every active branch. Newly created branch rows receive
+explicit zero defaults. No schema change is required because current columns
+already have non-null zero defaults.
 
 Phase 3C applies the same guided framework to Subscription Selection, Secure Payment summary, Payment Return, Payment Cancel, Subscription Status, and Workspace Activation status pages. These pages use one shared-shell primary CTA, customer-safe status labels, concise supporting cards, and explicit messaging that browser return from checkout does not itself confirm payment and that TIS Platform access becomes available after Workspace Activation.
 

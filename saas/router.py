@@ -318,6 +318,7 @@ def _onboarding_context(db: Session, account, organization):
     academic_setup = service.get_or_create_academic_setup(db, organization)
     primary_contact = service.get_primary_contact(db, organization)
     branches = service.list_pending_branches(db, organization)
+    branch_capacity_totals = service.pending_branch_capacity_totals(branches)
     onboarding_step_access = service.build_onboarding_step_access(db, organization)
     return {
         "account": account,
@@ -326,6 +327,7 @@ def _onboarding_context(db: Session, account, organization):
         "academic_setup": academic_setup,
         "primary_contact": primary_contact,
         "branches": branches,
+        "branch_capacity_totals": branch_capacity_totals,
         "journey_card": summary,
         "onboarding_step_access": onboarding_step_access,
         "timezone_options": service.list_iana_timezones(),
@@ -1302,6 +1304,7 @@ def account_dashboard(request: Request, db: Session = Depends(get_db)):
         "saas/account.html",
         {
             "account": account,
+            "organization": organization,
             "notice": request.query_params.get("notice", ""),
             "setup_console": setup_console,
             "demo_request": demo_request,
@@ -2025,6 +2028,51 @@ async def save_organization_step(
     if not organization:
         db.rollback()
         return RedirectResponse("/saas/account", status_code=302)
+    form_data = {
+        "organization_name": organization_name,
+        "legal_name": legal_name,
+        "website": website,
+        "primary_domain": primary_domain,
+        "phone": phone,
+        "educational_program": educational_program,
+        "country_code": country_code,
+        "country_name": country_name,
+        "region_id": region_id,
+        "region_manual": region_manual,
+        "region_name": region_name,
+        "city_id": city_id,
+        "city_manual": city_manual,
+        "city_name": city_name,
+        "district_name": district_name,
+        "neighborhood_name": neighborhood_name,
+        "school_type": school_type,
+        "expected_branch_count": expected_branch_count,
+        "expected_student_count": expected_student_count,
+        "expected_teacher_count": expected_teacher_count,
+        "estimated_staff_users": estimated_staff_users,
+        "timezone": timezone,
+    }
+    previous_logo_path = str(organization.organization_logo_path or "").strip()
+    new_logo_path = ""
+
+    def render_save_error(message: str, status_code: int):
+        refreshed = service.get_owned_pending_organization(
+            db, account, organization_uuid
+        )
+        if not refreshed:
+            return RedirectResponse("/saas/account", status_code=302)
+        return _render_onboarding_step(
+            request,
+            db,
+            account,
+            refreshed,
+            "saas/onboarding_organization.html",
+            "organization",
+            error=message,
+            status_code=status_code,
+            extra_context={"form_data": form_data},
+        )
+
     try:
         resolved_location = _resolve_optional_location(
             country_code=country_code,
@@ -2038,7 +2086,15 @@ async def save_organization_step(
             country_name = resolved_location.country_name
             region_name = resolved_location.region_name
             city_name = resolved_location.city_name
-        service.save_organization_profile(
+            form_data.update(
+                {
+                    "country_code": country_code,
+                    "country_name": country_name,
+                    "region_name": region_name,
+                    "city_name": city_name,
+                }
+            )
+        new_logo_path = service.save_organization_profile(
             db,
             organization,
             organization_name=organization_name,
@@ -2061,53 +2117,61 @@ async def save_organization_step(
             timezone=timezone,
             logo_file=organization_logo,
         )
-        progress = service.save_draft(db, account, organization, current_step="branches")
-        service.log_pending_event(db, organization=organization, account=account, event_type="organization_saved", details={"completion_percent": progress.completion_percent})
+        progress = service.save_draft(
+            db, account, organization, current_step="branches"
+        )
+        service.log_pending_event(
+            db,
+            organization=organization,
+            account=account,
+            event_type="organization_saved",
+            details={"completion_percent": progress.completion_percent},
+        )
         draft_lifecycle_service.record_meaningful_activity(
             db, account, organization=organization, source="organization_profile_saved"
         )
         db.commit()
     except ValueError as exc:
         db.rollback()
-        organization = service.get_owned_pending_organization(db, account, organization_uuid)
-        if not organization:
-            return RedirectResponse("/saas/account", status_code=302)
-        return _render_onboarding_step(
-            request,
-            db,
-            account,
-            organization,
-            "saas/onboarding_organization.html",
-            "organization",
-            error=str(exc),
-            status_code=422,
-            extra_context={
-                "form_data": {
-                    "organization_name": organization_name,
-                    "legal_name": legal_name,
-                    "website": website,
-                    "primary_domain": primary_domain,
-                    "phone": phone,
-                    "educational_program": educational_program,
-                    "country_code": country_code,
-                    "country_name": country_name,
-                    "region_id": region_id,
-                    "region_manual": region_manual,
-                    "region_name": region_name,
-                    "city_id": city_id,
-                    "city_manual": city_manual,
-                    "city_name": city_name,
-                    "district_name": district_name,
-                    "neighborhood_name": neighborhood_name,
-                    "school_type": school_type,
-                    "expected_branch_count": expected_branch_count,
-                    "expected_student_count": expected_student_count,
-                    "expected_teacher_count": expected_teacher_count,
-                    "estimated_staff_users": estimated_staff_users,
-                    "timezone": timezone,
-                },
-            },
+        service.delete_pending_logo_file(new_logo_path)
+        return render_save_error(str(exc), 422)
+    except service.PendingLogoStorageError:
+        db.rollback()
+        service.delete_pending_logo_file(new_logo_path)
+        logger.exception(
+            "Organization Profile logo storage failed account_id=%s organization_id=%s organization_uuid=%s content_type=%s",
+            account.id,
+            organization.id,
+            organization_uuid,
+            str(getattr(organization_logo, "content_type", "") or ""),
         )
+        return render_save_error(
+            "The organization logo could not be saved right now. "
+            "Please try again, or continue without replacing it.",
+            503,
+        )
+    except Exception:
+        db.rollback()
+        service.delete_pending_logo_file(new_logo_path)
+        logger.exception(
+            "Organization Profile save failed account_id=%s organization_id=%s organization_uuid=%s",
+            account.id,
+            organization.id,
+            organization_uuid,
+        )
+        return render_save_error(
+            "Organization Profile could not be saved. "
+            "Your existing information was preserved.",
+            500,
+        )
+    if new_logo_path and previous_logo_path and previous_logo_path != new_logo_path:
+        if not service.delete_pending_logo_file(previous_logo_path):
+            logger.warning(
+                "Previous pending organization logo was not removed account_id=%s organization_id=%s organization_uuid=%s",
+                account.id,
+                organization.id,
+                organization_uuid,
+            )
     if str(save_action or "").strip().lower() == "save_exit":
         return RedirectResponse("/saas/account?notice=Draft+saved.", status_code=302)
     return RedirectResponse(f"/saas/onboarding/{organization_uuid}/branches", status_code=302)
@@ -2222,7 +2286,12 @@ def save_branches_step(
         primary_row = branch_rows.pop(selected_primary_index)
         branch_rows.insert(0, primary_row)
     try:
-        service.replace_branches(db, organization, branch_rows)
+        service.replace_branches(
+            db,
+            organization,
+            branch_rows,
+            require_capacity_estimates=True,
+        )
         progress = service.save_draft(db, account, organization, current_step="academic_setup")
         service.log_pending_event(db, organization=organization, account=account, event_type="branches_saved", details={"completion_percent": progress.completion_percent})
         draft_lifecycle_service.record_meaningful_activity(
@@ -2243,7 +2312,13 @@ def save_branches_step(
             "branches",
             error=str(exc),
             status_code=422,
-            extra_context={"form_branches": branch_rows, "selected_primary_index": 0},
+            extra_context={
+                "form_branches": branch_rows,
+                "branch_capacity_totals": service.pending_branch_capacity_totals(
+                    branch_rows
+                ),
+                "selected_primary_index": 0,
+            },
         )
     if str(save_action or "").strip().lower() == "save_exit":
         return RedirectResponse("/saas/account?notice=Draft+saved.", status_code=302)

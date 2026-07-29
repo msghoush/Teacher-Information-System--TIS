@@ -1,6 +1,7 @@
 {% extends "saas/base.html" %}
 {% block content %}
 {% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+{% if not setup_console.compact_start %}
 <section class="setup-title-panel">
     <span class="page-eyebrow">{{ setup_console.current_step|replace("_", " ")|title }}</span>
     <h2>What should I do next?</h2>
@@ -16,4 +17,5 @@
         <p>{{ setup_console.workspace_name }}</p>
     </div>
 </section>
+{% endif %}
 {% endblock %}

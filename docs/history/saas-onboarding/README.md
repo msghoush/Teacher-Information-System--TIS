@@ -6,6 +6,39 @@ last_updated: 2026-07-29
 
 # SaaS Onboarding History
 
+## 2026-07-29 - Organization Profile Save And Compact Account Setup
+
+Organization Profile now accepts the three approved program labels through a
+required selector and returns customer validation errors inline. Pending logo
+uploads reuse actual-image validation, the 4 MB limit, minimum dimensions,
+opaque UUID filenames, and atomic writes. Newly written files are removed if a
+later save fails; empty upload retains the prior logo and successful
+replacement safely retires it. Storage and unexpected failures retain
+transaction rollback and produce server traceback logs without exposing raw
+errors.
+
+The initial Account Setup state now contains one setup title, one explicit POST
+start action, and the existing eight-step journey under a smaller official
+logo. Repeated status, action, context, and help panels are omitted only before
+the pending organization exists.
+
+Pending logos still use application-local
+`static/uploads/saas/pending_logos`; durable Render storage remains a separate
+persistent-disk or object-storage decision.
+
+The saved logo is now visible in Organization Profile and the shared School
+Workspace setup identity. Existing paid and demo provisioning already copied
+the pending image into `SchoolGroupLogo`; that path is now explicitly
+directory-confined, missing referenced files fail activation instead of being
+silently skipped, and the final logo label uses the organization name for
+accessible operational-shell rendering. TIS platform branding remains
+separate.
+
+Branch Setup no longer performs nullable estimate arithmetic in Jinja.
+Python-normalized totals make empty, legacy-null, and mixed rows safe to
+render. Customer saves retain required non-negative estimate validation, and
+new branch records receive explicit zero defaults.
+
 ## 2026-07-29 - Post-Verification Login Method Safety
 
 Fresh verified accounts no longer redirect successful login to the POST-only

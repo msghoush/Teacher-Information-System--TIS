@@ -7,6 +7,64 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Organization Profile Save
+
+1. The customer opens the owned pending organization's Organization Profile.
+2. The browser submits the existing multipart POST with a required controlled
+   educational-program value and an optional logo.
+3. TIS normalizes National, International, or Both and validates all profile
+   fields. Customer-correctable input returns the same page with preserved
+   text/select values.
+4. When a logo is supplied, TIS reads no more than the 4 MB boundary, decodes
+   the actual image as PNG/JPG/WEBP, checks dimensions, and ignores the
+   customer filename when creating the opaque stored filename.
+5. TIS writes the new image to a temporary sibling and atomically promotes it.
+6. Organization changes, progress, activity, and events commit together.
+   Only after commit is an obsolete prior pending logo removed.
+7. If logo storage or a later database step fails, TIS rolls back the
+   transaction, removes the newly written file, retains the prior logo
+   reference, logs the traceback, and renders a customer-safe error.
+8. The successful response redirects to Branch Setup. No duplicate pending
+   organization or operational workspace is created.
+
+Pending logo files currently live on the application-local filesystem. Durable
+Render operation requires a separately approved persistent disk or object
+storage architecture. The owner-only workspace deletion workflow currently
+removes database records but does not yet perform transactional cleanup of
+pending or promoted organization-logo files on the filesystem.
+
+## Organization Logo Activation
+
+1. Successful Organization Profile save stores a safe relative pending-logo
+   path; setup and checkout pages render only its public static URL.
+2. Organization Profile and the shared setup identity header show the customer
+   logo and organization name while the official TIS mark remains platform
+   branding.
+3. Checkout does not move or remove the pending image.
+4. Paid and demo activation both call `create_workspace_records()`.
+5. Provisioning resolves the pending path only inside the pending-logo
+   directory, requires the file to exist, decodes it again, and writes a new
+   organization-owned branding file.
+6. A primary `SchoolGroupLogo` row stores the final relative path and an
+   organization-name label. `SchoolGroup` has no direct logo field.
+7. The operational shell resolves that row through the protected
+   organization-asset route, renders it with contain sizing, and keeps the
+   official TIS logo separately visible.
+8. Missing pending source data blocks activation for correction instead of
+   producing an active workspace with silently lost branding.
+
+## Branch Estimate Rendering And Save
+
+1. The service loads active branch rows and computes capacity totals in Python.
+2. Null, missing, or malformed display values contribute zero; mixed valid
+   integer values continue to total normally.
+3. The template receives normalized totals and renders null row fields as zero,
+   avoiding Jinja `int + None` failures.
+4. Every customer save still requires explicit non-negative whole-number
+   values for estimated system users and teachers.
+5. Newly created pending branches receive explicit zero defaults before their
+   submitted values are applied.
+
 ## Combined Subscription Capacity And Custom Contact
 
 1. Each active onboarding branch supplies required non-negative system-user and

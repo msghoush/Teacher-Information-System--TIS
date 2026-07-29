@@ -75,6 +75,9 @@
             max-width: 58vw;
             height: auto;
         }
+        .brand-symbol-compact {
+            width: clamp(128px, 14vw, 168px);
+        }
         .card {
             position: relative;
             overflow: hidden;
@@ -299,6 +302,89 @@
         }
         .setup-title-panel h1 {
             margin-bottom: 8px;
+        }
+        .setup-console.is-compact-start .setup-console-head {
+            display: block;
+        }
+        .setup-console.is-compact-start .setup-title-panel {
+            padding: 22px;
+        }
+        .setup-inline-action {
+            margin-top: 18px;
+        }
+        .setup-inline-action form {
+            margin: 0;
+        }
+        .setup-workspace-brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--line);
+        }
+        .setup-workspace-logo,
+        .organization-logo-preview-frame {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex: 0 0 auto;
+            border: 1px solid #d9e5f2;
+            border-radius: 12px;
+            background: #fff;
+        }
+        .setup-workspace-logo {
+            width: 88px;
+            height: 58px;
+            padding: 7px;
+        }
+        .setup-workspace-logo img,
+        .organization-logo-preview-frame img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            object-position: center;
+        }
+        .organization-logo-preview {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .organization-logo-preview-frame {
+            width: 138px;
+            height: 82px;
+            padding: 9px;
+        }
+        .organization-logo-placeholder {
+            color: #60758d;
+            font-size: 11px;
+            font-weight: 850;
+            line-height: 1.25;
+            text-align: center;
+        }
+        .setup-workspace-copy {
+            min-width: 0;
+        }
+        .setup-workspace-copy span,
+        .setup-workspace-copy strong {
+            display: block;
+        }
+        .setup-workspace-copy span {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 800;
+            margin-bottom: 3px;
+        }
+        .setup-workspace-copy strong {
+            overflow-wrap: anywhere;
+            color: var(--ink);
+            font-size: 15px;
+        }
+        .setup-card:empty {
+            display: none;
         }
         .setup-status {
             border: 1px solid #bdebd2;
@@ -695,6 +781,8 @@
             .setup-timeline-step::before { display: none; }
             .card { border-radius: 22px; padding: 22px 16px; }
             .table { display: block; overflow-x: auto; }
+            .organization-logo-preview { align-items: flex-start; }
+            .organization-logo-preview-frame { width: 112px; height: 72px; }
         }
     </style>
 </head>
@@ -702,7 +790,7 @@
     <div class="shell">
         <header class="hero">
             <a class="brand-mark" href="/saas">
-                <img class="brand-symbol" src="{{ url_for('static', path='branding/tis/logos/TIS Logo – Full Color – Horizontal Layout.png') }}" alt="TIS Platform">
+                <img class="brand-symbol brand-symbol-compact" src="{{ url_for('static', path='branding/tis/logos/TIS Logo – Full Color – Horizontal Layout.png') }}" alt="TIS Platform">
             </a>
             {% if account %}
             <nav class="actions" aria-label="Account setup navigation">
@@ -732,14 +820,39 @@
         </header>
 
         {% if setup_console is defined and setup_console %}
-        <section class="setup-console" aria-label="TIS Account guided setup">
+        <section class="setup-console{% if setup_console.compact_start %} is-compact-start{% endif %}" aria-label="TIS Account guided setup">
             <div class="setup-console-head">
                 <div class="setup-title-panel">
                     <span class="page-eyebrow">Account Setup</span>
                     <h1>{{ setup_console.title }}</h1>
                     <p class="page-subtitle">{{ setup_console.subtitle }}</p>
+                    {% if organization is defined and organization %}
+                    <div class="setup-workspace-brand" aria-label="School Workspace identity">
+                        <div class="setup-workspace-logo">
+                            {% if organization.organization_logo_path %}
+                            <img src="{{ url_for('static', path=organization.organization_logo_path) }}" alt="{{ organization.organization_name or 'Organization' }} logo" onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+                            <div class="organization-logo-placeholder" role="img" aria-label="Organization logo unavailable" hidden>Organization<br>logo</div>
+                            {% else %}
+                            <div class="organization-logo-placeholder" role="img" aria-label="No organization logo uploaded">Organization<br>logo</div>
+                            {% endif %}
+                        </div>
+                        <div class="setup-workspace-copy">
+                            <span>School Workspace</span>
+                            <strong>{{ organization.organization_name or "Organization Profile in progress" }}</strong>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if setup_console.compact_start %}
+                    <div class="setup-inline-action">
+                        <form method="post" action="{{ setup_console.primary_action['url'] }}">
+                            <button class="btn" data-primary-cta="true" type="submit">{{ setup_console.primary_action['label'] }}</button>
+                        </form>
+                    </div>
+                    {% else %}
                     <div class="setup-status">{{ setup_console.status_banner }}</div>
+                    {% endif %}
                 </div>
+                {% if not setup_console.compact_start %}
                 <aside class="setup-primary-panel" aria-label="Primary next action">
                     <strong>Next action</strong>
                     {% if setup_console.primary_action.get("form_id") %}
@@ -752,6 +865,7 @@
                     <a class="btn" data-primary-cta="true" href="{{ setup_console.primary_action['url'] }}">{{ setup_console.primary_action['label'] }}</a>
                     {% endif %}
                 </aside>
+                {% endif %}
             </div>
             <section class="setup-journey" aria-label="Setup progress">
                 <div class="setup-journey-track">
@@ -794,10 +908,12 @@
         </section>
         {% endif %}
 
+        {% if not (setup_console is defined and setup_console and setup_console.compact_start and not notice) %}
         <main class="card {% if setup_console is defined and setup_console %}setup-card{% endif %}">
             {% block content %}{% endblock %}
         </main>
-        {% if setup_console is defined and setup_console %}
+        {% endif %}
+        {% if setup_console is defined and setup_console and not setup_console.compact_start %}
         <aside class="setup-help-panel" aria-label="Setup guidance">
             <strong>{{ setup_console.help_title }}</strong>
             <p>{{ setup_console.help_text }}</p>
