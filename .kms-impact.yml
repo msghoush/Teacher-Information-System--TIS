@@ -1,28 +1,11 @@
 knowledge_impact: yes
-summary: Replace combined staff capacity with organization-wide branch, system-user, and teacher authority derived from per-branch estimates before payment and actual tenant data after activation.
+summary: Publish the final four-plan capacity model on the separate Next.js landing page, with self-service per-active-branch pricing and a contact-only Custom path.
 affected_areas:
-  - subscriptions
-  - subscription-checkout
-  - branch-quantity-authority
-  - billing-integrity
-  - pre-payment-branch-editing
-  - checkout-supersession
-  - plan-capacity-enforcement
-  - system-user-capacity-enforcement
-  - teacher-capacity-enforcement
-  - branch-level-capacity-estimates
-  - minimum-plan-recommendation
+  - public-landing-page
+  - public-pricing
+  - subscription-plan-presentation
   - custom-plan-contact
-  - user-management
-  - teacher-management
-  - plan-downgrades
 kms_files_updated:
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/PROJECT_STATE.md
-  - docs/CHANGE_HISTORY.md
-  - docs/engineering/REPOSITORY_ARCHITECTURE.md
-  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
-  - docs/history/subscriptions/README.md
 no_impact_reason:
 major_change_override: no

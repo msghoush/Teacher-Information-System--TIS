@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-07-29T01:41:47.058339+03:00",
+  "generated_at": "2026-07-29T13:52:54.086256+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "46035f9",
+  "commit_sha": "f8c078a",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "1a5c934bc507720bc24a87419736d68f7c4ce48ca2f58a0691b11600519fa876",
-  "pdf_size_bytes": 690335,
+  "pdf_sha256": "ac048b12eb3f8189ba64d0e40e5ef3289f3ae97dbad60aaded5779329e4d45fa",
+  "pdf_size_bytes": 690478,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -88,9 +88,9 @@
     },
     {
       "path": "docs/engineering/USER_AND_SYSTEM_FLOWS.md",
-      "modified_at": "2026-07-29T01:38:22.170111+03:00",
-      "size_bytes": 24793,
-      "sha256": "59f019b84457f3f48f690116bd19a0f07cab3b662a6987c13376dc36ca429c20",
+      "modified_at": "2026-07-29T13:52:45.171972+03:00",
+      "size_bytes": 25080,
+      "sha256": "f2fb9fd5e57cff92e078a192ac481753ed4a0bee7be920ab1a1ff452480ccdc1",
       "pdf_page": 111
     },
     {
