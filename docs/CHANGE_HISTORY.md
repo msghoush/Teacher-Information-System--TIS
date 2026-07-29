@@ -7,6 +7,25 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-07-29 - Post-Verification Sign-In 405 Correction
+
+A fresh verified account had no pending organization or operational account
+link, so `customer_journey_service.login_destination()` returned
+`/saas/onboarding/start`. That route accepts POST only. After successful
+credential POST, the 302 caused the browser to request that destination by GET,
+and FastAPI returned raw `{"detail":"Method Not Allowed"}` with HTTP 405.
+Existing tests supplied `/saas/account` explicitly and therefore masked the
+normal browser journey.
+
+Fresh verified accounts now continue to the GET `/saas/account` dashboard;
+the existing start-setup action remains the only POST that creates an
+organization. Login continuation validation accepts only known customer GET
+destinations and rejects POST-only, malformed, traversal, fragment, and
+external values. A compatibility GET for `/saas/auth/login` redirects to the
+normal GET sign-in page. Verification, password authentication, onboarding
+rules, subscription intent, preferred-plan authority, checkout, Paddle,
+schema, and landing behavior are unchanged.
+
 ## 2026-07-29 - Safe Public Subscription Pricing Entry
 
 The landing hero Subscribe Now action now scrolls to pricing. Starter,

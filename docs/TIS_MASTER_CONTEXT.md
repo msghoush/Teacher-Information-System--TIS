@@ -249,6 +249,8 @@ The accepted Phase 1 verification recovery improvement strengthens the public TI
 Current verification behavior:
 
 - Valid email verification links mark the account email verified/active and redirect to `/saas/login` with a professional success notice: the customer is told their email has been verified and asked to sign in to continue school workspace setup.
+- `/saas/login` is the GET sign-in page and its form submits only by POST to `/saas/auth/login`. Fresh verified accounts with no organization record continue to the GET `/saas/account` dashboard; the existing explicit onboarding-start action remains POST-only.
+- Login continuation values are limited to known customer GET destinations. POST-only, malformed, traversal, fragment, and external values fall back to Account Setup. Defensive GET navigation to `/saas/auth/login` redirects to `/saas/login` and never exposes raw FastAPI 405 JSON.
 - Expired or invalid verification links show a recovery page instead of a dead-end generic error.
 - The recovery page includes a resend verification form.
 - Resend verification safely handles unverified accounts, already verified accounts, and unknown email addresses without exposing whether an account exists.

@@ -6,6 +6,17 @@ last_updated: 2026-07-29
 
 # SaaS Onboarding History
 
+## 2026-07-29 - Post-Verification Login Method Safety
+
+Fresh verified accounts no longer redirect successful login to the POST-only
+onboarding creation endpoint. They open the GET Account Setup dashboard, where
+the established explicit POST action starts School Workspace Setup. Sign-in
+continuations now accept only known customer GET destinations, and accidental
+GET navigation to the credential handler redirects to the normal sign-in page
+instead of returning raw HTTP 405 JSON. Same-email re-registration,
+subscription intent, and non-authoritative preferred-plan state remain
+compatible.
+
 ## 2026-07-29 - Public Preferred-Plan Continuity
 
 Public pricing may carry an allowlisted Starter, Professional, or Enterprise AI
