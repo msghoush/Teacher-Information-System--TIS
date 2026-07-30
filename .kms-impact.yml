@@ -1,7 +1,9 @@
 knowledge_impact: yes
-summary: Harden initial Paddle checkout lineage, retry recovery, customer-address reuse, and billed transaction launch validation.
+summary: Harden initial Paddle checkout lineage and refine the shared SaaS organization-logo identity presentation without changing business behavior.
 affected_areas:
   - saas-onboarding
+  - saas-onboarding-ui
+  - organization-branding
   - initial-checkout
   - paddle-transactions
   - payment-webhook-reconciliation

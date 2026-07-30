@@ -318,7 +318,9 @@
         .setup-workspace-brand {
             display: flex;
             align-items: center;
-            gap: 14px;
+            gap: 20px;
+            min-width: 0;
+            width: 100%;
             margin-top: 16px;
             padding-top: 16px;
             border-top: 1px solid var(--line);
@@ -330,14 +332,13 @@
             justify-content: center;
             overflow: hidden;
             flex: 0 0 auto;
+            box-sizing: border-box;
+            width: 132px;
+            height: 84px;
+            padding: 10px;
             border: 1px solid #d9e5f2;
             border-radius: 12px;
-            background: #fff;
-        }
-        .setup-workspace-logo {
-            width: 88px;
-            height: 58px;
-            padding: 7px;
+            background: #f8fafc;
         }
         .setup-workspace-logo img,
         .organization-logo-preview-frame img {
@@ -351,21 +352,34 @@
             display: flex;
             align-items: center;
             gap: 16px;
+            min-width: 0;
             margin-bottom: 16px;
         }
-        .organization-logo-preview-frame {
-            width: 138px;
-            height: 82px;
-            padding: 9px;
-        }
         .organization-logo-placeholder {
-            color: #60758d;
-            font-size: 11px;
+            display: flex;
+            width: 100%;
+            height: 100%;
+            align-items: center;
+            justify-content: center;
+        }
+        .organization-logo-placeholder[hidden] {
+            display: none;
+        }
+        .organization-logo-placeholder-mark {
+            display: grid;
+            width: 44px;
+            height: 44px;
+            place-items: center;
+            border: 1px solid #d6e2ee;
+            border-radius: 50%;
+            background: #edf3f8;
+            color: #4f667e;
+            font-size: 18px;
             font-weight: 850;
-            line-height: 1.25;
-            text-align: center;
+            line-height: 1;
         }
         .setup-workspace-copy {
+            flex: 1 1 auto;
             min-width: 0;
         }
         .setup-workspace-copy span,
@@ -381,7 +395,8 @@
         .setup-workspace-copy strong {
             overflow-wrap: anywhere;
             color: var(--ink);
-            font-size: 15px;
+            font-size: 16px;
+            line-height: 1.35;
         }
         .setup-card:empty {
             display: none;
@@ -786,8 +801,7 @@
             .setup-timeline-step::before { display: none; }
             .card { border-radius: 22px; padding: 22px 16px; }
             .table { display: block; overflow-x: auto; }
-            .organization-logo-preview { align-items: flex-start; }
-            .organization-logo-preview-frame { width: 112px; height: 72px; }
+            .organization-logo-preview { align-items: center; }
         }
 
         /* Shared TIS Account and onboarding presentation */
@@ -909,7 +923,7 @@
         }
         .setup-title-panel {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(240px, auto);
+            grid-template-columns: minmax(0, 1fr) minmax(380px, 520px);
             align-items: center;
             gap: 14px 20px;
             border-radius: 16px;
@@ -940,16 +954,11 @@
             font-size: 12px;
         }
         .setup-workspace-brand {
-            max-width: 360px;
+            max-width: 520px;
             margin: 0;
-            padding: 2px 0 2px 18px;
+            padding: 2px 0 2px 22px;
             border-top: 0;
             border-left: 1px solid var(--line);
-        }
-        .setup-workspace-logo {
-            width: 68px;
-            height: 44px;
-            padding: 5px;
         }
         .setup-journey {
             border-radius: 16px;
@@ -1551,10 +1560,22 @@
                 padding: 16px;
             }
             .setup-workspace-brand {
+                gap: 16px;
                 max-width: none;
                 padding: 10px 0 0;
                 border-top: 1px solid var(--line);
                 border-left: 0;
+            }
+            .setup-workspace-logo,
+            .organization-logo-preview-frame {
+                width: 104px;
+                height: 70px;
+                padding: 8px;
+            }
+            .organization-logo-placeholder-mark {
+                width: 38px;
+                height: 38px;
+                font-size: 16px;
             }
             .setup-journey-track {
                 grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1624,6 +1645,15 @@
             }
             .hero .actions {
                 grid-template-columns: 1fr;
+            }
+            .setup-workspace-logo,
+            .organization-logo-preview-frame {
+                width: 96px;
+                height: 68px;
+            }
+            .setup-workspace-brand,
+            .organization-logo-preview {
+                gap: 14px;
             }
             .billing-interval-switch label {
                 min-width: 0;
@@ -1703,18 +1733,23 @@
                         {% endif %}
                     </div>
                     {% if organization is defined and organization %}
+                    {% set workspace_identity_name = organization.organization_name or "Organization Profile in progress" %}
                     <div class="setup-workspace-brand" aria-label="School Workspace identity">
                         <div class="setup-workspace-logo">
                             {% if organization.organization_logo_path %}
-                            <img src="{{ url_for('static', path=organization.organization_logo_path) }}" alt="{{ organization.organization_name or 'Organization' }} logo" onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
-                            <div class="organization-logo-placeholder" role="img" aria-label="Organization logo unavailable" hidden>Organization<br>logo</div>
+                            <img src="{{ url_for('static', path=organization.organization_logo_path) }}" alt="{{ workspace_identity_name }} logo" onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+                            <div class="organization-logo-placeholder" role="img" aria-label="Organization logo unavailable" hidden>
+                                <span class="organization-logo-placeholder-mark" aria-hidden="true">{{ workspace_identity_name[:1]|upper }}</span>
+                            </div>
                             {% else %}
-                            <div class="organization-logo-placeholder" role="img" aria-label="No organization logo uploaded">Organization<br>logo</div>
+                            <div class="organization-logo-placeholder" role="img" aria-label="No organization logo uploaded">
+                                <span class="organization-logo-placeholder-mark" aria-hidden="true">{{ workspace_identity_name[:1]|upper }}</span>
+                            </div>
                             {% endif %}
                         </div>
                         <div class="setup-workspace-copy">
                             <span>School Workspace</span>
-                            <strong>{{ organization.organization_name or "Organization Profile in progress" }}</strong>
+                            <strong>{{ workspace_identity_name }}</strong>
                         </div>
                     </div>
                     {% endif %}
