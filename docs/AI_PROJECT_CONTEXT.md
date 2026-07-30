@@ -1,11 +1,36 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-07-29
+last_updated: 2026-07-30
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Initial Checkout Retry And Lineage Safety
+
+The diagnosed Secure Payment failure was a local readiness rejection before
+any Paddle API request. `_ensure_checkout_launchable()` rejected the legacy
+`ready_for_checkout` pre-checkout billing state even though it could be
+prepared safely. The verified Professional Annual catalog mapping remains USD
+790 per active branch; two branches therefore produce Paddle quantity 2 and an
+authoritative annual total of USD 1,580.
+
+Initial Secure Payment authority is the current server-built quote plus its
+plan selection, checkout session, and payment attempt lineage. A plan,
+interval, branch quantity, capacity estimate, provider price, or quote
+fingerprint change supersedes unfinished local sessions and attempts. Late
+webhooks for those attempts are retained for review but cannot activate a
+subscription or workspace.
+
+Retry Secure Payment revalidates otherwise eligible unpaid onboarding state,
+normalizes legacy pre-checkout billing status, and creates a fresh checkout
+when the prior transaction is missing, incomplete, non-billed, or mismatched.
+Compatible active Paddle customer addresses are reused by country. Only an
+automatic, billed, launchable transaction for the current customer and quote
+may be released to the public payment launcher. Provider diagnostics and
+readiness failures remain logged server-side with tracebacks; customers
+receive one structured safe alert without provider or internal details.
 
 ## Organization Profile Save And Pending Logo Safety
 

@@ -1,11 +1,16 @@
-knowledge_impact: no
-summary: Refine the shared SaaS onboarding presentation and Subscription Selection controls without changing authoritative commercial behavior.
+knowledge_impact: yes
+summary: Harden initial Paddle checkout lineage, retry recovery, customer-address reuse, and billed transaction launch validation.
 affected_areas:
-  - saas-account-ui
-  - onboarding-ui
-  - subscription-presentation
-  - subscription-selection-ui
-  - shared-saas-header-branding
+  - saas-onboarding
+  - initial-checkout
+  - paddle-transactions
+  - payment-webhook-reconciliation
+  - customer-payment-errors
 kms_files_updated:
-no_impact_reason: This complete PR is presentation-only. It refines shared SaaS account and onboarding templates, responsive shell and action-bar presentation, plan-card visual hierarchy and alert formatting, official TIS logo sizing, card-based plan selection, billing interval presentation, and client-side price previews using server-provided display values. The route change adds view-only formatted pricing context. It changes no route paths or methods, form field names, workflow transitions, business rules, payment, subscription authority, capacity validation, pricing authority, checkout, provisioning, or architecture.
-major_change_override: yes
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/PROJECT_STATE.md
+  - docs/CHANGE_HISTORY.md
+  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
+  - docs/history/saas-onboarding/README.md
+no_impact_reason:
+major_change_override: no

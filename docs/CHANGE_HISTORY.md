@@ -1,11 +1,40 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-07-29
+last_updated: 2026-07-30
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-07-30 - Initial Secure Payment Retry And Lineage Hardening
+
+The Secure Payment summary could be correct while launch rejected an otherwise
+eligible unpaid organization whose persisted billing status or checkout
+lineage was stale. Plan and interval changes marked the checkout session stale
+but did not consistently supersede its unfinished payment attempt. Retry could
+therefore repeat a local readiness failure or retain obsolete transaction
+authority.
+
+The incident itself occurred before any Paddle API request:
+`_ensure_checkout_launchable()` rejected a legacy `ready_for_checkout`
+pre-checkout billing state. That state can now be prepared safely. The
+Professional Annual mapping was unchanged at USD 790 per active branch, so the
+verified two-branch quote remains quantity 2 and USD 1,580 annually.
+
+Checkout recovery now treats plan selection, checkout session, payment attempt,
+quote fingerprint, provider price, interval, and quantity as one lineage.
+Obsolete sessions and unfinished attempts are superseded, current local
+authority is cleared, and Retry prepares a fresh session from the authoritative
+quote. Existing started transactions are reused only after remote billed,
+automatic-collection, customer, quote, item, quantity, and subtotal validation.
+Superseded webhooks cannot activate a subscription or workspace.
+
+Paddle address resolution now reuses an active exact-country address for the
+same customer before creating one. Provider and readiness failures retain
+status/code and traceback in server logs while the customer sees one safe
+retry alert. No pricing, capacity, schema, migration, webhook authority,
+provisioning, or checkout architecture changed.
 
 ## 2026-07-29 - Organization Profile Save And Account Setup Correction
 

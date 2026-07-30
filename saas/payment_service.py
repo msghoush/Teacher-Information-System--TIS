@@ -14,7 +14,13 @@ from fastapi import Request
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from saas import branch_pricing_quote_service, models, paddle_client, service
+from saas import (
+    billing_service,
+    branch_pricing_quote_service,
+    models,
+    paddle_client,
+    service,
+)
 
 PROVIDER = "paddle"
 CHECKOUT_READY = "checkout_ready"
@@ -55,6 +61,9 @@ CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE = (
 )
 
 logger = logging.getLogger(__name__)
+CUSTOMER_SAFE_PAYMENT_PROVIDER_MESSAGE = (
+    "Secure Payment is temporarily unavailable. Please try again in a few moments."
+)
 
 
 class MissingPaddlePriceConfiguration(ValueError):
@@ -930,7 +939,7 @@ def launch_checkout(db: Session, organization, account, request: Request):
             existing_attempt = db.query(models.PaymentAttempt).filter(
                 models.PaymentAttempt.id == checkout_session.last_payment_attempt_id
             ).first()
-        if not existing_attempt or not (
+        existing_attempt_matches = bool(existing_attempt) and (
             _clean_text(getattr(existing_attempt, "provider_price_id", "")) == quote.provider_price_id
             and int(getattr(existing_attempt, "quantity", 0) or 0) == quote.quantity
             and int(getattr(existing_attempt, "unit_amount_minor", 0) or 0) == quote.unit_amount_minor
@@ -938,15 +947,43 @@ def launch_checkout(db: Session, organization, account, request: Request):
             and _clean_text(getattr(existing_attempt, "billing_interval", "")).lower() == quote.billing_interval
             and _clean_text(getattr(existing_attempt, "currency_code", "")).upper() == quote.currency_code
             and _clean_text(getattr(existing_attempt, "quote_fingerprint", "")) == quote.fingerprint
-        ):
-            checkout_session.status = "stale"
-            checkout_session.abandoned_at = _utcnow()
-            raise ValueError("Subscription details changed. Please continue again to refresh Secure Payment.")
-        return {
-            "attempt": existing_attempt,
-            "checkout_url": existing_checkout_url,
-            "transaction": {},
-        }
+        )
+        if existing_attempt_matches:
+            try:
+                validate_payment_launcher_transaction(
+                    db,
+                    _clean_text(existing_attempt.provider_transaction_id),
+                )
+            except paddle_client.PaddleAPIError:
+                raise
+            except ValueError:
+                existing_attempt_matches = False
+        if existing_attempt_matches:
+            return {
+                "attempt": existing_attempt,
+                "checkout_url": existing_checkout_url,
+                "transaction": {},
+            }
+        logger.warning(
+            "checkout_recovery reason_code=obsolete_started_checkout "
+            "organization_uuid=%s billing_interval=%s quantity=%s",
+            _clean_text(getattr(organization, "organization_uuid", "")),
+            quote.billing_interval,
+            quote.quantity,
+        )
+        billing_service.supersede_checkout_lineage(
+            db,
+            organization,
+            [checkout_session],
+            reason=(
+                "Checkout superseded because its Paddle transaction was not "
+                "launchable for the current authoritative quote."
+            ),
+        )
+        billing_service.create_or_update_checkout_session(db, organization)
+        checkout_session, selection, contract, plan_price, quote = (
+            build_checkout_launch_context(db, organization)
+        )
     payment_customer = _find_or_create_payment_customer(db, organization, account)
     attempt = models.PaymentAttempt(
         pending_organization_id=organization.id,
@@ -988,13 +1025,19 @@ def launch_checkout(db: Session, organization, account, request: Request):
     _validate_created_transaction_quote(transaction, quote)
 
     checkout_data = transaction.get("checkout") or {}
+    transaction_id = str(transaction.get("id") or "").strip()
+    checkout_url = str(checkout_data.get("url") or "").strip()
+    if not transaction_id.startswith("txn_") or not checkout_url:
+        raise paddle_client.PaddleAPIError(
+            "Paddle did not return a launchable billed transaction."
+        )
     attempt.provider_checkout_id = str((checkout_data.get("id") or transaction.get("id") or "")).strip() or None
-    attempt.provider_transaction_id = str(transaction.get("id") or "").strip() or None
+    attempt.provider_transaction_id = transaction_id
     attempt.currency_code = str(transaction.get("currency_code") or attempt.currency_code or "USD").strip() or "USD"
     checkout_session.status = CHECKOUT_SESSION_STARTED
     checkout_session.provider = PROVIDER
     checkout_session.provider_checkout_id = attempt.provider_checkout_id or attempt.provider_transaction_id
-    checkout_session.checkout_url = str(checkout_data.get("url") or "").strip() or None
+    checkout_session.checkout_url = checkout_url
     checkout_session.provider_price_id = str(plan_price.provider_price_id or "").strip() or None
     checkout_session.last_payment_attempt_id = attempt.id
     organization.billing_status = CHECKOUT_STARTED

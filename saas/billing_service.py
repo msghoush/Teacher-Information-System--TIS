@@ -8,6 +8,8 @@ NOT_STARTED = "not_started"
 PLAN_SELECTED = "plan_selected"
 CHECKOUT_READY = "checkout_ready"
 CHECKOUT_INITIATED = "checkout_initiated"
+OPEN_CHECKOUT_SESSION_STATUSES = ("ready", "started", "processing")
+OPEN_PAYMENT_ATTEMPT_STATUSES = ("checkout_started", "payment_processing")
 
 
 def _utcnow():
@@ -39,6 +41,47 @@ def get_current_subscription_contract(db: Session, organization):
     return db.query(models.SubscriptionContract).filter(
         models.SubscriptionContract.pending_organization_id == organization.id
     ).order_by(models.SubscriptionContract.updated_at.desc(), models.SubscriptionContract.id.desc()).first()
+
+
+def supersede_checkout_lineage(
+    db: Session,
+    organization,
+    checkout_sessions: list,
+    *,
+    reason: str,
+) -> int:
+    sessions = [row for row in checkout_sessions if row is not None]
+    if not sessions:
+        return 0
+    now = _utcnow()
+    session_ids = {int(row.id) for row in sessions if getattr(row, "id", None)}
+    for checkout_session in sessions:
+        checkout_session.status = "stale"
+        checkout_session.abandoned_at = now
+
+    superseded_attempt_ids = set()
+    if session_ids:
+        attempts = db.query(models.PaymentAttempt).filter(
+            models.PaymentAttempt.pending_organization_id == organization.id,
+            models.PaymentAttempt.checkout_session_id.in_(session_ids),
+            models.PaymentAttempt.status.in_(OPEN_PAYMENT_ATTEMPT_STATUSES),
+        ).all()
+        for attempt in attempts:
+            attempt.status = "superseded"
+            attempt.failure_reason = reason
+            superseded_attempt_ids.add(int(attempt.id))
+
+    if int(getattr(organization, "last_payment_attempt_id", 0) or 0) in superseded_attempt_ids:
+        organization.last_payment_attempt_id = None
+    contract = get_current_subscription_contract(db, organization)
+    if (
+        contract
+        and int(getattr(contract, "selected_checkout_session_id", 0) or 0)
+        in session_ids
+        and str(getattr(contract, "payment_status", "") or "").lower() != "paid"
+    ):
+        contract.selected_checkout_session_id = None
+    return len(sessions)
 
 
 def select_plan(
@@ -139,10 +182,24 @@ def select_plan(
         contract.quoted_base_amount_minor = quote.total_amount_minor
         contract.quoted_display_amount_minor = quote.display_total_amount_minor
         contract.quote_fingerprint = quote.fingerprint or None
-    checkout_session = get_current_checkout_session(db, organization)
-    if checkout_session and str(getattr(checkout_session, "quote_fingerprint", "") or "") != quote.fingerprint:
-        checkout_session.status = "stale"
-        checkout_session.abandoned_at = _utcnow()
+    obsolete_checkout_sessions = db.query(models.CheckoutSession).filter(
+        models.CheckoutSession.pending_organization_id == organization.id,
+        models.CheckoutSession.status.in_(OPEN_CHECKOUT_SESSION_STATUSES),
+    ).all()
+    obsolete_checkout_sessions = [
+        row
+        for row in obsolete_checkout_sessions
+        if (
+            str(getattr(row, "quote_fingerprint", "") or "") != quote.fingerprint
+            or int(getattr(row, "plan_selection_id", 0) or 0) != int(selection.id)
+        )
+    ]
+    supersede_checkout_lineage(
+        db,
+        organization,
+        obsolete_checkout_sessions,
+        reason="Checkout superseded after the selected plan or billing interval changed.",
+    )
     service.log_pending_event(
         db,
         organization=organization,
@@ -201,16 +258,31 @@ def create_or_update_checkout_session(db: Session, organization):
     selection.quote_fingerprint = quote.fingerprint
 
     checkout_session = get_current_checkout_session(db, organization)
-    if (
+    current_status = str(getattr(checkout_session, "status", "") or "").lower()
+    current_lineage_matches = bool(
         checkout_session
-        and checkout_session.status == "started"
+        and str(getattr(checkout_session, "quote_fingerprint", "") or "")
+        == quote.fingerprint
+        and int(getattr(checkout_session, "plan_selection_id", 0) or 0)
+        == int(selection.id)
+    )
+    if (
+        current_lineage_matches
+        and current_status == "started"
         and str(checkout_session.checkout_url or "").strip()
-        and str(checkout_session.quote_fingerprint or "") == quote.fingerprint
     ):
         return checkout_session
-    if checkout_session and str(checkout_session.quote_fingerprint or "") != quote.fingerprint:
-        checkout_session.status = "stale"
-        checkout_session.abandoned_at = _utcnow()
+    if checkout_session and (
+        not current_lineage_matches
+        or current_status not in {"ready", "started"}
+        or (current_status == "started" and not str(checkout_session.checkout_url or "").strip())
+    ):
+        supersede_checkout_lineage(
+            db,
+            organization,
+            [checkout_session],
+            reason="Checkout superseded because its local payment session was incomplete or obsolete.",
+        )
         checkout_session = None
     if not checkout_session or checkout_session.status == "stale":
         checkout_session = models.CheckoutSession(
