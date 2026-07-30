@@ -866,6 +866,14 @@ class SaaSPhase1Tests(unittest.TestCase):
                     'aria-label="No organization logo uploaded"',
                     empty_preview.text,
                 )
+                self.assertIn(
+                    'class="organization-logo-placeholder-mark"',
+                    empty_preview.text,
+                )
+                self.assertNotIn(
+                    ">Organization<br>logo</div>",
+                    empty_preview.text,
+                )
 
                 first_response = self.client.post(
                     f"/saas/onboarding/{org_uuid}/organization",
@@ -1058,6 +1066,84 @@ class SaaSPhase1Tests(unittest.TestCase):
                 )
                 self.assertIn(replacement_path, replacement_preview.text)
                 self.assertNotIn(first_path, replacement_preview.text)
+
+    def test_shared_workspace_identity_uses_responsive_contained_logo_frame(self):
+        self._signup_and_verify("logo-layout@academy.edu")
+        org_uuid = self._start_pending_organization()
+        organization_name = (
+            "Society for Social Support and Education International School"
+        )
+
+        db = self._db()
+        try:
+            organization = (
+                db.query(saas.models.PendingOrganization)
+                .filter_by(organization_uuid=org_uuid)
+                .one()
+            )
+            organization.organization_name = organization_name
+            db.commit()
+        finally:
+            db.close()
+
+        account_response = self.client.get("/saas/account")
+        profile_response = self.client.get(
+            f"/saas/onboarding/{org_uuid}/organization"
+        )
+
+        for response in (account_response, profile_response):
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(organization_name, response.text)
+            self.assertIn(
+                'class="organization-logo-placeholder-mark"',
+                response.text,
+            )
+            self.assertNotIn(">Organization<br>logo</div>", response.text)
+            self.assertRegex(
+                response.text,
+                re.compile(
+                    r"\.setup-workspace-logo,\s*"
+                    r"\.organization-logo-preview-frame\s*\{"
+                    r"[^}]*width:\s*132px;"
+                    r"[^}]*height:\s*84px;",
+                    re.DOTALL,
+                ),
+            )
+            self.assertRegex(
+                response.text,
+                re.compile(
+                    r"\.setup-workspace-logo img,\s*"
+                    r"\.organization-logo-preview-frame img\s*\{"
+                    r"[^}]*object-fit:\s*contain;",
+                    re.DOTALL,
+                ),
+            )
+            self.assertIn("width: 104px;", response.text)
+            self.assertIn("height: 70px;", response.text)
+            self.assertIn("width: 96px;", response.text)
+            self.assertIn("height: 68px;", response.text)
+            self.assertIn("overflow-wrap: anywhere;", response.text)
+
+        self.assertIn(
+            'aria-label="School Workspace identity"',
+            account_response.text,
+        )
+        self.assertIn('class="setup-workspace-logo"', account_response.text)
+        self.assertIn('class="setup-workspace-copy"', account_response.text)
+        self.assertIn('class="brand-symbol-frame"', account_response.text)
+        self.assertEqual(
+            account_response.text.count('class="brand-symbol-frame"'),
+            1,
+        )
+        self.assertEqual(
+            account_response.text.count('class="setup-workspace-logo"'),
+            1,
+        )
+        self.assertIn(
+            'class="organization-logo-preview-frame"',
+            profile_response.text,
+        )
+        self.assertIn("No organization logo uploaded", profile_response.text)
 
     def test_organization_logo_validation_rejects_unsafe_content(self):
         self._signup_and_verify("logo-errors@academy.edu")
@@ -1655,6 +1741,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Review School Workspace Setup", review_response.text)
         self.assertIn("Ready to continue", review_response.text)
         self.assertIn('class="brand-symbol-frame"', review_response.text)
+        self.assertIn('class="setup-workspace-logo"', review_response.text)
         self.assertIn('class="setup-title-copy"', review_response.text)
         self.assertEqual(review_response.text.count('data-primary-cta="true"'), 1)
         self.assertIn('form="review-submit-form"', review_response.text)
@@ -2240,6 +2327,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("Choose your subscription", plan_page.text)
         self.assertIn("Subscription Selection", plan_page.text)
         self.assertIn('class="brand-symbol-frame"', plan_page.text)
+        self.assertIn('class="setup-workspace-logo"', plan_page.text)
         self.assertIn("School Workspace Setup", plan_page.text)
         self.assertIn(f'href="/saas/onboarding/{org_uuid}/review"', plan_page.text)
         self.assertIn(f'href="/saas/onboarding/{org_uuid}/plan"', plan_page.text)
@@ -2291,6 +2379,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertEqual(checkout_page.status_code, 200)
         self.assertIn("Secure Payment summary", checkout_page.text)
         self.assertIn('class="brand-symbol-frame"', checkout_page.text)
+        self.assertIn('class="setup-workspace-logo"', checkout_page.text)
         self.assertIn('id="checkout-start-form"', checkout_page.text)
         self.assertIn('form="checkout-launch-form"', checkout_page.text)
         self.assertIn("Continue to Secure Payment", checkout_page.text)

@@ -42,13 +42,18 @@
             <p>Upload the logo your school workspace should use during setup review.</p>
         </div>
         <div class="logo-upload-panel">
+            {% set logo_preview_name = fd.get('organization_name', organization.organization_name or 'Organization') or 'Organization' %}
             <div class="organization-logo-preview">
                 <div class="organization-logo-preview-frame">
                     {% if organization.organization_logo_path %}
-                    <img src="{{ url_for('static', path=organization.organization_logo_path) }}" alt="{{ fd.get('organization_name', organization.organization_name or 'Organization') }} logo" onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
-                    <div class="organization-logo-placeholder" role="img" aria-label="Organization logo unavailable" hidden>Organization<br>logo</div>
+                    <img src="{{ url_for('static', path=organization.organization_logo_path) }}" alt="{{ logo_preview_name }} logo" onerror="this.hidden=true; this.nextElementSibling.hidden=false;">
+                    <div class="organization-logo-placeholder" role="img" aria-label="Organization logo unavailable" hidden>
+                        <span class="organization-logo-placeholder-mark" aria-hidden="true">{{ logo_preview_name[:1]|upper }}</span>
+                    </div>
                     {% else %}
-                    <div class="organization-logo-placeholder" role="img" aria-label="No organization logo uploaded">Organization<br>logo</div>
+                    <div class="organization-logo-placeholder" role="img" aria-label="No organization logo uploaded">
+                        <span class="organization-logo-placeholder-mark" aria-hidden="true">{{ logo_preview_name[:1]|upper }}</span>
+                    </div>
                     {% endif %}
                 </div>
                 <div>
