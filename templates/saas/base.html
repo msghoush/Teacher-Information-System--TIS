@@ -397,6 +397,11 @@
             margin-top: 14px;
             padding: 12px 14px;
         }
+        .setup-status.is-attention {
+            border-color: #f1c7c7;
+            background: var(--error-bg);
+            color: var(--error);
+        }
         .setup-journey {
             border: 1px solid rgba(216, 227, 240, .92);
             border-radius: 22px;
@@ -1691,7 +1696,10 @@
                             </form>
                         </div>
                         {% else %}
-                        <div class="setup-status">{{ setup_console.status_banner }}</div>
+                        <div
+                            class="setup-status{% if setup_console.status_tone == 'attention' %} is-attention{% endif %}"
+                            {% if setup_console.status_role %}role="{{ setup_console.status_role }}"{% endif %}
+                        >{{ setup_console.status_banner }}</div>
                         {% endif %}
                     </div>
                     {% if organization is defined and organization %}

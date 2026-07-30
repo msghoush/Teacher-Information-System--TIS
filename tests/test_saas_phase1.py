@@ -2664,6 +2664,144 @@ class SaaSPhase1Tests(unittest.TestCase):
         finally:
             db.close()
 
+    def test_professional_annual_two_branch_checkout_uses_authoritative_total(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout(
+            "professional-annual-two@academy.edu"
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(
+                plan_code="professional"
+            ).one()
+            price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+                plan_id=professional.id,
+                billing_interval="annual",
+                is_active=True,
+            ).one()
+            billing_service.select_plan(
+                db,
+                organization,
+                plan_id=professional.id,
+                billing_interval="annual",
+            )
+            expected_price_id = price.provider_price_id
+            db.commit()
+        finally:
+            db.close()
+
+        with (
+            patch("saas.paddle_client.list_customers_by_email", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer",
+                return_value={
+                    "id": "ctm_professional_annual_two",
+                    "email": "professional-annual-two@academy.edu",
+                    "status": "active",
+                },
+            ),
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_professional_annual_two",
+                    "status": "billed",
+                    "collection_mode": "automatic",
+                    "currency_code": "USD",
+                    "checkout": {
+                        "url": (
+                            "https://app.tisplatform.com/saas/payment"
+                            "?_ptxn=txn_professional_annual_two"
+                        )
+                    },
+                },
+            ) as create_transaction,
+        ):
+            response = self.client.post(
+                f"/saas/onboarding/{org_uuid}/checkout/launch",
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        call = create_transaction.call_args.kwargs
+        self.assertEqual(call["price_id"], expected_price_id)
+        self.assertEqual(call["quantity"], 2)
+        self.assertEqual(call["expected_subtotal"], 158000)
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            attempt = db.query(saas.models.PaymentAttempt).filter_by(
+                pending_organization_id=organization.id
+            ).one()
+            self.assertEqual(attempt.billing_interval, "annual")
+            self.assertEqual(attempt.unit_amount_minor, 79000)
+            self.assertEqual(attempt.quantity, 2)
+            self.assertEqual(attempt.amount_minor, 158000)
+        finally:
+            db.close()
+
+    def test_retry_recovers_legacy_ready_for_checkout_billing_state(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout(
+            "legacy-ready-checkout@academy.edu"
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(
+                plan_code="professional"
+            ).one()
+            billing_service.select_plan(
+                db,
+                organization,
+                plan_id=professional.id,
+                billing_interval="annual",
+            )
+            organization.billing_status = service.READY_FOR_CHECKOUT_STATUS
+            db.commit()
+        finally:
+            db.close()
+
+        with (
+            patch("saas.paddle_client.list_customers_by_email", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer",
+                return_value={
+                    "id": "ctm_legacy_ready_checkout",
+                    "email": "legacy-ready-checkout@academy.edu",
+                    "status": "active",
+                },
+            ),
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_legacy_ready_checkout",
+                    "status": "billed",
+                    "collection_mode": "automatic",
+                    "currency_code": "USD",
+                    "checkout": {
+                        "url": (
+                            "https://app.tisplatform.com/saas/payment"
+                            "?_ptxn=txn_legacy_ready_checkout"
+                        )
+                    },
+                },
+            ),
+        ):
+            response = self.client.post(
+                f"/saas/onboarding/{org_uuid}/checkout/launch",
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("_ptxn=txn_legacy_ready_checkout", response.headers["location"])
+
     def test_phase4_checkout_ready_launch_does_not_create_duplicate_session(self):
         self._configure_paddle_prices()
         org_uuid = self._complete_pending_organization_to_ready_for_checkout("ready-once@academy.edu")
@@ -2755,6 +2893,10 @@ class SaaSPhase1Tests(unittest.TestCase):
                     },
                 },
             ) as create_transaction,
+            patch(
+                "saas.payment_service.validate_payment_launcher_transaction",
+                return_value="txn_repeat_click_123",
+            ),
         ):
             first_response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
             second_response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
@@ -2827,6 +2969,434 @@ class SaaSPhase1Tests(unittest.TestCase):
                 self.assertEqual(invalid_page.status_code, 200)
                 self.assertIn("We couldn’t open secure payment right now", invalid_page.text)
                 self.assertIn('const transactionId = "";', invalid_page.text)
+
+    def test_retry_replaces_remotely_non_billed_started_transaction(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout(
+            "retry-non-billed@academy.edu"
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(
+                plan_code="professional"
+            ).one()
+            billing_service.select_plan(
+                db,
+                organization,
+                plan_id=professional.id,
+                billing_interval="annual",
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        with (
+            patch("saas.paddle_client.list_customers_by_email", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer",
+                return_value={
+                    "id": "ctm_retry_non_billed",
+                    "email": "retry-non-billed@academy.edu",
+                    "status": "active",
+                },
+            ),
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_retry_old_ready",
+                    "status": "billed",
+                    "collection_mode": "automatic",
+                    "currency_code": "USD",
+                    "checkout": {
+                        "url": (
+                            "https://app.tisplatform.com/saas/payment"
+                            "?_ptxn=txn_retry_old_ready"
+                        )
+                    },
+                },
+            ),
+        ):
+            first = self.client.post(
+                f"/saas/onboarding/{org_uuid}/checkout/launch",
+                follow_redirects=False,
+            )
+        self.assertEqual(first.status_code, 302)
+
+        with (
+            patch(
+                "saas.paddle_client.get_transaction",
+                return_value={"id": "txn_retry_old_ready", "status": "ready"},
+            ),
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_retry_new_billed",
+                    "status": "billed",
+                    "collection_mode": "automatic",
+                    "currency_code": "USD",
+                    "checkout": {
+                        "url": (
+                            "https://app.tisplatform.com/saas/payment"
+                            "?_ptxn=txn_retry_new_billed"
+                        )
+                    },
+                },
+            ) as create_transaction,
+        ):
+            retry = self.client.post(
+                f"/saas/onboarding/{org_uuid}/checkout/launch",
+                follow_redirects=False,
+            )
+
+        self.assertEqual(retry.status_code, 302)
+        self.assertIn("_ptxn=txn_retry_new_billed", retry.headers["location"])
+        create_transaction.assert_called_once()
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            attempts = db.query(saas.models.PaymentAttempt).filter_by(
+                pending_organization_id=organization.id
+            ).order_by(saas.models.PaymentAttempt.id.asc()).all()
+            self.assertEqual(
+                [row.status for row in attempts],
+                ["superseded", "checkout_started"],
+            )
+            self.assertEqual(
+                attempts[-1].provider_transaction_id,
+                "txn_retry_new_billed",
+            )
+            self.assertEqual(
+                db.query(saas.models.PaymentCustomer).filter_by(
+                    pending_organization_id=organization.id
+                ).count(),
+                1,
+            )
+        finally:
+            db.close()
+
+    def test_monthly_to_annual_change_supersedes_checkout_attempt_and_webhook(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout(
+            "monthly-to-annual@academy.edu"
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(
+                plan_code="professional"
+            ).one()
+            monthly_selection = billing_service.select_plan(
+                db,
+                organization,
+                plan_id=professional.id,
+                billing_interval="monthly",
+            )
+            old_checkout = billing_service.create_or_update_checkout_session(
+                db, organization
+            )
+            old_checkout.status = "started"
+            old_checkout.checkout_url = (
+                "https://app.tisplatform.com/saas/payment?_ptxn=txn_old_monthly"
+            )
+            old_attempt = saas.models.PaymentAttempt(
+                pending_organization_id=organization.id,
+                checkout_session_id=old_checkout.id,
+                plan_selection_id=monthly_selection.id,
+                provider="paddle",
+                attempt_uuid="71000000-0000-0000-0000-000000000001",
+                provider_transaction_id="txn_old_monthly",
+                status="checkout_started",
+                provider_price_id=old_checkout.provider_price_id,
+                currency_code="USD",
+                quantity=2,
+                unit_amount_minor=7900,
+                amount_minor=15800,
+                billing_interval="monthly",
+                quote_fingerprint=old_checkout.quote_fingerprint,
+            )
+            db.add(old_attempt)
+            db.flush()
+            old_checkout.last_payment_attempt_id = old_attempt.id
+            organization.last_payment_attempt_id = old_attempt.id
+
+            annual_selection = billing_service.select_plan(
+                db,
+                organization,
+                plan_id=professional.id,
+                billing_interval="annual",
+            )
+            db.flush()
+            self.assertEqual(old_checkout.status, "stale")
+            self.assertEqual(old_attempt.status, "superseded")
+            self.assertIsNone(organization.last_payment_attempt_id)
+            self.assertEqual(annual_selection.billing_interval, "annual")
+            self.assertIsNone(
+                billing_service.get_current_subscription_contract(
+                    db, organization
+                ).selected_checkout_session_id
+            )
+
+            stale_payload = {
+                "event_id": "evt_old_monthly_superseded",
+                "event_type": "transaction.completed",
+                "data": {
+                    "id": "txn_old_monthly",
+                    "custom_data": {
+                        "payment_attempt_uuid": old_attempt.attempt_uuid,
+                    },
+                },
+            }
+            with patch(
+                "saas.payment_service.verify_webhook_signature",
+                return_value=None,
+            ):
+                stale_result = payment_service.process_webhook(
+                    db,
+                    raw_body=json.dumps(stale_payload).encode(),
+                    headers={"Paddle-Signature": "test"},
+                )
+            self.assertEqual(stale_result["reason_code"], "superseded_checkout")
+            self.assertEqual(
+                db.query(saas.models.PaymentSubscription).filter_by(
+                    pending_organization_id=organization.id
+                ).count(),
+                0,
+            )
+            self.assertEqual(
+                db.query(saas.models.TenantProvisioningLink).filter_by(
+                    pending_organization_id=organization.id
+                ).count(),
+                0,
+            )
+            old_checkout_id = old_checkout.id
+            db.commit()
+        finally:
+            db.close()
+
+        with (
+            patch("saas.paddle_client.list_customers_by_email", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer",
+                return_value={
+                    "id": "ctm_monthly_to_annual",
+                    "email": "monthly-to-annual@academy.edu",
+                    "status": "active",
+                },
+            ),
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_current_annual",
+                    "status": "billed",
+                    "collection_mode": "automatic",
+                    "currency_code": "USD",
+                    "checkout": {
+                        "url": (
+                            "https://app.tisplatform.com/saas/payment"
+                            "?_ptxn=txn_current_annual"
+                        )
+                    },
+                },
+            ) as create_transaction,
+        ):
+            response = self.client.post(
+                f"/saas/onboarding/{org_uuid}/checkout/launch",
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(create_transaction.call_args.kwargs["quantity"], 2)
+        self.assertEqual(create_transaction.call_args.kwargs["expected_subtotal"], 158000)
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            current_checkout = billing_service.get_current_checkout_session(
+                db, organization
+            )
+            current_attempt = payment_service.get_current_payment_attempt(
+                db, organization
+            )
+            self.assertNotEqual(current_checkout.id, old_checkout_id)
+            self.assertEqual(current_checkout.billing_interval, "annual")
+            self.assertEqual(current_attempt.billing_interval, "annual")
+            self.assertEqual(current_attempt.amount_minor, 158000)
+        finally:
+            db.close()
+
+    def test_quantity_one_stale_checkout_retry_creates_quantity_two_transaction(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout(
+            "stale-quantity-one@academy.edu"
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            branches = service.list_billable_pending_branches(db, organization)
+            branches[1].status = False
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(
+                plan_code="professional"
+            ).one()
+            selection = billing_service.select_plan(
+                db,
+                organization,
+                plan_id=professional.id,
+                billing_interval="annual",
+            )
+            old_checkout = billing_service.create_or_update_checkout_session(
+                db, organization
+            )
+            old_checkout.status = "started"
+            old_checkout.checkout_url = (
+                "https://app.tisplatform.com/saas/payment?_ptxn=txn_quantity_one"
+            )
+            old_attempt = saas.models.PaymentAttempt(
+                pending_organization_id=organization.id,
+                checkout_session_id=old_checkout.id,
+                plan_selection_id=selection.id,
+                provider="paddle",
+                attempt_uuid="72000000-0000-0000-0000-000000000001",
+                provider_transaction_id="txn_quantity_one",
+                status="checkout_started",
+                provider_price_id=old_checkout.provider_price_id,
+                currency_code="USD",
+                quantity=1,
+                unit_amount_minor=79000,
+                amount_minor=79000,
+                billing_interval="annual",
+                quote_fingerprint=old_checkout.quote_fingerprint,
+            )
+            db.add(old_attempt)
+            db.flush()
+            old_checkout.last_payment_attempt_id = old_attempt.id
+            organization.last_payment_attempt_id = old_attempt.id
+            branches[1].status = True
+            organization.billing_status = payment_service.CHECKOUT_STARTED
+            db.commit()
+        finally:
+            db.close()
+
+        with (
+            patch("saas.paddle_client.list_customers_by_email", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer",
+                return_value={
+                    "id": "ctm_stale_quantity_one",
+                    "email": "stale-quantity-one@academy.edu",
+                    "status": "active",
+                },
+            ),
+            patch(
+                "saas.paddle_client.create_transaction",
+                return_value={
+                    "id": "txn_quantity_two",
+                    "status": "billed",
+                    "collection_mode": "automatic",
+                    "currency_code": "USD",
+                    "checkout": {
+                        "url": (
+                            "https://app.tisplatform.com/saas/payment"
+                            "?_ptxn=txn_quantity_two"
+                        )
+                    },
+                },
+            ) as create_transaction,
+        ):
+            response = self.client.post(
+                f"/saas/onboarding/{org_uuid}/checkout/launch",
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(create_transaction.call_args.kwargs["quantity"], 2)
+        self.assertEqual(create_transaction.call_args.kwargs["expected_subtotal"], 158000)
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            attempts = db.query(saas.models.PaymentAttempt).filter_by(
+                pending_organization_id=organization.id
+            ).order_by(saas.models.PaymentAttempt.id.asc()).all()
+            self.assertEqual(
+                [row.status for row in attempts],
+                ["superseded", "checkout_started"],
+            )
+            self.assertEqual(attempts[-1].quantity, 2)
+        finally:
+            db.close()
+
+    def test_provider_failure_is_customer_safe_and_uses_one_alert(self):
+        self._configure_paddle_prices()
+        org_uuid = self._complete_pending_organization_to_ready_for_checkout(
+            "provider-safe-error@academy.edu"
+        )
+        db = self._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=org_uuid
+            ).one()
+            professional = db.query(saas.models.SubscriptionPlan).filter_by(
+                plan_code="professional"
+            ).one()
+            billing_service.select_plan(
+                db,
+                organization,
+                plan_id=professional.id,
+                billing_interval="annual",
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        with (
+            patch("saas.paddle_client.list_customers_by_email", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer",
+                return_value={
+                    "id": "ctm_provider_safe_error",
+                    "email": "provider-safe-error@academy.edu",
+                    "status": "active",
+                },
+            ),
+            patch(
+                "saas.paddle_client.create_transaction",
+                side_effect=paddle_client.PaddleAPIError(
+                    "raw provider diagnostic must stay private",
+                    status_code=503,
+                    body={
+                        "error": {
+                            "code": "provider_unavailable",
+                            "detail": "raw provider diagnostic must stay private",
+                        }
+                    },
+                ),
+            ),
+        ):
+            response = self.client.post(
+                f"/saas/onboarding/{org_uuid}/checkout/launch",
+                follow_redirects=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("raw provider diagnostic", response.text)
+        self.assertEqual(
+            response.text.count(
+                payment_service.CUSTOMER_SAFE_PAYMENT_PROVIDER_MESSAGE
+            ),
+            1,
+        )
+        self.assertIn("Retry Secure Payment", response.text)
 
     def test_phase4_checkout_launch_without_plan_fails_safely(self):
         self._configure_paddle_prices()
@@ -5163,24 +5733,34 @@ class SaaSPhase1Tests(unittest.TestCase):
                 expected_subtotal=0,
                 quote_fingerprint="quote-test",
             )
-        with patch("saas.paddle_client._request", side_effect=[
-            {"id": "add_test"},
-            {
-                "id": "txn_test",
-                "status": "ready",
-                "items": [{"price": {"id": "pri_test"}, "quantity": 3}],
-                "details": {"totals": {"subtotal": "300"}},
-                "custom_data": {"quote_fingerprint": "quote-test"},
-            },
-            {
-                "id": "txn_test",
-                "status": "billed",
-                "items": [{
-                    "price": {"id": "pri_test"},
-                    "quantity": 3,
-                }],
-            },
-        ]) as request_call:
+        with (
+            patch(
+                "saas.paddle_client.find_or_create_customer_address",
+                return_value={
+                    "id": "add_test",
+                    "customer_id": "ctm_test",
+                    "country_code": "SA",
+                    "status": "active",
+                },
+            ),
+            patch("saas.paddle_client._request", side_effect=[
+                {
+                    "id": "txn_test",
+                    "status": "ready",
+                    "items": [{"price": {"id": "pri_test"}, "quantity": 3}],
+                    "details": {"totals": {"subtotal": "300"}},
+                    "custom_data": {"quote_fingerprint": "quote-test"},
+                },
+                {
+                    "id": "txn_test",
+                    "status": "billed",
+                    "collection_mode": "automatic",
+                    "customer_id": "ctm_test",
+                    "address_id": "add_test",
+                    "checkout": {"url": "https://checkout.test/?_ptxn=txn_test"},
+                },
+            ]) as request_call,
+        ):
             paddle_client.create_transaction(
                 customer_id="ctm_test",
                 price_id="pri_test",
@@ -5190,15 +5770,21 @@ class SaaSPhase1Tests(unittest.TestCase):
                 quote_fingerprint="quote-test",
             )
         self.assertEqual(
-            request_call.call_args_list[1].args[2]["items"],
+            request_call.call_args_list[0].args[2]["items"],
             [{"price_id": "pri_test", "quantity": 3}],
         )
 
     def test_paddle_transaction_fails_closed_before_billing_when_not_ready(self):
-        with patch("saas.paddle_client._request", side_effect=[
-            {"id": "add_test"},
-            {"id": "txn_not_ready", "status": "draft"},
-        ]) as request_call:
+        with (
+            patch(
+                "saas.paddle_client.find_or_create_customer_address",
+                return_value={"id": "add_test"},
+            ),
+            patch(
+                "saas.paddle_client._request",
+                side_effect=[{"id": "txn_not_ready", "status": "draft"}],
+            ) as request_call,
+        ):
             with self.assertRaisesRegex(
                 paddle_client.PaddleAPIError,
                 "did not reach ready state",
@@ -5211,7 +5797,7 @@ class SaaSPhase1Tests(unittest.TestCase):
                     expected_subtotal=300,
                     quote_fingerprint="quote-test",
                 )
-        self.assertEqual(request_call.call_count, 2)
+        self.assertEqual(request_call.call_count, 1)
 
     def test_paddle_transaction_fails_closed_when_quote_validation_or_billing_fails(self):
         ready_transaction = {
@@ -5221,10 +5807,18 @@ class SaaSPhase1Tests(unittest.TestCase):
             "details": {"totals": {"subtotal": "300"}},
             "custom_data": {"quote_fingerprint": "quote-test"},
         }
-        with patch("saas.paddle_client._request", side_effect=[
-            {"id": "add_test"},
-            {**ready_transaction, "details": {"totals": {"subtotal": "299"}}},
-        ]) as request_call:
+        with (
+            patch(
+                "saas.paddle_client.find_or_create_customer_address",
+                return_value={"id": "add_test"},
+            ),
+            patch(
+                "saas.paddle_client._request",
+                side_effect=[
+                    {**ready_transaction, "details": {"totals": {"subtotal": "299"}}},
+                ],
+            ) as request_call,
+        ):
             with self.assertRaisesRegex(paddle_client.PaddleAPIError, "subtotal"):
                 paddle_client.create_transaction(
                     customer_id="ctm_test",
@@ -5234,14 +5828,26 @@ class SaaSPhase1Tests(unittest.TestCase):
                     expected_subtotal=300,
                     quote_fingerprint="quote-test",
                 )
-        self.assertEqual(request_call.call_count, 2)
+        self.assertEqual(request_call.call_count, 1)
 
-        with patch("saas.paddle_client._request", side_effect=[
-            {"id": "add_test"},
-            ready_transaction,
-            {"id": "txn_lock_test", "status": "ready"},
-        ]):
-            with self.assertRaisesRegex(paddle_client.PaddleAPIError, "not locked"):
+        with (
+            patch(
+                "saas.paddle_client.find_or_create_customer_address",
+                return_value={"id": "add_test"},
+            ),
+            patch("saas.paddle_client._request", side_effect=[
+                ready_transaction,
+                {
+                    "id": "txn_lock_test",
+                    "status": "billed",
+                    "collection_mode": "automatic",
+                    "customer_id": "ctm_test",
+                    "address_id": "add_test",
+                    "checkout": {"url": None},
+                },
+            ]),
+        ):
+            with self.assertRaisesRegex(paddle_client.PaddleAPIError, "launchable"):
                 paddle_client.create_transaction(
                     customer_id="ctm_test",
                     price_id="pri_test",
@@ -5250,6 +5856,28 @@ class SaaSPhase1Tests(unittest.TestCase):
                     expected_subtotal=300,
                     quote_fingerprint="quote-test",
                 )
+
+    def test_paddle_customer_address_reuses_compatible_active_address(self):
+        existing = {
+            "id": "add_existing",
+            "customer_id": "ctm_address_reuse",
+            "country_code": "LB",
+            "status": "active",
+        }
+        with (
+            patch(
+                "saas.paddle_client.list_customer_addresses",
+                return_value=[existing],
+            ) as list_addresses,
+            patch("saas.paddle_client.create_customer_address") as create_address,
+        ):
+            resolved = paddle_client.find_or_create_customer_address(
+                customer_id="ctm_address_reuse",
+                country_code="lb",
+            )
+        self.assertEqual(resolved, existing)
+        list_addresses.assert_called_once_with(customer_id="ctm_address_reuse")
+        create_address.assert_not_called()
 
     def test_paddle_customer_update_uses_documented_patch_endpoint(self):
         custom_data = {

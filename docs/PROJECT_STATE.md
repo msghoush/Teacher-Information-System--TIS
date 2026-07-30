@@ -1,11 +1,33 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-07-29
+last_updated: 2026-07-30
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Initial Secure Payment Recovery
+
+The production-equivalent failure was local and preceded Paddle transaction
+creation: `_ensure_checkout_launchable()` rejected the legacy
+`ready_for_checkout` pre-checkout billing state. That eligible state is now
+prepared safely. Professional Annual remains USD 790 per active branch, and
+the verified two-branch checkout uses quantity 2 with a USD 1,580 annual total.
+
+Secure Payment retry now repairs eligible unpaid legacy/stale checkout state
+instead of repeatedly rejecting it. Plan, interval, quantity, selection, and
+quote changes supersede the old checkout session and unfinished attempt,
+clear their local authority, and produce a fresh transaction from the current
+server quote. Superseded transaction webhooks remain fail-closed and cannot
+create a subscription or workspace.
+
+Paddle customer addresses are reused only when active, customer-matched, and
+country-compatible. New and reused transaction URLs are released only through
+the billed automatic-collection transaction contract. Provider failures are
+logged with status/code/traceback and rendered as one customer-safe retry
+alert. Pricing, plan limits, branch authority, webhook confirmation, checkout
+architecture, provisioning, and schema are unchanged.
 
 ## Organization Profile And Initial Account Setup Correction
 

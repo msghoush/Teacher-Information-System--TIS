@@ -272,6 +272,7 @@ PREPARE_BEFORE_LAUNCH_BILLING_STATUSES = {
     billing_service.NOT_STARTED,
     billing_service.PLAN_SELECTED,
     billing_service.CHECKOUT_INITIATED,
+    service.READY_FOR_CHECKOUT_STATUS,
 }
 
 
@@ -3116,10 +3117,13 @@ def checkout_summary_step(
         ),
     })
     if safe_error:
+        context["error"] = ""
         context["notice"] = ""
         context["setup_console"]["status_banner"] = (
-            payment_service.CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE
+            f"Secure Payment needs attention. {safe_error}"
         )
+        context["setup_console"]["status_role"] = "alert"
+        context["setup_console"]["status_tone"] = "attention"
         context["setup_console"]["primary_action"] = {
             "label": "Retry Secure Payment",
             "url": "",
@@ -3166,7 +3170,11 @@ def prepare_checkout_step(
 def _prepare_checkout_for_launch_if_needed(db: Session, account, organization):
     billing_status = str(getattr(organization, "billing_status", "") or "").strip().lower()
     if billing_status in LAUNCHABLE_BILLING_STATUSES:
-        if billing_service.checkout_quote_is_fresh(db, organization):
+        if (
+            billing_status
+            in {payment_service.CHECKOUT_READY, payment_service.CHECKOUT_STARTED}
+            and billing_service.checkout_quote_is_fresh(db, organization)
+        ):
             return
         if billing_status == payment_service.PAYMENT_PROCESSING:
             raise ValueError("Secure Payment is already processing. Please view Subscription Status.")
@@ -3216,7 +3224,32 @@ def launch_checkout_step(
             f"/saas/onboarding/{organization_uuid}/checkout",
             payment_service.CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE,
         )
-    except (ValueError, paddle_client.PaddleAPIError) as exc:
+    except paddle_client.PaddleAPIError as exc:
+        logger.error(
+            "paddle_checkout_launch_failed organization_uuid=%s "
+            "error_code=%s status_code=%s error_type=%s",
+            organization_uuid,
+            str(getattr(exc, "error_code", "") or "unavailable"),
+            str(getattr(exc, "status_code", "") or "unavailable"),
+            exc.__class__.__name__,
+            exc_info=True,
+        )
+        db.rollback()
+        return _redirect_error(
+            f"/saas/onboarding/{organization_uuid}/checkout",
+            payment_service.CUSTOMER_SAFE_PAYMENT_PROVIDER_MESSAGE,
+        )
+    except ValueError as exc:
+        logger.warning(
+            "checkout_launch_rejected organization_uuid=%s "
+            "billing_status=%s payment_status=%s error_type=%s error=%s",
+            organization_uuid,
+            str(getattr(organization, "billing_status", "") or ""),
+            str(getattr(organization, "payment_status", "") or ""),
+            exc.__class__.__name__,
+            str(exc),
+            exc_info=True,
+        )
         db.rollback()
         return _redirect_error(f"/saas/onboarding/{organization_uuid}/checkout", str(exc))
     checkout_url = str(launch.get("checkout_url") or "").strip()

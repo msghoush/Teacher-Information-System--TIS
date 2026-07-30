@@ -113,6 +113,40 @@ def create_customer_address(*, customer_id: str, country_code: str) -> dict:
     )
 
 
+def list_customer_addresses(*, customer_id: str) -> list[dict]:
+    cleaned_customer_id = str(customer_id or "").strip()
+    if not cleaned_customer_id.startswith("ctm_"):
+        raise ValueError("Paddle customer ID is required.")
+    return _request_list(
+        "GET",
+        f"/customers/{cleaned_customer_id}/addresses",
+        params={"status": "active", "per_page": 200},
+    )
+
+
+def find_or_create_customer_address(*, customer_id: str, country_code: str) -> dict:
+    cleaned_customer_id = str(customer_id or "").strip()
+    cleaned_country_code = str(country_code or "").strip().upper()
+    if not cleaned_customer_id.startswith("ctm_"):
+        raise ValueError("Paddle customer ID is required.")
+    if len(cleaned_country_code) != 2 or not cleaned_country_code.isalpha():
+        raise ValueError("A two-letter country code is required for Paddle checkout.")
+    for address in list_customer_addresses(customer_id=cleaned_customer_id):
+        if (
+            isinstance(address, dict)
+            and str(address.get("status") or "active").strip().lower() == "active"
+            and str(address.get("customer_id") or "").strip() == cleaned_customer_id
+            and str(address.get("country_code") or "").strip().upper()
+            == cleaned_country_code
+            and str(address.get("id") or "").strip().startswith("add_")
+        ):
+            return address
+    return create_customer_address(
+        customer_id=cleaned_customer_id,
+        country_code=cleaned_country_code,
+    )
+
+
 def bill_transaction(*, transaction_id: str) -> dict:
     cleaned_transaction_id = str(transaction_id or "").strip()
     if not cleaned_transaction_id.startswith("txn_"):
@@ -163,6 +197,28 @@ def _validate_ready_transaction(
         raise PaddleAPIError("Paddle transaction quote fingerprint does not match TIS.")
 
 
+def _validate_billed_checkout_transaction(
+    transaction: dict,
+    *,
+    transaction_id: str,
+    customer_id: str,
+    address_id: str,
+) -> None:
+    checkout_url = str(((transaction.get("checkout") or {}).get("url")) or "").strip()
+    if (
+        str(transaction.get("id") or "").strip() != transaction_id
+        or str(transaction.get("status") or "").strip().lower() != "billed"
+        or str(transaction.get("collection_mode") or "").strip().lower()
+        != "automatic"
+        or str(transaction.get("customer_id") or "").strip() != customer_id
+        or str(transaction.get("address_id") or "").strip() != address_id
+        or not checkout_url
+    ):
+        raise PaddleAPIError(
+            "Paddle transaction was not billed with a launchable checkout."
+        )
+
+
 def create_transaction(
     *,
     customer_id: str,
@@ -180,7 +236,7 @@ def create_transaction(
         raise ValueError("Paddle transaction quantity must be a positive integer.") from exc
     if validated_quantity < 1:
         raise ValueError("Paddle transaction quantity must be a positive integer.")
-    address = create_customer_address(
+    address = find_or_create_customer_address(
         customer_id=customer_id,
         country_code=country_code,
     )
@@ -209,11 +265,12 @@ def create_transaction(
         quote_fingerprint=str(quote_fingerprint or "").strip(),
     )
     billed_transaction = bill_transaction(transaction_id=transaction_id)
-    if (
-        str(billed_transaction.get("id") or "").strip() != transaction_id
-        or str(billed_transaction.get("status") or "").strip() != "billed"
-    ):
-        raise PaddleAPIError("Paddle transaction was not locked before checkout.")
+    _validate_billed_checkout_transaction(
+        billed_transaction,
+        transaction_id=transaction_id,
+        customer_id=str(customer_id or "").strip(),
+        address_id=address_id,
+    )
     return billed_transaction
 
 

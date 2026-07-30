@@ -1,10 +1,31 @@
 ---
 title: SaaS Onboarding History
 module: saas-onboarding
-last_updated: 2026-07-29
+last_updated: 2026-07-30
 ---
 
 # SaaS Onboarding History
+
+## 2026-07-30 - Secure Payment Retry And Checkout Lineage
+
+The observed failure was entirely local and occurred before any Paddle API
+request: `_ensure_checkout_launchable()` rejected the legacy
+`ready_for_checkout` pre-checkout billing state. That state is now prepared
+safely. Professional Annual remains mapped to USD 790 per active branch; the
+verified two-branch quote uses quantity 2 and totals USD 1,580 annually.
+
+Secure Payment retry now rebuilds an eligible unpaid checkout when legacy
+billing state or an obsolete session prevents launch. Plan, interval, quantity,
+selection, and fingerprint changes supersede both the checkout session and its
+unfinished payment attempt. The current contract and organization no longer
+point at that obsolete authority, and its later webhook is blocked before
+subscription or workspace activation.
+
+Existing started transactions are reused only after remote billed and quote
+validation. Paddle customer address lookup reuses an active compatible country
+address, provider failures remain detailed in server logs, and the payment page
+shows one customer-safe retry alert. Prices, capacity rules, provisioning, and
+webhook confirmation authority remain unchanged.
 
 ## 2026-07-29 - Organization Profile Save And Compact Account Setup
 

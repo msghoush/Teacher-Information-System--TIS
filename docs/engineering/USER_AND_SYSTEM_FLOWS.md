@@ -1,7 +1,7 @@
 ---
 title: TIS User And System Flows
 documentation_version: 3.1
-last_updated: 2026-07-29
+last_updated: 2026-07-30
 source_of_truth: true
 ---
 
@@ -127,24 +127,36 @@ never starts signup or Paddle checkout.
    reprioritize onboarding branches while keeping at least one active branch.
    A demo SchoolGroup, tenant link, customer, or prepared checkout does not
    close editing.
-2. If branches change after checkout preparation, TIS supersedes the local
-   checkout and attempt, clears the old quote lineage, and recalculates from the
-   new active count. A late old transaction event cannot activate that quote.
-3. TIS resolves the selected plan, billing interval, active billable branches,
+2. A legacy `ready_for_checkout` pre-checkout billing state is eligible for
+   safe preparation. The original incident was a local rejection in
+   `_ensure_checkout_launchable()` before TIS called Paddle.
+3. If the plan, interval, branches, capacity estimates, or authoritative quote
+   change after checkout preparation, TIS supersedes the local checkout and
+   unfinished attempt, clears the old quote lineage, and recalculates from the
+   current selection and active count. A late old transaction event cannot
+   activate that quote.
+4. TIS resolves the selected plan, billing interval, active billable branches,
    unit price, and total for the current organization.
-4. The customer reviews those values in TIS.
-5. TIS creates one Paddle transaction item using the mapped provider price and
+5. The customer reviews those values in TIS. For Professional Annual, the
+   active mapping is USD 790 per branch, so two branches produce quantity 2
+   and USD 1,580 annually.
+6. TIS creates one Paddle transaction item using the mapped provider price and
    the exact authoritative branch quantity; quantity is never defaulted to one.
-6. The resolved customer address makes the automatically collected transaction
-   ready. Returned item quantity, price, subtotal, and quote fingerprint must
-   agree with TIS before the transaction is marked billed.
-7. The payment launcher passes only the billed transaction ID to Paddle inline
+7. TIS reuses an active same-country Paddle address for the same customer, or
+   creates one when no compatible address exists. The resolved address makes
+   the automatically collected transaction ready. Returned item quantity,
+   price, subtotal, and quote fingerprint must agree with TIS before the
+   transaction is marked billed.
+8. The payment launcher passes only the billed transaction ID to Paddle inline
    checkout after verifying the local attempt, organization, customer, quote,
    and remote billed status. Billed transaction items and quantities are
    immutable; draft, ready, canceled, past-due, unrelated, or mismatched
    transactions are not launched.
-8. Paddle completion remains the recurring-subscription authority. Later branch
+9. Paddle completion remains the recurring-subscription authority. Later branch
    changes use the established TIS subscription-quantity workflow.
+10. Retry revalidates unpaid checkout eligibility and may replace an incomplete
+   or non-launchable session. A reusable started transaction must still be
+   billed, automatic, customer-matched, and current-quote matched at Paddle.
 
 ## Returning Customer Login And Expired Demo Subscription
 
