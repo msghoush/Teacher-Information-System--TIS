@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Project State
 
+## Organization Account Sign-In Routing
+
+Activated organization owners and account-authorized linked users now land on
+the Organization Account Overview after public/onboarding password or social
+sign-in, authenticated sign-in restoration, and SaaS root restoration. The
+overview filters Organization Profile, Branches, Billing & Subscription, and
+Account & Security by existing ownership and operational permissions. Enter TIS
+Platform is the only overview action that enters operational login. Restricted
+account managers retain billing/recovery access without operational entry;
+incomplete onboarding resumes; non-management users retain role-based routing;
+and multi-organization identities select the organization first. No schema,
+permission semantics, commercial-access decision, or operational login behavior
+changed. The selected UUID is stored only in an HTTP-only cookie and validated
+against the account's links before the entitlement resolver uses it.
+
 ## Initial Secure Payment Recovery
 
 The production-equivalent failure was local and preceded Paddle transaction

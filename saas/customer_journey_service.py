@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+import auth
 import models as operational_models
 from saas import (
     commercial_access_service,
@@ -29,6 +30,178 @@ class DemoSubscriptionJourney:
     branch_count: int
     plans: tuple
     configuration_error: str
+
+
+@dataclass(frozen=True)
+class OrganizationAccountAccess:
+    organization: object | None
+    school_group: object
+    operational_user: object | None
+    account_link: object | None
+    commercial_access: object
+    is_owner: bool
+    can_view_organization: bool
+    can_view_branches: bool
+    can_manage_billing: bool
+
+    @property
+    def can_manage_account(self) -> bool:
+        return bool(
+            self.is_owner
+            or self.can_view_organization
+            or self.can_view_branches
+            or self.can_manage_billing
+        )
+
+    @property
+    def organization_uuid(self) -> str:
+        return str(
+            getattr(self.organization, "organization_uuid", "")
+            or getattr(self.school_group, "workspace_uuid", "")
+            or ""
+        )
+
+    @property
+    def workspace_name(self) -> str:
+        return str(
+            getattr(self.school_group, "name", "")
+            or getattr(self.organization, "organization_name", "")
+            or "School Workspace"
+        ).strip()
+
+
+def _has_permission(db: Session, user, permission_key: str, school_group_id: int) -> bool:
+    if user is None or not getattr(user, "is_active", False):
+        return False
+    return bool(
+        auth.has_permission(
+            db,
+            user,
+            permission_key,
+            school_group_id=school_group_id,
+        )
+    )
+
+
+def list_organization_account_accesses(
+    db: Session,
+    account,
+) -> tuple[OrganizationAccountAccess, ...]:
+    account_id = int(getattr(account, "id", 0) or 0)
+    if not account_id:
+        return ()
+    links = (
+        db.query(models.SaaSAccountUserLink)
+        .filter(models.SaaSAccountUserLink.saas_account_id == account_id)
+        .order_by(models.SaaSAccountUserLink.id.asc())
+        .all()
+    )
+    accesses = []
+    seen_group_ids = set()
+    for link in links:
+        group_id = int(getattr(link, "school_group_id", 0) or 0)
+        if not group_id or group_id in seen_group_ids:
+            continue
+        group = db.get(operational_models.SchoolGroup, group_id)
+        user = db.get(
+            operational_models.User,
+            int(getattr(link, "operational_user_id", 0) or 0),
+        )
+        if (
+            group is None
+            or user is None
+            or int(getattr(user, "school_group_id", 0) or 0) != group_id
+        ):
+            continue
+        organization = (
+            db.get(
+                models.PendingOrganization,
+                int(getattr(link, "pending_organization_id", 0) or 0),
+            )
+            if getattr(link, "pending_organization_id", None)
+            else None
+        )
+        is_owner = bool(
+            str(getattr(link, "link_type", "") or "").strip().lower()
+            == "tenant_owner"
+            or int(getattr(organization, "owner_saas_account_id", 0) or 0)
+            == account_id
+        )
+        can_view_organization = is_owner
+        can_view_branches = bool(
+            is_owner
+            or _has_permission(db, user, "branches.view", group_id)
+            or _has_permission(db, user, "branches.create", group_id)
+            or _has_permission(db, user, "branches.edit", group_id)
+        )
+        can_manage_billing = bool(
+            is_owner
+            or _has_permission(
+                db,
+                user,
+                "subscriptions.manage_billing",
+                group_id,
+            )
+        )
+        accesses.append(
+            OrganizationAccountAccess(
+                organization=organization,
+                school_group=group,
+                operational_user=user,
+                account_link=link,
+                commercial_access=commercial_access_service.resolve_workspace_access(
+                    db, group_id
+                ),
+                is_owner=is_owner,
+                can_view_organization=can_view_organization,
+                can_view_branches=can_view_branches,
+                can_manage_billing=can_manage_billing,
+            )
+        )
+        seen_group_ids.add(group_id)
+    return tuple(accesses)
+
+
+def select_organization_account_access(
+    db: Session,
+    account,
+    *,
+    organization_uuid: str = "",
+) -> tuple[tuple[OrganizationAccountAccess, ...], OrganizationAccountAccess | None]:
+    accesses = tuple(
+        item for item in list_organization_account_accesses(db, account)
+        if item.can_manage_account
+    )
+    requested = str(organization_uuid or "").strip()
+    if requested:
+        selected = next(
+            (item for item in accesses if item.organization_uuid == requested),
+            None,
+        )
+        return accesses, selected
+    return accesses, accesses[0] if len(accesses) == 1 else None
+
+
+def apply_selected_organization_context(
+    db: Session,
+    account,
+    organization_uuid: str,
+) -> OrganizationAccountAccess | None:
+    requested = str(organization_uuid or "").strip()
+    if not requested:
+        return None
+    _accesses, selected = select_organization_account_access(
+        db,
+        account,
+        organization_uuid=requested,
+    )
+    if selected is not None:
+        setattr(
+            account,
+            "_selected_school_group_id",
+            int(selected.school_group.id),
+        )
+    return selected
 
 
 def resolve_demo_subscription_journey(
@@ -88,22 +261,12 @@ def resolve_demo_subscription_journey(
 def login_destination(db: Session, account) -> str:
     organization = service.get_pending_organization_for_account(db, account)
     if organization is None:
-        account_link = (
-            db.query(models.SaaSAccountUserLink)
-            .filter(models.SaaSAccountUserLink.saas_account_id == account.id)
-            .order_by(models.SaaSAccountUserLink.id.desc())
-            .first()
-        )
-        group = (
-            db.get(operational_models.SchoolGroup, account_link.school_group_id)
-            if account_link
-            else None
-        )
-        if group and group.workspace_classification in {
-            WorkspaceClassification.CUSTOMER_PAID.value,
-            WorkspaceClassification.CUSTOMER_DEMO.value,
-        }:
-            access = commercial_access_service.resolve_workspace_access(db, group.id)
+        accesses = list_organization_account_accesses(db, account)
+        managed = tuple(item for item in accesses if item.can_manage_account)
+        if managed:
+            return "/saas/account"
+        if accesses:
+            access = accesses[0].commercial_access
             if access.allowed_access:
                 return "/login"
             return f"/saas/expired-access?kind={access.kind or 'subscription'}"
@@ -117,12 +280,28 @@ def login_destination(db: Session, account) -> str:
 
     tenant_link = provisioning_service.get_tenant_provisioning_link(db, organization)
     if tenant_link:
-        group = db.get(operational_models.SchoolGroup, tenant_link.school_group_id)
-        access = commercial_access_service.resolve_workspace_access(
-            db, getattr(group, "id", None)
+        accesses = list_organization_account_accesses(db, account)
+        managed = tuple(item for item in accesses if item.can_manage_account)
+        if managed:
+            return "/saas/account"
+        selected = next(
+            (
+                item
+                for item in accesses
+                if int(getattr(item.school_group, "id", 0) or 0)
+                == int(getattr(tenant_link, "school_group_id", 0) or 0)
+            ),
+            None,
         )
-        if access.allowed_access:
+        if selected and selected.commercial_access.allowed_access:
             return "/login"
+        access = (
+            selected.commercial_access
+            if selected
+            else commercial_access_service.resolve_workspace_access(
+                db, getattr(tenant_link, "school_group_id", None)
+            )
+        )
         return f"/saas/expired-access?kind={access.kind or 'subscription'}"
 
     status = str(organization.status or "").strip().lower()

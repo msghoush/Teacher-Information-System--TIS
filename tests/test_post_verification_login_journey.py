@@ -105,7 +105,7 @@ class PostVerificationLoginJourneyTests(unittest.TestCase):
             data={
                 "email": email,
                 "password": "strong-password-123",
-                "next_path": "",
+                "next_path": "/saas/subscription",
             },
             follow_redirects=False,
         )

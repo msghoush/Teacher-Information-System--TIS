@@ -229,6 +229,11 @@ def _require_verified_account(request: Request, db: Session):
     session_row = service.get_session_from_request(db, request)
     if _account_needs_verification(account):
         return None, None, _verification_required_redirect(str(getattr(account, "email", "") or ""))
+    customer_journey_service.apply_selected_organization_context(
+        db,
+        account,
+        str(request.cookies.get(service.SAAS_ORGANIZATION_COOKIE) or ""),
+    )
     return account, session_row, None
 
 
@@ -752,7 +757,12 @@ def saas_location_cities(
 @router.get("", response_class=HTMLResponse)
 def saas_root(request: Request, db: Session = Depends(get_db)):
     account = _current_account(request, db)
-    return RedirectResponse("/saas/account" if account else "/saas/login", status_code=302)
+    return RedirectResponse(
+        customer_journey_service.login_destination(db, account)
+        if account
+        else "/saas/login",
+        status_code=302,
+    )
 
 
 @router.get("/login", response_class=HTMLResponse, name="saas_login_page")
@@ -764,13 +774,10 @@ def login_page(
     next_path: str = Query(""),
     db: Session = Depends(get_db),
 ):
-    if _current_account(request, db):
+    current_account = _current_account(request, db)
+    if current_account:
         return RedirectResponse(
-            _safe_next(next_path)
-            if str(next_path or "").strip()
-            else customer_journey_service.login_destination(
-                db, _current_account(request, db)
-            ),
+            customer_journey_service.login_destination(db, current_account),
             status_code=302,
         )
     return _render(
@@ -1131,11 +1138,7 @@ def login(
         db, account, source="successful_login"
     )
     db.commit()
-    destination = (
-        _safe_next(next_path)
-        if str(next_path or "").strip()
-        else customer_journey_service.login_destination(db, account)
-    )
+    destination = customer_journey_service.login_destination(db, account)
     response = RedirectResponse(url=destination, status_code=302)
     return service.set_session_cookies(
         response,
@@ -1278,10 +1281,103 @@ def resend_verification(
 
 
 @router.get("/account", response_class=HTMLResponse)
-def account_dashboard(request: Request, db: Session = Depends(get_db)):
+def account_dashboard(
+    request: Request,
+    organization_uuid: str = Query(""),
+    db: Session = Depends(get_db),
+):
     account, _session_row, redirect = _require_verified_account(request, db)
     if redirect:
         return redirect
+    requested_organization_uuid = str(organization_uuid or "").strip()
+    cookie_organization_uuid = str(
+        request.cookies.get(service.SAAS_ORGANIZATION_COOKIE) or ""
+    ).strip()
+    selection_value = requested_organization_uuid or cookie_organization_uuid
+    workspace_options, selected_workspace = (
+        customer_journey_service.select_organization_account_access(
+            db,
+            account,
+            organization_uuid=selection_value,
+        )
+    )
+    if requested_organization_uuid and selected_workspace is None:
+        db.rollback()
+        return RedirectResponse(
+            "/saas/account?notice="
+            + quote_plus("That organization is not available for this account."),
+            status_code=302,
+        )
+    if cookie_organization_uuid and not requested_organization_uuid and selected_workspace is None:
+        workspace_options, selected_workspace = (
+            customer_journey_service.select_organization_account_access(
+                db,
+                account,
+            )
+        )
+    if selected_workspace is not None:
+        branches = (
+            db.query(operational_models.Branch)
+            .filter(
+                operational_models.Branch.school_group_id
+                == selected_workspace.school_group.id,
+                operational_models.Branch.status == True,
+            )
+            .order_by(
+                operational_models.Branch.name.asc(),
+                operational_models.Branch.id.asc(),
+            )
+            .all()
+        )
+        organization = selected_workspace.organization
+        db.commit()
+        response = _render(
+            request,
+            "saas/account.html",
+            {
+                "account": account,
+                "organization": organization,
+                "notice": request.query_params.get("notice", ""),
+                "setup_console": None,
+                "workspace_options": workspace_options,
+                "organization_account": {
+                    "access": selected_workspace,
+                    "branches": branches,
+                    "branch_count": len(branches),
+                },
+            },
+        )
+        if requested_organization_uuid:
+            response.set_cookie(
+                service.SAAS_ORGANIZATION_COOKIE,
+                selected_workspace.organization_uuid,
+                **auth.secure_cookie_kwargs(
+                    request,
+                    max_age=service.session_max_age_seconds(),
+                ),
+            )
+        return response
+    if len(workspace_options) > 1:
+        db.commit()
+        return _render(
+            request,
+            "saas/account.html",
+            {
+                "account": account,
+                "organization": None,
+                "notice": request.query_params.get("notice", ""),
+                "setup_console": None,
+                "workspace_options": workspace_options,
+                "organization_account": None,
+            },
+        )
+    linked_accesses = customer_journey_service.list_organization_account_accesses(
+        db, account
+    )
+    if linked_accesses:
+        destination = customer_journey_service.login_destination(db, account)
+        db.commit()
+        return RedirectResponse(destination, status_code=302)
     setup_console = service.build_setup_console_context(db, account)
     organization = service.get_pending_organization_for_account(db, account)
     current_plan_selection = (
@@ -5030,8 +5126,11 @@ def oauth_callback(
         db.rollback()
         return PlainTextResponse("OAuth sign-in could not be completed.", status_code=400)
     notice = quote_plus(str(policy.warning or ""))
+    destination = customer_journey_service.login_destination(db, account)
+    if notice and destination == "/saas/account":
+        destination += f"?notice={notice}"
     response = RedirectResponse(
-        f"/saas/account?notice={notice}" if notice else "/saas/account",
+        destination,
         status_code=302,
     )
     response.delete_cookie(oauth.OAUTH_STATE_COOKIE, **auth.secure_cookie_kwargs(request))

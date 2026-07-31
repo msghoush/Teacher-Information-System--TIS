@@ -1,13 +1,16 @@
 knowledge_impact: yes
-summary: Centralize paid-workspace commercial access on the contract-linked entitlement authority and keep the current plan active while provider plan changes remain unresolved.
+summary: Route authenticated organization customers through the Organization Account Overview before any explicit entry into the operational TIS workspace.
 affected_areas:
-  - commercial-access
-  - subscription-entitlements
+  - customer-sign-in
   - customer-journey
-  - plan-change-webhooks
-  - restricted-access-ui
+  - organization-account-management
+  - workspace-selection
+  - commercial-access-routing
+  - subscription-entitlements
+  - tenant-isolation
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
+  - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
   - docs/engineering/REPOSITORY_ARCHITECTURE.md

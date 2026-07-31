@@ -7,6 +7,26 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-01 - Organization Account Sign-In Routing
+
+Public and onboarding SaaS sign-in previously sent an activated, commercially
+allowed organization customer directly to operational `/login`. Authentication,
+already-authenticated restoration, and social sign-in now use one customer
+journey decision that lands authorized organization account managers on
+`/saas/account`. The Organization Account Overview presents only permitted
+organization, branch, billing, and security sections, and Enter TIS Platform is
+the sole explicit operational entry action.
+
+Incomplete onboarding and pending demo review still resume their authoritative
+steps. Restricted or suspended account managers remain in account billing and
+recovery context; operational users without account-management permission keep
+their role-based destination. Multiple managed organizations require selection
+before an overview is rendered. The HTTP-only selected-organization hint is
+revalidated against current account links and permissions before the existing
+entitlement resolver accepts its tenant scope. Existing commercial access,
+permissions, subscription authority, operational authentication, schema, and
+tenant isolation remain unchanged.
+
 ## 2026-07-31 - Contract-Linked Commercial Access Consistency
 
 Operational access previously selected the newest PaymentSubscription for the
