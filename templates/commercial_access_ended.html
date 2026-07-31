@@ -16,18 +16,12 @@
     </style>
 </head>
 <body><main>
-    <div class="brand">{{ tis_logo(theme="light", compact=false, alt="TIS") }}</div>
-    {% if kind == "subscription" %}
-    <h1>Your TIS subscription has expired.</h1>
-    <p>Renew your subscription to restore access to your workspace.</p>
-    {% else %}
-    <h1>Your TIS demo has ended.</h1>
-    <p>Your organization and data are safely preserved. Subscribe to a TIS plan to continue accessing your workspace.</p>
-    {% endif %}
+    <div class="brand">{{ tis_logo(theme="light", layout="horizontal", alt="TIS") }}</div>
+    <h1>{{ access_presentation.title }}</h1>
+    <p>{{ access_presentation.message }}</p>
     <div class="notice">Your workspace and organization data remain safely preserved.</div>
     <div class="actions">
-        <a class="btn secondary" href="/saas/plans">View Plans</a>
-        <a class="btn" href="/saas/login?next_path=/saas/subscription">{% if kind == "subscription" %}Renew Subscription{% else %}Subscribe Now{% endif %}</a>
+        {% if access_presentation.action_url %}<a class="btn" href="/saas/login?next_path={{ access_presentation.action_url }}">{{ access_presentation.action_label }}</a>{% endif %}
         <a class="btn secondary" href="mailto:{{ support_email }}">Contact the TIS Team</a>
         <a class="btn secondary" href="/logout">Sign Out</a>
     </div>

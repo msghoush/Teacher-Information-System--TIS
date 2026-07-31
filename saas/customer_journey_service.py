@@ -6,17 +6,17 @@ from sqlalchemy.orm import Session
 
 import models as operational_models
 from saas import (
+    commercial_access_service,
     demo_conversion_service,
     demo_lifecycle_service,
     demo_provisioning_service,
     demo_request_service,
     models,
-    payment_service,
     pricing_service,
     provisioning_service,
     service,
 )
-from workspace_classification import WorkspaceClassification, WorkspaceLifecycleStatus
+from workspace_classification import WorkspaceClassification
 
 
 @dataclass(frozen=True)
@@ -99,35 +99,14 @@ def login_destination(db: Session, account) -> str:
             if account_link
             else None
         )
-        if group and group.workspace_classification == WorkspaceClassification.CUSTOMER_PAID.value:
-            tenant_link = (
-                db.query(models.TenantProvisioningLink)
-                .filter(models.TenantProvisioningLink.school_group_id == group.id)
-                .one_or_none()
-            )
-            subscription = (
-                db.query(models.PaymentSubscription)
-                .filter(
-                    models.PaymentSubscription.pending_organization_id
-                    == tenant_link.pending_organization_id
-                )
-                .order_by(
-                    models.PaymentSubscription.updated_at.desc(),
-                    models.PaymentSubscription.id.desc(),
-                )
-                .first()
-                if tenant_link
-                else None
-            )
-            if (
-                group.workspace_lifecycle_status
-                == WorkspaceLifecycleStatus.ACTIVE.value
-                and subscription
-                and str(subscription.status or "").strip().lower()
-                in {"active", "trialing"}
-            ):
+        if group and group.workspace_classification in {
+            WorkspaceClassification.CUSTOMER_PAID.value,
+            WorkspaceClassification.CUSTOMER_DEMO.value,
+        }:
+            access = commercial_access_service.resolve_workspace_access(db, group.id)
+            if access.allowed_access:
                 return "/login"
-            return "/saas/expired-access?kind=subscription"
+            return f"/saas/expired-access?kind={access.kind or 'subscription'}"
         return "/saas/account"
     demo_request = demo_request_service.get_latest_for_organization(db, organization)
     provisioning = demo_provisioning_service.get_provisioning_for_request(
@@ -137,26 +116,14 @@ def login_destination(db: Session, account) -> str:
         return f"/saas/demo-requests/{demo_request.request_uuid}"
 
     tenant_link = provisioning_service.get_tenant_provisioning_link(db, organization)
-    subscription = payment_service.get_payment_subscription(db, organization)
-    if tenant_link and subscription:
+    if tenant_link:
         group = db.get(operational_models.SchoolGroup, tenant_link.school_group_id)
-        subscription_status = str(subscription.status or "").strip().lower()
-        if (
-            group
-            and group.workspace_classification
-            == WorkspaceClassification.CUSTOMER_PAID.value
-            and group.workspace_lifecycle_status == WorkspaceLifecycleStatus.ACTIVE.value
-            and subscription_status in {"active", "trialing"}
-        ):
-            return "/login"
-        return "/saas/expired-access?kind=subscription"
-    if provisioning and provisioning.provisioning_status == "active":
-        lifecycle = demo_lifecycle_service.resolve_demo_lifecycle(
-            db, provisioning=provisioning
+        access = commercial_access_service.resolve_workspace_access(
+            db, getattr(group, "id", None)
         )
-        if lifecycle.lifecycle_state == "expired" or not lifecycle.can_access:
-            return "/saas/expired-access?kind=demo"
-        return "/login"
+        if access.allowed_access:
+            return "/login"
+        return f"/saas/expired-access?kind={access.kind or 'subscription'}"
 
     status = str(organization.status or "").strip().lower()
     if status != service.READY_FOR_CHECKOUT_STATUS:

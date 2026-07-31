@@ -515,7 +515,14 @@ def reconcile_plan_change_webhook(db: Session, payload: dict, event_type: str):
         return {"status": "manual_review", "event_type": event_type}
     row.provider_observed_price_id = row.target_provider_price_id
     period = data.get("current_billing_period") if isinstance(data.get("current_billing_period"), dict) else {}
-    from saas.payment_service import _parse_datetime
+    from saas.payment_service import (
+        _normalized_paddle_subscription_status,
+        _parse_datetime,
+    )
+    subscription.status = _normalized_paddle_subscription_status(
+        data.get("status"),
+        fallback=subscription.status,
+    )
     period_start = _parse_datetime(period.get("starts_at"))
     period_end = _parse_datetime(period.get("ends_at"))
     next_billed = _parse_datetime(data.get("next_billed_at"))

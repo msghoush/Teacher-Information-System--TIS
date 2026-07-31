@@ -1,7 +1,7 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-07-30
+last_updated: 2026-07-31
 source_of_truth: true
 ---
 
@@ -116,6 +116,16 @@ Request a Demo, Subscribe, Sign In, and Open TIS App through
 behind progressive disclosure, and customer communications identify the TIS
 team. No schema, pricing, Paddle-authority, AI-entitlement, migration, or
 deployment change is included.
+
+Paid commercial access now consumes the existing contract-linked entitlement
+authority instead of selecting the newest subscription for an onboarding
+organization. Active or trialing current subscriptions retain operational
+access while plan changes await payment/provider confirmation, fail, expire, or
+are abandoned. Plan-change subscription webhooks synchronize provider status
+without bypassing two-signal plan confirmation. Restricted pages and APIs use
+state-specific past-due, paused, expired, suspended, archived, and manual-review
+guidance. A canceled subscription remains entitled only through its confirmed
+paid period end.
 
 ## M8B9 Demo Operations, Notifications, And Testing
 

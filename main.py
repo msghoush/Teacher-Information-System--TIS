@@ -9494,6 +9494,9 @@ def commercial_access_ended(
     if not commercial.blocked:
         return RedirectResponse(url="/dashboard", status_code=302)
     school_group = db.get(models.SchoolGroup, school_group_id)
+    access_presentation = commercial_access_service.customer_access_presentation(
+        commercial
+    )
     return templates.TemplateResponse(
         request,
         "commercial_access_ended.html",
@@ -9502,6 +9505,8 @@ def commercial_access_ended(
             "current_user": current_user,
             "school_group": school_group,
             "kind": commercial.kind,
+            "commercial_access": commercial,
+            "access_presentation": access_presentation,
             "support_email": str(
                 os.environ.get("TIS_SUPPORT_EMAIL")
                 or os.environ.get("EMAIL_REPLY_TO")

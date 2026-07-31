@@ -153,6 +153,14 @@ def build_subscription_portal(db: Session, account) -> SubscriptionPortalView:
                     else "Pending Subscription Change" if is_plan_change or is_cancellation
                     else "Pending branch-capacity change"
                 ),
+                "message": (
+                    f"Your {lifecycle.pending_target_plan} upgrade is awaiting payment confirmation."
+                    if is_plan_change
+                    and row.change_type == subscription_plan_change_service.UPGRADE
+                    and row.status == "payment_pending"
+                    and lifecycle.pending_target_plan
+                    else ""
+                ),
                 "target_plan_name": (
                     db.query(subscription_plan_change_service.models.SubscriptionPlan.plan_name)
                     .filter(subscription_plan_change_service.models.SubscriptionPlan.id == row.target_plan_id)

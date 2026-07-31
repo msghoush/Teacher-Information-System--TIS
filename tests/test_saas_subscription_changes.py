@@ -15,13 +15,15 @@ from sqlalchemy.pool import StaticPool
 from starlette.requests import Request
 
 import auth
+import authorization
 import db_migrations
 import main
 import models
 import saas.models
 from dependencies import get_db
-from saas import entitlement_service, paddle_client, payment_lifecycle_reconciliation_service, payment_service, service, subscription_cancellation_service, subscription_change_service, subscription_lifecycle_service, subscription_plan_change_service, subscription_portal_service
+from saas import commercial_access_service, customer_journey_service, entitlement_service, paddle_client, payment_lifecycle_reconciliation_service, payment_service, service, subscription_cancellation_service, subscription_change_service, subscription_lifecycle_service, subscription_plan_change_service, subscription_portal_service
 from saas.router import router as saas_router
+from workspace_classification import WorkspaceClassification, WorkspaceLifecycleStatus
 
 
 class SaaSSubscriptionChangeTests(unittest.TestCase):
@@ -161,6 +163,16 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
 
     def _account(self, db, fixture):
         return db.query(saas.models.SaaSAccount).filter_by(id=fixture["account_id"]).one()
+
+    def _enable_paid_commercial_access(self, fixture):
+        db = self.Session()
+        try:
+            group = db.get(models.SchoolGroup, fixture["group_id"])
+            group.workspace_classification = WorkspaceClassification.CUSTOMER_PAID.value
+            group.workspace_lifecycle_status = WorkspaceLifecycleStatus.ACTIVE.value
+            db.commit()
+        finally:
+            db.close()
 
     def _add_finalized_initial_payment(self, fixture):
         db = self.Session()
@@ -1163,7 +1175,7 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
             db.close()
 
     def test_non_entitled_provider_statuses_remain_fail_closed_during_quantity_change(self):
-        for provider_status in ("paused", "canceled"):
+        for provider_status in ("paused",):
             with self.subTest(provider_status=provider_status):
                 fixture = self._fixture(quantity=3, active_branches=2)
                 row_id, _ = self._preview(fixture, 5)
@@ -1440,12 +1452,17 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
                 subscription_plan_change_service.submit_plan_change(db, self._account(db, fixture), row.request_uuid)
                 db.commit()
             self.assertEqual(row.status, "payment_pending")
-            self.assertEqual(db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"]).plan_id, fixture["plan_id"])
+            local_subscription = db.query(saas.models.PaymentSubscription).get(
+                fixture["subscription_id"]
+            )
+            local_subscription.status = "pending"
+            self.assertEqual(local_subscription.plan_id, fixture["plan_id"])
             subscription_event = {"data": self._provider_subscription(target_fixture, 4)}
             transaction_event = {"data": {"subscription_id": fixture["provider_subscription_id"], "origin": "subscription_update", "status": "completed", "currency_code": "USD", "items": [{"price": {"id": target_provider_price}}]}}
             subscription_plan_change_service.reconcile_plan_change_webhook(db, subscription_event, "subscription.updated")
             self.assertEqual(row.status, "payment_pending")
-            self.assertEqual(db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"]).plan_id, fixture["plan_id"])
+            self.assertEqual(local_subscription.status, "active")
+            self.assertEqual(local_subscription.plan_id, fixture["plan_id"])
             subscription_plan_change_service.reconcile_plan_change_webhook(db, transaction_event, "transaction.completed")
             subscription_plan_change_service.reconcile_plan_change_webhook(db, transaction_event, "transaction.completed")
             db.commit()
@@ -1776,7 +1793,7 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
                 db, self._account(db, processing)
             )
             self.assertEqual(lifecycle.lifecycle_status, subscription_lifecycle_service.PROCESSING)
-            self.assertEqual(lifecycle.display_status, "Processing")
+            self.assertEqual(lifecycle.display_status, "Active")
             self.assertFalse(any(vars(lifecycle.allowed_actions).values()))
         finally:
             db.close()
@@ -1813,6 +1830,208 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
             )
             self.assertEqual(lifecycle.lifecycle_status, subscription_lifecycle_service.UNAVAILABLE)
             self.assertFalse(any(vars(lifecycle.allowed_actions).values()))
+        finally:
+            db.close()
+
+    def test_pending_plan_upgrade_preserves_current_commercial_access_and_entitlement(self):
+        fixture = self._fixture(quantity=4, active_branches=2, plan_code="professional")
+        self._enable_paid_commercial_access(fixture)
+        row_id, target_plan_id, _price_id, _provider_price, _ = self._plan_preview(
+            fixture, "enterprise_ai"
+        )
+        db = self.Session()
+        try:
+            row = db.get(saas.models.SubscriptionChangeRequest, row_id)
+            row.status = "payment_pending"
+            row.submitted_at = datetime.utcnow()
+            db.commit()
+
+            access = commercial_access_service.resolve_workspace_access(
+                db, fixture["group_id"]
+            )
+            self.assertTrue(access.allowed_access)
+            self.assertEqual(access.commercial_state, commercial_access_service.ACTIVE)
+            self.assertEqual(access.current_plan_code, "professional")
+            self.assertEqual(access.pending_target_plan_code, "enterprise_ai")
+            self.assertEqual(access.pending_change_status, "payment_pending")
+            self.assertEqual(access.recommended_action, "view_pending_upgrade")
+
+            resolution = entitlement_service.resolve_entitlements(db, fixture["group_id"])
+            self.assertEqual(resolution.plan_code, "professional")
+            self.assertNotEqual(resolution.plan_id, target_plan_id)
+            portal = subscription_portal_service.build_subscription_portal(
+                db, self._account(db, fixture)
+            )
+            self.assertEqual(portal.plan_code, "professional")
+            self.assertEqual(portal.status_label, "Active")
+            self.assertEqual(
+                portal.pending_change["message"],
+                "Your Enterprise AI upgrade is awaiting payment confirmation.",
+            )
+            self.assertEqual(
+                customer_journey_service.login_destination(
+                    db, self._account(db, fixture)
+                ),
+                "/login",
+            )
+            user = db.get(models.User, fixture["user_id"])
+            self.assertIsNone(
+                authorization.enforce_workspace_commercial_access(
+                    self._operational_request("/dashboard"),
+                    db,
+                    current_user=user,
+                )
+            )
+        finally:
+            db.close()
+
+    def test_terminal_upgrade_attempts_do_not_revoke_current_plan_access(self):
+        fixture = self._fixture(quantity=4, active_branches=2, plan_code="professional")
+        self._enable_paid_commercial_access(fixture)
+        row_id, *_ = self._plan_preview(fixture, "enterprise_ai")
+        db = self.Session()
+        try:
+            row = db.get(saas.models.SubscriptionChangeRequest, row_id)
+            for terminal_status in ("failed", "expired", "canceled"):
+                with self.subTest(status=terminal_status):
+                    row.status = terminal_status
+                    db.flush()
+                    access = commercial_access_service.resolve_workspace_access(
+                        db, fixture["group_id"]
+                    )
+                    self.assertTrue(access.allowed_access)
+                    self.assertEqual(access.current_plan_code, "professional")
+                    self.assertEqual(access.pending_change_status, "")
+        finally:
+            db.close()
+
+    def test_contract_linked_subscription_wins_over_newer_unrelated_row(self):
+        fixture = self._fixture(quantity=4, active_branches=2, plan_code="professional")
+        self._enable_paid_commercial_access(fixture)
+        db = self.Session()
+        try:
+            authoritative = db.get(
+                saas.models.PaymentSubscription, fixture["subscription_id"]
+            )
+            unrelated_contract = saas.models.SubscriptionContract(
+                pending_organization_id=authoritative.pending_organization_id,
+                school_group_id=fixture["group_id"],
+                plan_id=fixture["plan_id"],
+                billing_interval="monthly",
+                contract_status="draft",
+                payment_status="pending",
+                base_currency_code="USD",
+                base_amount_minor=fixture["unit_amount"],
+                display_currency_code="USD",
+                display_amount_minor=fixture["unit_amount"],
+                billable_branch_count=4,
+            )
+            db.add(unrelated_contract)
+            db.flush()
+            db.add(
+                saas.models.PaymentSubscription(
+                    pending_organization_id=authoritative.pending_organization_id,
+                    subscription_contract_id=unrelated_contract.id,
+                    provider="paddle",
+                    provider_subscription_id=f"sub_stale_{uuid.uuid4().hex}",
+                    provider_price_id=fixture["provider_price_id"],
+                    plan_id=fixture["plan_id"],
+                    billing_interval="monthly",
+                    currency_code="USD",
+                    quantity=4,
+                    unit_amount_minor=fixture["unit_amount"],
+                    amount_minor=fixture["unit_amount"] * 4,
+                    status="past_due",
+                    updated_at=datetime.utcnow() + timedelta(days=1),
+                )
+            )
+            db.commit()
+
+            access = commercial_access_service.resolve_workspace_access(
+                db, fixture["group_id"]
+            )
+            self.assertTrue(access.allowed_access)
+            self.assertEqual(access.subscription_status, "active")
+            self.assertEqual(access.current_plan_code, "professional")
+        finally:
+            db.close()
+
+    def test_commercial_states_are_distinct_and_canceled_paid_period_retains_access(self):
+        fixture = self._fixture(quantity=2, active_branches=1, plan_code="professional")
+        self._enable_paid_commercial_access(fixture)
+        db = self.Session()
+        try:
+            subscription = db.get(
+                saas.models.PaymentSubscription, fixture["subscription_id"]
+            )
+            user = db.get(models.User, fixture["user_id"])
+            for provider_status, expected_state, expected_title in (
+                ("past_due", commercial_access_service.PAST_DUE, "Your payment is past due."),
+                ("paused", commercial_access_service.PAUSED, "Your subscription is paused."),
+                ("expired", commercial_access_service.EXPIRED, "Your TIS subscription has expired."),
+                ("unexpected", commercial_access_service.INCONSISTENT, "We need to verify your subscription status."),
+            ):
+                with self.subTest(status=provider_status):
+                    subscription.status = provider_status
+                    db.flush()
+                    access = commercial_access_service.resolve_workspace_access(
+                        db, fixture["group_id"]
+                    )
+                    self.assertTrue(access.blocked)
+                    self.assertEqual(access.commercial_state, expected_state)
+                    self.assertEqual(
+                        commercial_access_service.customer_access_presentation(access).title,
+                        expected_title,
+                    )
+                    with patch("auth.get_current_user", return_value=user):
+                        response = main.commercial_access_ended(
+                            self._operational_request("/commercial-access-ended"),
+                            kind="subscription",
+                            db=db,
+                        )
+                    rendered = bytes(response.body).decode("utf-8")
+                    self.assertIn(expected_title, rendered)
+                    if expected_state != commercial_access_service.EXPIRED:
+                        self.assertNotIn("Your TIS subscription has expired.", rendered)
+
+            subscription.status = "canceled"
+            subscription.current_period_end = datetime.utcnow() + timedelta(days=10)
+            db.flush()
+            canceled = commercial_access_service.resolve_workspace_access(
+                db, fixture["group_id"]
+            )
+            self.assertTrue(canceled.allowed_access)
+            self.assertEqual(canceled.commercial_state, commercial_access_service.CANCELED)
+            self.assertTrue(
+                entitlement_service.resolve_entitlements(db, fixture["group_id"]).resolved
+            )
+
+            subscription.current_period_end = datetime.utcnow() - timedelta(seconds=1)
+            db.flush()
+            ended = commercial_access_service.resolve_workspace_access(
+                db, fixture["group_id"]
+            )
+            self.assertTrue(ended.blocked)
+            self.assertEqual(ended.commercial_state, commercial_access_service.EXPIRED)
+
+            subscription.status = "active"
+            subscription.current_period_end = datetime.utcnow() + timedelta(days=10)
+            group = db.get(models.SchoolGroup, fixture["group_id"])
+            group.workspace_lifecycle_status = WorkspaceLifecycleStatus.SUSPENDED.value
+            db.flush()
+            suspended = commercial_access_service.resolve_workspace_access(
+                db, fixture["group_id"]
+            )
+            self.assertEqual(suspended.commercial_state, commercial_access_service.SUSPENDED)
+            self.assertTrue(suspended.blocked)
+
+            group.workspace_lifecycle_status = WorkspaceLifecycleStatus.ACTIVE.value
+            db.flush()
+            reactivated = commercial_access_service.resolve_workspace_access(
+                db, fixture["group_id"]
+            )
+            self.assertTrue(reactivated.allowed_access)
+            self.assertEqual(reactivated.commercial_state, commercial_access_service.ACTIVE)
         finally:
             db.close()
 

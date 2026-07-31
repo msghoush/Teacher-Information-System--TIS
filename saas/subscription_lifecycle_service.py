@@ -178,7 +178,12 @@ def resolve_subscription_lifecycle(
         lifecycle_status = CANCELED
         display_status = "Canceled"
         display_badge = "muted"
-        display_message = "This subscription has ended."
+        label = format_date(subscription.current_period_end, timezone_name)
+        display_message = (
+            f"Your subscription is canceled but remains available through {label}."
+            if resolution.resolved and label
+            else "This subscription has ended."
+        )
     elif raw_status == "past_due":
         lifecycle_status = PAYMENT_ISSUE
         display_status = "Payment Issue"
@@ -191,13 +196,29 @@ def resolve_subscription_lifecycle(
         display_message = "Subscription access is paused."
     elif pending is not None and pending.status in {"submitted", "payment_pending", "manual_review"}:
         lifecycle_status = PROCESSING if pending.status != "manual_review" else UNAVAILABLE
-        display_status = "Processing" if pending.status != "manual_review" else "Status Unavailable"
-        display_badge = "info" if pending.status != "manual_review" else "attention"
-        display_message = (
-            "Your request is being confirmed by the billing provider."
-            if pending.status != "manual_review"
-            else "Subscription information is currently unavailable. Please contact TIS Support."
+        current_is_entitled = raw_status in {"active", "trialing"} and resolution.resolved
+        display_status = (
+            "Active" if current_is_entitled and raw_status == "active"
+            else "Trial" if current_is_entitled
+            else "Processing" if pending.status != "manual_review"
+            else "Status Unavailable"
         )
+        display_badge = (
+            "healthy" if current_is_entitled and raw_status == "active"
+            else "info" if current_is_entitled or pending.status != "manual_review"
+            else "attention"
+        )
+        if (
+            current_is_entitled
+            and pending.change_type == subscription_plan_change_service.UPGRADE
+            and pending.status == "payment_pending"
+        ):
+            target = _clean(getattr(pending_plan, "plan_name", "")) or "selected plan"
+            display_message = f"Your {target} upgrade is awaiting payment confirmation."
+        elif pending.status != "manual_review":
+            display_message = "Your request is being confirmed by the billing provider."
+        else:
+            display_message = "Subscription information is currently unavailable. Please contact TIS Support."
     elif cancellation_scheduled:
         lifecycle_status = SCHEDULED_CANCELLATION
         display_status = "Cancellation Scheduled"

@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-07-30
+last_updated: 2026-07-31
 recommended_first_read: true
 ---
 
@@ -116,6 +116,33 @@ subscription setup, and expired customers receive branded expiry guidance.
 Operational login and protected requests run the commercial guard before
 branch, academic-year, or workspace page work; expected expiry never becomes a
 500.
+
+Paid-workspace access uses the same tenant-link and SubscriptionContract-linked
+`PaymentSubscription` selected by `saas.entitlement_service`. A newer stale,
+orphaned, or unrelated organization-level subscription row cannot replace that
+authority, and Subscription Management and operational access consume that same
+resolution. An unresolved, pending, failed, expired, canceled, or abandoned plan
+upgrade remains a separate change request and does not revoke the currently
+active plan. For example, active Professional access remains available while an
+Enterprise AI upgrade is `payment_pending`. The
+specialized plan-change `subscription.updated` handler synchronizes provider
+subscription status while retaining the existing two-signal rule before the
+target plan becomes authoritative.
+
+For a production subscription whose provider state is authoritative but whose
+local status is stale, replay the attributable stored, signature-verified
+Paddle webhook through the existing webhook reconciliation path. Do not repair
+commercial status fields manually. Confirm that `subscription.updated`
+synchronizes the current `PaymentSubscription.status`; a pending plan change
+must still wait for its separate required provider payment signal before the
+target plan becomes authoritative.
+
+Commercial access distinguishes active, trialing, payment processing, past due,
+paused, canceled within a paid period, expired, suspended, archived, and
+inconsistent states. Canceled subscriptions retain current entitlements only
+through their confirmed current-period end. Ambiguous evidence fails closed and
+uses verification guidance rather than falsely claiming expiration. Renewal
+guidance appears only for a genuinely expired commercial state.
 
 Expired demos select real public plans and intervals against the existing
 organization and actual active operational branches. Checkout and confirmed
