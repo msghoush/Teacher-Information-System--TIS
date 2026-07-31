@@ -27,6 +27,7 @@ from saas.branch_pricing_quote_service import (
 
 SAAS_SESSION_COOKIE = "tis_saas_session"
 SAAS_CSRF_COOKIE = "tis_saas_csrf"
+SAAS_ORGANIZATION_COOKIE = "tis_saas_organization"
 SAAS_PREFERRED_PLAN_COOKIE = "tis_preferred_plan"
 SAAS_SESSION_MAX_AGE_SECONDS = 8 * 60 * 60
 SAAS_PREFERRED_PLAN_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
@@ -711,6 +712,7 @@ def clear_session_cookies(response, request: Request):
     cookie_kwargs = auth.secure_cookie_kwargs(request)
     response.delete_cookie(SAAS_SESSION_COOKIE, **cookie_kwargs)
     response.delete_cookie(SAAS_CSRF_COOKIE, secure=auth.should_use_secure_cookies(request), samesite="lax")
+    response.delete_cookie(SAAS_ORGANIZATION_COOKIE, **cookie_kwargs)
     return response
 
 

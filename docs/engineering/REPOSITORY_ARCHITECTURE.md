@@ -117,7 +117,15 @@ support guidance.
 expired-demo subscription projection. It reads onboarding/request records, the
 durable SaaS-account operational link, demo lifecycle, SchoolGroup
 classification, actual active Branch rows, public plans, and subscription
-evidence. `saas/commercial_access_service.py` is the operational access
+evidence. It also resolves linked organization-account management scope from
+the existing SaaSAccountUserLink, operational user, ownership, and permission
+records. Activated account managers land on `/saas/account`; ambiguous
+multi-organization identities select an organization there. The selected UUID
+is an HTTP-only request hint that is revalidated against SaaSAccountUserLink,
+the operational user, ownership, and permissions before
+`saas.entitlement_service` may resolve that SchoolGroup. Linked users with no
+account-management permission retain the existing role-based operational
+destination. `saas/commercial_access_service.py` is the operational access
 projection used after credential validation, by customer journey routing, and
 by request authorization. For Customer Paid workspaces it consumes the existing
 `saas.entitlement_service` tenant-link and SubscriptionContract-linked
@@ -126,6 +134,14 @@ It adds workspace lifecycle, pending-change context, state-specific messaging,
 and the allow/deny decision without replacing payment, entitlement, plan-change,
 or demo-lifecycle authorities. Terminal or unresolved plan-change requests do
 not replace the current paid entitlement.
+
+`saas/router.py` applies that resolver after password and social login, for an
+already-authenticated sign-in page, and from the SaaS root. The Organization
+Account Overview is an account-management boundary, not an operational bypass:
+it filters sections by existing permissions, suppresses operational entry when
+commercial access is restricted, and exposes `/login` only through Enter TIS
+Platform. Operational authentication and request authorization remain separate
+authorities.
 
 `/saas/subscription/demo/select` records conversion intent and reuses existing
 plan selection and checkout routes; it never provisions or copies a second

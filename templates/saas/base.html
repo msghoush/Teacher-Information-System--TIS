@@ -1685,12 +1685,15 @@
                 </span>
             </a>
             {% if account %}
-            <nav class="actions" aria-label="Account setup navigation">
-                <a class="btn secondary" href="/saas/account">Account Setup</a>
-                {% if not (setup_console is defined and setup_console and organization is defined and organization) %}
-                <a class="btn secondary" href="/saas/account/profile">Profile</a>
-                <a class="btn secondary" href="/saas/subscription">Subscription</a>
-                <a class="btn secondary" href="/saas/account/sessions">Sessions</a>
+            <nav class="actions" aria-label="TIS Account navigation">
+                <a class="btn secondary" href="/saas/account">{% if organization_account is defined and organization_account %}Organization Account{% else %}Account Setup{% endif %}</a>
+                {% if organization_account is defined and organization_account %}
+                    {% if organization_account.access.can_manage_billing %}<a class="btn secondary" href="/saas/subscription">Billing</a>{% endif %}
+                    <a class="btn secondary" href="/saas/account/security">Security</a>
+                {% elif not (setup_console is defined and setup_console and organization is defined and organization) %}
+                    <a class="btn secondary" href="/saas/account/profile">Profile</a>
+                    <a class="btn secondary" href="/saas/subscription">Subscription</a>
+                    <a class="btn secondary" href="/saas/account/sessions">Sessions</a>
                 {% endif %}
                 <form method="post" action="/saas/auth/logout">
                     <button class="btn secondary" type="submit">Sign Out</button>

@@ -709,7 +709,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("object-fit: contain;", dashboard_response.text)
         self.assertIn("min-height: 80px;", dashboard_response.text)
         self.assertNotIn("max-height: 46px;", dashboard_response.text)
-        self.assertIn("grid-template-columns: minmax(0, 1fr) minmax(240px, auto);", dashboard_response.text)
+        self.assertIn("grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr);", dashboard_response.text)
         self.assertIn("padding: 14px 18px;", dashboard_response.text)
         self.assertIn('class="setup-console is-compact-start"', dashboard_response.text)
         self.assertEqual(dashboard_response.text.count('data-primary-cta="true"'), 1)
@@ -760,7 +760,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         sessions_response = self.client.get("/saas/account/sessions")
         self.assertEqual(sessions_response.status_code, 200)
         self.assertIn('class="brand-symbol-frame"', sessions_response.text)
-        self.assertIn('aria-label="Account setup navigation"', sessions_response.text)
+        self.assertIn('aria-label="TIS Account navigation"', sessions_response.text)
         self.assertIn('class="table"', sessions_response.text)
 
         logout_response = self.client.post("/saas/auth/logout", follow_redirects=False)
@@ -1290,11 +1290,11 @@ class SaaSPhase1Tests(unittest.TestCase):
         )
         self.assertEqual(first_branch_page.status_code, 200)
         self.assertIn(
-            'id="capacity-system-user-total" data-capacity-system-users>0</span>',
+            'id="capacity-system-user-total" data-capacity-system-users>0</strong>',
             first_branch_page.text,
         )
         self.assertIn(
-            'id="capacity-teacher-total" data-capacity-teachers>0</span>',
+            'id="capacity-teacher-total" data-capacity-teachers>0</strong>',
             first_branch_page.text,
         )
 
@@ -1342,9 +1342,9 @@ class SaaSPhase1Tests(unittest.TestCase):
             )
         self.assertEqual(legacy_page.status_code, 200)
         self.assertIn(
-            'data-capacity-system-users>3</span>', legacy_page.text
+            'data-capacity-system-users>3</strong>', legacy_page.text
         )
-        self.assertIn('data-capacity-teachers>9</span>', legacy_page.text)
+        self.assertIn('data-capacity-teachers>9</strong>', legacy_page.text)
         self.assertGreaterEqual(legacy_page.text.count('value="0"'), 2)
 
         missing_capacity = self.client.post(
@@ -1842,6 +1842,8 @@ class SaaSPhase1Tests(unittest.TestCase):
                 "country_name": ["Saudi Arabia"],
                 "region_name": ["Makkah"],
                 "city_name": ["Jeddah"],
+                "estimated_system_users": ["5"],
+                "estimated_teachers": ["20"],
                 "save_action": "continue",
             },
             follow_redirects=False,
@@ -1877,8 +1879,8 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         review_page = self.client.get(f"/saas/onboarding/{org_uuid}/review")
         self.assertEqual(review_page.status_code, 200)
-        self.assertIn("Missing: Time Zone", review_page.text)
-        self.assertIn("Go to Organization Profile", review_page.text)
+        self.assertIn("<strong>Organization Profile:</strong> Time Zone", review_page.text)
+        self.assertIn("Edit Organization Profile", review_page.text)
         self.assertIn("School Workspace Setup", review_page.text)
         self.assertIn(f'href="/saas/onboarding/{org_uuid}/organization"', review_page.text)
         self.assertIn(f'href="/saas/onboarding/{org_uuid}/branches"', review_page.text)
@@ -2205,6 +2207,8 @@ class SaaSPhase1Tests(unittest.TestCase):
                 "country_name": ["Saudi Arabia"],
                 "region_name": ["Makkah"],
                 "city_name": ["Jeddah"],
+                "estimated_system_users": ["5"],
+                "estimated_teachers": ["20"],
                 "save_action": "continue",
             },
             follow_redirects=False,
@@ -2239,9 +2243,9 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         review_response = self.client.get(f"/saas/onboarding/{org_uuid}/review")
         self.assertEqual(review_response.status_code, 200)
-        self.assertIn("Missing: Time Zone", review_response.text)
-        self.assertIn("Time Zone: Not selected", review_response.text)
-        self.assertIn("Go to Organization Profile", review_response.text)
+        self.assertIn("<strong>Organization Profile:</strong> Time Zone", review_response.text)
+        self.assertIn("Complete these items before submitting", review_response.text)
+        self.assertIn("Edit Organization Profile", review_response.text)
         self.assertIn(f'/saas/onboarding/{org_uuid}/organization', review_response.text)
         self.assertNotIn("Complete all onboarding steps before submitting.", review_response.text)
 
@@ -2251,9 +2255,8 @@ class SaaSPhase1Tests(unittest.TestCase):
         )
         self.assertEqual(blocked_submit.status_code, 422)
         self.assertIn("Complete these items before submitting", blocked_submit.text)
-        self.assertIn("Organization Profile: Time Zone", blocked_submit.text)
-        self.assertIn("Missing: Time Zone", blocked_submit.text)
-        self.assertIn("Go to Organization Profile", blocked_submit.text)
+        self.assertIn("<strong>Organization Profile:</strong> Time Zone", blocked_submit.text)
+        self.assertIn("Edit Organization Profile", blocked_submit.text)
 
         fixed_organization_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/organization",
@@ -2577,6 +2580,7 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("per year", selected_annual_page.text)
 
     def test_missing_paddle_price_id_blocks_launch_with_customer_safe_message(self):
+        self._configure_paddle_prices()
         org_uuid = self._complete_pending_organization_to_ready_for_checkout("missing-price@academy.edu")
 
         db = self._db()
@@ -2586,11 +2590,26 @@ class SaaSPhase1Tests(unittest.TestCase):
         finally:
             db.close()
 
-        self.client.post(
+        selection_response = self.client.post(
             f"/saas/onboarding/{org_uuid}/plan",
             data={"plan_id": str(professional_id), "billing_interval": "annual"},
             follow_redirects=False,
         )
+        self.assertEqual(selection_response.status_code, 302)
+
+        db = self._db()
+        try:
+            annual_price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+                plan_id=professional_id,
+                billing_interval="annual",
+                currency_code="USD",
+                is_active=True,
+            ).one()
+            annual_price.provider_price_id = None
+            db.commit()
+        finally:
+            db.close()
+
         self.client.post(
             f"/saas/onboarding/{org_uuid}/checkout/start",
             follow_redirects=False,
@@ -3597,30 +3616,37 @@ class SaaSPhase1Tests(unittest.TestCase):
         captured_quantities = []
         for quantity in (1, 2, 7):
             with self.subTest(quantity=quantity):
-                with patch(
-                    "saas.paddle_client._request",
-                    side_effect=[
-                        {"id": f"add_quantity_{quantity}"},
-                        {
-                            "id": f"txn_quantity_{quantity}",
-                            "status": "ready",
-                            "items": [{
-                                "price": {"id": "pri_quantity"},
-                                "quantity": quantity,
-                            }],
-                            "details": {"totals": {"subtotal": str(quantity * 100)}},
-                            "custom_data": {"quote_fingerprint": f"quote-{quantity}"},
-                        },
-                        {
-                            "id": f"txn_quantity_{quantity}",
-                            "status": "billed",
-                            "items": [{
-                                "price": {"id": "pri_quantity"},
-                                "quantity": quantity,
-                            }],
-                        },
-                    ],
-                ) as request_call:
+                with (
+                    patch("saas.paddle_client.list_customer_addresses", return_value=[]),
+                    patch(
+                        "saas.paddle_client._request",
+                        side_effect=[
+                            {"id": f"add_quantity_{quantity}"},
+                            {
+                                "id": f"txn_quantity_{quantity}",
+                                "status": "ready",
+                                "items": [{
+                                    "price": {"id": "pri_quantity"},
+                                    "quantity": quantity,
+                                }],
+                                "details": {"totals": {"subtotal": str(quantity * 100)}},
+                                "custom_data": {"quote_fingerprint": f"quote-{quantity}"},
+                            },
+                            {
+                                "id": f"txn_quantity_{quantity}",
+                                "status": "billed",
+                                "collection_mode": "automatic",
+                                "customer_id": f"ctm_org_{quantity}",
+                                "address_id": f"add_quantity_{quantity}",
+                                "checkout": {"url": f"https://pay.paddle.test/{quantity}"},
+                                "items": [{
+                                    "price": {"id": "pri_quantity"},
+                                    "quantity": quantity,
+                                }],
+                            },
+                        ],
+                    ) as request_call,
+                ):
                     paddle_client.create_transaction(
                         customer_id=f"ctm_org_{quantity}",
                         price_id="pri_quantity",
@@ -4795,6 +4821,8 @@ class SaaSPhase1Tests(unittest.TestCase):
             "branch_uuid": [original_by_name["Girls Campus"], original_by_name["Main Campus"], ""],
             "branch_name": ["Girls Campus Renamed", "Main Campus", "New West Campus"],
             "location": ["North", "Central", "West"],
+            "estimated_system_users": ["10", "10", "5"],
+            "estimated_teachers": ["40", "50", "20"],
         }, follow_redirects=False)
         self.assertEqual(response.status_code, 302)
         db = self._db()
@@ -4813,6 +4841,8 @@ class SaaSPhase1Tests(unittest.TestCase):
             "branch_uuid": [original_by_name["Main Campus"], new_uuid],
             "branch_name": ["Main Campus", "New West Campus"],
             "location": ["Central", "West"],
+            "estimated_system_users": ["10", "5"],
+            "estimated_teachers": ["50", "20"],
         }, follow_redirects=False)
         self.assertEqual(remove_response.status_code, 302)
         db = self._db()
@@ -4829,6 +4859,8 @@ class SaaSPhase1Tests(unittest.TestCase):
         duplicate = self.client.post(f"/saas/onboarding/{org_uuid}/branches", data={
             "branch_uuid": [original_by_name["Main Campus"], new_uuid],
             "branch_name": ["Main Campus", "  MAIN   CAMPUS  "],
+            "estimated_system_users": ["10", "5"],
+            "estimated_teachers": ["50", "20"],
         }, follow_redirects=False)
         self.assertEqual(duplicate.status_code, 422)
         self.assertIn("Active branch names must be unique", duplicate.text)
@@ -4913,6 +4945,8 @@ class SaaSPhase1Tests(unittest.TestCase):
         reorder = self.client.post(f"/saas/onboarding/{org_uuid}/branches", data={
             "branch_uuid": [first_uuid, second_uuid],
             "branch_name": ["Main Campus", "Girls Campus"],
+            "estimated_system_users": ["10", "10"],
+            "estimated_teachers": ["50", "40"],
             "primary_branch_index": "1",
         }, follow_redirects=False)
         self.assertEqual(reorder.status_code, 302)
@@ -4927,6 +4961,8 @@ class SaaSPhase1Tests(unittest.TestCase):
         remove = self.client.post(f"/saas/onboarding/{org_uuid}/branches", data={
             "branch_uuid": [second_uuid],
             "branch_name": ["Girls Campus"],
+            "estimated_system_users": ["10"],
+            "estimated_teachers": ["40"],
             "primary_branch_index": "0",
         }, follow_redirects=False)
         self.assertEqual(remove.status_code, 302)
@@ -5393,9 +5429,9 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertGreaterEqual(
             branch_page.text.count('name="estimated_teachers"'), 3
         )
-        self.assertIn("Organization capacity", branch_page.text)
+        self.assertIn('aria-label="Organization-wide capacity totals"', branch_page.text)
         self.assertIn(
-            "Capacity totals are calculated across all branches in your organization.",
+            "These totals apply across all branches in your organization.",
             branch_page.text,
         )
         self.assertIn('data-capacity-system-users>10<', branch_page.text)
@@ -5403,11 +5439,11 @@ class SaaSPhase1Tests(unittest.TestCase):
 
         plan_page = self.client.get(f"/saas/onboarding/{org_uuid}/plan")
         self.assertIn(
-            "Based on your organization setup, Enterprise AI is the minimum eligible plan.",
+            "<strong>Enterprise AI</strong> is the minimum plan that supports this setup.",
             plan_page.text,
         )
         self.assertIn(
-            "Professional supports up to 100 teachers. Your organization requires 120.",
+            "120 teachers required; Professional supports 100.",
             plan_page.text,
         )
         self.assertIn('data-plan-recommended="true"', plan_page.text)
@@ -5763,7 +5799,8 @@ class SaaSPhase1Tests(unittest.TestCase):
                             sort_order=2,
                         ))
                     if plan_code == "starter":
-                        organization.estimated_staff_users = 25
+                        branches[0].estimated_system_users = 5
+                        branches[0].estimated_teachers = 25
                     plan = db.query(saas.models.SubscriptionPlan).filter_by(plan_code=plan_code).first()
                     billing_service.select_plan(db, organization, plan_id=plan.id, billing_interval=interval)
                     db.commit()
@@ -6220,7 +6257,7 @@ class SaaSPhase1Tests(unittest.TestCase):
             db = self._db()
             try:
                 plan = db.query(saas.models.SubscriptionPlan).filter_by(
-                    plan_code="starter"
+                    plan_code="professional"
                 ).first()
                 self.assertIsNotNone(plan)
                 plan_id = plan.id

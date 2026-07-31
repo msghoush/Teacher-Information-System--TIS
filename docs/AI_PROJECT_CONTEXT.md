@@ -7,6 +7,32 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Organization Account Sign-In Boundary
+
+Public and onboarding SaaS Sign In authenticate through `/saas/login` and then
+resolve the customer journey centrally. An activated organization owner or a
+linked operational user with account-management permission lands on
+`/saas/account`, which is the Organization Account Overview. That overview
+exposes only permitted Organization Profile, Branches, Billing & Subscription,
+and Account & Security sections. `/login` is never the default destination for
+an authorized organization account manager; only the explicit Enter TIS
+Platform action enters the operational authentication flow, where commercial
+access and operational permissions are checked again.
+
+Incomplete onboarding still resumes its authoritative setup step. Restricted
+or suspended account managers remain in Organization Account with permitted
+billing/recovery access and no active Enter TIS action. A linked operational
+user without account-management permission follows the existing role-based
+operational destination and receives no organization-owner or billing controls.
+When one SaaS identity manages multiple organizations, `/saas/account` requires
+organization selection before rendering the selected account overview. The
+selected organization UUID is retained in an HTTP-only cookie, revalidated
+against the account's tenant links and permissions on every request, and then
+supplied to the existing entitlement resolver so Subscription Management uses
+the selected tenant without weakening isolation. Password login, social login,
+already-authenticated sign-in, SaaS root restoration, and post-verification
+sign-in all use this same resolver.
+
 ## Initial Checkout Retry And Lineage Safety
 
 The diagnosed Secure Payment failure was a local readiness rejection before

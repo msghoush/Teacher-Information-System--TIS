@@ -158,23 +158,36 @@ never starts signup or Paddle checkout.
    or non-launchable session. A reusable started transaction must still be
    billed, automatic, customer-matched, and current-quote matched at Paddle.
 
-## Returning Customer Login And Expired Demo Subscription
+## Returning Customer Login And Organization Account
 
 1. SaaS login authenticates and resolves authoritative onboarding, demo,
    workspace-link, lifecycle, and subscription state.
-2. Incomplete setup resumes; pending demos open request status; unpaid completed
-   setup opens subscription selection; active demo or paid customers continue
-   to operational login.
-3. Expired demos or paid subscriptions open branded recovery guidance.
-4. Operational login runs the commercial guard before branch and academic-year
+2. Incomplete setup resumes; pending demos open request status; and unpaid
+   completed setup opens subscription selection.
+3. An activated owner or linked user with account-management permission lands
+   on `/saas/account`, the Organization Account Overview. Multiple managed
+   organizations require selection before the overview is shown. The HTTP-only
+   selected UUID is revalidated against the account's current tenant links and
+   permissions on every request before entitlement or billing resolution.
+4. The overview exposes Organization Profile, Branches, Billing & Subscription,
+   and Account & Security only when ownership or existing permissions allow.
+   Restricted or suspended account managers retain permitted billing/recovery
+   access, but no active Enter TIS Platform action.
+5. Enter TIS Platform is the only Organization Account action into `/login`.
+   Linked users without account-management permission retain their approved
+   role-based destination and cannot see owner or billing controls.
+6. Operational login runs the commercial guard before branch and academic-year
    setup. Protected requests run it before page services. Authentication,
    sign-out, SaaS account, subscription/checkout/payment-return, support, and
    expiry routes remain safe and cannot recursively redirect.
-5. Expired-demo Subscribe Now resolves the existing organization, SchoolGroup,
+7. Expired-demo Subscribe Now resolves the existing organization, SchoolGroup,
    and active operational branches, offers public plans and monthly/annual
    intervals, then launches existing Paddle checkout.
-6. Only confirmed provider payment converts the same workspace UUID, tenant
+8. Only confirmed provider payment converts the same workspace UUID, tenant
    link, users, permissions, branches, and data.
+
+Password login, social login, already-authenticated sign-in, post-verification
+sign-in, and SaaS root/session restoration use the same destination resolver.
 
 ## Platform Owner Demo Operations
 

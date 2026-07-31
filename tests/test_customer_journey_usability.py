@@ -419,9 +419,40 @@ class TestCustomerJourneyUsability:
             account = db.get(
                 saas.models.SaaSAccount, fixture["saas_account_id"]
             )
-            assert customer_journey_service.login_destination(db, account) == "/login"
+            account_email = account.email
+            assert customer_journey_service.login_destination(db, account) == "/saas/account"
         finally:
             db.close()
+
+        self.workflow.client.cookies.clear()
+        login_page = self.workflow.client.get("/saas/login")
+        assert login_page.status_code == 200
+        authenticated = self.workflow.client.post(
+            "/saas/auth/login",
+            data={
+                "email": account_email,
+                "password": "strong-password-123",
+                "next_path": "/saas/subscription",
+            },
+            follow_redirects=False,
+        )
+        assert authenticated.status_code == 302
+        assert authenticated.headers["location"] == "/saas/account"
+        public_sign_in = self.workflow.client.get(
+            "/saas/login?next_path=/login",
+            follow_redirects=False,
+        )
+        assert public_sign_in.status_code == 302
+        assert public_sign_in.headers["location"] == "/saas/account"
+        overview = self.workflow.client.get("/saas/account")
+        assert overview.status_code == 200
+        assert "Organization Account" in overview.text
+        assert "Organization Profile" in overview.text
+        assert "Branches" in overview.text
+        assert "Billing &amp; Subscription" in overview.text
+        assert "Account &amp; Security" in overview.text
+        assert '>Enter TIS Platform</a>' in overview.text
+        assert 'href="/login"' in overview.text
 
         self._expire(fixture)
         db = self.workflow._db()
@@ -431,7 +462,7 @@ class TestCustomerJourneyUsability:
             )
             assert customer_journey_service.login_destination(
                 db, account
-            ) == "/saas/expired-access?kind=demo"
+            ) == "/saas/account"
             user = db.get(models.User, fixture["operational_user_id"])
             user.scope_school_group_id = fixture["school_group_id"]
             response = authorization.enforce_workspace_commercial_access(
@@ -449,6 +480,11 @@ class TestCustomerJourneyUsability:
             )
         finally:
             db.close()
+        restricted = self.workflow.client.get("/saas/account")
+        assert restricted.status_code == 200
+        assert "billing recovery options remain available" in restricted.text
+        assert 'href="/saas/subscription"' in restricted.text
+        assert '>Enter TIS Platform</a>' not in restricted.text
         friendly = self.workflow.client.get("/saas/expired-access?kind=demo")
         assert friendly.status_code == 403
         assert "Your TIS demo has ended" in friendly.text
@@ -499,7 +535,7 @@ class TestCustomerJourneyUsability:
             account = db.get(
                 saas.models.SaaSAccount, fixture["saas_account_id"]
             )
-            assert customer_journey_service.login_destination(db, account) == "/login"
+            assert customer_journey_service.login_destination(db, account) == "/saas/account"
             subscription = db.get(
                 saas.models.PaymentSubscription, commercial["subscription_id"]
             )
@@ -510,7 +546,7 @@ class TestCustomerJourneyUsability:
             )
             assert customer_journey_service.login_destination(
                 db, account
-            ) == "/saas/expired-access?kind=subscription"
+            ) == "/saas/account"
             state = commercial_access_service.resolve_workspace_access(
                 db, fixture["school_group_id"]
             )
@@ -530,6 +566,111 @@ class TestCustomerJourneyUsability:
         assert response.status_code == 403
         assert "payment is past due" in response.text
         assert "Review Payment" in response.text
+
+    def test_activated_user_without_account_management_uses_role_destination(self):
+        fixture = self._active_demo()
+        db = self.workflow._db()
+        try:
+            account = db.get(saas.models.SaaSAccount, fixture["saas_account_id"])
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=fixture["organization_uuid"]
+            ).one()
+            replacement_email = f"replacement-{uuid.uuid4().hex}@academy.edu"
+            replacement_owner = saas.models.SaaSAccount(
+                account_uuid=str(uuid.uuid4()),
+                email=replacement_email,
+                email_normalized=replacement_email,
+                status="active",
+                onboarding_status="tenant_active",
+                email_verified_at=datetime.now(UTC).replace(tzinfo=None),
+            )
+            db.add(replacement_owner)
+            db.flush()
+            organization.owner_saas_account_id = replacement_owner.id
+            link = db.query(saas.models.SaaSAccountUserLink).filter_by(
+                saas_account_id=account.id,
+                school_group_id=fixture["school_group_id"],
+            ).one()
+            link.link_type = "tenant_member"
+            user = db.get(models.User, fixture["operational_user_id"])
+            user.role = auth.ROLE_LIMITED
+            db.commit()
+            assert customer_journey_service.login_destination(db, account) == "/login"
+        finally:
+            db.close()
+
+        denied = self.workflow.client.get("/saas/account", follow_redirects=False)
+        assert denied.status_code == 302
+        assert denied.headers["location"] == "/login"
+
+    def test_multiple_managed_organizations_require_selection(self):
+        fixture = self._active_demo()
+        db = self.workflow._db()
+        try:
+            account = db.get(saas.models.SaaSAccount, fixture["saas_account_id"])
+            group = models.SchoolGroup(
+                name=f"Second Workspace {uuid.uuid4().hex[:8]}",
+                workspace_classification="customer_demo",
+                workspace_lifecycle_status="active",
+                status=True,
+            )
+            db.add(group)
+            db.flush()
+            second_uuid = str(uuid.uuid4())
+            organization = saas.models.PendingOrganization(
+                organization_uuid=second_uuid,
+                owner_saas_account_id=account.id,
+                organization_name=group.name,
+                status="activated",
+                onboarding_step="completed",
+                billing_status="tenant_active",
+                payment_status="paid",
+            )
+            db.add(organization)
+            db.flush()
+            second_email = f"second-owner-{uuid.uuid4().hex}@academy.edu"
+            user = models.User(
+                user_id=f"7{uuid.uuid4().int % 100000:05d}",
+                username=f"second.owner.{uuid.uuid4().hex[:8]}",
+                email=second_email,
+                email_normalized=second_email,
+                password="unused",
+                role=auth.ROLE_ADMINISTRATOR,
+                user_type=auth.USER_TYPE_TENANT,
+                school_group_id=group.id,
+                is_active=True,
+            )
+            db.add(user)
+            db.flush()
+            db.add(
+                saas.models.SaaSAccountUserLink(
+                    saas_account_id=account.id,
+                    operational_user_id=user.id,
+                    pending_organization_id=organization.id,
+                    school_group_id=group.id,
+                    link_type="tenant_owner",
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+        selector = self.workflow.client.get("/saas/account")
+        assert selector.status_code == 200
+        assert "Choose an organization" in selector.text
+        assert selector.text.count("Open Organization Account") == 2
+        selected = self.workflow.client.get(
+            f"/saas/account?organization_uuid={second_uuid}"
+        )
+        assert selected.status_code == 200
+        assert "Organization Account" in selected.text
+        assert self.workflow.client.cookies.get(
+            service.SAAS_ORGANIZATION_COOKIE
+        ) == second_uuid
+        restored = self.workflow.client.get("/saas/account")
+        assert restored.status_code == 200
+        assert "Choose an organization" not in restored.text
+        assert "Second Workspace" in restored.text
 
     def test_operational_login_intercepts_expired_demo_and_paid_states(self):
         from main import app as operational_app

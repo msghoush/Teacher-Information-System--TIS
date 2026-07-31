@@ -7,6 +7,22 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Organization Account Sign-In Boundary
+
+Public SaaS Sign In resolves an activated organization owner or authorized
+account manager to `/saas/account`, the Organization Account Overview, rather
+than directly to the operational workspace. The overview separates organization
+profile, branch visibility, billing/subscription, and account security by the
+linked operational user's existing permissions. Enter TIS Platform is the only
+customer-account action that enters `/login`, and operational commercial-access
+and authorization checks still apply there. Restricted account managers retain
+safe account and billing recovery access without operational entry; incomplete
+accounts resume onboarding; non-management users retain their approved
+role-based destination; and multi-organization accounts select an organization
+before its overview is shown. That selection is an HTTP-only UUID hint that is
+accepted only after revalidation against the current account links and existing
+permissions; it cannot grant cross-tenant access.
+
 ## Customer Journey Continuity
 
 TIS treats demo or subscription expiry as an expected commercial state.

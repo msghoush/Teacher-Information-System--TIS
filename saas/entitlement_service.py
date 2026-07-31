@@ -347,6 +347,13 @@ def resolve_customer_entitlements(db: Session, account) -> EntitlementResolution
         )
     if not group_ids:
         return _manual_review(None, "missing_customer_subscription")
+    selected_group_id = int(
+        getattr(account, "_selected_school_group_id", 0) or 0
+    )
+    if selected_group_id:
+        if selected_group_id not in group_ids:
+            return _manual_review(None, "invalid_selected_customer_tenant")
+        return resolve_entitlements(db, selected_group_id)
     if len(group_ids) != 1:
         return _manual_review(None, "ambiguous_customer_tenant")
     return resolve_entitlements(db, next(iter(group_ids)))
