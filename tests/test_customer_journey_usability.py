@@ -116,6 +116,7 @@ class TestCustomerJourneyUsability:
         assert "Monthly" in response.text and "Annual" in response.text
         assert "Continue to Checkout" in response.text
         assert "Not Available" not in response.text
+        plan_id = self._configure_checkout_price()
 
         db = self.workflow._db()
         try:
@@ -127,7 +128,6 @@ class TestCustomerJourneyUsability:
             )
             assert journey.school_group.id == fixture["school_group_id"]
             assert journey.provisioning.school_group_id == fixture["school_group_id"]
-            plan_id = journey.plans[0].plan.id
         finally:
             db.close()
         selected = self.workflow.client.post(
@@ -528,8 +528,8 @@ class TestCustomerJourneyUsability:
             "/saas/expired-access?kind=subscription"
         )
         assert response.status_code == 403
-        assert "subscription has expired" in response.text
-        assert "Renew Subscription" in response.text
+        assert "payment is past due" in response.text
+        assert "Review Payment" in response.text
 
     def test_operational_login_intercepts_expired_demo_and_paid_states(self):
         from main import app as operational_app

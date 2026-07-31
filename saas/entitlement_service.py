@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -108,6 +108,23 @@ def _clean(value) -> str:
     return str(value or "").strip()
 
 
+def _subscription_is_entitled(subscription, *, now: datetime | None = None) -> bool:
+    status = _clean(getattr(subscription, "status", "")).lower()
+    if status in ENTITLED_SUBSCRIPTION_STATUSES:
+        return True
+    if status not in {"canceled", "cancelled"}:
+        return False
+    period_end = getattr(subscription, "current_period_end", None)
+    if not isinstance(period_end, datetime):
+        return False
+    observed_end = (
+        period_end.replace(tzinfo=timezone.utc)
+        if period_end.tzinfo is None
+        else period_end.astimezone(timezone.utc)
+    )
+    return observed_end > (now or datetime.now(timezone.utc))
+
+
 def _manual_review(school_group_id: int | None, reason_code: str, **details) -> EntitlementResolution:
     return EntitlementResolution(
         resolution_status=MANUAL_REVIEW,
@@ -190,7 +207,7 @@ def resolve_entitlements(
     ).all()
     active_subscriptions = [
         row for row in subscriptions
-        if _clean(row.status).lower() in ENTITLED_SUBSCRIPTION_STATUSES
+        if _subscription_is_entitled(row)
     ]
     if len(active_subscriptions) > 1:
         return _manual_review(group_id, "ambiguous_confirmed_subscription", active_branch_count=active_branch_count)

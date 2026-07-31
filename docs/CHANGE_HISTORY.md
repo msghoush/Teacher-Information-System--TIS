@@ -1,11 +1,33 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-07-30
+last_updated: 2026-07-31
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-07-31 - Contract-Linked Commercial Access Consistency
+
+Operational access previously selected the newest PaymentSubscription for the
+onboarding organization, while Subscription Management and entitlements used
+the tenant link and authoritative SubscriptionContract. A pending plan upgrade
+or newer stale subscription row could therefore block an otherwise active paid
+workspace and every blocked paid state was presented as expired.
+
+Operational login, protected requests, returning-customer routing, and access
+pages now consume one contract-linked commercial access projection over the
+existing entitlement resolver. The current active/trialing plan remains
+authoritative while a plan change is pending, failed, incomplete, canceled, or
+abandoned. Canceled subscriptions remain entitled only through the confirmed
+paid period end. Restricted states use distinct payment-processing, past-due,
+paused, expired, suspended, archived, and verification-required guidance.
+
+The specialized plan-change subscription webhook now applies the same provider
+status normalization as the general and quantity-change paths. It does not
+complete or activate the target plan without the existing two provider signals.
+No schema, migration, pricing, quantity, Paddle request, webhook authority, or
+tenant data changed.
 
 ## 2026-07-30 - Initial Secure Payment Retry And Lineage Hardening
 

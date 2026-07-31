@@ -307,23 +307,13 @@ def enforce_workspace_commercial_access(
             exc_info=True,
         )
 
-    detail = (
-        "This demo has expired. Operational access is unavailable, but workspace "
-        "data remains preserved."
-        if commercial.reason_code == "demo_expired"
-        else "Subscription access has expired."
-        if commercial.kind == "subscription"
-        else "Demo access is currently unavailable. Please contact TIS Support."
-    )
+    presentation = commercial_access_service.customer_access_presentation(commercial)
+    detail = presentation.message
     if _is_api_or_download_request(request):
         return JSONResponse(
             {
                 "detail": detail,
-                "code": (
-                    commercial.reason_code
-                    if commercial.kind == "demo"
-                    else "subscription_expired"
-                ),
+                "code": commercial.reason_code,
             },
             status_code=403,
         )

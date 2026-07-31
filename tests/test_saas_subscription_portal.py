@@ -381,7 +381,7 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
                 "change_type": subscription_change_service.INCREASE,
                 "status": "payment_pending",
                 "requested_quantity": 5,
-                "expected": ("Pending branch-capacity change", "Payment confirmation pending", "5", "Processing"),
+                "expected": ("Pending branch-capacity change", "Payment confirmation pending", "5", "Active"),
             },
         )
         for case in cases:

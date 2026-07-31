@@ -152,7 +152,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
                 "expected_branch_count": "2",
                 "expected_student_count": "800",
                 "expected_teacher_count": "65",
-                "estimated_staff_users": "24",
+                "estimated_staff_users": "20",
                 "timezone": "Asia/Beirut",
                 "save_action": "continue",
             },
@@ -169,6 +169,8 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
                 "city_name": ["Beirut", "Beirut"],
                 "district_name": ["Beirut", "Beirut"],
                 "neighborhood_name": ["Central", "North"],
+                "estimated_system_users": ["10", "10"],
+                "estimated_teachers": ["33", "32"],
                 "save_action": "continue",
             },
             follow_redirects=False,
@@ -1657,7 +1659,7 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         finally:
             db.close()
 
-    def test_non_demo_workspaces_bypass_demo_access_enforcement(self):
+    def test_internal_sandbox_bypasses_access_enforcement_but_unlinked_paid_fails_closed(self):
         db = self._db()
         try:
             for index, classification in enumerate(
@@ -1678,13 +1680,16 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
                     school_group_id=group.id,
                     scope_school_group_id=group.id,
                 )
-                self.assertIsNone(
-                    authorization.enforce_workspace_commercial_access(
-                        self._request("/dashboard"),
-                        db,
-                        current_user=user,
-                    )
+                response = authorization.enforce_workspace_commercial_access(
+                    self._request("/dashboard"),
+                    db,
+                    current_user=user,
                 )
+                if classification == "customer_paid":
+                    self.assertIsNotNone(response)
+                    self.assertEqual(response.status_code, 302)
+                else:
+                    self.assertIsNone(response)
             db.rollback()
         finally:
             db.close()

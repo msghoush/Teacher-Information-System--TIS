@@ -183,7 +183,7 @@
     </section>
 
     {% if subscription_portal.pending_change %}
-    <section class="pending-change" aria-label="Pending subscription change">
+    <section class="pending-change" id="pending-subscription-change" aria-label="Pending subscription change">
         <div class="pending-change-head">
             <div><h2>{{ subscription_portal.pending_change.title }}</h2></div>
             <span class="pending-status">{{ subscription_portal.pending_change.status_label }}</span>
@@ -194,7 +194,7 @@
         <p>Your request to keep this subscription is being confirmed by the billing provider.</p>
         {% elif subscription_portal.pending_change.is_plan_change %}
         <p>Current plan: {{ subscription_portal.plan_name }}. {% if subscription_portal.pending_change.status == "scheduled" %}Scheduled plan{% else %}Requested plan{% endif %}: {{ subscription_portal.pending_change.target_plan_name }}.</p>
-        <p>Your current plan remains active until the provider confirms the requested plan change.</p>
+        <p>{% if subscription_portal.pending_change.message %}{{ subscription_portal.pending_change.message }}{% else %}Your current plan remains active until the provider confirms the requested plan change.{% endif %}</p>
         {% else %}
         <p>Requested paid branches: {{ subscription_portal.pending_change.requested_quantity }}.</p>
         <p>Your confirmed branch capacity remains active until the provider confirms this request.</p>

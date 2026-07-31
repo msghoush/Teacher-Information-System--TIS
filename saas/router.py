@@ -1533,13 +1533,23 @@ def saas_expired_access(
     account, _session_row, redirect = _require_verified_account(request, db)
     if redirect:
         return redirect
-    normalized = "subscription" if kind == "subscription" else "demo"
+    from saas import commercial_access_service
+
+    commercial = commercial_access_service.resolve_customer_access(db, account)
+    if commercial.allowed_access:
+        return RedirectResponse("/login", status_code=302)
+    normalized = commercial.kind or ("subscription" if kind == "subscription" else "demo")
+    access_presentation = commercial_access_service.customer_access_presentation(
+        commercial
+    )
     return _render(
         request,
         "saas/expired_access.html",
         {
             "account": account,
             "kind": normalized,
+            "commercial_access": commercial,
+            "access_presentation": access_presentation,
             "support_email": str(
                 os.environ.get("TIS_SUPPORT_EMAIL")
                 or os.environ.get("EMAIL_REPLY_TO")

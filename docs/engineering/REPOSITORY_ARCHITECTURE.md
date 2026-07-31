@@ -1,7 +1,7 @@
 ---
 title: TIS Repository Architecture
 documentation_version: 3.1
-last_updated: 2026-07-27
+last_updated: 2026-07-31
 source_of_truth: true
 ---
 
@@ -117,9 +117,15 @@ support guidance.
 expired-demo subscription projection. It reads onboarding/request records, the
 durable SaaS-account operational link, demo lifecycle, SchoolGroup
 classification, actual active Branch rows, public plans, and subscription
-evidence. `saas/commercial_access_service.py` is the operational access decision
-used after credential validation and by request authorization. It performs no
-DDL and does not replace payment, entitlement, or demo-lifecycle authorities.
+evidence. `saas/commercial_access_service.py` is the operational access
+projection used after credential validation, by customer journey routing, and
+by request authorization. For Customer Paid workspaces it consumes the existing
+`saas.entitlement_service` tenant-link and SubscriptionContract-linked
+subscription resolution; it never chooses the newest organization-level row.
+It adds workspace lifecycle, pending-change context, state-specific messaging,
+and the allow/deny decision without replacing payment, entitlement, plan-change,
+or demo-lifecycle authorities. Terminal or unresolved plan-change requests do
+not replace the current paid entitlement.
 
 `/saas/subscription/demo/select` records conversion intent and reuses existing
 plan selection and checkout routes; it never provisions or copies a second
