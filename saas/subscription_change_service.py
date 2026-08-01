@@ -12,7 +12,13 @@ from sqlalchemy.orm import Session
 import auth
 import audit
 import models as operational_models
-from saas import branch_pricing_quote_service, entitlement_service, models, paddle_client
+from saas import (
+    billing_identity_service,
+    branch_pricing_quote_service,
+    entitlement_service,
+    models,
+    paddle_client,
+)
 
 
 INCREASE = "branch_quantity_increase"
@@ -115,6 +121,27 @@ def resolve_change_context(db: Session, account, *, lock: bool = False) -> Chang
     ).one_or_none()
     if contract is None:
         raise SubscriptionChangeError("This subscription requires review before it can be changed.", code="missing_confirmed_contract", status_code=409)
+    organization = db.get(
+        models.PendingOrganization,
+        int(contract.pending_organization_id),
+    )
+    if organization is None:
+        raise SubscriptionChangeError(
+            "This subscription requires review before it can be changed.",
+            code="missing_subscription_organization",
+            status_code=409,
+        )
+    try:
+        billing_identity_service.require_no_unsynchronized_billing_profile(
+            db,
+            organization,
+        )
+    except billing_identity_service.BillingIdentityError as exc:
+        raise SubscriptionChangeError(
+            str(exc),
+            code="billing_identity_not_synchronized",
+            status_code=409,
+        ) from exc
     plan_prices = db.query(models.SubscriptionPlanPrice).filter(
         models.SubscriptionPlanPrice.plan_id == subscription.plan_id,
         models.SubscriptionPlanPrice.billing_interval == subscription.billing_interval,

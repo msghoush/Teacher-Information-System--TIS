@@ -22,8 +22,18 @@ class BillingIdentityError(ValueError):
 
 
 class BillingIdentitySyncError(RuntimeError):
-    def __init__(self, reason_code: str):
+    def __init__(
+        self,
+        reason_code: str,
+        *,
+        provider_step: str = "billing_identity_sync",
+        provider_status_code: int | None = None,
+        provider_detail: str = "",
+    ):
         self.reason_code = str(reason_code or "billing_identity_sync_failed").strip()
+        self.provider_step = str(provider_step or "billing_identity_sync").strip()
+        self.provider_status_code = provider_status_code
+        self.provider_detail = str(provider_detail or "").strip()
         super().__init__(CUSTOMER_SAFE_SYNC_ERROR)
 
 
@@ -152,7 +162,9 @@ def save_billing_profile(
         raise BillingIdentityError("Enter a valid billing email address.")
     organization_name = _clean(billing_organization_name, 180)
     if not organization_name:
-        raise BillingIdentityError("Enter the legal or billing organization name.")
+        raise BillingIdentityError(
+            "Enter the legal or billing organization or school name."
+        )
     normalized_country = _clean(country_code, 2).upper()
     if len(normalized_country) != 2 or not normalized_country.isalpha():
         raise BillingIdentityError("Select a valid two-letter billing country code.")
@@ -195,6 +207,18 @@ def require_confirmed_billing_profile(db: Session, organization):
     if profile is None or not profile.confirmed_at:
         raise BillingIdentityError(
             "Confirm the organization billing contact before opening Secure Payment."
+        )
+    return profile
+
+
+def require_no_unsynchronized_billing_profile(db: Session, organization):
+    """Block mutations only when saved billing details are awaiting provider sync."""
+    profile = get_billing_profile(db, organization)
+    if profile is None:
+        return None
+    if str(profile.provider_sync_status or "").strip().lower() != "synced":
+        raise BillingIdentityError(
+            "Synchronize Billing Contact with Paddle before starting another subscription change."
         )
     return profile
 
@@ -261,7 +285,11 @@ def ensure_provider_billing_identity(
     profile = require_confirmed_billing_profile(db, organization)
     customer_id = str(payment_customer.provider_customer_id or "").strip()
     if not customer_id.startswith("ctm_"):
-        raise BillingIdentitySyncError("invalid_provider_customer_mapping")
+        raise BillingIdentitySyncError(
+            "invalid_provider_customer_mapping",
+            provider_step="customer_validation",
+        )
+    provider_step = "customer_update"
     try:
         if (
             str(payment_customer.email or "").strip().casefold()
@@ -276,7 +304,10 @@ def ensure_provider_billing_identity(
                 or profile.billing_organization_name,
             )
             if str(updated_customer.get("id") or "").strip() != customer_id:
-                raise BillingIdentitySyncError("provider_customer_update_mismatch")
+                raise BillingIdentitySyncError(
+                    "provider_customer_update_mismatch",
+                    provider_step=provider_step,
+                )
             payment_customer.email = profile.billing_email_normalized
             payment_customer.name = (
                 profile.billing_contact_name or profile.billing_organization_name
@@ -285,12 +316,14 @@ def ensure_provider_billing_identity(
         address_details = _address_details(profile)
         address_id = str(payment_customer.provider_address_id or "").strip()
         if address_id:
+            provider_step = "address_update"
             address = paddle_client.update_customer_address(
                 customer_id=customer_id,
                 address_id=address_id,
                 **address_details,
             )
         else:
+            provider_step = "address_lookup_or_create"
             address = paddle_client.find_or_create_customer_address(
                 customer_id=customer_id,
                 **address_details,
@@ -301,19 +334,24 @@ def ensure_provider_billing_identity(
             or str(address.get("id") or "").strip() != address_id
             or str(address.get("customer_id") or customer_id).strip() != customer_id
         ):
-            raise BillingIdentitySyncError("provider_address_mapping_mismatch")
+            raise BillingIdentitySyncError(
+                "provider_address_mapping_mismatch",
+                provider_step=provider_step,
+            )
         payment_customer.provider_address_id = address_id
         payment_customer.country_code = profile.country_code
 
         business_details = _business_details(profile, organization)
         business_id = str(payment_customer.provider_business_id or "").strip()
         if business_id:
+            provider_step = "business_update"
             business = paddle_client.update_customer_business(
                 customer_id=customer_id,
                 business_id=business_id,
                 **business_details,
             )
         else:
+            provider_step = "business_lookup"
             existing = _select_existing_business(
                 paddle_client.list_customer_businesses(customer_id=customer_id),
                 profile,
@@ -321,12 +359,14 @@ def ensure_provider_billing_identity(
             )
             if existing:
                 business_id = str(existing.get("id") or "").strip()
+                provider_step = "business_update"
                 business = paddle_client.update_customer_business(
                     customer_id=customer_id,
                     business_id=business_id,
                     **business_details,
                 )
             else:
+                provider_step = "business_create"
                 business = paddle_client.create_customer_business(
                     customer_id=customer_id,
                     **business_details,
@@ -337,13 +377,18 @@ def ensure_provider_billing_identity(
             or str(business.get("id") or "").strip() != business_id
             or str(business.get("customer_id") or customer_id).strip() != customer_id
         ):
-            raise BillingIdentitySyncError("provider_business_mapping_mismatch")
+            raise BillingIdentitySyncError(
+                "provider_business_mapping_mismatch",
+                provider_step=provider_step,
+            )
         payment_customer.provider_business_id = business_id
         profile.provider_sync_status = "synced"
         profile.provider_synced_at = _utcnow()
         db.flush()
         return address_id, business_id
-    except BillingIdentitySyncError:
+    except BillingIdentitySyncError as exc:
+        if exc.provider_step == "billing_identity_sync":
+            exc.provider_step = provider_step
         profile.provider_sync_status = "failed"
         profile.provider_synced_at = None
         raise
@@ -351,14 +396,21 @@ def ensure_provider_billing_identity(
         profile.provider_sync_status = "failed"
         profile.provider_synced_at = None
         logger.error(
-            "paddle_billing_identity_sync_failed organization_uuid=%s error_code=%s error_type=%s",
+            "paddle_billing_identity_sync_failed organization_uuid=%s "
+            "provider_step=%s error_code=%s status_code=%s error_type=%s detail=%s",
             str(organization.organization_uuid or ""),
+            provider_step,
             str(getattr(exc, "error_code", "") or "provider_request_failed"),
+            str(getattr(exc, "status_code", "") or "unavailable"),
             exc.__class__.__name__,
+            str(getattr(exc, "detail", "") or "provider request failed")[:500],
             exc_info=True,
         )
         raise BillingIdentitySyncError(
-            str(getattr(exc, "error_code", "") or "provider_request_failed")
+            str(getattr(exc, "error_code", "") or "provider_request_failed"),
+            provider_step=provider_step,
+            provider_status_code=getattr(exc, "status_code", None),
+            provider_detail=str(getattr(exc, "detail", "") or "")[:500],
         ) from exc
 
 
@@ -395,7 +447,10 @@ def sync_active_subscription_billing_identity(
             or str(provider.get("address_id") or "").strip() != address_id
             or str(provider.get("business_id") or "").strip() != business_id
         ):
-            raise BillingIdentitySyncError("provider_subscription_identity_mismatch")
+            raise BillingIdentitySyncError(
+                "provider_subscription_identity_mismatch",
+                provider_step="subscription_identity_update",
+            )
         audit.write_audit_event(
             {
                 "event_type": "organization_billing_identity_synced",
@@ -411,9 +466,12 @@ def sync_active_subscription_billing_identity(
             profile.provider_sync_status = "failed"
             profile.provider_synced_at = None
         logger.warning(
-            "organization_billing_identity_sync_result organization_uuid=%s result=failed reason=%s",
+            "organization_billing_identity_sync_result organization_uuid=%s "
+            "result=failed provider_step=%s reason=%s status_code=%s",
             str(organization.organization_uuid or ""),
+            exc.provider_step,
             exc.reason_code,
+            str(exc.provider_status_code or "unavailable"),
         )
         audit.write_audit_event(
             {
@@ -435,10 +493,14 @@ def sync_active_subscription_billing_identity(
             getattr(exc, "error_code", "") or "provider_subscription_sync_failed"
         )
         logger.error(
-            "organization_billing_identity_sync_result organization_uuid=%s result=failed reason=%s error_type=%s",
+            "organization_billing_identity_sync_result organization_uuid=%s "
+            "result=failed provider_step=subscription_identity_update reason=%s "
+            "status_code=%s error_type=%s detail=%s",
             str(organization.organization_uuid or ""),
             reason_code,
+            str(getattr(exc, "status_code", "") or "unavailable"),
             exc.__class__.__name__,
+            str(getattr(exc, "detail", "") or "provider request failed")[:500],
             exc_info=True,
         )
         audit.write_audit_event(
@@ -451,4 +513,9 @@ def sync_active_subscription_billing_identity(
                 "reason_code": reason_code,
             }
         )
-        raise BillingIdentitySyncError(reason_code) from exc
+        raise BillingIdentitySyncError(
+            reason_code,
+            provider_step="subscription_identity_update",
+            provider_status_code=getattr(exc, "status_code", None),
+            provider_detail=str(getattr(exc, "detail", "") or "")[:500],
+        ) from exc

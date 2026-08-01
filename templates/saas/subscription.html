@@ -51,10 +51,22 @@
     .billing-contact-panel { border:1px solid #d6e1ed; border-radius:8px; background:#fbfdff; padding:18px; }
     .billing-contact-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; }
     .billing-contact-grid label { display:block; margin-bottom:6px; color:#40556f; font-size:12px; font-weight:850; }
-    .billing-contact-grid input { width:100%; }
+    .billing-contact-grid input, .billing-contact-grid select { width:100%; }
+    .billing-contact-details { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0 24px; margin:0; }
+    .billing-contact-detail { min-width:0; border-bottom:1px solid #e4ebf3; padding:12px 0; }
+    .billing-contact-detail dt { color:#60748b; font-size:11px; font-weight:850; text-transform:uppercase; }
+    .billing-contact-detail dd { margin:5px 0 0; color:#213b5c; font-size:14px; font-weight:800; overflow-wrap:anywhere; }
     .billing-contact-note { margin:14px 0 0; color:var(--muted); font-size:12px; line-height:1.5; }
-    .billing-contact-actions { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-top:16px; }
-    .billing-contact-sync { color:var(--muted); font-size:12px; }
+    .billing-contact-actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:10px; margin-top:16px; }
+    .billing-sync-state { margin-top:14px; border:1px solid #d6e1ed; border-radius:8px; background:#f7fafc; padding:14px 16px; }
+    .billing-sync-state strong { display:block; color:#24415f; font-size:14px; }
+    .billing-sync-state p { margin:5px 0 0; color:#53687f; font-size:13px; line-height:1.5; }
+    .billing-sync-state.is-synced { border-color:#b9ddcf; background:#eef8f4; }
+    .billing-sync-state.is-synced strong { color:#176149; }
+    .billing-sync-state.is-pending { border-color:#bfd4e9; background:#f0f6fc; }
+    .billing-sync-state.is-attention { border-color:#edc56c; background:#fff9e9; }
+    .billing-sync-state.is-attention strong { color:#6b4c12; }
+    .billing-sync-state .billing-contact-actions { justify-content:flex-start; margin-top:12px; }
     .billing-summary-grid { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:10px; }
     .billing-summary-item { position:relative; min-width:0; overflow:hidden; border:1px solid #d6e1ed; border-radius:8px; background:#fbfdff; padding:15px 16px; transition:border-color .18s ease, background-color .18s ease, transform .18s ease; }
     .billing-summary-item::before { position:absolute; inset:0 auto 0 0; width:3px; background:#b7cde5; content:""; }
@@ -134,7 +146,7 @@
         .plan-overview { padding:19px 16px; }
         .plan-overview h2 { font-size:26px; }
         .recurring-price strong { font-size:30px; }
-        .overview-facts, .supporting-metrics, .pending-details, .billing-summary-grid, .capacity-usage-grid, .billing-contact-grid { grid-template-columns:1fr; }
+        .overview-facts, .supporting-metrics, .pending-details, .billing-summary-grid, .capacity-usage-grid, .billing-contact-grid, .billing-contact-details { grid-template-columns:1fr; }
         .lifecycle-badge, .pending-status { white-space:normal; }
         .subscription-actions, .subscription-actions .btn { width:100%; }
         .billing-table th, .billing-table td { padding:13px 14px; }
@@ -243,18 +255,19 @@
                 <h2 id="billing-contact-title">Billing Contact</h2>
                 <p>Paddle receipts, invoices, and billing notifications will be sent using these billing details.</p>
             </div>
+            {% if not billing_contact_editing and billing_contact.sync_status != "failed" %}<a class="btn secondary" href="/saas/subscription?organization_uuid={{ billing_organization_uuid | urlencode }}&amp;billing_edit=1#billing-contact-title">Edit Billing Contact</a>{% endif %}
         </div>
+        {% if billing_contact_editing %}
         <form class="billing-contact-panel" method="post" action="/saas/subscription/billing-contact">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="organization_uuid" value="{{ billing_organization_uuid }}">
-            <input type="hidden" name="country_name" value="{{ billing_contact.country_name }}">
             <div class="billing-contact-grid">
                 <div><label for="portal_billing_email">Billing email</label><input id="portal_billing_email" name="billing_email" type="email" value="{{ billing_contact.billing_email }}" maxlength="180" required></div>
-                <div><label for="portal_billing_organization_name">Legal or billing organization name</label><input id="portal_billing_organization_name" name="billing_organization_name" value="{{ billing_contact.billing_organization_name }}" maxlength="180" required></div>
+                <div><label for="portal_billing_organization_name">Legal or billing organization or school name</label><input id="portal_billing_organization_name" name="billing_organization_name" value="{{ billing_contact.billing_organization_name }}" maxlength="180" required></div>
                 <div><label for="portal_billing_contact_name">Billing contact name <span class="optional-label">Optional</span></label><input id="portal_billing_contact_name" name="billing_contact_name" value="{{ billing_contact.billing_contact_name }}" maxlength="180"></div>
                 <div><label for="portal_company_number">Company or registration number <span class="optional-label">Optional</span></label><input id="portal_company_number" name="company_number" value="{{ billing_contact.company_number }}" maxlength="180"></div>
                 <div><label for="portal_tax_identifier">Tax or VAT identifier <span class="optional-label">Optional</span></label><input id="portal_tax_identifier" name="tax_identifier" value="{{ billing_contact.tax_identifier }}" maxlength="180"></div>
-                <div><label for="portal_country_code">Billing country code</label><input id="portal_country_code" name="country_code" value="{{ billing_contact.country_code }}" maxlength="2" required></div>
+                <div><label for="portal_country_code">Billing country</label><select id="portal_country_code" name="country_code" required><option value="">Select a country</option>{% for country in billing_country_options %}<option value="{{ country.code }}"{% if country.code == billing_contact.country_code %} selected{% endif %}>{{ country.name }}</option>{% endfor %}</select></div>
                 <div><label for="portal_region_name">Region <span class="optional-label">Optional</span></label><input id="portal_region_name" name="region_name" value="{{ billing_contact.region_name }}" maxlength="160"></div>
                 <div><label for="portal_city_name">City <span class="optional-label">Optional</span></label><input id="portal_city_name" name="city_name" value="{{ billing_contact.city_name }}" maxlength="160"></div>
                 <div><label for="portal_district_name">District <span class="optional-label">Optional</span></label><input id="portal_district_name" name="district_name" value="{{ billing_contact.district_name }}" maxlength="160"></div>
@@ -262,19 +275,53 @@
             </div>
             <p class="billing-contact-note">Updated details apply primarily to future billing documents. Existing receipts and invoices are not revised automatically.</p>
             <div class="billing-contact-actions">
-                <span class="billing-contact-sync">Billing details: {% if billing_contact.sync_status == "synced" %}Synchronized{% elif billing_contact.sync_status == "failed" %}Needs retry{% else %}Not synchronized yet{% endif %}</span>
-                <button class="btn" type="submit">Save Billing Contact</button>
+                <a class="btn secondary" href="/saas/subscription?organization_uuid={{ billing_organization_uuid | urlencode }}#billing-contact-title">Cancel</a>
+                <button class="btn" type="submit">Save Changes</button>
             </div>
         </form>
+        {% else %}
+        <div class="billing-contact-panel">
+            <dl class="billing-contact-details">
+                <div class="billing-contact-detail"><dt>Billing email</dt><dd>{{ billing_contact.billing_email or "Not provided" }}</dd></div>
+                <div class="billing-contact-detail"><dt>Legal or billing organization or school name</dt><dd>{{ billing_contact.billing_organization_name or "Not provided" }}</dd></div>
+                <div class="billing-contact-detail"><dt>Billing contact name</dt><dd>{{ billing_contact.billing_contact_name or "Not provided" }}</dd></div>
+                <div class="billing-contact-detail"><dt>Company or registration number</dt><dd>{{ billing_contact.company_number or "Not provided" }}</dd></div>
+                <div class="billing-contact-detail"><dt>Tax or VAT identifier</dt><dd>{{ billing_contact.tax_identifier or "Not provided" }}</dd></div>
+                <div class="billing-contact-detail"><dt>Billing country</dt><dd>{% if billing_contact.country_name %}{{ billing_contact.country_name }}{% if billing_contact.country_code %} ({{ billing_contact.country_code }}){% endif %}{% else %}{{ billing_contact.country_code or "Not provided" }}{% endif %}</dd></div>
+                <div class="billing-contact-detail"><dt>Region</dt><dd>{{ billing_contact.region_name or "Not provided" }}</dd></div>
+                <div class="billing-contact-detail"><dt>City</dt><dd>{{ billing_contact.city_name or "Not provided" }}</dd></div>
+                <div class="billing-contact-detail"><dt>District</dt><dd>{{ billing_contact.district_name or "Not provided" }}</dd></div>
+                <div class="billing-contact-detail"><dt>Neighborhood</dt><dd>{{ billing_contact.neighborhood_name or "Not provided" }}</dd></div>
+            </dl>
+            <p class="billing-contact-note">Updated details apply primarily to future billing documents. Existing receipts and invoices are not revised automatically.</p>
+        </div>
+        {% endif %}
+
+        {% if billing_contact.sync_status == "synced" %}
+        <div class="billing-sync-state is-synced" role="status"><strong>Billing details synchronized with Paddle.</strong></div>
+        {% elif billing_contact.sync_status == "pending" %}
+        <div class="billing-sync-state is-pending" role="status"><strong>Updating billing details with Paddle&hellip;</strong><p>Your saved TIS billing details remain available while synchronization completes.</p></div>
+        {% elif billing_contact.sync_status == "failed" %}
+        <div class="billing-sync-state is-attention" role="status">
+            <strong>Billing details saved</strong>
+            <p>{% if billing_sync_result == "retry_failed" %}We could not update Paddle. Your TIS billing details are safe, but future billing documents may continue using the previous provider details until synchronization succeeds.{% else %}Your details were saved in TIS, but Paddle has not been updated yet. Retry synchronization before making another subscription change.{% endif %}</p>
+            <div class="billing-contact-actions">
+                <form method="post" action="/saas/subscription/billing-contact/retry"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="organization_uuid" value="{{ billing_organization_uuid }}"><button class="btn" type="submit">Retry Paddle Synchronization</button></form>
+                {% if not billing_contact_editing %}<a class="btn secondary" href="/saas/subscription?organization_uuid={{ billing_organization_uuid | urlencode }}&amp;billing_edit=1#billing-contact-title">Edit Billing Contact</a>{% endif %}
+            </div>
+        </div>
+        {% elif billing_contact.confirmed %}
+        <div class="billing-sync-state is-pending" role="status"><strong>Updating billing details with Paddle&hellip;</strong><p>Retry synchronization if this status does not clear.</p><div class="billing-contact-actions"><form method="post" action="/saas/subscription/billing-contact/retry"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="organization_uuid" value="{{ billing_organization_uuid }}"><button class="btn secondary" type="submit">Retry Paddle Synchronization</button></form></div></div>
+        {% endif %}
     </section>
     {% endif %}
 
-    {% if subscription_portal.can_increase_quantity or subscription_portal.can_decrease_quantity or subscription_portal.can_upgrade or subscription_portal.can_downgrade or subscription_portal.can_cancel %}
+    {% if (billing_identity_ready and (subscription_portal.can_increase_quantity or subscription_portal.can_decrease_quantity or subscription_portal.can_upgrade or subscription_portal.can_downgrade)) or subscription_portal.can_cancel %}
     <section class="portal-section" aria-labelledby="subscription-actions-title">
         <div class="portal-section-head"><div><h2 id="subscription-actions-title">Subscription Actions</h2><p>Changes are previewed before they are submitted to the billing provider.</p></div></div>
         <div class="subscription-actions">
-            {% if subscription_portal.can_increase_quantity or subscription_portal.can_decrease_quantity %}<a class="btn" href="/saas/subscription/branches">Review Capacity</a>{% endif %}
-            {% if subscription_portal.can_upgrade or subscription_portal.can_downgrade %}<a class="btn secondary" href="#plan-comparison">Change Plan</a>{% endif %}
+            {% if billing_identity_ready and (subscription_portal.can_increase_quantity or subscription_portal.can_decrease_quantity) %}<a class="btn" href="/saas/subscription/branches">Review Capacity</a>{% endif %}
+            {% if billing_identity_ready and (subscription_portal.can_upgrade or subscription_portal.can_downgrade) %}<a class="btn secondary" href="#plan-comparison">Change Plan</a>{% endif %}
             {% if subscription_portal.can_cancel %}<a class="btn destructive" href="/saas/subscription/cancel">Cancel at Period End</a>{% endif %}
         </div>
     </section>
@@ -367,8 +414,8 @@
                 {% elif subscription_portal.pending_change and subscription_portal.pending_change.can_manage_schedule and plan.plan_code == subscription_portal.pending_change.target_plan_code %}<div class="scheduled-plan-state"><strong>Scheduled</strong><span>Effective {{ subscription_portal.pending_change.effective_date_label }}</span></div>
                 {% elif plan.contact_only %}<div class="plan-action"><a class="btn secondary" href="mailto:{{ support_email }}">Contact TIS Support</a></div>
                 {% elif subscription_portal.pending_change and subscription_portal.pending_change.can_manage_schedule and plan.plan_code != subscription_portal.pending_change.target_plan_code and plan.capacity_eligible %}<div class="plan-action"><a class="btn secondary" href="/saas/subscription/plans/{{ subscription_portal.pending_change.request_uuid }}/replace?target_plan_code={{ plan.plan_code }}">Replace With {{ plan.plan_name }}</a></div>
-                {% elif plan.direction == "upgrade" and subscription_portal.can_upgrade %}<form class="plan-action" method="post" action="/saas/subscription/plans/preview"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_plan_code" value="{{ plan.plan_code }}"><button class="btn" type="submit">Preview Upgrade</button></form>
-                {% elif plan.direction == "downgrade" and subscription_portal.can_downgrade and plan.capacity_eligible %}<form class="plan-action" method="post" action="/saas/subscription/plans/preview"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_plan_code" value="{{ plan.plan_code }}"><button class="btn secondary" type="submit">Preview Downgrade</button></form>{% endif %}
+                {% elif billing_identity_ready and plan.direction == "upgrade" and subscription_portal.can_upgrade %}<form class="plan-action" method="post" action="/saas/subscription/plans/preview"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_plan_code" value="{{ plan.plan_code }}"><button class="btn" type="submit">Preview Upgrade</button></form>
+                {% elif billing_identity_ready and plan.direction == "downgrade" and subscription_portal.can_downgrade and plan.capacity_eligible %}<form class="plan-action" method="post" action="/saas/subscription/plans/preview"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_plan_code" value="{{ plan.plan_code }}"><button class="btn secondary" type="submit">Preview Downgrade</button></form>{% endif %}
             </article>
             {% endfor %}
         </div>

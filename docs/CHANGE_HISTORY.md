@@ -7,6 +7,24 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-02 - Billing Contact Editing And Paddle Retry
+
+Subscription Management now presents Billing Contact as read-only organization
+identity with an explicit Edit, Save Changes, and Cancel interaction. The legal
+identity label now covers an organization or school name, and the billing
+country uses the supported country selector.
+
+Valid local billing changes remain committed when Paddle synchronization fails.
+A dedicated permission- and tenant-scoped retry reuses the saved profile and
+persisted customer, address, and business mappings, avoids duplicate provider
+objects, and performs no provider call once synchronized. Customer status copy
+distinguishes local save, provider synchronization, and retry failure. Safe
+server diagnostics identify the customer, address, business, or subscription
+identity step plus provider status/error code. A saved pending or failed billing
+identity prevents new plan or quantity changes until provider synchronization
+succeeds; cancellation and legacy active subscriptions without a profile remain
+unchanged.
+
 ## 2026-08-01 - Explicit Organization Billing Identity
 
 Billing & Subscription now stores one explicit organization billing profile
