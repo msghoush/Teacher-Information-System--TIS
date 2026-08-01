@@ -1,7 +1,7 @@
 {% extends "saas/base.html" %}
 {% block content %}
 <header class="page-header">
-    <span class="page-eyebrow">Account Setup</span>
+    <span class="page-eyebrow">{% if organization_account %}Organization Account{% else %}Account Setup{% endif %}</span>
     <h1>Security</h1>
     <p class="page-subtitle">Review TIS Account verification and connected sign-in methods.</p>
 </header>

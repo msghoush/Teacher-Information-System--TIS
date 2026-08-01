@@ -1690,6 +1690,7 @@
                 {% if organization_account is defined and organization_account %}
                     {% if organization_account.access.can_manage_billing %}<a class="btn secondary" href="/saas/subscription">Billing</a>{% endif %}
                     <a class="btn secondary" href="/saas/account/security">Security</a>
+                    {% if organization_account.access.commercial_access.allowed_access %}<a class="btn" href="/login">Enter TIS Platform</a>{% endif %}
                 {% elif not (setup_console is defined and setup_console and organization is defined and organization) %}
                     <a class="btn secondary" href="/saas/account/profile">Profile</a>
                     <a class="btn secondary" href="/saas/subscription">Subscription</a>
@@ -1786,7 +1787,7 @@
         </section>
         {% endif %}
 
-        {% if organization is defined and organization and not (setup_console is defined and setup_console) %}
+        {% if organization is defined and organization and not (setup_console is defined and setup_console) and not (organization_account is defined and organization_account) %}
         {% set active_step = step_key|default(organization.onboarding_step|default("")) %}
         <section class="onboarding-progress" aria-label="Onboarding progress">
             <div class="step-track">
