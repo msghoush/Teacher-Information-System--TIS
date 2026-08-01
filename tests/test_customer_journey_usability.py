@@ -1,4 +1,5 @@
 import uuid
+import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -437,7 +438,7 @@ class TestCustomerJourneyUsability:
             follow_redirects=False,
         )
         assert authenticated.status_code == 302
-        assert authenticated.headers["location"] == "/saas/account"
+        assert authenticated.headers["location"] == "/saas/subscription"
         public_sign_in = self.workflow.client.get(
             "/saas/login?next_path=/login",
             follow_redirects=False,
@@ -490,6 +491,221 @@ class TestCustomerJourneyUsability:
         assert "Your TIS demo has ended" in friendly.text
         assert "data are safely preserved" in friendly.text
 
+    def test_operational_configuration_opens_revalidated_account_billing(self):
+        import main as operational_main
+        from saas import router as saas_router_module
+
+        operational_app = operational_main.app
+
+        fixture = self._active_demo()
+        db = self.workflow._db()
+        try:
+            user = db.get(models.User, fixture["operational_user_id"])
+            user.scope_school_group_id = fixture["school_group_id"]
+            account = db.get(saas.models.SaaSAccount, fixture["saas_account_id"])
+            account_email = account.email
+            with patch.dict(
+                os.environ,
+                {"TIS_SESSION_SECRET": "journey-billing-secret-at-least-32-characters"},
+                clear=False,
+            ):
+                operational_token = auth.create_session_token(user)
+            assert saas_router_module._post_auth_destination(
+                db, account, "https://example.com/saas/subscription"
+            ) == "/saas/account"
+            assert saas_router_module._post_auth_destination(
+                db,
+                account,
+                "/saas/subscription?organization_uuid=unrelated-workspace",
+            ) == "/saas/account"
+        finally:
+            db.close()
+
+        def override_get_db():
+            session = self.workflow._db()
+            try:
+                yield session
+            finally:
+                session.close()
+
+        destination = (
+            "/saas/subscription?organization_uuid=" + fixture["organization_uuid"]
+        )
+        operational_app.dependency_overrides[get_db] = override_get_db
+        try:
+            with patch.dict(
+                os.environ,
+                {"TIS_SESSION_SECRET": "journey-billing-secret-at-least-32-characters"},
+                clear=False,
+            ), patch.object(operational_main, "SessionLocal", self.workflow.Session):
+                with TestClient(operational_app) as client:
+                    client.cookies.set(auth.SESSION_COOKIE_KEY, operational_token)
+                    hub = client.get("/system-configuration")
+                    assert hub.status_code == 200
+                    assert "Billing &amp; Subscription" in hub.text
+                    assert 'href="/system-configuration/billing-subscription"' in hub.text
+
+                    bridge = client.get(
+                        "/system-configuration/billing-subscription",
+                        follow_redirects=False,
+                    )
+                    assert bridge.status_code == 302
+                    assert bridge.headers["location"] == destination
+
+                    account_auth = client.get(destination, follow_redirects=False)
+                    assert account_auth.status_code == 302
+                    assert account_auth.headers["location"].startswith("/saas/login?")
+                    assert "next_path=%2Fsaas%2Fsubscription%3Forganization_uuid%3D" in account_auth.headers["location"]
+
+                    signed_in = client.post(
+                        "/saas/auth/login",
+                        data={
+                            "email": account_email,
+                            "password": "strong-password-123",
+                            "next_path": destination,
+                        },
+                        follow_redirects=False,
+                    )
+                    assert signed_in.status_code == 302
+                    assert signed_in.headers["location"] == destination
+                    billing = client.get(destination, follow_redirects=False)
+                    assert billing.status_code == 200
+                    assert "Choose your subscription" in billing.text
+        finally:
+            operational_app.dependency_overrides.pop(get_db, None)
+
+    def test_operational_billing_link_requires_explicit_authority(self):
+        import main as operational_main
+
+        operational_app = operational_main.app
+
+        fixture = self._active_demo()
+        db = self.workflow._db()
+        try:
+            group = db.get(models.SchoolGroup, fixture["school_group_id"])
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=fixture["organization_uuid"]
+            ).one()
+            branch = db.query(models.Branch).filter_by(
+                school_group_id=group.id,
+                status=True,
+            ).first()
+            email = f"no-billing-{uuid.uuid4().hex}@academy.edu"
+            account = saas.models.SaaSAccount(
+                account_uuid=str(uuid.uuid4()),
+                email=email,
+                email_normalized=email,
+                password_hash=auth.get_password_hash("strong-password-123"),
+                status="active",
+                onboarding_status="tenant_active",
+                email_verified_at=datetime.now(UTC).replace(tzinfo=None),
+            )
+            db.add(account)
+            db.flush()
+            user = models.User(
+                user_id=f"6{uuid.uuid4().int % 100000:05d}",
+                username=f"no.billing.{uuid.uuid4().hex[:8]}",
+                email=email,
+                email_normalized=email,
+                password=auth.get_password_hash("operational-password-123"),
+                role=auth.ROLE_EDITOR,
+                user_type=auth.USER_TYPE_TENANT,
+                access_scope=auth.ACCESS_SCOPE_ORGANIZATION,
+                school_group_id=group.id,
+                branch_id=branch.id,
+                is_active=True,
+            )
+            db.add(user)
+            db.flush()
+            db.add_all(
+                [
+                    models.RolePermission(
+                        school_group_id=group.id,
+                        role=auth.ROLE_EDITOR,
+                        permission_key="configuration.view",
+                        is_allowed=True,
+                    ),
+                    models.RolePermission(
+                        school_group_id=group.id,
+                        role=auth.ROLE_EDITOR,
+                        permission_key="subscriptions.manage_billing",
+                        is_allowed=False,
+                    ),
+                    saas.models.SaaSAccountUserLink(
+                        saas_account_id=account.id,
+                        operational_user_id=user.id,
+                        pending_organization_id=organization.id,
+                        school_group_id=group.id,
+                        link_type="tenant_member",
+                    ),
+                ]
+            )
+            db.commit()
+            user.scope_school_group_id = group.id
+            with patch.dict(
+                os.environ,
+                {"TIS_SESSION_SECRET": "journey-billing-secret-at-least-32-characters"},
+                clear=False,
+            ):
+                token = auth.create_session_token(user)
+        finally:
+            db.close()
+
+        def override_get_db():
+            session = self.workflow._db()
+            try:
+                yield session
+            finally:
+                session.close()
+
+        operational_app.dependency_overrides[get_db] = override_get_db
+        try:
+            with patch.dict(
+                os.environ,
+                {"TIS_SESSION_SECRET": "journey-billing-secret-at-least-32-characters"},
+                clear=False,
+            ), patch.object(operational_main, "SessionLocal", self.workflow.Session):
+                with TestClient(operational_app) as client:
+                    client.cookies.set(auth.SESSION_COOKIE_KEY, token)
+                    hub = client.get("/system-configuration")
+                    assert hub.status_code == 200
+                    assert 'href="/system-configuration/billing-subscription"' not in hub.text
+                    denied = client.get(
+                        "/system-configuration/billing-subscription",
+                        follow_redirects=False,
+                    )
+                    assert denied.status_code == 403
+
+                    db = self.workflow._db()
+                    try:
+                        updated = db.query(models.RolePermission).filter_by(
+                            school_group_id=fixture["school_group_id"],
+                            role=auth.ROLE_EDITOR,
+                            permission_key="subscriptions.manage_billing",
+                        ).update(
+                            {models.RolePermission.is_allowed: True},
+                            synchronize_session=False,
+                        )
+                        assert updated >= 1
+                        db.commit()
+                    finally:
+                        db.close()
+
+                    allowed_hub = client.get("/system-configuration")
+                    assert allowed_hub.status_code == 200
+                    assert 'href="/system-configuration/billing-subscription"' in allowed_hub.text
+                    allowed = client.get(
+                        "/system-configuration/billing-subscription",
+                        follow_redirects=False,
+                    )
+                    assert allowed.status_code == 302
+                    assert allowed.headers["location"] == (
+                        "/saas/subscription?organization_uuid="
+                        + fixture["organization_uuid"]
+                    )
+        finally:
+            operational_app.dependency_overrides.pop(get_db, None)
+
     def test_pending_and_unpaid_login_destinations(self):
         organization_uuid = self.workflow._complete_onboarding(
             f"unpaid-{uuid.uuid4().hex}@academy.edu"
@@ -524,7 +740,8 @@ class TestCustomerJourneyUsability:
         ).read_text(encoding="utf-8")
         assert 'buildTisAppUrl("/saas/login")' in landing
         assert 'buildTisAppUrl("/login")' in landing
-        assert "Sign In" in landing and "Open TIS App" in landing
+        assert "Organization Sign In" in landing and "Open TIS App" in landing
+        assert "const organizationSignInUrl = buildTisAppUrl(\"/saas/login\")" in landing
 
     def test_expired_paid_subscription_routes_to_friendly_blocked_state(self):
         fixture = self._active_demo()

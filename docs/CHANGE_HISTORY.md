@@ -7,6 +7,24 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-01 - Subscription Capacity Presentation And Billing Navigation
+
+Subscription pages now separate confirmed paid branch quantity from the current
+plan's maximum branch ceiling. Review Capacity identifies additional required
+branches as additional billed quantity and retains system-user and teacher
+counts as non-billed eligibility limits. Unapproved feature claims and empty
+feature placeholders were removed from customer plan comparison.
+
+System Configuration now exposes Billing & Subscription only to a linked
+organization owner or user with explicit billing authority. The route
+revalidates operational tenant scope and the SaaS account-user relationship,
+then opens the existing Organization Account subscription page. Password and
+social authentication preserve only the allowlisted internal billing return;
+external or unrelated destinations fail back to Organization Account. The
+public landing label is Organization Sign In and still uses centralized SaaS
+authentication. No pricing, Paddle quantity, lifecycle, webhook, entitlement,
+schema, or migration behavior changed.
+
 ## 2026-08-01 - Unified Active Subscription Capacity Management
 
 Subscription Management previously presented branch quantity as an isolated

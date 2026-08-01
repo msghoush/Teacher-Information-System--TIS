@@ -137,13 +137,36 @@ class PublicSubscriptionJourneyTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        professional_option = re.search(
-            rf'<option value="{professional_id}" ([^>]*)>',
+        professional_input = re.search(
+            rf'<input[^>]*class="plan-card-radio"[^>]*value="{professional_id}"[^>]*>',
             response.text,
         )
-        self.assertIsNotNone(professional_option)
-        self.assertIn("selected", professional_option.group(1))
-        self.assertNotIn("disabled", professional_option.group(1))
+        self.assertIsNotNone(professional_input)
+        self.assertIn("checked", professional_input.group(0))
+        self.assertIn("required", professional_input.group(0))
+        self.assertNotIn("disabled", professional_input.group(0))
+        for plan_name in ("Starter", "Professional", "Enterprise AI", "Custom"):
+            self.assertIn(f"<h3>{plan_name}</h3>", response.text)
+        for capacity in (
+            "Up to <strong>1</strong> branch",
+            "Up to <strong>5</strong> system users",
+            "Up to <strong>25</strong> teachers",
+            "Up to <strong>5</strong> branches",
+            "Up to <strong>20</strong> system users",
+            "Up to <strong>100</strong> teachers",
+            "Up to <strong>25</strong> branches",
+            "Up to <strong>100</strong> system users",
+            "Up to <strong>500</strong> teachers",
+        ):
+            self.assertIn(capacity, response.text)
+        self.assertIn("Select plan", response.text)
+        self.assertIn("Save and Continue", response.text)
+        self.assertIn('data-plan-kind="custom"', response.text)
+        self.assertIn("Tailored pricing", response.text)
+        self.assertIn('href="mailto:info@tisplatform.com"', response.text)
+        self.assertNotIn("Advanced Reporting", response.text)
+        self.assertNotIn("Commercial feature details are being finalized", response.text)
+        self.assertNotIn("<option", response.text)
         self.assertEqual(
             self.client.cookies.get(service.SAAS_PREFERRED_PLAN_COOKIE),
             "professional",
@@ -192,13 +215,22 @@ class PublicSubscriptionJourneyTests(unittest.TestCase):
             "setup requires a different capacity level.",
             normalized_response_text,
         )
-        starter_option = re.search(
-            rf'<option value="{starter_id}" ([^>]*)>',
+        starter_input = re.search(
+            rf'<input[^>]*class="plan-card-radio"[^>]*value="{starter_id}"[^>]*>',
             response.text,
         )
-        self.assertIsNotNone(starter_option)
-        self.assertIn("disabled", starter_option.group(1))
-        self.assertNotIn("selected", starter_option.group(1))
+        self.assertIsNotNone(starter_input)
+        self.assertIn("disabled", starter_input.group(0))
+        self.assertNotIn("checked", starter_input.group(0))
+        self.assertIn('data-plan-eligible="false"', response.text)
+        self.assertIn("Starter is unavailable because:", response.text)
+        self.assertIn("Unavailable", response.text)
+        self.assertIn("Recommended for your setup", response.text)
+        self.assertIn('data-plan-kind="custom"', response.text)
+        self.assertIn("Contact the TIS Team", response.text)
+        self.assertNotIn("Advanced Reporting", response.text)
+        self.assertNotIn("Commercial feature details are being finalized", response.text)
+        self.assertNotIn("<option", response.text)
         self.assertIsNone(
             self.client.cookies.get(service.SAAS_PREFERRED_PLAN_COOKIE)
         )
@@ -249,6 +281,16 @@ class PublicSubscriptionJourneyTests(unittest.TestCase):
         self.assertIn("ctaHref: contactTisTeamUrl", custom_plan)
         self.assertNotIn("signup", custom_plan)
         self.assertNotIn("checkout", custom_plan.lower())
+
+    def test_landing_organization_sign_in_uses_centralized_customer_login(self):
+        source = LANDING_PAGE.read_text(encoding="utf-8")
+        self.assertIn(
+            'const organizationSignInUrl = buildTisAppUrl("/saas/login")',
+            source,
+        )
+        self.assertEqual(source.count("Organization Sign In"), 3)
+        self.assertNotIn('buildTisAppUrl("/dashboard")', source)
+        self.assertNotIn('buildTisAppUrl("/saas/subscription")', source)
 
 
 if __name__ == "__main__":

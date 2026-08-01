@@ -383,8 +383,8 @@ Guardrails:
 ## Active Subscription Management Flow
 
 1. Authorized billing administrator opens `/saas/subscription`.
-2. TIS resolves one confirmed active subscription, entitlements, lifecycle state, allowed actions, and one operational capacity snapshot covering active branches, non-teacher system users, and teachers.
-3. Review Capacity accepts proposed totals for all three dimensions. TIS selects the minimum eligible self-service plan; branch growth may create a combined plan-and-quantity upgrade, while system-user and teacher growth affects eligibility without changing Paddle quantity.
+2. TIS resolves one confirmed active subscription, entitlements, lifecycle state, allowed actions, and one operational capacity snapshot covering active branches, non-teacher system users, and teachers. Paid branch quantity is displayed separately from the current plan's maximum branch ceiling; unused ceiling is not prepaid branch capacity.
+3. Review Capacity accepts proposed totals for all three dimensions. It shows confirmed paid branches, required active branches, additional billed branches, the plan ceiling, and the resulting minimum eligible plan. Branch growth may create a combined plan-and-quantity upgrade, while system-user and teacher growth affects eligibility without changing Paddle quantity.
 4. Quantity or plan changes are previewed through Paddle; TIS displays provider-returned totals and never recalculates proration.
 5. Immediate increases/upgrades use provider payment-failure prevention and remain locally pending until authoritative confirmation. The current confirmed plan and workspace access remain authoritative while the plan change is pending, failed, incomplete, expired, canceled, or abandoned. Thus an active Professional subscription remains accessible while an Enterprise AI upgrade is `payment_pending`.
 6. Reductions/downgrades are scheduled for the next billing boundary and retain current local access until verified effective evidence. Live branch, system-user, and teacher counts are revalidated at that boundary; a mismatch enters manual review without applying the lower local entitlement.
@@ -407,6 +407,26 @@ Guardrails:
 - stale or unrelated organization-level subscription rows cannot supersede the TenantProvisioningLink and SubscriptionContract-linked subscription,
 - canceled subscriptions retain access only until the confirmed paid period ends; ambiguous evidence fails closed without being mislabeled as expired,
 - renewal guidance is shown only for genuine expiration, not payment processing, past due, paused, suspended, archived, or inconsistent commercial evidence.
+
+## Operational Billing Entry Flow
+
+1. System Configuration includes Billing & Subscription only for a linked
+   operational organization owner or user with
+   `subscriptions.manage_billing` in the selected tenant.
+2. The bridge revalidates the operational session, SchoolGroup scope,
+   SaaSAccountUserLink, organization/workspace UUID, and billing authority.
+3. The bridge opens `/saas/subscription` for that organization; it never
+   duplicates billing UI inside operations.
+4. If SaaS authentication is missing, password and social sign-in preserve the
+   allowlisted internal subscription continuation and revalidate it against the
+   signed-in account before rendering billing.
+5. Unknown organizations, cross-account links, unauthorized users, duplicate
+   continuation parameters, and external return URLs fail closed. A user with
+   multiple managed organizations must resolve an organization before billing.
+6. The landing-page Organization Sign In action enters `/saas/login` without an
+   operational destination. Activated account managers therefore land in
+   Organization Account unless they arrived through the validated billing
+   continuation. Enter TIS Platform remains the only explicit operational entry.
 
 ## Provisioning Flow
 

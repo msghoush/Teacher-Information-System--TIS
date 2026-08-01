@@ -1247,6 +1247,56 @@ def _build_qualification_configuration_rows(
     return qualification_rows
 
 
+def _operational_billing_account_context(db: Session, current_user):
+    if current_user is None or auth.is_platform_user(current_user):
+        return None
+    school_group_id = (
+        getattr(current_user, "scope_school_group_id", None)
+        or auth.get_user_school_group_id(db, current_user)
+    )
+    if not school_group_id:
+        return None
+    links = db.query(saas.models.SaaSAccountUserLink).filter(
+        saas.models.SaaSAccountUserLink.operational_user_id == current_user.id,
+        saas.models.SaaSAccountUserLink.school_group_id == school_group_id,
+    ).limit(2).all()
+    if len(links) != 1:
+        return None
+    link = links[0]
+    group = db.get(models.SchoolGroup, school_group_id)
+    organization = (
+        db.get(saas.models.PendingOrganization, link.pending_organization_id)
+        if link.pending_organization_id
+        else None
+    )
+    is_owner = bool(
+        str(getattr(link, "link_type", "") or "").strip().lower()
+        == "tenant_owner"
+        or int(getattr(organization, "owner_saas_account_id", 0) or 0)
+        == int(getattr(link, "saas_account_id", 0) or 0)
+    )
+    if not is_owner and not auth.has_permission(
+        db,
+        current_user,
+        "subscriptions.manage_billing",
+        school_group_id=school_group_id,
+    ):
+        return None
+    organization_uuid = str(
+        getattr(organization, "organization_uuid", "")
+        or getattr(group, "workspace_uuid", "")
+        or ""
+    ).strip()
+    if group is None or not organization_uuid:
+        return None
+    return {
+        "link": link,
+        "school_group": group,
+        "organization": organization,
+        "organization_uuid": organization_uuid,
+    }
+
+
 CONFIGURATION_MODULES = (
     {
         "key": "overview",
@@ -1268,6 +1318,15 @@ CONFIGURATION_MODULES = (
             "calendar.manage_event_types",
         ),
         "permission_mode": "any",
+    },
+    {
+        "key": "billing-subscription",
+        "label": "Billing & Subscription",
+        "href": "/system-configuration/billing-subscription",
+        "icon": "report",
+        "description": "Open Organization Account billing and subscription management.",
+        "permission_keys": ("subscriptions.manage_billing",),
+        "requires_billing_account_link": True,
     },
     {
         "key": "school-management",
@@ -1341,11 +1400,25 @@ def _get_configuration_modules(
     current_user=None,
 ) -> list[dict[str, object]]:
     modules = []
+    billing_account_context = (
+        _operational_billing_account_context(db, current_user)
+        if db is not None and current_user is not None
+        else None
+    )
     for module in CONFIGURATION_MODULES:
+        if module.get("requires_billing_account_link") and (
+            billing_account_context is None
+        ):
+            continue
         permission_keys = tuple(module.get("permission_keys", ()))
         permission_mode = str(module.get("permission_mode", "all")).strip().lower()
         if permission_keys and db is not None and current_user is not None:
-            if permission_mode == "any":
+            if billing_account_context is not None and (
+                module["key"] == "overview"
+                or module.get("requires_billing_account_link")
+            ):
+                allowed = True
+            elif permission_mode == "any":
                 allowed = any(
                     auth.has_permission(db, current_user, permission_key)
                     for permission_key in permission_keys
@@ -1361,7 +1434,12 @@ def _get_configuration_modules(
             {
                 key: value
                 for key, value in module.items()
-                if key not in {"permission_keys", "permission_mode"}
+                if key
+                not in {
+                    "permission_keys",
+                    "permission_mode",
+                    "requires_billing_account_link",
+                }
             }
             | {"active": module["key"] == active_key}
         )
@@ -11788,7 +11866,7 @@ def _get_configuration_access(request: Request, db: Session):
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return None, RedirectResponse(url="/", status_code=302)
-    if not auth.has_any_permission(
+    has_configuration_permission = auth.has_any_permission(
         db,
         current_user,
         "configuration.view",
@@ -11802,7 +11880,10 @@ def _get_configuration_access(request: Request, db: Session):
         "timetable.manage_settings",
         "timetable.manage_blocks",
         "calendar.manage_event_types",
-    ):
+    )
+    if not has_configuration_permission and _operational_billing_account_context(
+        db, current_user
+    ) is None:
         return (
             None,
             authorization.build_access_denied_response(
@@ -12146,6 +12227,30 @@ def system_configuration(
         title="Configuration Hub",
         intro="Open each configuration module from a clean landing page instead of managing everything on one screen.",
     )
+
+
+@app.get("/system-configuration/billing-subscription")
+def system_configuration_billing_subscription(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+    billing_context = _operational_billing_account_context(db, current_user)
+    if billing_context is None:
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("subscriptions.manage_billing",),
+            page_key="system-configuration",
+        )
+    destination = (
+        "/saas/subscription?organization_uuid="
+        + quote_plus(billing_context["organization_uuid"])
+    )
+    return RedirectResponse(destination, status_code=302)
 
 
 def _location_api_user_or_response(request: Request, db: Session):

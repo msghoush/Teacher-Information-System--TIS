@@ -1,12 +1,12 @@
 knowledge_impact: yes
-summary: Unify active subscription capacity management across branches, system users, and teachers while preserving branch-only Paddle quantity and provider-authoritative lifecycle rules.
+summary: Clarify paid branch quantity versus plan ceilings, remove unapproved plan feature copy, and add a permission-safe operational and landing entry into Organization Account billing.
 affected_areas:
   - subscription-capacity
-  - plan-upgrades
-  - scheduled-downgrades
-  - quantity-changes
   - subscription-portal
-  - paddle-webhook-reconciliation
+  - organization-account
+  - operational-system-configuration
+  - authentication-continuation
+  - landing-navigation
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/TIS_MASTER_CONTEXT.md
