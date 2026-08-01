@@ -1,12 +1,11 @@
 knowledge_impact: yes
-summary: Clarify paid branch quantity versus plan ceilings, remove unapproved plan feature copy, and add a permission-safe operational and landing entry into Organization Account billing.
+summary: Add explicit organization billing identity, Paddle Business mappings, and distinct provider payment-received presentation without changing webhook completion authority.
 affected_areas:
-  - subscription-capacity
+  - billing-identity
+  - paddle-customer-business
+  - initial-checkout
   - subscription-portal
-  - organization-account
-  - operational-system-configuration
-  - authentication-continuation
-  - landing-navigation
+  - subscription-change-lifecycle
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/TIS_MASTER_CONTEXT.md

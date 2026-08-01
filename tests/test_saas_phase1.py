@@ -3828,6 +3828,21 @@ class SaaSPhase1Tests(unittest.TestCase):
             patch("saas.paddle_client.list_customers_by_email") as list_customers,
             patch("saas.paddle_client.create_customer") as create_customer,
             patch(
+                "saas.paddle_client.find_or_create_customer_address",
+                return_value={
+                    "id": "add_existing_local_123",
+                    "customer_id": "ctm_existing_local_123",
+                },
+            ),
+            patch("saas.paddle_client.list_customer_businesses", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer_business",
+                return_value={
+                    "id": "biz_existing_local_123",
+                    "customer_id": "ctm_existing_local_123",
+                },
+            ),
+            patch(
                 "saas.paddle_client.create_transaction",
                 return_value={
                     "id": "txn_reuse_local_123",
@@ -3836,7 +3851,17 @@ class SaaSPhase1Tests(unittest.TestCase):
                 },
             ) as create_transaction,
         ):
-            response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+            response = self.client.post(
+                f"/saas/onboarding/{org_uuid}/checkout/launch",
+                data={
+                    "csrf_token": self.client.cookies.get(service.SAAS_CSRF_COOKIE),
+                    "billing_email": "reuse-local@academy.edu",
+                    "billing_organization_name": "Reuse Academy",
+                    "billing_contact_name": "Reuse Local",
+                    "country_code": "SA",
+                },
+                follow_redirects=False,
+            )
 
         self.assertEqual(response.status_code, 302)
         list_customers.assert_not_called()
@@ -3876,6 +3901,21 @@ class SaaSPhase1Tests(unittest.TestCase):
             patch("saas.paddle_client.list_customers_by_email", return_value=[remote_customer]) as list_customers,
             patch("saas.paddle_client.create_customer") as create_customer,
             patch(
+                "saas.paddle_client.find_or_create_customer_address",
+                return_value={
+                    "id": "add_remote_link_123",
+                    "customer_id": "ctm_remote_link_123",
+                },
+            ),
+            patch("saas.paddle_client.list_customer_businesses", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer_business",
+                return_value={
+                    "id": "biz_remote_link_123",
+                    "customer_id": "ctm_remote_link_123",
+                },
+            ),
+            patch(
                 "saas.paddle_client.create_transaction",
                 return_value={
                     "id": "txn_remote_link_123",
@@ -3884,7 +3924,17 @@ class SaaSPhase1Tests(unittest.TestCase):
                 },
             ) as create_transaction,
         ):
-            response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+            response = self.client.post(
+                f"/saas/onboarding/{org_uuid}/checkout/launch",
+                data={
+                    "csrf_token": self.client.cookies.get(service.SAAS_CSRF_COOKIE),
+                    "billing_email": "remote-link@academy.edu",
+                    "billing_organization_name": "Remote Link Academy",
+                    "billing_contact_name": "Remote Link",
+                    "country_code": "SA",
+                },
+                follow_redirects=False,
+            )
 
         self.assertEqual(response.status_code, 302)
         list_customers.assert_called_once_with("remote-link@academy.edu")

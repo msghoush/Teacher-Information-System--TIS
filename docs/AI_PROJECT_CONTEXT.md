@@ -83,6 +83,32 @@ may be released to the public payment launcher. Provider diagnostics and
 readiness failures remain logged server-side with tracebacks; customers
 receive one structured safe alert without provider or internal details.
 
+## Organization Billing Identity
+
+Organization billing identity is explicit persisted organization state, not an
+alias for the authenticated user's login identity. `OrganizationBillingProfile`
+owns the confirmed billing email, legal/billing name, contact, optional company
+and tax identifiers, and the supported billing address fields. Initial checkout
+requires this profile. Authorized organization owners or users with
+`subscriptions.manage_billing` may update it from Subscription Management;
+changing it does not change login credentials, and changing login credentials
+does not change billing identity.
+
+`PaymentCustomer` persists the mapped Paddle customer plus
+`provider_address_id` and `provider_business_id`. TIS synchronizes explicit
+billing changes to the mapped customer, reuses
+or updates one tenant-attributable active Paddle Business, updates the active
+subscription's customer/address/business identity, and includes the mapped
+business in new initial transactions. Ambiguous or failed synchronization fails
+closed with customer-safe guidance and server-side diagnostics. Existing
+financial documents are never silently rewritten; updated details primarily
+apply to future billing documents.
+
+Paddle transaction states remain distinct. `paid` records that money was
+received and is displayed as `Payment received - processing`; it does not
+complete subscription reconciliation. `completed` remains the authoritative
+processed-payment signal and is displayed as `Paid`.
+
 ## Organization Profile Save And Pending Logo Safety
 
 Organization Profile accepts National, International, and Both through a
@@ -296,6 +322,7 @@ Key files and folders:
 - `saas/subscription_change_service.py`, `saas/subscription_plan_change_service.py`, and `saas/subscription_cancellation_service.py`: provider-authoritative quantity, plan, and cancellation workflows.
 - `saas/subscription_lifecycle_service.py`: centralized lifecycle state and allowed-action policy.
 - `saas/billing_history_service.py`: provider-sourced billing history and short-lived invoice download resolution.
+- `saas/billing_identity_service.py`: explicit organization billing profile validation and Paddle customer/address/business synchronization.
 - `saas/payment_lifecycle_reconciliation_service.py`: guarded reconciliation for attributable finalized payment evidence.
 - `scripts/sync_paddle_price_ids.py`: environment-specific Paddle initial checkout price mapping sync into `subscription_plan_prices.provider_price_id`.
 - `templates/`: Jinja templates.

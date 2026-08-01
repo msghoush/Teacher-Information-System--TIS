@@ -88,18 +88,64 @@ def list_customers_by_email(email: str) -> list[dict]:
     return _request_list("GET", "/customers", params={"email": cleaned})
 
 
-def update_customer(*, customer_id: str, custom_data: dict) -> dict:
+def update_customer(
+    *,
+    customer_id: str,
+    email: str | None = None,
+    name: str | None = None,
+    custom_data: dict | None = None,
+) -> dict:
     cleaned_customer_id = str(customer_id or "").strip()
     if not cleaned_customer_id:
         raise ValueError("Paddle customer ID is required.")
+    payload = {}
+    if email is not None:
+        cleaned_email = str(email or "").strip()
+        if not cleaned_email:
+            raise ValueError("Paddle customer email is required.")
+        payload["email"] = cleaned_email
+    if name is not None:
+        payload["name"] = str(name or "").strip() or None
+    if custom_data is not None:
+        payload["custom_data"] = custom_data
+    if not payload:
+        raise ValueError("At least one Paddle customer field is required.")
     return _request(
         "PATCH",
         f"/customers/{cleaned_customer_id}",
-        {"custom_data": custom_data},
+        payload,
     )
 
 
-def create_customer_address(*, customer_id: str, country_code: str) -> dict:
+def _address_payload(
+    *,
+    country_code: str,
+    region: str | None = None,
+    city: str | None = None,
+    first_line: str | None = None,
+    second_line: str | None = None,
+) -> dict:
+    payload = {"country_code": str(country_code or "").strip().upper()}
+    for key, value in (
+        ("region", region),
+        ("city", city),
+        ("first_line", first_line),
+        ("second_line", second_line),
+    ):
+        cleaned = str(value or "").strip()
+        payload[key] = cleaned or None
+    return payload
+
+
+def create_customer_address(
+    *,
+    customer_id: str,
+    country_code: str,
+    region: str | None = None,
+    city: str | None = None,
+    first_line: str | None = None,
+    second_line: str | None = None,
+) -> dict:
     cleaned_customer_id = str(customer_id or "").strip()
     cleaned_country_code = str(country_code or "").strip().upper()
     if not cleaned_customer_id.startswith("ctm_"):
@@ -109,7 +155,40 @@ def create_customer_address(*, customer_id: str, country_code: str) -> dict:
     return _request(
         "POST",
         f"/customers/{cleaned_customer_id}/addresses",
-        {"country_code": cleaned_country_code},
+        _address_payload(
+            country_code=cleaned_country_code,
+            region=region,
+            city=city,
+            first_line=first_line,
+            second_line=second_line,
+        ),
+    )
+
+
+def update_customer_address(
+    *,
+    customer_id: str,
+    address_id: str,
+    country_code: str,
+    region: str | None = None,
+    city: str | None = None,
+    first_line: str | None = None,
+    second_line: str | None = None,
+) -> dict:
+    cleaned_customer_id = str(customer_id or "").strip()
+    cleaned_address_id = str(address_id or "").strip()
+    if not cleaned_customer_id.startswith("ctm_") or not cleaned_address_id.startswith("add_"):
+        raise ValueError("Paddle customer and address IDs are required.")
+    return _request(
+        "PATCH",
+        f"/customers/{cleaned_customer_id}/addresses/{cleaned_address_id}",
+        _address_payload(
+            country_code=country_code,
+            region=region,
+            city=city,
+            first_line=first_line,
+            second_line=second_line,
+        ),
     )
 
 
@@ -124,26 +203,113 @@ def list_customer_addresses(*, customer_id: str) -> list[dict]:
     )
 
 
-def find_or_create_customer_address(*, customer_id: str, country_code: str) -> dict:
+def find_or_create_customer_address(
+    *,
+    customer_id: str,
+    country_code: str,
+    region: str | None = None,
+    city: str | None = None,
+    first_line: str | None = None,
+    second_line: str | None = None,
+) -> dict:
     cleaned_customer_id = str(customer_id or "").strip()
     cleaned_country_code = str(country_code or "").strip().upper()
     if not cleaned_customer_id.startswith("ctm_"):
         raise ValueError("Paddle customer ID is required.")
     if len(cleaned_country_code) != 2 or not cleaned_country_code.isalpha():
         raise ValueError("A two-letter country code is required for Paddle checkout.")
+    expected = _address_payload(
+        country_code=cleaned_country_code,
+        region=region,
+        city=city,
+        first_line=first_line,
+        second_line=second_line,
+    )
     for address in list_customer_addresses(customer_id=cleaned_customer_id):
         if (
             isinstance(address, dict)
             and str(address.get("status") or "active").strip().lower() == "active"
             and str(address.get("customer_id") or "").strip() == cleaned_customer_id
-            and str(address.get("country_code") or "").strip().upper()
-            == cleaned_country_code
+            and all(
+                str(address.get(key) or "").strip().casefold()
+                == str(value or "").strip().casefold()
+                for key, value in expected.items()
+            )
             and str(address.get("id") or "").strip().startswith("add_")
         ):
             return address
     return create_customer_address(
         customer_id=cleaned_customer_id,
         country_code=cleaned_country_code,
+        region=region,
+        city=city,
+        first_line=first_line,
+        second_line=second_line,
+    )
+
+
+def list_customer_businesses(*, customer_id: str) -> list[dict]:
+    cleaned_customer_id = str(customer_id or "").strip()
+    if not cleaned_customer_id.startswith("ctm_"):
+        raise ValueError("Paddle customer ID is required.")
+    return _request_list(
+        "GET",
+        f"/customers/{cleaned_customer_id}/businesses",
+        params={"status": "active", "per_page": 200},
+    )
+
+
+def _business_payload(
+    *,
+    name: str,
+    company_number: str | None = None,
+    tax_identifier: str | None = None,
+    contact_name: str | None = None,
+    contact_email: str | None = None,
+    custom_data: dict | None = None,
+) -> dict:
+    cleaned_name = str(name or "").strip()
+    if not cleaned_name:
+        raise ValueError("Paddle business name is required.")
+    payload = {
+        "name": cleaned_name,
+        "company_number": str(company_number or "").strip() or None,
+        "tax_identifier": str(tax_identifier or "").strip() or None,
+        "contacts": [],
+    }
+    if custom_data:
+        payload["custom_data"] = custom_data
+    cleaned_email = str(contact_email or "").strip()
+    if cleaned_email:
+        payload["contacts"] = [{
+            "name": str(contact_name or "").strip() or cleaned_name,
+            "email": cleaned_email,
+        }]
+    return payload
+
+
+def create_customer_business(*, customer_id: str, **details) -> dict:
+    cleaned_customer_id = str(customer_id or "").strip()
+    if not cleaned_customer_id.startswith("ctm_"):
+        raise ValueError("Paddle customer ID is required.")
+    return _request(
+        "POST",
+        f"/customers/{cleaned_customer_id}/businesses",
+        _business_payload(**details),
+    )
+
+
+def update_customer_business(
+    *, customer_id: str, business_id: str, **details
+) -> dict:
+    cleaned_customer_id = str(customer_id or "").strip()
+    cleaned_business_id = str(business_id or "").strip()
+    if not cleaned_customer_id.startswith("ctm_") or not cleaned_business_id.startswith("biz_"):
+        raise ValueError("Paddle customer and business IDs are required.")
+    return _request(
+        "PATCH",
+        f"/customers/{cleaned_customer_id}/businesses/{cleaned_business_id}",
+        _business_payload(**details),
     )
 
 
@@ -203,6 +369,7 @@ def _validate_billed_checkout_transaction(
     transaction_id: str,
     customer_id: str,
     address_id: str,
+    business_id: str | None = None,
 ) -> None:
     checkout_url = str(((transaction.get("checkout") or {}).get("url")) or "").strip()
     if (
@@ -212,6 +379,10 @@ def _validate_billed_checkout_transaction(
         != "automatic"
         or str(transaction.get("customer_id") or "").strip() != customer_id
         or str(transaction.get("address_id") or "").strip() != address_id
+        or (
+            business_id is not None
+            and str(transaction.get("business_id") or "").strip() != business_id
+        )
         or not checkout_url
     ):
         raise PaddleAPIError(
@@ -229,6 +400,9 @@ def create_transaction(
     quote_fingerprint: str,
     custom_data: dict | None = None,
     checkout_url: str | None = None,
+    address_id: str | None = None,
+    business_id: str | None = None,
+    billing_address: dict | None = None,
 ) -> dict:
     try:
         validated_quantity = int(quantity)
@@ -236,18 +410,26 @@ def create_transaction(
         raise ValueError("Paddle transaction quantity must be a positive integer.") from exc
     if validated_quantity < 1:
         raise ValueError("Paddle transaction quantity must be a positive integer.")
-    address = find_or_create_customer_address(
-        customer_id=customer_id,
-        country_code=country_code,
-    )
-    address_id = str(address.get("id") or "").strip()
-    if not address_id.startswith("add_"):
+    resolved_address_id = str(address_id or "").strip()
+    if not resolved_address_id:
+        address_kwargs = dict(billing_address or {})
+        address = find_or_create_customer_address(
+            customer_id=customer_id,
+            country_code=country_code,
+            **address_kwargs,
+        )
+        resolved_address_id = str(address.get("id") or "").strip()
+    if not resolved_address_id.startswith("add_"):
         raise PaddleAPIError("Paddle did not create the checkout address.")
+    cleaned_business_id = str(business_id or "").strip() or None
+    if cleaned_business_id is not None and not cleaned_business_id.startswith("biz_"):
+        raise ValueError("Paddle business ID is invalid.")
     normalized_custom_data = dict(custom_data or {})
     normalized_custom_data["quote_fingerprint"] = str(quote_fingerprint or "").strip()
     payload = {
         "customer_id": customer_id,
-        "address_id": address_id,
+        "address_id": resolved_address_id,
+        "business_id": cleaned_business_id,
         "items": [{"price_id": price_id, "quantity": validated_quantity}],
         "collection_mode": "automatic",
         "custom_data": normalized_custom_data,
@@ -269,7 +451,8 @@ def create_transaction(
         billed_transaction,
         transaction_id=transaction_id,
         customer_id=str(customer_id or "").strip(),
-        address_id=address_id,
+        address_id=resolved_address_id,
+        business_id=cleaned_business_id,
     )
     return billed_transaction
 
@@ -399,6 +582,36 @@ def update_subscription(
             "items": _subscription_items(items),
             "proration_billing_mode": mode,
             "on_payment_failure": payment_failure,
+        },
+    )
+
+
+def update_subscription_billing_identity(
+    *,
+    subscription_id: str,
+    customer_id: str,
+    address_id: str,
+    business_id: str,
+) -> dict:
+    cleaned_subscription_id = str(subscription_id or "").strip()
+    cleaned_customer_id = str(customer_id or "").strip()
+    cleaned_address_id = str(address_id or "").strip()
+    cleaned_business_id = str(business_id or "").strip()
+    if not cleaned_subscription_id.startswith("sub_"):
+        raise ValueError("Paddle subscription ID is required.")
+    if not cleaned_customer_id.startswith("ctm_"):
+        raise ValueError("Paddle customer ID is required.")
+    if not cleaned_address_id.startswith("add_"):
+        raise ValueError("Paddle address ID is required.")
+    if not cleaned_business_id.startswith("biz_"):
+        raise ValueError("Paddle business ID is required.")
+    return _request(
+        "PATCH",
+        f"/subscriptions/{cleaned_subscription_id}",
+        {
+            "customer_id": cleaned_customer_id,
+            "address_id": cleaned_address_id,
+            "business_id": cleaned_business_id,
         },
     )
 

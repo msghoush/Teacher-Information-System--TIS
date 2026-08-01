@@ -980,10 +980,10 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         self._assert_finalized_initial_lifecycle(fixture, initial)
         db = self.Session()
         try:
-            self.assertEqual(
-                db.query(saas.models.SubscriptionChangeRequest).get(row_id).status,
-                "payment_pending",
-            )
+            paid_change = db.query(saas.models.SubscriptionChangeRequest).get(row_id)
+            self.assertEqual(paid_change.status, "payment_pending")
+            self.assertIsNotNone(paid_change.provider_payment_received_at)
+            self.assertIsNone(paid_change.provider_payment_confirmed_at)
         finally:
             db.close()
 
@@ -996,6 +996,8 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
             change = db.query(saas.models.SubscriptionChangeRequest).get(row_id)
             subscription = db.query(saas.models.PaymentSubscription).get(fixture["subscription_id"])
             self.assertEqual(change.status, "confirmed")
+            self.assertIsNotNone(change.provider_payment_received_at)
+            self.assertIsNotNone(change.provider_payment_confirmed_at)
             self.assertEqual(subscription.quantity, 4)
         finally:
             db.close()

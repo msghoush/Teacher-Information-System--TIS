@@ -48,6 +48,13 @@
     .portal-section h2 { margin:0; color:var(--brand-dark); font-size:21px; letter-spacing:0; }
     .portal-section-head p { margin:5px 0 0; color:var(--muted); }
     .subscription-actions { display:flex; flex-wrap:wrap; gap:10px; }
+    .billing-contact-panel { border:1px solid #d6e1ed; border-radius:8px; background:#fbfdff; padding:18px; }
+    .billing-contact-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; }
+    .billing-contact-grid label { display:block; margin-bottom:6px; color:#40556f; font-size:12px; font-weight:850; }
+    .billing-contact-grid input { width:100%; }
+    .billing-contact-note { margin:14px 0 0; color:var(--muted); font-size:12px; line-height:1.5; }
+    .billing-contact-actions { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-top:16px; }
+    .billing-contact-sync { color:var(--muted); font-size:12px; }
     .billing-summary-grid { display:grid; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:10px; }
     .billing-summary-item { position:relative; min-width:0; overflow:hidden; border:1px solid #d6e1ed; border-radius:8px; background:#fbfdff; padding:15px 16px; transition:border-color .18s ease, background-color .18s ease, transform .18s ease; }
     .billing-summary-item::before { position:absolute; inset:0 auto 0 0; width:3px; background:#b7cde5; content:""; }
@@ -71,6 +78,8 @@
     .billing-status.is-paid::before, .billing-status.is-completed::before { background:#27836a; }
     .billing-status.is-pending, .billing-status.is-billed { border-color:#bfd4e9; background:#f0f6fc; color:#315f8e; }
     .billing-status.is-pending::before, .billing-status.is-billed::before { background:#5387b8; }
+    .billing-status.is-processing { border-color:#e6d3ae; background:#fbf7ee; color:#775d2b; }
+    .billing-status.is-processing::before { background:#a97925; }
     .billing-status.is-payment-failed, .billing-status.is-failed, .billing-status.is-rejected { border-color:#ebc5ca; background:#fcf3f4; color:#933545; }
     .billing-status.is-payment-failed::before, .billing-status.is-failed::before, .billing-status.is-rejected::before { background:#b65362; }
     .billing-status.is-refunded, .billing-status.is-canceled, .billing-status.is-reversed { border-color:#d5dce4; background:#f5f7f9; color:#5e6977; }
@@ -125,7 +134,7 @@
         .plan-overview { padding:19px 16px; }
         .plan-overview h2 { font-size:26px; }
         .recurring-price strong { font-size:30px; }
-        .overview-facts, .supporting-metrics, .pending-details, .billing-summary-grid, .capacity-usage-grid { grid-template-columns:1fr; }
+        .overview-facts, .supporting-metrics, .pending-details, .billing-summary-grid, .capacity-usage-grid, .billing-contact-grid { grid-template-columns:1fr; }
         .lifecycle-badge, .pending-status { white-space:normal; }
         .subscription-actions, .subscription-actions .btn { width:100%; }
         .billing-table th, .billing-table td { padding:13px 14px; }
@@ -204,7 +213,7 @@
         <p>{% if subscription_portal.pending_change.message %}{{ subscription_portal.pending_change.message }}{% else %}Your current plan remains active until the provider confirms the requested plan change.{% endif %}</p>
         {% else %}
         <p>Requested paid branches: {{ subscription_portal.pending_change.requested_quantity }}.</p>
-        <p>Your confirmed branch capacity remains active until the provider confirms this request.</p>
+        <p>{% if subscription_portal.pending_change.message %}{{ subscription_portal.pending_change.message }}{% else %}Your confirmed branch capacity remains active until the provider confirms this request.{% endif %}</p>
         {% endif %}
         <div class="pending-details">
             <div class="pending-detail"><span>Current State</span><strong>{{ subscription_portal.status_label }}</strong></div>
@@ -224,6 +233,39 @@
             <form method="post" action="/saas/subscription/cancellation/undo"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn" type="submit">Keep Subscription</button></form>
             {% endif %}
         </div>
+    </section>
+    {% endif %}
+
+    {% if billing_contact %}
+    <section class="portal-section" aria-labelledby="billing-contact-title">
+        <div class="portal-section-head">
+            <div>
+                <h2 id="billing-contact-title">Billing Contact</h2>
+                <p>Paddle receipts, invoices, and billing notifications will be sent using these billing details.</p>
+            </div>
+        </div>
+        <form class="billing-contact-panel" method="post" action="/saas/subscription/billing-contact">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="organization_uuid" value="{{ billing_organization_uuid }}">
+            <input type="hidden" name="country_name" value="{{ billing_contact.country_name }}">
+            <div class="billing-contact-grid">
+                <div><label for="portal_billing_email">Billing email</label><input id="portal_billing_email" name="billing_email" type="email" value="{{ billing_contact.billing_email }}" maxlength="180" required></div>
+                <div><label for="portal_billing_organization_name">Legal or billing organization name</label><input id="portal_billing_organization_name" name="billing_organization_name" value="{{ billing_contact.billing_organization_name }}" maxlength="180" required></div>
+                <div><label for="portal_billing_contact_name">Billing contact name <span class="optional-label">Optional</span></label><input id="portal_billing_contact_name" name="billing_contact_name" value="{{ billing_contact.billing_contact_name }}" maxlength="180"></div>
+                <div><label for="portal_company_number">Company or registration number <span class="optional-label">Optional</span></label><input id="portal_company_number" name="company_number" value="{{ billing_contact.company_number }}" maxlength="180"></div>
+                <div><label for="portal_tax_identifier">Tax or VAT identifier <span class="optional-label">Optional</span></label><input id="portal_tax_identifier" name="tax_identifier" value="{{ billing_contact.tax_identifier }}" maxlength="180"></div>
+                <div><label for="portal_country_code">Billing country code</label><input id="portal_country_code" name="country_code" value="{{ billing_contact.country_code }}" maxlength="2" required></div>
+                <div><label for="portal_region_name">Region <span class="optional-label">Optional</span></label><input id="portal_region_name" name="region_name" value="{{ billing_contact.region_name }}" maxlength="160"></div>
+                <div><label for="portal_city_name">City <span class="optional-label">Optional</span></label><input id="portal_city_name" name="city_name" value="{{ billing_contact.city_name }}" maxlength="160"></div>
+                <div><label for="portal_district_name">District <span class="optional-label">Optional</span></label><input id="portal_district_name" name="district_name" value="{{ billing_contact.district_name }}" maxlength="160"></div>
+                <div><label for="portal_neighborhood_name">Neighborhood <span class="optional-label">Optional</span></label><input id="portal_neighborhood_name" name="neighborhood_name" value="{{ billing_contact.neighborhood_name }}" maxlength="160"></div>
+            </div>
+            <p class="billing-contact-note">Updated details apply primarily to future billing documents. Existing receipts and invoices are not revised automatically.</p>
+            <div class="billing-contact-actions">
+                <span class="billing-contact-sync">Billing details: {% if billing_contact.sync_status == "synced" %}Synchronized{% elif billing_contact.sync_status == "failed" %}Needs retry{% else %}Not synchronized yet{% endif %}</span>
+                <button class="btn" type="submit">Save Billing Contact</button>
+            </div>
+        </form>
     </section>
     {% endif %}
 
@@ -260,7 +302,7 @@
                 <thead><tr><th>Date</th><th>Description</th><th class="amount">Amount</th><th>Currency</th><th>Payment Status</th><th>Transaction Type</th></tr></thead>
                 <tbody>
                     {% for entry in billing_history.history %}
-                    {% set status_class = entry.status_label|lower|replace(" ", "-") %}
+                    {% set status_class = "processing" if entry.status_label == "Payment received — processing" else entry.status_label|lower|replace(" ", "-") %}
                     {% set description_lower = entry.description|lower %}
                     {% set transaction_lower = entry.transaction_type_label|lower %}
                     {% if "refund" in description_lower %}{% set transaction_label = "Refund" %}{% set transaction_class = "refund" %}

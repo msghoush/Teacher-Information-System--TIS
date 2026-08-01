@@ -7,6 +7,31 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-01 - Explicit Organization Billing Identity
+
+Billing & Subscription now stores one explicit organization billing profile
+covering billing email, legal/billing name, contact, optional company and tax
+identifiers, and the supported address structure. This authority is independent
+from SaaS login email. Initial checkout confirms it, while active-tenant changes
+require organization ownership or `subscriptions.manage_billing` and revalidate
+tenant/provider linkage.
+
+TIS reuses the mapped Paddle customer, synchronizes authorized email/name
+changes, creates or reuses one attributable active Paddle Business, persists
+the Paddle address/business mappings, updates the active subscription identity,
+and includes `business_id` on future initial checkout transactions. Ambiguous
+mapping and provider failures fail closed. Existing financial documents are not
+silently revised.
+
+Provider transaction presentation now distinguishes `paid` as Payment received
+- processing from `completed` as Paid. Subscription change requests record the
+payment-received timestamp separately, show that no customer action is required
+while provider processing finishes, and retain the existing `completed`
+reconciliation authority. Additive migration
+`20260801_001_organization_billing_identity` creates
+`organization_billing_profiles`, adds Paddle address/business mapping columns,
+and adds the separate payment-received timestamp.
+
 ## 2026-08-01 - Subscription Capacity Presentation And Billing Navigation
 
 Subscription pages now separate confirmed paid branch quantity from the current

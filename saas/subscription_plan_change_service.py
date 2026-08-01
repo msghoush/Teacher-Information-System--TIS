@@ -659,11 +659,15 @@ def reconcile_plan_change_webhook(db: Session, payload: dict, event_type: str):
             row.status = "manual_review"; row.failure_code = "provider_transaction_mismatch"
             return {"status": "manual_review", "event_type": event_type}
         if event_type == "transaction.paid":
+            row.provider_payment_received_at = (
+                row.provider_payment_received_at or changes._utcnow()
+            )
             return {"status": "processed", "event_type": event_type}
         if event_type in {"transaction.payment_failed", "transaction.past_due"} and row.change_type == UPGRADE:
             row.status = "failed"; row.failure_code = "provider_payment_failed"
             return {"status": "processed", "event_type": event_type}
         if event_type == "transaction.completed" and row.change_type == UPGRADE and _clean(data.get("status")).lower() == "completed":
+            row.provider_payment_received_at = row.provider_payment_received_at or changes._utcnow()
             row.provider_payment_confirmed_at = row.provider_payment_confirmed_at or changes._utcnow()
             if row.provider_observed_price_id == row.target_provider_price_id:
                 if not _apply_confirmed(db, row, subscription):

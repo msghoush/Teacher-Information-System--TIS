@@ -19,7 +19,7 @@ from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import ai_feature_registry, billing_history_service, billing_service, branch_pricing_quote_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import ai_feature_registry, billing_history_service, billing_identity_service, billing_service, branch_pricing_quote_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 
 logger = logging.getLogger(__name__)
@@ -1658,6 +1658,11 @@ def subscription_portal(
             )
         return response
     portal = subscription_portal_service.build_subscription_portal(db, account)
+    billing_contact = None
+    if selected_access is not None and selected_access.organization is not None:
+        billing_contact = billing_identity_service.billing_identity_form(
+            db, selected_access.organization, account
+        )
     billing_history = None
     try:
         billing_history = billing_history_service.build_billing_history(db, account, portal)
@@ -1669,6 +1674,10 @@ def subscription_portal(
         {
             "account": account,
             "subscription_portal": portal,
+            "billing_contact": billing_contact,
+            "billing_organization_uuid": (
+                selected_access.organization_uuid if selected_access else ""
+            ),
             "billing_history": billing_history,
             "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
             "notice": request.query_params.get("notice", ""),
@@ -1690,6 +1699,102 @@ def subscription_portal(
             ),
         )
     return response
+
+
+@router.post("/subscription/billing-contact")
+def update_subscription_billing_contact(
+    request: Request,
+    organization_uuid: str = Form(...),
+    billing_email: str = Form(""),
+    billing_organization_name: str = Form(""),
+    billing_contact_name: str = Form(""),
+    company_number: str = Form(""),
+    tax_identifier: str = Form(""),
+    country_code: str = Form(""),
+    country_name: str = Form(""),
+    region_name: str = Form(""),
+    city_name: str = Form(""),
+    district_name: str = Form(""),
+    neighborhood_name: str = Form(""),
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(
+        request,
+        db,
+        next_path=(
+            "/saas/subscription?organization_uuid="
+            + quote_plus(str(organization_uuid or "").strip())
+        ),
+    )
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    _accesses, selected_access = (
+        customer_journey_service.select_organization_account_access(
+            db,
+            account,
+            organization_uuid=str(organization_uuid or "").strip(),
+        )
+    )
+    if (
+        selected_access is None
+        or not selected_access.can_manage_billing
+        or selected_access.organization is None
+    ):
+        raise HTTPException(status_code=403, detail="Billing access is not available.")
+    organization = selected_access.organization
+    setattr(account, "_selected_school_group_id", int(selected_access.school_group.id))
+    destination = (
+        "/saas/subscription?organization_uuid="
+        + quote_plus(selected_access.organization_uuid)
+    )
+    try:
+        context = billing_history_service.resolve_billing_context(db, account)
+        if int(context.school_group_id) != int(selected_access.school_group.id):
+            raise billing_identity_service.BillingIdentityError(
+                "Billing identity does not match this organization."
+            )
+        if context.customer is None:
+            raise billing_identity_service.BillingIdentityError(
+                "The billing provider customer mapping is unavailable."
+            )
+        billing_identity_service.save_billing_profile(
+            db,
+            organization,
+            billing_email=billing_email,
+            billing_organization_name=billing_organization_name,
+            billing_contact_name=billing_contact_name,
+            company_number=company_number,
+            tax_identifier=tax_identifier,
+            country_code=country_code,
+            country_name=country_name,
+            region_name=region_name,
+            city_name=city_name,
+            district_name=district_name,
+            neighborhood_name=neighborhood_name,
+        )
+        billing_identity_service.sync_active_subscription_billing_identity(
+            db,
+            account=account,
+            organization=organization,
+            subscription=context.subscription,
+            payment_customer=context.customer,
+        )
+        db.commit()
+    except billing_identity_service.BillingIdentitySyncError as exc:
+        db.commit()
+        return _redirect_error(destination, str(exc))
+    except (
+        billing_identity_service.BillingIdentityError,
+        billing_history_service.BillingHistoryAccessError,
+    ) as exc:
+        db.rollback()
+        return _redirect_error(destination, str(exc))
+    return RedirectResponse(
+        destination + "&notice=" + quote_plus("Billing contact updated for future billing."),
+        status_code=302,
+    )
 
 
 @router.post("/subscription/demo/select")
@@ -1823,10 +1928,9 @@ def request_subscription_cancellation(
     csrf_token: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    account, session_row, redirect = _require_verified_account(request, db)
+    account, _session_row, redirect = _require_verified_account(request, db)
     if redirect:
         return redirect
-    _require_saas_csrf(session_row, csrf_token)
     try:
         subscription_cancellation_service.request_cancellation(db, account)
         db.commit()
@@ -3454,6 +3558,10 @@ def checkout_summary_step(
     context.update({
         "error": safe_error,
         "notice": notice,
+        "billing_contact": billing_identity_service.billing_identity_form(
+            db, organization, account
+        ),
+        "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
         "setup_console": _payment_setup_console(
             db,
             account,
@@ -3538,11 +3646,24 @@ def _prepare_checkout_for_launch_if_needed(db: Session, account, organization):
 def launch_checkout_step(
     organization_uuid: str,
     request: Request,
+    billing_email: str = Form(...),
+    billing_organization_name: str = Form(...),
+    billing_contact_name: str = Form(""),
+    company_number: str = Form(""),
+    tax_identifier: str = Form(""),
+    country_code: str = Form(...),
+    country_name: str = Form(""),
+    region_name: str = Form(""),
+    city_name: str = Form(""),
+    district_name: str = Form(""),
+    neighborhood_name: str = Form(""),
+    csrf_token: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    account, _session_row, redirect = _require_verified_account(request, db)
+    account, session_row, redirect = _require_verified_account(request, db)
     if redirect:
         return redirect
+    _require_saas_csrf(session_row, csrf_token)
     organization = service.get_owned_pending_organization(db, account, organization_uuid)
     if not organization:
         db.rollback()
@@ -3552,6 +3673,31 @@ def launch_checkout_step(
         db.commit()
         return closed_redirect
     try:
+        submitted = billing_identity_service.billing_identity_form(
+            db, organization, account
+        )
+        billing_identity_service.save_billing_profile(
+            db,
+            organization,
+            billing_email=billing_email or submitted.billing_email,
+            billing_organization_name=(
+                billing_organization_name
+                or submitted.billing_organization_name
+            ),
+            billing_contact_name=(
+                billing_contact_name or submitted.billing_contact_name
+            ),
+            company_number=company_number or submitted.company_number,
+            tax_identifier=tax_identifier or submitted.tax_identifier,
+            country_code=country_code or submitted.country_code,
+            country_name=country_name or submitted.country_name,
+            region_name=region_name or submitted.region_name,
+            city_name=city_name or submitted.city_name,
+            district_name=district_name or submitted.district_name,
+            neighborhood_name=(
+                neighborhood_name or submitted.neighborhood_name
+            ),
+        )
         _prepare_checkout_for_launch_if_needed(db, account, organization)
         launch = payment_service.launch_checkout(db, organization, account, request)
         service.update_pending_dashboard_status(account, organization, service.recalculate_pending_progress(db, organization))
@@ -3570,6 +3716,12 @@ def launch_checkout_step(
         return _redirect_error(
             f"/saas/onboarding/{organization_uuid}/checkout",
             payment_service.CUSTOMER_SAFE_PAYMENT_ACCOUNT_MESSAGE,
+        )
+    except billing_identity_service.BillingIdentitySyncError as exc:
+        db.rollback()
+        return _redirect_error(
+            f"/saas/onboarding/{organization_uuid}/checkout",
+            str(exc),
         )
     except paddle_client.PaddleAPIError as exc:
         logger.error(

@@ -119,7 +119,7 @@ def _status_label(value) -> str:
     status = _clean(value).lower()
     return {
         "billed": "Billed",
-        "paid": "Paid",
+        "paid": "Payment received — processing",
         "completed": "Paid",
         "past_due": "Payment Failed",
         "canceled": "Canceled",

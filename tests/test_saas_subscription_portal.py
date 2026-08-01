@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -17,8 +17,10 @@ import models
 import saas.models
 from dependencies import get_db
 from saas import (
+    billing_identity_service,
     entitlement_service,
     paddle_client,
+    payment_service,
     service,
     subscription_change_service,
     subscription_plan_change_service,
@@ -211,6 +213,54 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
     def _open(self, fixture):
         self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
         return self.client.get("/saas/subscription", follow_redirects=False)
+
+    def _attach_billing_identity(self, fixture, *, billing_email="billing@academy.edu"):
+        db = self.Session()
+        try:
+            subscription = db.get(
+                saas.models.PaymentSubscription, fixture["subscription_id"]
+            )
+            organization = db.get(
+                saas.models.PendingOrganization,
+                subscription.pending_organization_id,
+            )
+            customer = saas.models.PaymentCustomer(
+                pending_organization_id=organization.id,
+                saas_account_id=fixture["account_id"],
+                provider="paddle",
+                provider_customer_id=f"ctm_{uuid.uuid4().hex}",
+                email=billing_email,
+                name="Academy Billing",
+                country_code="LB",
+                status="active",
+            )
+            db.add(customer)
+            db.flush()
+            subscription.payment_customer_id = customer.id
+            profile = billing_identity_service.save_billing_profile(
+                db,
+                organization,
+                billing_email=billing_email,
+                billing_organization_name="Academy Legal Name",
+                billing_contact_name="Academy Billing",
+                company_number="REG-100",
+                tax_identifier="VAT-200",
+                country_code="LB",
+                country_name="Lebanon",
+                region_name="Beirut",
+                city_name="Beirut",
+                district_name="Central District",
+                neighborhood_name="Education Quarter",
+            )
+            db.commit()
+            return {
+                "organization_uuid": organization.organization_uuid,
+                "customer_id": customer.id,
+                "provider_customer_id": customer.provider_customer_id,
+                "profile_id": profile.id,
+            }
+        finally:
+            db.close()
 
     def _add_change(
         self,
@@ -414,7 +464,7 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
                 "change_type": subscription_change_service.INCREASE,
                 "status": "payment_pending",
                 "requested_quantity": 5,
-                "expected": ("Pending branch-capacity change", "Payment confirmation pending", "5", "Active"),
+                "expected": ("Pending branch-capacity change", "Payment is still pending", "5", "Active"),
             },
         )
         for case in cases:
@@ -603,6 +653,7 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.assertEqual(template.count('class="billing-summary-item"'), 5)
         self.assertIn('class="transaction-badge is-{{ transaction_class }}"', template)
         self.assertIn('class="billing-status is-{{ status_class }}"', template)
+        self.assertIn('entry.status_label == "Payment received — processing"', template)
         self.assertIn('icon("download", "invoice-download-icon")', template)
         self.assertIn("Need additional capacity?", template)
         self.assertIn("@media (prefers-reduced-motion:reduce)", template)
@@ -808,6 +859,523 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.assertLess(history_section.index("July 18, 2027"), history_section.index("July 17, 2027"))
         self.assertLess(history_section.index("July 17, 2027"), history_section.index("July 16, 2027"))
         self.assertLess(history_section.index("July 16, 2027"), history_section.index("July 01, 2027"))
+
+    def test_billing_contact_is_independent_and_synchronizes_customer_business_and_subscription(self):
+        fixture = self._create_subscription(
+            plan_code="professional", quantity=4, active_branches=2
+        )
+        identity = self._attach_billing_identity(
+            fixture, billing_email="old-billing@academy.edu"
+        )
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+        self.client.cookies.set(service.SAAS_CSRF_COOKIE, fixture["csrf_token"])
+        business_id = f"biz_{uuid.uuid4().hex}"
+        address_id = f"add_{uuid.uuid4().hex}"
+        provider_subscription_id = None
+        db = self.Session()
+        try:
+            subscription = db.get(
+                saas.models.PaymentSubscription, fixture["subscription_id"]
+            )
+            provider_subscription_id = subscription.provider_subscription_id
+        finally:
+            db.close()
+        with (
+            patch.object(
+                paddle_client,
+                "update_customer",
+                return_value={"id": identity["provider_customer_id"]},
+            ) as update_customer,
+            patch.object(
+                paddle_client,
+                "find_or_create_customer_address",
+                return_value={
+                    "id": address_id,
+                    "customer_id": identity["provider_customer_id"],
+                },
+            ),
+            patch.object(paddle_client, "list_customer_businesses", return_value=[]),
+            patch.object(
+                paddle_client,
+                "create_customer_business",
+                return_value={
+                    "id": business_id,
+                    "customer_id": identity["provider_customer_id"],
+                },
+            ) as create_business,
+            patch.object(
+                paddle_client,
+                "update_subscription_billing_identity",
+                return_value={
+                    "id": provider_subscription_id,
+                    "customer_id": identity["provider_customer_id"],
+                    "address_id": address_id,
+                    "business_id": business_id,
+                },
+            ) as update_subscription_identity,
+            patch("saas.billing_identity_service.audit.write_audit_event"),
+        ):
+            response = self.client.post(
+                "/saas/subscription/billing-contact",
+                data={
+                    "csrf_token": fixture["csrf_token"],
+                    "organization_uuid": identity["organization_uuid"],
+                    "billing_email": "accounts@academy.edu",
+                    "billing_organization_name": "Academy Legal Entity",
+                    "billing_contact_name": "Accounts Team",
+                    "company_number": "REG-200",
+                    "tax_identifier": "VAT-300",
+                    "country_code": "LB",
+                    "country_name": "Lebanon",
+                    "region_name": "Beirut",
+                    "city_name": "Beirut",
+                    "district_name": "Central District",
+                    "neighborhood_name": "Education Quarter",
+                },
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 302)
+        update_customer.assert_called_once_with(
+            customer_id=identity["provider_customer_id"],
+            email="accounts@academy.edu",
+            name="Accounts Team",
+        )
+        create_business.assert_called_once()
+        self.assertEqual(
+            create_business.call_args.kwargs["name"], "Academy Legal Entity"
+        )
+        update_subscription_identity.assert_called_once_with(
+            subscription_id=provider_subscription_id,
+            customer_id=identity["provider_customer_id"],
+            address_id=address_id,
+            business_id=business_id,
+        )
+        db = self.Session()
+        try:
+            account = db.get(saas.models.SaaSAccount, fixture["account_id"])
+            profile = db.get(
+                saas.models.OrganizationBillingProfile, identity["profile_id"]
+            )
+            customer = db.get(saas.models.PaymentCustomer, identity["customer_id"])
+            self.assertEqual(account.email, fixture["email"])
+            self.assertEqual(profile.billing_email, "accounts@academy.edu")
+            self.assertEqual(profile.provider_sync_status, "synced")
+            self.assertEqual(customer.provider_business_id, business_id)
+            self.assertEqual(customer.provider_address_id, address_id)
+        finally:
+            db.close()
+
+    def test_initial_paddle_customer_uses_confirmed_billing_email_not_login_email(self):
+        account_data = self._create_account(email="login-owner@academy.edu")
+        db = self.Session()
+        try:
+            account = db.get(saas.models.SaaSAccount, account_data["account_id"])
+            organization = saas.models.PendingOrganization(
+                organization_uuid=str(uuid.uuid4()),
+                owner_saas_account_id=account.id,
+                organization_name="Billing Authority Academy",
+                country_code="LB",
+            )
+            db.add(organization)
+            db.flush()
+            billing_identity_service.save_billing_profile(
+                db,
+                organization,
+                billing_email="invoices@academy.edu",
+                billing_organization_name="Billing Authority Academy SAL",
+                billing_contact_name="Finance Office",
+                country_code="LB",
+            )
+            db.commit()
+            provider_customer_id = f"ctm_{uuid.uuid4().hex}"
+            with (
+                patch.object(paddle_client, "list_customers_by_email", return_value=[]),
+                patch.object(
+                    paddle_client,
+                    "create_customer",
+                    return_value={
+                        "id": provider_customer_id,
+                        "email": "invoices@academy.edu",
+                        "name": "Finance Office",
+                        "status": "active",
+                    },
+                ) as create_customer,
+            ):
+                customer = payment_service._find_or_create_payment_customer(
+                    db, organization, account
+                )
+            create_customer.assert_called_once_with(
+                email="invoices@academy.edu",
+                name="Finance Office",
+                custom_data={
+                    "pending_organization_uuid": organization.organization_uuid,
+                    "saas_account_uuid": account.account_uuid,
+                },
+            )
+            self.assertEqual(customer.email, "invoices@academy.edu")
+            self.assertNotEqual(customer.email, account.email)
+        finally:
+            db.close()
+
+    def test_new_checkout_transaction_sends_mapped_business_id(self):
+        business_id = f"biz_{uuid.uuid4().hex}"
+        address_id = f"add_{uuid.uuid4().hex}"
+        ready = {
+            "id": "txn_business_ready",
+            "status": "ready",
+            "items": [{"price": {"id": "pri_business"}, "quantity": 2}],
+            "details": {"totals": {"subtotal": "5800"}},
+            "custom_data": {"quote_fingerprint": "business-quote"},
+        }
+        billed = {
+            "id": "txn_business_ready",
+            "status": "billed",
+            "collection_mode": "automatic",
+            "customer_id": "ctm_business_customer",
+            "address_id": address_id,
+            "business_id": business_id,
+            "checkout": {"url": "https://checkout.test/?_ptxn=txn_business_ready"},
+        }
+        with patch.object(
+            paddle_client, "_request", side_effect=[ready, billed]
+        ) as request_call:
+            paddle_client.create_transaction(
+                customer_id="ctm_business_customer",
+                price_id="pri_business",
+                quantity=2,
+                country_code="LB",
+                expected_subtotal=5800,
+                quote_fingerprint="business-quote",
+                address_id=address_id,
+                business_id=business_id,
+            )
+        payload = request_call.call_args_list[0].args[2]
+        self.assertEqual(payload["address_id"], address_id)
+        self.assertEqual(payload["business_id"], business_id)
+
+    def test_billing_identity_migration_is_additive_and_idempotent(self):
+        with self.engine.begin() as connection:
+            db_migrations._organization_billing_identity(
+                self.engine, connection
+            )
+            db_migrations._organization_billing_identity(
+                self.engine, connection
+            )
+        inspector = inspect(self.engine)
+        self.assertIn("organization_billing_profiles", inspector.get_table_names())
+        payment_customer_columns = {
+            column["name"]
+            for column in inspector.get_columns("payment_customers")
+        }
+        change_columns = {
+            column["name"]
+            for column in inspector.get_columns("subscription_change_requests")
+        }
+        self.assertIn("provider_address_id", payment_customer_columns)
+        self.assertIn("provider_business_id", payment_customer_columns)
+        self.assertIn("provider_payment_received_at", change_columns)
+
+    def test_existing_mapped_business_is_updated_without_creating_duplicate(self):
+        fixture = self._create_subscription(
+            plan_code="starter", quantity=1, active_branches=1
+        )
+        identity = self._attach_billing_identity(fixture)
+        db = self.Session()
+        try:
+            customer = db.get(saas.models.PaymentCustomer, identity["customer_id"])
+            profile = db.get(
+                saas.models.OrganizationBillingProfile, identity["profile_id"]
+            )
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=identity["organization_uuid"]
+            ).one()
+            customer.provider_address_id = f"add_{uuid.uuid4().hex}"
+            customer.provider_business_id = f"biz_{uuid.uuid4().hex}"
+            db.commit()
+            expected_address_id = customer.provider_address_id
+            expected_business_id = customer.provider_business_id
+            with (
+                patch.object(
+                    paddle_client,
+                    "update_customer_address",
+                    return_value={
+                        "id": expected_address_id,
+                        "customer_id": customer.provider_customer_id,
+                    },
+                ),
+                patch.object(
+                    paddle_client,
+                    "update_customer_business",
+                    return_value={
+                        "id": expected_business_id,
+                        "customer_id": customer.provider_customer_id,
+                    },
+                ) as update_business,
+                patch.object(paddle_client, "create_customer_business") as create_business,
+            ):
+                address_id, business_id = (
+                    billing_identity_service.ensure_provider_billing_identity(
+                        db, organization, customer
+                    )
+                )
+            self.assertEqual(address_id, expected_address_id)
+            self.assertEqual(business_id, expected_business_id)
+            update_business.assert_called_once()
+            create_business.assert_not_called()
+            self.assertEqual(profile.billing_email, "billing@academy.edu")
+        finally:
+            db.close()
+
+    def test_ambiguous_paddle_business_matches_fail_closed(self):
+        fixture = self._create_subscription(
+            plan_code="professional", quantity=2, active_branches=1
+        )
+        identity = self._attach_billing_identity(fixture)
+        db = self.Session()
+        try:
+            customer = db.get(
+                saas.models.PaymentCustomer, identity["customer_id"]
+            )
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=identity["organization_uuid"]
+            ).one()
+            address_id = f"add_{uuid.uuid4().hex}"
+            matches = [
+                {
+                    "id": f"biz_{uuid.uuid4().hex}",
+                    "customer_id": identity["provider_customer_id"],
+                    "status": "active",
+                    "custom_data": {
+                        "pending_organization_uuid": identity["organization_uuid"]
+                    },
+                }
+                for _index in range(2)
+            ]
+            with (
+                patch.object(
+                    paddle_client,
+                    "find_or_create_customer_address",
+                    return_value={
+                        "id": address_id,
+                        "customer_id": identity["provider_customer_id"],
+                    },
+                ),
+                patch.object(
+                    paddle_client,
+                    "list_customer_businesses",
+                    return_value=matches,
+                ),
+                patch.object(paddle_client, "create_customer_business") as create,
+                patch.object(paddle_client, "update_customer_business") as update,
+            ):
+                with self.assertRaises(
+                    billing_identity_service.BillingIdentitySyncError
+                ) as blocked:
+                    billing_identity_service.ensure_provider_billing_identity(
+                        db, organization, customer
+                    )
+            self.assertEqual(
+                blocked.exception.reason_code,
+                "ambiguous_provider_business_mapping",
+            )
+            create.assert_not_called()
+            update.assert_not_called()
+        finally:
+            db.close()
+
+    def test_login_email_change_does_not_change_confirmed_billing_email(self):
+        fixture = self._create_subscription(
+            plan_code="starter", quantity=1, active_branches=1
+        )
+        identity = self._attach_billing_identity(
+            fixture, billing_email="billing-only@academy.edu"
+        )
+        db = self.Session()
+        try:
+            account = db.get(saas.models.SaaSAccount, fixture["account_id"])
+            account.email = "new-login@academy.edu"
+            account.email_normalized = "new-login@academy.edu"
+            db.commit()
+            profile = db.get(
+                saas.models.OrganizationBillingProfile, identity["profile_id"]
+            )
+            self.assertEqual(profile.billing_email, "billing-only@academy.edu")
+            self.assertEqual(
+                profile.billing_email_normalized, "billing-only@academy.edu"
+            )
+        finally:
+            db.close()
+
+    def test_unchanged_billing_contact_preserves_synchronized_mapping(self):
+        fixture = self._create_subscription(
+            plan_code="starter", quantity=1, active_branches=1
+        )
+        identity = self._attach_billing_identity(fixture)
+        synced_at = datetime(2027, 7, 22, 10, 30)
+        db = self.Session()
+        try:
+            profile = db.get(
+                saas.models.OrganizationBillingProfile, identity["profile_id"]
+            )
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=identity["organization_uuid"]
+            ).one()
+            profile.provider_sync_status = "synced"
+            profile.provider_synced_at = synced_at
+            db.commit()
+
+            billing_identity_service.save_billing_profile(
+                db,
+                organization,
+                billing_email="billing@academy.edu",
+                billing_organization_name="Academy Legal Name",
+                billing_contact_name="Academy Billing",
+                company_number="REG-100",
+                tax_identifier="VAT-200",
+                country_code="LB",
+                country_name="Lebanon",
+                region_name="Beirut",
+                city_name="Beirut",
+                district_name="Central District",
+                neighborhood_name="Education Quarter",
+            )
+            self.assertEqual(profile.provider_sync_status, "synced")
+            self.assertEqual(profile.provider_synced_at, synced_at)
+        finally:
+            db.close()
+
+    def test_billing_contact_update_rejects_cross_tenant_and_unauthorized_access(self):
+        first = self._create_subscription(
+            plan_code="professional", quantity=2, active_branches=1
+        )
+        second = self._create_subscription(
+            plan_code="enterprise_ai", quantity=2, active_branches=1
+        )
+        first_identity = self._attach_billing_identity(first)
+        second_identity = self._attach_billing_identity(second)
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, first["session_token"])
+        self.client.cookies.set(service.SAAS_CSRF_COOKIE, first["csrf_token"])
+        payload = {
+            "csrf_token": first["csrf_token"],
+            "organization_uuid": second_identity["organization_uuid"],
+            "billing_email": "cross-tenant@academy.edu",
+            "billing_organization_name": "Wrong Tenant",
+            "country_code": "LB",
+        }
+        with patch.object(paddle_client, "update_customer") as provider_call:
+            denied = self.client.post(
+                "/saas/subscription/billing-contact",
+                data=payload,
+                follow_redirects=False,
+            )
+        self.assertEqual(denied.status_code, 403)
+        provider_call.assert_not_called()
+
+        db = self.Session()
+        try:
+            link = db.query(saas.models.SaaSAccountUserLink).filter_by(
+                saas_account_id=first["account_id"]
+            ).one()
+            user = db.get(models.User, link.operational_user_id)
+            user.role = auth.ROLE_LIMITED
+            db.commit()
+        finally:
+            db.close()
+        payload["organization_uuid"] = first_identity["organization_uuid"]
+        with patch.object(paddle_client, "update_customer") as provider_call:
+            denied = self.client.post(
+                "/saas/subscription/billing-contact",
+                data=payload,
+                follow_redirects=False,
+            )
+        self.assertEqual(denied.status_code, 302)
+        provider_call.assert_not_called()
+        db = self.Session()
+        try:
+            profile = db.get(
+                saas.models.OrganizationBillingProfile,
+                first_identity["profile_id"],
+            )
+            self.assertEqual(profile.billing_email, "billing@academy.edu")
+        finally:
+            db.close()
+
+    def test_paid_and_completed_provider_statuses_remain_distinct(self):
+        fixture = self._create_subscription(
+            plan_code="professional", quantity=2, active_branches=1
+        )
+        db = self.Session()
+        try:
+            subscription = db.get(
+                saas.models.PaymentSubscription, fixture["subscription_id"]
+            )
+            subscription_id = subscription.provider_subscription_id
+        finally:
+            db.close()
+        transactions = [
+            {
+                "id": "txn_paid_processing",
+                "subscription_id": subscription_id,
+                "status": "paid",
+                "origin": "subscription_update",
+                "collection_mode": "automatic",
+                "billed_at": "2027-07-20T10:00:00Z",
+                "currency_code": "USD",
+                "details": {"totals": {"grand_total": "1000"}},
+                "adjustments": [],
+            },
+            {
+                "id": "txn_completed",
+                "subscription_id": subscription_id,
+                "status": "completed",
+                "origin": "subscription_recurring",
+                "collection_mode": "automatic",
+                "billed_at": "2027-07-19T10:00:00Z",
+                "currency_code": "USD",
+                "details": {"totals": {"grand_total": "2000"}},
+                "adjustments": [],
+            },
+        ]
+        with patch.object(paddle_client, "list_transactions", return_value=transactions):
+            response = self._open(fixture)
+        self.assertIn("Payment received — processing", response.text)
+        self.assertIn(">Paid<", response.text)
+
+    def test_payment_received_pending_update_explains_automatic_processing(self):
+        fixture = self._create_subscription(
+            plan_code="professional", quantity=4, active_branches=2
+        )
+        request_uuid = self._add_change(
+            fixture,
+            change_type=subscription_change_service.INCREASE,
+            status="payment_pending",
+            requested_quantity=5,
+        )
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).filter_by(
+                request_uuid=request_uuid
+            ).one()
+            row.provider_payment_received_at = datetime(2027, 7, 20)
+            db.commit()
+        finally:
+            db.close()
+        response = self._open(fixture)
+        self.assertIn("Subscription update in progress", response.text)
+        self.assertIn("Payment received — processing", response.text)
+        self.assertIn("No action is required", response.text)
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).filter_by(
+                request_uuid=request_uuid
+            ).one()
+            row.status = "confirmed"
+            row.confirmed_at = datetime(2027, 7, 20)
+            db.commit()
+        finally:
+            db.close()
+        confirmed = self._open(fixture)
+        self.assertNotIn("Subscription update in progress", confirmed.text)
 
     def test_empty_billing_history_has_professional_empty_states(self):
         fixture = self._create_subscription(
